@@ -1,0 +1,27 @@
+{
+  "Si": {
+    "pseudopotential": "Si.sssp_eff.upf",
+    "cutoff_wfc": 40,
+    "cutoff_rho": 160
+  },
+  "Fe": {
+    "pseudopotential": "Fe.sssp_eff.upf",
+    "cutoff_wfc": 60,
+    "cutoff_rho": 300
+  },
+  "Ni": {
+    "pseudopotential": "Ni.sssp_eff.upf",
+    "cutoff_wfc": 65,
+    "cutoff_rho": 320
+  },
+  "N": {
+    "pseudopotential": "N.sssp_eff.upf",
+    "cutoff_wfc": 80,
+    "cutoff_rho": 400
+  },
+  "Cr": {
+    "pseudopotential": "Cr.sssp_eff.upf",
+    "cutoff_wfc": 70,
+    "cutoff_rho": 350
+  }
+}
