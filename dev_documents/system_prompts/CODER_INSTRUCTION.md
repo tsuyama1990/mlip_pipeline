@@ -19,7 +19,7 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 ## Constraints & Environment
 - **EXISTING PROJECT**: You are working within an EXISTING project.
 - **CONFIGURATION**:
-    - **DO NOT** overwrite `pyproject.toml`, `uv.lock`, `README.md` with templates (e.g. do not reset the file).
+    - **DO NOT** overwrite `pyproject.toml`, and `uv.lock` with templates (e.g. do not reset the file).
     - **DO** append or add new dependencies/settings to `pyproject.toml` if necessary for the feature.
 - **SOURCE CODE**: Place your code in `src/` (or `dev_src/` if instructed).
 
@@ -59,6 +59,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - **Generate Log**: Save the output of your test run to a file.
   - Command: `pytest > dev_documents/CYCLE{{cycle_id}}/test_execution_log.txt`
   - **NOTE**: The Auditor will check this file. It must show passing tests.
+
+### 5. Update README.md
+- Update `README.md` with the new features and changes.
 
 ## Output Rules
 - **Create all source and test files.**
