@@ -73,6 +73,7 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 - **Generate Log**: Save the output of your test run to a file.
   - Command (Safe): `python -c "import subprocess; from pathlib import Path; p = Path('dev_documents/CYCLE{{cycle_id}}'); p.mkdir(parents=True, exist_ok=True); res = subprocess.run(['pytest'], capture_output=True, text=True); (p / 'test_execution_log.txt').write_text(res.stdout + res.stderr); print(f'✓ Log saved: {p / \"test_execution_log.txt\"}')"`
   - **NOTE**: The Auditor will check this file. It must show passing tests.
+- **Test Coverage**: You must ensure that the test coverage is **85%** or higher for all new code. Use `pytest-cov` to verify this if possible.
 
 ### 5. Update README.md
 - **Update**: Update `README.md` to reflect the changes you have made.
