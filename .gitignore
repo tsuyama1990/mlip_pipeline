@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+.venv/
+venv/
+env/
+
+# OS-specific
+.DS_Store
+
+# Notebooks
+.ipynb_checkpoints
+
+# Coverage
+.coverage
