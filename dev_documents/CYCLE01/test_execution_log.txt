@@ -1,0 +1,32 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0, anyio-4.12.1
+collected 8 items
+
+tests/test_modules/test_a_generator.py .                                 [ 12%]
+tests/test_modules/test_c_dft_factory.py .                               [ 25%]
+tests/test_schemas.py ......                                             [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                          Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                    0      0   100%
+src/mlip_autopipec/modules/__init__.py            0      0   100%
+src/mlip_autopipec/modules/a_generator.py        31     31     0%   2-50
+src/mlip_autopipec/schemas/__init__.py            0      0   100%
+src/mlip_autopipec/schemas/dft.py                13      0   100%
+src/mlip_autopipec/schemas/system_config.py      19      0   100%
+src/mlip_autopipec/schemas/user_config.py        29      4    86%   25-26, 28-29
+src/mlip_autopipec/utils/__init__.py              0      0   100%
+src/mlip_autopipec/utils/ase_utils.py             4      4     0%   1-9
+src/mlip_autopipec/utils/qe_utils.py             29     29     0%   1-52
+---------------------------------------------------------------------------
+TOTAL                                           125     68    46%
+============================== 8 passed in 2.33s ===============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
