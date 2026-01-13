@@ -4,7 +4,17 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic",
+    "typer[all]",
+    "pyyaml",
+    "ase",
+    "pymatgen",
+    "icet",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "mypy"]
 
 [tool.ruff]
 target-version = "py311"
@@ -85,5 +95,6 @@ addopts = "--cov=dev_src --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 strict = true
 ignore_missing_imports = true
