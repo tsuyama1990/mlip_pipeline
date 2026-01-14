@@ -4,22 +4,26 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlip_autopipec.config.system import DFTParams, Pseudopotentials, SystemConfig
+from mlip_autopipec.config_schemas import (
+    DFTConfig,
+    DFTExecutable,
+    DFTInput,
+    DFTSystem,
+    SystemConfig,
+)
 
 
 @pytest.fixture
 def sample_system_config() -> SystemConfig:
     """Provide a sample SystemConfig for a Nickel calculation."""
-    dft_params = DFTParams(
-        pseudopotentials=Pseudopotentials(root={"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"}),
-        system={
-            "nat": 1,
-            "ntyp": 1,
-            "ecutwfc": 60.0,
-            "nspin": 2,
-        },
+    dft_config = DFTConfig(
+        executable=DFTExecutable(command="mock_pw.x"),
+        input=DFTInput(
+            pseudopotentials={"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"},
+            system=DFTSystem(nat=1, ntyp=1, ecutwfc=60.0, nspin=2),
+        ),
     )
-    return SystemConfig(dft=dft_params, db_path="test.db")
+    return SystemConfig(dft=dft_config, db_path="test.db")
 
 
 @pytest.fixture

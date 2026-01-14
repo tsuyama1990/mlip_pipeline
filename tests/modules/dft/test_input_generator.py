@@ -2,7 +2,7 @@
 
 from ase import Atoms
 
-from mlip_autopipec.config.system import SystemConfig
+from mlip_autopipec.config_schemas import SystemConfig
 from mlip_autopipec.modules.dft.input_generator import QEInputGenerator
 
 
@@ -10,7 +10,7 @@ def test_qeinputgenerator_generate(
     sample_system_config: SystemConfig, sample_atoms: Atoms
 ) -> None:
     """Test the generation of the QE input file content."""
-    generator = QEInputGenerator(sample_system_config)
+    generator = QEInputGenerator(sample_system_config.dft)
     input_content = generator.generate(sample_atoms)
 
     assert "&CONTROL" in input_content

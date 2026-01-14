@@ -4,7 +4,7 @@ from typing import Any
 
 from ase import Atoms
 
-from mlip_autopipec.config.system import SystemConfig
+from mlip_autopipec.config_schemas import DFTConfig
 
 
 class QEInputGenerator:
@@ -15,7 +15,7 @@ class QEInputGenerator:
     input file for a `pw.x` calculation.
     """
 
-    def __init__(self, config: SystemConfig) -> None:
+    def __init__(self, config: DFTConfig) -> None:
         """Initialize the QEInputGenerator.
 
         Args:
@@ -40,16 +40,20 @@ class QEInputGenerator:
             The formatted input file content as a string.
 
         """
-        dft = self.config.dft
-        dft.system.nat = len(atoms)
-        dft.system.ntyp = len(dft.pseudopotentials.root)
+        dft_input = self.config.input
+        dft_input.system.nat = len(atoms)
+        dft_input.system.ntyp = len(dft_input.pseudopotentials)
 
         # Build the input file string section by section
-        control_part = self._format_namelist("CONTROL", dft.control.model_dump())
-        system_part = self._format_namelist("SYSTEM", dft.system.model_dump())
-        electrons_part = self._format_namelist("ELECTRONS", dft.electrons.model_dump())
+        control_part = self._format_namelist(
+            "CONTROL", dft_input.control.model_dump()
+        )
+        system_part = self._format_namelist("SYSTEM", dft_input.system.model_dump())
+        electrons_part = self._format_namelist(
+            "ELECTRONS", dft_input.electrons.model_dump()
+        )
 
-        species_part = self._format_atomic_species(dft.pseudopotentials.root)
+        species_part = self._format_atomic_species(dft_input.pseudopotentials)
         positions_part = self._format_atomic_positions(atoms)
         kpoints_part = "K_POINTS {automatic}\n  1 1 1 0 0 0\n"
         cell_part = self._format_cell_parameters(atoms)

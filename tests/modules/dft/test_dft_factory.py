@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from ase import Atoms
 
-from mlip_autopipec.config.system import SystemConfig
+from mlip_autopipec.config_schemas import SystemConfig
 from mlip_autopipec.modules.dft.factory import DFTFactory
 
 
@@ -22,7 +22,7 @@ def test_dftfactory_run_orchestration(
     mock_generate.return_value = "dummy input file content"
     mock_parse.return_value = {"energy": -1.0, "forces": [[0, 0, 0]], "stress": [0] * 6}
 
-    factory = DFTFactory(sample_system_config)
+    factory = DFTFactory(sample_system_config.dft)
     result_atoms = factory.run(sample_atoms)
 
     mock_generate.assert_called_once_with(sample_atoms)

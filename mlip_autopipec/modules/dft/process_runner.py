@@ -4,7 +4,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from mlip_autopipec.config.system import SystemConfig
+from mlip_autopipec.config_schemas import DFTExecutable
 from mlip_autopipec.modules.dft.exceptions import DFTCalculationError
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class QEProcessRunner:
     """A robust runner for executing Quantum Espresso (pw.x) calculations."""
 
-    def __init__(self, config: SystemConfig) -> None:
+    def __init__(self, config: DFTExecutable) -> None:
         """Initialize the QEProcessRunner.
 
         Args:
@@ -33,7 +33,7 @@ class QEProcessRunner:
             DFTCalculationError: If pw.x returns a non-zero exit code.
 
         """
-        command = [self.config.dft.command, "-in", str(input_path)]
+        command = [self.config.command, "-in", str(input_path)]
         logger.info("Executing DFT command: %s", " ".join(command))
         # The use of subprocess.run is secure because `shell=False` is the
         # default and the command is passed as a list, preventing shell

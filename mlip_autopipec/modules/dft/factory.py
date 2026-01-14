@@ -1,10 +1,11 @@
 """Module for the DFTFactory orchestrator."""
 
 import logging
+from pathlib import Path
 
 from ase import Atoms
 
-from mlip_autopipec.config.system import SystemConfig
+from mlip_autopipec.config_schemas import DFTConfig
 from mlip_autopipec.modules.dft.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft.file_manager import QEFileManager
 from mlip_autopipec.modules.dft.input_generator import QEInputGenerator
@@ -17,16 +18,18 @@ logger = logging.getLogger(__name__)
 class DFTFactory:
     """A factory for running DFT calculations."""
 
-    def __init__(self, config: SystemConfig) -> None:
+    def __init__(self, config: DFTConfig, base_work_dir: Path | None = None) -> None:
         """Initialize the DFTFactory.
 
         Args:
-            config: The fully-expanded system configuration object.
+            config: The DFT-specific configuration object.
+            base_work_dir: The base directory for temporary calculation folders.
 
         """
         self.config = config
+        self.base_work_dir = base_work_dir
         self.input_generator = QEInputGenerator(config)
-        self.process_runner = QEProcessRunner(config)
+        self.process_runner = QEProcessRunner(config.executable)
         self.output_parser = QEOutputParser()
 
     def run(self, atoms: Atoms) -> Atoms:
@@ -49,7 +52,11 @@ class DFTFactory:
             )
 
             results = self.output_parser.parse(file_manager.output_path)
-            atoms.calc.results = results
+            # Use a SinglePointCalculator to store the results, which is the
+            # standard ASE practice for non-MD calculations.
+            from ase.calculators.singlepoint import SinglePointCalculator
+
+            atoms.calc = SinglePointCalculator(atoms, **results)
 
             return atoms
         except DFTCalculationError:

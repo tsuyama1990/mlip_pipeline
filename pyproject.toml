@@ -26,7 +26,6 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
 
 [tool.mypy]
 plugins = "pydantic.mypy"
@@ -46,3 +45,5 @@ ignore = ["D100", "D104", "D107"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.pytest.ini_options]

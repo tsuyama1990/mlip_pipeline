@@ -3,7 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.user import Resources, TargetSystem, UserConfig
+from mlip_autopipec.config_schemas import (
+    DFTConfig,
+    Resources,
+    SystemConfig,
+    TargetSystem,
+    UserConfig,
+)
 
 
 def test_target_system_valid() -> None:
@@ -51,4 +57,38 @@ def test_user_config_extra_field_forbidden() -> None:
     }
     with pytest.raises(ValidationError) as exc_info:
         UserConfig(**data)
+    assert "Extra inputs are not permitted" in str(exc_info.value)
+
+
+def test_pseudopotentials_invalid_element() -> None:
+    """Test that an invalid chemical symbol in pseudopotentials raises an error."""
+    dft_input = {
+        "pseudopotentials": {"Xx": "Xx.UPF"},
+    }
+    with pytest.raises(ValidationError, match="'Xx' is not a valid chemical symbol"):
+        DFTConfig(input=dft_input)
+
+
+def test_system_config_valid() -> None:
+    """Test a valid SystemConfig instantiation."""
+    dft_config = {
+        "input": {"pseudopotentials": {"Si": "Si.UPF"}},
+    }
+    config = SystemConfig(dft=dft_config, db_path="test.db")
+    assert config.db_path == "test.db"
+    assert isinstance(config.dft, DFTConfig)
+    assert config.dft.executable.command == "pw.x"
+
+
+def test_system_config_extra_field_forbidden() -> None:
+    """Test that an extra, undefined field in SystemConfig raises an error."""
+    dft_config = {
+        "input": {"pseudopotentials": {"Si": "Si.UPF"}},
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        SystemConfig(
+            dft=dft_config,
+            db_path="test.db",
+            extra_param="should_fail",
+        )
     assert "Extra inputs are not permitted" in str(exc_info.value)

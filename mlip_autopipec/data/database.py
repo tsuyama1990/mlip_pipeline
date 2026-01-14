@@ -7,7 +7,10 @@ metadata required for the MLIP-AutoPipe workflow.
 from pathlib import Path
 from typing import Any
 
+from ase import Atoms
 from ase.db import connect
+
+from mlip_autopipec.config_schemas import CalculationMetadata
 
 
 class DatabaseManager:
@@ -34,22 +37,24 @@ class DatabaseManager:
             self._connection = connect(self.db_path)  # type: ignore[no-untyped-call]
         return self._connection
 
-    def write_calculation(self, atoms: Any, metadata: dict[str, Any]) -> int:
+    def write_calculation(self, atoms: Atoms, metadata: CalculationMetadata) -> int:
         """Write a calculation result to the database with custom metadata.
 
         Args:
             atoms: The ASE Atoms object with calculation results attached.
-            metadata: A dictionary of custom metadata to store.
+            metadata: A `CalculationMetadata` object containing structured metadata.
 
         Returns:
             The ID of the newly written row.
 
         """
         conn = self.connect()
-        prefixed_metadata = {f"mlip_{k}": v for k, v in metadata.items()}
-        return conn.write(atoms, key_value_pairs=prefixed_metadata)  # type: ignore[no-any-return]
+        prefixed_metadata = {
+            f"mlip_{k}": v for k, v in metadata.model_dump().items()
+        }
+        return conn.write(atoms, key_value_pairs=prefixed_metadata)
 
-    def get_completed_calculations(self) -> list[Any]:
+    def get_completed_calculations(self) -> list[Atoms]:
         """Retrieve all completed calculations from the database.
 
         Returns:

@@ -7,10 +7,13 @@ from unittest.mock import patch
 from ase import Atoms
 from ase.db import connect
 
-from mlip_autopipec.config.system import SystemConfig
-from mlip_autopipec.config.user import UserConfig
+from mlip_autopipec.config_schemas import (
+    CalculationMetadata,
+    SystemConfig,
+    UserConfig,
+)
 from mlip_autopipec.data.database import DatabaseManager
-from mlip_autopipec.modules.dft_factory import DFTFactory
+from mlip_autopipec.modules.dft.factory import DFTFactory
 
 # A canonical, complete Quantum Espresso output that ASE can parse
 SAMPLE_QE_OUTPUT = """
@@ -53,22 +56,30 @@ def main() -> None:
     UserConfig(**user_data)
     print("✓ Successfully created UserConfig from valid data.")
 
+    # We need to import the sub-models to construct the SystemConfig correctly
+    from mlip_autopipec.config_schemas import DFTConfig, DFTInput, DFTSystem
+
     system_config = SystemConfig(
-        dft={
-            "pseudopotentials": {"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"},
-            "system": {"nat": 1, "ntyp": 1, "ecutwfc": 60, "nspin": 2},
-        }
+        dft=DFTConfig(
+            input=DFTInput(
+                pseudopotentials={"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"},
+                system=DFTSystem(nat=1, ntyp=1, ecutwfc=60, nspin=2),
+            )
+        )
     )
     print("✓ Successfully created a SystemConfig.")
 
     # Part 2: Executing a DFT Calculation
     print("\n--- Part 2: Executing a Mocked DFT Calculation ---")
     atoms = Atoms("Ni", positions=[(0, 0, 0)], cell=[10, 10, 10], pbc=True)
-    factory = DFTFactory(system_config)
+    factory = DFTFactory(system_config.dft)
 
+    # We patch the `execute` method of the process runner to avoid running a
+    # real DFT calculation. Instead, it writes our sample output to the file.
     with patch.object(factory.process_runner, "execute") as mock_execute:
 
         def side_effect(input_path: Path, output_path: Path) -> None:
+            print(f"  (Mock) Writing sample QE output to {output_path}")
             output_path.write_text(SAMPLE_QE_OUTPUT)
 
         mock_execute.side_effect = side_effect
@@ -84,16 +95,16 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "uat.db"
         db_manager = DatabaseManager(db_path)
-        metadata = {"config_type": "uat_c01", "custom_id": "abc"}
+        metadata = CalculationMetadata(stage="uat_cycle_01", uuid="abc-123")
 
         db_manager.write_calculation(result_atoms, metadata=metadata)
         print(f"✓ Wrote calculation to temporary database at {db_path}")
 
         # Verify by reading back
-        conn = connect(db_path)  # type: ignore[no-untyped-call]
+        conn = connect(db_path)
         row = conn.get(1)
-        assert row.key_value_pairs["mlip_config_type"] == "uat_c01"
-        assert row.key_value_pairs["mlip_custom_id"] == "abc"
+        assert row.key_value_pairs["mlip_stage"] == "uat_cycle_01"
+        assert row.key_value_pairs["mlip_uuid"] == "abc-123"
         print("✓ Custom metadata was successfully persisted.")
 
     print("\n--- UAT for Cycle 01 Completed Successfully ---")
