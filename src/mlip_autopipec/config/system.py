@@ -54,7 +54,11 @@ class DFTElectronsParams(BaseModel):
 
 
 class Pseudopotentials(RootModel[dict[str, str]]):
-    """A model for storing and validating pseudopotentials."""
+    """A model for storing and validating pseudopotentials.
+
+    Using a `RootModel` is the recommended Pydantic V2 approach for validating
+    the contents of a dictionary-like structure.
+    """
 
     @field_validator("root")
     @classmethod

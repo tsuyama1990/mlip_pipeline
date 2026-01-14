@@ -11,7 +11,9 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from mlip_autopipec.config.system import DFTParams, Pseudopotentials, SystemConfig
 from mlip_autopipec.modules.dft_factory import (
     DFTCalculationError,
+    DFTFactory,
     QEInputGenerator,
+    QEOutputParser,
     QEProcessRunner,
 )
 
@@ -87,24 +89,22 @@ def test_qeinputgenerator_generate(
     assert "Ni 0.0 0.0 0.0" in input_content
 
 
-@patch("mlip_autopipec.modules.dft_factory.QEFileManager")
 @patch("mlip_autopipec.modules.dft_factory.QEInputGenerator.generate")
-@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._execute_pw_x")
-@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._parse_output")
-def test_qeprocessrunner_run_orchestration(
+@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner.execute")
+@patch("mlip_autopipec.modules.dft_factory.QEOutputParser.parse")
+def test_dftfactory_run_orchestration(
     mock_parse: MagicMock,
     mock_execute: MagicMock,
     mock_generate: MagicMock,
-    mock_file_manager: MagicMock,
     sample_system_config: SystemConfig,
     sample_atoms: Atoms,
 ) -> None:
-    """Test that the run method correctly orchestrates its internal calls."""
+    """Test that the DFTFactory correctly orchestrates its components."""
     mock_generate.return_value = "dummy input file content"
     mock_parse.return_value = {"energy": -1.0, "forces": [[0, 0, 0]], "stress": [0] * 6}
 
-    runner = QEProcessRunner(sample_system_config)
-    result_atoms = runner.run(sample_atoms)
+    factory = DFTFactory(sample_system_config)
+    result_atoms = factory.run(sample_atoms)
 
     mock_generate.assert_called_once_with(sample_atoms)
     mock_execute.assert_called_once()
@@ -112,40 +112,13 @@ def test_qeprocessrunner_run_orchestration(
     assert result_atoms.calc.results["energy"] == -1.0
 
 
-@patch("mlip_autopipec.modules.dft_factory.QEFileManager")
-@patch("mlip_autopipec.modules.dft_factory.QEInputGenerator.generate")
-@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._execute_pw_x")
-@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._parse_output")
-def test_qeprocessrunner_run_orchestration_failure(
-    mock_parse: MagicMock,
-    mock_execute: MagicMock,
-    mock_generate: MagicMock,
-    mock_file_manager: MagicMock,
-    sample_system_config: SystemConfig,
-    sample_atoms: Atoms,
-) -> None:
-    """Test that the run method correctly handles a failure in the execution step."""
-    mock_generate.return_value = "dummy input file content"
-    mock_execute.side_effect = DFTCalculationError("Execution failed")
-
-    runner = QEProcessRunner(sample_system_config)
-    with pytest.raises(DFTCalculationError, match="Execution failed"):
-        runner.run(sample_atoms)
-
-    mock_generate.assert_called_once_with(sample_atoms)
-    mock_execute.assert_called_once()
-    mock_parse.assert_not_called()
-
-
-def test_parse_output_happy_path(
-    sample_system_config: SystemConfig, tmp_path: Path
-) -> None:
-    """Test the _parse_output method with a valid QE output file."""
+def test_qeoutputparser_parse_happy_path(tmp_path: Path) -> None:
+    """Test the QEOutputParser with a valid QE output file."""
     output_path = tmp_path / "dft.out"
     output_path.write_text(SAMPLE_QE_OUTPUT)
 
-    runner = QEProcessRunner(sample_system_config)
-    results = runner._parse_output(output_path)
+    parser = QEOutputParser()
+    results = parser.parse(output_path)
 
     assert "energy" in results
     assert results["energy"] == pytest.approx(-13.60569)
@@ -154,17 +127,14 @@ def test_parse_output_happy_path(
 
 
 @patch("subprocess.run")
-def test_qeprocessrunner_run_failure_path(
-    mock_subprocess_run: MagicMock,
-    sample_system_config: SystemConfig,
-    sample_atoms: Atoms,
+def test_qeprocessrunner_execute_failure(
+    mock_subprocess_run: MagicMock, sample_system_config: SystemConfig
 ) -> None:
-    """Test that a non-zero exit code from pw.x raises a DFTCalculationError."""
-    # Mock the subprocess to simulate a failed run
+    """Test that QEProcessRunner raises an error on subprocess failure."""
     mock_subprocess_run.side_effect = subprocess.CalledProcessError(
         returncode=1, cmd="pw.x", stderr="SCF failed to converge"
     )
 
     runner = QEProcessRunner(sample_system_config)
     with pytest.raises(DFTCalculationError, match="DFT calculation failed"):
-        runner.run(sample_atoms)
+        runner.execute(Path("dummy.in"), Path("dummy.out"))

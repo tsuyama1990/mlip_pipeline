@@ -146,97 +146,10 @@ class QEFileManager:
         self._temp_dir.cleanup()
 
 
-class QEProcessRunner:
-    """A robust runner for executing and parsing Quantum Espresso calculations.
+class QEOutputParser:
+    """Parses Quantum Espresso output files."""
 
-    This class orchestrates a single-point DFT calculation. It uses a
-    `QEInputGenerator` to create the input file, runs the `pw.x` executable
-    in a subprocess, and parses the output to extract the energy, forces,
-    and stress.
-    """
-
-    def __init__(self, config: SystemConfig) -> None:
-        """Initialize the QEProcessRunner.
-
-        Args:
-            config: The fully-expanded system configuration object.
-
-        """
-        self.config = config
-        self.input_generator = QEInputGenerator(config)
-
-    def run(self, atoms: Atoms) -> Atoms:
-        """Execute a single-point DFT calculation.
-
-        This method performs the end-to-end process of running a DFT
-        calculation for a given atomic structure. It generates the input file,
-        executes `pw.x`, parses the output, and attaches the results to the
-        input `Atoms` object.
-
-        Args:
-            atoms: The ASE `Atoms` object representing the structure.
-
-        Returns:
-            The input `Atoms` object with calculation results attached to
-            `atoms.calc.results`.
-
-        Raises:
-            DFTCalculationError: If the `pw.x` execution fails or if the
-                                 output cannot be parsed.
-
-        """
-        file_manager = QEFileManager()
-        input_content = self.input_generator.generate(atoms)
-        file_manager.write_input(input_content)
-
-        self._execute_pw_x(file_manager.input_path, file_manager.output_path)
-
-        results = self._parse_output(file_manager.output_path)
-        atoms.calc.results = results
-
-        file_manager.cleanup()
-        return atoms
-
-    def _execute_pw_x(self, input_path: Path, output_path: Path) -> None:
-        """Run the pw.x executable as a subprocess.
-
-        Args:
-            input_path: Path to the QE input file.
-            output_path: Path to write the QE output.
-
-        Raises:
-            DFTCalculationError: If pw.x returns a non-zero exit code.
-
-        """
-        command = [self.config.dft.command, "-in", str(input_path)]
-        logger.info("Executing DFT command: %s", " ".join(command))
-
-        # The use of subprocess.run is secure here because the command is
-        # passed as a list of arguments, and shell=False is the default.
-        # This prevents any possibility of shell injection attacks.
-        try:
-            with open(output_path, "w") as f:
-                subprocess.run(
-                    command,
-                    stdout=f,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                    text=True,
-                )
-        except FileNotFoundError as e:
-            error_message = f"DFT command not found: {self.config.dft.command}"
-            logger.error(error_message)
-            raise DFTCalculationError(error_message) from e
-        except subprocess.CalledProcessError as e:
-            error_message = (
-                f"DFT calculation failed. Exit code: {e.returncode}\nStderr: {e.stderr}"
-            )
-            logger.error(error_message)
-            raise DFTCalculationError(error_message) from e
-
-        logger.info("DFT calculation finished successfully. Output at %s", output_path)
-
-    def _parse_output(self, output_path: Path) -> dict[str, Any]:
+    def parse(self, output_path: Path) -> dict[str, Any]:
         """Parse the output file from Quantum Espresso to extract results.
 
         Args:
@@ -269,3 +182,100 @@ class QEProcessRunner:
             "forces": final_atoms.get_forces(),
             "stress": stress,
         }
+
+
+class QEProcessRunner:
+    """A robust runner for executing Quantum Espresso (pw.x) calculations."""
+
+    def __init__(self, config: SystemConfig) -> None:
+        """Initialize the QEProcessRunner.
+
+        Args:
+            config: The fully-expanded system configuration object.
+
+        """
+        self.config = config
+
+    def execute(self, input_path: Path, output_path: Path) -> None:
+        """Run the pw.x executable as a subprocess.
+
+        Args:
+            input_path: Path to the QE input file.
+            output_path: Path to write the QE output.
+
+        Raises:
+            DFTCalculationError: If pw.x returns a non-zero exit code.
+
+        """
+        command = [self.config.dft.command, "-in", str(input_path)]
+        logger.info("Executing DFT command: %s", " ".join(command))
+        # The use of subprocess.run is secure because `shell=False` is the
+        # default and the command is passed as a list, preventing shell
+        # injection. Additionally, `tempfile.TemporaryDirectory` creates a
+        # secure, private directory, and `pathlib` joins prevent path
+        # traversal attacks (`../`), ensuring files are written within the
+        # temporary directory.
+        try:
+            with open(output_path, "w") as f:
+                subprocess.run(
+                    command,
+                    stdout=f,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                    text=True,
+                )
+        except FileNotFoundError as e:
+            error_message = (
+                f"DFT command '{self.config.dft.command}' not found. "
+                "Ensure Quantum Espresso is installed and in the system's PATH."
+            )
+            logger.error(error_message)
+            raise DFTCalculationError(error_message) from e
+        except subprocess.CalledProcessError as e:
+            error_message = (
+                f"DFT calculation failed with exit code {e.returncode}.\n"
+                f"  Input file: {input_path}\n"
+                f"  Output file: {output_path}\n"
+                f"  Stderr: {e.stderr}"
+            )
+            logger.error(error_message)
+            raise DFTCalculationError(error_message) from e
+        logger.info("DFT calculation finished successfully. Output at %s", output_path)
+
+
+class DFTFactory:
+    """A factory for running DFT calculations."""
+
+    def __init__(self, config: SystemConfig) -> None:
+        """Initialize the DFTFactory.
+
+        Args:
+            config: The fully-expanded system configuration object.
+
+        """
+        self.config = config
+        self.input_generator = QEInputGenerator(config)
+        self.process_runner = QEProcessRunner(config)
+        self.output_parser = QEOutputParser()
+
+    def run(self, atoms: Atoms) -> Atoms:
+        """Run a DFT calculation.
+
+        Args:
+            atoms: The ASE `Atoms` object representing the structure.
+
+        Returns:
+            The input `Atoms` object with calculation results attached.
+
+        """
+        file_manager = QEFileManager()
+        input_content = self.input_generator.generate(atoms)
+        file_manager.write_input(input_content)
+
+        self.process_runner.execute(file_manager.input_path, file_manager.output_path)
+
+        results = self.output_parser.parse(file_manager.output_path)
+        atoms.calc.results = results
+
+        file_manager.cleanup()
+        return atoms

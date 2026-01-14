@@ -10,7 +10,7 @@ from ase.db import connect
 from mlip_autopipec.config.system import SystemConfig
 from mlip_autopipec.config.user import UserConfig
 from mlip_autopipec.data.database import DatabaseManager
-from mlip_autopipec.modules.dft_factory import QEProcessRunner
+from mlip_autopipec.modules.dft_factory import DFTFactory
 
 # A canonical, complete Quantum Espresso output that ASE can parse
 SAMPLE_QE_OUTPUT = """
@@ -64,15 +64,15 @@ def main() -> None:
     # Part 2: Executing a DFT Calculation
     print("\n--- Part 2: Executing a Mocked DFT Calculation ---")
     atoms = Atoms("Ni", positions=[(0, 0, 0)], cell=[10, 10, 10], pbc=True)
-    runner = QEProcessRunner(system_config)
+    factory = DFTFactory(system_config)
 
-    with patch.object(runner, "_execute_pw_x") as mock_execute:
+    with patch.object(factory.process_runner, "execute") as mock_execute:
 
         def side_effect(input_path: Path, output_path: Path) -> None:
             output_path.write_text(SAMPLE_QE_OUTPUT)
 
         mock_execute.side_effect = side_effect
-        result_atoms = runner.run(atoms)
+        result_atoms = factory.run(atoms)
 
     print("✓ Mocked DFT run completed successfully.")
     assert "energy" in result_atoms.calc.results
