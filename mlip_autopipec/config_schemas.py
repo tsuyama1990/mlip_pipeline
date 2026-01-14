@@ -7,6 +7,7 @@ Defines the data structures for user input and internal system configuration.
 from enum import Enum
 from typing import Literal
 
+from ase import Atoms
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -230,3 +231,10 @@ class CalculationMetadata(BaseModel):
         ..., description="The name of the workflow stage that produced the structure."
     )
     uuid: str = Field(..., description="A unique identifier for the calculation run.")
+
+
+class AtomicStructure(BaseModel):
+    """A wrapper for an ASE Atoms object to be used within the system."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    atoms: Atoms

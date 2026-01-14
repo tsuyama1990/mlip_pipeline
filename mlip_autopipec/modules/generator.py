@@ -1,11 +1,12 @@
 """A module for generating initial atomic structures."""
+import logging
 from typing import List
 
 from ase import Atoms
 from icet.tools.structure_generation import generate_sqs
 from pymatgen.core.structure import Structure
 
-from mlip_autopipec.config_schemas import SystemConfig
+from mlip_autopipec.config_schemas import AtomicStructure, SystemConfig
 
 
 class PhysicsInformedGenerator:
@@ -26,19 +27,22 @@ class PhysicsInformedGenerator:
         """
         self.config = config
 
-    def generate(self) -> List[Atoms]:
+    def generate(self) -> List[AtomicStructure]:
         """Generate the initial set of atomic structures.
 
         This method acts as a dispatcher, calling the appropriate generation
         workflow based on the material type specified in the configuration.
 
         Returns:
-            A list of ASE `Atoms` objects representing the generated dataset.
+            A list of `AtomicStructure` objects representing the generated dataset.
 
         """
-        if len(self.config.target_system.elements) > 1:
-            return self._generate_for_alloy()
-        return self._generate_for_crystal()
+        atoms_list = (
+            self._generate_for_alloy()
+            if len(self.config.target_system.elements) > 1
+            else self._generate_for_crystal()
+        )
+        return [AtomicStructure(atoms=atoms) for atoms in atoms_list]
 
     def _generate_for_alloy(self) -> List[Atoms]:
         """Orchestrate the alloy generation protocol.
@@ -64,20 +68,19 @@ class PhysicsInformedGenerator:
             An ASE `Atoms` object representing the SQS structure.
 
         """
-        # This is a simplified placeholder. A real implementation would need more setup.
-        from ase.build import bulk
+        try:
+            from ase.build import bulk
 
-        primitive_structure = bulk(self.config.target_system.elements[0], "fcc", a=4.0)
-
-        # Supercell size from config
-        supercell_size = self.config.generator.alloy.sqs_supercell_size
-
-        # Composition from config
-        composition = self.config.target_system.composition
-
-        # Generate SQS
-        sqs = generate_sqs(primitive_structure, supercell_size, composition)
-        return Atoms(sqs)
+            primitive_structure = bulk(
+                self.config.target_system.elements[0], "fcc", a=4.0
+            )
+            supercell_size = self.config.generator.alloy.sqs_supercell_size
+            composition = self.config.target_system.composition
+            sqs = generate_sqs(primitive_structure, supercell_size, composition)
+            return Atoms(sqs)
+        except Exception as e:
+            logging.exception("Error generating SQS structure: %s", e)
+            raise
 
     def _apply_strains(self, atoms: Atoms) -> List[Atoms]:
         """Apply volumetric and shear strains to a base structure.
@@ -121,21 +124,24 @@ class PhysicsInformedGenerator:
             A list of `Atoms` objects with defects.
 
         """
-        # This is a simplified placeholder.
-        from ase.build import bulk
-        from pymatgen.io.ase import AseAtomsAdaptor
+        try:
+            from ase.build import bulk
+            from pymatgen.io.ase import AseAtomsAdaptor
 
-        atoms = bulk(self.config.target_system.elements[0], "fcc", a=4.0)
-        structure = AseAtomsAdaptor.get_structure(atoms)
+            atoms = bulk(self.config.target_system.elements[0], "fcc", a=4.0)
+            structure = AseAtomsAdaptor.get_structure(atoms)
 
-        defect_structures: List[Structure] = []
-        for defect_type in self.config.generator.crystal.defect_types:
-            if defect_type == "vacancy":
-                defect_structures.extend(
-                    self._create_vacancy(structure)  # type: ignore[arg-type]
-                )
+            defect_structures: List[Structure] = []
+            for defect_type in self.config.generator.crystal.defect_types:
+                if defect_type == "vacancy":
+                    defect_structures.extend(
+                        self._create_vacancy(structure)  # type: ignore[arg-type]
+                    )
 
-        return [AseAtomsAdaptor.get_atoms(s) for s in defect_structures]
+            return [AseAtomsAdaptor.get_atoms(s) for s in defect_structures]
+        except Exception as e:
+            logging.exception("Error generating crystal structures: %s", e)
+            raise
 
     def _create_vacancy(self, structure: Structure) -> List[Structure]:
         """Create single vacancies in the structure.

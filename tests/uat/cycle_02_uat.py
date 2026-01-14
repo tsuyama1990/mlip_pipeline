@@ -59,7 +59,7 @@ def main() -> None:
     assert len(generated_structures) == 4
 
     # Verify composition of one of the final structures
-    final_composition = generated_structures[-1].get_chemical_symbols()
+    final_composition = generated_structures[-1].atoms.get_chemical_symbols()
     assert final_composition.count("Cu") == 1
     assert final_composition.count("Au") == 1
     print("✓ Composition of generated alloy structures is correct.")
@@ -91,8 +91,8 @@ def main() -> None:
     assert len(generated_defects) == 2
 
     # Each generated structure should have one atom removed (2 - 1 = 1 atom)
-    assert len(generated_defects[0]) == 1
-    assert len(generated_defects[1]) == 1
+    assert len(generated_defects[0].atoms) == 1
+    assert len(generated_defects[1].atoms) == 1
     print("✓ Number of atoms in generated defect structures is correct.")
 
     print("\n--- UAT for Cycle 02 Completed Successfully ---")

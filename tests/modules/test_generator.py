@@ -12,6 +12,19 @@ from mlip_autopipec.modules.generator import PhysicsInformedGenerator
 @pytest.fixture
 def base_system_config() -> SystemConfig:
     """Provide a base SystemConfig for testing the generator."""
+    target_system = TargetSystem(
+        elements=["H", "He"], composition={"H": 0.5, "He": 0.5}
+    )
+    # This is a placeholder and will need to be filled in with a valid config
+    return SystemConfig(
+        target_system=target_system,
+        dft={"executable": {}, "input": {"pseudopotentials": {}}},
+    )
+
+
+@pytest.fixture
+def crystal_system_config() -> SystemConfig:
+    """Provide a SystemConfig for testing the crystal generator."""
     target_system = TargetSystem(elements=["H"], composition={"H": 1.0})
     # This is a placeholder and will need to be filled in with a valid config
     return SystemConfig(
@@ -48,14 +61,15 @@ def test_generate_alloy_workflow(
     )
     mock_create_sqs.return_value = mock_sqs_atoms
     generator = PhysicsInformedGenerator(config=base_system_config)
-    structures = generator._generate_for_alloy()
+    structures = generator.generate()
     assert len(structures) == 12
+    assert isinstance(structures[0].atoms, Atoms)
 
 
 @patch("mlip_autopipec.modules.generator.PhysicsInformedGenerator._create_vacancy")
 def test_generate_crystal_workflow(
     mock_create_vacancy: MagicMock,
-    base_system_config: SystemConfig,
+    crystal_system_config: SystemConfig,
 ) -> None:
     """Test the full crystal defect generation workflow with mocking."""
     mock_vacancy = MagicMock()
@@ -64,6 +78,33 @@ def test_generate_crystal_workflow(
     mock_vacancy.species = ["H"]
     mock_vacancy.frac_coords = [[0, 0, 0]]
     mock_create_vacancy.return_value = [mock_vacancy]
-    generator = PhysicsInformedGenerator(config=base_system_config)
-    structures = generator._generate_for_crystal()
+    generator = PhysicsInformedGenerator(config=crystal_system_config)
+    structures = generator.generate()
     assert len(structures) == 1
+    assert isinstance(structures[0].atoms, Atoms)
+
+
+@patch("mlip_autopipec.modules.generator.PhysicsInformedGenerator._generate_for_alloy")
+@patch("mlip_autopipec.modules.generator.PhysicsInformedGenerator._generate_for_crystal")
+def test_generate_dispatch(
+    mock_generate_crystal: MagicMock,
+    mock_generate_alloy: MagicMock,
+    base_system_config: SystemConfig,
+) -> None:
+    """Test that the generate method dispatches to the correct workflow."""
+    # Test alloy case
+    alloy_config = base_system_config.model_copy(deep=True)
+    alloy_config.target_system.elements = ["H", "He"]
+    generator = PhysicsInformedGenerator(config=alloy_config)
+    generator.generate()
+    mock_generate_alloy.assert_called_once()
+    mock_generate_crystal.assert_not_called()
+
+    # Test crystal case
+    mock_generate_alloy.reset_mock()
+    crystal_config = base_system_config.model_copy(deep=True)
+    crystal_config.target_system.elements = ["H"]
+    generator = PhysicsInformedGenerator(config=crystal_config)
+    generator.generate()
+    mock_generate_alloy.assert_not_called()
+    mock_generate_crystal.assert_called_once()
