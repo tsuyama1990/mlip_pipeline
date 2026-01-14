@@ -1,0 +1,25 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0, anyio-4.12.1
+collected 13 items
+
+tests/test_main.py .                                                     [  7%]
+tests/test_modules/test_a_generator.py ..                                [ 23%]
+tests/test_modules/test_c_dft_factory.py ..                              [ 38%]
+tests/test_schemas.py .....                                              [ 76%]
+tests/test_utils.py ...                                                  [100%]
+
+=============================== warnings summary ===============================
+tests/test_modules/test_a_generator.py::test_generate_alloy_sqs_structures
+  /app/.venv/lib/python3.12/site-packages/spglib/cell.py:57: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+tests/test_modules/test_a_generator.py::test_generate_alloy_sqs_structures
+  /app/.venv/lib/python3.12/site-packages/spglib/spg.py:354: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 13 passed, 2 warnings in 2.75s ========================
