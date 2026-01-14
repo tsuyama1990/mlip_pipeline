@@ -1,0 +1,9 @@
+generation_config:
+  generation_type: eos_strain
+project_name: si_eos
+target_system:
+  composition:
+    Si: 1.0
+  crystal_structure: diamond
+  elements:
+  - Si
