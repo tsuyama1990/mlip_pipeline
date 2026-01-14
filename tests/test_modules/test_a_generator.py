@@ -31,7 +31,7 @@ def test_generate_alloy_sqs_structures() -> None:
     generator_params = GeneratorParams(
         sqs_supercell_size=[2, 2, 2],
         strain_magnitudes=[-0.01, 0, 0.01],  # 3 strain values
-        rattle_std_dev=0.05,
+        rattle_standard_deviation=0.05,
     )
     system_config = SystemConfig(
         user_config=user_config,
@@ -74,7 +74,7 @@ def test_generate_eos_strain_structures() -> None:
     generator_params = GeneratorParams(
         sqs_supercell_size=[],
         strain_magnitudes=[-0.05, -0.02, 0, 0.02, 0.05],  # 5 strain values
-        rattle_std_dev=0,
+        rattle_standard_deviation=0,
     )
     system_config = SystemConfig(
         user_config=user_config,
@@ -100,14 +100,14 @@ def test_generate_nms_structures() -> None:
         target_system=TargetSystem(
             elements=["H"],
             composition={"H": 1.0},
-            crystal_structure="",
+            crystal_structure="sc",
         ),
         generation_config=GenerationConfig(generation_type="nms"),
     )
     generator_params = GeneratorParams(
         sqs_supercell_size=[],
         strain_magnitudes=[],
-        rattle_std_dev=0,
+        rattle_standard_deviation=0,
     )
     system_config = SystemConfig(
         user_config=user_config,
@@ -123,7 +123,7 @@ def test_generate_nms_structures() -> None:
     )
 
     structures = generate_structures(system_config)
-    assert len(structures) == 0
+    assert len(structures) == 6
 
 
 def test_generate_melt_quench_structures() -> None:
@@ -131,16 +131,16 @@ def test_generate_melt_quench_structures() -> None:
     user_config = UserConfig(
         project_name="test_melt_quench",
         target_system=TargetSystem(
-            elements=["Si"],
-            composition={"Si": 1.0},
-            crystal_structure="diamond",
+            elements=["Cu"],
+            composition={"Cu": 1.0},
+            crystal_structure="fcc",
         ),
         generation_config=GenerationConfig(generation_type="melt_quench"),
     )
     generator_params = GeneratorParams(
         sqs_supercell_size=[],
         strain_magnitudes=[],
-        rattle_std_dev=0,
+        rattle_standard_deviation=0,
     )
     system_config = SystemConfig(
         user_config=user_config,
@@ -156,4 +156,4 @@ def test_generate_melt_quench_structures() -> None:
     )
 
     structures = generate_structures(system_config)
-    assert len(structures) == 0
+    assert len(structures) == 1

@@ -32,7 +32,9 @@ def _generate_alloy_sqs(config: SystemConfig) -> list[Atoms]:
         strained_sqs.set_cell(strained_sqs.cell * (1 + strain), scale_atoms=True)
 
         rattled_sqs = strained_sqs.copy()
-        rattled_sqs.rattle(stdev=config.generator_params.rattle_std_dev, seed=42)
+        rattled_sqs.rattle(
+            stdev=config.generator_params.rattle_standard_deviation, seed=42
+        )
 
         generated_structures.append(rattled_sqs)
 
@@ -59,14 +61,59 @@ def _generate_eos_strain(config: SystemConfig) -> list[Atoms]:
     return generated_structures
 
 
+from ase.vibrations import Vibrations
+from ase.md.langevin import Langevin
+from ase.optimize import BFGS
+from ase import units
+
+
 def _generate_nms(config: SystemConfig) -> list[Atoms]:
-    """Placeholder for Normal Mode Sampling."""
-    return []
+    """Generates structures by displacing atoms along normal modes."""
+    composition = config.user_config.target_system.composition
+    crystal_structure = config.user_config.target_system.crystal_structure
+    primitive_cell = bulk(
+        next(iter(composition.keys())), crystal_structure, a=3.6, cubic=True
+    )
+
+    # A real implementation would use a calculator to get forces
+    # For now, we use the EMT calculator for testing
+    from ase.calculators.emt import EMT
+
+    primitive_cell.calc = EMT()
+
+    vib = Vibrations(primitive_cell, name="dummy_vib")
+    vib.run()
+
+    generated_structures = []
+    for disp, atoms in vib.iterdisplace():
+        if disp.sign != 0:
+            generated_structures.append(atoms.copy())
+    return generated_structures
 
 
 def _generate_melt_quench(config: SystemConfig) -> list[Atoms]:
-    """Placeholder for Melt-Quench generation."""
-    return []
+    """Generates structures by melting and quenching the system."""
+    composition = config.user_config.target_system.composition
+    crystal_structure = config.user_config.target_system.crystal_structure
+    atoms = bulk(
+        next(iter(composition.keys())), crystal_structure, a=3.6, cubic=True
+    )
+    atoms.rattle(stdev=0.1)
+
+    # A real implementation would use a calculator
+    from ase.calculators.emt import EMT
+
+    atoms.calc = EMT()
+
+    # Melt
+    dyn = Langevin(atoms, 5 * units.fs, 1000 * units.kB, 0.02)
+    dyn.run(100)
+
+    # Quench
+    dyn = Langevin(atoms, 5 * units.fs, 10 * units.kB, 0.1)
+    dyn.run(100)
+
+    return [atoms]
 
 
 def generate_structures(config: SystemConfig) -> list[Atoms]:

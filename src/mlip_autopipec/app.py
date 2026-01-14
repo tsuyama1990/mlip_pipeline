@@ -34,7 +34,7 @@ def run_pipeline(config_path: str) -> None:
             0.02,
             0.05,
         ],  # TODO: make configurable
-        rattle_std_dev=0,
+        rattle_standard_deviation=0,
     )
     system_config = SystemConfig(
         user_config=user_config,
@@ -67,7 +67,7 @@ def run_pipeline(config_path: str) -> None:
             0.02,
             0.05,
         ],  # TODO: make configurable
-        rattle_std_dev=0,
+        rattle_standard_deviation=0,
     )
     system_config = SystemConfig(
         user_config=user_config,
@@ -85,9 +85,10 @@ def run_pipeline(config_path: str) -> None:
                     dft_input = DFTInput(atoms=atoms, dft_params=dft_params)
                     dft_output = dft_runner.run(dft_input)
                     db.write(atoms, data=dft_output.model_dump())
-                except Exception:
+                except Exception as e:
                     logger.exception(
                         "Failed to run DFT calculation for a structure"
                     )
+                    raise e
     else:
         logger.warning("`qe_command` not set, skipping DFT calculations.")

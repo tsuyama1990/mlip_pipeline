@@ -25,7 +25,7 @@ class GeneratorParams(BaseModel):
 
     sqs_supercell_size: list[int]
     strain_magnitudes: list[float]
-    rattle_std_dev: float
+    rattle_standard_deviation: float
     lattice_constant: float | None = None
     cutoffs: list[float] | None = None
 

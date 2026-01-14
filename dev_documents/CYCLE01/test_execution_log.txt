@@ -4,22 +4,58 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0, anyio-4.12.1
-collected 13 items
+collected 20 items
 
-tests/test_main.py .                                                     [  7%]
-tests/test_modules/test_a_generator.py ..                                [ 23%]
-tests/test_modules/test_c_dft_factory.py ..                              [ 38%]
-tests/test_schemas.py .....                                              [ 76%]
+tests/test_cli.py .                                                      [  5%]
+tests/test_modules/test_a_generator.py ....                              [ 25%]
+tests/test_modules/test_a_generator_sqs.py .                             [ 30%]
+tests/test_modules/test_c_dft_factory.py ..                              [ 40%]
+tests/test_modules/test_qe_input_generator.py ..                         [ 50%]
+tests/test_modules/test_qe_output_parser.py .                            [ 55%]
+tests/test_modules/test_qe_process_runner.py .                           [ 60%]
+tests/test_schemas.py .....                                              [ 85%]
 tests/test_utils.py ...                                                  [100%]
 
 =============================== warnings summary ===============================
 tests/test_modules/test_a_generator.py::test_generate_alloy_sqs_structures
+tests/test_modules/test_a_generator_sqs.py::test_generate_alloy_sqs_varied_inputs
   /app/.venv/lib/python3.12/site-packages/spglib/cell.py:57: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
     _set_no_error()
 
 tests/test_modules/test_a_generator.py::test_generate_alloy_sqs_structures
+tests/test_modules/test_a_generator_sqs.py::test_generate_alloy_sqs_varied_inputs
   /app/.venv/lib/python3.12/site-packages/spglib/spg.py:354: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
     _set_no_error()
 
+tests/test_modules/test_a_generator.py::test_generate_melt_quench_structures
+  /app/.venv/lib/python3.12/site-packages/ase/md/md.py:54: FutureWarning: Specify the temperature in K using the 'temperature_K' argument
+    warnings.warn(FutureWarning(w))
+
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================== 13 passed, 2 warnings in 2.75s ========================
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                               Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                         0      0   100%
+src/mlip_autopipec/__main__.py                         3      3     0%   1-4
+src/mlip_autopipec/app.py                             37     24    35%   22-94
+src/mlip_autopipec/cli.py                              8      2    75%   13, 17
+src/mlip_autopipec/modules/__init__.py                 0      0   100%
+src/mlip_autopipec/modules/a_generator.py             76      2    97%   133-134
+src/mlip_autopipec/modules/c_dft_factory.py           34      3    91%   70-72
+src/mlip_autopipec/modules/qe_input_generator.py      15      0   100%
+src/mlip_autopipec/modules/qe_output_parser.py        30      0   100%
+src/mlip_autopipec/modules/qe_process_runner.py        9      0   100%
+src/mlip_autopipec/schemas/__init__.py                 0      0   100%
+src/mlip_autopipec/schemas/dft.py                     12      0   100%
+src/mlip_autopipec/schemas/system_config.py           23      0   100%
+src/mlip_autopipec/schemas/user_config.py             23      0   100%
+src/mlip_autopipec/settings.py                         4      0   100%
+src/mlip_autopipec/utils/__init__.py                   0      0   100%
+src/mlip_autopipec/utils/ase_utils.py                  5      0   100%
+src/mlip_autopipec/utils/logging.py                   10      0   100%
+src/mlip_autopipec/utils/qe_utils.py                   9      0   100%
+--------------------------------------------------------------------------------
+TOTAL                                                298     34    89%
+======================== 20 passed, 5 warnings in 9.64s ========================
