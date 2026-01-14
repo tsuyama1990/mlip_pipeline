@@ -8,7 +8,7 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlip_autopipec.config.system import DFTParams, SystemConfig
+from mlip_autopipec.config.system import DFTParams, Pseudopotentials, SystemConfig
 from mlip_autopipec.modules.dft_factory import (
     DFTCalculationError,
     QEInputGenerator,
@@ -47,7 +47,7 @@ SAMPLE_QE_OUTPUT = """
 def sample_system_config() -> SystemConfig:
     """Provide a sample SystemConfig for a Nickel calculation."""
     dft_params = DFTParams(
-        pseudopotentials={"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"},
+        pseudopotentials=Pseudopotentials(root={"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"}),
         system={
             "nat": 1,
             "ntyp": 1,
@@ -87,6 +87,7 @@ def test_qeinputgenerator_generate(
     assert "Ni 0.0 0.0 0.0" in input_content
 
 
+@patch("mlip_autopipec.modules.dft_factory.QEFileManager")
 @patch("mlip_autopipec.modules.dft_factory.QEInputGenerator.generate")
 @patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._execute_pw_x")
 @patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._parse_output")
@@ -94,6 +95,7 @@ def test_qeprocessrunner_run_orchestration(
     mock_parse: MagicMock,
     mock_execute: MagicMock,
     mock_generate: MagicMock,
+    mock_file_manager: MagicMock,
     sample_system_config: SystemConfig,
     sample_atoms: Atoms,
 ) -> None:
@@ -110,6 +112,7 @@ def test_qeprocessrunner_run_orchestration(
     assert result_atoms.calc.results["energy"] == -1.0
 
 
+@patch("mlip_autopipec.modules.dft_factory.QEFileManager")
 @patch("mlip_autopipec.modules.dft_factory.QEInputGenerator.generate")
 @patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._execute_pw_x")
 @patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._parse_output")
@@ -117,6 +120,7 @@ def test_qeprocessrunner_run_orchestration_failure(
     mock_parse: MagicMock,
     mock_execute: MagicMock,
     mock_generate: MagicMock,
+    mock_file_manager: MagicMock,
     sample_system_config: SystemConfig,
     sample_atoms: Atoms,
 ) -> None:

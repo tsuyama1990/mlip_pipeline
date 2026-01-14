@@ -55,14 +55,14 @@ class QEInputGenerator:
         """
         dft = self.config.dft
         dft.system.nat = len(atoms)
-        dft.system.ntyp = len(dft.pseudopotentials)
+        dft.system.ntyp = len(dft.pseudopotentials.root)
 
         # Build the input file string section by section
         control_part = self._format_namelist("CONTROL", dft.control.model_dump())
         system_part = self._format_namelist("SYSTEM", dft.system.model_dump())
         electrons_part = self._format_namelist("ELECTRONS", dft.electrons.model_dump())
 
-        species_part = self._format_atomic_species(dft.pseudopotentials)
+        species_part = self._format_atomic_species(dft.pseudopotentials.root)
         positions_part = self._format_atomic_positions(atoms)
         kpoints_part = "K_POINTS {automatic}\n  1 1 1 0 0 0\n"
         cell_part = self._format_cell_parameters(atoms)
@@ -119,6 +119,33 @@ class QEInputGenerator:
         return "\n".join(lines)
 
 
+class QEFileManager:
+    """Manages filesystem operations for a Quantum Espresso calculation."""
+
+    def __init__(self) -> None:
+        """Initialize the QEFileManager."""
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.work_dir = Path(self._temp_dir.name)
+
+    @property
+    def input_path(self) -> Path:
+        """Path to the input file."""
+        return self.work_dir / "dft.in"
+
+    @property
+    def output_path(self) -> Path:
+        """Path to the output file."""
+        return self.work_dir / "dft.out"
+
+    def write_input(self, content: str) -> None:
+        """Write the input file."""
+        self.input_path.write_text(content)
+
+    def cleanup(self) -> None:
+        """Clean up the temporary directory."""
+        self._temp_dir.cleanup()
+
+
 class QEProcessRunner:
     """A robust runner for executing and parsing Quantum Espresso calculations.
 
@@ -158,19 +185,16 @@ class QEProcessRunner:
                                  output cannot be parsed.
 
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            work_dir = Path(temp_dir)
-            input_path = work_dir / "dft.in"
-            output_path = work_dir / "dft.out"
+        file_manager = QEFileManager()
+        input_content = self.input_generator.generate(atoms)
+        file_manager.write_input(input_content)
 
-            input_content = self.input_generator.generate(atoms)
-            input_path.write_text(input_content)
+        self._execute_pw_x(file_manager.input_path, file_manager.output_path)
 
-            self._execute_pw_x(input_path, output_path)
+        results = self._parse_output(file_manager.output_path)
+        atoms.calc.results = results
 
-            results = self._parse_output(output_path)
-            atoms.calc.results = results
-
+        file_manager.cleanup()
         return atoms
 
     def _execute_pw_x(self, input_path: Path, output_path: Path) -> None:
@@ -199,11 +223,13 @@ class QEProcessRunner:
                     check=True,
                     text=True,
                 )
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        except FileNotFoundError as e:
+            error_message = f"DFT command not found: {self.config.dft.command}"
+            logger.error(error_message)
+            raise DFTCalculationError(error_message) from e
+        except subprocess.CalledProcessError as e:
             error_message = (
                 f"DFT calculation failed. Exit code: {e.returncode}\nStderr: {e.stderr}"
-                if isinstance(e, subprocess.CalledProcessError)
-                else f"DFT command not found: {self.config.dft.command}"
             )
             logger.error(error_message)
             raise DFTCalculationError(error_message) from e

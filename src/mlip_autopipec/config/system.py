@@ -5,7 +5,7 @@ the entire workflow. They are produced from a `UserConfig` by a
 heuristic engine and are considered read-only by all consumer modules.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 
 class DFTControlParams(BaseModel):
@@ -53,13 +53,28 @@ class DFTElectronsParams(BaseModel):
     conv_thr: float = Field(1.0e-10, description="Convergence threshold for SCF.")
 
 
+class Pseudopotentials(RootModel[dict[str, str]]):
+    """A model for storing and validating pseudopotentials."""
+
+    @field_validator("root")
+    @classmethod
+    def validate_elements(cls, values: dict[str, str]) -> dict[str, str]:
+        """Validate that the keys are valid chemical symbols."""
+        from ase.data import chemical_symbols
+
+        for key in values:
+            if key not in chemical_symbols:
+                raise ValueError(f"'{key}' is not a valid chemical symbol.")
+        return values
+
+
 class DFTParams(BaseModel):
     """Comprehensive container for all DFT-related parameters."""
 
     model_config = ConfigDict(extra="forbid")
 
     command: str = Field("pw.x", description="The Quantum Espresso executable to run.")
-    pseudopotentials: dict[str, str] = Field(
+    pseudopotentials: Pseudopotentials = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
     control: DFTControlParams = Field(
