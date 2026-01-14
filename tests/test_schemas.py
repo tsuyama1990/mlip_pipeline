@@ -50,9 +50,7 @@ def test_user_config_elements_composition_mismatch() -> None:
         },
         "generation_config": {"generation_type": "alloy_sqs"},
     }
-    with pytest.raises(
-        ValidationError, match="elements and composition keys must match"
-    ):
+    with pytest.raises(ValidationError, match="elements and composition keys must match"):
         UserConfig.model_validate(invalid_data)
 
 
@@ -71,5 +69,6 @@ def test_generation_config_extra_fields_forbidden() -> None:
     """Test that extra fields are not allowed in GenerationConfig."""
     with pytest.raises(ValidationError):
         GenerationConfig(
-            generation_type="eos", another_field="should_fail"  # type: ignore
+            generation_type="eos",
+            another_field="should_fail",  # type: ignore
         )

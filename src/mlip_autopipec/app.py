@@ -1,10 +1,3 @@
-import typer
-
-from .settings import settings
-
-app = typer.Typer()
-
-
 import yaml
 from ase.db import connect
 
@@ -13,16 +6,21 @@ from .modules.c_dft_factory import QERunner
 from .schemas.dft import DFTInput
 from .schemas.system_config import DFTParams, GeneratorParams, SystemConfig
 from .schemas.user_config import UserConfig
+from .settings import settings
+from .utils.logging import get_logger
 from .utils.qe_utils import get_kpoints, get_sssp_recommendations
 
+from pathlib import Path
 
-@app.command()
-def run(config_path: str) -> None:
+logger = get_logger(__name__)
+
+
+def run_pipeline(config_path: str) -> None:
     """
     Runs the MLIP-AutoPipe pipeline.
     """
-    typer.echo(f"Loading configuration from: {config_path}")
-    with open(config_path) as f:
+    logger.info(f"Loading configuration from: {config_path}")
+    with Path(config_path).open() as f:
         user_config_dict = yaml.safe_load(f)
     user_config = UserConfig.model_validate(user_config_dict)
 
@@ -44,7 +42,7 @@ def run(config_path: str) -> None:
             pseudopotentials={},
             cutoff_wfc=60,
             k_points=(8, 8, 8),
-            smearing_type="gauss",
+            smearing="gauss",
             degauss=0.01,
             nspin=1,
         ),
@@ -56,7 +54,7 @@ def run(config_path: str) -> None:
         pseudopotentials=get_sssp_recommendations(structures[0]),
         cutoff_wfc=60,
         k_points=get_kpoints(structures[0]),
-        smearing_type="gauss",
+        smearing="gauss",
         degauss=0.01,
         nspin=1,
     )
@@ -80,8 +78,16 @@ def run(config_path: str) -> None:
     if settings.qe_command:
         dft_runner = QERunner()
         db_path = f"{user_config.project_name}.db"
+        logger.info(f"Writing results to {db_path}")
         with connect(db_path) as db:
             for atoms in structures:
-                dft_input = DFTInput(atoms=atoms, dft_params=dft_params)
-                dft_output = dft_runner.run(dft_input)
-                db.write(atoms, data=dft_output.model_dump())
+                try:
+                    dft_input = DFTInput(atoms=atoms, dft_params=dft_params)
+                    dft_output = dft_runner.run(dft_input)
+                    db.write(atoms, data=dft_output.model_dump())
+                except Exception:
+                    logger.exception(
+                        "Failed to run DFT calculation for a structure"
+                    )
+    else:
+        logger.warning("`qe_command` not set, skipping DFT calculations.")

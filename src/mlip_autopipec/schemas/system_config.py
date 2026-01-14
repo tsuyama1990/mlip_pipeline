@@ -1,6 +1,5 @@
-from pydantic import BaseModel, ConfigDict
 
-from typing import List, Optional, Tuple
+from pydantic import BaseModel, ConfigDict
 
 from .user_config import UserConfig
 
@@ -13,10 +12,10 @@ class DFTParams(BaseModel):
     pseudopotentials: dict[str, str]
     cutoff_wfc: float
     k_points: tuple[int, int, int]
-    smearing_type: str
+    smearing: str
     degauss: float
     nspin: int
-    mixing_beta: Optional[float] = None
+    mixing_beta: float | None = None
 
 
 class GeneratorParams(BaseModel):
@@ -27,8 +26,8 @@ class GeneratorParams(BaseModel):
     sqs_supercell_size: list[int]
     strain_magnitudes: list[float]
     rattle_std_dev: float
-    lattice_constant: Optional[float] = None
-    cutoffs: Optional[List[float]] = None
+    lattice_constant: float | None = None
+    cutoffs: list[float] | None = None
 
 
 class SystemConfig(BaseModel):

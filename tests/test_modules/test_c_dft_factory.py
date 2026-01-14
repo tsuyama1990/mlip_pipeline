@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from ase import Atoms
+
 from mlip_autopipec.modules.c_dft_factory import QERunner
 from mlip_autopipec.schemas.dft import DFTInput, DFTOutput
 from mlip_autopipec.schemas.system_config import DFTParams
@@ -15,7 +16,7 @@ def mock_dft_input() -> DFTInput:
         pseudopotentials={"H": "H.usp"},
         cutoff_wfc=40,
         k_points=(1, 1, 1),
-        smearing_type="gauss",
+        smearing="gauss",
         degauss=0.01,
         nspin=1,
     )
@@ -34,9 +35,7 @@ def test_qe_runner_successful_run(mock_dft_input: DFTInput) -> None:
     # Mock the subprocess call to simulate QE running successfully
     with patch("subprocess.run") as mock_subprocess:
         # Configure the mock to return a successful process with fake output
-        mock_subprocess.return_value = MagicMock(
-            returncode=0, stdout=fake_qe_output, stderr=""
-        )
+        mock_subprocess.return_value = MagicMock(returncode=0, stdout=fake_qe_output, stderr="")
 
         output = runner.run(mock_dft_input)
 
@@ -47,6 +46,7 @@ def test_qe_runner_successful_run(mock_dft_input: DFTInput) -> None:
 
 
 import shutil
+from pathlib import Path
 
 
 def test_qe_runner_recovers_from_convergence_error(mock_dft_input: DFTInput) -> None:

@@ -39,7 +39,7 @@ def test_generate_alloy_sqs_structures() -> None:
             pseudopotentials={},
             cutoff_wfc=0,
             k_points=(0, 0, 0),
-            smearing_type="",
+            smearing="",
             degauss=0,
             nspin=1,
         ),
@@ -47,9 +47,7 @@ def test_generate_alloy_sqs_structures() -> None:
     )
 
     # Mock the external `generate_sqs` function where it is used in the a_generator module
-    with patch(
-        "mlip_autopipec.modules.a_generator.generate_sqs"
-    ) as mock_generate_sqs:
+    with patch("mlip_autopipec.modules.a_generator.generate_sqs") as mock_generate_sqs:
         # Configure the mock to return a simple, single-atom structure
         mock_generate_sqs.return_value = Atoms("Fe", cell=[1, 1, 1], pbc=True)
 
@@ -84,7 +82,7 @@ def test_generate_eos_strain_structures() -> None:
             pseudopotentials={},
             cutoff_wfc=0,
             k_points=(0, 0, 0),
-            smearing_type="",
+            smearing="",
             degauss=0,
             nspin=1,
         ),
@@ -93,3 +91,69 @@ def test_generate_eos_strain_structures() -> None:
 
     structures = generate_structures(system_config)
     assert len(structures) == len(generator_params.strain_magnitudes)
+
+
+def test_generate_nms_structures() -> None:
+    """Test NMS structure generation."""
+    user_config = UserConfig(
+        project_name="test_nms",
+        target_system=TargetSystem(
+            elements=["H"],
+            composition={"H": 1.0},
+            crystal_structure="",
+        ),
+        generation_config=GenerationConfig(generation_type="nms"),
+    )
+    generator_params = GeneratorParams(
+        sqs_supercell_size=[],
+        strain_magnitudes=[],
+        rattle_std_dev=0,
+    )
+    system_config = SystemConfig(
+        user_config=user_config,
+        dft_params=DFTParams(
+            pseudopotentials={},
+            cutoff_wfc=0,
+            k_points=(0, 0, 0),
+            smearing="",
+            degauss=0,
+            nspin=1,
+        ),
+        generator_params=generator_params,
+    )
+
+    structures = generate_structures(system_config)
+    assert len(structures) == 0
+
+
+def test_generate_melt_quench_structures() -> None:
+    """Test melt-quench structure generation."""
+    user_config = UserConfig(
+        project_name="test_melt_quench",
+        target_system=TargetSystem(
+            elements=["Si"],
+            composition={"Si": 1.0},
+            crystal_structure="diamond",
+        ),
+        generation_config=GenerationConfig(generation_type="melt_quench"),
+    )
+    generator_params = GeneratorParams(
+        sqs_supercell_size=[],
+        strain_magnitudes=[],
+        rattle_std_dev=0,
+    )
+    system_config = SystemConfig(
+        user_config=user_config,
+        dft_params=DFTParams(
+            pseudopotentials={},
+            cutoff_wfc=0,
+            k_points=(0, 0, 0),
+            smearing="",
+            degauss=0,
+            nspin=1,
+        ),
+        generator_params=generator_params,
+    )
+
+    structures = generate_structures(system_config)
+    assert len(structures) == 0

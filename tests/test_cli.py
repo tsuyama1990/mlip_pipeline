@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from mlip_autopipec.main import app
+from mlip_autopipec.cli import app
 
 runner = CliRunner()
 

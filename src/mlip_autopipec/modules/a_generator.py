@@ -1,5 +1,3 @@
-
-
 import numpy as np
 from ase import Atoms
 from ase.build import bulk
@@ -16,9 +14,7 @@ def _generate_alloy_sqs(config: SystemConfig) -> list[Atoms]:
     supercell_size = config.generator_params.sqs_supercell_size
 
     lattice_constant = config.generator_params.lattice_constant or 3.6
-    primitive_cell = bulk(
-        next(iter(composition.keys())), crystal_structure, a=lattice_constant
-    )
+    primitive_cell = bulk(next(iter(composition.keys())), crystal_structure, a=lattice_constant)
 
     cutoffs = config.generator_params.cutoffs or [6.0]
     chemical_symbols = list(composition.keys())
@@ -36,9 +32,7 @@ def _generate_alloy_sqs(config: SystemConfig) -> list[Atoms]:
         strained_sqs.set_cell(strained_sqs.cell * (1 + strain), scale_atoms=True)
 
         rattled_sqs = strained_sqs.copy()
-        rattled_sqs.rattle(
-            stdev=config.generator_params.rattle_std_dev, seed=42
-        )
+        rattled_sqs.rattle(stdev=config.generator_params.rattle_std_dev, seed=42)
 
         generated_structures.append(rattled_sqs)
 
@@ -60,11 +54,19 @@ def _generate_eos_strain(config: SystemConfig) -> list[Atoms]:
     generated_structures = []
     for strain in config.generator_params.strain_magnitudes:
         strained_cell = primitive_cell.copy()
-        strained_cell.set_cell(
-            strained_cell.cell * (1 + strain), scale_atoms=True
-        )
+        strained_cell.set_cell(strained_cell.cell * (1 + strain), scale_atoms=True)
         generated_structures.append(strained_cell)
     return generated_structures
+
+
+def _generate_nms(config: SystemConfig) -> list[Atoms]:
+    """Placeholder for Normal Mode Sampling."""
+    return []
+
+
+def _generate_melt_quench(config: SystemConfig) -> list[Atoms]:
+    """Placeholder for Melt-Quench generation."""
+    return []
 
 
 def generate_structures(config: SystemConfig) -> list[Atoms]:
@@ -76,6 +78,10 @@ def generate_structures(config: SystemConfig) -> list[Atoms]:
         return _generate_alloy_sqs(config)
     if generation_type == "eos_strain":
         return _generate_eos_strain(config)
+    if generation_type == "nms":
+        return _generate_nms(config)
+    if generation_type == "melt_quench":
+        return _generate_melt_quench(config)
 
     unknown_type_error = f"Unknown generation type: {generation_type}"
     raise ValueError(unknown_type_error)

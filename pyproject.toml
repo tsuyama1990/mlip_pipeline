@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mlip-autopipec = "mlip_autopipec.main:app"
+mlip-autopipec = "mlip_autopipec.cli:app"
 
 [project.optional-dependencies]
 dev = [
@@ -106,6 +106,10 @@ suppress-dummy-args = true  # Arguments starting with _ do not require type hint
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = [
+    "--cov=src/mlip_autopipec",
+    "--cov-report=term-missing",
+]
 
 [tool.mypy]
 strict = true

@@ -1,6 +1,5 @@
-
 from ase import Atoms
-from ase.calculators.espresso import Espresso
+from ase.calculators.calculator import kpts2sizeandoffsets
 
 SSSP_PSEUDOPOTENTIALS = {
     "Fe": "Fe.pbe-spn-kjpaw_psl.1.0.0.UPF",
@@ -17,9 +16,6 @@ def get_sssp_recommendations(atoms: Atoms) -> dict[str, str]:
     """
     symbols = set(atoms.get_chemical_symbols())  # type: ignore[no-untyped-call]
     return {symbol: SSSP_PSEUDOPOTENTIALS[symbol] for symbol in symbols}
-
-
-from ase.calculators.calculator import kpts2sizeandoffsets
 
 
 def get_kpoints(atoms: Atoms, kpoint_density: float = 6.0) -> tuple[int, int, int]:
