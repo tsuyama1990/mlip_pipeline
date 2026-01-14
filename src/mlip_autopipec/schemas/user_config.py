@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TargetSystem(BaseModel):
@@ -19,6 +19,48 @@ class GenerationConfig(BaseModel):
     generation_type: str
 
 
+class SurrogateConfig(BaseModel):
+    """Configuration for the surrogate model explorer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    calculator: str = Field(
+        "mace_mp",
+        description="The surrogate calculator to use for structure selection.",
+    )
+    model_path: str
+    num_to_select_fps: int = Field(..., ge=0)
+    descriptor_type: str
+
+    @field_validator("descriptor_type")
+    def validate_descriptor_type(cls, v: str) -> str:  # noqa: N805
+        """Validate the descriptor_type."""
+        allowed_types = {"SOAP"}
+        if v not in allowed_types:
+            error_msg = f"descriptor_type must be in {allowed_types}"
+            raise ValueError(error_msg)
+        return v
+
+
+class TrainerConfig(BaseModel):
+    """Configuration for the MLIP trainer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    radial_basis: str
+    max_body_order: int
+    loss_weights: dict[str, float]
+
+    @field_validator("loss_weights")
+    def validate_loss_weights(cls, v: dict[str, float]) -> dict[str, float]:  # noqa: N805
+        """Validate the keys in loss_weights."""
+        allowed_keys = {"energy", "forces", "stress"}
+        if not set(v.keys()).issubset(allowed_keys):
+            error_msg = f"Loss weights keys must be in {allowed_keys}"
+            raise ValueError(error_msg)
+        return v
+
+
 class UserConfig(BaseModel):
     """Top-level user configuration model."""
 
@@ -27,6 +69,8 @@ class UserConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
     generation_config: GenerationConfig
+    surrogate_config: SurrogateConfig
+    trainer_config: TrainerConfig
 
     @field_validator("target_system")
     def validate_target_system(cls, v: TargetSystem) -> TargetSystem:  # noqa: N805

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.modules.c_dft_factory import QERunner
+from mlip_autopipec.modules.c_dft_factory import run_qe_calculation
 from mlip_autopipec.schemas.dft import DFTInput, DFTOutput
 from mlip_autopipec.schemas.system_config import DFTParams
 
@@ -23,11 +23,10 @@ def mock_dft_input() -> DFTInput:
     return DFTInput(atoms=atoms, dft_params=dft_params)
 
 
-def test_qe_runner_successful_run(mock_dft_input: DFTInput) -> None:
+def test_run_qe_calculation_successful(mock_dft_input: DFTInput) -> None:
     """
     Test a successful Quantum Espresso run.
     """
-    runner = QERunner()
     fake_qe_output = """
     !    total energy              =     -123.456 Ry
     """
@@ -37,7 +36,7 @@ def test_qe_runner_successful_run(mock_dft_input: DFTInput) -> None:
         # Configure the mock to return a successful process with fake output
         mock_subprocess.return_value = MagicMock(returncode=0, stdout=fake_qe_output, stderr="")
 
-        output = runner.run(mock_dft_input)
+        output = run_qe_calculation(mock_dft_input)
 
         # Assert that the output is parsed correctly
         assert isinstance(output, DFTOutput)
@@ -46,14 +45,14 @@ def test_qe_runner_successful_run(mock_dft_input: DFTInput) -> None:
 
 
 import shutil
-from pathlib import Path
 
 
-def test_qe_runner_recovers_from_convergence_error(mock_dft_input: DFTInput) -> None:
+def test_run_qe_calculation_recovers_from_convergence_error(
+    mock_dft_input: DFTInput,
+) -> None:
     """
-    Test that the QERunner can recover from a convergence error.
+    Test that the run_qe_calculation can recover from a convergence error.
     """
-    runner = QERunner(max_retries=2, keep_temp_dir=True)
     failed_output = "convergence NOT achieved"
     successful_output = "!    total energy              =     -123.456 Ry"
 
@@ -64,7 +63,7 @@ def test_qe_runner_recovers_from_convergence_error(mock_dft_input: DFTInput) -> 
             MagicMock(returncode=0, stdout=successful_output, stderr=""),
         ]
 
-        output = runner.run(mock_dft_input)
+        output = run_qe_calculation(mock_dft_input, max_retries=2, keep_temp_dir=True)
         assert output.total_energy == pytest.approx(-123.456)
         assert mock_subprocess.call_count == 2
 
@@ -73,8 +72,7 @@ def test_qe_runner_recovers_from_convergence_error(mock_dft_input: DFTInput) -> 
         # Check that the mixing_beta was changed in the second call
         second_call_command = mock_subprocess.call_args_list[1].args[0]
         input_file_path = Path(second_call_command[2])
-        with open(input_file_path) as f:
-            input_file_content = f.read()
+        input_file_content = input_file_path.read_text()
         assert "mixing_beta" in input_file_content
         assert "0.3" in input_file_content
         shutil.rmtree(input_file_path.parent)

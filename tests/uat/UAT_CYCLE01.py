@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
 
 # # CYCLE01 User Acceptance Test: Silicon Equation of State
 
@@ -24,25 +23,23 @@ user_config = {
 }
 
 config_path = Path("si_eos_config.yaml")
-with config_path.open('w') as f:
+with config_path.open("w") as f:
     yaml.dump(user_config, f)
 
 
 # 2. Execution
-
-# In[ ]:
-
-
+import sys
 import subprocess
 
-subprocess.run(["python", "-m", "mlip_autopipec", str(config_path)], check=True)
+subprocess.run(
+    [sys.executable, "-m", "mlip_autopipec", str(config_path)],
+    check=True,
+    capture_output=True,
+    text=True,
+)
 
 
 # 3. Verification and Visualization
-
-# In[ ]:
-
-
 from ase.db import connect
 import matplotlib.pyplot as plt
 
