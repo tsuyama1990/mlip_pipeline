@@ -57,15 +57,22 @@ def main() -> None:
     print("✓ Successfully created UserConfig from valid data.")
 
     # We need to import the sub-models to construct the SystemConfig correctly
-    from mlip_autopipec.config_schemas import DFTConfig, DFTInput, DFTSystem
+    from mlip_autopipec.config_schemas import (
+        DFTConfig,
+        DFTInput,
+        DFTSystem,
+        TargetSystem,
+    )
 
+    target_system = TargetSystem(elements=["Ni"], composition={"Ni": 1.0})
     system_config = SystemConfig(
+        target_system=target_system,
         dft=DFTConfig(
             input=DFTInput(
                 pseudopotentials={"Ni": "Ni.pbe-n-rrkjus_psl.1.0.0.UPF"},
                 system=DFTSystem(nat=1, ntyp=1, ecutwfc=60, nspin=2),
             )
-        )
+        ),
     )
     print("✓ Successfully created a SystemConfig.")
 

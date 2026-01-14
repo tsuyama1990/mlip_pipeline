@@ -1,20 +1,19 @@
 # ruff: noqa: D101
-"""
-Configuration schemas for MLIP-AutoPipe, defining the data structures for
-user input and internal system configuration.
+"""Configuration schemas for MLIP-AutoPipe.
+
+Defines the data structures for user input and internal system configuration.
 """
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    RootModel,
     ValidationInfo,
     field_validator,
 )
-
 
 # =============================================================================
 # User-Facing Configuration Schemas
@@ -172,11 +171,51 @@ class DFTConfig(BaseModel):
     input: DFTInput
 
 
+class AlloyParams(BaseModel):
+    """Parameters for generating alloy structures."""
+
+    model_config = ConfigDict(extra="forbid")
+    sqs_supercell_size: list[int] = Field(
+        [2, 2, 2],
+        description="Dimensions of the supercell for SQS generation.",
+        min_length=3,
+        max_length=3,
+    )
+    strain_magnitudes: list[float] = Field(
+        [0.95, 1.0, 1.05],
+        description="List of volumetric strain magnitudes to apply.",
+    )
+    rattle_std_devs: list[float] = Field(
+        [0.0, 0.1, 0.2],
+        description="Standard deviations for atomic position rattling.",
+    )
+
+
+class CrystalParams(BaseModel):
+    """Parameters for generating crystal structures with defects."""
+
+    model_config = ConfigDict(extra="forbid")
+    defect_types: list[Literal["vacancy", "interstitial"]] = Field(
+        ["vacancy"],
+        description="Types of point defects to introduce.",
+    )
+
+
+class GeneratorParams(BaseModel):
+    """Parameters for the Physics-Informed Generator."""
+
+    model_config = ConfigDict(extra="forbid")
+    alloy: AlloyParams = Field(default_factory=AlloyParams)
+    crystal: CrystalParams = Field(default_factory=CrystalParams)
+
+
 class SystemConfig(BaseModel):
     """The root internal configuration object for an MLIP-AutoPipe workflow."""
 
     model_config = ConfigDict(extra="forbid")
+    target_system: TargetSystem
     dft: DFTConfig
+    generator: GeneratorParams = Field(default_factory=GeneratorParams)
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."
     )
