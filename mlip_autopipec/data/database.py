@@ -49,10 +49,8 @@ class DatabaseManager:
 
         """
         conn = self.connect()
-        prefixed_metadata = {
-            f"mlip_{k}": v for k, v in metadata.model_dump().items()
-        }
-        return conn.write(atoms, key_value_pairs=prefixed_metadata)
+        prefixed_metadata = {f"mlip_{k}": v for k, v in metadata.model_dump().items()}
+        return conn.write(atoms, key_value_pairs=prefixed_metadata)  # type: ignore[no-any-return]
 
     def get_completed_calculations(self) -> list[Atoms]:
         """Retrieve all completed calculations from the database.

@@ -82,13 +82,11 @@ def test_system_config_valid() -> None:
 
 def test_system_config_extra_field_forbidden() -> None:
     """Test that an extra, undefined field in SystemConfig raises an error."""
-    dft_config = {
-        "input": {"pseudopotentials": {"Si": "Si.UPF"}},
+    config_data = {
+        "dft": {"input": {"pseudopotentials": {"Si": "Si.UPF"}}},
+        "db_path": "test.db",
+        "extra_param": "should_fail",
     }
     with pytest.raises(ValidationError) as exc_info:
-        SystemConfig(
-            dft=dft_config,
-            db_path="test.db",
-            extra_param="should_fail",
-        )
+        SystemConfig(**config_data)
     assert "Extra inputs are not permitted" in str(exc_info.value)

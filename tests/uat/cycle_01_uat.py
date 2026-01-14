@@ -101,7 +101,7 @@ def main() -> None:
         print(f"✓ Wrote calculation to temporary database at {db_path}")
 
         # Verify by reading back
-        conn = connect(db_path)
+        conn = connect(db_path)  # type: ignore[no-untyped-call]
         row = conn.get(1)
         assert row.key_value_pairs["mlip_stage"] == "uat_cycle_01"
         assert row.key_value_pairs["mlip_uuid"] == "abc-123"

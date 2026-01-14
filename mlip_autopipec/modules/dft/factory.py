@@ -56,7 +56,7 @@ class DFTFactory:
             # standard ASE practice for non-MD calculations.
             from ase.calculators.singlepoint import SinglePointCalculator
 
-            atoms.calc = SinglePointCalculator(atoms, **results)
+            atoms.calc = SinglePointCalculator(atoms, **results)  # type: ignore[no-untyped-call]
 
             return atoms
         except DFTCalculationError:
