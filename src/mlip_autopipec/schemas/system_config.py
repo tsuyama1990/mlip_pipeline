@@ -1,7 +1,6 @@
-
 from pydantic import BaseModel, ConfigDict
 
-from .user_config import UserConfig
+from .user_config import SurrogateConfig, TrainerConfig, UserConfig
 
 
 class DFTParams(BaseModel):
@@ -38,3 +37,5 @@ class SystemConfig(BaseModel):
     user_config: UserConfig
     dft_params: DFTParams
     generator_params: GeneratorParams
+    surrogate_config: SurrogateConfig
+    trainer_config: TrainerConfig

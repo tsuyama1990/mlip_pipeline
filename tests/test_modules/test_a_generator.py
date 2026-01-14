@@ -27,6 +27,16 @@ def test_generate_alloy_sqs_structures() -> None:
             crystal_structure="fcc",
         ),
         generation_config=GenerationConfig(generation_type="alloy_sqs"),
+        surrogate_config={
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        trainer_config={
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     )
     generator_params = GeneratorParams(
         sqs_supercell_size=[2, 2, 2],
@@ -44,6 +54,8 @@ def test_generate_alloy_sqs_structures() -> None:
             nspin=1,
         ),
         generator_params=generator_params,
+        surrogate_config=user_config.surrogate_config,
+        trainer_config=user_config.trainer_config,
     )
 
     # Mock the external `generate_sqs` function where it is used in the a_generator module
@@ -70,6 +82,16 @@ def test_generate_eos_strain_structures() -> None:
             crystal_structure="diamond",
         ),
         generation_config=GenerationConfig(generation_type="eos_strain"),
+        surrogate_config={
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        trainer_config={
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     )
     generator_params = GeneratorParams(
         sqs_supercell_size=[],
@@ -87,6 +109,8 @@ def test_generate_eos_strain_structures() -> None:
             nspin=1,
         ),
         generator_params=generator_params,
+        surrogate_config=user_config.surrogate_config,
+        trainer_config=user_config.trainer_config,
     )
 
     structures = generate_structures(system_config)
@@ -103,6 +127,16 @@ def test_generate_nms_structures() -> None:
             crystal_structure="sc",
         ),
         generation_config=GenerationConfig(generation_type="nms"),
+        surrogate_config={
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        trainer_config={
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     )
     generator_params = GeneratorParams(
         sqs_supercell_size=[],
@@ -120,6 +154,8 @@ def test_generate_nms_structures() -> None:
             nspin=1,
         ),
         generator_params=generator_params,
+        surrogate_config=user_config.surrogate_config,
+        trainer_config=user_config.trainer_config,
     )
 
     structures = generate_structures(system_config)
@@ -136,6 +172,16 @@ def test_generate_melt_quench_structures() -> None:
             crystal_structure="fcc",
         ),
         generation_config=GenerationConfig(generation_type="melt_quench"),
+        surrogate_config={
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        trainer_config={
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     )
     generator_params = GeneratorParams(
         sqs_supercell_size=[],
@@ -153,6 +199,8 @@ def test_generate_melt_quench_structures() -> None:
             nspin=1,
         ),
         generator_params=generator_params,
+        surrogate_config=user_config.surrogate_config,
+        trainer_config=user_config.trainer_config,
     )
 
     structures = generate_structures(system_config)

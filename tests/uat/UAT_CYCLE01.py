@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
 
 # # CYCLE01 User Acceptance Test: Silicon Equation of State
 
@@ -24,7 +23,7 @@ user_config = {
 }
 
 config_path = Path("si_eos_config.yaml")
-with config_path.open('w') as f:
+with config_path.open("w") as f:
     yaml.dump(user_config, f)
 
 
@@ -43,8 +42,8 @@ subprocess.run(["python", "-m", "mlip_autopipec", str(config_path)], check=True)
 # In[ ]:
 
 
-from ase.db import connect
 import matplotlib.pyplot as plt
+from ase.db import connect
 
 db = connect("si_eos.db")
 volumes = []

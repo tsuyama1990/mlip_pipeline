@@ -3,6 +3,7 @@ from pathlib import Path
 
 from mlip_autopipec.schemas.dft import DFTInput, DFTOutput
 from mlip_autopipec.utils.logging import get_logger
+
 from .qe_input_generator import QEInputGenerator
 from .qe_output_parser import QEOutputParser
 from .qe_process_runner import QEProcessRunner
@@ -20,9 +21,7 @@ class QERunner:
     failures.
     """
 
-    def __init__(
-        self, max_retries: int = 3, keep_temp_dir: bool = False
-    ) -> None:
+    def __init__(self, max_retries: int = 3, keep_temp_dir: bool = False) -> None:
         """
         Initializes the QERunner.
 

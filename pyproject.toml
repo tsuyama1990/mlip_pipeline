@@ -15,6 +15,8 @@ dependencies = [
     "scipy",
     "spglib",
     "pandas",
+    "dscribe",
+    "mace-torch",
 ]
 
 [project.scripts]
@@ -24,6 +26,7 @@ mlip-autopipec = "mlip_autopipec.cli:app"
 dev = [
     "pytest",
     "pytest-cov",
+    "pytest-mock",
     "ruff",
     "mypy",
     "jupyter",
@@ -106,11 +109,8 @@ suppress-dummy-args = true  # Arguments starting with _ do not require type hint
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = [
-    "--cov=src/mlip_autopipec",
-    "--cov-report=term-missing",
-]
 
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

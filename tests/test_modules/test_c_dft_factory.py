@@ -46,7 +46,6 @@ def test_qe_runner_successful_run(mock_dft_input: DFTInput) -> None:
 
 
 import shutil
-from pathlib import Path
 
 
 def test_qe_runner_recovers_from_convergence_error(mock_dft_input: DFTInput) -> None:

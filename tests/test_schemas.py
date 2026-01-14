@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
+from ase import Atoms
+from mlip_autopipec.schemas.data import StructureRecord
 from mlip_autopipec.schemas.user_config import (
     GenerationConfig,
     TargetSystem,
@@ -18,6 +20,16 @@ def test_user_config_valid() -> None:
             "crystal_structure": "fcc",
         },
         "generation_config": {"generation_type": "alloy_sqs"},
+        "surrogate_config": {
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        "trainer_config": {
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     }
     config = UserConfig.model_validate(valid_data)
     assert config.project_name == "test_project"
@@ -34,6 +46,16 @@ def test_user_config_composition_sum_invalid() -> None:
             "crystal_structure": "fcc",
         },
         "generation_config": {"generation_type": "alloy_sqs"},
+        "surrogate_config": {
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        "trainer_config": {
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     }
     with pytest.raises(ValidationError, match="composition values must sum to 1.0"):
         UserConfig.model_validate(invalid_data)
@@ -49,6 +71,16 @@ def test_user_config_elements_composition_mismatch() -> None:
             "crystal_structure": "fcc",
         },
         "generation_config": {"generation_type": "alloy_sqs"},
+        "surrogate_config": {
+            "model_path": "path/to/model",
+            "num_to_select_fps": 10,
+            "descriptor_type": "SOAP",
+        },
+        "trainer_config": {
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     }
     with pytest.raises(ValidationError, match="elements and composition keys must match"):
         UserConfig.model_validate(invalid_data)
@@ -72,3 +104,15 @@ def test_generation_config_extra_fields_forbidden() -> None:
             generation_type="eos",
             another_field="should_fail",  # type: ignore
         )
+
+
+def test_structure_record_valid() -> None:
+    """Test that a valid StructureRecord model can be created."""
+    atoms = Atoms("H", positions=[(0, 0, 0)])
+    record = StructureRecord(
+        atoms=atoms,
+        config_type="test",
+        source="test",
+        surrogate_energy=0.0,
+    )
+    assert record.config_type == "test"

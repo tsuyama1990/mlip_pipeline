@@ -1,0 +1,41 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: mock-3.15.1, cov-7.0.0, anyio-4.12.1
+collected 24 items
+
+tests/test_cli.py .                                                      [  4%]
+tests/test_modules/test_a_generator.py ....                              [ 20%]
+tests/test_modules/test_a_generator_sqs.py .                             [ 25%]
+tests/test_modules/test_b_explorer.py ...                                [ 37%]
+tests/test_modules/test_c_dft_factory.py ..                              [ 45%]
+tests/test_modules/test_d_trainer.py .                                   [ 50%]
+tests/test_modules/test_qe_input_generator.py ..                         [ 58%]
+tests/test_modules/test_qe_output_parser.py .                            [ 62%]
+tests/test_modules/test_qe_process_runner.py .                           [ 66%]
+tests/test_schemas.py .....                                              [ 87%]
+tests/test_utils.py ...                                                  [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+tests/test_modules/test_a_generator.py::test_generate_alloy_sqs_structures
+tests/test_modules/test_a_generator_sqs.py::test_generate_alloy_sqs_varied_inputs
+  /app/.venv/lib/python3.12/site-packages/spglib/cell.py:57: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+tests/test_modules/test_a_generator.py::test_generate_alloy_sqs_structures
+tests/test_modules/test_a_generator_sqs.py::test_generate_alloy_sqs_varied_inputs
+  /app/.venv/lib/python3.12/site-packages/spglib/spg.py:354: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+tests/test_modules/test_a_generator.py::test_generate_melt_quench_structures
+  /app/.venv/lib/python3.12/site-packages/ase/md/md.py:54: FutureWarning: Specify the temperature in K using the 'temperature_K' argument
+    warnings.warn(FutureWarning(w))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 24 passed, 6 warnings in 11.74s ========================
