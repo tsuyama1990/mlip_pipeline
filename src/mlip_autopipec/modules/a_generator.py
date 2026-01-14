@@ -1,3 +1,20 @@
+# Copyright (C) 2024-present by the LICENSE file authors.
+#
+# This file is part of MLIP-AutoPipe.
+#
+# MLIP-AutoPipe is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MLIP-AutoPipe is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MLIP-AutoPipe.  If not, see <https://www.gnu.org/licenses/>.
+"""This module provides functions for generating atomic structures."""
 import numpy as np
 from ase import Atoms, units
 from ase.build import bulk
@@ -109,7 +126,25 @@ def _generate_melt_quench(config: SystemConfig) -> list[Atoms]:
 def generate_structures(config: SystemConfig) -> list[Atoms]:
     """
     Generates a list of ASE Atoms objects based on the system configuration.
+
+    Args:
+        config: The system configuration.
+
+    Returns:
+        A list of generated ASE Atoms objects.
+
+    Raises:
+        ValueError: If the generation type is unknown or the parameters are invalid.
+        TypeError: If the strain magnitudes are not a list of floats.
     """
+    params = config.generator_params
+    if not isinstance(params.sqs_supercell_size, list) or len(params.sqs_supercell_size) != 3:
+        sqs_supercell_size_error = "sqs_supercell_size must be a list of three integers."
+        raise ValueError(sqs_supercell_size_error)
+    if not isinstance(params.strain_magnitudes, list):
+        strain_magnitudes_error = "strain_magnitudes must be a list of floats."
+        raise TypeError(strain_magnitudes_error)
+
     generation_type = config.user_config.generation_config.generation_type
     if generation_type == "alloy_sqs":
         return _generate_alloy_sqs(config)

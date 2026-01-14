@@ -1,3 +1,21 @@
+
+# Copyright (C) 2024-present by the LICENSE file authors.
+#
+# This file is part of MLIP-AutoPipe.
+#
+# MLIP-AutoPipe is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MLIP-AutoPipe is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MLIP-AutoPipe.  If not, see <https://www.gnu.org/licenses/>.
+"""This module provides functions for running DFT calculations."""
 import tempfile
 from pathlib import Path
 
@@ -49,7 +67,7 @@ def run_qe_calculation(
             logger.warning(f"QE calculation failed on attempt {attempt + 1}. Recovering.")
             dft_input = _recover(dft_input)
 
-    error_message = "Quantum Espresso failed after multiple retries."
+    error_message = f"Quantum Espresso failed after {max_retries} retries."
     logger.exception(error_message)
     raise RuntimeError(error_message)
 

@@ -24,9 +24,22 @@ class SurrogateConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    calculator: str = Field(
+        "mace_mp",
+        description="The surrogate calculator to use for structure selection.",
+    )
     model_path: str
     num_to_select_fps: int = Field(..., ge=0)
     descriptor_type: str
+
+    @field_validator("descriptor_type")
+    def validate_descriptor_type(cls, v: str) -> str:  # noqa: N805
+        """Validate the descriptor_type."""
+        allowed_types = {"SOAP"}
+        if v not in allowed_types:
+            error_msg = f"descriptor_type must be in {allowed_types}"
+            raise ValueError(error_msg)
+        return v
 
 
 class TrainerConfig(BaseModel):

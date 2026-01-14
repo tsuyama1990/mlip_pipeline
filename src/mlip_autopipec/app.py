@@ -1,3 +1,21 @@
+
+# Copyright (C) 2024-present by the LICENSE file authors.
+#
+# This file is part of MLIP-AutoPipe.
+#
+# MLIP-AutoPipe is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MLIP-AutoPipe is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MLIP-AutoPipe.  If not, see <https://www.gnu.org/licenses/>.
+"""This module provides the main application logic for the MLIP-AutoPipe pipeline."""
 from pathlib import Path
 
 import yaml
@@ -21,6 +39,10 @@ def run_pipeline(config_path: str) -> None:
     """
     Runs the MLIP-AutoPipe pipeline.
     """
+    if not settings.qe_command:
+        qe_command_error = "`qe_command` not set. Please configure it in your settings."
+        raise ValueError(qe_command_error)
+
     logger.info(f"Loading configuration from: {config_path}")
     with Path(config_path).open() as f:
         user_config_dict = yaml.safe_load(f)

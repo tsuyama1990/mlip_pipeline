@@ -8,12 +8,12 @@ class DFTParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    pseudopotentials: dict[str, str]
-    cutoff_wfc: float
-    k_points: tuple[int, int, int]
-    smearing: str
-    degauss: float
-    nspin: int
+    pseudopotentials: dict[str, str] = {}
+    cutoff_wfc: float = 60.0
+    k_points: tuple[int, int, int] = (8, 8, 8)
+    smearing: str = "gauss"
+    degauss: float = 0.01
+    nspin: int = 1
     mixing_beta: float | None = None
 
 

@@ -6,6 +6,7 @@ from mlip_autopipec.schemas.data import StructureRecord
 from mlip_autopipec.schemas.user_config import (
     GenerationConfig,
     TargetSystem,
+    TrainerConfig,
     UserConfig,
 )
 
@@ -106,6 +107,9 @@ def test_generation_config_extra_fields_forbidden() -> None:
         )
 
 
+from mlip_autopipec.schemas.user_config import TrainerConfig
+
+
 def test_structure_record_valid() -> None:
     """Test that a valid StructureRecord model can be created."""
     atoms = Atoms("H", positions=[(0, 0, 0)])
@@ -116,3 +120,13 @@ def test_structure_record_valid() -> None:
         surrogate_energy=0.0,
     )
     assert record.config_type == "test"
+
+
+def test_trainer_config_invalid_loss_weights() -> None:
+    """Test that TrainerConfig raises a ValueError for invalid loss_weights keys."""
+    with pytest.raises(ValidationError, match="Loss weights keys must be in .*"):
+        TrainerConfig(
+            radial_basis="bessel",
+            max_body_order=2,
+            loss_weights={"invalid_key": 1.0},
+        )

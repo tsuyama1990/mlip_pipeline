@@ -1,9 +1,31 @@
+
+# Copyright (C) 2024-present by the LICENSE file authors.
+#
+# This file is part of MLIP-AutoPipe.
+#
+# MLIP-AutoPipe is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MLIP-AutoPipe is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MLIP-AutoPipe.  If not, see <https://www.gnu.org/licenses/>.
+"""This module provides the SurrogateExplorer class for structure selection."""
+from typing import TYPE_CHECKING
+
 import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
-from mace.calculators import mace_mp
 
-from mlip_autopipec.schemas.user_config import SurrogateConfig
+from .calculators import get_calculator
+
+if TYPE_CHECKING:
+    from mlip_autopipec.schemas.system_config import SystemConfig
 
 
 def farthest_point_sampling(points: np.ndarray, num_to_select: int) -> list[int]:
@@ -41,13 +63,11 @@ class SurrogateExplorer:
     A class to explore and select structures using a surrogate model.
     """
 
-    def __init__(self, config: SurrogateConfig) -> None:
-        self.config = config
-        self.calculator = mace_mp(
-            model=self.config.model_path, device="cpu", default_dtype="float32"
-        )
+    def __init__(self, config: "SystemConfig") -> None:
+        self.config = config.surrogate_config
+        self.calculator = get_calculator(self.config.calculator)
         self.descriptor = SOAP(
-            species=["H"],  # Will be replaced by actual elements
+            species=config.user_config.target_system.elements,
             periodic=True,
             r_cut=5.0,
             n_max=8,

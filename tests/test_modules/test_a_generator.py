@@ -98,7 +98,7 @@ def test_generate_eos_strain_structures() -> None:
         },
     )
     generator_params = GeneratorParams(
-        sqs_supercell_size=[],
+        sqs_supercell_size=[1, 1, 1],
         strain_magnitudes=[-0.05, -0.02, 0, 0.02, 0.05],  # 5 strain values
         rattle_standard_deviation=0,
     )
@@ -146,7 +146,7 @@ def test_generate_nms_structures() -> None:
         },
     )
     generator_params = GeneratorParams(
-        sqs_supercell_size=[],
+        sqs_supercell_size=[1, 1, 1],
         strain_magnitudes=[],
         rattle_standard_deviation=0,
     )
@@ -191,7 +191,7 @@ def test_generate_melt_quench_structures() -> None:
         },
     )
     generator_params = GeneratorParams(
-        sqs_supercell_size=[],
+        sqs_supercell_size=[1, 1, 1],
         strain_magnitudes=[],
         rattle_standard_deviation=0,
     )
@@ -236,7 +236,7 @@ def test_unknown_generation_type() -> None:
         },
     )
     generator_params = GeneratorParams(
-        sqs_supercell_size=[],
+        sqs_supercell_size=[1, 1, 1],
         strain_magnitudes=[],
         rattle_standard_deviation=0,
     )

@@ -28,22 +28,20 @@ with config_path.open("w") as f:
 
 
 # 2. Execution
-
-# In[ ]:
-
-
+import sys
 import subprocess
 
-subprocess.run(["python", "-m", "mlip_autopipec", str(config_path)], check=True)
+subprocess.run(
+    [sys.executable, "-m", "mlip_autopipec", str(config_path)],
+    check=True,
+    capture_output=True,
+    text=True,
+)
 
 
 # 3. Verification and Visualization
-
-# In[ ]:
-
-
-import matplotlib.pyplot as plt
 from ase.db import connect
+import matplotlib.pyplot as plt
 
 db = connect("si_eos.db")
 volumes = []

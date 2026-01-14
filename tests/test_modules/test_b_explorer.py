@@ -9,7 +9,17 @@ from mlip_autopipec.modules.b_explorer import (
     SurrogateExplorer,
     farthest_point_sampling,
 )
-from mlip_autopipec.schemas.user_config import SurrogateConfig
+from mlip_autopipec.schemas.system_config import (
+    DFTParams,
+    GeneratorParams,
+    SystemConfig,
+)
+from mlip_autopipec.schemas.user_config import (
+    GenerationConfig,
+    SurrogateConfig,
+    TargetSystem,
+    UserConfig,
+)
 
 
 def test_farthest_point_sampling() -> None:
@@ -47,23 +57,47 @@ def test_surrogate_explorer_selection(mocker: "MagicMock") -> None:
         -1000.0,
         -9.0,
     ]
-    mocker.patch(
-        "mlip_autopipec.modules.b_explorer.mace_mp", return_value=mock_calculator
-    )
+    mocker.patch("mlip_autopipec.modules.calculators.mace_mp", return_value=mock_calculator)
 
     # Mock dscribe.SOAP
     mock_soap = mocker.MagicMock()
     mock_soap.create.return_value = np.random.rand(5, 10)  # 5 structures, 10 features
     mocker.patch("dscribe.descriptors.SOAP", return_value=mock_soap)
 
-    config = SurrogateConfig(
-        model_path="mace_mp_small.model", num_to_select_fps=3, descriptor_type="SOAP"
+    user_config = UserConfig(
+        project_name="test_explorer",
+        target_system=TargetSystem(
+            elements=["H"],
+            composition={"H": 1.0},
+            crystal_structure="sc",
+        ),
+        generation_config=GenerationConfig(generation_type="eos_strain"),
+        surrogate_config={
+            "calculator": "mace_mp",
+            "model_path": "path/to/model",
+            "num_to_select_fps": 3,
+            "descriptor_type": "SOAP",
+        },
+        trainer_config={
+            "radial_basis": "bessel",
+            "max_body_order": 2,
+            "loss_weights": {"energy": 1.0, "forces": 100.0, "stress": 0.0},
+        },
     )
-    explorer = SurrogateExplorer(config)
+    system_config = SystemConfig(
+        user_config=user_config,
+        dft_params=DFTParams(),
+        generator_params=GeneratorParams(
+            sqs_supercell_size=[1, 1, 1],
+            strain_magnitudes=[],
+            rattle_standard_deviation=0,
+        ),
+        surrogate_config=user_config.surrogate_config,
+        trainer_config=user_config.trainer_config,
+    )
+    explorer = SurrogateExplorer(system_config)
 
-    structures = [
-        Atoms("H", positions=[(0, 0, 0)], cell=[1, 1, 1], pbc=True) for _ in range(5)
-    ]
+    structures = [Atoms("H", positions=[(0, 0, 0)], cell=[1, 1, 1], pbc=True) for _ in range(5)]
     selected_structures = explorer.select_structures(structures)
 
     # One structure should be filtered out due to high energy
