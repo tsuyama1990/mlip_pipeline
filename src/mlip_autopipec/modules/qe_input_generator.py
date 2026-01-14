@@ -30,17 +30,19 @@ class QEInputGenerator:
         Args:
             directory: The directory to write the input file to.
         """
-        profile = EspressoProfile(command=settings.qe_command, pseudo_dir=directory / "pseudos")
+        profile = EspressoProfile(  # type: ignore[no-untyped-call]
+            command=settings.qe_command, pseudo_dir=directory / "pseudos"
+        )
         input_data = self.dft_input.dft_params.model_dump(
             exclude={"pseudopotentials", "mixing_beta"}
         )
         if self.dft_input.dft_params.mixing_beta is not None:
             input_data.setdefault("ELECTRONS", {})
             input_data["ELECTRONS"]["mixing_beta"] = self.dft_input.dft_params.mixing_beta
-        calc = Espresso(
+        calc = Espresso(  # type: ignore[no-untyped-call]
             profile=profile,
             input_data=input_data,
             pseudopotentials=self.dft_input.dft_params.pseudopotentials,
             directory=directory,
         )
-        calc.write_inputfiles(self.dft_input.atoms, {})
+        calc.write_inputfiles(self.dft_input.atoms, {})  # type: ignore[no-untyped-call]

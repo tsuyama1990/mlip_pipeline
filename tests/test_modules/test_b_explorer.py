@@ -3,12 +3,12 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 from ase import Atoms
+from pydantic import ValidationError
+
 from mlip_autopipec.modules.b_explorer import (
     SurrogateExplorer,
     farthest_point_sampling,
 )
-from pydantic import ValidationError
-
 from mlip_autopipec.schemas.user_config import SurrogateConfig
 
 

@@ -15,7 +15,7 @@ from mlip_autopipec.schemas.user_config import (
 )
 
 
-def test_generate_alloy_sqs_varied_inputs():
+def test_generate_alloy_sqs_varied_inputs() -> None:
     """
     Test that the SQS generator works with varied inputs.
     """
@@ -60,7 +60,14 @@ def test_generate_alloy_sqs_varied_inputs():
     )
 
     with patch("mlip_autopipec.modules.a_generator.generate_sqs") as mock_generate_sqs:
-        mock_generate_sqs.return_value = Atoms("Au", cell=[4, 4, 4], pbc=True)
+        mock_generate_sqs.return_value = Atoms(
+            "AuCu3",
+            cell=[4, 4, 4],
+            pbc=True,
+        )
         structures = generate_structures(system_config)
         assert len(structures) == 1
+        assert "Au" in structures[0].get_chemical_symbols()
+        assert "Cu" in structures[0].get_chemical_symbols()
+        assert structures[0].cell.shape == (3, 3)
         mock_generate_sqs.assert_called_once()

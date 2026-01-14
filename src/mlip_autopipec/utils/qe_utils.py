@@ -22,5 +22,5 @@ def get_kpoints(atoms: Atoms, kpoint_density: float = 6.0) -> tuple[int, int, in
     """
     Calculates the k-points grid for a given Atoms object.
     """
-    kpts, _ = kpts2sizeandoffsets(atoms=atoms, density=kpoint_density)
+    kpts, _ = kpts2sizeandoffsets(atoms=atoms, density=kpoint_density)  # type: ignore[no-untyped-call]
     return tuple(int(k) for k in kpts)

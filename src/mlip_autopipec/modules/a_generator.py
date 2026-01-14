@@ -1,6 +1,8 @@
 import numpy as np
-from ase import Atoms
+from ase import Atoms, units
 from ase.build import bulk
+from ase.md.langevin import Langevin
+from ase.vibrations import Vibrations
 from icet import ClusterSpace
 from icet.tools.structure_generation import generate_sqs
 
@@ -28,10 +30,10 @@ def _generate_alloy_sqs(config: SystemConfig) -> list[Atoms]:
 
     generated_structures = []
     for strain in config.generator_params.strain_magnitudes:
-        strained_sqs = sqs.copy()
+        strained_sqs = sqs.copy()  # type: ignore[no-untyped-call]
         strained_sqs.set_cell(strained_sqs.cell * (1 + strain), scale_atoms=True)
 
-        rattled_sqs = strained_sqs.copy()
+        rattled_sqs = strained_sqs.copy()  # type: ignore[no-untyped-call]
         rattled_sqs.rattle(stdev=config.generator_params.rattle_standard_deviation, seed=42)
 
         generated_structures.append(rattled_sqs)
@@ -59,11 +61,6 @@ def _generate_eos_strain(config: SystemConfig) -> list[Atoms]:
     return generated_structures
 
 
-from ase import units
-from ase.md.langevin import Langevin
-from ase.vibrations import Vibrations
-
-
 def _generate_nms(config: SystemConfig) -> list[Atoms]:
     """Generates structures by displacing atoms along normal modes."""
     composition = config.user_config.target_system.composition
@@ -76,7 +73,7 @@ def _generate_nms(config: SystemConfig) -> list[Atoms]:
 
     primitive_cell.calc = EMT()
 
-    vib = Vibrations(primitive_cell, name="dummy_vib")
+    vib = Vibrations(primitive_cell, name="dummy_vib")  # type: ignore[no-untyped-call]
     vib.run()
 
     generated_structures = []
@@ -99,11 +96,11 @@ def _generate_melt_quench(config: SystemConfig) -> list[Atoms]:
     atoms.calc = EMT()
 
     # Melt
-    dyn = Langevin(atoms, 5 * units.fs, 1000 * units.kB, 0.02)
+    dyn = Langevin(atoms, 5 * units.fs, 1000 * units.kB, 0.02)  # type: ignore[no-untyped-call]
     dyn.run(100)
 
     # Quench
-    dyn = Langevin(atoms, 5 * units.fs, 10 * units.kB, 0.1)
+    dyn = Langevin(atoms, 5 * units.fs, 10 * units.kB, 0.1)  # type: ignore[no-untyped-call]
     dyn.run(100)
 
     return [atoms]

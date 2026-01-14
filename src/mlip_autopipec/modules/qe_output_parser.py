@@ -28,11 +28,11 @@ class QEOutputParser:
             The parsed DFT output.
         """
         total_energy = 0.0
-        forces = []
-        stress = []
+        forces: list[list[float]] = []
+        stress: list[list[float]] = []
         parsing_forces = False
         parsing_stress = False
-        stress_lines = []
+        stress_lines: list[str] = []
 
         for line in self.qe_output.splitlines():
             if "!    total energy" in line:

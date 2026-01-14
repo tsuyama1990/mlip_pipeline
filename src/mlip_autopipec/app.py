@@ -5,7 +5,7 @@ from ase.db import connect
 
 from .modules.a_generator import generate_structures
 from .modules.b_explorer import SurrogateExplorer
-from .modules.c_dft_factory import QERunner
+from .modules.c_dft_factory import run_qe_calculation
 from .modules.d_trainer import PacemakerTrainer
 from .schemas.dft import DFTInput
 from .schemas.system_config import DFTParams, GeneratorParams, SystemConfig
@@ -68,18 +68,17 @@ def run_pipeline(config_path: str) -> None:
     system_config.dft_params = dft_params
 
     if settings.qe_command:
-        dft_runner = QERunner()
         db_path = f"{user_config.project_name}.db"
         logger.info(f"Writing results to {db_path}")
-        with connect(db_path) as db:
+        with connect(db_path) as db:  # type: ignore[no-untyped-call]
             for atoms in selected_structures:
                 try:
                     dft_input = DFTInput(atoms=atoms, dft_params=dft_params)
-                    dft_output = dft_runner.run(dft_input)
+                    dft_output = run_qe_calculation(dft_input)
                     db.write(atoms, data=dft_output.model_dump())
-                except Exception as e:
+                except Exception:
                     logger.exception("Failed to run DFT calculation for a structure")
-                    raise e
+                    raise
     else:
         logger.warning("`qe_command` not set, skipping DFT calculations.")
 

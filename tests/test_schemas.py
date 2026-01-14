@@ -1,7 +1,7 @@
 import pytest
+from ase import Atoms
 from pydantic import ValidationError
 
-from ase import Atoms
 from mlip_autopipec.schemas.data import StructureRecord
 from mlip_autopipec.schemas.user_config import (
     GenerationConfig,
