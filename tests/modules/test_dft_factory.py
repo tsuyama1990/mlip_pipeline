@@ -11,6 +11,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from mlip_autopipec.config.system import DFTParams, SystemConfig
 from mlip_autopipec.modules.dft_factory import (
     DFTCalculationError,
+    QEInputGenerator,
     QEProcessRunner,
 )
 
@@ -68,12 +69,12 @@ def sample_atoms() -> Atoms:
     return atoms
 
 
-def test_qeprocessrunner_generate_input_file(
+def test_qeinputgenerator_generate(
     sample_system_config: SystemConfig, sample_atoms: Atoms
 ) -> None:
     """Test the generation of the QE input file content."""
-    runner = QEProcessRunner(sample_system_config)
-    input_content = runner._generate_input_file(sample_atoms)
+    generator = QEInputGenerator(sample_system_config)
+    input_content = generator.generate(sample_atoms)
 
     assert "&CONTROL" in input_content
     assert "calculation = 'scf'" in input_content
@@ -86,7 +87,7 @@ def test_qeprocessrunner_generate_input_file(
     assert "Ni 0.0 0.0 0.0" in input_content
 
 
-@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._generate_input_file")
+@patch("mlip_autopipec.modules.dft_factory.QEInputGenerator.generate")
 @patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._execute_pw_x")
 @patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._parse_output")
 def test_qeprocessrunner_run_orchestration(
@@ -107,6 +108,29 @@ def test_qeprocessrunner_run_orchestration(
     mock_execute.assert_called_once()
     mock_parse.assert_called_once()
     assert result_atoms.calc.results["energy"] == -1.0
+
+
+@patch("mlip_autopipec.modules.dft_factory.QEInputGenerator.generate")
+@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._execute_pw_x")
+@patch("mlip_autopipec.modules.dft_factory.QEProcessRunner._parse_output")
+def test_qeprocessrunner_run_orchestration_failure(
+    mock_parse: MagicMock,
+    mock_execute: MagicMock,
+    mock_generate: MagicMock,
+    sample_system_config: SystemConfig,
+    sample_atoms: Atoms,
+) -> None:
+    """Test that the run method correctly handles a failure in the execution step."""
+    mock_generate.return_value = "dummy input file content"
+    mock_execute.side_effect = DFTCalculationError("Execution failed")
+
+    runner = QEProcessRunner(sample_system_config)
+    with pytest.raises(DFTCalculationError, match="Execution failed"):
+        runner.run(sample_atoms)
+
+    mock_generate.assert_called_once_with(sample_atoms)
+    mock_execute.assert_called_once()
+    mock_parse.assert_not_called()
 
 
 def test_parse_output_happy_path(

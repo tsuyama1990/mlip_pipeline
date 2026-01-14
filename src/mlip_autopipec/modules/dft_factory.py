@@ -20,56 +20,34 @@ class DFTCalculationError(Exception):
     """Custom exception for errors during DFT calculations."""
 
 
-class QEProcessRunner:
-    """A robust runner for executing Quantum Espresso (pw.x) calculations.
+class QEInputGenerator:
+    """A class responsible for generating Quantum Espresso input files.
 
-    This class handles the generation of input files, execution of the DFT
-    code as a subprocess, and parsing of the output to extract key physical
-    quantities.
+    This class encapsulates the logic for converting an ASE `Atoms` object and a
+    `SystemConfig` into a correctly formatted string that can be used as an
+    input file for a `pw.x` calculation.
     """
 
     def __init__(self, config: SystemConfig) -> None:
-        """Initialize the QEProcessRunner.
+        """Initialize the QEInputGenerator.
 
         Args:
-            config: The fully-expanded system configuration object.
+            config: The fully-expanded system configuration object, which
+                    contains all necessary DFT parameters.
 
         """
         self.config = config
 
-    def run(self, atoms: Atoms) -> Atoms:
-        """Execute a single-point DFT calculation for the given atomic structure.
-
-        Args:
-            atoms: The ASE Atoms object representing the structure.
-
-        Returns:
-            The input Atoms object with calculation results attached.
-
-        Raises:
-            DFTCalculationError: If the DFT calculation fails.
-
-        """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            work_dir = Path(temp_dir)
-            input_path = work_dir / "dft.in"
-            output_path = work_dir / "dft.out"
-
-            input_content = self._generate_input_file(atoms)
-            input_path.write_text(input_content)
-
-            self._execute_pw_x(input_path, output_path)
-
-            results = self._parse_output(output_path)
-            atoms.calc.results = results
-
-        return atoms
-
-    def _generate_input_file(self, atoms: Atoms) -> str:
+    def generate(self, atoms: Atoms) -> str:
         """Generate the content of a Quantum Espresso input file.
 
+        This method constructs the input file string by combining various
+        sections (`&CONTROL`, `&SYSTEM`, etc.) and cards (`ATOMIC_SPECIES`,
+        `ATOMIC_POSITIONS`, etc.) based on the configuration and the provided
+        atomic structure.
+
         Args:
-            atoms: The ASE Atoms object.
+            atoms: The ASE `Atoms` object representing the atomic structure.
 
         Returns:
             The formatted input file content as a string.
@@ -94,6 +72,107 @@ class QEProcessRunner:
             f"{species_part}\n{positions_part}\n{kpoints_part}\n{cell_part}"
         )
 
+    @staticmethod
+    def _format_namelist(name: str, params: dict[str, Any]) -> str:
+        """Format a Python dictionary into a QE namelist string."""
+        lines = [f"&{name}"]
+        for key, value in params.items():
+            if value is None:
+                continue
+            formatted_value = (
+                ".true."
+                if isinstance(value, bool) and value
+                else ".false."
+                if isinstance(value, bool) and not value
+                else f"'{value}'"
+                if isinstance(value, str)
+                else str(value)
+            )
+            lines.append(f"  {key} = {formatted_value}")
+        lines.append("/")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_atomic_species(pseudos: dict[str, str]) -> str:
+        """Format the ATOMIC_SPECIES card."""
+        lines = ["ATOMIC_SPECIES"]
+        # A dummy mass is fine for static calculations
+        for symbol, pseudo_file in sorted(pseudos.items()):
+            lines.append(f"  {symbol} 1.0 {pseudo_file}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_atomic_positions(atoms: Atoms) -> str:
+        """Format the ATOMIC_POSITIONS card."""
+        lines = ["ATOMIC_POSITIONS {angstrom}"]
+        for atom in atoms:
+            pos = " ".join(map(str, atom.position))
+            lines.append(f"  {atom.symbol} {pos}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_cell_parameters(atoms: Atoms) -> str:
+        """Format the CELL_PARAMETERS card."""
+        lines = ["CELL_PARAMETERS {angstrom}"]
+        for vector in atoms.cell:
+            lines.append(f"  {' '.join(map(str, vector))}")
+        return "\n".join(lines)
+
+
+class QEProcessRunner:
+    """A robust runner for executing and parsing Quantum Espresso calculations.
+
+    This class orchestrates a single-point DFT calculation. It uses a
+    `QEInputGenerator` to create the input file, runs the `pw.x` executable
+    in a subprocess, and parses the output to extract the energy, forces,
+    and stress.
+    """
+
+    def __init__(self, config: SystemConfig) -> None:
+        """Initialize the QEProcessRunner.
+
+        Args:
+            config: The fully-expanded system configuration object.
+
+        """
+        self.config = config
+        self.input_generator = QEInputGenerator(config)
+
+    def run(self, atoms: Atoms) -> Atoms:
+        """Execute a single-point DFT calculation.
+
+        This method performs the end-to-end process of running a DFT
+        calculation for a given atomic structure. It generates the input file,
+        executes `pw.x`, parses the output, and attaches the results to the
+        input `Atoms` object.
+
+        Args:
+            atoms: The ASE `Atoms` object representing the structure.
+
+        Returns:
+            The input `Atoms` object with calculation results attached to
+            `atoms.calc.results`.
+
+        Raises:
+            DFTCalculationError: If the `pw.x` execution fails or if the
+                                 output cannot be parsed.
+
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+            input_path = work_dir / "dft.in"
+            output_path = work_dir / "dft.out"
+
+            input_content = self.input_generator.generate(atoms)
+            input_path.write_text(input_content)
+
+            self._execute_pw_x(input_path, output_path)
+
+            results = self._parse_output(output_path)
+            atoms.calc.results = results
+
+        return atoms
+
     def _execute_pw_x(self, input_path: Path, output_path: Path) -> None:
         """Run the pw.x executable as a subprocess.
 
@@ -107,6 +186,10 @@ class QEProcessRunner:
         """
         command = [self.config.dft.command, "-in", str(input_path)]
         logger.info("Executing DFT command: %s", " ".join(command))
+
+        # The use of subprocess.run is secure here because the command is
+        # passed as a list of arguments, and shell=False is the default.
+        # This prevents any possibility of shell injection attacks.
         try:
             with open(output_path, "w") as f:
                 subprocess.run(
@@ -160,49 +243,3 @@ class QEProcessRunner:
             "forces": final_atoms.get_forces(),
             "stress": stress,
         }
-
-    @staticmethod
-    def _format_namelist(name: str, params: dict[str, Any]) -> str:
-        """Format a Python dictionary into a QE namelist string."""
-        lines = [f"&{name}"]
-        for key, value in params.items():
-            if value is None:
-                continue
-            formatted_value = (
-                ".true."
-                if isinstance(value, bool) and value
-                else ".false."
-                if isinstance(value, bool) and not value
-                else f"'{value}'"
-                if isinstance(value, str)
-                else str(value)
-            )
-            lines.append(f"  {key} = {formatted_value}")
-        lines.append("/")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_atomic_species(pseudos: dict[str, str]) -> str:
-        """Format the ATOMIC_SPECIES card."""
-        lines = ["ATOMIC_SPECIES"]
-        # A dummy mass is fine for static calculations
-        for symbol, pseudo_file in sorted(pseudos.items()):
-            lines.append(f"  {symbol} 1.0 {pseudo_file}")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_atomic_positions(atoms: Atoms) -> str:
-        """Format the ATOMIC_POSITIONS card."""
-        lines = ["ATOMIC_POSITIONS {angstrom}"]
-        for atom in atoms:
-            pos = " ".join(map(str, atom.position))
-            lines.append(f"  {atom.symbol} {pos}")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_cell_parameters(atoms: Atoms) -> str:
-        """Format the CELL_PARAMETERS card."""
-        lines = ["CELL_PARAMETERS {angstrom}"]
-        for vector in atoms.cell:
-            lines.append(f"  {' '.join(map(str, vector))}")
-        return "\n".join(lines)
