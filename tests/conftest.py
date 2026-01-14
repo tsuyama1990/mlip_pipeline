@@ -10,12 +10,14 @@ from mlip_autopipec.config_schemas import (
     DFTInput,
     DFTSystem,
     SystemConfig,
+    TargetSystem,
 )
 
 
 @pytest.fixture
 def sample_system_config() -> SystemConfig:
     """Provide a sample SystemConfig for a Nickel calculation."""
+    target_system = TargetSystem(elements=["Ni"], composition={"Ni": 1.0})
     dft_config = DFTConfig(
         executable=DFTExecutable(command="mock_pw.x"),
         input=DFTInput(
@@ -23,7 +25,7 @@ def sample_system_config() -> SystemConfig:
             system=DFTSystem(nat=1, ntyp=1, ecutwfc=60.0, nspin=2),
         ),
     )
-    return SystemConfig(dft=dft_config, db_path="test.db")
+    return SystemConfig(target_system=target_system, dft=dft_config, db_path="test.db")
 
 
 @pytest.fixture
