@@ -1,7 +1,49 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "mlip-pipeline"
+name = "mlip-autopipec"
 version = "0.1.0"
-description = "Add your description here"
+description = "MLIP-AutoPipe: The \"Zero-Human\" Protocol for Autonomous ML Interatomic Potential Generation"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+license = { text = "GNU General Public License v3.0" }
+dependencies = [
+    "pydantic>=2.0",
+    "ase>=3.22",
+    "numpy>=1.20",
+    "typer>=0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.setuptools.packages.find]
+
+[tool.mypy]
+plugins = "pydantic.mypy"
+strict = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "D"]
+# D100: Missing docstring in public module
+# D104: Missing docstring in public package
+# D107: Missing docstring in __init__
+# We will add them later, but for now let's ignore them to reduce noise.
+ignore = ["D100", "D104", "D107"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
