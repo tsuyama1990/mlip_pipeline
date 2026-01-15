@@ -66,16 +66,14 @@ class LammpsRunner:
         self.quantifier = quantifier
         self._step = 0
 
-    def run(self) -> Generator[Union[str, Atoms], None, None]:
+    def run(self) -> Generator[tuple[Atoms, float], None, None]:
         """Execute the LAMMPS simulation as a generator.
 
-        This method runs the MD simulation step-by-step. After each step, it
-        evaluates the model's uncertainty.
+        This method runs the MD simulation step-by-step, yielding the current
+        atomic structure and its calculated uncertainty grade at each step.
 
         Yields:
-            - "stable": If the model uncertainty is below the configured threshold.
-            - Atoms: An ASE Atoms object if the uncertainty exceeds the threshold.
-
+            A tuple containing the ASE Atoms object and the extrapolation grade.
         """
         logger.info("Initializing LAMMPS simulation...")
         mock_lmp = MagicMock()
@@ -95,16 +93,7 @@ class LammpsRunner:
                 # mock_lmp.command("run 1")
 
                 extrapolation_grade = self.quantifier.get_extrapolation_grade(atoms)
-
-                if extrapolation_grade >= self.config.inference.uncertainty_threshold:
-                    logger.warning(
-                        f"Uncertainty threshold exceeded at step {self._step} "
-                        f"(grade={extrapolation_grade:.2f}). Yielding structure."
-                    )
-                    yield atoms
-                    logger.info("Resuming simulation after DFT calculation.")
-                else:
-                    yield "stable"
+                yield atoms, extrapolation_grade
 
             except Exception as e:
                 logger.error(f"An error occurred during MD step {self._step}: {e}")

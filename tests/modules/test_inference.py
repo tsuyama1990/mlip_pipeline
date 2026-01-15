@@ -51,20 +51,24 @@ def test_runner_raises_error_if_inference_config_missing(
         )
 
 
-def test_runner_yields_on_uncertainty(mock_system_config: SystemConfig) -> None:
-    """Verify the core generator behavior of the LammpsRunner."""
+def test_runner_yields_atoms_and_grade(mock_system_config: SystemConfig) -> None:
+    """Verify the LammpsRunner yields the atoms and grade correctly."""
     quantifier = UncertaintyQuantifier()
-    quantifier._mock_sequence = [1.0, 1.5, 2.0, 4.5, 2.5]  # Threshold is 4.0
+    quantifier._mock_sequence = [1.0, 4.5]
     runner = LammpsRunner(
         config=mock_system_config, potential_path="test.yace", quantifier=quantifier
     )
     generator = runner.run()
 
-    assert next(generator) == "stable"
-    assert next(generator) == "stable"
-    assert next(generator) == "stable"
-    assert isinstance(next(generator), Atoms)
-    assert next(generator) == "stable"
+    # First step
+    atoms1, grade1 = next(generator)
+    assert isinstance(atoms1, Atoms)
+    assert grade1 == 1.0
+
+    # Second step
+    atoms2, grade2 = next(generator)
+    assert isinstance(atoms2, Atoms)
+    assert grade2 == 4.5
 
 
 def test_runner_handles_simulation_error(mock_system_config: SystemConfig) -> None:

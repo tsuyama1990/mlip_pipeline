@@ -117,15 +117,18 @@ def run(
         simulation_generator = lammps_runner.run()
 
         simulation_completed = True
-        for step, result in enumerate(simulation_generator):
-            if isinstance(result, Atoms):
-                logging.warning(f"High uncertainty detected at MD step {step}!")
+        assert config.inference is not None  # For type checker
+        for step, (atoms, grade) in enumerate(simulation_generator):
+            if grade >= config.inference.uncertainty_threshold:
+                logging.warning(
+                    f"High uncertainty detected at MD step {step} (grade={grade:.2f})!"
+                )
                 logging.info("Step 3: Acknowledged high-uncertainty structure.")
 
                 # 3. Run DFT on the high-uncertainty structure
                 logging.info("Step 4: Running DFT on the new structure...")
-                dft_runner.run.return_value = (result, {"energy": -123.45})
-                atoms_result, dft_data = dft_runner.run(result)
+                dft_runner.run.return_value = (atoms, {"energy": -123.45})
+                atoms_result, dft_data = dft_runner.run(atoms)
                 logging.info("DFT calculation finished.")
 
                 # 4. Save the new data to the database
@@ -139,7 +142,7 @@ def run(
             else:
                 # Simulation is stable, continue to the next step
                 if step > 0 and step % 100 == 0:
-                    logging.info(f"MD Step {step}: Simulation is stable.")
+                    logging.info(f"MD Step {step}: Simulation is stable (grade={grade:.2f}).")
 
         if simulation_completed:
             logging.info("-" * 50)

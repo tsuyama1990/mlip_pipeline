@@ -29,7 +29,6 @@ def mock_config_file(tmp_path: Path) -> Path:
     return config_file
 
 
-@patch("mlip_autopipec.app.UncertaintyQuantifier")
 @patch("mlip_autopipec.app.expand_config")
 @patch("mlip_autopipec.app.LammpsRunner")
 @patch("mlip_autopipec.app.MagicMock")
@@ -37,19 +36,20 @@ def test_active_learning_loop_logic(
     mock_magic_mock: MagicMock,
     mock_lammps_runner: MagicMock,
     mock_expand_config: MagicMock,
-    mock_quantifier: MagicMock,
     mock_config_file: Path,
 ) -> None:
     """Test the main active learning loop orchestration in the CLI app."""
-    # Mock the LammpsRunner to yield a stable state then an Atoms object
+    # Mock the LammpsRunner to yield a stable grade then a high-uncertainty grade
     mock_runner_instance = MagicMock()
-    mock_runner_instance.run.return_value = iter(["stable", Atoms("X")])
+    atoms = Atoms("X")
+    mock_runner_instance.run.return_value = iter([(atoms, 1.0), (atoms, 5.0)])
     mock_lammps_runner.return_value = mock_runner_instance
 
-    # Mock the expand_config to return a valid SystemConfig with nested inference mock
+    # Mock the expand_config to return a valid SystemConfig
     mock_system_config = MagicMock(spec=SystemConfig)
     mock_inference_params = MagicMock()
     mock_inference_params.total_simulation_steps = 10
+    mock_inference_params.uncertainty_threshold = 4.0
     mock_system_config.inference = mock_inference_params
     mock_expand_config.return_value = mock_system_config
 
@@ -67,7 +67,6 @@ def test_active_learning_loop_logic(
     assert mock_trainer.train.call_count == 2
     mock_dft_runner.run.assert_called_once()
     mock_db_manager.write_calculation.assert_called_once()
-    mock_quantifier.assert_called_once()
 
 
 def test_cli_handles_missing_file() -> None:
