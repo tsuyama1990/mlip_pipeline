@@ -20,6 +20,8 @@ dependencies = [
     "numba>=0.58",
     "pyyaml>=6.0",
     "lammps>=2021.3.24",
+    "dask>=2023.0",
+    "distributed>=2023.0",
 ]
 
 [project.optional-dependencies]

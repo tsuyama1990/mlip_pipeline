@@ -78,7 +78,9 @@ def main() -> None:
 
     # We patch the `execute` method of the process runner to avoid running a
     # real DFT calculation. Instead, it writes our sample output to the file.
-    with patch.object(factory.process_runner, "execute") as mock_execute:
+    with patch(
+        "mlip_autopipec.modules.dft.process_runner.QEProcessRunner.execute"
+    ) as mock_execute:
 
         def side_effect(input_path: Path, output_path: Path) -> None:
             print(f"  (Mock) Writing sample QE output to {output_path}")

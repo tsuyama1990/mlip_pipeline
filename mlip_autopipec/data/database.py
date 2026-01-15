@@ -7,6 +7,7 @@ metadata required for the MLIP-AutoPipe workflow.
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from ase import Atoms
 from ase.db import connect
 
@@ -37,20 +38,29 @@ class DatabaseManager:
             self._connection = connect(self.db_path)  # type: ignore[no-untyped-call]
         return self._connection
 
-    def write_calculation(self, atoms: Atoms, metadata: CalculationMetadata) -> int:
+    def write_calculation(
+        self,
+        atoms: Atoms,
+        metadata: CalculationMetadata,
+        force_mask: np.ndarray | None = None,
+    ) -> int:
         """Write a calculation result to the database with custom metadata.
 
         Args:
             atoms: The ASE Atoms object with calculation results attached.
             metadata: A `CalculationMetadata` object containing structured metadata.
+            force_mask: An optional NumPy array with the force mask.
 
         Returns:
             The ID of the newly written row.
 
         """
         conn = self.connect()
-        prefixed_metadata = {f"mlip_{k}": v for k, v in metadata.model_dump().items()}
-        return conn.write(atoms, key_value_pairs=prefixed_metadata)  # type: ignore[no-any-return]
+        kvp = {f"mlip_{k}": v for k, v in metadata.model_dump().items()}
+        if force_mask is not None:
+            kvp["mlip_force_mask"] = force_mask.tolist()
+
+        return conn.write(atoms, key_value_pairs=kvp)  # type: ignore[no-any-return]
 
     def get_completed_calculations(self) -> list[Atoms]:
         """Retrieve all completed calculations from the database.

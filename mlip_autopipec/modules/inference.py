@@ -2,9 +2,10 @@
 """Module for running inference simulations with LAMMPS."""
 
 import logging
-from typing import Generator, Union
+from typing import Generator
 from unittest.mock import MagicMock
 
+import numpy as np
 from ase import Atoms
 from ase.build import bulk
 
@@ -66,14 +67,52 @@ class LammpsRunner:
         self.quantifier = quantifier
         self._step = 0
 
-    def run(self) -> Generator[tuple[Atoms, float], None, None]:
-        """Execute the LAMMPS simulation as a generator.
+    def _extract_periodic_subcell(
+        self, atoms: Atoms, uncertain_atom_index: int, rcut: float, delta_buffer: float
+    ) -> Atoms:
+        """Extract a periodic sub-cell centered on the uncertain atom."""
+        box_size = 2 * (rcut + delta_buffer)
 
-        This method runs the MD simulation step-by-step, yielding the current
-        atomic structure and its calculated uncertainty grade at each step.
+        # Get displacements from the uncertain atom using minimum image convention
+        displacements = atoms.get_distances(  # type: ignore[no-untyped-call]
+            uncertain_atom_index, np.arange(len(atoms)), mic=True, vector=True
+        )
+
+        # Find atoms within the cubic box
+        in_box_mask = np.all(np.abs(displacements) < box_size / 2.0, axis=1)
+        indices = np.where(in_box_mask)[0]
+
+        # Create the new Atoms object
+        new_cell = [box_size, box_size, box_size]
+        new_positions = displacements[indices] + box_size / 2.0
+
+        subcell_atoms = Atoms(
+            symbols=np.array(atoms.get_chemical_symbols())[indices],  # type: ignore[no-untyped-call]
+            positions=new_positions,
+            cell=new_cell,
+            pbc=True,
+        )
+
+        return subcell_atoms
+
+    def _generate_force_mask(self, subcell_atoms: Atoms, rcut: float) -> np.ndarray:
+        """Generate a force mask for the sub-cell."""
+        center = np.diag(subcell_atoms.get_cell()) / 2.0  # type: ignore[no-untyped-call]
+        distances = np.linalg.norm(subcell_atoms.positions - center, axis=1)
+        mask = np.where(distances < rcut, 1.0, 0.0)
+        # Repeat the mask for x, y, z components of the force
+        return np.repeat(mask.reshape(-1, 1), 3, axis=1)
+
+    def run(self) -> Generator[tuple[Atoms, np.ndarray], None, None]:
+        """Execute the LAMMPS simulation, yielding uncertain structures.
+
+        This method runs the MD simulation step-by-step. If a structure with
+        high uncertainty is found, it performs periodic embedding and yields the
+        sub-cell and its corresponding force mask. The generator then terminates.
 
         Yields:
-            A tuple containing the ASE Atoms object and the extrapolation grade.
+            A tuple containing the embedded ASE Atoms object and the force mask.
+
         """
         logger.info("Initializing LAMMPS simulation...")
         mock_lmp = MagicMock()
@@ -93,7 +132,26 @@ class LammpsRunner:
                 # mock_lmp.command("run 1")
 
                 extrapolation_grade = self.quantifier.get_extrapolation_grade(atoms)
-                yield atoms, extrapolation_grade
+                if extrapolation_grade >= self.config.inference.uncertainty_threshold:
+                    logger.warning(
+                        "High uncertainty detected (grade=%.2f) at step %d!",
+                        extrapolation_grade,
+                        self._step,
+                    )
+                    # For this mock, we'll assume the first atom is the cause.
+                    uncertain_atom_index = 0
+                    embedded_atoms = self._extract_periodic_subcell(
+                        atoms=atoms,
+                        uncertain_atom_index=uncertain_atom_index,
+                        rcut=self.config.inference.embedding_rcut,
+                        delta_buffer=self.config.inference.embedding_delta_buffer,
+                    )
+                    force_mask = self._generate_force_mask(
+                        subcell_atoms=embedded_atoms,
+                        rcut=self.config.inference.embedding_rcut,
+                    )
+                    yield embedded_atoms, force_mask
+                    return  # Stop the generator after finding an uncertain structure
 
             except Exception as e:
                 logger.error(f"An error occurred during MD step {self._step}: {e}")
@@ -101,4 +159,4 @@ class LammpsRunner:
                     f"LAMMPS simulation failed at step {self._step}"
                 ) from e
 
-        logger.info("MD simulation completed successfully.")
+        logger.info("MD simulation finished without exceeding uncertainty threshold.")
