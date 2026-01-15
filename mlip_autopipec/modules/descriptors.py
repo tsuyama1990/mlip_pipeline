@@ -49,16 +49,20 @@ class SOAPDescriptorCalculator:
             f"r_cut={self.soap_params.r_cut}, n_max={self.soap_params.n_max}, "
             f"l_max={self.soap_params.l_max}."
         )
-        return SOAP(
-            species=self.species,
-            r_cut=self.soap_params.r_cut,
-            n_max=self.soap_params.n_max,
-            l_max=self.soap_params.l_max,
-            sigma=self.soap_params.atomic_sigma,
-            periodic=True,
-            sparse=False,
-            average="outer",
-        )
+        try:
+            return SOAP(
+                species=self.species,
+                r_cut=self.soap_params.r_cut,
+                n_max=self.soap_params.n_max,
+                l_max=self.soap_params.l_max,
+                sigma=self.soap_params.atomic_sigma,
+                periodic=True,
+                sparse=False,
+                average="outer",
+            )
+        except (ValueError, TypeError) as e:
+            logger.exception("Invalid parameters provided for SOAP configuration.")
+            raise RuntimeError("Failed to configure SOAP generator.") from e
 
     def calculate(self, structures: List[Atoms]) -> np.ndarray:
         """Calculate the SOAP descriptors for a list of structures.

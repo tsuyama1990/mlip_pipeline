@@ -137,9 +137,12 @@ class DFTInput(BaseModel):
     """Comprehensive container for Quantum Espresso input parameters."""
 
     model_config = ConfigDict(extra="forbid")
-    # A dictionary is used here because the keys (element symbols) are dynamic and
-    # not known in advance. Pydantic validates the keys are valid chemical symbols
-    # using the `validate_elements` method below, ensuring data integrity.
+    # A dictionary is the appropriate data structure for this field because the keys
+    # are dynamic (i.e., not known until runtime, as they depend on the elements
+    # in the system). Using nested Pydantic models would require pre-defining all
+    # possible element symbols, which is not feasible. Data integrity is ensured by
+    # the `validate_elements` validator below, which confirms that each key is a
+    # valid chemical symbol.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
@@ -250,7 +253,7 @@ class FPSParams(BaseModel):
     """Parameters for the Farthest Point Sampling algorithm."""
 
     model_config = ConfigDict(extra="forbid")
-    n_select: int = Field(
+    num_structures_to_select: int = Field(
         200, ge=1, description="The final number of structures to select."
     )
     soap_params: SOAPParams = Field(

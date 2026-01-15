@@ -90,3 +90,24 @@ def test_system_config_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError) as exc_info:
         SystemConfig(**config_data)
     assert "Extra inputs are not permitted" in str(exc_info.value)
+
+
+def test_fps_params_invalid_num_structures() -> None:
+    """Test that num_structures_to_select < 1 raises a validation error."""
+    from mlip_autopipec.config_schemas import FPSParams
+
+    with pytest.raises(ValidationError) as exc_info:
+        FPSParams(num_structures_to_select=0)
+    assert "Input should be greater than or equal to 1" in str(exc_info.value)
+
+
+def test_explorer_params_missing_surrogate_model() -> None:
+    """Test that ExplorerParams raises a validation error.
+
+    This happens if surrogate_model is missing.
+    """
+    from mlip_autopipec.config_schemas import ExplorerParams
+
+    with pytest.raises(ValidationError) as exc_info:
+        ExplorerParams()  # type: ignore
+    assert "Field required" in str(exc_info.value)
