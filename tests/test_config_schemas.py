@@ -111,3 +111,19 @@ def test_explorer_params_missing_surrogate_model() -> None:
     with pytest.raises(ValidationError) as exc_info:
         ExplorerParams()  # type: ignore
     assert "Field required" in str(exc_info.value)
+
+
+def test_surrogate_model_path_validation() -> None:
+    """Test the path traversal validation for the surrogate model path."""
+    from mlip_autopipec.config_schemas import SurrogateModelParams
+
+    with pytest.raises(ValidationError, match="cannot contain '..'"):
+        SurrogateModelParams(model_path="../path/to/model")
+
+    with pytest.raises(ValidationError, match="must be a relative path"):
+        SurrogateModelParams(model_path="/path/to/model")
+
+    # A valid relative path should pass
+    valid_path = "models/mace.model"
+    params = SurrogateModelParams(model_path=valid_path)
+    assert params.model_path == valid_path

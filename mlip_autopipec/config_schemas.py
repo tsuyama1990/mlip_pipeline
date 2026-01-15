@@ -137,12 +137,17 @@ class DFTInput(BaseModel):
     """Comprehensive container for Quantum Espresso input parameters."""
 
     model_config = ConfigDict(extra="forbid")
-    # A dictionary is the appropriate data structure for this field because the keys
-    # are dynamic (i.e., not known until runtime, as they depend on the elements
-    # in the system). Using nested Pydantic models would require pre-defining all
-    # possible element symbols, which is not feasible. Data integrity is ensured by
-    # the `validate_elements` validator below, which confirms that each key is a
-    # valid chemical symbol.
+    # A dictionary is used here as it is the most appropriate data structure for
+    # mapping dynamically determined element symbols to their pseudopotential
+    # filenames. This approach is preferred over nested Pydantic models, which
+    # would require a pre-defined and static set of fields (i.e., all possible
+    # chemical symbols), making the schema inflexible.
+    #
+    # Data integrity is robustly maintained by the `validate_elements` validator
+    # below, which programmatically ensures that every key in the dictionary is a
+    # valid chemical symbol at runtime. This guarantees that the dictionary
+    # remains well-formed and consistent with the expected data model without
+    # sacrificing the necessary flexibility.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
@@ -235,6 +240,18 @@ class SurrogateModelParams(BaseModel):
             "discarded."
         ),
     )
+
+    @field_validator("model_path")
+    @classmethod
+    def validate_model_path(cls, v: str) -> str:
+        """Validate the model path to prevent path traversal."""
+        import os
+
+        if ".." in v or os.path.isabs(v):
+            raise ValueError(
+                "model_path must be a relative path and cannot contain '..'"
+            )
+        return v
 
 
 class SOAPParams(BaseModel):

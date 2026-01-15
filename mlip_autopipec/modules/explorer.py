@@ -6,11 +6,11 @@ from typing import List
 
 import numpy as np
 from ase import Atoms
-from mace.calculators import mace_mp
 from scipy.spatial.distance import cdist
 
 from mlip_autopipec.config_schemas import ExplorerParams
 from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
+from mlip_autopipec.modules.screening import SurrogateModelScreener
 
 # Configure logging
 logging.basicConfig(
@@ -34,16 +34,19 @@ class SurrogateExplorer:
         self,
         config: ExplorerParams,
         descriptor_calculator: SOAPDescriptorCalculator,
+        screener: SurrogateModelScreener,
     ):
         """Initialise the SurrogateExplorer with system configuration.
 
         Args:
             config: The ExplorerParams object containing all parameters.
             descriptor_calculator: An initialized descriptor calculator object.
+            screener: An initialized surrogate model screener object.
 
         """
         self.config = config
         self.descriptor_calculator = descriptor_calculator
+        self.screener = screener
 
     def select(self, candidates: List[Atoms]) -> List[Atoms]:
         """Execute the full surrogate screening and FPS selection pipeline.
@@ -62,7 +65,7 @@ class SurrogateExplorer:
         logger.info(f"Starting selection process with {len(candidates)} candidates.")
 
         # Stage 1: Screen with surrogate model
-        screened_candidates = self._screen_with_surrogate(candidates)
+        screened_candidates = self.screener.screen(candidates)
         logger.info(
             f"After surrogate screening, {len(screened_candidates)} candidates remain."
         )
@@ -96,67 +99,6 @@ class SurrogateExplorer:
         logger.info(f"Selected {len(final_selection)} final candidates via FPS.")
 
         return final_selection
-
-    def _screen_with_surrogate(self, candidates: List[Atoms]) -> List[Atoms]:
-        """Filter candidates based on predicted energy from a surrogate model.
-
-        Loads a MACE model and calculates the potential energy for each
-        candidate structure. Structures with an energy per atom above the
-        configured threshold are discarded. Also handles model loading errors
-        and invalid energy calculations.
-
-        Args:
-            candidates: A list of ASE Atoms objects to be screened.
-
-        Returns:
-            A list of ASE Atoms objects that passed the screening.
-
-        """
-        model_path = self.config.surrogate_model.model_path
-        threshold = self.config.surrogate_model.energy_threshold_ev
-
-        logger.info(f"Loading surrogate model from: {model_path}")
-        try:
-            calculator = mace_mp(
-                model=model_path, device="cpu", default_dtype="float64"
-            )
-        except FileNotFoundError:
-            logger.exception(f"Surrogate model file not found at: {model_path}")
-            raise
-        except Exception as e:
-            logger.exception(
-                "An unexpected error occurred while loading the MACE model."
-            )
-            raise RuntimeError("Failed to load surrogate model.") from e
-
-        screened_list = []
-        for i, atoms in enumerate(candidates):
-            try:
-                atoms.calc = calculator
-                energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-                energy_per_atom = energy / len(atoms)
-
-                if np.isnan(energy) or np.isinf(energy):
-                    logger.warning(
-                        f"Structure {i} yielded an invalid energy value (NaN or Inf). "
-                        "Discarding."
-                    )
-                    continue
-
-                if energy_per_atom < threshold:
-                    screened_list.append(atoms)
-                else:
-                    logger.debug(
-                        f"Discarding structure with energy "
-                        f"{energy_per_atom:.2f} eV/atom "
-                        f"(threshold: {threshold:.2f} eV/atom)."
-                    )
-            except Exception:
-                logger.exception(
-                    f"An error occurred during energy calculation for structure {i}. "
-                    "Discarding."
-                )
-        return screened_list
 
     def _farthest_point_sampling(
         self, descriptors: np.ndarray, num_structures_to_select: int
