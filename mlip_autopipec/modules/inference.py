@@ -44,7 +44,23 @@ class UncertaintyQuantifier:
 
 
 class LammpsRunner:
-    """Manages and executes LAMMPS molecular dynamics simulations."""
+    """Manages and executes LAMMPS molecular dynamics simulations.
+
+    This class is the core of the active learning inference engine. It runs an
+    MD simulation using a given machine-learned potential and uses an
+    `UncertaintyQuantifier` to check the model's extrapolation grade at each
+    step.
+
+    When a structure with high uncertainty is detected, this class is responsible
+    for executing the "periodic embedding" algorithm. Instead of passing the
+    entire large simulation cell to the expensive DFT calculation, it extracts a
+    small, fully periodic sub-cell centered on the atom causing the uncertainty.
+
+    To prevent unphysical forces at the boundaries of this small cell from
+    contaminating the training data, it also generates a "force mask," a
+    per-atom weight vector that tells the training engine to ignore forces on
+    the atoms in the buffer region of the sub-cell.
+    """
 
     def __init__(
         self,
@@ -70,7 +86,25 @@ class LammpsRunner:
     def _extract_periodic_subcell(
         self, atoms: Atoms, uncertain_atom_index: int, rcut: float, delta_buffer: float
     ) -> Atoms:
-        """Extract a periodic sub-cell centered on the uncertain atom."""
+        """Extract a periodic sub-cell centered on the uncertain atom.
+
+        This function implements the periodic embedding algorithm. It carves out
+        a cubic, periodic box of atoms centered around a specific atom of
+        interest from a larger simulation cell. It correctly handles periodic
+        boundary conditions, wrapping atoms from the other side of the original
+        cell into the new one.
+
+        Args:
+            atoms: The original, large ASE Atoms object.
+            uncertain_atom_index: The index of the atom to center the box on.
+            rcut: The cutoff radius defining the "core" region of the sub-cell.
+            delta_buffer: An additional buffer size to add to the cutoff,
+                          defining the total size of the sub-cell.
+
+        Returns:
+            A new, smaller, fully periodic ASE Atoms object.
+
+        """
         box_size = 2 * (rcut + delta_buffer)
 
         # Get displacements from the uncertain atom using minimum image convention
@@ -96,7 +130,21 @@ class LammpsRunner:
         return subcell_atoms
 
     def _generate_force_mask(self, subcell_atoms: Atoms, rcut: float) -> np.ndarray:
-        """Generate a force mask for the sub-cell."""
+        """Generate a force mask for the sub-cell.
+
+        This function creates a per-atom mask that is 1.0 for atoms inside the
+        "core" region (defined by `rcut`) and 0.0 for atoms in the "buffer"
+        region. The output is an (N, 3) array, suitable for direct multiplication
+        with a forces array.
+
+        Args:
+            subcell_atoms: The sub-cell ASE Atoms object.
+            rcut: The cutoff radius defining the core region.
+
+        Returns:
+            An (N, 3) NumPy array where N is the number of atoms.
+
+        """
         center = np.diag(subcell_atoms.get_cell()) / 2.0  # type: ignore[no-untyped-call]
         distances = np.linalg.norm(subcell_atoms.positions - center, axis=1)
         mask = np.where(distances < rcut, 1.0, 0.0)
@@ -111,7 +159,9 @@ class LammpsRunner:
         sub-cell and its corresponding force mask. The generator then terminates.
 
         Yields:
-            A tuple containing the embedded ASE Atoms object and the force mask.
+            A tuple containing:
+            - embedded_atoms (ase.Atoms): The smaller, periodic sub-cell.
+            - force_mask (np.ndarray): An (N, 3) array of weights (0.0 or 1.0).
 
         """
         logger.info("Initializing LAMMPS simulation...")

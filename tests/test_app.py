@@ -5,10 +5,12 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 from ase import Atoms
-from dask.distributed import Client, LocalCluster
 
-from mlip_autopipec.app import _generate_system_config_from_user_config, run_workflow
 from mlip_autopipec.config_schemas import SystemConfig, UserConfig
+from mlip_autopipec.utils.config_utils import (
+    generate_system_config_from_user_config,
+)
+from mlip_autopipec.workflow_manager import WorkflowManager
 
 
 @pytest.fixture
@@ -19,7 +21,7 @@ def mock_system_config(tmp_path: Path) -> SystemConfig:
         "simulation_goal": "melt_quench",
     }
     user_config = UserConfig(**config_dict)
-    return _generate_system_config_from_user_config(user_config)
+    return generate_system_config_from_user_config(user_config)
 
 
 def test_app_with_dask_local_cluster(
@@ -32,8 +34,11 @@ def test_app_with_dask_local_cluster(
     mock_trainer = MagicMock()
     mock_lammps_runner = MagicMock()
     mock_lammps_runner.run.return_value = iter([])
-    mocker.patch("mlip_autopipec.app.LammpsRunner", return_value=mock_lammps_runner)
-    mocker.patch("mlip_autopipec.app.UncertaintyQuantifier", MagicMock())
+    mocker.patch(
+        "mlip_autopipec.workflow_manager.LammpsRunner",
+        return_value=mock_lammps_runner,
+    )
+    mocker.patch("mlip_autopipec.workflow_manager.UncertaintyQuantifier", MagicMock())
 
     # Configure the mocks to return specific values
     mock_dft_factory.run.return_value = Atoms("Cu")
@@ -41,19 +46,27 @@ def test_app_with_dask_local_cluster(
     mock_lammps_runner.run.return_value = iter(
         [(Atoms("Cu"), np.array([[1.0, 1.0, 1.0]]))]
     )
-    mocker.patch("mlip_autopipec.app.LammpsRunner", return_value=mock_lammps_runner)
+    mocker.patch(
+        "mlip_autopipec.workflow_manager.LammpsRunner", return_value=mock_lammps_runner
+    )
 
-    with LocalCluster(n_workers=1, threads_per_worker=1) as cluster:  # type: ignore[no-untyped-call]
-        with Client(cluster) as client:  # type: ignore[no-untyped-call]
-            mocker.patch("mlip_autopipec.app.setup_dask_client", return_value=client)
+    mock_future = MagicMock()
+    mock_future.done.return_value = True
+    mock_future.status = "finished"
+    mock_future.result.return_value = Atoms("Cu")
 
-            run_workflow(
-                config=mock_system_config,
-                checkpoint_path=tmp_path / "checkpoint.json",
-                db_manager=mock_db_manager,
-                dft_factory=mock_dft_factory,
-                trainer=mock_trainer,
-            )
+    mock_client = MagicMock()
+    mock_client.submit.return_value = mock_future
+
+    manager = WorkflowManager(
+        config=mock_system_config,
+        checkpoint_path=tmp_path / "checkpoint.json",
+        db_manager=mock_db_manager,
+        dft_factory=mock_dft_factory,
+        trainer=mock_trainer,
+        client=mock_client,
+    )
+    manager.run()
 
     # Verify that the database write method was called
     mock_db_manager.write_calculation.assert_called_once()

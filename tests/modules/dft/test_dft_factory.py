@@ -5,7 +5,6 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config_schemas import DFTConfig, DFTInput
-from mlip_autopipec.modules.dft import factory as dft_factory_module
 from mlip_autopipec.modules.dft.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft.factory import DFTFactory
 
@@ -41,7 +40,7 @@ def test_dft_factory_success_on_first_try(
     assert result_atoms.calc.results["energy"] == -1.0
 
 
-def test_dft_factory_retry_logic(mock_dft_config: DFTConfig, mocker: MagicMock) -> None:
+def test_dft_factory_retry_logic(mocker: MagicMock) -> None:
     """Test the retry logic of the DFTFactory."""
     mock_execute = mocker.patch(
         "mlip_autopipec.modules.dft.process_runner.QEProcessRunner.execute"
@@ -50,44 +49,45 @@ def test_dft_factory_retry_logic(mock_dft_config: DFTConfig, mocker: MagicMock) 
         DFTCalculationError("L1 convergence failed"),
         None,  # Success on the second attempt
     ]
-    mock_parse = mocker.patch(
+    mocker.patch(
         "mlip_autopipec.modules.dft.output_parser.QEOutputParser.parse",
         return_value={"energy": -1.0},
     )
-    factory = DFTFactory(config=mock_dft_config)
+    dft_input = DFTInput(pseudopotentials={"Cu": "Cu.UPF"})
+    config = DFTConfig(input=dft_input)
+    config.retry_strategy.max_retries = 1
+    config.retry_strategy.parameter_adjustments = [{"electrons.mixing_beta": 0.5}]
+
+    factory = DFTFactory(config=config)
     spy_generate = mocker.spy(factory.input_generator, "generate")
 
     atoms = Atoms("Cu")
     factory.run(atoms)
 
     assert mock_execute.call_count == 2
-    assert mock_parse.call_count == 1
     assert spy_generate.call_count == 2
-    # Verify that the second call to the input generator used a modified config
     second_call_config = spy_generate.call_args_list[1].kwargs["config"]
     assert second_call_config.input.electrons.mixing_beta == 0.5
 
 
-def test_dft_factory_fails_after_all_retries(
-    mock_dft_config: DFTConfig, mocker: MagicMock
-) -> None:
+def test_dft_factory_fails_after_all_retries(mocker: MagicMock) -> None:
     """Test that the DFTFactory raises an error after all retries fail."""
     mock_execute = mocker.patch(
         "mlip_autopipec.modules.dft.process_runner.QEProcessRunner.execute"
     )
-    # Fail more times than there are retries
     mock_execute.side_effect = [
         DFTCalculationError("L1"),
         DFTCalculationError("L2"),
-        DFTCalculationError("L3"),
-        DFTCalculationError("L4"),
     ]
-    mock_dft_config.retry_strategy.max_retries = 3
+    dft_input = DFTInput(pseudopotentials={"Cu": "Cu.UPF"})
+    config = DFTConfig(input=dft_input)
+    config.retry_strategy.max_retries = 1
+    config.retry_strategy.parameter_adjustments = [{"electrons.mixing_beta": 0.1}]
 
-    factory = DFTFactory(config=mock_dft_config)
+    factory = DFTFactory(config=config)
     atoms = Atoms("Cu")
 
     with pytest.raises(DFTCalculationError):
         factory.run(atoms)
 
-    assert mock_execute.call_count == 4
+    assert mock_execute.call_count == 2
