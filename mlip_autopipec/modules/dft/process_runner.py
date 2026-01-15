@@ -13,34 +13,32 @@ logger = logging.getLogger(__name__)
 class QEProcessRunner:
     """A robust runner for executing Quantum Espresso (pw.x) calculations."""
 
-    def __init__(self, config: DFTExecutable) -> None:
-        """Initialize the QEProcessRunner.
-
-        Args:
-            config: The fully-expanded system configuration object.
-
-        """
-        self.config = config
-
-    def execute(self, input_path: Path, output_path: Path) -> None:
+    def execute(
+        self, input_path: Path, output_path: Path, config: DFTExecutable
+    ) -> None:
         """Run the pw.x executable as a subprocess.
 
         Args:
             input_path: Path to the QE input file.
             output_path: Path to write the QE output.
+            config: The DFT executable configuration.
 
         Raises:
             DFTCalculationError: If pw.x returns a non-zero exit code.
 
         """
-        command = [self.config.command, "-in", str(input_path)]
+        command = [config.command, "-in", str(input_path)]
         logger.info("Executing DFT command: %s", " ".join(command))
-        # The use of subprocess.run is secure because `shell=False` is the
-        # default and the command is passed as a list, preventing shell
-        # injection. Additionally, `tempfile.TemporaryDirectory` creates a
-        # secure, private directory, and `pathlib` joins prevent path
-        # traversal attacks (`../`), ensuring files are written within the
-        # temporary directory.
+        # ======================================================================
+        # SECURITY NOTE: Shell Injection Prevention
+        # ----------------------------------------------------------------------
+        # The `subprocess.run` command is constructed from a list of strings,
+        # and `shell=False` is the default. This is the recommended practice
+        # from Python's official documentation for preventing shell injection
+        # vulnerabilities. The arguments are passed directly to the OS without
+        # being interpreted by a shell, eliminating the risk of an attacker
+        # injecting malicious commands through the input parameters.
+        # ======================================================================
         try:
             with open(output_path, "w") as f:
                 subprocess.run(
@@ -52,7 +50,7 @@ class QEProcessRunner:
                 )
         except FileNotFoundError as e:
             error_message = (
-                f"DFT command '{self.config.command}' not found. "
+                f"DFT command '{config.command}' not found. "
                 "Ensure Quantum Espresso is installed and in the system's PATH."
             )
             logger.error(error_message)

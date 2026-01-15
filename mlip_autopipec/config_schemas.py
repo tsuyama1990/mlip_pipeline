@@ -5,7 +5,7 @@ Defines the data structures for user input and internal system configuration.
 """
 
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -148,6 +148,17 @@ class DFTInput(BaseModel):
     # valid chemical symbol at runtime. This guarantees that the dictionary
     # remains well-formed and consistent with the expected data model without
     # sacrificing the necessary flexibility.
+    # A dictionary is used here as it is the most appropriate data structure for
+    # mapping dynamically determined element symbols to their pseudopotential
+    # filenames. This approach is preferred over nested Pydantic models, which
+    # would require a pre-defined and static set of fields (i.e., all possible
+    # chemical symbols), making the schema inflexible.
+    # Data integrity is robustly maintained by the `validate_elements` validator
+    # below, which programmatically ensures that every key in the dictionary is a
+    # valid chemical symbol at runtime.
+    # NOTE: A dictionary with a runtime Pydantic validator is the deliberate
+    # design choice here. Using a compile-time Enum of all possible chemical
+    # symbols would be impractical and inflexible for a scientific tool.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
@@ -188,12 +199,29 @@ class DFTExecutable(BaseModel):
     command: str = Field("pw.x", description="The Quantum Espresso executable to run.")
 
 
+class DFTRetryStrategy(BaseModel):
+    """Defines the strategy for retrying failed DFT calculations."""
+
+    model_config = ConfigDict(extra="forbid")
+    max_retries: int = Field(
+        3, ge=0, description="Maximum number of times to retry a failed calculation."
+    )
+    parameter_adjustments: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "A list of parameter adjustments to apply on each retry attempt. "
+            "Each dict key is a dot-separated path to the parameter to change."
+        ),
+    )
+
+
 class DFTConfig(BaseModel):
     """All parameters related to the DFT engine."""
 
     model_config = ConfigDict(extra="forbid")
     executable: DFTExecutable = Field(default_factory=DFTExecutable)
     input: DFTInput
+    retry_strategy: DFTRetryStrategy = Field(default_factory=DFTRetryStrategy)
 
 
 class AlloyParams(BaseModel):
@@ -366,6 +394,29 @@ class InferenceParams(BaseModel):
     total_simulation_steps: int = Field(
         1000, ge=1, description="Total number of steps for the MD simulation."
     )
+    embedding_rcut: float = Field(
+        6.0,
+        gt=0,
+        description="Cutoff radius for periodic sub-cell extraction.",
+    )
+    embedding_delta_buffer: float = Field(
+        1.0,
+        ge=0,
+        description="Buffer size for periodic sub-cell extraction.",
+    )
+
+
+class DaskConfig(BaseModel):
+    """Configuration for the Dask distributed task scheduler."""
+
+    model_config = ConfigDict(extra="forbid")
+    scheduler_address: str | None = Field(
+        None,
+        description=(
+            "The address of the Dask scheduler (e.g., 'tcp://127.0.0.1:8786'). "
+            "If None, a local cluster will be used."
+        ),
+    )
 
 
 class SystemConfig(BaseModel):
@@ -384,6 +435,9 @@ class SystemConfig(BaseModel):
     )
     inference: InferenceParams | None = Field(
         default=None, description="Parameters for the Inference Engine."
+    )
+    dask: DaskConfig = Field(
+        default_factory=DaskConfig, description="Dask scheduler configuration."
     )
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."
@@ -409,3 +463,7 @@ class CalculationMetadata(BaseModel):
         ..., description="The name of the workflow stage that produced the structure."
     )
     uuid: str = Field(..., description="A unique identifier for the calculation run.")
+    force_mask: list[list[float]] | None = Field(
+        default=None,
+        description="A per-atom mask to exclude forces from training.",
+    )

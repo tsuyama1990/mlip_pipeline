@@ -20,6 +20,10 @@ def test_qeprocessrunner_execute_failure(
         returncode=1, cmd="pw.x", stderr="SCF failed to converge"
     )
 
-    runner = QEProcessRunner(sample_system_config.dft.executable)
+    runner = QEProcessRunner()
     with pytest.raises(DFTCalculationError, match="DFT calculation failed"):
-        runner.execute(Path("dummy.in"), Path("dummy.out"))
+        runner.execute(
+            Path("dummy.in"),
+            Path("dummy.out"),
+            config=sample_system_config.dft.executable,
+        )

@@ -15,17 +15,7 @@ class QEInputGenerator:
     input file for a `pw.x` calculation.
     """
 
-    def __init__(self, config: DFTConfig) -> None:
-        """Initialize the QEInputGenerator.
-
-        Args:
-            config: The fully-expanded system configuration object, which
-                    contains all necessary DFT parameters.
-
-        """
-        self.config = config
-
-    def generate(self, atoms: Atoms) -> str:
+    def generate(self, atoms: Atoms, config: DFTConfig) -> str:
         """Generate the content of a Quantum Espresso input file.
 
         This method constructs the input file string by combining various
@@ -35,12 +25,13 @@ class QEInputGenerator:
 
         Args:
             atoms: The ASE `Atoms` object representing the atomic structure.
+            config: The DFT-specific configuration object.
 
         Returns:
             The formatted input file content as a string.
 
         """
-        dft_input = self.config.input
+        dft_input = config.input
         dft_input.system.nat = len(atoms)
         dft_input.system.ntyp = len(dft_input.pseudopotentials)
 

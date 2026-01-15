@@ -26,9 +26,7 @@ def test_system_config() -> typing.Generator[SystemConfig, None, None]:
     db_path = "trainer_test.db"
     dft_config = {"executable": {}, "input": {"pseudopotentials": {"Ni": "ni.upf"}}}
     target_system = {"elements": ["Ni"], "composition": {"Ni": 1.0}}
-    config = SystemConfig(
-        target_system=target_system, dft=dft_config, db_path=db_path
-    )
+    config = SystemConfig(target_system=target_system, dft=dft_config, db_path=db_path)
     config.trainer.loss_weights.energy = 2.0
     config.trainer.ace_params.correlation_order = 4
 

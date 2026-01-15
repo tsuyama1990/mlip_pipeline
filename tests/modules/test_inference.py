@@ -1,8 +1,10 @@
 # ruff: noqa: D101, D102
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 from ase import Atoms
+from ase.build import bulk
 
 from mlip_autopipec.config_schemas import SystemConfig
 from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
@@ -51,30 +53,85 @@ def test_runner_raises_error_if_inference_config_missing(
         )
 
 
-def test_runner_yields_atoms_and_grade(mock_system_config: SystemConfig) -> None:
-    """Verify the LammpsRunner yields the atoms and grade correctly."""
+def test_runner_yields_embedded_atoms_and_mask_on_uncertainty(
+    mock_system_config: SystemConfig,
+) -> None:
+    """Verify the runner yields the embedded sub-cell and mask correctly."""
     quantifier = UncertaintyQuantifier()
-    quantifier._mock_sequence = [1.0, 4.5]
+    quantifier._mock_sequence = [1.0, 4.5]  # The second grade is above the threshold
     runner = LammpsRunner(
         config=mock_system_config, potential_path="test.yace", quantifier=quantifier
     )
     generator = runner.run()
 
-    # First step
-    atoms1, grade1 = next(generator)
-    assert isinstance(atoms1, Atoms)
-    assert grade1 == 1.0
+    # The generator should yield on the second step and then terminate
+    embedded_atoms, force_mask = next(generator)
+    assert isinstance(embedded_atoms, Atoms)
+    assert isinstance(force_mask, np.ndarray)
+    assert embedded_atoms.get_pbc().all()  # type: ignore[no-untyped-call]
+    assert len(embedded_atoms) < 32  # Original structure was 32 atoms
 
-    # Second step
-    atoms2, grade2 = next(generator)
-    assert isinstance(atoms2, Atoms)
-    assert grade2 == 4.5
+    # Verify the generator is exhausted
+    with pytest.raises(StopIteration):
+        next(generator)
 
 
-def test_runner_handles_simulation_error(mock_system_config: SystemConfig) -> None:
+def test_periodic_embedding_logic(mock_system_config: SystemConfig) -> None:
+    """Test the _extract_periodic_subcell method with a corner case."""
+    runner = LammpsRunner(
+        config=mock_system_config,
+        potential_path="test.yace",
+        quantifier=UncertaintyQuantifier(),
+    )
+    # Create a large cell to test periodic wrapping
+    large_atoms = bulk("Cu", "fcc", a=3.6) * (5, 5, 5)
+    # Choose a corner atom as the uncertain one
+    uncertain_atom_index = 0
+    subcell = runner._extract_periodic_subcell(
+        atoms=large_atoms,
+        uncertain_atom_index=uncertain_atom_index,
+        rcut=6.0,
+        delta_buffer=1.0,
+    )
+    # Assert that the number of atoms is reasonable for the given cutoff
+    assert len(subcell) > 50
+    assert subcell.get_pbc().all()  # type: ignore[no-untyped-call]
+
+
+def test_force_mask_generation(mock_system_config: SystemConfig) -> None:
+    """Test the _generate_force_mask method."""
+    runner = LammpsRunner(
+        config=mock_system_config,
+        potential_path="test.yace",
+        quantifier=UncertaintyQuantifier(),
+    )
+    atoms = Atoms("Cu", positions=[(5, 5, 5)], cell=[10, 10, 10], pbc=True)
+    mask = runner._generate_force_mask(subcell_atoms=atoms, rcut=1.0)
+    # The atom is at the center, so the distance is 0, which is less than rcut.
+    # The mask should be all 1s.
+    assert np.all(mask == 1.0)
+
+
+def test_runner_completes_if_no_uncertainty(mock_system_config: SystemConfig) -> None:
+    """Test the generator completes without yielding if threshold is not met."""
+    quantifier = UncertaintyQuantifier()
+    quantifier._mock_sequence = [1.0, 2.0, 3.0]  # All grades are below the threshold
+    runner = LammpsRunner(
+        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
+    )
+    # The generator should be exhausted without yielding anything
+    with pytest.raises(StopIteration):
+        next(runner.run())
+
+
+def test_runner_handles_simulation_error(
+    mock_system_config: SystemConfig, mocker: MagicMock
+) -> None:
     """Test that LammpsRunner catches and re-raises simulation errors."""
     quantifier = UncertaintyQuantifier()
-    quantifier.get_extrapolation_grade = MagicMock(side_effect=ValueError("Test error"))
+    mocker.patch.object(
+        quantifier, "get_extrapolation_grade", side_effect=ValueError("Test error")
+    )
     runner = LammpsRunner(
         config=mock_system_config, potential_path="test.yace", quantifier=quantifier
     )
@@ -93,10 +150,6 @@ def test_runner_stops_at_total_steps(mock_system_config: SystemConfig) -> None:
     runner = LammpsRunner(
         config=mock_system_config, potential_path="test.yace", quantifier=quantifier
     )
-    generator = runner.run()
-
-    for _ in range(5):
-        next(generator)
-
-    with pytest.raises(StopIteration):
-        next(generator)
+    # The generator should exhaust without yielding anything.
+    results = list(runner.run())
+    assert len(results) == 0

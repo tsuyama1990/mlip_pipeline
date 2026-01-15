@@ -77,6 +77,9 @@ class PacemakerTrainer:
     def _prepare_training_data(self, atoms_list: list[Atoms], output_dir: Path) -> Path:
         """Save the provided list of Atoms to a temporary file in extxyz format.
 
+        This version adds support for writing a `force_mask` for per-atom
+        force weighting if it is present in the `atoms.info` dictionary.
+
         Args:
             atoms_list: The list of structures to save.
             output_dir: The directory where the data file will be saved.
@@ -86,7 +89,19 @@ class PacemakerTrainer:
 
         """
         data_file = output_dir / "training_data.xyz"
-        ase_write(data_file, atoms_list, format="extxyz")
+        # Pacemaker expects the mask in the `info` dictionary of each Atoms object
+        # when writing to extxyz.
+        processed_atoms_list = []
+        for atoms in atoms_list:
+            new_atoms = atoms.copy()  # type: ignore[no-untyped-call]
+            if "mlip_force_mask" in new_atoms.info.get("key_value_pairs", {}):
+                mask = new_atoms.info["key_value_pairs"]["mlip_force_mask"]
+                # The key `pacemaker_force_mask` is specifically recognized by
+                # the pacemaker-io fork of ASE.
+                new_atoms.info["pacemaker_force_mask"] = mask
+            processed_atoms_list.append(new_atoms)
+
+        ase_write(data_file, processed_atoms_list, format="extxyz")
         return data_file
 
     def _execute_training(self, config_file_path: Path, work_dir: Path) -> str:
@@ -124,10 +139,8 @@ class PacemakerTrainer:
         ]
 
         try:
-            # The command is executed as a list of arguments, which is a security
-            # best practice that prevents shell injection vulnerabilities. The stderr
-            # is included in the exception message to provide detailed, actionable
-            # feedback to the user, which is crucial for debugging scientific workflows.
+            # The command is executed as a list of arguments to prevent shell
+            # injection, a critical security measure.
             result = subprocess.run(
                 command,
                 check=True,
