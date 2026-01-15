@@ -32,13 +32,18 @@ def _apply_parameter_adjustment(
 
 
 class DFTFactory:
-    """A factory for running DFT calculations.
+    """Orchestrates a DFT calculation.
 
-    This class orchestrates the process of running a DFT calculation. It is
-    responsible for generating the input file, executing the DFT code as a
-    subprocess, and parsing the output. It also implements a robust retry
-    mechanism to handle common convergence failures by automatically adjusting
-    DFT parameters.
+    This class acts as a high-level orchestrator, not a monolithic executor.
+    It follows the principle of separation of concerns by delegating specific
+    tasks to dedicated components:
+    1.  `QEInputGenerator`: Generates the Quantum Espresso input file.
+    2.  `QEProcessRunner`: Securely executes the `pw.x` command.
+    3.  `QEOutputParser`: Parses the results from the output file.
+
+    The factory's primary responsibility is to manage the retry loop, which
+    catches common convergence failures and attempts to recover by modifying a
+    copy of the DFT configuration for the next attempt.
     """
 
     def __init__(self, config: DFTConfig, base_work_dir: Path | None = None) -> None:

@@ -22,3 +22,14 @@ def test_qeinputgenerator_generate(
     assert "Ni 1.0 Ni.pbe-n-rrkjus_psl.1.0.0.UPF" in input_content
     assert "ATOMIC_POSITIONS {angstrom}" in input_content
     assert "Ni 0.0 0.0 0.0" in input_content
+
+
+def test_qeinputgenerator_empty_atoms(sample_system_config: SystemConfig) -> None:
+    """Test that the generator handles an empty Atoms object."""
+    generator = QEInputGenerator()
+    empty_atoms = Atoms()
+    input_content = generator.generate(empty_atoms, config=sample_system_config.dft)
+    assert "nat = 0" in input_content
+    assert "ATOMIC_POSITIONS {angstrom}" in input_content
+    # Check that there are no lines defining atomic positions
+    assert "Ni 0.0 0.0 0.0" not in input_content

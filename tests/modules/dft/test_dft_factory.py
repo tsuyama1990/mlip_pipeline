@@ -87,7 +87,8 @@ def test_dft_factory_fails_after_exhausting_retries(mocker: MagicMock) -> None:
     factory = DFTFactory(config=config)
     atoms = Atoms("Cu")
 
-    with pytest.raises(DFTCalculationError):
+    with pytest.raises(DFTCalculationError) as excinfo:
         factory.run(atoms)
 
     assert mock_execute.call_count == 2
+    assert "L2" in str(excinfo.value)

@@ -29,9 +29,16 @@ class QEProcessRunner:
         """
         command = [config.command, "-in", str(input_path)]
         logger.info("Executing DFT command: %s", " ".join(command))
-        # SECURITY: The command is executed as a list of arguments with
-        # `shell=False` (the default), which is a critical security measure to
-        # prevent shell injection attacks.
+        # ======================================================================
+        # SECURITY NOTE: Shell Injection Prevention
+        # ----------------------------------------------------------------------
+        # The `subprocess.run` command is constructed from a list of strings,
+        # and `shell=False` is the default. This is the recommended practice
+        # from Python's official documentation for preventing shell injection
+        # vulnerabilities. The arguments are passed directly to the OS without
+        # being interpreted by a shell, eliminating the risk of an attacker
+        # injecting malicious commands through the input parameters.
+        # ======================================================================
         try:
             with open(output_path, "w") as f:
                 subprocess.run(

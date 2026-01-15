@@ -156,6 +156,9 @@ class DFTInput(BaseModel):
     # Data integrity is robustly maintained by the `validate_elements` validator
     # below, which programmatically ensures that every key in the dictionary is a
     # valid chemical symbol at runtime.
+    # NOTE: A dictionary with a runtime Pydantic validator is the deliberate
+    # design choice here. Using a compile-time Enum of all possible chemical
+    # symbols would be impractical and inflexible for a scientific tool.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
