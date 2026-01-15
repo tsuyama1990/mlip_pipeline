@@ -18,6 +18,7 @@ dependencies = [
     "dscribe>=2.0",
     "scipy>=1.10",
     "numba>=0.58",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

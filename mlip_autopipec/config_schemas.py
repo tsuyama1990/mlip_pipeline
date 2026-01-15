@@ -166,6 +166,20 @@ class DFTInput(BaseModel):
                 raise ValueError(f"'{key}' is not a valid chemical symbol.")
         return values
 
+    @field_validator("pseudopotentials")
+    @classmethod
+    def validate_pseudopotential_paths(cls, values: dict[str, str]) -> dict[str, str]:
+        """Validate the pseudopotential filenames to prevent path traversal."""
+        import os
+
+        for filename in values.values():
+            if ".." in filename or os.path.isabs(filename):
+                raise ValueError(
+                    f"Pseudopotential '{filename}' must be a relative path and "
+                    "cannot contain '..'"
+                )
+        return values
+
 
 class DFTExecutable(BaseModel):
     """Defines the command and working directory for the DFT executable."""
@@ -286,6 +300,41 @@ class ExplorerParams(BaseModel):
     fps: FPSParams = Field(default_factory=FPSParams, description="Parameters for FPS.")
 
 
+class LossWeights(BaseModel):
+    """Defines relative weights for energy, forces, and stress in the loss function."""
+
+    model_config = ConfigDict(extra="forbid")
+    energy: float = Field(1.0, gt=0)
+    forces: float = Field(100.0, gt=0)
+    stress: float = Field(10.0, gt=0)
+
+
+class ACEParams(BaseModel):
+    """Hyperparameters for the Atomic Cluster Expansion (ACE) potential."""
+
+    model_config = ConfigDict(extra="forbid")
+    radial_basis: str = Field("chebyshev", description="The type of radial basis.")
+    correlation_order: int = Field(
+        3, ge=2, description="The body order of the potential."
+    )
+    element_dependent_cutoffs: bool = Field(
+        False, description="Whether to use different cutoffs for different elements."
+    )
+
+
+class TrainerParams(BaseModel):
+    """Parameters for the Pacemaker Trainer (Module D)."""
+
+    model_config = ConfigDict(extra="forbid")
+    loss_weights: LossWeights = Field(
+        default_factory=LossWeights,
+        description="Weights for the training loss function.",
+    )
+    ace_params: ACEParams = Field(
+        default_factory=ACEParams, description="Hyperparameters for the ACE potential."
+    )
+
+
 class SystemConfig(BaseModel):
     """The root internal configuration object for an MLIP-AutoPipe workflow."""
 
@@ -294,6 +343,10 @@ class SystemConfig(BaseModel):
     generator: GeneratorParams = Field(default_factory=GeneratorParams)
     explorer: ExplorerParams | None = Field(
         default=None, description="Parameters for the Surrogate Explorer."
+    )
+    trainer: TrainerParams = Field(
+        default_factory=TrainerParams,
+        description="Parameters for the Pacemaker Trainer.",
     )
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."
