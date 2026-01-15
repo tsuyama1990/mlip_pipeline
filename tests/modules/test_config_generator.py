@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from mlip_autopipec.config.pacemaker_config import PacemakerConfig
 from mlip_autopipec.config_schemas import SystemConfig
 from mlip_autopipec.modules.config_generator import PacemakerConfigGenerator
 
@@ -18,9 +19,6 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
     config.trainer.loss_weights.energy = 2.0
     config.trainer.ace_params.correlation_order = 4
     return config
-
-
-from mlip_autopipec.config.pacemaker_config import PacemakerConfig
 
 
 def test_generate_pacemaker_config(
@@ -43,8 +41,7 @@ def test_generate_pacemaker_config(
     fit_params = parsed_config.fit_params
     assert fit_params.dataset_filename == str(dummy_data_path)
     assert (
-        fit_params.loss_weights.energy
-        == test_system_config.trainer.loss_weights.energy
+        fit_params.loss_weights.energy == test_system_config.trainer.loss_weights.energy
     )
     assert (
         fit_params.ace.correlation_order

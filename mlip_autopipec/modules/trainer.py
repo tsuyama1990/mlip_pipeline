@@ -36,9 +36,11 @@ class PacemakerTrainer:
 
     """
 
-    def __init__(self, config: SystemConfig):
+    def __init__(
+        self, config: SystemConfig, config_generator: PacemakerConfigGenerator
+    ):
         self.config = config
-        self.config_generator = PacemakerConfigGenerator(config)
+        self.config_generator = config_generator
         self._temp_dir: Path | None = None
 
     def train(self, atoms_list: list[Atoms]) -> str:
