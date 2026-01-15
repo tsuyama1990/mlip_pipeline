@@ -19,6 +19,14 @@ This cycle introduces the `PhysicsInformedGenerator`, a module designed to solve
   - For crystals, it creates structures with common point defects.
 - **Mock Implementation**: Due to a dependency conflict with `icet` and Python 3.12, the generator is currently implemented as a mock. It returns hard-coded structures but preserves the full workflow, allowing for seamless integration with downstream modules.
 
+## Cycle 03: The Filter
+
+This cycle implements the crucial **`SurrogateExplorer`** module, which introduces the first layer of intelligence and cost-saving to the pipeline. It addresses the challenge of efficiently processing the large number of candidate structures generated in the previous cycle.
+
+- **Two-Stage Filtering**: The explorer implements a sophisticated two-stage process to select the most valuable structures for expensive DFT calculations.
+  - **Surrogate Screening**: It first uses a fast, pre-trained surrogate model (MACE) to quickly discard any structures that are unphysical (e.g., have excessively high energy).
+  - **Intelligent Selection**: From the remaining candidates, it calculates structural descriptors (SOAP) and uses Farthest Point Sampling (FPS) to select a small, maximally diverse subset. This ensures that the DFT resources are spent on generating the most informative data possible.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:
