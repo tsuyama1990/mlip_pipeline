@@ -137,6 +137,17 @@ class DFTInput(BaseModel):
     """Comprehensive container for Quantum Espresso input parameters."""
 
     model_config = ConfigDict(extra="forbid")
+    # A dictionary is used here as it is the most appropriate data structure for
+    # mapping dynamically determined element symbols to their pseudopotential
+    # filenames. This approach is preferred over nested Pydantic models, which
+    # would require a pre-defined and static set of fields (i.e., all possible
+    # chemical symbols), making the schema inflexible.
+    #
+    # Data integrity is robustly maintained by the `validate_elements` validator
+    # below, which programmatically ensures that every key in the dictionary is a
+    # valid chemical symbol at runtime. This guarantees that the dictionary
+    # remains well-formed and consistent with the expected data model without
+    # sacrificing the necessary flexibility.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
@@ -215,12 +226,75 @@ class GeneratorParams(BaseModel):
     )
 
 
+class SurrogateModelParams(BaseModel):
+    """Parameters for the surrogate model screening."""
+
+    model_config = ConfigDict(extra="forbid")
+    model_path: str = Field(
+        ..., description="Path to the pre-trained surrogate model file."
+    )
+    energy_threshold_ev: float = Field(
+        -2.0,
+        description=(
+            "Energy per atom threshold in eV. Structures with higher energy will be "
+            "discarded."
+        ),
+    )
+
+    @field_validator("model_path")
+    @classmethod
+    def validate_model_path(cls, v: str) -> str:
+        """Validate the model path to prevent path traversal."""
+        import os
+
+        if ".." in v or os.path.isabs(v):
+            raise ValueError(
+                "model_path must be a relative path and cannot contain '..'"
+            )
+        return v
+
+
+class SOAPParams(BaseModel):
+    """Hyperparameters for the SOAP descriptor."""
+
+    model_config = ConfigDict(extra="forbid")
+    n_max: int = Field(8, description="Number of radial basis functions.")
+    l_max: int = Field(6, description="Maximum degree of spherical harmonics.")
+    r_cut: float = Field(5.0, description="Cutoff radius for the local environment.")
+    atomic_sigma: float = Field(
+        0.5, description="Standard deviation of the Gaussian smearing."
+    )
+
+
+class FPSParams(BaseModel):
+    """Parameters for the Farthest Point Sampling algorithm."""
+
+    model_config = ConfigDict(extra="forbid")
+    num_structures_to_select: int = Field(
+        200, ge=1, description="The final number of structures to select."
+    )
+    soap_params: SOAPParams = Field(
+        default_factory=SOAPParams, description="SOAP descriptor hyperparameters."
+    )
+
+
+class ExplorerParams(BaseModel):
+    """Parameters for the Surrogate Explorer and Selector (Module B)."""
+
+    model_config = ConfigDict(extra="forbid")
+    surrogate_model: SurrogateModelParams
+    fps: FPSParams = Field(default_factory=FPSParams, description="Parameters for FPS.")
+
+
 class SystemConfig(BaseModel):
     """The root internal configuration object for an MLIP-AutoPipe workflow."""
 
     model_config = ConfigDict(extra="forbid")
     dft: DFTConfig
     generator: GeneratorParams = Field(default_factory=GeneratorParams)
+    explorer: ExplorerParams | None = Field(
+        default=None, description="Parameters for the Surrogate Explorer."
+    )
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."
     )

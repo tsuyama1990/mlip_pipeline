@@ -90,3 +90,40 @@ def test_system_config_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError) as exc_info:
         SystemConfig(**config_data)
     assert "Extra inputs are not permitted" in str(exc_info.value)
+
+
+def test_fps_params_invalid_num_structures() -> None:
+    """Test that num_structures_to_select < 1 raises a validation error."""
+    from mlip_autopipec.config_schemas import FPSParams
+
+    with pytest.raises(ValidationError) as exc_info:
+        FPSParams(num_structures_to_select=0)
+    assert "Input should be greater than or equal to 1" in str(exc_info.value)
+
+
+def test_explorer_params_missing_surrogate_model() -> None:
+    """Test that ExplorerParams raises a validation error.
+
+    This happens if surrogate_model is missing.
+    """
+    from mlip_autopipec.config_schemas import ExplorerParams
+
+    with pytest.raises(ValidationError) as exc_info:
+        ExplorerParams()  # type: ignore
+    assert "Field required" in str(exc_info.value)
+
+
+def test_surrogate_model_path_validation() -> None:
+    """Test the path traversal validation for the surrogate model path."""
+    from mlip_autopipec.config_schemas import SurrogateModelParams
+
+    with pytest.raises(ValidationError, match="cannot contain '..'"):
+        SurrogateModelParams(model_path="../path/to/model")
+
+    with pytest.raises(ValidationError, match="must be a relative path"):
+        SurrogateModelParams(model_path="/path/to/model")
+
+    # A valid relative path should pass
+    valid_path = "models/mace.model"
+    params = SurrogateModelParams(model_path=valid_path)
+    assert params.model_path == valid_path
