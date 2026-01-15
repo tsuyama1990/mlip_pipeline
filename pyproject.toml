@@ -19,6 +19,7 @@ dependencies = [
     "scipy>=1.10",
     "numba>=0.58",
     "pyyaml>=6.0",
+    "lammps>=2021.3.24",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,7 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.0",
     "pytest-cov>=4.0",
+    "types-pyyaml>=6.0",
 ]
 
 [tool.setuptools.packages.find]

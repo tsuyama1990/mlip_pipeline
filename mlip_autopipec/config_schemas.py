@@ -335,6 +335,39 @@ class TrainerParams(BaseModel):
     )
 
 
+class MDEnsemble(BaseModel):
+    """Parameters for the Molecular Dynamics ensemble."""
+
+    model_config = ConfigDict(extra="forbid")
+    ensemble_type: Literal["nvt", "npt"] = Field(
+        "nvt", description="The thermodynamic ensemble to use (e.g., NVT, NPT)."
+    )
+    target_temperature_k: float = Field(
+        300.0, ge=0, description="Target temperature in Kelvin."
+    )
+
+
+class InferenceParams(BaseModel):
+    """Parameters for the Inference Engine (Module E)."""
+
+    model_config = ConfigDict(extra="forbid")
+    md_ensemble: MDEnsemble = Field(
+        default_factory=MDEnsemble,
+        description="Settings for the MD thermostat/barostat.",
+    )
+    uncertainty_threshold: float = Field(
+        4.0,
+        ge=0,
+        description="Extrapolation grade threshold to trigger active learning.",
+    )
+    simulation_timestep_fs: float = Field(
+        1.0, gt=0, description="Timestep for the MD simulation in femtoseconds."
+    )
+    total_simulation_steps: int = Field(
+        1000, ge=1, description="Total number of steps for the MD simulation."
+    )
+
+
 class SystemConfig(BaseModel):
     """The root internal configuration object for an MLIP-AutoPipe workflow."""
 
@@ -347,6 +380,9 @@ class SystemConfig(BaseModel):
     trainer: TrainerParams = Field(
         default_factory=TrainerParams,
         description="Parameters for the Pacemaker Trainer.",
+    )
+    inference: InferenceParams | None = Field(
+        default=None, description="Parameters for the Inference Engine."
     )
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."

@@ -48,6 +48,53 @@ def test_user_config_valid_defaults() -> None:
     assert config.resources.dft_cores == 1
 
 
+def test_inference_params_valid():
+    """Test valid InferenceParams configuration."""
+    from mlip_autopipec.config_schemas import InferenceParams
+
+    params = InferenceParams(
+        md_ensemble={"ensemble_type": "npt", "target_temperature_k": 500.0},
+        uncertainty_threshold=5.0,
+        simulation_timestep_fs=0.5,
+        total_simulation_steps=5000,
+    )
+    assert params.md_ensemble.ensemble_type == "npt"
+    assert params.total_simulation_steps == 5000
+
+
+@pytest.mark.parametrize(
+    "invalid_data",
+    [
+        {"total_simulation_steps": 0},  # Must be >= 1
+        {"simulation_timestep_fs": 0.0},  # Must be > 0
+        {"uncertainty_threshold": -1.0},  # Must be >= 0
+        {
+            "md_ensemble": {"target_temperature_k": -100.0}
+        },  # Temp must be >= 0
+    ],
+)
+def test_inference_params_invalid(invalid_data):
+    """Test invalid InferenceParams that should raise ValidationError."""
+    from mlip_autopipec.config_schemas import InferenceParams
+
+    valid_data = {
+        "md_ensemble": {"ensemble_type": "nvt", "target_temperature_k": 300.0},
+        "uncertainty_threshold": 4.0,
+        "simulation_timestep_fs": 1.0,
+        "total_simulation_steps": 1000,
+    }
+    # Recursively update the valid data with the invalid fragment
+    # This is needed for the nested dictionary case.
+    for key, value in invalid_data.items():
+        if isinstance(value, dict):
+            valid_data[key].update(value)
+        else:
+            valid_data[key] = value
+
+    with pytest.raises(ValidationError):
+        InferenceParams(**valid_data)
+
+
 def test_user_config_extra_field_forbidden() -> None:
     """Test that an extra, undefined field raises a validation error."""
     data = {
