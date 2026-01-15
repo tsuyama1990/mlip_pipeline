@@ -20,6 +20,9 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
     return config
 
 
+from mlip_autopipec.config.pacemaker_config import PacemakerConfig
+
+
 def test_generate_pacemaker_config(
     test_system_config: SystemConfig, tmp_path: Path
 ) -> None:
@@ -31,16 +34,19 @@ def test_generate_pacemaker_config(
     config_path = generator.generate_config(dummy_data_path, tmp_path)
     assert config_path.exists()
 
+    # Verify that the generated YAML can be loaded and parsed by the Pydantic model
     with open(config_path) as f:
         config_data = yaml.safe_load(f)
+        parsed_config = PacemakerConfig(**config_data)
 
     # Verify that the generated config matches the SystemConfig
-    assert config_data["fit_params"]["dataset_filename"] == str(dummy_data_path)
+    fit_params = parsed_config.fit_params
+    assert fit_params.dataset_filename == str(dummy_data_path)
     assert (
-        config_data["fit_params"]["loss_weights"]["energy"]
+        fit_params.loss_weights.energy
         == test_system_config.trainer.loss_weights.energy
     )
     assert (
-        config_data["fit_params"]["ace"]["correlation_order"]
+        fit_params.ace.correlation_order
         == test_system_config.trainer.ace_params.correlation_order
     )
