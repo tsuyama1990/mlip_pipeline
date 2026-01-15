@@ -139,10 +139,8 @@ class PacemakerTrainer:
         ]
 
         try:
-            # The command is executed as a list of arguments, which is a security
-            # best practice that prevents shell injection vulnerabilities. The stderr
-            # is included in the exception message to provide detailed, actionable
-            # feedback to the user, which is crucial for debugging scientific workflows.
+            # The command is executed as a list of arguments to prevent shell
+            # injection, a critical security measure.
             result = subprocess.run(
                 command,
                 check=True,

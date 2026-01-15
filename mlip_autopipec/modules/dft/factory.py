@@ -44,6 +44,8 @@ class DFTFactory:
         """
         self.config = config
         self.base_work_dir = base_work_dir
+        self.input_generator = QEInputGenerator()
+        self.process_runner = QEProcessRunner()
         self.output_parser = QEOutputParser()
 
     def run(self, atoms: Atoms) -> Atoms:
@@ -78,14 +80,15 @@ class DFTFactory:
 
             file_manager = QEFileManager()
             try:
-                input_generator = QEInputGenerator(current_config)
-                process_runner = QEProcessRunner(current_config.executable)
-
-                input_content = input_generator.generate(atoms)
+                input_content = self.input_generator.generate(
+                    atoms, config=current_config
+                )
                 file_manager.write_input(input_content)
 
-                process_runner.execute(
-                    file_manager.input_path, file_manager.output_path
+                self.process_runner.execute(
+                    file_manager.input_path,
+                    file_manager.output_path,
+                    config=current_config.executable,
                 )
 
                 results = self.output_parser.parse(file_manager.output_path)

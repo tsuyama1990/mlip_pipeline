@@ -38,6 +38,7 @@ def test_dft_factory_success_on_first_try(
     atoms = Atoms("Cu")
     result_atoms = factory.run(atoms)
     assert "energy" in result_atoms.calc.results
+    assert result_atoms.calc.results["energy"] == -1.0
 
 
 def test_dft_factory_retry_logic(mock_dft_config: DFTConfig, mocker: MagicMock) -> None:
@@ -53,17 +54,17 @@ def test_dft_factory_retry_logic(mock_dft_config: DFTConfig, mocker: MagicMock) 
         "mlip_autopipec.modules.dft.output_parser.QEOutputParser.parse",
         return_value={"energy": -1.0},
     )
-    spy_input_generator = mocker.spy(dft_factory_module, "QEInputGenerator")
-
     factory = DFTFactory(config=mock_dft_config)
+    spy_generate = mocker.spy(factory.input_generator, "generate")
+
     atoms = Atoms("Cu")
     factory.run(atoms)
 
     assert mock_execute.call_count == 2
     assert mock_parse.call_count == 1
-    assert spy_input_generator.call_count == 2
+    assert spy_generate.call_count == 2
     # Verify that the second call to the input generator used a modified config
-    second_call_config = spy_input_generator.call_args_list[1].args[0]
+    second_call_config = spy_generate.call_args_list[1].kwargs["config"]
     assert second_call_config.input.electrons.mixing_beta == 0.5
 
 

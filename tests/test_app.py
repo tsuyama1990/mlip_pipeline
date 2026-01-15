@@ -7,7 +7,7 @@ import pytest
 from ase import Atoms
 from dask.distributed import Client, LocalCluster
 
-from mlip_autopipec.app import expand_config, run_workflow
+from mlip_autopipec.app import _generate_system_config_from_user_config, run_workflow
 from mlip_autopipec.config_schemas import SystemConfig, UserConfig
 
 
@@ -19,7 +19,7 @@ def mock_system_config(tmp_path: Path) -> SystemConfig:
         "simulation_goal": "melt_quench",
     }
     user_config = UserConfig(**config_dict)
-    return expand_config(user_config)
+    return _generate_system_config_from_user_config(user_config)
 
 
 def test_app_with_dask_local_cluster(

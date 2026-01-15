@@ -36,11 +36,14 @@ logging.basicConfig(
 app = typer.Typer()
 
 
-def expand_config(user_config: UserConfig) -> SystemConfig:
-    """Expand the user-facing configuration into the internal system configuration.
+def _generate_system_config_from_user_config(
+    user_config: UserConfig,
+) -> SystemConfig:
+    """Generate the internal SystemConfig from the user-facing UserConfig.
 
-    In a real implementation, this would involve complex logic to generate
-    DFT parameters, file paths, etc. Here, we create a mock expansion.
+    This function translates the user's high-level requests into a detailed,
+    self-contained configuration object for the entire workflow. It defines
+    default DFT parameters, MD settings, and other internal details.
 
     Args:
         user_config: The user-provided configuration.
@@ -142,7 +145,7 @@ def run(
         with open(config_path) as f:
             user_config_data = yaml.safe_load(f)
         user_config = UserConfig(**user_config_data)
-        config = expand_config(user_config)
+        config = _generate_system_config_from_user_config(user_config)
     except ValidationError as e:
         logging.error(f"Configuration error: {e}")
         raise typer.Exit(code=1)

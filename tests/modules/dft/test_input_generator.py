@@ -10,8 +10,8 @@ def test_qeinputgenerator_generate(
     sample_system_config: SystemConfig, sample_atoms: Atoms
 ) -> None:
     """Test the generation of the QE input file content."""
-    generator = QEInputGenerator(sample_system_config.dft)
-    input_content = generator.generate(sample_atoms)
+    generator = QEInputGenerator()
+    input_content = generator.generate(sample_atoms, config=sample_system_config.dft)
 
     assert "&CONTROL" in input_content
     assert "calculation = 'scf'" in input_content

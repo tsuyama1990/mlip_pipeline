@@ -148,6 +148,11 @@ class DFTInput(BaseModel):
     # valid chemical symbol at runtime. This guarantees that the dictionary
     # remains well-formed and consistent with the expected data model without
     # sacrificing the necessary flexibility.
+    # A dictionary is used here as it is the most appropriate data structure for
+    # mapping dynamically determined element symbols to their pseudopotential
+    # filenames. This approach is preferred over nested Pydantic models, which
+    # would require a pre-defined and static set of fields (i.e., all possible
+    # chemical symbols), making the schema inflexible.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
