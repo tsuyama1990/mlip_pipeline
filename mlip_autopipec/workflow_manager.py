@@ -12,7 +12,6 @@ from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
 from mlip_autopipec.utils.workflow_utils import (
     CheckpointManager,
     atoms_to_json,
-    setup_dask_client,
 )
 
 
@@ -52,7 +51,7 @@ class WorkflowManager:
 
             self._run_training_and_md(state, dft_futures)
 
-            self._process_completed_dft_futures(
+            new_dft_calculations_count = self._process_completed_dft_futures(
                 dft_futures, new_dft_calculations_count, state
             )
 
@@ -99,7 +98,7 @@ class WorkflowManager:
         dft_futures: list[Future[Any]],
         new_dft_calculations_count: int,
         state: dict[str, Any],
-    ) -> None:
+    ) -> int:
         """Process completed DFT calculations and update the database."""
         completed_futures = [f for f in dft_futures if f.done()]  # type: ignore[no-untyped-call]
         for future in completed_futures:
@@ -116,6 +115,7 @@ class WorkflowManager:
                 del state["submitted_tasks"][task_id]
             dft_futures.remove(future)
         self.checkpoint_manager.save(state)
+        return new_dft_calculations_count
 
     def _wait_for_remaining_dft_futures(
         self, dft_futures: list[Future[Any]], state: dict[str, Any]

@@ -32,7 +32,14 @@ def _apply_parameter_adjustment(
 
 
 class DFTFactory:
-    """A factory for running DFT calculations."""
+    """A factory for running DFT calculations.
+
+    This class orchestrates the process of running a DFT calculation. It is
+    responsible for generating the input file, executing the DFT code as a
+    subprocess, and parsing the output. It also implements a robust retry
+    mechanism to handle common convergence failures by automatically adjusting
+    DFT parameters.
+    """
 
     def __init__(self, config: DFTConfig, base_work_dir: Path | None = None) -> None:
         """Initialize the DFTFactory.
@@ -49,22 +56,11 @@ class DFTFactory:
         self.output_parser = QEOutputParser()
 
     def run(self, atoms: Atoms) -> Atoms:
-        """Run a DFT calculation with an automatic retry mechanism.
+        """Run a DFT calculation with an automatic retry mechanism."""
+        return self._run_calculation_with_retry(atoms)
 
-        This method attempts to run the DFT calculation. If it fails, it will
-        sequentially apply parameter adjustments defined in the `retry_strategy`
-        and retry the calculation up to `max_retries` times.
-
-        Args:
-            atoms: The ASE `Atoms` object representing the structure.
-
-        Returns:
-            The input `Atoms` object with calculation results attached.
-
-        Raises:
-            DFTCalculationError: If the calculation fails after all retries.
-
-        """
+    def _run_calculation_with_retry(self, atoms: Atoms) -> Atoms:
+        """Execute the DFT calculation with a retry loop for robustness."""
         original_config = self.config
         max_retries = original_config.retry_strategy.max_retries
 
@@ -84,13 +80,11 @@ class DFTFactory:
                     atoms, config=current_config
                 )
                 file_manager.write_input(input_content)
-
                 self.process_runner.execute(
                     file_manager.input_path,
                     file_manager.output_path,
                     config=current_config.executable,
                 )
-
                 results = self.output_parser.parse(file_manager.output_path)
                 from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -99,20 +93,15 @@ class DFTFactory:
                 )
                 logger.info("DFT calculation succeeded on attempt %d.", attempt + 1)
                 return atoms
-
             except DFTCalculationError as e:
                 logger.warning(
                     "DFT attempt %d/%d failed.", attempt + 1, max_retries + 1
                 )
                 if attempt >= max_retries:
                     logger.error(
-                        "DFT calculation failed after %d attempts for structure: %s",
-                        max_retries + 1,
-                        atoms.get_chemical_formula(),  # type: ignore[no-untyped-call]
+                        "DFT calculation failed after %d attempts.", max_retries + 1
                     )
                     raise e
             finally:
                 file_manager.cleanup()
-
-        # This part should be unreachable, but it's here for type safety
         raise DFTCalculationError("DFT calculation failed after all retries.")

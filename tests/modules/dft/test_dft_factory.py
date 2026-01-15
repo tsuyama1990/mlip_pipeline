@@ -24,10 +24,10 @@ def mock_dft_config() -> DFTConfig:
     return config
 
 
-def test_dft_factory_success_on_first_try(
+def test_dft_factory_succeeds_on_first_try(
     mock_dft_config: DFTConfig, mocker: MagicMock
 ) -> None:
-    """Test that the DFTFactory succeeds on the first attempt."""
+    """Verify that the factory returns a correct result on the first attempt."""
     mocker.patch("mlip_autopipec.modules.dft.process_runner.QEProcessRunner.execute")
     mocker.patch(
         "mlip_autopipec.modules.dft.output_parser.QEOutputParser.parse",
@@ -40,8 +40,8 @@ def test_dft_factory_success_on_first_try(
     assert result_atoms.calc.results["energy"] == -1.0
 
 
-def test_dft_factory_retry_logic(mocker: MagicMock) -> None:
-    """Test the retry logic of the DFTFactory."""
+def test_dft_factory_succeeds_after_retry(mocker: MagicMock) -> None:
+    """Verify that the factory successfully retries and returns a result."""
     mock_execute = mocker.patch(
         "mlip_autopipec.modules.dft.process_runner.QEProcessRunner.execute"
     )
@@ -70,8 +70,8 @@ def test_dft_factory_retry_logic(mocker: MagicMock) -> None:
     assert second_call_config.input.electrons.mixing_beta == 0.5
 
 
-def test_dft_factory_fails_after_all_retries(mocker: MagicMock) -> None:
-    """Test that the DFTFactory raises an error after all retries fail."""
+def test_dft_factory_fails_after_exhausting_retries(mocker: MagicMock) -> None:
+    """Verify that the factory raises an error after all retries are exhausted."""
     mock_execute = mocker.patch(
         "mlip_autopipec.modules.dft.process_runner.QEProcessRunner.execute"
     )

@@ -4,16 +4,20 @@
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import typer
 import yaml
 from pydantic import ValidationError
 
 from mlip_autopipec.config_schemas import UserConfig
+from mlip_autopipec.data.database import DatabaseManager
+from mlip_autopipec.modules.config_generator import PacemakerConfigGenerator
+from mlip_autopipec.modules.dft.factory import DFTFactory
+from mlip_autopipec.modules.trainer import PacemakerTrainer
 from mlip_autopipec.utils.config_utils import (
     generate_system_config_from_user_config,
 )
+from mlip_autopipec.utils.workflow_utils import setup_dask_client
 from mlip_autopipec.workflow_manager import WorkflowManager
 
 # Configure logging
@@ -61,12 +65,11 @@ def run(
         logging.error(f"An unexpected error occurred during setup: {e}")
         raise typer.Exit(code=2)
 
-    # Use provided instances or create default mocks
-    db_manager = db_manager or MagicMock()
-    dft_factory = dft_factory or MagicMock()
-    trainer = trainer or MagicMock()
+    # Use provided instances or create default implementations
+    db_manager = db_manager or DatabaseManager(config.db_path)
+    dft_factory = dft_factory or DFTFactory(config.dft)
+    trainer = trainer or PacemakerTrainer(config, PacemakerConfigGenerator(config))
 
-    client = setup_dask_client(config)
     client = setup_dask_client(config)
     manager = WorkflowManager(
         config=config,

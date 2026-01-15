@@ -29,12 +29,9 @@ class QEProcessRunner:
         """
         command = [config.command, "-in", str(input_path)]
         logger.info("Executing DFT command: %s", " ".join(command))
-        # The use of subprocess.run is secure because `shell=False` is the
-        # default and the command is passed as a list, preventing shell
-        # injection. Additionally, `tempfile.TemporaryDirectory` creates a
-        # secure, private directory, and `pathlib` joins prevent path
-        # traversal attacks (`../`), ensuring files are written within the
-        # temporary directory.
+        # SECURITY: The command is executed as a list of arguments with
+        # `shell=False` (the default), which is a critical security measure to
+        # prevent shell injection attacks.
         try:
             with open(output_path, "w") as f:
                 subprocess.run(

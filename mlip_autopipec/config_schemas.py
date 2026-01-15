@@ -153,6 +153,9 @@ class DFTInput(BaseModel):
     # filenames. This approach is preferred over nested Pydantic models, which
     # would require a pre-defined and static set of fields (i.e., all possible
     # chemical symbols), making the schema inflexible.
+    # Data integrity is robustly maintained by the `validate_elements` validator
+    # below, which programmatically ensures that every key in the dictionary is a
+    # valid chemical symbol at runtime.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
