@@ -23,7 +23,8 @@ def sample_system_config() -> SystemConfig:
             system=DFTSystem(nat=1, ntyp=1, ecutwfc=60.0, nspin=2),
         ),
     )
-    return SystemConfig(dft=dft_config, db_path="test.db")
+    target_system = {"elements": ["Ni"], "composition": {"Ni": 1.0}}
+    return SystemConfig(target_system=target_system, dft=dft_config, db_path="test.db")
 
 
 @pytest.fixture

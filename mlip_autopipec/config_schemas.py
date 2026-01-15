@@ -372,6 +372,7 @@ class SystemConfig(BaseModel):
     """The root internal configuration object for an MLIP-AutoPipe workflow."""
 
     model_config = ConfigDict(extra="forbid")
+    target_system: TargetSystem
     dft: DFTConfig
     generator: GeneratorParams = Field(default_factory=GeneratorParams)
     explorer: ExplorerParams | None = Field(
@@ -387,6 +388,16 @@ class SystemConfig(BaseModel):
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."
     )
+
+    @field_validator("db_path")
+    @classmethod
+    def validate_db_path(cls, v: str) -> str:
+        """Validate the database path to prevent path traversal."""
+        import os
+
+        if ".." in v or os.path.isabs(v):
+            raise ValueError("db_path must be a relative path and cannot contain '..'")
+        return v
 
 
 class CalculationMetadata(BaseModel):

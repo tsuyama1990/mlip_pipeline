@@ -9,8 +9,16 @@ import typer
 import yaml
 from ase import Atoms
 
-from mlip_autopipec.config_schemas import SystemConfig, UserConfig
-from mlip_autopipec.modules.inference import LammpsRunner
+from mlip_autopipec.config_schemas import (
+    DFTConfig,
+    DFTExecutable,
+    DFTInput,
+    InferenceParams,
+    MDEnsemble,
+    SystemConfig,
+    UserConfig,
+)
+from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
 
 # Configure logging
 logging.basicConfig(
@@ -35,19 +43,22 @@ def expand_config(user_config: UserConfig) -> SystemConfig:
     """
     logging.info("Expanding user configuration into system configuration...")
     # This is a placeholder for a more sophisticated heuristic engine.
-    # For now, we'll create a default DFTConfig and merge it.
-    mock_dft_config = {
-        "executable": {"command": "pw.x"},
-        "input": {
-            "pseudopotentials": {
-                "Cu": "Cu.UPF",
-            },
-        },
-    }
-    system_config_data = user_config.model_dump()
-    system_config_data["dft"] = mock_dft_config
-    system_config_data["inference"] = {"md_ensemble": {"target_temperature_k": 350.0}}
-    return SystemConfig(**system_config_data)
+    dft_input = DFTInput(
+        pseudopotentials={el: f"{el}.UPF" for el in user_config.target_system.elements}
+    )
+    dft_config = DFTConfig(executable=DFTExecutable(), input=dft_input)
+
+    md_ensemble = MDEnsemble(target_temperature_k=350.0)
+    inference_params = InferenceParams(md_ensemble=md_ensemble)
+
+    # Create the SystemConfig directly from Pydantic models
+    system_config = SystemConfig(
+        dft=dft_config,
+        inference=inference_params,
+        target_system=user_config.target_system.model_copy(),
+        # Other fields like generator, explorer, etc., will get defaults
+    )
+    return system_config
 
 
 @app.command()
@@ -79,6 +90,7 @@ def run(
 
     # The main active learning loop
     max_cycles = 5  # To prevent infinite loops in this mock
+    quantifier = UncertaintyQuantifier()
     for cycle in range(1, max_cycles + 1):
         logging.info("-" * 50)
         logging.info(f"Starting Active Learning Cycle {cycle}/{max_cycles}")
@@ -91,7 +103,9 @@ def run(
 
         # 2. Run the MD simulation with the new potential
         logging.info("Step 2: Running MD simulation with uncertainty quantification...")
-        lammps_runner = LammpsRunner(config=config, potential_path=potential_path)
+        lammps_runner = LammpsRunner(
+            config=config, potential_path=potential_path, quantifier=quantifier
+        )
         simulation_generator = lammps_runner.run()
 
         simulation_completed = True
@@ -121,7 +135,9 @@ def run(
 
         if simulation_completed:
             logging.info("-" * 50)
-            logging.info("MD simulation finished without exceeding uncertainty threshold.")
+            logging.info(
+                "MD simulation finished without exceeding uncertainty threshold."
+            )
             logging.info("Workflow complete.")
             break  # Exit the main loop
     else:
