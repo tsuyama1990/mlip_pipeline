@@ -17,7 +17,9 @@ from mlip_autopipec.modules.generator import PhysicsInformedGenerator
 @pytest.fixture
 def mock_system_config() -> SystemConfig:
     """Provide a mock SystemConfig for a CuAu alloy."""
+    target_system = {"elements": ["Cu", "Au"], "composition": {"Cu": 0.5, "Au": 0.5}}
     return SystemConfig(
+        target_system=target_system,
         dft=DFTConfig(
             input=DFTInput(pseudopotentials={"Cu": "Cu.upf", "Au": "Au.upf"})
         ),
@@ -32,7 +34,9 @@ def mock_system_config() -> SystemConfig:
 @pytest.fixture
 def mock_crystal_config() -> SystemConfig:
     """Provide a mock SystemConfig for a Si crystal."""
+    target_system = {"elements": ["Si"], "composition": {"Si": 1.0}}
     return SystemConfig(
+        target_system=target_system,
         dft=DFTConfig(input=DFTInput(pseudopotentials={"Si": "Si.upf"})),
         generator=GeneratorParams(
             crystal_params=CrystalParams(defect_types=["vacancy"])
@@ -85,7 +89,9 @@ def test_apply_strains() -> None:
     """Unit test for the _apply_strains method."""
     # Arrange
     atoms = bulk("Ni", "fcc", a=3.5)
+    target_system = {"elements": ["Ni"], "composition": {"Ni": 1.0}}
     config = SystemConfig(
+        target_system=target_system,
         dft=DFTConfig(input=DFTInput(pseudopotentials={"Ni": "Ni.upf"})),
         generator=GeneratorParams(
             alloy_params=AlloyParams(strain_magnitudes=[0.9, 1.1])
@@ -109,7 +115,9 @@ def test_apply_rattling() -> None:
     """Unit test for the _apply_rattling method."""
     # Arrange
     atoms = bulk("Ni", "fcc", a=3.5).repeat((2, 2, 2))  # type: ignore[no-untyped-call]
+    target_system = {"elements": ["Ni"], "composition": {"Ni": 1.0}}
     config = SystemConfig(
+        target_system=target_system,
         dft=DFTConfig(input=DFTInput(pseudopotentials={"Ni": "Ni.upf"})),
         generator=GeneratorParams(alloy_params=AlloyParams(rattle_std_devs=[0.1])),
     )

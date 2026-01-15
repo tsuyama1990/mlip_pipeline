@@ -37,6 +37,14 @@ This cycle introduces the **`PacemakerTrainer`**, the module that closes the fir
   - It executes the training process, monitors for success, and manages the resulting potential file (`.yace`).
 - **End-to-End Workflow**: With this cycle, the system can now perform an end-to-end workflow, from initial structure generation (Cycle 02), through intelligent data selection (Cycle 03), to the creation of a version-one MLIP. This provides the foundation for the full active learning loop to be implemented in subsequent cycles.
 
+## Cycle 05: The Intelligence
+
+This cycle closes the loop, transforming the pipeline into a true active learning engine. It introduces the **`LammpsRunner`** and a main **`app.py`** orchestrator, enabling the system to autonomously improve its own MLIP.
+
+- **Active Learning Loop**: The system can now run molecular dynamics simulations and intelligently detect when the simulation enters a region of high uncertainty.
+- **Automated DFT Trigger**: Upon detecting high uncertainty, the system automatically pauses the simulation, takes the uncertain atomic structure, and sends it to the DFT queue for calculation.
+- **Self-Improving Potential**: The new DFT data is then used to retrain the MLIP, creating a more robust potential. The simulation is then seamlessly resumed with the improved model. This "Zero-Human" protocol allows the system to explore conformational space and learn on the fly.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:

@@ -21,13 +21,23 @@ from mlip_autopipec.modules.trainer import (
 
 
 @pytest.fixture
-def test_system_config(tmp_path: Path) -> SystemConfig:
+def test_system_config() -> typing.Generator[SystemConfig, None, None]:
     """Provide a default SystemConfig for testing."""
+    db_path = "trainer_test.db"
     dft_config = {"executable": {}, "input": {"pseudopotentials": {"Ni": "ni.upf"}}}
-    config = SystemConfig(dft=dft_config, db_path=str(tmp_path / "test.db"))
+    target_system = {"elements": ["Ni"], "composition": {"Ni": 1.0}}
+    config = SystemConfig(
+        target_system=target_system, dft=dft_config, db_path=db_path
+    )
     config.trainer.loss_weights.energy = 2.0
     config.trainer.ace_params.correlation_order = 4
-    return config
+
+    yield config
+
+    # Cleanup the database file after the test
+    db_file = Path(db_path)
+    if db_file.exists():
+        db_file.unlink()
 
 
 @pytest.fixture

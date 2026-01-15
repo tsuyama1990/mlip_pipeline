@@ -24,13 +24,15 @@ MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 @pytest.fixture
 def system_config() -> SystemConfig:
     """Provide a SystemConfig instance pointing to the mock pw.x executable."""
+    target_system = {"elements": ["H"], "composition": {"H": 1.0}}
     return SystemConfig(
+        target_system=target_system,
         dft=DFTConfig(
             executable=DFTExecutable(command=str(MOCK_PW_X_PATH.resolve())),
             input=DFTInput(
                 pseudopotentials={"H": "H.pbe-rrkjus.UPF"},
             ),
-        )
+        ),
     )
 
 
