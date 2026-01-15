@@ -52,7 +52,7 @@ class QEProcessRunner:
                 )
         except FileNotFoundError as e:
             error_message = (
-                f"DFT command '{self.config.dft.command}' not found. "
+                f"DFT command '{self.config.command}' not found. "
                 "Ensure Quantum Espresso is installed and in the system's PATH."
             )
             logger.error(error_message)

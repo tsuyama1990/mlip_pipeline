@@ -45,9 +45,7 @@ class QEInputGenerator:
         dft_input.system.ntyp = len(dft_input.pseudopotentials)
 
         # Build the input file string section by section
-        control_part = self._format_namelist(
-            "CONTROL", dft_input.control.model_dump()
-        )
+        control_part = self._format_namelist("CONTROL", dft_input.control.model_dump())
         system_part = self._format_namelist("SYSTEM", dft_input.system.model_dump())
         electrons_part = self._format_namelist(
             "ELECTRONS", dft_input.electrons.model_dump()

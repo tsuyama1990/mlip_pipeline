@@ -10,6 +10,15 @@ This first cycle establishes the architectural backbone of the project. It inclu
 - **DFT Factory Core**: The initial implementation of the `QEProcessRunner`, a component for interacting with the Quantum Espresso DFT engine.
 - **Database Manager**: A data persistence layer for handling ASE-compatible databases with custom metadata.
 
+## Cycle 02: The Seed
+
+This cycle introduces the `PhysicsInformedGenerator`, a module designed to solve the "cold-start" problem by creating an initial, diverse set of atomic structures.
+
+- **Physics-Informed Generator**: A factory class that generates structures based on physical principles.
+  - For alloys, it produces strained and thermally "rattled" structures.
+  - For crystals, it creates structures with common point defects.
+- **Mock Implementation**: Due to a dependency conflict with `icet` and Python 3.12, the generator is currently implemented as a mock. It returns hard-coded structures but preserves the full workflow, allowing for seamless integration with downstream modules.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:

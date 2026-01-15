@@ -1,20 +1,19 @@
 # ruff: noqa: D101
-"""
-Configuration schemas for MLIP-AutoPipe, defining the data structures for
-user input and internal system configuration.
+"""Configuration schemas for MLIP-AutoPipe.
+
+Defines the data structures for user input and internal system configuration.
 """
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    RootModel,
     ValidationInfo,
     field_validator,
 )
-
 
 # =============================================================================
 # User-Facing Configuration Schemas
@@ -172,11 +171,56 @@ class DFTConfig(BaseModel):
     input: DFTInput
 
 
+class AlloyParams(BaseModel):
+    """Parameters for generating alloy structures."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sqs_supercell_size: list[int] = Field(
+        default=[4, 4, 4],
+        min_length=3,
+        description="Supercell dimensions for SQS generation (e.g., [2, 2, 2]).",
+    )
+    strain_magnitudes: list[float] = Field(
+        default=[0.95, 1.0, 1.05],
+        description="List of isotropic strain magnitudes to apply.",
+    )
+    rattle_std_devs: list[float] = Field(
+        default=[0.05, 0.1],
+        description="List of standard deviations for atomic rattling.",
+    )
+
+
+class CrystalParams(BaseModel):
+    """Parameters for generating crystal structures with defects."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    defect_types: list[Literal["vacancy", "interstitial"]] = Field(
+        default=["vacancy"], description="List of defect types to generate."
+    )
+
+
+class GeneratorParams(BaseModel):
+    """Parameters for the Physics-Informed Generator (Module A)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alloy_params: AlloyParams = Field(
+        default_factory=AlloyParams, description="Parameters for alloy generation."
+    )
+    crystal_params: CrystalParams = Field(
+        default_factory=CrystalParams,
+        description="Parameters for crystal defect generation.",
+    )
+
+
 class SystemConfig(BaseModel):
     """The root internal configuration object for an MLIP-AutoPipe workflow."""
 
     model_config = ConfigDict(extra="forbid")
     dft: DFTConfig
+    generator: GeneratorParams = Field(default_factory=GeneratorParams)
     db_path: str = Field(
         "mlip_database.db", description="Path to the central ASE database."
     )
