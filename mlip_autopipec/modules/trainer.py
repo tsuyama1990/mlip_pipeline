@@ -77,6 +77,9 @@ class PacemakerTrainer:
     def _prepare_training_data(self, atoms_list: list[Atoms], output_dir: Path) -> Path:
         """Save the provided list of Atoms to a temporary file in extxyz format.
 
+        This method now also handles the `force_mask` if it is present in the
+        `atoms.info` dictionary, writing it as a per-atom property.
+
         Args:
             atoms_list: The list of structures to save.
             output_dir: The directory where the data file will be saved.
@@ -85,8 +88,24 @@ class PacemakerTrainer:
             The path to the created XYZ data file.
 
         """
+        import numpy as np
+
         data_file = output_dir / "training_data.xyz"
-        ase_write(data_file, atoms_list, format="extxyz")
+
+        # Prepare a list of atoms to write, adding the force_mask as an array
+        atoms_to_write = []
+        for atoms in atoms_list:
+            writable_atoms = atoms.copy()
+            if "force_mask" in writable_atoms.info:
+                mask = writable_atoms.info["force_mask"]
+                # Ensure the mask is a 2D array for ASE to write correctly
+                if mask.ndim == 1:
+                    mask = mask[:, np.newaxis]
+                writable_atoms.new_array("force_mask", mask)
+                del writable_atoms.info["force_mask"]  # Clean up info dict
+            atoms_to_write.append(writable_atoms)
+
+        ase_write(data_file, atoms_to_write, format="extxyz")
         return data_file
 
     def _execute_training(self, config_file_path: Path, work_dir: Path) -> str:

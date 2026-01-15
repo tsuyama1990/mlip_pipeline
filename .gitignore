@@ -21,3 +21,6 @@ env/
 # IDEs
 .idea/
 .vscode/
+
+# Application files
+mlip_autopipec_checkpoint.json
