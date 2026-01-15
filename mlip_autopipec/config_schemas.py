@@ -5,7 +5,7 @@ Defines the data structures for user input and internal system configuration.
 """
 
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -194,6 +194,16 @@ class DFTConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     executable: DFTExecutable = Field(default_factory=DFTExecutable)
     input: DFTInput
+    max_retries: int = Field(
+        3, ge=0, description="Maximum number of retries for a failed DFT calculation."
+    )
+    retry_strategy: list[dict[str, Any]] = Field(
+        default_factory=lambda: [
+            {"params": {"electrons": {"mixing_beta": 0.5}}},
+            {"params": {"electrons": {"mixing_beta": 0.3}}},
+        ],
+        description="A list of parameter modifications to apply on each retry attempt.",
+    )
 
 
 class AlloyParams(BaseModel):
@@ -365,6 +375,16 @@ class InferenceParams(BaseModel):
     )
     total_simulation_steps: int = Field(
         1000, ge=1, description="Total number of steps for the MD simulation."
+    )
+    embedding_cutoff: float = Field(
+        6.0,
+        gt=0,
+        description="Cutoff radius for extracting the periodic sub-cell.",
+    )
+    embedding_buffer: float = Field(
+        1.0,
+        ge=0,
+        description="Buffer size to add to the cutoff for the sub-cell box.",
     )
 
 

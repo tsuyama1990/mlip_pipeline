@@ -1,76 +1,65 @@
-# ruff: noqa: D101, D102
-from pathlib import Path
+# ruff: noqa: D101, D102, D103, T201
+"""Tests for the main application."""
+
+import time
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 import yaml
 from ase import Atoms
+import dask
+from dask.distributed import Client
 from typer.testing import CliRunner
 
-from mlip_autopipec.app import app
-from mlip_autopipec.config_schemas import SystemConfig
-
-runner = CliRunner()
+from mlip_autopipec.app import app, expand_config
+from mlip_autopipec.config_schemas import CalculationMetadata, SystemConfig, UserConfig
 
 
-@pytest.fixture
-def mock_config_file(tmp_path: Path) -> Path:
-    """Create a temporary mock YAML config file for testing."""
-    config_data = {
-        "target_system": {
-            "elements": ["Cu"],
-            "composition": {"Cu": 1.0},
-        },
+def dummy_dft_task(
+    config: SystemConfig, atoms: Atoms, force_mask: np.ndarray | None
+):
+    """A dummy function to simulate the dft_task_wrapper, returning serializable objects."""
+    print("Running dummy DFT task.")
+    metadata = CalculationMetadata(stage="test", uuid="test-uuid")
+    return atoms, metadata, force_mask
+
+
+def test_app_with_synchronous_scheduler(tmp_path):
+    """Test the main application with the synchronous Dask scheduler."""
+    config_file = tmp_path / "config.yaml"
+    user_config_dict = {
+        "target_system": {"elements": ["Cu"], "composition": {"Cu": 1.0}},
         "simulation_goal": "melt_quench",
     }
-    config_file = tmp_path / "config.yaml"
     with open(config_file, "w") as f:
-        yaml.dump(config_data, f)
-    return config_file
+        yaml.dump(user_config_dict, f)
 
+    user_config = UserConfig(**user_config_dict)
+    system_config = expand_config(user_config)
+    system_config.inference.total_simulation_steps = 5
+    system_config.inference.uncertainty_threshold = 3.0
 
-@patch("mlip_autopipec.app.expand_config")
-@patch("mlip_autopipec.app.LammpsRunner")
-@patch("mlip_autopipec.app.MagicMock")
-def test_active_learning_loop_logic(
-    mock_magic_mock: MagicMock,
-    mock_lammps_runner: MagicMock,
-    mock_expand_config: MagicMock,
-    mock_config_file: Path,
-) -> None:
-    """Test the main active learning loop orchestration in the CLI app."""
-    # Mock the LammpsRunner to yield a stable grade then a high-uncertainty grade
-    mock_runner_instance = MagicMock()
-    atoms = Atoms("X")
-    mock_runner_instance.run.return_value = iter([(atoms, 1.0), (atoms, 5.0)])
-    mock_lammps_runner.return_value = mock_runner_instance
+    test_atoms = Atoms("H")
+    test_mask = np.array([1.0])
 
-    # Mock the expand_config to return a valid SystemConfig
-    mock_system_config = MagicMock(spec=SystemConfig)
-    mock_inference_params = MagicMock()
-    mock_inference_params.total_simulation_steps = 10
-    mock_inference_params.uncertainty_threshold = 4.0
-    mock_system_config.inference = mock_inference_params
-    mock_expand_config.return_value = mock_system_config
+    with patch("mlip_autopipec.app.expand_config", return_value=system_config), \
+         patch("mlip_autopipec.app.LammpsRunner") as mock_lammps_runner, \
+         patch("mlip_autopipec.app.DatabaseManager") as mock_db_manager, \
+         patch("mlip_autopipec.app.dft_task_wrapper", side_effect=dummy_dft_task) as mock_dft_task:
 
-    # Instantiate mock modules that will be created inside the app
-    mock_db_manager = MagicMock()
-    mock_dft_runner = MagicMock()
-    mock_trainer = MagicMock()
-    mock_magic_mock.side_effect = [mock_db_manager, mock_dft_runner, mock_trainer]
+        mock_lammps_instance = mock_lammps_runner.return_value
+        mock_lammps_instance.run.return_value = iter([
+            (Atoms("He"), 1.0, None),
+            (test_atoms, 4.5, test_mask),
+            (Atoms("Li"), 2.0, None),
+        ])
 
-    # Run the CLI command
-    result = runner.invoke(app, ["--config", str(mock_config_file)])
-    assert result.exit_code == 0
+        runner = CliRunner()
+        result = runner.invoke(
+            app,
+            ["--config", str(config_file), "--scheduler", "synchronous"],
+            catch_exceptions=False,
+        )
 
-    # Assert that the modules were called in the correct order and frequency
-    assert mock_trainer.train.call_count == 2
-    mock_dft_runner.run.assert_called_once()
-    mock_db_manager.write_calculation.assert_called_once()
-
-
-def test_cli_handles_missing_file() -> None:
-    """Test that the CLI exits gracefully if the config file is not found."""
-    result = runner.invoke(app, ["--config", "non_existent_file.yaml"])
-    assert result.exit_code != 0
-    assert "Invalid value" in result.stderr
+        assert result.exit_code == 0

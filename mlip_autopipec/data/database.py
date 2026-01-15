@@ -7,8 +7,10 @@ metadata required for the MLIP-AutoPipe workflow.
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from ase import Atoms
 from ase.db import connect
+from ase.db.row import AtomsRow
 
 from mlip_autopipec.config_schemas import CalculationMetadata
 
@@ -34,30 +36,47 @@ class DatabaseManager:
 
         """
         if self._connection is None:
-            self._connection = connect(self.db_path)  # type: ignore[no-untyped-call]
+            self._connection = connect(self.db_path)
         return self._connection
 
-    def write_calculation(self, atoms: Atoms, metadata: CalculationMetadata) -> int:
+    def write_calculation(
+        self,
+        atoms: Atoms,
+        metadata: CalculationMetadata,
+        force_mask: np.ndarray | None = None,
+    ) -> int:
         """Write a calculation result to the database with custom metadata.
 
         Args:
             atoms: The ASE Atoms object with calculation results attached.
             metadata: A `CalculationMetadata` object containing structured metadata.
+            force_mask: An optional numpy array defining the force mask.
 
         Returns:
             The ID of the newly written row.
 
         """
         conn = self.connect()
-        prefixed_metadata = {f"mlip_{k}": v for k, v in metadata.model_dump().items()}
-        return conn.write(atoms, key_value_pairs=prefixed_metadata)  # type: ignore[no-any-return]
+        key_value_pairs = {f"mlip_{k}": v for k, v in metadata.model_dump().items()}
+        if force_mask is not None:
+            key_value_pairs["force_mask"] = force_mask
+        return conn.write(atoms, key_value_pairs=key_value_pairs)
 
-    def get_completed_calculations(self) -> list[Atoms]:
-        """Retrieve all completed calculations from the database.
+    def get_calculations_for_training(self) -> list[Atoms]:
+        """Retrieve all completed calculations for training.
+
+        This method retrieves the Atoms object and attaches the force_mask to the
+        `atoms.info` dictionary if it exists in the database.
 
         Returns:
-            A list of ASE Atoms objects for all completed calculations.
+            A list of ASE Atoms objects ready for the trainer.
 
         """
         conn = self.connect()
-        return [row.toatoms() for row in conn.select(calculated=True)]
+        atoms_list = []
+        for row in conn.select(calculated=True):
+            atoms = row.toatoms()
+            if "force_mask" in row.key_value_pairs:
+                atoms.info["force_mask"] = row.key_value_pairs["force_mask"]
+            atoms_list.append(atoms)
+        return atoms_list

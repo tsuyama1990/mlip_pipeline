@@ -5,6 +5,7 @@ import logging
 from typing import Generator, Union
 from unittest.mock import MagicMock
 
+import numpy as np
 from ase import Atoms
 from ase.build import bulk
 
@@ -66,18 +67,19 @@ class LammpsRunner:
         self.quantifier = quantifier
         self._step = 0
 
-    def run(self) -> Generator[tuple[Atoms, float], None, None]:
+    def run(self) -> Generator[tuple[Atoms, float, np.ndarray | None], None, None]:
         """Execute the LAMMPS simulation as a generator.
 
         This method runs the MD simulation step-by-step, yielding the current
-        atomic structure and its calculated uncertainty grade at each step.
+        atomic structure, its calculated uncertainty grade, and an optional force mask.
 
         Yields:
-            A tuple containing the ASE Atoms object and the extrapolation grade.
+            A tuple containing the ASE Atoms object, the extrapolation grade, and
+            an optional numpy array for the force mask.
         """
         logger.info("Initializing LAMMPS simulation...")
         mock_lmp = MagicMock()
-        atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
+        atoms = bulk("Cu", "fcc", a=3.6) * (4, 4, 4)  # Larger cell for embedding
         mock_lmp.get_natoms.return_value = len(atoms)
 
         assert self.config.inference is not None
@@ -89,11 +91,18 @@ class LammpsRunner:
             logger.debug(f"Running MD step {self._step}")
 
             try:
-                # In a real scenario, this would run a single MD step.
-                # mock_lmp.command("run 1")
-
                 extrapolation_grade = self.quantifier.get_extrapolation_grade(atoms)
-                yield atoms, extrapolation_grade
+                if extrapolation_grade >= self.config.inference.uncertainty_threshold:
+                    # In a real scenario, we would identify the atom with the highest
+                    # uncertainty. Here we just pick an atom in the center.
+                    uncertain_atom_index = len(atoms) // 2
+                    sub_cell = self._extract_periodic_subcell(
+                        atoms, uncertain_atom_index
+                    )
+                    force_mask = self._generate_force_mask(sub_cell)
+                    yield sub_cell, extrapolation_grade, force_mask
+                else:
+                    yield atoms, extrapolation_grade, None
 
             except Exception as e:
                 logger.error(f"An error occurred during MD step {self._step}: {e}")
@@ -102,3 +111,63 @@ class LammpsRunner:
                 ) from e
 
         logger.info("MD simulation completed successfully.")
+
+    def _extract_periodic_subcell(
+        self, atoms: Atoms, center_atom_index: int
+    ) -> Atoms:
+        """Extract a periodic sub-cell around a central atom.
+
+        This method correctly handles periodic boundary conditions by finding all
+        atoms within a cubic region around the central atom, including those
+        that wrap around the original cell's boundaries.
+
+        Args:
+            atoms: The full simulation cell.
+            center_atom_index: The index of the atom to center the sub-cell on.
+
+        Returns:
+            A new, smaller, periodic ASE Atoms object.
+        """
+        assert self.config.inference is not None
+        cutoff = self.config.inference.embedding_cutoff
+        buffer = self.config.inference.embedding_buffer
+        box_size = 2 * (cutoff + buffer)
+
+        center_pos = atoms.positions[center_atom_index]
+
+        # Get all neighbors within the box size, accounting for PBC
+        indices = []
+        for i in range(len(atoms)):
+            distance, offset = atoms.get_distance(center_atom_index, i, mic=True)
+            if np.all(np.abs(atoms.positions[i] + offset - center_pos) < box_size / 2):
+                indices.append(i)
+
+        sub_cell_atoms = atoms[indices].copy()
+        sub_cell_atoms.set_cell([box_size, box_size, box_size])
+        sub_cell_atoms.pbc = True
+
+        # Center the atoms in the new box
+        sub_cell_atoms.positions -= center_pos - box_size / 2
+
+        return sub_cell_atoms
+
+    def _generate_force_mask(self, atoms: Atoms) -> np.ndarray:
+        """Generate a force mask for the given sub-cell.
+
+        Atoms inside the cutoff radius get a mask value of 1.0 (forces are used),
+        while atoms in the buffer region get a value of 0.0 (forces are ignored).
+
+        Args:
+            atoms: The sub-cell for which to generate the mask.
+
+        Returns:
+            A numpy array of 1s and 0s.
+        """
+        assert self.config.inference is not None
+        cutoff = self.config.inference.embedding_cutoff
+        center_of_box = np.diag(atoms.get_cell()) / 2.0
+
+        distances = np.linalg.norm(atoms.positions - center_of_box, axis=1)
+
+        force_mask = (distances < cutoff).astype(float)
+        return force_mask
