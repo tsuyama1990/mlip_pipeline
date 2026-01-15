@@ -6,11 +6,11 @@ from typing import List
 
 import numpy as np
 from ase import Atoms
-from dscribe.descriptors import SOAP
 from mace.calculators import mace_mp
 from scipy.spatial.distance import cdist
 
 from mlip_autopipec.config_schemas import SystemConfig
+from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -82,7 +82,17 @@ class SurrogateExplorer:
             return screened_candidates
 
         # Stage 2: Calculate descriptors
-        descriptors = self._calculate_descriptors(screened_candidates)
+        all_symbols = set()
+        for atoms in screened_candidates:
+            all_symbols.update(
+                atoms.get_chemical_symbols()  # type: ignore[no-untyped-call]
+            )
+        species = sorted(list(all_symbols))
+
+        descriptor_calculator = SOAPDescriptorCalculator(
+            soap_params=self.config.fps.soap_params, species=species
+        )
+        descriptors = descriptor_calculator.calculate(screened_candidates)
 
         # Stage 3: Farthest Point Sampling
         selected_indices = self._farthest_point_sampling(descriptors, n_select)
@@ -93,76 +103,97 @@ class SurrogateExplorer:
         return final_selection
 
     def _screen_with_surrogate(self, candidates: List[Atoms]) -> List[Atoms]:
-        """Filter candidates based on predicted energy from a surrogate model."""
+        """Filter candidates based on predicted energy from a surrogate model.
+
+        Loads a MACE model and calculates the potential energy for each
+        candidate structure. Structures with an energy per atom above the
+        configured threshold are discarded. Also handles model loading errors
+        and invalid energy calculations.
+
+        Args:
+            candidates: A list of ASE Atoms objects to be screened.
+
+        Returns:
+            A list of ASE Atoms objects that passed the screening.
+
+        """
         model_path = self.config.surrogate_model.model_path
         threshold = self.config.surrogate_model.energy_threshold_ev
 
         logger.info(f"Loading surrogate model from: {model_path}")
-        # Note: The mace_mp function automatically handles model loading.
-        # We assume the model path is correct and accessible.
-        calculator = mace_mp(model=model_path, device="cpu", default_dtype="float64")
+        try:
+            calculator = mace_mp(
+                model=model_path, device="cpu", default_dtype="float64"
+            )
+        except FileNotFoundError:
+            logger.exception(f"Surrogate model file not found at: {model_path}")
+            raise
+        except Exception as e:
+            logger.exception(
+                "An unexpected error occurred while loading the MACE model."
+            )
+            raise RuntimeError("Failed to load surrogate model.") from e
 
         screened_list = []
-        for atoms in candidates:
-            atoms.calc = calculator
-            energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            energy_per_atom = energy / len(atoms)
+        for i, atoms in enumerate(candidates):
+            try:
+                atoms.calc = calculator
+                energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+                energy_per_atom = energy / len(atoms)
 
-            if energy_per_atom < threshold:
-                screened_list.append(atoms)
-            else:
-                logger.debug(
-                    f"Discarding structure with energy {energy_per_atom:.2f} eV/atom "
-                    f"(threshold: {threshold:.2f} eV/atom)."
+                if np.isnan(energy) or np.isinf(energy):
+                    logger.warning(
+                        f"Structure {i} yielded an invalid energy value (NaN or Inf). "
+                        "Discarding."
+                    )
+                    continue
+
+                if energy_per_atom < threshold:
+                    screened_list.append(atoms)
+                else:
+                    logger.debug(
+                        f"Discarding structure with energy "
+                        f"{energy_per_atom:.2f} eV/atom "
+                        f"(threshold: {threshold:.2f} eV/atom)."
+                    )
+            except Exception:
+                logger.exception(
+                    f"An error occurred during energy calculation for structure {i}. "
+                    "Discarding."
                 )
         return screened_list
-
-    def _calculate_descriptors(self, candidates: List[Atoms]) -> np.ndarray:
-        """Calculate the average SOAP descriptors for a list of structures."""
-        soap_params = self.config.fps.soap_params
-        all_symbols = set()
-        for atoms in candidates:
-            all_symbols.update(
-                atoms.get_chemical_symbols()  # type: ignore[no-untyped-call]
-            )
-        species = sorted(list(all_symbols))
-        logger.info(f"Calculating SOAP descriptors for species: {species}")
-
-        soap_generator = SOAP(
-            species=species,
-            r_cut=soap_params.r_cut,
-            n_max=soap_params.n_max,
-            l_max=soap_params.l_max,
-            sigma=soap_params.atomic_sigma,
-            periodic=True,
-            sparse=False,
-            average="outer",
-        )
-
-        # The create method can take a list of Atoms objects directly
-        descriptors = soap_generator.create(candidates, n_jobs=-1)
-        return descriptors  # type: ignore[no-any-return]
 
     def _farthest_point_sampling(
         self, descriptors: np.ndarray, n_select: int
     ) -> List[int]:
-        """Select a diverse subset using the Farthest Point Sampling algorithm."""
+        """Select a diverse subset using the Farthest Point Sampling algorithm.
+
+        Iteratively selects `n_select` points from the descriptor matrix that are
+        maximally distant from the set of already chosen points. This ensures
+        a diverse sampling of the descriptor space.
+
+        Args:
+            descriptors: A 2D NumPy array of descriptor vectors.
+            n_select: The number of indices to select.
+
+        Returns:
+            A list of integer indices corresponding to the selected descriptors.
+
+        """
         if n_select >= len(descriptors):
             return list(range(len(descriptors)))
 
         selected_indices = []
-        # For reproducibility, we could use a fixed seed.
+        # For reproducibility, a fixed seed could be used here.
         initial_index = np.random.randint(0, len(descriptors))
         selected_indices.append(int(initial_index))
 
-        # Initialize distances: min distance from each point to any selected point
         min_distances = cdist(descriptors, descriptors[selected_indices, :]).min(axis=1)
 
         for _ in range(n_select - 1):
             next_index = int(np.argmax(min_distances))
             selected_indices.append(next_index)
 
-            # Update min_distances
             new_distances = cdist(
                 descriptors, descriptors[selected_indices[-1:], :]
             ).flatten()

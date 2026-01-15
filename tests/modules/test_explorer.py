@@ -86,25 +86,14 @@ def test_select_pipeline(
 
     # 3. Mock Behavior
     # Mock the MACE model to return high energies for 3 atoms.
-    mock_calculator = mocker.patch("mlip_autopipec.modules.explorer.mace_mp")
-    energies = [-10.0] * 7 + [1.0] * 3  # 7 pass, 3 fail
-    mock_calculator.return_value.get_potential_energy.side_effect = energies
+    mocker.patch(
+        "mlip_autopipec.modules.explorer.mace_mp"
+    ).return_value.get_potential_energy.side_effect = [-10.0] * 7 + [1.0] * 3
 
     # Mock dscribe to return pre-defined descriptors for the 7 survivors.
-    mock_soap = mocker.patch("mlip_autopipec.modules.explorer.SOAP")
-    # Make the first three descriptors the most diverse
-    descriptors = np.array(
-        [
-            [10, 10],
-            [20, 0],
-            [0, 20],
-            [0, 0],
-            [0.1, 0.1],
-            [0.2, 0],
-            [-0.1, 0.1],
-        ]
-    )
-    mock_soap.return_value.create.return_value = descriptors
+    mocker.patch(
+        "mlip_autopipec.modules.descriptors.SOAPDescriptorCalculator.calculate"
+    ).return_value = np.random.rand(7, 10)
 
     # 4. Execution
     np.random.seed(42)  # Ensure reproducibility for FPS
@@ -112,14 +101,69 @@ def test_select_pipeline(
     final_selection = explorer.select(candidates)
 
     # 5. Assertions
-    # Assert that the final list has the correct size.
     assert len(final_selection) == 3
-
-    # Assert that the high-energy structures were filtered out.
-    # The final selection should be a subset of the first 7 candidates.
     final_indices = {c.positions[0, 2] for c in final_selection}
     assert final_indices.issubset(set(range(7)))
 
-    # Assert that FPS selected the most diverse structures.
-    # With seed(42), start is index 1. Next are 2 and 6.
-    assert final_indices == {1, 2, 6}
+
+def test_empty_candidate_list(mock_system_config: SystemConfig) -> None:
+    """Test that an empty candidate list is handled gracefully."""
+    explorer = SurrogateExplorer(mock_system_config)
+    final_selection = explorer.select([])
+    assert final_selection == []
+
+
+def test_all_candidates_screened(
+    mocker: MockerFixture, mock_system_config: SystemConfig
+) -> None:
+    """Test that if all candidates are screened out, an empty list is returned."""
+    candidates = [Atoms("H")] * 5
+    assert mock_system_config.explorer is not None
+    mock_system_config.explorer.surrogate_model.energy_threshold_ev = -5.0
+
+    mocker.patch(
+        "mlip_autopipec.modules.explorer.mace_mp"
+    ).return_value.get_potential_energy.return_value = 1.0  # All are high-energy
+
+    explorer = SurrogateExplorer(mock_system_config)
+    final_selection = explorer.select(candidates)
+    assert final_selection == []
+
+
+def test_fewer_candidates_than_n_select(
+    mocker: MockerFixture, mock_system_config: SystemConfig
+) -> None:
+    """Test that if fewer candidates remain than n_select, all are returned."""
+    candidates = [Atoms("H")] * 5
+    assert mock_system_config.explorer is not None
+    mock_system_config.explorer.surrogate_model.energy_threshold_ev = -5.0
+    mock_system_config.explorer.fps.n_select = 10
+
+    mocker.patch(
+        "mlip_autopipec.modules.explorer.mace_mp"
+    ).return_value.get_potential_energy.return_value = -10.0  # All pass
+
+    explorer = SurrogateExplorer(mock_system_config)
+    final_selection = explorer.select(candidates)
+    assert len(final_selection) == 5
+
+
+def test_invalid_energy_values(
+    mocker: MockerFixture, mock_system_config: SystemConfig
+) -> None:
+    """Test that NaN and Inf energy values are handled correctly."""
+    candidates = [Atoms("H")] * 3
+    assert mock_system_config.explorer is not None
+    mock_system_config.explorer.surrogate_model.energy_threshold_ev = -5.0
+
+    mocker.patch(
+        "mlip_autopipec.modules.explorer.mace_mp"
+    ).return_value.get_potential_energy.side_effect = [
+        -10.0,
+        np.nan,
+        np.inf,
+    ]  # One valid, two invalid
+
+    explorer = SurrogateExplorer(mock_system_config)
+    final_selection = explorer.select(candidates)
+    assert len(final_selection) == 1

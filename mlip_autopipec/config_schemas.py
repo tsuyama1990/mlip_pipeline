@@ -137,6 +137,9 @@ class DFTInput(BaseModel):
     """Comprehensive container for Quantum Espresso input parameters."""
 
     model_config = ConfigDict(extra="forbid")
+    # A dictionary is used here because the keys (element symbols) are dynamic and
+    # not known in advance. Pydantic validates the keys are valid chemical symbols
+    # using the `validate_elements` method below, ensuring data integrity.
     pseudopotentials: dict[str, str] = Field(
         ..., description="Mapping from element symbol to pseudopotential filename."
     )
