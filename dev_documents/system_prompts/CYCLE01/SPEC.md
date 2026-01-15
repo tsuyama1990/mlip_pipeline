@@ -1,160 +1,163 @@
-# MLIP-AutoPipe: Cycle 01 Specification
-
-- **Cycle**: 01
-- **Title**: The Foundation - Schemas and DFT Factory Core
-- **Status**: Scoping
-
----
+# CYCLE01: The Foundation - Automated DFT Factory (SPEC.md)
 
 ## 1. Summary
 
-This first development cycle is the most critical as it lays the architectural foundation for the entire MLIP-AutoPipe system. The primary objective of Cycle 01 is to establish a robust, schema-driven framework for managing all system configurations and to implement the core component responsible for interacting with the DFT engine. This cycle is not about generating complex scientific workflows but about building the boring, reliable, and testable bedrock upon which all future modules will depend.
+This document provides the detailed technical specification for Cycle 1 of the MLIP-AutoPipe project. The singular focus of this inaugural cycle is to construct the project's cornerstone: a robust, autonomous, and fault-tolerant **Automated DFT Factory**. This component is arguably the most critical piece of the entire system, as the quality and reliability of all subsequent machine learning processes depend entirely on its ability to consistently and accurately perform quantum mechanical calculations. The primary goal is to abstract away the immense complexity of setting up and running Density Functional Theory (DFT) calculations, providing a simple, high-level interface to the rest of the application.
 
-The centrepiece of this cycle is the implementation of a comprehensive suite of Pydantic models. We will follow a strict **Schema-First Development** process. Before any logic is written, we will meticulously define the data structures that govern the system. This includes the `UserConfig`, which represents the minimal, user-friendly input, and the `SystemConfig`, the massive, fully-parameterised internal configuration object. A heuristic engine will be designed to translate the former into the latter, encapsulating expert knowledge and sensible defaults, thereby abstracting complexity away from the end-user. This approach ensures that all data flowing through the system is validated, typed, and explicit, which dramatically reduces the potential for runtime errors.
+The core deliverable for this cycle is a Python module, specifically a `DFTFactory` class, that can accept a standard `ase.Atoms` object—a common representation of an atomic structure—and return its calculated energy, atomic forces, and virial stress. This process must be fully automated, encapsulating expert knowledge that is typically required from a human researcher. This includes intelligent, heuristic-based determination of crucial DFT parameters such as plane-wave cutoff energies, k-point mesh densities, and magnetic moments. By codifying this domain knowledge, the system eliminates a significant barrier to entry and a common source of error.
 
-The second major deliverable is the initial implementation of the `QEProcessRunner` class. This component is the system's sole gateway to the Quantum Espresso DFT code. This initial version will focus on the "happy path": taking a single atomic structure (an ASE `Atoms` object) and a `SystemConfig`, generating the correct QE input file, executing the `pw.x` binary, and parsing the output to extract the essential physical quantities—total energy, atomic forces, and the virial stress tensor. While the full multi-level error recovery is deferred to a later cycle, the initial implementation will include basic error detection.
+Furthermore, this cycle places a heavy emphasis on resilience. DFT calculations, especially within an automated workflow that explores diverse and often distorted structures, are prone to convergence failures. A key feature of the `DFTFactory` will be its sophisticated **auto-recovery mechanism**. It will be designed to parse the output of a failed calculation, diagnose the likely cause of the error, and automatically adjust specific parameters—such as the electronic structure mixing scheme or smearing temperature—before resubmitting the job. This capability is non-negotiable for achieving the "Zero-Human" objective, ensuring the workflow can proceed without manual intervention even when faced with computational difficulties.
 
-Finally, this cycle will establish the data persistence layer. A `DatabaseManager` will be created to interface with an ASE-compatible database (SQLite for simplicity in this cycle). Crucially, this manager will extend the standard ASE DB schema to include the custom metadata fields required by our active learning loop, such as the configuration's origin (`config_type`) and the `force_mask`. By the end of this cycle, we will have a demonstrable, albeit simple, workflow: a developer can define a calculation via a Pydantic model, execute a single-point DFT calculation, and see the results correctly persisted in the custom-schema database. This provides the fundamental building blocks for all subsequent development.
-
----
+Finally, Cycle 1 will also establish the foundational data persistence layer. All successful DFT results will be stored in a structured format within an ASE-compatible database (e.g., SQLite). This creates a centralised, queryable repository of training data that will be consumed by the machine learning components in subsequent cycles. By the end of this cycle, the project will have a command-line-callable tool that can reliably take a structure and add its DFT properties to a database, forming the bedrock upon which the entire active learning architecture will be built.
 
 ## 2. System Architecture
 
-The work in Cycle 01 focuses on creating the initial files and structures for the core configuration, the DFT factory module, and the data persistence layer. This establishes the central spine of the application.
+The architecture for Cycle 1 is focused on creating a self-contained, testable, and reusable module for DFT calculations. It introduces the `mlip_autopipec/modules/dft.py` file, which will contain the main logic, and establishes the data persistence layer in `mlip_autopipec/utils/ase_utils.py`.
 
-**File Structure for Cycle 01:**
+**File Structure for Cycle 1:**
 
-The following files will be created or modified in this cycle. New files are marked in **bold**.
+The following ASCII tree shows the files that will be created or modified in this cycle. New files are marked in **bold**.
 
 ```
-.
-├── pyproject.toml
-└── src/
-    └── mlip_autopipec/
-        ├── __init__.py
-        ├── config/
-        │   ├── __init__.py
-        │   ├── **user.py**         # Schema for the minimal user input (input.yaml)
-        │   └── **system.py**       # Schema for the fully-expanded system configuration
-        ├── modules/
-        │   ├── __init__.py
-        │   └── **dft_factory.py**  # Module C: QEProcessRunner class
-        ├── data/
-        │   ├── __init__.py
-        │   └── **database.py**     # Wrapper for ASE DB with custom metadata handling
-        └── utils/
-            └── __init__.py
+mlip-autopipe/
+├── dev_documents/
+│   └── system_prompts/
+│       └── CYCLE01/
+│           ├── **SPEC.md**
+│           └── **UAT.md**
+├── mlip_autopipec/
+│   ├── __init__.py
+│   ├── modules/
+│   │   ├── __init__.py
+│   │   └── **dft.py**          # Core DFT Factory implementation
+│   └── utils/
+│       ├── __init__.py
+│       └── **ase_utils.py**    # Database interaction helpers
+├── tests/
+│   └── modules/
+│       └── **test_dft.py**     # Unit and integration tests for dft.py
+└── pyproject.toml
 ```
 
-**Component Breakdown:**
+**Component Blueprint: `modules/dft.py`**
 
-*   **`pyproject.toml`**: This file will be populated with the initial set of project dependencies required for this cycle, including `pydantic`, `ase`, `numpy`, and `typer`. Development dependencies like `pytest` and `pytest-mock` will also be added.
+This file will house the `DFTFactory` class, the primary interface for running calculations.
 
-*   **`config/user.py`**: This file will contain the Pydantic model for the `UserConfig`. It defines the public-facing API of the system, focusing on simplicity and intent. Fields will be high-level, such as `elements`, `composition`, and `simulation_goal`.
+-   **`DFTFactory` class:**
+    -   **`__init__(self, dft_config)`**: The constructor will take a Pydantic configuration object that specifies settings like the path to the DFT executable (`qeVersions.x`), pseudopotentials, and resource limits (e.g., number of cores). This use of dependency injection makes the class highly configurable and testable.
+    -   **`run(self, atoms: ase.Atoms) -> DFTResult`**: This is the main public method. It orchestrates the entire calculation process for a given `ase.Atoms` object. It will internally call a series of private helper methods to manage the workflow: preparation, execution, parsing, and error handling. It will return a structured Pydantic `DFTResult` object on success or raise a specific exception (e.g., `DFTCalculationError`) if the calculation fails after all retry attempts.
+    -   **`_prepare_input_files(self, atoms: ase.Atoms, params: dict) -> str`**: This method will take the atoms object and a dictionary of calculation parameters and generate the input file for Quantum Espresso. It will use ASE's built-in calculators as a foundation but will add the specific heuristic-derived settings. It returns the path to the generated input file.
+    -   **`_execute_dft(self, input_path: str) -> subprocess.CompletedProcess`**: This method is responsible for invoking the external DFT code as a subprocess. It will use `subprocess.run`, ensuring that it captures `stdout` and `stderr` and waits for the process to complete. It will not use `shell=True` to prevent command injection vulnerabilities.
+    -   **`_parse_output(self, output_path: str) -> DFTResult`**: This method reads the output file from a successful DFT run. It will use robust regular expressions or ASE's file parsers to extract the final total energy, the forces on each atom, and the virial stress tensor. It will populate and return a `DFTResult` Pydantic model.
+    -   **`_handle_convergence_error(self, log_content: str, current_params: dict) -> dict`**: This is the core of the auto-recovery logic. It takes the log output from a failed run and the parameters that were used. It contains a series of checks for common error messages (e.g., "convergence NOT achieved"). Based on the error type, it returns a *new* dictionary of parameters with modified values (e.g., `mixing_beta` reduced from 0.7 to 0.3). If no known error is found or all retry strategies are exhausted, it will return `None`, signalling a fatal error.
+    -   **`_get_heuristic_parameters(self, atoms: ase.Atoms) -> dict`**: This is a crucial helper that encapsulates domain knowledge. It determines calculation parameters based on the input structure. It will contain sub-logic to:
+        -   Read from a data file (e.g., a JSON representation of the SSSP library) to determine the recommended plane-wave and charge density cutoffs for the elements present in `atoms`.
+        -   Automatically determine if spin-polarised calculations are needed by checking for the presence of magnetic elements (e.g., Fe, Co, Ni).
+        -   Calculate an appropriate k-point grid density based on the lattice dimensions, ensuring a consistent sampling of the reciprocal space.
+        -   Set smearing parameters, which are essential for calculations involving metals.
 
-*   **`config/system.py`**: This file will house the extensive `SystemConfig` model and its various sub-models (e.g., `DFTParams`, `MDParams`). This is the internal, "source-of-truth" configuration object. It will contain dozens of fields, each with a sensible default value, covering everything from QE's `mixing_beta` to the convergence thresholds for electronic steps.
+**Component Blueprint: `utils/ase_utils.py`**
 
-*   **`modules/dft_factory.py`**: This file will contain the `QEProcessRunner` class. It will be initialized with a `SystemConfig` object. Its primary public method, `run()`, will accept an ASE `Atoms` object. Internally, it will have private methods for `_generate_input_file()`, `_execute_pw_x()`, and `_parse_output()`. This clear separation of concerns within the class will make it highly testable. The class will handle the conversion of ASE's units (eV, Å) to Quantum Espresso's units (Ry, Bohr).
+This utility module provides a simple, focused API for interacting with the project's database.
 
-*   **`data/database.py`**: This file will define the `DatabaseManager` class. It will contain methods like `connect()`, `write_calculation()`, and `get_completed_calculations()`. The `write_calculation()` method will be the most critical; it will take an ASE `Atoms` object (with calculation results attached) and a dictionary of custom metadata (`config_type`, `uncertainty_gamma`, etc.) and write everything to the underlying database in a single transaction. This ensures data integrity and atomicity.
+-   **`save_dft_result(db_path: Path, atoms: ase.Atoms, result: DFTResult)`**: This function connects to the ASE database (e.g., an SQLite file) at the given path. It takes the original `ase.Atoms` object and the corresponding `DFTResult` object. It attaches the energy, forces, and stress from the result to the `atoms.info` dictionary and then uses the `db.write()` method to save the structure and its properties. It will also add important metadata, such as a unique ID for the calculation and a `config_type` label (e.g., 'initial_training_set').
+-   **`check_if_exists(db_path: Path, atoms: ase.Atoms) -> bool`**: A helper function to prevent duplicate calculations. Before running a new DFT calculation, the workflow can use this to check if an identical or very similar structure already exists in the database.
 
-This architecture ensures a clean separation of concerns: configuration is handled by the `config` package, execution logic by the `modules` package, and data persistence by the `data` package.
-
----
+This modular design ensures a clear separation of concerns: the `DFTFactory` knows how to run DFT, and `ase_utils` knows how to save the results. This makes them independently testable and easier to maintain.
 
 ## 3. Design Architecture
 
-The design of Cycle 01 is anchored in the **Schema-First Development** philosophy, where the data models are the primary design artefact. All logic is then built to be a consumer or producer of these strictly-defined models.
+The design of Cycle 1 is fundamentally rooted in a **Schema-First** philosophy, where the data structures that flow between components are rigorously defined before implementation. This is achieved using Pydantic, which enforces type safety and validation at runtime, preventing a wide range of common data-related bugs.
 
-**Pydantic Schema Design (`user.py` and `system.py`):**
+**Pydantic Schema Definitions:**
 
-*   **`UserConfig`**: This model is designed for the user. It uses expressive types and validators to provide clear error messages. For example:
-    *   `composition`: A dictionary mapping element symbols to their fractional values. A Pydantic validator will ensure the fractions sum to 1.0.
-    *   `simulation_goal`: An `Enum` type that restricts the user's choice to a list of supported goals like `'melt_quench'` or `'elastic'`.
-    *   **Invariants**: The set of elements derived from the `composition` dictionary must be consistent with the `elements` list.
+The following Pydantic models will be defined in a new file, `mlip_autopipec/config/models.py`, to serve as the single source of truth for the data architecture of this cycle.
 
-*   **`SystemConfig`**: This is the exhaustive internal model. It is designed for the developer.
-    *   **Nested Structure**: The configuration will be broken down into logical, nested Pydantic models. For example, the main `SystemConfig` will have an attribute `dft: DFTParams`, where `DFTParams` is another `BaseModel` containing all QE-specific settings. This makes the configuration navigable and prevents it from becoming a monolithic, flat namespace.
-    *   **Strict Validation**: Every model will use `model_config = ConfigDict(extra="forbid")`. This is a critical design choice that prevents typos or incorrect parameters from being silently ignored. If a parameter is not explicitly defined in the schema, the system will raise a validation error, forcing developers to be explicit and correct.
-    *   **Producers and Consumers**: The `HeuristicEngine` (to be implemented in a future cycle) will be the sole **producer** of the `SystemConfig`. All other modules, starting with `QEProcessRunner`, will be strict **consumers**. They receive the `SystemConfig` at initialization and treat it as a read-only object. This unidirectional data flow is key to making the system's behaviour predictable.
-    *   **Extensibility**: The nested design allows for easy extension. For instance, adding a new DFT code would involve creating a new `VaspParams` model and adding it to a `Union` type within the `SystemConfig`, without breaking the existing `QEProcessRunner` which only consumes `DFTParams`.
+1.  **`DFTInputParameters(BaseModel)`**: This model represents the complete set of parameters required to define a Quantum Espresso calculation. It ensures that all settings are valid before a calculation is even attempted.
+    -   `calculation_type: Literal['scf'] = 'scf'`: A key invariant. The system is designed for single-point calculations only; this prevents accidental structural relaxations.
+    -   `pseudopotentials: Dict[str, str]`: A dictionary mapping element symbols (e.g., "Si") to their pseudopotential filenames (e.g., "Si.upf").
+    -   `cutoffs: CutoffConfig`: A nested model containing `wavefunction` and `density` cutoffs.
+    -   `k_points: Tuple[int, int, int]`: The k-point mesh dimensions.
+    -   `smearing: SmearingConfig`: A nested model for smearing type (e.g., 'mv') and width.
+    -   `magnetism: Optional[MagnetismConfig] = None`: An optional nested model to define spin-polarization and initial magnetic moments.
+    -   `mixing_beta: float = Field(0.7, gt=0.0, le=1.0)`: Example of validation. The mixing parameter must be between 0 and 1.
+    -   `model_config = ConfigDict(extra='forbid')`: This is a critical setting that prevents any extra, undefined fields from being passed into the model, catching typos in configuration files.
 
-**`QEProcessRunner` Design (`dft_factory.py`):**
+2.  **`DFTJob(BaseModel)`**: Represents a single, self-contained DFT job to be executed.
+    -   `atoms: Any`: The `ase.Atoms` object. Pydantic v2 can handle arbitrary types like this. A custom validator will ensure it is a genuine `Atoms` object.
+    -   `params: DFTInputParameters`: The validated input parameters for this specific job.
+    -   `job_id: UUID = Field(default_factory=uuid4)`: A unique identifier for tracking and logging.
 
-*   **Responsibility**: This class's single responsibility is to execute a single-point DFT calculation. It knows nothing about active learning, databases, or generators.
-*   **Interface**: The public API will be minimal: `__init__(self, config: SystemConfig)` and `run(self, atoms: Atoms) -> Atoms`. The `run` method returns the input `Atoms` object with the calculation results (`energy`, `forces`, `stress`) attached to its `.calc.results` dictionary. This is the standard ASE convention and ensures interoperability.
-*   **State Management**: The `QEProcessRunner` will be stateless. Each call to `run()` is an independent, atomic operation. All necessary information is provided through the `config` and `atoms` arguments. This makes the class thread-safe and suitable for parallel execution in later cycles.
+3.  **`DFTResult(BaseModel)`**: Represents the output of a successful DFT calculation. This is the primary data transfer object returned by the `DFTFactory`.
+    -   `job_id: UUID`: Links the result back to the job that produced it.
+    -   `energy: float`: The final, converged total energy in eV.
+    -   `forces: List[List[float]]`: A nested list representing the forces on each atom. A `@field_validator` will be used to ensure the dimensions are correct (N_atoms x 3).
+    -   `stress: List[float]`: A list of the 6 unique components of the virial stress tensor (Voigt notation).
 
-**`DatabaseManager` Design (`database.py`):**
+**Data Flow and Consumers:**
 
-*   **Wrapper, Not a Framework**: This class is a thin, convenient wrapper around the `ase.db` API. It is not an ORM.
-*   **Custom Metadata Handling**: The key design feature is its explicit handling of the custom metadata columns. The `write_calculation` method signature will be `write_calculation(self, atoms: Atoms, metadata: dict)`. It will use the standard `ase.db.connect.write()` method but will also explicitly add the key-value pairs from the `metadata` dictionary into the `key_value_pairs` field of the database row. This keeps our custom data neatly namespaced and prevents conflicts with standard ASE columns.
+-   **Producer:** The `WorkflowManager` (to be implemented in a future cycle) will be the primary producer of `DFTJob` objects. It will construct the `ase.Atoms` object and delegate the creation of the `DFTInputParameters` to the `DFTFactory`'s heuristic engine.
+-   **Consumer:** The `DFTFactory` is the consumer of `DFTJob` objects. Its `run` method will accept this object as input.
+-   **Producer:** The `DFTFactory` is the producer of `DFTResult` objects.
+-   **Consumer:** The `ase_utils.py` module is the primary consumer of `DFTResult` objects, persisting them to the database.
 
-This design ensures that each component in Cycle 01 is small, focused, and has a well-defined interface, making the system easy to test, debug, and build upon.
+**Invariants and Constraints:**
+-   The system will strictly enforce `calculation = 'scf'`. The purpose of the workflow is to learn the potential energy surface as it is given; relaxing the input structures would discard valuable information about high-energy configurations.
+-   Element symbols provided in any configuration must be valid chemical symbols (e.g., checked against `ase.data.chemical_symbols`). This prevents typos from causing cryptic errors deep inside the DFT code.
+-   The shapes and dimensions of numerical data like forces and stresses will be validated by Pydantic models, ensuring consistency before they are saved to the database.
 
----
+This schema-driven design ensures that any developer working with these components has a clear and unambiguous contract for the data they need to provide and can expect to receive. It makes the system more robust, easier to debug, and simpler to reason about.
 
 ## 4. Implementation Approach
 
-The implementation will proceed in a logical, bottom-up fashion, starting with the data schemas and progressively building up to the execution logic.
+The implementation of Cycle 1 will proceed in a logical, step-by-step manner, building from the data models up to the final execution logic. This approach ensures that each layer is stable before the next is built on top of it.
 
-1.  **Project Setup:**
-    *   Create the directory structure as outlined in the System Architecture section using `mkdir -p`.
-    *   Initialise `pyproject.toml` and add initial dependencies: `pydantic`, `ase`, `numpy`, `typer`.
-    *   Add development dependencies: `pytest`, `pytest-mock`, `ruff`, `mypy`.
-    *   Create the `uv` virtual environment and install all dependencies.
+1.  **Define Pydantic Models:** The first step is to create the `mlip_autopipec/config/models.py` file and implement the `DFTInputParameters`, `DFTJob`, and `DFTResult` models as described in the Design Architecture. This includes adding field types, default values, and validation rules. This provides the data contracts for the rest of the cycle.
 
-2.  **Pydantic Schema Implementation (`user.py`, `system.py`):**
-    *   Begin with `user.py`. Define the `TargetSystem` and `Resources` sub-models first, then compose them into the main `UserConfig` model. Add validators for fields like `composition`.
-    *   Move to `system.py`. Define the lowest-level nested models first (e.g., `DFTControlParams`, `DFTElectronsParams`).
-    *   Compose these into the main `DFTParams` model.
-    *   Finally, create the top-level `SystemConfig` model that includes `DFTParams` and placeholders for other modules (`GeneratorParams`, `TrainerParams`, etc.).
-    *   Ensure every model has the strict `ConfigDict(extra="forbid")`.
+2.  **Implement Database Utilities:** Create the `mlip_autopipec/utils/ase_utils.py` file. Implement the `save_dft_result` function. This will initially be a simple wrapper around the `ase.db.connect` and `db.write` methods. The function will take the `DFTResult` model and attach its contents to the `atoms.info` dictionary before writing, ensuring a standardized storage format.
 
-3.  **Database Manager Implementation (`database.py`):**
-    *   Create the `DatabaseManager` class.
-    *   The `__init__` method will take the database path from the `SystemConfig`.
-    *   The `connect` method will establish the connection using `ase.db.connect()`.
-    *   Implement the `write_calculation` method. It will first prepare the custom metadata by prefixing keys (e.g., `mlip_config_type`) to avoid clashes. It will then call the underlying ASE `write()` function, passing the `Atoms` object and the prepared dictionary to the `key_value_pairs` argument.
+3.  **Create the `DFTFactory` Skeleton:** In `mlip_autopipec/modules/dft.py`, create the `DFTFactory` class. Implement the `__init__` method to accept a configuration object and the public `run` method with the correct signature. Initially, the `run` method can be a placeholder.
 
-4.  **Core DFT Runner Implementation (`dft_factory.py`):**
-    *   Create the `QEProcessRunner` class, which takes a `SystemConfig` in its constructor.
-    *   Implement the `_generate_input_file` private method. This is the most complex part of this cycle. It will programmatically build the QE input string by reading parameters from the `self.config.dft` object. It will involve creating formatted strings for sections like `&CONTROL`, `&SYSTEM`, `ATOMIC_SPECIES`, `ATOMIC_POSITIONS`, and `K_POINTS`.
-    *   Implement the `_execute_pw_x` method. This method will use Python's `subprocess.run` to execute the `pw.x` command. It will capture `stdout` and `stderr` and check the return code for basic success or failure.
-    *   Implement the `_parse_output` method. This method will parse the `stdout` string from the QE run. It will use regular expressions to find the final total energy, the atomic forces, and the stress tensor. It must handle unit conversions from Ry to eV and Bohr to Ångström.
-    *   Implement the public `run` method. This method will orchestrate the calls to the private methods in the correct order. It will attach the parsed results to the returned `Atoms` object.
+4.  **Implement Heuristic Parameter Logic:** Implement the `_get_heuristic_parameters` private method. This will involve:
+    -   Creating a small JSON file in a `data` directory containing SSSP pseudopotential and cutoff information.
+    -   Writing the Python code to read this JSON and select the appropriate cutoffs based on the elements in an input `ase.Atoms` object.
+    -   Implementing the logic to check for magnetic elements and add magnetism parameters if needed.
+    -   Implementing the k-point density calculation based on the `atoms.cell.lengths()`.
 
-5.  **Initial Testing:**
-    *   Write unit tests for the Pydantic schemas in `tests/config/test_schemas.py`. Test that default values are set correctly and that validation errors are raised for incorrect inputs.
-    *   Write unit tests for `QEProcessRunner` in `tests/modules/test_dft_factory.py`. The focus will be on testing the `_generate_input_file` method. Create a fixture with a sample `SystemConfig` and `Atoms` object and assert that the generated input string is exactly correct.
-    *   The execution and parsing methods will be tested using integration tests, which will be the primary focus of the test strategy for this cycle.
+5.  **Implement Input File Generation:** Implement the `_prepare_input_files` method. This method will call `_get_heuristic_parameters` to get the parameters, then use the `ase.calculators.espresso.Espresso` calculator object to generate the Quantum Espresso input file. ASE handles much of the complexity of formatting the file correctly.
 
-This step-by-step process ensures that each piece of functionality is built upon a solid, already-tested foundation.
+6.  **Implement DFT Execution:** Implement the `_execute_dft` method. This will be a wrapper around `subprocess.run`. The command to be executed will be constructed from the configuration (e.g., `mpirun -np 16 pw.x -in input.pwi > output.pwo`). The function will be configured to block until the subprocess completes and to raise an exception if the return code is non-zero.
 
----
+7.  **Implement Output Parsing:** Implement the `_parse_output` method. It will use `ase.io.read` with `format='espresso-out'` to parse the output file. This function is robust and can extract energy, forces, and stress. The extracted data will be used to populate and return a `DFTResult` object.
+
+8.  **Implement the `run` Method Orchestration:** Flesh out the main `run` method. It will chain together the calls to the private methods: `_prepare_input_files`, `_execute_dft`, and `_parse_output`. It should be wrapped in a `try...except` block to catch failures from the execution step.
+
+9.  **Implement Auto-Recovery Logic:** Implement the `_handle_convergence_error` method. This method will contain a series of `if/elif` statements that search for specific error strings in the captured `stderr`/`stdout` of a failed run. For example: `if "convergence NOT achieved" in log_content:`. If an error is found, it will return a *new* dictionary of parameters to be used in a retry attempt.
+
+10. **Integrate Retry Loop in `run`:** Modify the `run` method to include the retry loop. It will be a `for` loop that iterates, for example, 3 times. Inside the loop, it will call the execution and parsing methods. If an execution error occurs, it will call `_handle_convergence_error`. If that method returns a new set of parameters, the loop will continue to the next iteration; otherwise, it will break and re-raise the exception.
+
+By following these steps, the `DFTFactory` will be built incrementally, allowing for testing at each stage of development.
 
 ## 5. Test Strategy
 
-Testing in Cycle 01 is paramount to ensure the stability of the entire project. The strategy is divided into rigorous unit testing of the data structures and isolated logic, and integration testing of the component that interacts with the external world (the DFT process).
+The testing strategy for Cycle 1 is divided into two distinct but complementary approaches: unit testing to verify individual components in isolation, and integration testing to ensure they work together correctly with external dependencies like Quantum Espresso.
 
 **Unit Testing Approach (Min 300 words):**
 
-The primary focus of unit testing in this cycle is on the components with complex internal logic that do not depend on external processes: the Pydantic schemas and the QE input file generation.
+The primary goal of unit testing is to validate the internal logic of the `DFTFactory` without ever needing to run a real DFT calculation. This makes the tests extremely fast and allows for precise testing of edge cases and error conditions. The `tests/modules/test_dft.py` file will contain these tests, leveraging `pytest` and mocking libraries.
 
-*   **Pydantic Schema Testing (`tests/config/test_schemas.py`):**
-    We will create a dedicated test file for our configuration models. The tests will verify several key aspects of the schemas. Firstly, we will test **default value instantiation**. We will create an instance of `SystemConfig` from an empty `UserConfig` (mimicking the eventual Heuristic Engine's input) and assert that all the deeply nested default values (e.g., `config.dft.control.verbosity`) are set to their expected states. This ensures our baseline calculations are predictable. Secondly, we will exhaustively test the **validation logic**. For `UserConfig`, we'll test that a `composition` dictionary whose values do not sum to 1.0 raises a `ValidationError`. We will test that providing an unsupported `simulation_goal` string also fails validation. For `SystemConfig`, we will test the `extra="forbid"` configuration by attempting to initialize it with a dictionary containing a misspelled or non-existent parameter, and we will assert that a `ValidationError` is raised. This is crucial for preventing silent configuration errors.
+-   **Testing Heuristics:** The `_get_heuristic_parameters` method will be tested by feeding it various `ase.Atoms` objects and asserting that the returned parameters are correct. For example, a test will be created for a Silicon (Si) crystal, and we will assert that the returned wavefunction cutoff matches the value specified for Si in our mock SSSP JSON data. Another test will use an Iron (Fe) atom and assert that `nspin=2` is correctly added to the parameters. A third test will check that a larger unit cell results in a smaller k-point grid (e.g., `[2, 2, 2]`) compared to a smaller cell (e.g., `[4, 4, 4]`).
 
-*   **DFT Input Generation Testing (`tests/modules/test_dft_factory.py`):**
-    The logic for generating the Quantum Espresso input file is complex and prone to formatting errors. Therefore, it must be unit-tested in complete isolation. We will create a `pytest` fixture that provides a standardised `SystemConfig` object and a simple `Atoms` object (e.g., a single Nickel atom in a cubic box). The test function will instantiate `QEProcessRunner` with this config and call the (normally private) `_generate_input_file` method. The output string will be compared against a "golden" input file stored as a multi-line string in the test file. The comparison will be exact, character-for-character. This test will ensure that any refactoring of the generation logic doesn't accidentally change the output format, which is critical for reproducibility. We will have separate tests for different configurations, for example, one for a metallic, magnetic system (which should include `nspin=2` and `smearing='mv'`) and one for a simple insulator.
+-   **Testing Error Recovery:** The `_handle_convergence_error` method is a perfect candidate for unit testing. We will create strings that mimic the `stdout` of a failed Quantum Espresso run. For instance, a test named `test_recovery_on_convergence_failure` will pass a multi-line string containing "convergence NOT achieved" to the method and assert that the returned dictionary contains a reduced `mixing_beta` (e.g., 0.3). Another test will simulate a "Cholesky" error and assert that the `diagonalization` algorithm is changed from `'david'` to `'cg'`. We will also test the case where an unknown error is passed, asserting that the method returns `None`.
+
+-   **Mocking Subprocesses:** To test the main `run` method's orchestration logic, we will use `unittest.mock.patch` to mock `subprocess.run`. This allows us to simulate different outcomes of the DFT execution. One test will mock a successful run, providing fake output data, and we will assert that the `_parse_output` method is called and a `DFTResult` is returned. A separate test will mock a failed run by making `subprocess.run` raise an exception. We will then assert that the `_handle_convergence_error` method is called and that the system attempts to run the subprocess again within the retry loop.
 
 **Integration Testing Approach (Min 300 words):**
 
-The integration tests will verify the `QEProcessRunner`'s ability to correctly manage an external subprocess and parse its output. These tests will rely heavily on mocking to avoid actually running a time-consuming DFT calculation.
+While unit tests are essential for logic, integration tests are crucial for verifying that the generated input files are correct and that the interaction with the external Quantum Espresso binary works as expected. These tests will be slower and will be marked as such in `pytest` (e.g., with `@pytest.mark.integration`) so they can be run separately from the fast unit tests.
 
-*   **Mocked Process Execution (`tests/modules/test_dft_factory.py`):**
-    The core integration test will use the `mocker` fixture from `pytest-mock` to patch Python's `subprocess.run`. We will set up the mock to return a `CompletedProcess` object with a specific `stdout`, `stderr`, and `returncode`.
-    1.  **"Happy Path" Test:** The first test will simulate a successful QE run. The mock will be configured with `returncode=0` and a `stdout` attribute containing a sample of a real, successful QE output. We will then call the public `runner.run(atoms)` method. The assertions will be threefold: First, we will assert that `subprocess.run` was called with the expected command-line arguments (e.g., `['pw.x', '-in', 'some_file.in']`). Second, we will assert that the `_parse_output` method correctly extracted the energy, forces, and stress from the sample `stdout`. Third, we will assert that the returned `Atoms` object has these results correctly stored in its `.calc.results` dictionary.
-    2.  **Failure Path Test:** Another test will simulate a failed QE run. We will configure the mock to return a non-zero `returncode`. In this scenario, we will assert that the `runner.run()` method raises a custom exception (e.g., `DFTCalculationError`). This verifies our basic error-handling mechanism.
+-   **End-to-End "Happy Path" Test:** The most important integration test is a simple, successful calculation. The test will create an `ase.Atoms` object for a well-behaved, simple system like a 2-atom Silicon unit cell. It will then instantiate a real `DFTFactory` (configured with the path to a locally installed `pw.x`). The test will call the `run` method and let it execute a genuine DFT calculation. The assertions will be on the result: we will check that the returned `energy` is a floating-point number and is within a reasonable tolerance (e.g., ±1%) of a known reference value for that system. We will also assert that the `forces` array has the correct shape `(2, 3)`.
 
-*   **Database Interaction Test:**
-    We will also test the integration between the `QEProcessRunner` and the `DatabaseManager`. This test will use a temporary SQLite database file. It will execute the "happy path" test described above, but after the `runner.run()` call, it will instantiate a `DatabaseManager` and use it to write the results. Finally, it will connect to the temporary database directly and read the last row, asserting that the energy, forces, and our custom metadata (e.g., `{'config_type': 'test'}`) have been persisted correctly. This test validates the entire data flow for a single, successful calculation.
+-   **Database Integration Test:** This test will verify the interaction with the database utility. After the "Happy Path" test successfully completes, the test will call `save_dft_result`. It will then use the `ase.db` API to connect to the newly created database file and read the last entry. The test will assert that the `energy` and `forces` stored in the database for that entry match the values returned by the `DFTFactory`. This confirms that the data persistence layer is working correctly.
+
+-   **Real Failure Scenario (Optional but valuable):** If possible, a test could be designed to trigger a real, but recoverable, convergence failure. This could be done by creating a structure with slightly unreasonable bond lengths or setting an aggressive initial `mixing_beta` in the configuration. The test would then assert that the `DFTFactory` successfully recovers and eventually returns a valid result, by checking the logs for evidence of a retry. This provides the ultimate confidence in the auto-recovery mechanism.

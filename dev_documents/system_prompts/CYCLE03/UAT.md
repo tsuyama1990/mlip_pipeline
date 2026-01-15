@@ -1,90 +1,105 @@
-# MLIP-AutoPipe: Cycle 03 User Acceptance Testing
-
-- **Cycle**: 03
-- **Title**: The Filter - Surrogate Explorer and Selector
-- **Status**: Design
-
----
+# CYCLE03: The Training Engine (UAT.md)
 
 ## 1. Test Scenarios
 
-User Acceptance Testing for Cycle 03 is a crucial demonstration of the system's intelligence and efficiency. It provides a compelling, visual answer to the question: "How do you avoid wasting supercomputer time on useless calculations?" The UAT will showcase the **Surrogate Explorer's** two-stage filtering process, making it tangible and easy to understand. The user will be amazed to see a large, noisy dataset of thousands of candidate structures being automatically refined into a small, information-rich subset. This UAT will be presented as an interactive Jupyter Notebook (`03_intelligent_selection.ipynb`), which will use 2D scatter plots to visually represent the high-dimensional descriptor space, making the concept of "diversity" immediately intuitive.
+User Acceptance Testing (UAT) for Cycle 3 focuses on verifying that the Training Engine can successfully take a dataset of DFT calculations and produce a valid, usable Machine Learning Interatomic Potential (MLIP). The key user experience is one of confidence and verification: seeing the system transform raw data into a tangible, functional model. The UAT will be conducted within a Jupyter Notebook, which allows for clear, step-by-step execution and provides opportunities to inspect the inputs and outputs, thereby demystifying the training process.
+
+| Scenario ID   | Test Scenario                                             | Priority |
+|---------------|-----------------------------------------------------------|----------|
+| UAT-C3-001    | **Successful End-to-End Training Run**                    | **High**     |
+| UAT-C3-002    | **Verification of a Trained Potential**                   | **High**     |
+| UAT-C3-003    | **Handling of Training Process Failure**                  | **Medium**   |
 
 ---
 
-### **Scenario ID: UAT-C03-01**
-- **Title**: Visualising Intelligent Data Selection with FPS
-- **Priority**: Critical
+### **Scenario UAT-C3-001: Successful End-to-End Training Run**
+
+**(Min 300 words)**
 
 **Description:**
-This scenario provides a step-by-step visualisation of the intelligent selection process. The user will start with a large set of candidate structures (represented as points in a 2D plot for clarity), apply the surrogate screening to remove "bad" candidates, and then run the Farthest Point Sampling algorithm to select a small, diverse subset. The notebook will generate a series of plots that show the state of the dataset at each stage: the initial random cloud, the dataset after high-energy points are removed, and the final selection with the chosen points highlighted. This powerful visualisation will provide undeniable proof that the system is not just selecting points randomly but is actively seeking out the most diverse, and therefore most valuable, structures for training.
+This is the primary "happy path" scenario for the training module. Its goal is to provide the user with a clear, observable demonstration of the entire training process from start to finish. The user will see the system gather data from a database, prepare the necessary files for the Pacemaker training code, execute the training, and finally report the location of the newly created potential file. This scenario is crucial for building trust in the automation, showing that the system can correctly orchestrate all the necessary steps without any manual intervention.
 
-**UAT Steps via Jupyter Notebook (`03_intelligent_selection.ipynb`):**
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will import the `PacemakerTrainer` class and other utilities. It will define paths for a temporary working directory and a test ASE database.
+2.  **Prepare the Dataset:** The notebook will programmatically create a small but valid ASE database. It will add 20-30 `ase.Atoms` objects with pre-calculated energy and forces. This ensures the UAT is self-contained and reproducible. The notebook will display a message confirming the dataset's creation, for instance: "Created a test database with 25 Silicon structures."
+3.  **Configure the Trainer:** An instance of the `TrainingConfig` Pydantic model will be created. The notebook will display this configuration object, making the settings for the run (like paths and learning flags) transparent to the user.
+4.  **Instantiate and Run:** A `PacemakerTrainer` object will be instantiated with the configuration. The notebook will then call the `trainer.train()` method in a new cell.
+5.  **Live Log Streaming (User Amazement):** To make the process engaging, the notebook will be configured to stream the `stdout` from the Pacemaker subprocess in real-time. The user will see the training log appear directly in the notebook output, showing the optimisation steps, the decreasing loss function (RMSE), and the final confirmation message from the training code. This provides a powerful visual confirmation that a complex process is running successfully.
+6.  **Report the Outcome:** Upon successful completion, the `train` method will return the path to the potential file. The notebook will print a clear, congratulatory message: "✅ Training completed successfully! The new potential is located at: `/path/to/temporary/dir/potential.yace`". This tangible output is the key deliverable for the user.
 
-**Part 1: Generating a Candidate Set**
-*   The notebook will begin by importing `SystemConfig`, `SurrogateExplorer`, and plotting libraries like `matplotlib` and `seaborn`.
-*   **Step 1.1:** Instead of running the full generator from Cycle 02, the notebook will create a synthetic dataset for demonstration purposes. It will generate a 2D NumPy array of 1000 points, representing 1000 structures in a simplified descriptor space. To make the scenario interesting, the points will be generated from two distinct clusters, simulating a dataset with significant redundancy.
-*   **Step 1.2:** A first scatter plot will be created, visualising all 1000 initial "candidate" points. The user will see a dense cloud, making it obvious that selecting points at random would be inefficient.
+---
 
-**Part 2: Surrogate Screening**
-*   **Step 2.1:** The notebook will instantiate the `SurrogateExplorer`. The UAT will explain that we are simulating the energy screening step. A synthetic "energy" value will be assigned to each of the 1000 points, with points in a certain region of the plot being assigned artificially high energies.
-*   **Step 2.2:** The notebook will call a (conceptual) `_screen_with_surrogate` method on this data.
-*   **Step 2.3:** A new scatter plot will be generated. The user will see that a number of points have been removed from the plot—these are the "unphysical" structures that the surrogate model would have filtered out. This demonstrates the first layer of cost-saving.
+### **Scenario UAT-C3-002: Verification of a Trained Potential**
 
-**Part 3: Farthest Point Sampling (FPS)**
-*   **Step 3.1:** The notebook will now run the core of the UAT. It will call the `_farthest_point_sampling` method on the remaining points, asking it to select, for instance, 15 points.
-*   **Step 3.2 (The "Wow" Moment):** A final, multi-layered plot will be generated. It will show all the original points in a light grey, the points removed by screening in red, and the 15 points selected by FPS in a vibrant blue, with their selection order annotated and connected by a line. The user will see with their own eyes that FPS ignored the dense clusters and instead picked points around the periphery of the data cloud, maximising the coverage of the descriptor space. The visual is undeniable: the algorithm works and it is intelligent.
+**(Min 300 words)**
 
-This scenario delivers a powerful and intuitive demonstration of a complex process, building trust and excitement about the system's capability to optimise the use of expensive computational resources.
+**Description:**
+Simply creating a potential file is not enough; the user needs confidence that the potential is actually functional and has learned from the training data. This UAT scenario goes one step further than the previous one. After successfully training a potential, it will immediately load that potential and use it to predict the energy and forces for a structure from the original training set. By comparing the MLIP's prediction to the original DFT "ground truth," the user can directly verify that the model has learned correctly. This provides a powerful and intuitive measure of the model's quality and closes the loop on the training process.
+
+**UAT Steps in Jupyter Notebook:**
+1.  **Prerequisite:** This scenario runs immediately after UAT-C3-001 in the same notebook, using the `.yace` file that was just created.
+2.  **Select a Test Structure:** The notebook will connect to the same test ASE database used for training and select one structure that was part of the training set. It will store the original DFT energy and forces from this structure as the "ground truth."
+3.  **Load the New Potential:** The notebook will use a suitable library (like `pyace` or an ASE calculator interface for the `.yace` format) to load the potential from the file path returned by the trainer.
+4.  **Perform Prediction:** An ASE calculator object will be created using the loaded MLIP. This calculator will be attached to the test structure, and the notebook will call `atoms.get_potential_energy()` and `atoms.get_forces()` to get the MLIP's predictions.
+5.  **Compare and Visualise:** The core of this UAT is the comparison. The notebook will display a clean, formatted table:
+    | Property | DFT Ground Truth | MLIP Prediction | Difference |
+    |----------|------------------|-----------------|------------|
+    | Energy   | -100.5 eV        | -100.4 eV       | 0.1 eV     |
+    The notebook will also generate a scatter plot comparing the DFT forces to the MLIP forces for that structure. The points should lie very close to the y=x line, providing immediate visual confirmation of the model's accuracy.
+6.  **Explanation:** A markdown cell will conclude: "The comparison above shows that the energy predicted by our newly trained potential is very close to the original DFT value. The force plot demonstrates that the potential has successfully learned to reproduce the atomic forces from the training data. The model is now ready for use in simulations."
 
 ---
 
 ## 2. Behavior Definitions
 
-These Gherkin-style definitions specify the expected behaviour of the `SurrogateExplorer` from a user's (in this case, the system's) perspective.
+This section defines the expected behaviors of the system in the Gherkin-style Given/When/Then format.
 
-**Feature: Intelligent Candidate Selection**
-As the MLIP-AutoPipe system, I want to intelligently select a small, diverse subset of structures from a large pool of candidates, so that I can maximise the information gained from each expensive DFT calculation.
+### **UAT-C3-001: Successful End-to-End Training Run**
 
----
+```gherkin
+Feature: MLIP Model Training
+  As a materials scientist,
+  I want to train an MLIP from a dataset of DFT calculations,
+  So that I can create a fast and accurate potential for simulations.
 
-**Scenario: Screening Unphysical Structures**
+  Scenario: A valid dataset is used to successfully train a potential
+    Given a database containing at least 20 valid DFT-calculated structures with energies and forces
+    And a correctly configured Training Engine pointing to the database and a valid Pacemaker executable
+    When I execute the training process
+    Then the process should complete successfully without errors
+    And the system should report the file path of a newly created potential file
+    And the potential file should have a `.yace` extension.
+```
 
-*   **GIVEN** a list of 100 candidate `Atoms` objects.
-*   **AND** a surrogate model is configured to predict the energy of each structure.
-*   **AND** the model predicts that 10 of these structures have an energy per atom exceeding the configured `energy_threshold_ev`.
-*   **AND** the remaining 90 structures are below the threshold.
-*   **WHEN** the `SurrogateExplorer`'s `select` method is called on this list.
-*   **THEN** the initial screening step must discard the 10 high-energy structures.
-*   **AND** only the 90 low-energy structures are passed to the Farthest Point Sampling stage.
+### **UAT-C3-002: Verification of a Trained Potential**
 
----
+```gherkin
+Feature: Trained Potential Validation
+  As a researcher,
+  I want to verify that a trained potential is accurate,
+  So that I can trust it for further scientific simulations.
 
-**Scenario: Selecting a Diverse Subset with FPS**
+  Scenario: Use a trained potential to predict forces and compare to ground truth
+    Given a potential file that was successfully trained on a specific dataset
+    And one atomic structure from that original dataset with its known DFT forces
+    When I load the potential and use it to calculate the forces for that structure
+    Then the calculated forces from the potential should closely match the known DFT forces
+    And the Root Mean Squared Error (RMSE) between the potential's forces and the DFT forces should be below a small threshold (e.g., 0.1 eV/Angstrom).
+```
 
-*   **GIVEN** a set of 100 candidate structures that have passed the energy screening.
-*   **AND** their corresponding descriptor vectors have been calculated.
-*   **AND** a visual inspection of the descriptor vectors shows two dense clusters and 5 isolated, outlying points.
-*   **AND** the `SystemConfig` requests a final selection of `n_select = 5`.
-*   **WHEN** the Farthest Point Sampling algorithm is executed on these descriptor vectors.
-*   **THEN** the 5 indices returned by the algorithm must correspond to the 5 isolated, outlying points.
-*   **AND** the final list of `Atoms` objects returned by the `SurrogateExplorer` must contain exactly these 5 structures.
+### **UAT-C3-003: Handling of Training Process Failure**
 
----
+```gherkin
+Feature: Robustness in the Training Process
+  As a user of an automated system,
+  I want the system to handle failures gracefully and provide clear feedback,
+  So that I can diagnose problems effectively.
 
-**Scenario: Handling an Empty Candidate List**
-
-*   **GIVEN** the Physics-Informed Generator produces an empty list of candidate structures.
-*   **WHEN** the `SurrogateExplorer`'s `select` method is called with this empty list.
-*   **THEN** the method must handle this gracefully and return an empty list.
-*   **AND** it must not raise an error or exception.
-
----
-
-**Scenario: Requesting More Structures Than Available**
-
-*   **GIVEN** a list of 50 candidate structures remains after the energy screening step.
-*   **AND** the `SystemConfig` requests a final selection of `n_select = 100`.
-*   **WHEN** the `SurrogateExplorer`'s `select` method is called.
-*   **THEN** the system should intelligently handle this case by returning all 50 available structures.
-*   **AND** it must log a warning message indicating that the requested selection size exceeded the number of available candidates.
+  Scenario: The external training executable fails with an error
+    Given a dataset that is intentionally corrupted (e.g., missing forces on some structures) which is known to cause the Pacemaker code to fail
+    And a correctly configured Training Engine
+    When I execute the training process
+    Then the training process should fail
+    And the system should not crash, but should instead raise a specific, informative Python exception (e.g., `TrainingError`)
+    And the exception message should contain the captured error log from the failed external process, allowing for diagnosis.
+```
