@@ -1,87 +1,107 @@
-# MLIP-AutoPipe: Cycle 04 User Acceptance Testing
-
-- **Cycle**: 04
-- **Title**: The Factory - Pacemaker Trainer and Database Loop
-- **Status**: Design
-
----
+# CYCLE04: On-The-Fly (OTF) Inference and Embedding (UAT.md)
 
 ## 1. Test Scenarios
 
-User Acceptance Testing for Cycle 04 is designed to deliver a moment of profound satisfaction: the creation of the very first Machine Learning Interatomic Potential. This UAT provides the first tangible, valuable artefact from the entire pipeline. The user, acting as a developer or scientist, will witness the culmination of the previous cycles' work: data is automatically retrieved from the database, a training configuration is generated on the fly, and a training process is launched to produce a usable MLIP. This process is designed to amaze the user by making the complex, often manual, process of training a potential look simple, robust, and completely automated. The UAT will be conducted in a Jupyter Notebook (`04_first_potential_training.ipynb`), which will guide the user through triggering the training and then immediately using the resulting potential to make a prediction.
+User Acceptance Testing (UAT) for Cycle 4 is designed to showcase the "intelligence" of the active learning loop. The user experience should be one of amazement, seeing the system autonomously detect a weakness in its own knowledge and then precisely extract the necessary information to correct it. These scenarios will be presented in a Jupyter Notebook, which is perfect for visualising the atomic structures and the logic of the extraction process.
+
+| Scenario ID   | Test Scenario                                             | Priority |
+|---------------|-----------------------------------------------------------|----------|
+| UAT-C4-001    | **Uncertainty Detection in a Live Simulation**            | **High**     |
+| UAT-C4-002    | **Visualisation of Periodic Embedding and Force Masking** | **High**     |
+| UAT-C4-003    | **Full Loop Data Handoff**                                | **Medium**   |
 
 ---
 
-### **Scenario ID: UAT-C04-01**
-- **Title**: Training and Verifying the First MLIP
-- **Priority**: Critical
+### **Scenario UAT-C4-001: Uncertainty Detection in a Live Simulation**
+
+**(Min 300 words)**
 
 **Description:**
-This scenario guides the user through the automated training process and provides immediate validation that the resulting potential is functional. The user will start by inspecting a small, pre-populated database of DFT-calculated structures. They will then instantiate and run the `PacemakerTrainer`, which will automatically find the data, configure the training, and produce a `.yace` file. The climax of the UAT is the final step, where the notebook loads the newly created potential back into memory, applies it to an `Atoms` object, and successfully calculates an energy. This provides a direct, satisfying confirmation that the entire training pipeline is working end-to-end.
+This scenario provides the user with a direct view into the system's "mind" as it performs a simulation. The goal is to demonstrate that the `LammpsRunner` isn't just blindly running dynamics but is actively self-monitoring. The user will see a simulation start, run for a short time, and then automatically stop at the exact moment the MLIP's uncertainty exceeds a set threshold. This provides tangible proof of the active learning trigger mechanism.
 
-**UAT Steps via Jupyter Notebook (`04_first_potential_training.ipynb`):**
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will import the `LammpsRunner` and load a pre-trained potential from the previous cycle's UAT. An initial, stable crystal structure will be created.
+2.  **Configuration:** An `InferenceConfig` Pydantic model will be instantiated. To make the test deterministic and fast, the `uncertainty_threshold` will be set to an artificially low, sensitive value (e.g., 2.5). This ensures the trigger fires quickly. The configuration object will be displayed in the notebook.
+3.  **The "Controlled Experiment":** To create a predictable uncertainty event, the notebook will give one of the atoms in the initial structure a very large initial velocity, pointing it directly at a neighbour. This "kick" will force the simulation to explore a high-energy, non-equilibrium configuration that is likely to be outside the model's training distribution. The modified structure will be visualised.
+4.  **Execute Simulation:** The `lammps_runner.run()` method is called. To enhance the user experience, the notebook will be configured to stream and display the `stdout` from the LAMMPS process. The user will see the simulation timesteps printing to the screen (`Step, Temp, E_pair, ...`).
+5.  **The "Aha!" Moment:** After a few timesteps, the LAMMPS output will suddenly stop. The `run()` method will return a result. The notebook will then print a clear message: "✅ **Uncertainty Detected!** The simulation was automatically stopped at timestep `X` because atom `Y` exceeded the uncertainty threshold. The system is now extracting this configuration for retraining." This confirms the primary goal of the scenario: the system can successfully monitor itself and react to uncertainty.
 
-**Part 1: The Training Dataset**
-*   The notebook will begin by importing `SystemConfig`, `DatabaseManager`, `PacemakerTrainer`, and `ase.io`.
-*   **Step 1.1:** The UAT will start with a pre-prepared SQLite database file (`training_data.db`) that contains a few (e.g., 10-20) structures with pre-calculated energy and forces, simulating the output of the previous pipeline stages.
-*   **Step 1.2:** The notebook will instantiate the `DatabaseManager` and use it to connect to the database. It will then query the database and print the number of available structures, allowing the user to confirm that the training data is present.
+---
 
-**Part 2: Automated Training**
-*   **Step 2.1:** The user will create a `SystemConfig` object that includes the necessary `TrainerParams` for the training run.
-*   **Step 2.2:** The notebook will instantiate the `PacemakerTrainer`, providing it with the config and the database manager.
-*   **Step 2.3:** In a single, powerful cell, the user will execute `potential_file_path = trainer.train()`. The notebook will explain that, for the UAT, the actual `pacemaker_train` command is mocked to run instantaneously and produce a pre-canned `.yace` file. This is to ensure the UAT is fast and reliable. The cell's output will print the path to the newly created potential file. The user is amazed by the simplicity of the process—one command to orchestrate the entire training job.
+### **Scenario UAT-C4-02: Visualisation of Periodic Embedding and Force Masking**
 
-**Part 3: Verifying the Potential**
-*   **Step 3.1 (The Payoff):** This is the most important step. The notebook will demonstrate how to use the newly created potential. It will import the necessary calculator tools from the `pacemaker` library.
-*   **Step 3.2:** It will load the potential from the `potential_file_path` returned in the previous step.
-*   **Step 3.3:** It will create a new, simple `Atoms` object (e.g., a 2-atom Ni dimer).
-*   **Step 3.4:** It will attach the loaded potential to this `Atoms` object as its calculator.
-*   **Step 3.5:** The final cell will call `atoms.get_potential_energy()`. The successful return of a floating-point number is the ultimate verification. It proves, in a single, undeniable step, that the trainer produced a valid, loadable, and executable Machine Learning Interatomic Potential. The UAT will conclude by stating that this potential, while trained on very little data, is the seed that the active learning loop will grow in the next cycle.
+**(Min 300 words)**
+
+**Description:**
+This scenario is designed to be visually impressive and educational. It directly follows the previous scenario and explains the innovative and scientifically crucial part of the process: *how* the system extracts data. The user will be shown the difference between a naive "cluster" cutout and the superior Periodic Embedding method. They will also see a clear visualisation of the force mask, helping them understand how the system avoids learning from corrupted "boundary" forces. This builds confidence not just that the system works, but that it works in a scientifically rigorous way.
+
+**UAT Steps in Jupyter Notebook:**
+1.  **Prerequisite:** This scenario uses the `UncertainStructure` object returned from UAT-C4-001.
+2.  **Load the Full Frame:** The notebook will first load the complete atomic structure from the simulation frame where uncertainty was detected. This "large cell" (e.g., 200+ atoms) will be visualised. The uncertain atom will be highlighted in red.
+3.  **Visualise Periodic Embedding:** The notebook will display the extracted, smaller `ase.Atoms` object from the `UncertainStructure` result. This "embedded cell" (e.g., ~60 atoms) will be shown next to the large cell. A caption will explain: "Instead of just cutting a sphere and creating artificial surfaces, the system has extracted a small, fully periodic box from the larger simulation. Notice how atoms that were on the left side of the original box have been wrapped around to the right side of the new box, preserving the correct bulk environment."
+4.  **Visualise Force Masking:** The most important visualisation comes next. The notebook will display the embedded cell again, but this time, the atoms will be coloured based on the `force_mask`.
+    -   Atoms with a mask value of `1` (the "core" region) will be coloured blue.
+    -   Atoms with a mask value of `0` (the "buffer" region) will be coloured grey.
+    -   The original uncertain atom at the center will remain red.
+    The user will see a clear sphere of blue atoms at the center, surrounded by a shell of grey atoms.
+5.  **Explanation:** A clear markdown explanation will tie everything together: "The image above shows the force mask. When this structure is sent for a DFT calculation, the learning algorithm will be instructed to **only** learn from the forces on the **blue** atoms. The grey 'buffer' atoms are crucial for providing the correct chemical environment, but their own forces are ignored to prevent learning from artificial boundary effects. This ensures the model learns the true physics of the bulk material."
 
 ---
 
 ## 2. Behavior Definitions
 
-These Gherkin-style definitions specify the expected behaviour of the `PacemakerTrainer`.
+This section defines the expected behaviors of the system in the Gherkin-style Given/When/Then format.
 
-**Feature: Automated MLIP Training**
-As a developer, I want to automatically train a Pacemaker potential using all available DFT data from the database, so that I can create a functional MLIP without manual configuration.
+### **UAT-C4-001: Uncertainty Detection in a Live Simulation**
 
----
+```gherkin
+Feature: On-The-Fly Uncertainty Detection
+  As a researcher seeking to improve my MLIP,
+  I want the system to automatically stop a simulation when the model is uncertain,
+  So that I can capture novel atomic configurations for retraining.
 
-**Scenario: Successful Training from Database**
+  Scenario: A simulation exploring a new configuration exceeds the uncertainty threshold
+    Given a trained MLIP and a starting atomic structure
+    And an MD simulation is configured with an uncertainty threshold of 3.0
+    When I run the OTF simulation which is known to generate a configuration with a maximum uncertainty of 4.5
+    Then the simulation should stop automatically before reaching its total specified duration
+    And the system should return a valid "Uncertain Structure" object as a result.
+```
 
-*   **GIVEN** a database containing 20 successfully completed DFT calculations.
-*   **AND** a `SystemConfig` specifying valid training parameters.
-*   **AND** a `DatabaseManager` connected to this database.
-*   **AND** the `subprocess.run` call for `pacemaker_train` is mocked to simulate a successful execution.
-*   **AND** the mock is configured to report that the final potential was saved to `results/test.yace`.
-*   **WHEN** I instantiate the `PacemakerTrainer` and call its `train()` method.
-*   **THEN** the `DatabaseManager`'s method to retrieve all calculations must be called.
-*   **AND** a temporary XYZ file containing the 20 structures must be created.
-*   **AND** a valid Pacemaker YAML config file must be generated, pointing to the temporary XYZ file.
-*   **AND** the `pacemaker_train` command must be executed as a subprocess.
-*   **AND** the `train()` method must return the string `results/test.yace`.
+### **UAT-C4-002: Visualisation of Periodic Embedding and Force Masking**
 
----
+```gherkin
+Feature: Scientifically Rigorous Data Extraction
+  As a scientist,
+  I want to be sure that the data extracted for retraining is physically meaningful and free of artifacts,
+  So that I can trust the improvements made to the model.
 
-**Scenario: Handling Training Process Failure**
+  Scenario: Extracting an embedded structure around an uncertain atom
+    Given a large periodic simulation cell and the index of a target atom
+    When I request an embedded structure with a radius of 8.0 Angstroms
+    Then the system should return a new, smaller `ase.Atoms` object that is also periodic
+    And the new object should contain the target atom and all its neighbours within the 8.0 Angstrom radius, correctly wrapped across the original periodic boundaries.
 
-*   **GIVEN** a valid database and `SystemConfig`.
-*   **AND** the `subprocess.run` call for `pacemaker_train` is mocked to simulate a *failed* execution (e.g., with a non-zero return code).
-*   **AND** the mock is configured to have captured error messages in its `stderr`.
-*   **WHEN** I call the `PacemakerTrainer`'s `train()` method.
-*   **THEN** the system must raise a custom `TrainingFailedError` exception.
-*   **AND** the exception's message must contain the `stderr` from the failed process to aid in debugging.
-*   **AND** any temporary files (like the XYZ data file and YAML config) created before the failure must be deleted.
+  Scenario: Generating a force mask for an embedded structure
+    Given a small, embedded atomic structure
+    And a masking cutoff radius of 5.0 Angstroms
+    When I request a force mask for this structure
+    Then the system should return an array of 0s and 1s with the same length as the number of atoms
+    And the atoms within 5.0 Angstroms of the center should have a mask value of 1
+    And the atoms outside 5.0 Angstroms of the center should have a mask value of 0.
+```
 
----
+### **UAT-C4-003: Full Loop Data Handoff**
 
-**Scenario: Handling No Data in Database**
+```gherkin
+Feature: Closing the Active Learning Loop
+  As a user of the end-to-end system,
+  I want the data structure produced by the inference engine to be seamlessly usable by the DFT and training modules,
+  So that the active learning loop is fully closed.
 
-*   **GIVEN** a database that contains zero completed DFT calculations.
-*   **AND** a valid `SystemConfig`.
-*   **WHEN** I call the `PacemakerTrainer`'s `train()` method.
-*   **THEN** the system should not proceed with training.
-*   **AND** it should return a special value, like `None`, or raise a specific `NoTrainingDataError`.
-*   **AND** it must log a clear warning message stating that no training data was available.
+  Scenario: The output of the inference engine is ready for the next stage
+    Given a valid `UncertainStructure` object containing an embedded `ase.Atoms` object and a `force_mask` array
+    When this object is passed back to the start of the workflow
+    Then the embedded `ase.Atoms` object can be successfully used as an input for the DFT Factory
+    And the `force_mask` array can be stored in the database alongside the DFT result to be used by the Training Engine.
+```
