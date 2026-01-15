@@ -63,10 +63,11 @@ def test_train_orchestration_success(
     )
 
     # We need to manually inject the mocked generator
-    trainer = PacemakerTrainer(test_system_config, mock_db_manager)
+    trainer = PacemakerTrainer(test_system_config)
     trainer.config_generator = mock_config_generator
 
-    result_path = trainer.train()
+    atoms_list = mock_db_manager.get_completed_calculations()
+    result_path = trainer.train(atoms_list)
 
     assert isinstance(mock_db_manager.get_completed_calculations, MagicMock)
     mock_db_manager.get_completed_calculations.assert_called_once()
@@ -75,6 +76,29 @@ def test_train_orchestration_success(
     mock_subprocess.assert_called_once()
     assert "pacemaker_train" in mock_subprocess.call_args[0][0]
     assert result_path.endswith("potential.yace")
+
+
+def test_train_failure_on_malformed_output(
+    test_system_config: SystemConfig,
+    mock_db_manager: DatabaseManager,
+    mocker: MockerFixture,
+) -> None:
+    """Test that TrainingFailedError is raised on malformed subprocess output."""
+    mocker.patch("shutil.which", return_value="pacemaker_train")
+    mock_subprocess = mocker.patch("subprocess.run")
+    mock_subprocess.return_value = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout="Something went wrong, but no error code.",
+        stderr="",
+    )
+
+    trainer = PacemakerTrainer(test_system_config)
+    atoms_list = mock_db_manager.get_completed_calculations()
+    with pytest.raises(
+        TrainingFailedError, match="Could not find the output potential file"
+    ):
+        trainer.train(atoms_list)
 
 
 def test_train_failure_on_subprocess_error(
@@ -89,9 +113,10 @@ def test_train_failure_on_subprocess_error(
         returncode=1, cmd=[], stderr="Training crashed."
     )
 
-    trainer = PacemakerTrainer(test_system_config, mock_db_manager)
+    trainer = PacemakerTrainer(test_system_config)
+    atoms_list = mock_db_manager.get_completed_calculations()
     with pytest.raises(TrainingFailedError, match="Training crashed."):
-        trainer.train()
+        trainer.train(atoms_list)
 
 
 def test_train_failure_if_executable_not_found(
@@ -101,9 +126,12 @@ def test_train_failure_if_executable_not_found(
 ) -> None:
     """Test that FileNotFoundError is raised if the executable is not in PATH."""
     mocker.patch("shutil.which", return_value=None)
-    trainer = PacemakerTrainer(test_system_config, mock_db_manager)
-    with pytest.raises(FileNotFoundError, match="Executable 'pacemaker_train' not found"):
-        trainer.train()
+    trainer = PacemakerTrainer(test_system_config)
+    atoms_list = mock_db_manager.get_completed_calculations()
+    with pytest.raises(
+        FileNotFoundError, match="Executable 'pacemaker_train' not found"
+    ):
+        trainer.train(atoms_list)
 
 
 def test_no_training_data_raises_error(
@@ -114,6 +142,6 @@ def test_no_training_data_raises_error(
     assert isinstance(mock_db_manager.get_completed_calculations, MagicMock)
     mock_db_manager.get_completed_calculations.return_value = []
 
-    trainer = PacemakerTrainer(test_system_config, mock_db_manager)
+    trainer = PacemakerTrainer(test_system_config)
     with pytest.raises(NoTrainingDataError):
-        trainer.train()
+        trainer.train([])

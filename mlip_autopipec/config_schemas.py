@@ -166,6 +166,20 @@ class DFTInput(BaseModel):
                 raise ValueError(f"'{key}' is not a valid chemical symbol.")
         return values
 
+    @field_validator("pseudopotentials")
+    @classmethod
+    def validate_pseudopotential_paths(cls, values: dict[str, str]) -> dict[str, str]:
+        """Validate the pseudopotential filenames to prevent path traversal."""
+        import os
+
+        for filename in values.values():
+            if ".." in filename or os.path.isabs(filename):
+                raise ValueError(
+                    f"Pseudopotential '{filename}' must be a relative path and "
+                    "cannot contain '..'"
+                )
+        return values
+
 
 class DFTExecutable(BaseModel):
     """Defines the command and working directory for the DFT executable."""
