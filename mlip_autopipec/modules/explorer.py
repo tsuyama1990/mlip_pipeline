@@ -1,8 +1,6 @@
-# ruff: noqa: D101
 """The Surrogate Explorer module for intelligent candidate selection."""
 
 import logging
-from typing import List
 
 import numpy as np
 from ase import Atoms
@@ -13,9 +11,7 @@ from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
 from mlip_autopipec.modules.screening import SurrogateModelScreener
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +44,7 @@ class SurrogateExplorer:
         self.descriptor_calculator = descriptor_calculator
         self.screener = screener
 
-    def select(self, candidates: List[Atoms]) -> List[Atoms]:
+    def select(self, candidates: list[Atoms]) -> list[Atoms]:
         """Execute the full surrogate screening and FPS selection pipeline.
 
         Args:
@@ -66,14 +62,11 @@ class SurrogateExplorer:
 
         # Stage 1: Screen with surrogate model
         screened_candidates = self.screener.screen(candidates)
-        logger.info(
-            f"After surrogate screening, {len(screened_candidates)} candidates remain."
-        )
+        logger.info(f"After surrogate screening, {len(screened_candidates)} candidates remain.")
 
         if not screened_candidates:
             logger.warning(
-                "No candidates remained after surrogate screening. "
-                "Returning empty list."
+                "No candidates remained after surrogate screening. Returning empty list."
             )
             return []
 
@@ -91,9 +84,7 @@ class SurrogateExplorer:
         descriptors = self.descriptor_calculator.calculate(screened_candidates)
 
         # Stage 3: Farthest Point Sampling
-        selected_indices = self._farthest_point_sampling(
-            descriptors, num_structures_to_select
-        )
+        selected_indices = self._farthest_point_sampling(descriptors, num_structures_to_select)
 
         final_selection = [screened_candidates[i] for i in selected_indices]
         logger.info(f"Selected {len(final_selection)} final candidates via FPS.")
@@ -102,7 +93,7 @@ class SurrogateExplorer:
 
     def _farthest_point_sampling(
         self, descriptors: np.ndarray, num_structures_to_select: int
-    ) -> List[int]:
+    ) -> list[int]:
         """Select a diverse subset using the Farthest Point Sampling algorithm.
 
         Iteratively selects `num_structures_to_select` points from the
@@ -137,9 +128,7 @@ class SurrogateExplorer:
 
             # Update the minimum distances array by calculating the distances to the
             # newly added point and taking the element-wise minimum.
-            new_distances = cdist(
-                descriptors, descriptors[selected_indices[-1:], :]
-            ).flatten()
+            new_distances = cdist(descriptors, descriptors[selected_indices[-1:], :]).flatten()
             min_distances = np.minimum(min_distances, new_distances)
 
         return selected_indices

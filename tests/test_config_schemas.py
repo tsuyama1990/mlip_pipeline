@@ -120,9 +120,7 @@ def test_system_config_valid() -> None:
     dft_config = {
         "input": {"pseudopotentials": {"Si": "Si.UPF"}},
     }
-    config = SystemConfig(
-        target_system=target_system, dft=dft_config, db_path="test.db"
-    )
+    config = SystemConfig(target_system=target_system, dft=dft_config, db_path="test.db")
     assert config.db_path == "test.db"
     assert isinstance(config.dft, DFTConfig)
     assert config.dft.executable.command == "pw.x"

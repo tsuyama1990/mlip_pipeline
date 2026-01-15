@@ -1,4 +1,3 @@
-# ruff: noqa: D101, D102, D103
 import numpy as np
 import pytest
 from ase.build import bulk
@@ -20,13 +19,9 @@ def mock_system_config() -> SystemConfig:
     target_system = {"elements": ["Cu", "Au"], "composition": {"Cu": 0.5, "Au": 0.5}}
     return SystemConfig(
         target_system=target_system,
-        dft=DFTConfig(
-            input=DFTInput(pseudopotentials={"Cu": "Cu.upf", "Au": "Au.upf"})
-        ),
+        dft=DFTConfig(input=DFTInput(pseudopotentials={"Cu": "Cu.upf", "Au": "Au.upf"})),
         generator=GeneratorParams(
-            alloy_params=AlloyParams(
-                strain_magnitudes=[0.95, 1.05], rattle_std_devs=[0.1]
-            )
+            alloy_params=AlloyParams(strain_magnitudes=[0.95, 1.05], rattle_std_devs=[0.1])
         ),
     )
 
@@ -38,9 +33,7 @@ def mock_crystal_config() -> SystemConfig:
     return SystemConfig(
         target_system=target_system,
         dft=DFTConfig(input=DFTInput(pseudopotentials={"Si": "Si.upf"})),
-        generator=GeneratorParams(
-            crystal_params=CrystalParams(defect_types=["vacancy"])
-        ),
+        generator=GeneratorParams(crystal_params=CrystalParams(defect_types=["vacancy"])),
     )
 
 
@@ -93,9 +86,7 @@ def test_apply_strains() -> None:
     config = SystemConfig(
         target_system=target_system,
         dft=DFTConfig(input=DFTInput(pseudopotentials={"Ni": "Ni.upf"})),
-        generator=GeneratorParams(
-            alloy_params=AlloyParams(strain_magnitudes=[0.9, 1.1])
-        ),
+        generator=GeneratorParams(alloy_params=AlloyParams(strain_magnitudes=[0.9, 1.1])),
     )
     generator = PhysicsInformedGenerator(config)
 

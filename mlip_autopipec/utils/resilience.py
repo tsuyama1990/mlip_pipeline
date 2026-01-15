@@ -1,10 +1,10 @@
-# ruff: noqa: D101, D103
 """Utilities for improving application resilience, such as retry mechanisms."""
 
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Type, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ T = TypeVar("T", bound=Callable[..., Any])
 def retry(
     max_retries: int,
     delay_seconds: float = 1.0,
-    exceptions: tuple[Type[Exception], ...] = (Exception,),
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable[[T], T]:
     """Retry a function call on failure.
 
@@ -42,9 +42,7 @@ def retry(
                 except exceptions as e:
                     last_exception = e
                     if attempt < max_retries:
-                        log_msg = (
-                            "Attempt %d/%d for %s failed with %s. Retrying in %.2f s..."
-                        )
+                        log_msg = "Attempt %d/%d for %s failed with %s. Retrying in %.2f s..."
                         logger.warning(
                             log_msg,
                             attempt + 1,

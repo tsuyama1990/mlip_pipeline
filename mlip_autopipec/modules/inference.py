@@ -1,8 +1,7 @@
-# ruff: noqa: D101, D102
 """Module for running inference simulations with LAMMPS."""
 
 import logging
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -205,8 +204,6 @@ class LammpsRunner:
 
             except Exception as e:
                 logger.error(f"An error occurred during MD step {self._step}: {e}")
-                raise RuntimeError(
-                    f"LAMMPS simulation failed at step {self._step}"
-                ) from e
+                raise RuntimeError(f"LAMMPS simulation failed at step {self._step}") from e
 
         logger.info("MD simulation finished without exceeding uncertainty threshold.")

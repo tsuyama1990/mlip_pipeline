@@ -1,4 +1,3 @@
-# ruff: noqa: D101, D102
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -43,9 +42,7 @@ def test_runner_raises_error_if_inference_config_missing(
 ) -> None:
     """Test that ValueError is raised if inference config is missing."""
     mock_system_config.inference = None
-    with pytest.raises(
-        ValueError, match="Inference parameters must be defined in the config."
-    ):
+    with pytest.raises(ValueError, match="Inference parameters must be defined in the config."):
         LammpsRunner(
             config=mock_system_config,
             potential_path="test.yace",
@@ -129,9 +126,7 @@ def test_runner_handles_simulation_error(
 ) -> None:
     """Test that LammpsRunner catches and re-raises simulation errors."""
     quantifier = UncertaintyQuantifier()
-    mocker.patch.object(
-        quantifier, "get_extrapolation_grade", side_effect=ValueError("Test error")
-    )
+    mocker.patch.object(quantifier, "get_extrapolation_grade", side_effect=ValueError("Test error"))
     runner = LammpsRunner(
         config=mock_system_config, potential_path="test.yace", quantifier=quantifier
     )

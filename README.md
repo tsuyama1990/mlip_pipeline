@@ -2,13 +2,16 @@
 
 MLIP-AutoPipe is a project designed to provide a "Zero-Human" protocol for the autonomous generation of Machine Learning Interatomic Potentials (MLIPs). This system automates the entire MLIP lifecycle, from initial data generation to active learning and large-scale production simulations.
 
-## Cycle 01: The Foundation
+## Cycle 01: The Foundation - Automated DFT Factory
 
-This first cycle establishes the architectural backbone of the project. It includes:
+This cycle implements the cornerstone of the MLIP-AutoPipe system: a robust and autonomous DFT calculation factory. This module is responsible for taking an atomic structure and reliably returning its DFT-calculated properties, handling the complexities of the underlying quantum mechanics engine.
 
-- **Pydantic Schemas**: A robust, schema-driven framework for managing all system configurations.
-- **DFT Factory Core**: The initial implementation of the `QEProcessRunner`, a component for interacting with the Quantum Espresso DFT engine.
-- **Database Manager**: A data persistence layer for handling ASE-compatible databases with custom metadata.
+### Key Features:
+- **Schema-Driven Design**: All data structures for DFT jobs and results are rigorously defined using Pydantic, ensuring type safety and data integrity throughout the workflow.
+- **Automated DFT Factory**: The `DFTFactory` class provides a high-level interface for running Quantum Espresso calculations. It encapsulates:
+  - **Heuristic Parameter Generation**: Automatically determines optimal DFT parameters (e.g., cutoffs, k-points) based on the input structure's elements and geometry.
+  - **Resilient Execution**: Includes an auto-recovery mechanism that can handle common DFT convergence failures by intelligently adjusting parameters and retrying the calculation.
+- **Data Persistence**: All successful DFT results are saved to an ASE-compatible database, creating a structured and queryable training set for future machine learning cycles.
 
 ## Cycle 02: The Seed
 

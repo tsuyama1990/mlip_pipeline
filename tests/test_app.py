@@ -1,4 +1,3 @@
-# ruff: noqa: D101, D102
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -68,12 +67,8 @@ def test_app_with_dask_local_cluster(
     # Configure the mocks to return specific values
     mock_dft_factory.run.return_value = Atoms("Cu")
     mock_lammps_runner = MagicMock()
-    mock_lammps_runner.run.return_value = iter(
-        [(Atoms("Cu"), np.array([[1.0, 1.0, 1.0]]))]
-    )
-    mocker.patch(
-        "mlip_autopipec.workflow_manager.LammpsRunner", return_value=mock_lammps_runner
-    )
+    mock_lammps_runner.run.return_value = iter([(Atoms("Cu"), np.array([[1.0, 1.0, 1.0]]))])
+    mocker.patch("mlip_autopipec.workflow_manager.LammpsRunner", return_value=mock_lammps_runner)
 
     mock_future = MagicMock()
     mock_future.done.return_value = True

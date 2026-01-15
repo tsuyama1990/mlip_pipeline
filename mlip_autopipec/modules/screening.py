@@ -1,8 +1,7 @@
-# ruff: noqa: D101
 """Handles the screening of structures using a surrogate model."""
 
 import logging
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -11,9 +10,7 @@ from mace.calculators import mace_mp
 from mlip_autopipec.config_schemas import SurrogateModelParams
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -39,21 +36,15 @@ class SurrogateModelScreener:
         """
         logger.info(f"Loading surrogate model from: {self.config.model_path}")
         try:
-            return mace_mp(
-                model=self.config.model_path, device="cpu", default_dtype="float64"
-            )
+            return mace_mp(model=self.config.model_path, device="cpu", default_dtype="float64")
         except FileNotFoundError:
-            logger.exception(
-                f"Surrogate model file not found at: {self.config.model_path}"
-            )
+            logger.exception(f"Surrogate model file not found at: {self.config.model_path}")
             raise
         except Exception as e:
-            logger.exception(
-                "An unexpected error occurred while loading the MACE model."
-            )
+            logger.exception("An unexpected error occurred while loading the MACE model.")
             raise RuntimeError("Failed to load surrogate model.") from e
 
-    def screen(self, candidates: List[Atoms]) -> List[Atoms]:
+    def screen(self, candidates: list[Atoms]) -> list[Atoms]:
         """Filter candidates based on predicted energy from the surrogate model.
 
         Calculates the potential energy for each candidate structure. Structures
@@ -79,8 +70,7 @@ class SurrogateModelScreener:
 
                 if np.isnan(energy) or np.isinf(energy):
                     logger.warning(
-                        f"Structure {i} yielded an invalid energy value (NaN or Inf). "
-                        "Discarding."
+                        f"Structure {i} yielded an invalid energy value (NaN or Inf). Discarding."
                     )
                     continue
 
@@ -94,7 +84,6 @@ class SurrogateModelScreener:
                     )
             except Exception:
                 logger.exception(
-                    f"An error occurred during energy calculation for structure {i}. "
-                    "Discarding."
+                    f"An error occurred during energy calculation for structure {i}. Discarding."
                 )
         return screened_list
