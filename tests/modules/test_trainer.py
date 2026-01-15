@@ -2,15 +2,17 @@
 """Tests for the PacemakerTrainer module."""
 
 import subprocess
+import typing
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-import yaml
 from ase import Atoms
 from pytest_mock import MockerFixture
 
 from mlip_autopipec.config_schemas import SystemConfig
 from mlip_autopipec.data.database import DatabaseManager
+from mlip_autopipec.modules.config_generator import PacemakerConfigGenerator
 from mlip_autopipec.modules.trainer import (
     NoTrainingDataError,
     PacemakerTrainer,
@@ -20,8 +22,7 @@ from mlip_autopipec.modules.trainer import (
 
 @pytest.fixture
 def test_system_config(tmp_path: Path) -> SystemConfig:
-    """Provides a default SystemConfig for testing."""
-    # The DFT config is not used by the trainer, but is required by the schema
+    """Provide a default SystemConfig for testing."""
     dft_config = {"executable": {}, "input": {"pseudopotentials": {"Ni": "ni.upf"}}}
     config = SystemConfig(dft=dft_config, db_path=str(tmp_path / "test.db"))
     config.trainer.loss_weights.energy = 2.0
@@ -31,47 +32,28 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
 
 @pytest.fixture
 def mock_db_manager(mocker: MockerFixture) -> DatabaseManager:
-    """Provides a mocked DatabaseManager."""
-    mock = mocker.Mock(spec=DatabaseManager)
-    # Configure the mock to return a list of simple Atoms objects
+    """Provide a mocked DatabaseManager."""
+    mock = mocker.MagicMock(spec=DatabaseManager)
     mock.get_completed_calculations.return_value = [Atoms("Ni"), Atoms("Ni2")]
-    return mock
+    return typing.cast(DatabaseManager, mock)
 
 
-def test_generate_pacemaker_config(
-    test_system_config: SystemConfig, mock_db_manager: DatabaseManager
-):
-    """Unit test for the Pacemaker config generation logic."""
-    trainer = PacemakerTrainer(test_system_config, mock_db_manager)
-    dummy_data_path = Path("/tmp/dummy_data.xyz")
-
-    # Manually set the temp_dir to avoid creating it for this unit test
-    trainer._temp_dir = dummy_data_path.parent
-
-    config_path = trainer._generate_pacemaker_config(dummy_data_path)
-    assert config_path.exists()
-
-    with open(config_path) as f:
-        config_data = yaml.safe_load(f)
-
-    # Verify that the generated config matches the SystemConfig
-    assert config_data["fit_params"]["dataset_filename"] == str(dummy_data_path)
-    assert (
-        config_data["fit_params"]["loss_weights"]["energy"]
-        == test_system_config.trainer.loss_weights.energy
-    )
-    assert (
-        config_data["fit_params"]["ace"]["correlation_order"]
-        == test_system_config.trainer.ace_params.correlation_order
-    )
+@pytest.fixture
+def mock_config_generator(mocker: MockerFixture) -> PacemakerConfigGenerator:
+    """Provide a mocked PacemakerConfigGenerator."""
+    mock = mocker.MagicMock(spec=PacemakerConfigGenerator)
+    mock.generate_config.return_value = Path("mock_config.yaml")
+    return typing.cast(PacemakerConfigGenerator, mock)
 
 
 def test_train_orchestration_success(
     test_system_config: SystemConfig,
     mock_db_manager: DatabaseManager,
+    mock_config_generator: PacemakerConfigGenerator,
     mocker: MockerFixture,
-):
+) -> None:
     """Integration test for a successful training workflow."""
+    mocker.patch("shutil.which", return_value="pacemaker_train")
     mock_subprocess = mocker.patch("subprocess.run")
     mock_subprocess.return_value = subprocess.CompletedProcess(
         args=[],
@@ -80,12 +62,17 @@ def test_train_orchestration_success(
         stderr="",
     )
 
+    # We need to manually inject the mocked generator
     trainer = PacemakerTrainer(test_system_config, mock_db_manager)
+    trainer.config_generator = mock_config_generator
+
     result_path = trainer.train()
 
+    assert isinstance(mock_db_manager.get_completed_calculations, MagicMock)
     mock_db_manager.get_completed_calculations.assert_called_once()
+    assert isinstance(mock_config_generator.generate_config, MagicMock)
+    mock_config_generator.generate_config.assert_called_once()
     mock_subprocess.assert_called_once()
-    # Check that the command includes "pacemaker_train"
     assert "pacemaker_train" in mock_subprocess.call_args[0][0]
     assert result_path.endswith("potential.yace")
 
@@ -94,8 +81,9 @@ def test_train_failure_on_subprocess_error(
     test_system_config: SystemConfig,
     mock_db_manager: DatabaseManager,
     mocker: MockerFixture,
-):
+) -> None:
     """Test that TrainingFailedError is raised when the subprocess fails."""
+    mocker.patch("shutil.which", return_value="pacemaker_train")
     mock_subprocess = mocker.patch("subprocess.run")
     mock_subprocess.side_effect = subprocess.CalledProcessError(
         returncode=1, cmd=[], stderr="Training crashed."
@@ -106,12 +94,24 @@ def test_train_failure_on_subprocess_error(
         trainer.train()
 
 
+def test_train_failure_if_executable_not_found(
+    test_system_config: SystemConfig,
+    mock_db_manager: DatabaseManager,
+    mocker: MockerFixture,
+) -> None:
+    """Test that FileNotFoundError is raised if the executable is not in PATH."""
+    mocker.patch("shutil.which", return_value=None)
+    trainer = PacemakerTrainer(test_system_config, mock_db_manager)
+    with pytest.raises(FileNotFoundError, match="Executable 'pacemaker_train' not found"):
+        trainer.train()
+
+
 def test_no_training_data_raises_error(
     test_system_config: SystemConfig,
     mock_db_manager: DatabaseManager,
-):
+) -> None:
     """Test that NoTrainingDataError is raised when the database is empty."""
-    # Configure the mock to return an empty list
+    assert isinstance(mock_db_manager.get_completed_calculations, MagicMock)
     mock_db_manager.get_completed_calculations.return_value = []
 
     trainer = PacemakerTrainer(test_system_config, mock_db_manager)
