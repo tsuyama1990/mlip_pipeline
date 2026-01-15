@@ -18,6 +18,8 @@ from mlip_autopipec.config_schemas import (
     SystemConfig,
     UserConfig,
 )
+from pydantic import ValidationError
+
 from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
 
 # Configure logging
@@ -77,11 +79,17 @@ def run(
 ) -> None:
     """Run the full MLIP-AutoPipe active learning workflow."""
     logging.info(f"Loading user configuration from: {config_path}")
-    with open(config_path) as f:
-        user_config_data = yaml.safe_load(f)
-    user_config = UserConfig(**user_config_data)
-
-    config = expand_config(user_config)
+    try:
+        with open(config_path) as f:
+            user_config_data = yaml.safe_load(f)
+        user_config = UserConfig(**user_config_data)
+        config = expand_config(user_config)
+    except ValidationError as e:
+        logging.error(f"Configuration error: {e}")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        raise typer.Exit(code=1)
 
     # Instantiate mocked modules
     db_manager = MagicMock()

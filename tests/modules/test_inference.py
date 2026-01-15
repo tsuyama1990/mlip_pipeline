@@ -1,4 +1,6 @@
 # ruff: noqa: D101, D102
+from unittest.mock import MagicMock
+
 import pytest
 from ase import Atoms
 
@@ -63,6 +65,19 @@ def test_runner_yields_on_uncertainty(mock_system_config: SystemConfig) -> None:
     assert next(generator) == "stable"
     assert isinstance(next(generator), Atoms)
     assert next(generator) == "stable"
+
+
+def test_runner_handles_simulation_error(mock_system_config: SystemConfig) -> None:
+    """Test that LammpsRunner catches and re-raises simulation errors."""
+    quantifier = UncertaintyQuantifier()
+    quantifier.get_extrapolation_grade = MagicMock(side_effect=ValueError("Test error"))
+    runner = LammpsRunner(
+        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
+    )
+    generator = runner.run()
+
+    with pytest.raises(RuntimeError, match="LAMMPS simulation failed at step 1"):
+        next(generator)
 
 
 def test_runner_stops_at_total_steps(mock_system_config: SystemConfig) -> None:
