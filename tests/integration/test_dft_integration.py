@@ -1,7 +1,7 @@
 """Integration test for the DFTJobFactory to ensure end-to-end functionality."""
 
 from pathlib import Path
-
+from unittest.mock import patch
 import numpy as np
 import pytest
 from ase import Atoms
@@ -30,6 +30,8 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
     dft_config = DFTConfig(
         dft_input_params=DFTInputParameters(
@@ -50,7 +52,8 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    heuristics = DFTHeuristics()
+    with patch("mlip_autopipec.modules.dft.SSSP_DATA_PATH", tmp_path / "sssp.json"):
+        heuristics = DFTHeuristics(sssp_data_path=tmp_path / "sssp.json")
     dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act
@@ -83,6 +86,8 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
     dft_config = DFTConfig(
         dft_input_params=DFTInputParameters(
@@ -103,7 +108,8 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    heuristics = DFTHeuristics()
+    with patch("mlip_autopipec.modules.dft.SSSP_DATA_PATH", tmp_path / "sssp.json"):
+        heuristics = DFTHeuristics(sssp_data_path=tmp_path / "sssp.json")
     dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act & Assert
@@ -123,6 +129,8 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
     import subprocess
 
@@ -141,7 +149,8 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    heuristics = DFTHeuristics()
+    with patch("mlip_autopipec.modules.dft.SSSP_DATA_PATH", tmp_path / "sssp.json"):
+        heuristics = DFTHeuristics(sssp_data_path=tmp_path / "sssp.json")
     dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     mocker.patch.object(

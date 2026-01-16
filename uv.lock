@@ -842,7 +842,6 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "ase" },
     { name = "dask", extra = ["distributed"] },
     { name = "pytest" },
 ]
@@ -850,7 +849,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "ase" },
-    { name = "ase", marker = "extra == 'dev'" },
     { name = "dask" },
     { name = "dask", extras = ["distributed"], marker = "extra == 'dev'" },
     { name = "distributed" },

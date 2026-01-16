@@ -36,27 +36,27 @@ def test_dft_heuristics_cutoffs(mock_sssp_data: Path):
     assert params.cutoffs.density == 240
 
 
-def test_dft_heuristics_k_points():
+def test_dft_heuristics_k_points(mock_sssp_data: Path):
     """Tests the k-point generation for a bulk system."""
-    heuristics = DFTHeuristics()
+    heuristics = DFTHeuristics(sssp_data_path=mock_sssp_data)
     atoms = bulk("Si", a=5.43)
     params = heuristics.get_heuristic_parameters(atoms)
     # Expected: max(1, int(6.0 / 5.43) + 1) = 2
     assert params.k_points == (2, 2, 2)
 
 
-def test_dft_heuristics_k_points_2d():
+def test_dft_heuristics_k_points_2d(mock_sssp_data: Path):
     """Tests the k-point generation for a 2D system (slab)."""
-    heuristics = DFTHeuristics()
+    heuristics = DFTHeuristics(sssp_data_path=mock_sssp_data)
     atoms = bulk("Si", a=5.43)
     atoms.cell[2] = [0, 0, 20]
     params = heuristics.get_heuristic_parameters(atoms)
     assert params.k_points == (2, 2, 1)
 
 
-def test_dft_heuristics_magnetism():
+def test_dft_heuristics_magnetism(mock_sssp_data: Path):
     """Tests that magnetism is enabled for magnetic elements."""
-    heuristics = DFTHeuristics()
+    heuristics = DFTHeuristics(sssp_data_path=mock_sssp_data)
     atoms = bulk("Fe")
     params = heuristics.get_heuristic_parameters(atoms)
     assert params.magnetism is not None
@@ -64,9 +64,9 @@ def test_dft_heuristics_magnetism():
     assert params.magnetism.starting_magnetization.root["Fe"] == 0.5
 
 
-def test_dft_heuristics_no_magnetism():
+def test_dft_heuristics_no_magnetism(mock_sssp_data: Path):
     """Tests that magnetism is disabled for non-magnetic elements."""
-    heuristics = DFTHeuristics()
+    heuristics = DFTHeuristics(sssp_data_path=mock_sssp_data)
     atoms = bulk("Si")
     params = heuristics.get_heuristic_parameters(atoms)
     assert params.magnetism is None

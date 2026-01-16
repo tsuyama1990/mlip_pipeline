@@ -199,9 +199,15 @@ class TrainingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class WorkflowConfig(BaseModel):
+    checkpoint_filename: str = "checkpoint.json"
+    model_config = ConfigDict(extra="forbid")
+
+
 class SystemConfig(BaseModel):
     project_name: str
     run_uuid: UUID
+    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
     dft_config: DFTConfig
     explorer_config: ExplorerConfig
     training_config: TrainingConfig

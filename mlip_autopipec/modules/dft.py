@@ -53,7 +53,7 @@ class DFTHeuristics:
     are derived from loops and lookups into the SSSP data file.
     """
 
-    def __init__(self, sssp_data_path: Path = SSSP_DATA_PATH):
+    def __init__(self, sssp_data_path: Path):
         self._sssp_data = load_sssp_data(sssp_data_path)
 
     def get_heuristic_parameters(self, atoms: Atoms) -> DFTInputParameters:

@@ -115,7 +115,7 @@ class PacemakerTrainer:
             msg = f"Pacemaker training failed with exit code {e.returncode}.\nStderr:\n{e.stderr}"
             raise TrainingFailedError(msg) from e
 
-        match = re.search(r"Final potential saved to: (.*\\.yace)", result.stdout)
+        match = re.search(r"Final potential saved to: (.*\.yace)", result.stdout)
         if not match:
             msg = "Could not find output potential file in training log."
             raise TrainingFailedError(msg)
