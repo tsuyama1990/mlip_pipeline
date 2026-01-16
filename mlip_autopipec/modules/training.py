@@ -1,4 +1,5 @@
 """Module for training a Pacemaker potential."""
+
 import re
 import shutil
 import subprocess
@@ -60,9 +61,7 @@ class PacemakerTrainer:
                     raise NoTrainingDataError(f"Invalid data in database: {e}") from e
         return atoms_list
 
-    def _prepare_pacemaker_input(
-        self, training_data: list[Atoms], working_dir: Path
-    ) -> None:
+    def _prepare_pacemaker_input(self, training_data: list[Atoms], working_dir: Path) -> None:
         """Create the necessary input files for the Pacemaker executable."""
         data_file_path = working_dir / "training_data.xyz"
         ase_write(data_file_path, training_data, format="extxyz")
@@ -71,11 +70,11 @@ class PacemakerTrainer:
             with self.config.template_file.open() as f:
                 template = Template(f.read())
         except FileNotFoundError as e:
-            raise TrainingFailedError(f"Template file not found: {self.config.template_file}") from e
+            raise TrainingFailedError(
+                f"Template file not found: {self.config.template_file}"
+            ) from e
 
-        rendered_config = template.render(
-            config=self.config, data_file_path=str(data_file_path)
-        )
+        rendered_config = template.render(config=self.config, data_file_path=str(data_file_path))
 
         config_file_path = working_dir / "pacemaker.in"
         config_file_path.write_text(rendered_config)

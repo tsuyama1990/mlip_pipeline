@@ -60,10 +60,7 @@ def uat_c1_001_happy_path_calculation():
     from mlip_autopipec.modules.dft import DFTFactory
 
     if not Path(QE_EXECUTABLE_PATH).exists():
-        logging.warning(
-            f"QE executable not found at '{QE_EXECUTABLE_PATH}'. "
-            "Skipping UAT-C1-001."
-        )
+        logging.warning(f"QE executable not found at '{QE_EXECUTABLE_PATH}'. Skipping UAT-C1-001.")
         return
 
     factory = DFTFactory(qe_executable_path=QE_EXECUTABLE_PATH)

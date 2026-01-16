@@ -72,9 +72,7 @@ def test_fingerprint_calculation_is_deterministic(mocker, mock_explorer_config):
     Validates that the fingerprint generation is deterministic by running it
     twice on the same structure and asserting the outputs are identical.
     """
-    mocker.patch(
-        "mlip_autopipec.modules.exploration.mace_mp", return_value=mocker.MagicMock()
-    )
+    mocker.patch("mlip_autopipec.modules.exploration.mace_mp", return_value=mocker.MagicMock())
 
     mock_soap_create = mocker.patch(
         "dscribe.descriptors.SOAP.create",
@@ -117,9 +115,7 @@ def test_pre_screening_filters_unstable_structures(mocker, mock_explorer_config)
     )
 
     explorer = SurrogateExplorer(mock_explorer_config)
-    screened_structures = explorer._pre_screen_structures(
-        [stable_structure, unstable_structure]
-    )
+    screened_structures = explorer._pre_screen_structures([stable_structure, unstable_structure])
 
     assert len(screened_structures) == 1
     assert screened_structures[0].info.get("id") == "stable"

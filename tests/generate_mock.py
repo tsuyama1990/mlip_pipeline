@@ -2,6 +2,7 @@
 This is a temporary helper to generate a canonical mock output file.
 It will be deleted after the file is generated.
 """
+
 import os
 
 import pytest
@@ -23,13 +24,10 @@ def test_generate_real_output(tmp_path):
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=None)
     process_runner = QEProcessRunner(profile=profile)
 
-    factory = DFTFactory(
-        input_generator=input_generator,
-        process_runner=process_runner
-    )
+    factory = DFTFactory(input_generator=input_generator, process_runner=process_runner)
 
     # Use a single H atom for a very fast calculation
-    atoms = bulk("H", "sc", a=10) # Large cell to make it isolated
+    atoms = bulk("H", "sc", a=10)  # Large cell to make it isolated
 
     # We need a dummy pseudopotential file for ASE to be happy
     pseudo_path = tmp_path / "H.pbe-rrkjus.UPF"
@@ -48,14 +46,23 @@ def test_generate_real_output(tmp_path):
     # The real output will be in a temp directory, this is hard to get.
     # Instead, we will manually run the command to get the output.
     from ase.io import write
-    write(tmp_path / "espresso.pwi", atoms, format="espresso-in",
-          pseudopotentials={"H": "H.pbe-rrkjus.UPF"}, kpts=(1,1,1),
-          ecutwfc=30, ecutrho=240)
+
+    write(
+        tmp_path / "espresso.pwi",
+        atoms,
+        format="espresso-in",
+        pseudopotentials={"H": "H.pbe-rrkjus.UPF"},
+        kpts=(1, 1, 1),
+        ecutwfc=30,
+        ecutrho=240,
+    )
 
     command = f"cd {tmp_path} && pw.x < espresso.pwi > espresso.pwo"
     os.system(command)
 
-    print(f"File generated at {tmp_path / 'espresso.pwo'}. Copy its content to tests/test_data/mock_espresso.pwo")
+    print(
+        f"File generated at {tmp_path / 'espresso.pwo'}. Copy its content to tests/test_data/mock_espresso.pwo"
+    )
 
     # This will fail the test run, which is fine.
     assert False
