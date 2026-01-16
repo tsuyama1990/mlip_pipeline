@@ -34,13 +34,6 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     sssp_path = tmp_path / "sssp.json"
     sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
-    dft_config = DFTConfig(
-        dft_input_params=DFTInputParameters(
-            pseudopotentials=Pseudopotentials({"H": "H.pbe-rrkjus.UPF"}),
-            cutoffs=CutoffConfig(wavefunction=30, density=120),
-            k_points=(1, 1, 1),
-        )
-    )
     from ase.calculators.espresso import EspressoProfile
 
     from mlip_autopipec.modules.dft import (
@@ -90,13 +83,6 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     sssp_path = tmp_path / "sssp.json"
     sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
-    dft_config = DFTConfig(
-        dft_input_params=DFTInputParameters(
-            pseudopotentials=Pseudopotentials({"H": "H.pbe-rrkjus.UPF"}),
-            cutoffs=CutoffConfig(wavefunction=30, density=120),
-            k_points=(1, 1, 1),
-        )
-    )
     from ase.calculators.espresso import EspressoProfile
 
     from mlip_autopipec.modules.dft import (

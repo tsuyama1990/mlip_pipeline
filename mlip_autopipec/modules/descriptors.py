@@ -6,7 +6,7 @@ import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
 
-from mlip_autopipec.config_schemas import SOAPParams
+from mlip_autopipec.config.models import SOAPParams
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

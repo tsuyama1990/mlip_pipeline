@@ -1,6 +1,6 @@
 """Utilities for handling configuration objects."""
 
-from mlip_autopipec.config_schemas import (
+from mlip_autopipec.config.models import (
     DFTConfig,
     DFTExecutable,
     DFTInput,

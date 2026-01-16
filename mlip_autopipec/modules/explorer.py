@@ -6,7 +6,7 @@ import numpy as np
 from ase import Atoms
 from scipy.spatial.distance import cdist
 
-from mlip_autopipec.config_schemas import ExplorerParams
+from mlip_autopipec.config.models import ExplorerParams
 from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
 from mlip_autopipec.modules.screening import SurrogateModelScreener
 

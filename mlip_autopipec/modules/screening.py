@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms
 from mace.calculators import mace_mp
 
-from mlip_autopipec.config_schemas import SurrogateModelParams
+from mlip_autopipec.config.models import SurrogateModelParams
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

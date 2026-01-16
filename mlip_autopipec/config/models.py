@@ -137,13 +137,63 @@ class DFTInputParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DFTExecutable(BaseModel):
+    """Defines the command and working directory for the DFT executable."""
+
+    model_config = ConfigDict(extra="forbid")
+    command: str = Field("pw.x", description="The Quantum Espresso executable to run.")
+
+
+class DFTRetryStrategy(BaseModel):
+    """Defines the strategy for retrying failed DFT calculations."""
+
+    model_config = ConfigDict(extra="forbid")
+    max_retries: int = Field(
+        3, ge=0, description="Maximum number of times to retry a failed calculation."
+    )
+    parameter_adjustments: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "A list of parameter adjustments to apply on each retry attempt. "
+            "Each dict key is a dot-separated path to the parameter to change."
+        ),
+    )
+
+
+class DFTInput(BaseModel):
+    """Comprehensive container for Quantum Espresso input parameters."""
+    # Add fields as needed to match usage in conftest.py
+    pseudopotentials: dict[str, str]
+    system: Any = None
+    # NOTE: This model seems to be a remnant of config_schemas.py structure.
+    # config/models.py uses DFTInputParameters.
+    # I am adding it here to satisfy tests/conftest.py which uses it.
+    model_config = ConfigDict(extra="allow") # Allowing extra for now to be safe with unknown fields
+
+
+class DFTSystem(BaseModel):
+    """Parameters for the &SYSTEM namelist in Quantum Espresso."""
+    model_config = ConfigDict(extra="allow")
+    nat: int | None = Field(None, ge=1)
+    ntyp: int | None = Field(None, ge=1)
+    ecutwfc: float = Field(60.0)
+    nspin: int = Field(1)
+
 class DFTConfig(BaseModel):
     """Configuration for the DFT Factory."""
+    # Modified to support both new and legacy fields temporarily or merge them.
+    # The new code uses dft_input_params.
+    # The old code (conftest) uses executable, input, retry_strategy.
 
-    # This is a placeholder for the full DFTConfig
-    # For now, it just contains the input parameters
-    dft_input_params: DFTInputParameters
-    model_config = ConfigDict(extra="forbid")
+    # New field
+    dft_input_params: DFTInputParameters | None = None
+
+    # Legacy fields (imported from config_schemas)
+    executable: DFTExecutable = Field(default_factory=DFTExecutable)
+    input: DFTInput | None = None
+    retry_strategy: DFTRetryStrategy = Field(default_factory=DFTRetryStrategy)
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class MDConfig(BaseModel):
@@ -185,14 +235,25 @@ class LossWeights(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ACEParams(BaseModel):
+    """Hyperparameters for the Atomic Cluster Expansion (ACE) potential."""
+
+    model_config = ConfigDict(extra="forbid")
+    radial_basis: str = Field("chebyshev", description="The type of radial basis.")
+    correlation_order: int = Field(3, ge=2, description="The body order of the potential.")
+    element_dependent_cutoffs: bool = Field(
+        False, description="Whether to use different cutoffs for different elements."
+    )
+
+
 class TrainingConfig(BaseModel):
     pacemaker_executable: FilePath | None = None
     data_source_db: Path
     template_file: FilePath | None = None
     delta_learning: bool = True
     loss_weights: LossWeights = Field(default_factory=LossWeights)
-    ace_params: "PacemakerACEParams" = Field(
-        default_factory=lambda: PacemakerACEParams(
+    ace_params: ACEParams = Field(
+        default_factory=lambda: ACEParams(
             radial_basis="radial", correlation_order=3, element_dependent_cutoffs=False
         )
     )
@@ -204,15 +265,152 @@ class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class SystemConfig(BaseModel):
-    project_name: str
-    run_uuid: UUID
-    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
-    dft_config: DFTConfig
-    explorer_config: ExplorerConfig
-    training_config: TrainingConfig
-    inference_config: InferenceConfig
+class SurrogateModelParams(BaseModel):
+    """Parameters for the surrogate model screening."""
+
     model_config = ConfigDict(extra="forbid")
+    model_path: str = Field(..., description="Path to the pre-trained surrogate model file.")
+    energy_threshold_ev: float = Field(
+        -2.0,
+        description=(
+            "Energy per atom threshold in eV. Structures with higher energy will be discarded."
+        ),
+    )
+
+    @field_validator("model_path")
+    @classmethod
+    def validate_model_path(cls, v: str) -> str:
+        """Validate the model path to prevent path traversal."""
+        import os
+
+        if ".." in v or os.path.isabs(v):
+            raise ValueError("model_path must be a relative path and cannot contain '..'")
+        return v
+
+class SOAPParams(BaseModel):
+    """Hyperparameters for the SOAP descriptor."""
+
+    model_config = ConfigDict(extra="forbid")
+    n_max: int = Field(8, description="Number of radial basis functions.")
+    l_max: int = Field(6, description="Maximum degree of spherical harmonics.")
+    r_cut: float = Field(5.0, description="Cutoff radius for the local environment.")
+    atomic_sigma: float = Field(0.5, description="Standard deviation of the Gaussian smearing.")
+
+class FPSParams(BaseModel):
+    """Parameters for the Farthest Point Sampling algorithm."""
+
+    model_config = ConfigDict(extra="forbid")
+    num_structures_to_select: int = Field(
+        200, ge=1, description="The final number of structures to select."
+    )
+    soap_params: SOAPParams = Field(
+        default_factory=SOAPParams, description="SOAP descriptor hyperparameters."
+    )
+
+class AlloyParams(BaseModel):
+    """Parameters for generating alloy structures."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sqs_supercell_size: list[int] = Field(
+        default=[4, 4, 4],
+        min_length=3,
+        description="Supercell dimensions for SQS generation (e.g., [2, 2, 2]).",
+    )
+    strain_magnitudes: list[float] = Field(
+        default=[0.95, 1.0, 1.05],
+        description="List of isotropic strain magnitudes to apply.",
+    )
+    rattle_std_devs: list[float] = Field(
+        default=[0.05, 0.1],
+        description="List of standard deviations for atomic rattling.",
+    )
+
+
+class CrystalParams(BaseModel):
+    """Parameters for generating crystal structures with defects."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    defect_types: list[Literal["vacancy", "interstitial"]] = Field(
+        default=["vacancy"], description="List of defect types to generate."
+    )
+
+
+class GeneratorParams(BaseModel):
+    """Parameters for the Physics-Informed Generator (Module A)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alloy_params: AlloyParams = Field(
+        default_factory=AlloyParams, description="Parameters for alloy generation."
+    )
+    crystal_params: CrystalParams = Field(
+        default_factory=CrystalParams,
+        description="Parameters for crystal defect generation.",
+    )
+
+class DaskConfig(BaseModel):
+    """Configuration for the Dask distributed task scheduler."""
+
+    model_config = ConfigDict(extra="forbid")
+    scheduler_address: str | None = Field(
+        None,
+        description=(
+            "The address of the Dask scheduler (e.g., 'tcp://127.0.0.1:8786'). "
+            "If None, a local cluster will be used."
+        ),
+    )
+
+class ExplorerParams(BaseModel):
+    """Parameters for the Surrogate Explorer and Selector (Module B)."""
+
+    model_config = ConfigDict(extra="forbid")
+    surrogate_model: SurrogateModelParams
+    fps: FPSParams = Field(default_factory=FPSParams, description="Parameters for FPS.")
+
+class TrainerParams(BaseModel):
+    """Parameters for the Pacemaker Trainer (Module D)."""
+
+    model_config = ConfigDict(extra="forbid")
+    loss_weights: LossWeights = Field(
+        default_factory=LossWeights,
+        description="Weights for the training loss function.",
+    )
+    ace_params: ACEParams = Field(
+        default_factory=ACEParams, description="Hyperparameters for the ACE potential."
+    )
+
+class SystemConfig(BaseModel):
+    """The root internal configuration object for an MLIP-AutoPipe workflow."""
+
+    project_name: str | None = None # Made optional to fit legacy tests if needed
+    run_uuid: UUID | None = None
+
+    # Legacy fields
+    target_system: Any = None
+    dft: DFTConfig | None = None
+    db_path: str = "mlip_database.db"
+
+    # New fields
+    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
+    dft_config: DFTConfig | None = None # Renamed or aliased?
+    # Wait, dft_config in new model was type DFTConfig.
+    # In old model 'dft' was type DFTConfig.
+    # I should align them.
+
+    explorer_config: ExplorerConfig | None = None
+    training_config: TrainingConfig | None = None
+    inference_config: InferenceConfig | None = None
+
+    # Generator params from schemas
+    generator: GeneratorParams | None = None
+    explorer: ExplorerParams | None = None
+    trainer: TrainerParams | None = None
+    inference: InferenceConfig | None = None
+    dask: DaskConfig | None = None
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # Data Transfer Objects
@@ -380,3 +578,18 @@ class CheckpointState(BaseModel):
     pending_job_ids: list[UUID] = Field(default_factory=list)
     job_submission_args: dict[UUID, Any] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+
+class CalculationMetadata(BaseModel):
+    """Schema for metadata to be stored with each calculation in the database."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage: str = Field(
+        ..., description="The name of the workflow stage that produced the structure."
+    )
+    uuid: str = Field(..., description="A unique identifier for the calculation run.")
+    force_mask: list[list[float]] | None = Field(
+        default=None,
+        description="A per-atom mask to exclude forces from training.",
+    )

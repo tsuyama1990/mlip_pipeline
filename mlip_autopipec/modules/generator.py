@@ -6,7 +6,7 @@ import numpy as np
 from ase import Atoms
 from ase.build import bulk
 
-from mlip_autopipec.config_schemas import SystemConfig
+from mlip_autopipec.config.models import SystemConfig
 
 logger = logging.getLogger(__name__)
 

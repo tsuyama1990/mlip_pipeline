@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-from mlip_autopipec.config_schemas import (
+from mlip_autopipec.config.models import (
     AlloyParams,
     CrystalParams,
     DFTConfig,
