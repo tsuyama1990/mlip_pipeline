@@ -2,11 +2,14 @@
 This is a temporary helper to generate a canonical mock output file.
 It will be deleted after the file is generated.
 """
+import os
+
 import pytest
 from ase.build import bulk
-from mlip_autopipec.modules.dft import DFTFactory, QEInputGenerator, QEProcessRunner
 from ase.calculators.espresso import EspressoProfile
-import os
+
+from mlip_autopipec.modules.dft import DFTFactory, QEInputGenerator, QEProcessRunner
+
 
 # This requires a real pw.x executable in the path
 # If you don't have one, this test will fail, but that's okay.

@@ -118,7 +118,22 @@ class QEProcessRunner:
 
 
 class DFTFactory:
-    """Orchestrates DFT calculations using dependency injection."""
+    """Orchestrates DFT calculations using a dependency-injected workflow.
+
+    This class serves as the main entry point for running DFT calculations.
+    It coordinates the generation of input files, the execution of the DFT
+    code, and the handling of errors and retries. It relies on injected
+    "worker" classes to perform the specific tasks, adhering to the single-
+    responsibility principle.
+
+    Args:
+        input_generator: An instance of a class (e.g., `QEInputGenerator`)
+            responsible for creating the DFT input files.
+        process_runner: An instance of a class (e.g., `QEProcessRunner`)
+            responsible for executing the DFT code as a subprocess.
+        max_retries: The maximum number of times to retry a failed
+            calculation before raising an exception.
+    """
 
     def __init__(
         self,

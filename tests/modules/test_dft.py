@@ -1,14 +1,12 @@
 """
 Unit tests for the refactored DFTFactory and its dependencies.
 """
-import logging
 import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
 from ase.build import bulk
 
-from mlip_autopipec.config.models import DFTInputParameters
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft import (
     DFTFactory,

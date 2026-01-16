@@ -7,7 +7,7 @@ import pytest
 from ase import Atoms
 from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config.models import DFTInputParameters, DFTResult
+from mlip_autopipec.config.models import DFTResult
 from mlip_autopipec.modules.dft import DFTFactory, QEInputGenerator, QEProcessRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
@@ -54,3 +54,25 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     assert np.isclose(result.energy, expected_energy, atol=1e-6)
     assert np.allclose(result.forces, expected_forces, atol=1e-6)
     assert np.allclose(result.stress, expected_stress, atol=1e-6)
+
+
+def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> None:
+    """Test that a FileNotFoundError is raised for a non-existent executable."""
+    # Arrange
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+
+    non_existent_command = "/path/to/non/existent/pw.x"
+    profile = EspressoProfile(command=non_existent_command, pseudo_dir=pseudo_dir)
+    input_generator = QEInputGenerator(
+        profile=profile, pseudopotentials_path=pseudo_dir
+    )
+    process_runner = QEProcessRunner(profile=profile)
+    dft_factory = DFTFactory(
+        input_generator=input_generator, process_runner=process_runner
+    )
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError):
+        dft_factory.run(h2_atoms.copy())

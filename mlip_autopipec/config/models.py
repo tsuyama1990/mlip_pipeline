@@ -114,25 +114,19 @@ class DFTJob(BaseModel):
     This model bundles the atomic structure (`ase.Atoms`) with its
     corresponding validated input parameters.
     """
-
-    # Note: Using `Any` for ase.Atoms is a pragmatic choice as Pydantic
-    # cannot validate it out-of-the-box. The validation is handled at the
-    # application layer before creating the DFTJob instance.
-    atoms: "object"  # This will be an ase.Atoms object.
+    atoms: object  # Using `object` to prevent circular imports with `ase.Atoms`
     params: DFTInputParameters
     job_id: UUID = Field(default_factory=uuid4)
 
     @field_validator("atoms")
-    @classmethod
-    def validate_atoms_type(cls, v: "object") -> object:
-        """Validate that the provided object is a genuine ase.Atoms instance."""
+    def validate_atoms_type(cls, v):
+        """Validate that the atoms object is a valid ase.Atoms instance."""
         try:
             from ase import Atoms
-        except ImportError:
-            # Re-raise with a more informative message if ASE is not installed
+        except ImportError as e:
             raise ImportError(
                 "ASE is not installed. Please install it to use this feature."
-            ) from None
+            ) from e
 
         if not isinstance(v, Atoms):
             raise TypeError("The 'atoms' field must be an instance of ase.Atoms.")

@@ -1,49 +1,32 @@
      Program PWSCF v.6.5 starts on 16Jan2024 at 12:00:00
 
-     This program is part of the open-source Quantum ESPRESSO suite
-     for quantum simulation of materials; please cite
-         "P. Giannozzi et al., J. Phys.: Condens. Matter 21 395502 (2009);
-         "P. Giannozzi et al., J. Phys.: Condens. Matter 29 465901 (2017);
-         URL http://www.quantum-espresso.org",
-     in publications or presentations arising from this work. More details at
-     http://www.quantum-espresso.org/quote
-
-     Parallel version (MPI), running on     1 processors
-
      bravais-lattice index     = 0
-     lattice parameter (alat)  =   18.89726125  a.u.
-     unit-cell volume          =    1.0000000  a.u.^3
+     lattice parameter (alat)  =   10.00000000  a.u.
+     unit-cell volume          =  1000.0000000  a.u.^3
+     number of atoms/cell      =           2
+     number of atomic types    =           1
 
-     Number of atoms/cell      =           2
-     Number of atomic types    =           1
-     Number of electrons       =      2.00
-     Number of Kohn-Sham states=           1
+     celldm(1)=  10.00  celldm(2)=   0.00  celldm(3)=   0.00
+     celldm(4)=   0.00  celldm(5)=   0.00  celldm(6)=   0.00
+
+     crystal axes: (cartesian coordinates in units of alat)
+               1.000000000   0.000000000   0.000000000
+               0.000000000   1.000000000   0.000000000
+               0.000000000   0.000000000   1.000000000
+
+     site n.     atom                  positions (alat units)
+         1           H_             (   0.000000000   0.000000000   0.000000000  )
+         2           H_             (   0.000000000   0.000000000   0.074000000  )
+
 
      Forces acting on atoms (cartesian axes, Ry/au):
 
      atom    1 type  1   force =    -0.00000135   -0.00000000    0.00000000
      atom    2 type  1   force =     0.00000135    0.00000000    0.00000000
 
-     Total force =     0.000003     Total SCF correction =     0.000000
-
 !    total energy              =     -16.42531639 Ry
-     Harris-Foulkes estimate   =     -16.42531639 Ry
-     estimated scf accuracy    <          1.0E-10 Ry
-
-     The total energy is the sum of the following terms:
-
-     one-electron contribution =       1.58156156 Ry
-     hartree contribution      =       1.00000000 Ry
-     xc contribution           =      -1.00000000 Ry
-     ewald contribution        =       1.00000000 Ry
-
-     convergence has been achieved in   8 iterations
-
-     Final enthalpy            =     -16.42531639 Ry
 
      total stress  (Ry/bohr**3)                       (kbar)
-      -0.00000000   -0.00000000   -0.00000000      -0.00      -0.00      -0.00
-      -0.00000000   -0.00000000   -0.00000000      -0.00      -0.00      -0.00
-      -0.00000000   -0.00000000   -0.00000000      -0.00      -0.00      -0.00
-
-     PWSCF        :     0.01s CPU time,      0.01s wall time
+      0.00000000    0.00000000    0.00000000       0.00       0.00       0.00
+      0.00000000    0.00000000    0.00000000       0.00       0.00       0.00
+      0.00000000    0.00000000    0.00000000       0.00       0.00       0.00
