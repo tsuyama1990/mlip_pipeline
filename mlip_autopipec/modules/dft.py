@@ -196,14 +196,32 @@ class QERetryHandler:
         return None
 
 
-class DFTFactory:
-    """A factory for creating `DFTJob` objects with heuristic parameters."""
+class DFTJobFactory:
+    """
+    Creates `DFTJob` objects with heuristic-driven parameters.
+
+    This class is responsible for taking a raw `ase.Atoms` object and
+    determining a sensible set of DFT parameters for it based on a set of
+    pre-defined heuristics (e.g., k-point density, cutoffs from SSSP).
+    Its sole purpose is to create a validated `DFTJob` that can be
+    executed by a `DFTRunner`.
+    """
 
     def __init__(self) -> None:
         self._sssp_data = self._load_sssp_data()
 
     def create_job(self, atoms: Atoms) -> DFTJob:
-        """Creates a DFTJob with heuristic parameters."""
+        """
+        Creates a DFTJob with heuristic parameters for a given atomic structure.
+
+        Args:
+            atoms: An `ase.Atoms` object representing the structure to be
+                   calculated.
+
+        Returns:
+            A `DFTJob` object containing the atoms and the generated DFT
+            parameters, ready for execution.
+        """
         params = self._get_heuristic_parameters(atoms)
         return DFTJob(atoms=atoms, params=params)
 
@@ -284,7 +302,16 @@ class DFTFactory:
 
 
 class DFTRunner:
-    """Orchestrates DFT calculations using a dependency-injected workflow."""
+    """
+    Executes and manages a `DFTJob`.
+
+    This class is responsible for the practical execution of a DFT calculation.
+    It takes a `DFTJob` object, which contains the atomic structure and all
+    necessary parameters, and orchestrates the process of running the external
+    DFT code. This includes generating input files, running the calculation in a
+    subprocess, parsing the output, and handling retries for convergence
+    errors. It is designed to be a stateful, single-job runner.
+    """
 
     def __init__(
         self,
@@ -314,13 +341,18 @@ class DFTRunner:
                     logger.info(f"DFT job {job.job_id} succeeded on attempt {attempt + 1}.")
                     return result
             except (subprocess.CalledProcessError, DFTCalculationError) as e:
-                logger.warning(f"DFT job {job.job_id} failed on attempt {attempt + 1}.")
-                log_content = e.stdout + "\\n" + e.stderr
+                logger.exception(
+                    f"DFT job {job.job_id} failed on attempt {attempt + 1}.",
+                    extra={"job_id": job.job_id, "attempt": attempt + 1},
+                )
+                log_content = e.stdout + "\\n" + e.stderr if hasattr(e, "stdout") else ""
                 new_params = self.retry_handler.handle_convergence_error(
                     log_content, job.params.model_dump()
                 )
                 if new_params and attempt < self.max_retries - 1:
-                    job.params = job.params.model_copy(update=new_params)
+                    updated_params = job.params.model_dump()
+                    updated_params.update(new_params)
+                    job.params = DFTInputParameters.model_validate(updated_params)
                     logger.info("Retrying with modified parameters...")
                 else:
                     raise DFTCalculationError(

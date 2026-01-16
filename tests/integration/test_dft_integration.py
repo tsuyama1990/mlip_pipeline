@@ -1,4 +1,4 @@
-"""Integration test for the DFTFactory to ensure end-to-end functionality."""
+"""Integration test for the DFTJobFactory to ensure end-to-end functionality."""
 
 from pathlib import Path
 
@@ -7,7 +7,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.models import DFTConfig, DFTInputParameters, CutoffConfig, Pseudopotentials
-from mlip_autopipec.modules.dft import DFTFactory, DFTRunner
+from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -41,10 +41,10 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
     retry_handler = QERetryHandler()
-    dft_factory = DFTFactory()
+    dft_job_factory = DFTJobFactory()
 
     # Act
-    job = dft_factory.create_job(h2_atoms.copy())
+    job = dft_job_factory.create_job(h2_atoms.copy())
     dft_runner = DFTRunner(
         input_generator=input_generator,
         process_runner=process_runner,
@@ -90,11 +90,11 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
     retry_handler = QERetryHandler()
-    dft_factory = DFTFactory()
+    dft_job_factory = DFTJobFactory()
 
     # Act & Assert
     with pytest.raises(FileNotFoundError):
-        job = dft_factory.create_job(h2_atoms.copy())
+        job = dft_job_factory.create_job(h2_atoms.copy())
         dft_runner = DFTRunner(
             input_generator=input_generator,
             process_runner=process_runner,
@@ -102,3 +102,39 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
             retry_handler=retry_handler,
         )
         dft_runner.run(job)
+
+
+def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
+    """Test that the DFTRunner correctly handles retries and raises an error."""
+    # Arrange
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+
+    from mlip_autopipec.modules.dft import QEInputGenerator, QEProcessRunner, QEOutputParser, QERetryHandler, DFTJobFactory, DFTRunner
+    from ase.calculators.espresso import EspressoProfile
+    from mlip_autopipec.exceptions import DFTCalculationError
+    import subprocess
+
+    profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
+    input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
+    process_runner = QEProcessRunner(profile=profile)
+    output_parser = QEOutputParser()
+    retry_handler = QERetryHandler()
+    dft_job_factory = DFTJobFactory()
+
+    mocker.patch.object(process_runner, "execute", side_effect=subprocess.CalledProcessError(1, "pw.x", "stdout convergence NOT achieved", "stderr"))
+
+    dft_runner = DFTRunner(
+        input_generator=input_generator,
+        process_runner=process_runner,
+        output_parser=output_parser,
+        retry_handler=retry_handler,
+        max_retries=2,
+    )
+    job = dft_job_factory.create_job(h2_atoms.copy())
+
+    # Act & Assert
+    with pytest.raises(DFTCalculationError):
+        dft_runner.run(job)
+    assert process_runner.execute.call_count == 2

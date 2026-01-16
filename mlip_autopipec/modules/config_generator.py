@@ -63,6 +63,9 @@ class PacemakerConfigGenerator:
             }
         }
 
+        from mlip_autopipec.config.models import PacemakerConfig
+        PacemakerConfig.model_validate(config_dict)
+
         config_file = output_dir / "pacemaker_config.yaml"
         with open(config_file, "w") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
