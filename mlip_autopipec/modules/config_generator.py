@@ -8,33 +8,43 @@ from mlip_autopipec.config.models import SystemConfig
 
 
 class PacemakerConfigGenerator:
-    """Generates configuration files for the Pacemaker training engine.
+    """
+    Generates configuration files for the Pacemaker training engine.
 
-    This class reads the training parameters from a `SystemConfig` object and
-    translates them into the specific YAML format required by the `pacemaker_train`
-    command-line tool.
-
-    Attributes:
-        config: The system configuration object containing the trainer parameters.
-
+    This class is responsible for translating the high-level training parameters
+    defined in the `SystemConfig` into the specific YAML format required by the
+    `pacemaker_train` command-line tool. It ensures that the generated
+    configuration is valid and ready for use in a training job.
     """
 
     def __init__(self, config: SystemConfig):
+        """
+        Initializes the PacemakerConfigGenerator.
+
+        Args:
+            config: A fully validated `SystemConfig` object containing all the
+                    necessary parameters for the training job.
+        """
         self.config = config
 
     def generate_config(self, data_file_path: Path, output_dir: Path) -> Path:
-        """Generate the Pacemaker YAML config file.
+        """
+        Generates the Pacemaker YAML config file.
 
         This method constructs a Python dictionary that mirrors the structure of the
-        required YAML file and then writes it to the specified output directory.
+        required YAML file, populating it with values from the `SystemConfig`.
+        It then writes this dictionary to a YAML file in the specified output
+        directory.
 
         Args:
-            data_file_path: The path to the training data file (e.g., 'data.xyz').
-            output_dir: The directory where the config file will be saved.
+            data_file_path: The absolute path to the training data file
+                            (e.g., '/path/to/training_data.xyz'). This path
+                            is written directly into the configuration file.
+            output_dir: The directory where the generated 'pacemaker_config.yaml'
+                        will be saved.
 
         Returns:
-            The path to the newly generated YAML configuration file.
-
+            The absolute path to the newly generated YAML configuration file.
         """
         trainer_params = self.config.training_config
         config_dict = {

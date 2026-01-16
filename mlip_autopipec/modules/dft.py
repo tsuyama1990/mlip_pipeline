@@ -56,7 +56,7 @@ class QEInputGenerator:
             profile=self.profile,
             directory=str(work_dir),
             kpts=params.k_points,
-            pseudopotentials=params.pseudopotentials,
+            pseudopotentials=params.pseudopotentials.model_dump(),
             input_data=input_data,
         )
         calculator.write_inputfiles(atoms, properties=["energy", "forces", "stress"])

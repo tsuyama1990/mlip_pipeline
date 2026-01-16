@@ -4,18 +4,21 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: mock-3.15.1
-collected 59 items
+collected 63 items
 
-tests/modules/test_config_generator.py .                                 [  1%]
-tests/modules/test_dft.py .......                                        [ 13%]
-tests/modules/test_exploration.py .....ss                                [ 25%]
-tests/modules/test_explorer.py .....                                     [ 33%]
-tests/modules/test_generator.py ....                                     [ 40%]
+tests/integration/test_dft_integration.py x.                             [  3%]
+tests/modules/test_config_generator.py .                                 [  4%]
+tests/modules/test_dft.py .......                                        [ 15%]
+tests/modules/test_exploration.py .....ss                                [ 26%]
+tests/modules/test_explorer.py .....                                     [ 34%]
+tests/modules/test_generator.py ....                                     [ 41%]
 tests/modules/test_inference.py ....                                     [ 47%]
 tests/modules/test_training.py .....                                     [ 55%]
 tests/test_app.py x                                                      [ 57%]
-tests/test_config.py .....                                               [ 66%]
-tests/test_config_schemas.py ....................                        [100%]
+tests/test_config.py .....                                               [ 65%]
+tests/test_config_factory.py .                                           [ 66%]
+tests/test_config_schemas.py ....................                        [ 98%]
+tests/test_workflow_manager.py .                                         [100%]
 
 =============================== warnings summary ===============================
 .venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
@@ -39,4 +42,4 @@ tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
     com = masses @ self.positions[indices] / masses.sum()
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-============= 56 passed, 2 skipped, 1 xfailed, 5 warnings in 7.77s =============
+============= 59 passed, 2 skipped, 2 xfailed, 5 warnings in 8.49s =============

@@ -23,22 +23,23 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
         }
     }
     from mlip_autopipec.config.models import UserInputConfig
-    from mlip_autopipec.workflow_manager import WorkflowManager
+    from mlip_autopipec.config.factory import ConfigFactory
 
     user_config = UserInputConfig.model_validate(user_config_dict)
-    manager = WorkflowManager(user_config)
+    system_config = ConfigFactory.from_user_input(user_config)
 
     # We need to create some dummy files for the paths
     (tmp_path / "pacemaker").touch()
     (tmp_path / "lammps").touch()
     (tmp_path / "template.in").touch()
+    (tmp_path / "potential.yace").touch()
 
-    manager.system_config.training_config.pacemaker_executable = tmp_path / "pacemaker"
-    manager.system_config.training_config.template_file = tmp_path / "template.in"
-    manager.system_config.inference_config.lammps_executable = tmp_path / "lammps"
-    manager.system_config.inference_config.potential_path = tmp_path / "potential.yace"
+    system_config.training_config.pacemaker_executable = tmp_path / "pacemaker"
+    system_config.training_config.template_file = tmp_path / "template.in"
+    system_config.inference_config.lammps_executable = tmp_path / "lammps"
+    system_config.inference_config.potential_path = tmp_path / "potential.yace"
 
-    return manager.system_config
+    return system_config
 
 
 def test_generate_pacemaker_config(test_system_config: SystemConfig, tmp_path: Path) -> None:

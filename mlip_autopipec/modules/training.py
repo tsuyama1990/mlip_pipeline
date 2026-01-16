@@ -10,10 +10,13 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect as ase_db_connect
 from ase.io import write as ase_write
+import logging
 from jinja2 import Template
 from pydantic import ValidationError
 
 from mlip_autopipec.config.models import TrainingConfig, TrainingData
+
+log = logging.getLogger(__name__)
 
 
 class TrainingFailedError(Exception):
@@ -70,6 +73,10 @@ class PacemakerTrainer:
             with self.config.template_file.open() as f:
                 template = Template(f.read())
         except FileNotFoundError as e:
+            log.exception(
+                "Failed to open Jinja2 template file for Pacemaker.",
+                extra={"template_file": self.config.template_file},
+            )
             raise TrainingFailedError(
                 f"Template file not found: {self.config.template_file}"
             ) from e
@@ -97,6 +104,14 @@ class PacemakerTrainer:
                 shell=False,
             )
         except subprocess.CalledProcessError as e:
+            log.exception(
+                "Pacemaker training subprocess failed.",
+                extra={
+                    "returncode": e.returncode,
+                    "stdout": e.stdout,
+                    "stderr": e.stderr,
+                },
+            )
             msg = f"Pacemaker training failed with exit code {e.returncode}.\nStderr:\n{e.stderr}"
             raise TrainingFailedError(msg) from e
 

@@ -144,9 +144,11 @@ class UncertaintyConfig(BaseModel):
             raise ValueError("masking_cutoff must be smaller than embedding_cutoff.")
         return v
 
+from typing import Optional
+
 class InferenceConfig(BaseModel):
-    lammps_executable: FilePath
-    potential_path: FilePath
+    lammps_executable: Optional[FilePath] = None
+    potential_path: Optional[FilePath] = None
     md_params: MDConfig = Field(default_factory=MDConfig)
     uncertainty_params: UncertaintyConfig = Field(default_factory=UncertaintyConfig)
     model_config = ConfigDict(extra="forbid")
@@ -158,9 +160,9 @@ class LossWeights(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 class TrainingConfig(BaseModel):
-    pacemaker_executable: FilePath
+    pacemaker_executable: Optional[FilePath] = None
     data_source_db: Path
-    template_file: FilePath
+    template_file: Optional[FilePath] = None
     delta_learning: bool = True
     loss_weights: LossWeights = Field(default_factory=LossWeights)
     ace_params: "PacemakerACEParams" = Field(default_factory=lambda: PacemakerACEParams(radial_basis="radial", correlation_order=3, element_dependent_cutoffs=False))
@@ -185,6 +187,10 @@ class UncertaintyMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 class UncertainStructure(BaseModel):
+    # NOTE: `object` is used here for `atoms` and `force_mask` because these fields
+    # hold complex types from external libraries (ASE and NumPy) that are not
+    # directly serializable. Type safety is enforced at runtime by the
+    # Pydantic validators below, which check for `ase.Atoms` and `np.ndarray`.
     atoms: object
     force_mask: object
     metadata: UncertaintyMetadata
