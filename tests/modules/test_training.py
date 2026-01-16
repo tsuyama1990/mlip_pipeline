@@ -24,6 +24,7 @@ def mock_training_config(tmp_path: Path) -> TrainingConfig:
     template_path.write_text("test template")
     executable_path = tmp_path / "pacemaker"
     executable_path.touch()
+    executable_path.chmod(0o755)
     return TrainingConfig(
         pacemaker_executable=executable_path,
         data_source_db=tmp_path / "test.db",
@@ -106,7 +107,7 @@ def test_pacemaker_trainer_executable_not_found(mock_read_data, mock_training_co
     mock_read_data.return_value = [atoms]
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
-    with patch("shutil.which", return_value=False), pytest.raises(FileNotFoundError):
+    with patch("shutil.which", return_value=False), pytest.raises(TrainingFailedError):
         trainer.perform_training(generation=1)
 
 

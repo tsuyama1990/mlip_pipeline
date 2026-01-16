@@ -1,3 +1,4 @@
+import os
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FilePath, ValidationInfo, field_validator
@@ -29,6 +30,14 @@ class InferenceConfig(BaseModel):
     md_params: MDConfig = Field(default_factory=MDConfig)
     uncertainty_params: UncertaintyConfig = Field(default_factory=UncertaintyConfig)
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("lammps_executable")
+    @classmethod
+    def validate_executable(cls, v: FilePath | None) -> FilePath | None:
+        if v is not None:
+            if not os.access(v, os.X_OK):
+                raise ValueError(f"File at {v} is not executable.")
+        return v
 
 class UncertaintyMetadata(BaseModel):
     uncertain_timestep: int

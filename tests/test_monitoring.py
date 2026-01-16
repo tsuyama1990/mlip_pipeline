@@ -83,6 +83,18 @@ def test_gather_data(mock_connect, mock_checkpoint_data, tmp_path):
     # Check completed calcs
     assert data.completed_calcs == 3
 
+def test_gather_data_no_db(mock_checkpoint_data, tmp_path):
+    """Test gathering data when database file is missing."""
+    # Ensure no DB file exists (tmp_path is clean usually, but let's be sure)
+    db_path = tmp_path / "mlip_database.db"
+    if db_path.exists():
+        db_path.unlink()
+
+    data = _gather_data(tmp_path)
+
+    assert data.completed_calcs == 0
+    assert data.dataset_composition.root == {}
+
 @patch("mlip_autopipec.monitoring.dashboard._gather_data")
 @patch("mlip_autopipec.monitoring.dashboard._create_plots")
 @patch("mlip_autopipec.monitoring.dashboard._render_html")

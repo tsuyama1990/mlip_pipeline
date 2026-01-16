@@ -6,6 +6,7 @@ import webbrowser
 from pathlib import Path
 
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 
@@ -41,9 +42,17 @@ def run(
         console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
         PipelineController.execute(config_file)
         console.print("[bold green]SUCCESS:[/bold green] Workflow finished.")
-    except Exception as e:
-        console.print(f"[bold red]FAILURE:[/bold red] {e}")
+    except FileNotFoundError as e:
+        console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+    except ValidationError as e:
+        console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
+        logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
+        logging.exception("Unhandled exception during workflow execution.")
         raise typer.Exit(code=1)
 
 
@@ -71,9 +80,17 @@ def status(
             console.print("Opening dashboard in web browser...")
             webbrowser.open(f"file://{dashboard_path.absolute()}")
 
-    except Exception as e:
-        console.print(f"[bold red]FAILURE:[/bold red] {e}")
+    except FileNotFoundError as e:
+        console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+    except RuntimeError as e:
+        console.print(f"[bold red]RUNTIME ERROR:[/bold red] {e}")
+        logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
+        logging.exception("Unhandled exception during dashboard generation.")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":

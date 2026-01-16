@@ -54,15 +54,6 @@ def populated_project(tmp_path):
     return tmp_path
 
 def test_status_command(populated_project):
-    # I need to mock webbrowser.open to avoid opening a browser
-    # Also I need to make sure the app has the 'status' command which I haven't added yet.
-    # This test is expected to fail or error until I add the command.
-
-    # The 'status' command implementation relies on mlip_autopipec.monitoring.dashboard.generate_dashboard
-    # which is currently raising NotImplementedError.
-
-    # So this test will fail with NotImplementedError or "No such command".
-
     with patch("webbrowser.open") as mock_open:
         result = runner.invoke(app, ["status", str(populated_project)])
 
@@ -79,8 +70,6 @@ def test_status_command(populated_project):
 
         # Check content
         content = (populated_project / "dashboard.html").read_text()
-        # Since logic is not implemented, we can't check content yet.
-        # But for TDD, we write assertions for what we expect.
         assert "Integration Test Project" in content
 
         mock_open.assert_called_once()
@@ -93,3 +82,11 @@ def test_status_command_no_open(populated_project):
 
         assert result.exit_code == 0
         mock_open.assert_not_called()
+
+def test_status_command_failure(tmp_path):
+    """Test status command failure when checkpoint is missing."""
+    # Empty dir, no checkpoint
+    result = runner.invoke(app, ["status", str(tmp_path)])
+
+    assert result.exit_code != 0
+    assert "FILE ERROR" in result.stdout or "FAILURE" in result.stdout
