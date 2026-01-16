@@ -8,7 +8,13 @@ from ase import Atoms
 from ase.calculators.espresso import EspressoProfile
 
 from mlip_autopipec.config.models import DFTResult
-from mlip_autopipec.modules.dft import DFTFactory, QEInputGenerator, QEProcessRunner
+from mlip_autopipec.modules.dft import (
+    DFTFactory,
+    QEInputGenerator,
+    QEOutputParser,
+    QERetryHandler,
+    QEProcessRunner,
+)
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -34,8 +40,13 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
         profile=profile, pseudopotentials_path=pseudo_dir
     )
     process_runner = QEProcessRunner(profile=profile)
+    output_parser = QEOutputParser()
+    retry_handler = QERetryHandler()
     dft_factory = DFTFactory(
-        input_generator=input_generator, process_runner=process_runner
+        input_generator=input_generator,
+        process_runner=process_runner,
+        output_parser=output_parser,
+        retry_handler=retry_handler,
     )
 
     # Act
@@ -70,8 +81,13 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
         profile=profile, pseudopotentials_path=pseudo_dir
     )
     process_runner = QEProcessRunner(profile=profile)
+    output_parser = QEOutputParser()
+    retry_handler = QERetryHandler()
     dft_factory = DFTFactory(
-        input_generator=input_generator, process_runner=process_runner
+        input_generator=input_generator,
+        process_runner=process_runner,
+        output_parser=output_parser,
+        retry_handler=retry_handler,
     )
 
     # Act & Assert
