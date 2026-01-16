@@ -16,11 +16,9 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
         "target_system": {
             "elements": ["Ni"],
             "composition": {"Ni": 1.0},
-            "crystal_structure": "fcc"
+            "crystal_structure": "fcc",
         },
-        "simulation_goal": {
-            "type": "melt_quench"
-        }
+        "simulation_goal": {"type": "melt_quench"},
     }
     from mlip_autopipec.config.models import UserInputConfig
     from mlip_autopipec.config.factory import ConfigFactory
@@ -61,5 +59,6 @@ def test_generate_pacemaker_config(test_system_config: SystemConfig, tmp_path: P
     assert fit_params.dataset_filename == str(dummy_data_path)
     assert fit_params.loss_weights.energy == test_system_config.training_config.loss_weights.energy
     assert (
-        fit_params.ace.correlation_order == test_system_config.training_config.ace_params.correlation_order
+        fit_params.ace.correlation_order
+        == test_system_config.training_config.ace_params.correlation_order
     )

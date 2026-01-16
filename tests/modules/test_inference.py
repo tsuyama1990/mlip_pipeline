@@ -59,10 +59,7 @@ def test_lammps_script_generation(mock_inference_config, tmp_path):
     script_content = script_path.read_text()
 
     assert "pair_style      pace" in script_content
-    assert (
-        f"pair_coeff      * * {mock_inference_config.potential_path.name} Si"
-        in script_content
-    )
+    assert f"pair_coeff      * * {mock_inference_config.potential_path.name} Si" in script_content
     assert f"read_data       {structure_file.name}" in script_content
     assert f"timestep        {runner.config.md_params.timestep}" in script_content
     assert f"run             {runner.config.md_params.run_duration}" in script_content
@@ -81,7 +78,9 @@ def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
 
     # Create mock LAMMPS output files
     dump_content = "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.35 1.35 1.35\n"
-    uncertainty_content = "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS c_uncert[1]\n0.1\n0.8\n"
+    uncertainty_content = (
+        "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS c_uncert[1]\n0.1\n0.8\n"
+    )
     (tmp_path / "dump.custom").write_text(dump_content)
     (tmp_path / "uncertainty.dump").write_text(uncertainty_content)
 

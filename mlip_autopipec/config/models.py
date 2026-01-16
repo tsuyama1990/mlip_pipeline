@@ -18,20 +18,22 @@ from pydantic import (
 
 # User-Facing Models
 
+
 class TargetSystem(BaseModel):
     elements: list[str]
     composition: dict[str, float]
     crystal_structure: str
 
-    @field_validator('elements')
+    @field_validator("elements")
     def validate_elements(cls, v):
         from ase.data import chemical_symbols
+
         for symbol in v:
             if symbol not in chemical_symbols:
                 raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
         return v
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_composition_keys_and_sum(self):
         if set(self.elements) != set(self.composition.keys()):
             raise ValueError("Composition keys must match the elements list.")
@@ -39,23 +41,27 @@ class TargetSystem(BaseModel):
             raise ValueError("Composition fractions must sum to 1.0.")
         return self
 
+
 class SimulationGoal(BaseModel):
-    type: Literal['melt_quench', 'elastic', 'diffusion']
+    type: Literal["melt_quench", "elastic", "diffusion"]
     temperature_range: tuple[float, float] | None = None
+
 
 class UserInputConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
     simulation_goal: SimulationGoal
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 # Internal-Facing Models
+
 
 class CutoffConfig(BaseModel):
     wavefunction: float = Field(..., description="Plane-wave cutoff energy in Rydberg.", gt=0)
     density: float = Field(..., description="Charge density cutoff energy in Rydberg.", gt=0)
     model_config = ConfigDict(extra="forbid")
+
 
 class FingerprintConfig(BaseModel):
     type: Literal["soap"] = "soap"
@@ -65,39 +71,51 @@ class FingerprintConfig(BaseModel):
     species: list[str] = Field(..., min_length=1)
     model_config = ConfigDict(extra="forbid")
 
+
 class ExplorerConfig(BaseModel):
     surrogate_model_path: str
     max_force_threshold: float = Field(10.0, gt=0)
     fingerprint: FingerprintConfig
     model_config = ConfigDict(extra="forbid")
 
+
 class SmearingConfig(BaseModel):
-    smearing_type: Literal["gauss", "mv", "marzari-vanderbilt"] = Field("mv", description="Type of smearing to be used for metals.")
+    smearing_type: Literal["gauss", "mv", "marzari-vanderbilt"] = Field(
+        "mv", description="Type of smearing to be used for metals."
+    )
     degauss: float = Field(0.02, description="Smearing width in Rydberg.", gt=0)
     model_config = ConfigDict(extra="forbid")
+
 
 class StartingMagnetization(RootModel[dict[str, float]]):
     @field_validator("root")
     def validate_symbols(cls, v: dict[str, str]) -> dict[str, str]:
         from ase.data import chemical_symbols
+
         for symbol in v:
             if symbol not in chemical_symbols:
                 raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
         return v
 
+
 class MagnetismConfig(BaseModel):
     nspin: Literal[2] = 2
-    starting_magnetization: StartingMagnetization = Field(..., description="Initial magnetic moment for each atomic species.")
+    starting_magnetization: StartingMagnetization = Field(
+        ..., description="Initial magnetic moment for each atomic species."
+    )
     model_config = ConfigDict(extra="forbid")
+
 
 class Pseudopotentials(RootModel[dict[str, str]]):
     @field_validator("root")
     def validate_symbols(cls, v: dict[str, str]) -> dict[str, str]:
         from ase.data import chemical_symbols
+
         for symbol in v:
             if symbol not in chemical_symbols:
                 raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
         return v
+
 
 class DFTInputParameters(BaseModel):
     calculation_type: Literal["scf"] = "scf"
@@ -115,14 +133,18 @@ class DFTInputParameters(BaseModel):
         if not all(k > 0 for k in v):
             raise ValueError("All k-point dimensions must be positive integers.")
         return v
+
     model_config = ConfigDict(extra="forbid")
+
 
 class DFTConfig(BaseModel):
     """Configuration for the DFT Factory."""
+
     # This is a placeholder for the full DFTConfig
     # For now, it just contains the input parameters
     dft_input_params: DFTInputParameters
     model_config = ConfigDict(extra="forbid")
+
 
 class MDConfig(BaseModel):
     ensemble: Literal["nvt", "npt"] = "nvt"
@@ -130,6 +152,7 @@ class MDConfig(BaseModel):
     timestep: float = Field(1.0, gt=0)
     run_duration: int = Field(1000, gt=0)
     model_config = ConfigDict(extra="forbid")
+
 
 class UncertaintyConfig(BaseModel):
     threshold: float = Field(5.0, gt=0)
@@ -144,7 +167,9 @@ class UncertaintyConfig(BaseModel):
             raise ValueError("masking_cutoff must be smaller than embedding_cutoff.")
         return v
 
+
 from typing import Optional
+
 
 class InferenceConfig(BaseModel):
     lammps_executable: Optional[FilePath] = None
@@ -153,11 +178,13 @@ class InferenceConfig(BaseModel):
     uncertainty_params: UncertaintyConfig = Field(default_factory=UncertaintyConfig)
     model_config = ConfigDict(extra="forbid")
 
+
 class LossWeights(BaseModel):
     energy: float = Field(1.0, gt=0)
     forces: float = Field(100.0, gt=0)
     stress: float = Field(10.0, gt=0)
     model_config = ConfigDict(extra="forbid")
+
 
 class TrainingConfig(BaseModel):
     pacemaker_executable: Optional[FilePath] = None
@@ -165,8 +192,13 @@ class TrainingConfig(BaseModel):
     template_file: Optional[FilePath] = None
     delta_learning: bool = True
     loss_weights: LossWeights = Field(default_factory=LossWeights)
-    ace_params: "PacemakerACEParams" = Field(default_factory=lambda: PacemakerACEParams(radial_basis="radial", correlation_order=3, element_dependent_cutoffs=False))
+    ace_params: "PacemakerACEParams" = Field(
+        default_factory=lambda: PacemakerACEParams(
+            radial_basis="radial", correlation_order=3, element_dependent_cutoffs=False
+        )
+    )
     model_config = ConfigDict(extra="forbid")
+
 
 class SystemConfig(BaseModel):
     project_name: str
@@ -180,11 +212,13 @@ class SystemConfig(BaseModel):
 
 # Data Transfer Objects
 
+
 class UncertaintyMetadata(BaseModel):
     uncertain_timestep: int
     uncertain_atom_id: int
     uncertain_atom_index_in_original_cell: int
     model_config = ConfigDict(extra="forbid")
+
 
 class UncertainStructure(BaseModel):
     """
@@ -199,6 +233,7 @@ class UncertainStructure(BaseModel):
                     for compatibility, with runtime validation.
         metadata: Additional metadata about the uncertainty event.
     """
+
     atoms: object
     force_mask: object
     metadata: UncertaintyMetadata
@@ -228,6 +263,7 @@ class UncertainStructure(BaseModel):
             raise ValueError("force_mask must have the same length as the number of atoms.")
         return v
 
+
 class DFTJob(BaseModel):
     """
     Represents a single, self-contained DFT job to be executed.
@@ -239,6 +275,7 @@ class DFTJob(BaseModel):
         params: The validated input parameters for the DFT calculation.
         job_id: A unique identifier for this specific job.
     """
+
     atoms: object
     params: DFTInputParameters
     job_id: UUID = Field(default_factory=uuid4)
@@ -252,13 +289,20 @@ class DFTJob(BaseModel):
         if not isinstance(v, Atoms):
             raise TypeError("The 'atoms' field must be an instance of ase.Atoms.")
         return v
+
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
 
 class DFTResult(BaseModel):
     job_id: UUID
     energy: float = Field(..., description="Final converged total energy in eV.")
-    forces: list[list[float]] = Field(..., description="Forces on each atom in eV/Angstrom. Shape: (N_atoms, 3).")
-    stress: list[float] = Field(..., description="Virial stress tensor in Voigt notation (xx, yy, zz, yz, xz, xy) in eV/Angstrom^3.")
+    forces: list[list[float]] = Field(
+        ..., description="Forces on each atom in eV/Angstrom. Shape: (N_atoms, 3)."
+    )
+    stress: list[float] = Field(
+        ...,
+        description="Virial stress tensor in Voigt notation (xx, yy, zz, yz, xz, xy) in eV/Angstrom^3.",
+    )
 
     @field_validator("forces")
     @classmethod
@@ -273,7 +317,9 @@ class DFTResult(BaseModel):
         if len(v) != 6:
             raise ValueError("Stress tensor must have 6 components (Voigt notation).")
         return v
+
     model_config = ConfigDict(extra="forbid")
+
 
 class TrainingData(BaseModel):
     energy: float
@@ -283,11 +329,13 @@ class TrainingData(BaseModel):
 
 # Pacemaker Models
 
+
 class PacemakerLossWeights(BaseModel):
     model_config = ConfigDict(extra="forbid")
     energy: float = Field(..., gt=0)
     forces: float = Field(..., gt=0)
     stress: float = Field(..., gt=0)
+
 
 class PacemakerACEParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -295,11 +343,13 @@ class PacemakerACEParams(BaseModel):
     correlation_order: int = Field(..., ge=2)
     element_dependent_cutoffs: bool
 
+
 class PacemakerFitParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_filename: str
     loss_weights: PacemakerLossWeights
     ace: PacemakerACEParams
+
 
 class PacemakerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")

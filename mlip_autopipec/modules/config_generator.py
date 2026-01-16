@@ -58,12 +58,13 @@ class PacemakerConfigGenerator:
                 "ace": {
                     "radial_basis": trainer_params.ace_params.radial_basis,
                     "correlation_order": trainer_params.ace_params.correlation_order,
-                    "element_dependent_cutoffs": trainer_params.ace_params.element_dependent_cutoffs
+                    "element_dependent_cutoffs": trainer_params.ace_params.element_dependent_cutoffs,
                 },
             }
         }
 
         from mlip_autopipec.config.models import PacemakerConfig
+
         PacemakerConfig.model_validate(config_dict)
 
         config_file = output_dir / "pacemaker_config.yaml"

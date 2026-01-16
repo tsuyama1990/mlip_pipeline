@@ -28,4 +28,3 @@ class WorkflowManager:
         # For now, we just demonstrate that the workflow can be initiated.
         print("WorkflowManager: run() called")
         print(f"Project: {self.system_config.project_name}")
-

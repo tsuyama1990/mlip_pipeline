@@ -6,7 +6,12 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.config.models import DFTConfig, DFTInputParameters, CutoffConfig, Pseudopotentials
+from mlip_autopipec.config.models import (
+    DFTConfig,
+    DFTInputParameters,
+    CutoffConfig,
+    Pseudopotentials,
+)
 from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
@@ -33,7 +38,12 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
             k_points=(1, 1, 1),
         )
     )
-    from mlip_autopipec.modules.dft import QEInputGenerator, QEProcessRunner, QEOutputParser, QERetryHandler
+    from mlip_autopipec.modules.dft import (
+        QEInputGenerator,
+        QEProcessRunner,
+        QEOutputParser,
+        QERetryHandler,
+    )
     from ase.calculators.espresso import EspressoProfile
 
     profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
@@ -82,7 +92,12 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
             k_points=(1, 1, 1),
         )
     )
-    from mlip_autopipec.modules.dft import QEInputGenerator, QEProcessRunner, QEOutputParser, QERetryHandler
+    from mlip_autopipec.modules.dft import (
+        QEInputGenerator,
+        QEProcessRunner,
+        QEOutputParser,
+        QERetryHandler,
+    )
     from ase.calculators.espresso import EspressoProfile
 
     profile = EspressoProfile(command="/path/to/non/existent/pw.x", pseudo_dir=pseudo_dir)
@@ -111,7 +126,14 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
-    from mlip_autopipec.modules.dft import QEInputGenerator, QEProcessRunner, QEOutputParser, QERetryHandler, DFTJobFactory, DFTRunner
+    from mlip_autopipec.modules.dft import (
+        QEInputGenerator,
+        QEProcessRunner,
+        QEOutputParser,
+        QERetryHandler,
+        DFTJobFactory,
+        DFTRunner,
+    )
     from ase.calculators.espresso import EspressoProfile
     from mlip_autopipec.exceptions import DFTCalculationError
     import subprocess
@@ -123,7 +145,13 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     retry_handler = QERetryHandler()
     dft_job_factory = DFTJobFactory()
 
-    mocker.patch.object(process_runner, "execute", side_effect=subprocess.CalledProcessError(1, "pw.x", "stdout convergence NOT achieved", "stderr"))
+    mocker.patch.object(
+        process_runner,
+        "execute",
+        side_effect=subprocess.CalledProcessError(
+            1, "pw.x", "stdout convergence NOT achieved", "stderr"
+        ),
+    )
 
     dft_runner = DFTRunner(
         input_generator=input_generator,

@@ -41,7 +41,7 @@ def save_dft_result(
     with connect(db_path) as db:
         # Separate metadata for info dict and arrays
         info_metadata = metadata.copy()
-        force_mask = info_metadata.pop('force_mask', None)
+        force_mask = info_metadata.pop("force_mask", None)
 
         atoms.info["energy"] = result.energy
         atoms.info["forces"] = result.forces
@@ -49,7 +49,7 @@ def save_dft_result(
         atoms.info.update(info_metadata)
 
         if force_mask is not None:
-            atoms.arrays['force_mask'] = np.array(force_mask)
+            atoms.arrays["force_mask"] = np.array(force_mask)
 
         db.write(atoms)
 

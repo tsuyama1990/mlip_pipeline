@@ -1,6 +1,7 @@
 """
 Unit tests for the refactored DFTFactory and its dependencies.
 """
+
 import subprocess
 from unittest.mock import ANY, MagicMock, patch
 
@@ -94,11 +95,11 @@ def test_dft_runner_retry_and_succeed(
     mock_output_parser.parse.return_value = MagicMock(energy=-150.0)
     params = MagicMock(spec=DFTInputParameters)
     params.model_dump.return_value = {
-            "pseudopotentials": {"Si": "Si.upf"},
-            "cutoffs": {"wavefunction": 60, "density": 240},
-            "k_points": (3, 3, 3),
-            "mixing_beta": 0.7,
-        }
+        "pseudopotentials": {"Si": "Si.upf"},
+        "cutoffs": {"wavefunction": 60, "density": 240},
+        "k_points": (3, 3, 3),
+        "mixing_beta": 0.7,
+    }
     job = DFTJob(atoms=atoms, params=params)
 
     result = dft_runner.run(job)
@@ -132,11 +133,11 @@ def test_dft_runner_fails_after_max_retries(
     mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
     params = MagicMock(spec=DFTInputParameters)
     params.model_dump.return_value = {
-            "pseudopotentials": {"Si": "Si.upf"},
-            "cutoffs": {"wavefunction": 60, "density": 240},
-            "k_points": (3, 3, 3),
-            "mixing_beta": 0.7,
-        }
+        "pseudopotentials": {"Si": "Si.upf"},
+        "cutoffs": {"wavefunction": 60, "density": 240},
+        "k_points": (3, 3, 3),
+        "mixing_beta": 0.7,
+    }
     job = DFTJob(atoms=atoms, params=params)
 
     with pytest.raises(DFTCalculationError):
@@ -144,6 +145,25 @@ def test_dft_runner_fails_after_max_retries(
 
     assert mock_process_runner.execute.call_count == 3
     assert mock_retry_handler.handle_convergence_error.call_count == 3
+
+
+def test_dft_runner_raises_dft_calculation_error(
+    dft_runner,
+    mock_process_runner,
+    mock_retry_handler,
+):
+    """Test that DFTRunner raises DFTCalculationError on failure."""
+    atoms = bulk("Si")
+    error = subprocess.CalledProcessError(1, "pw.x")
+    error.stdout = "some other error"
+    error.stderr = ""
+    mock_process_runner.execute.side_effect = [error]
+    mock_retry_handler.handle_convergence_error.return_value = None
+    params = MagicMock(spec=DFTInputParameters)
+    job = DFTJob(atoms=atoms, params=params)
+
+    with pytest.raises(DFTCalculationError):
+        dft_runner.run(job)
 
 
 def test_handle_convergence_error():
@@ -224,4 +244,3 @@ def test_dft_job_factory_creates_valid_job(tmp_path):
         assert job.params.cutoffs.density == 240
         assert job.params.pseudopotentials is not None
         assert job.params.pseudopotentials.root["Si"] == "Si.upf"
-

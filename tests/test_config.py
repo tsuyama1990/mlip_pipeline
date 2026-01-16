@@ -23,6 +23,7 @@ def test_valid_user_config_parses_correctly():
     except ValidationError as e:
         pytest.fail(f"Valid configuration failed to parse: {e}")
 
+
 def test_composition_sum_not_one_raises_error():
     """Tests that a validation error is raised if composition fractions do not sum to 1.0."""
     invalid_config = {
@@ -36,6 +37,7 @@ def test_composition_sum_not_one_raises_error():
     }
     with pytest.raises(ValidationError, match="Composition fractions must sum to 1.0."):
         UserInputConfig.model_validate(invalid_config)
+
 
 def test_composition_elements_mismatch_raises_error():
     """Tests that a validation error is raised if composition keys do not match elements."""
@@ -51,6 +53,7 @@ def test_composition_elements_mismatch_raises_error():
     with pytest.raises(ValidationError, match="Composition keys must match the elements list."):
         UserInputConfig.model_validate(invalid_config)
 
+
 def test_invalid_element_symbol_raises_error():
     """Tests that a validation error is raised for an invalid chemical symbol."""
     invalid_config = {
@@ -64,6 +67,7 @@ def test_invalid_element_symbol_raises_error():
     }
     with pytest.raises(ValidationError, match="'Xy' is not a valid chemical symbol."):
         UserInputConfig.model_validate(invalid_config)
+
 
 def test_extra_field_raises_error():
     """Tests that an error is raised for an unexpected field, enforcing the 'forbid' extra config."""

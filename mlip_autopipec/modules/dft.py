@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ase.atoms import Atoms
-from ase.calculators.espresso import Espresso, EspressoProfile
+from ase.calculators.espresso import EspressoProfile
 from ase.io import read as ase_read
 
 from mlip_autopipec.config.models import (
@@ -24,6 +24,10 @@ from mlip_autopipec.config.models import (
 )
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.utils.resilience import QERetryHandler
+from .dft_handlers.input_generator import QEInputGenerator
+from .dft_handlers.process_runner import QEProcessRunner
+from .dft_handlers.output_parser import QEOutputParser
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -33,205 +37,6 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent / "data"
 SSSP_DATA_PATH = DATA_DIR / "sssp_p_data.json"
 MAGNETIC_ELEMENTS = {"Fe", "Co", "Ni", "Cr", "Mn"}
-
-
-class QEInputGenerator:
-    """
-    Creates Quantum Espresso input files from a `DFTInputParameters` model.
-
-    This class translates a validated Pydantic model of DFT parameters into the
-    specific `pw.x` input file format required by Quantum Espresso, using the
-    ASE `Espresso` calculator as a backend.
-    """
-
-    def __init__(
-        self, profile: EspressoProfile, pseudopotentials_path: Path | None
-    ) -> None:
-        """
-        Initializes the QEInputGenerator.
-
-        Args:
-            profile: An ASE `EspressoProfile` configured with the path to the
-                     `pw.x` executable.
-            pseudopotentials_path: The path to the directory containing the
-                                   pseudopotential files.
-        """
-        self.profile = profile
-        self.pseudopotentials_path = pseudopotentials_path
-
-    def prepare_input_files(
-        self, work_dir: Path, atoms: Atoms, params: DFTInputParameters
-    ) -> None:
-        """
-        Writes the `espresso.pwi` input file to the working directory.
-
-        Args:
-            work_dir: The directory where the input file will be written.
-            atoms: The `ase.Atoms` object for the calculation.
-            params: The `DFTInputParameters` for the calculation.
-        """
-        input_data = self._build_input_data(work_dir, params)
-        calculator = Espresso(
-            profile=self.profile,
-            directory=str(work_dir),
-            kpts=params.k_points,
-            pseudopotentials=params.pseudopotentials.model_dump(),
-            input_data=input_data,
-        )
-        calculator.write_inputfiles(
-            atoms, properties=["energy", "forces", "stress"]
-        )
-
-    def _build_input_data(
-        self, work_dir: Path, params: DFTInputParameters
-    ) -> dict:
-        """Constructs the nested dictionary for ASE's `Espresso` calculator."""
-        pseudo_dir = (
-            str(self.pseudopotentials_path)
-            if self.pseudopotentials_path
-            else "."
-        )
-        input_data = {
-            "control": {
-                "calculation": params.calculation_type,
-                "pseudo_dir": pseudo_dir,
-                "outdir": str(work_dir),
-            },
-            "system": {
-                "ecutwfc": params.cutoffs.wavefunction,
-                "ecutrho": params.cutoffs.density,
-            },
-            "electrons": {
-                "mixing_beta": params.mixing_beta,
-                "diagonalization": params.diagonalization,
-            },
-        }
-        if params.smearing:
-            input_data["system"].update(
-                {
-                    "occupations": "smearing",
-                    "smearing": params.smearing.smearing_type,
-                    "degauss": params.smearing.degauss,
-                }
-            )
-        if params.magnetism:
-            input_data["system"]["nspin"] = params.magnetism.nspin
-            for el, mom in params.magnetism.starting_magnetization.items():
-                input_data["system"][f"starting_magnetization({el})"] = mom
-        return input_data
-
-
-class QEProcessRunner:
-    """
-    Executes a Quantum Espresso calculation in a secure subprocess.
-
-    This class is responsible for running the `pw.x` executable. It constructs
-    the command using ASE's `EspressoProfile` and executes it in a sandboxed
-    environment, capturing stdout and stderr.
-    """
-
-    def __init__(self, profile: EspressoProfile) -> None:
-        """
-        Initializes the QEProcessRunner.
-
-        Args:
-            profile: An ASE `EspressoProfile` configured with the path to the
-                     `pw.x` executable.
-        """
-        self.profile = profile
-
-    def execute(self, input_path: Path, output_path: Path) -> None:
-        """
-        Runs `pw.x` using the provided input file.
-
-        Args:
-            input_path: Path to the `espresso.pwi` input file.
-            output_path: Path where the stdout of the `pw.x` run will be
-                         written.
-
-        Raises:
-            FileNotFoundError: If the `pw.x` executable is not found.
-            subprocess.CalledProcessError: If `pw.x` returns a non-zero exit
-                                           code.
-        """
-        command = self.profile.get_command(inputfile=str(input_path))
-        try:
-            with input_path.open() as stdin_f, output_path.open("w") as stdout_f:
-                # SECURITY: The `command` is generated by ASE's EspressoProfile
-                # and is not derived from user input, mitigating command
-                # injection risks. `shell=False` is explicitly set as a best
-                # practice.
-                process = subprocess.run(
-                    command,
-                    shell=False,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    stdin=stdin_f,
-                )
-                stdout_f.write(process.stdout)
-        except FileNotFoundError as e:
-            logger.error(f"QE executable not found. Details: {e}")
-            raise
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "QE subprocess failed.\\n"
-                f"  Exit Code: {e.returncode}\\n"
-                f"  Stdout: {e.stdout}\\n"
-                f"  Stderr: {e.stderr}"
-            )
-            raise
-
-
-class QEOutputParser:
-    """
-    Parses a Quantum Espresso output file into a `DFTResult` object.
-
-    This class uses the ASE `read` function with the `espresso-out` format to
-    extract the final energy, forces, and stress from a `pw.x` output file.
-    It then wraps this data in a validated `DFTResult` Pydantic model.
-    """
-
-    def __init__(self, reader: Any = ase_read) -> None:
-        """
-        Initializes the QEOutputParser.
-
-        Args:
-            reader: A callable (like `ase.io.read`) that can parse QE output
-                    files. This is dependency-injected for testability.
-        """
-        self.reader = reader
-
-    def parse(self, output_path: Path, job_id: Any) -> DFTResult:
-        """
-        Parses the `espresso.pwo` output file of a successful QE run.
-
-        Args:
-            output_path: The path to the QE output file.
-            job_id: The unique identifier for the DFT job.
-
-        Returns:
-            A `DFTResult` object containing the parsed energy, forces, and
-            stress.
-
-        Raises:
-            DFTCalculationError: If the output file cannot be parsed.
-        """
-        try:
-            result_atoms = self.reader(output_path, format="espresso-out")
-            energy = result_atoms.get_potential_energy()
-            forces = result_atoms.get_forces()
-            stress = result_atoms.get_stress()
-
-            return DFTResult(
-                job_id=job_id,
-                energy=energy,
-                forces=forces,
-                stress=stress,
-            )
-        except (OSError, IndexError) as e:
-            msg = f"Failed to parse QE output file: {output_path}"
-            raise DFTCalculationError(msg) from e
 
 
 class DFTJobFactory:
@@ -335,6 +140,13 @@ class DFTJobFactory:
     def _get_pseudopotentials(self, elements: set) -> dict[str, str]:
         """
         Retrieves the pseudopotential filenames for the given elements.
+
+        Args:
+            elements: A set of chemical symbols.
+
+        Returns:
+            A dictionary mapping chemical symbols to their corresponding
+            pseudopotential filenames.
         """
         return {el: self._sssp_data[el]["filename"] for el in elements if el in self._sssp_data}
 
@@ -359,6 +171,17 @@ class DFTRunner:
         retry_handler: QERetryHandler,
         max_retries: int = 3,
     ) -> None:
+        """
+        Initializes the DFTRunner.
+
+        Args:
+            input_generator: A component for generating QE input files.
+            process_runner: A component for running the QE executable.
+            output_parser: A component for parsing QE output files.
+            retry_handler: A component for handling convergence errors.
+            max_retries: The maximum number of times to retry a failed
+                         calculation.
+        """
         self.input_generator = input_generator
         self.process_runner = process_runner
         self.output_parser = output_parser
@@ -381,7 +204,12 @@ class DFTRunner:
             except (subprocess.CalledProcessError, DFTCalculationError) as e:
                 logger.exception(
                     f"DFT job {job.job_id} failed on attempt {attempt + 1}.",
-                    extra={"job_id": job.job_id, "attempt": attempt + 1},
+                    extra={
+                        "job_id": job.job_id,
+                        "attempt": attempt + 1,
+                        "stdout": e.stdout if hasattr(e, "stdout") else "",
+                        "stderr": e.stderr if hasattr(e, "stderr") else "",
+                    },
                 )
                 log_content = e.stdout + "\\n" + e.stderr if hasattr(e, "stdout") else ""
                 new_params = self.retry_handler.handle_convergence_error(
