@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
+import numpy as np
 import pytest
 from ase.build import bulk
 
@@ -30,20 +31,24 @@ def mock_training_config(tmp_path: Path) -> TrainingConfig:
     )
 
 
-@patch("mlip_autopipec.modules.training.ase_db_connect")
-def test_pacemaker_trainer_train(mock_db_connect, mock_training_config: TrainingConfig, tmp_path: Path):
+@patch("mlip_autopipec.modules.training.read_training_data")
+def test_pacemaker_trainer_perform_training(mock_read_data, mock_training_config: TrainingConfig, tmp_path: Path):
     """
     Tests that the PacemakerTrainer correctly prepares input files and executes
     the training process.
     """
     # Arrange
-    db_path = mock_training_config.data_source_db
-    db_path.touch()
-    # Mock database to return 2 atoms
-    mock_db_connect.return_value.__enter__.return_value.select.return_value = [
-        MagicMock(toatoms=lambda: bulk("Si"), data={"energy": 0, "forces": [[0,0,0]]}),
-        MagicMock(toatoms=lambda: bulk("Si"), data={"energy": 0, "forces": [[0,0,0]]})
-    ]
+    # Mock data reading using real Atoms for ase.io.write compatibility
+    atoms1 = bulk("Si")
+    atoms1.info["energy"] = -10.0
+    atoms1.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms1))
+
+    atoms2 = bulk("Si")
+    atoms2.info["energy"] = -10.1
+    atoms2.arrays["forces"] = np.array([[0.05, 0.05, 0.05]] * len(atoms2))
+
+    mock_read_data.return_value = [atoms1, atoms2]
+
     trainer = PacemakerTrainer(training_config=mock_training_config)
 
     with patch("subprocess.run") as mock_run, \
@@ -64,10 +69,11 @@ def test_pacemaker_trainer_train(mock_db_connect, mock_training_config: Training
         (tmp_path / "potential.yace").touch()
 
         # Act
-        result_path, metrics = trainer.train(generation=1)
+        result_path, metrics = trainer.perform_training(generation=1)
 
     # Assert
     assert result_path.name == "potential.yace"
+    mock_read_data.assert_called_once_with(mock_training_config.data_source_db)
     assert isinstance(metrics, TrainingRunMetrics)
     assert metrics.num_structures == 2
     # Verify parsing logic matches what we mocked (implementation details TBD)
@@ -87,46 +93,45 @@ def test_pacemaker_trainer_train(mock_db_connect, mock_training_config: Training
     assert (tmp_path / "training_data.xyz").exists()
 
 
-@patch("mlip_autopipec.modules.training.ase_db_connect")
-def test_pacemaker_trainer_executable_not_found(mock_db_connect, mock_training_config: TrainingConfig):
+@patch("mlip_autopipec.modules.training.read_training_data")
+def test_pacemaker_trainer_executable_not_found(mock_read_data, mock_training_config: TrainingConfig):
     """
     Tests that a FileNotFoundError is raised if the pacemaker executable
     is not found.
     """
-    db_path = mock_training_config.data_source_db
-    db_path.touch()
-    mock_db_connect.return_value.__enter__.return_value.select.return_value = [
-        MagicMock(toatoms=lambda: bulk("Si"), data={"energy": 0, "forces": [[0,0,0]]})
-    ]
+    atoms = bulk("Si")
+    atoms.info["energy"] = -10.0
+    atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
+    atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
+    mock_read_data.return_value = [atoms]
+
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with patch("shutil.which", return_value=False), pytest.raises(FileNotFoundError):
-        trainer.train(generation=1)
+        trainer.perform_training(generation=1)
 
 
-@patch("mlip_autopipec.modules.training.ase_db_connect")
-def test_pacemaker_trainer_training_failed(mock_db_connect, mock_training_config: TrainingConfig):
+@patch("mlip_autopipec.modules.training.read_training_data")
+def test_pacemaker_trainer_training_failed(mock_read_data, mock_training_config: TrainingConfig):
     """
     Tests that a TrainingFailedError is raised if the subprocess fails.
     """
-    db_path = mock_training_config.data_source_db
-    db_path.touch()
-    mock_db_connect.return_value.__enter__.return_value.select.return_value = [
-        MagicMock(toatoms=lambda: bulk("Si"), data={"energy": 0, "forces": [[0,0,0]]})
-    ]
+    atoms = bulk("Si")
+    atoms.info["energy"] = -10.0
+    atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
+    mock_read_data.return_value = [atoms]
+
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")), \
          patch("shutil.which", return_value=True), pytest.raises(TrainingFailedError):
-        trainer.train(generation=1)
+        trainer.perform_training(generation=1)
 
 
-@patch("mlip_autopipec.modules.training.ase_db_connect")
-def test_pacemaker_trainer_no_data(mock_db_connect, mock_training_config: TrainingConfig):
+@patch("mlip_autopipec.modules.training.read_training_data")
+def test_pacemaker_trainer_no_data(mock_read_data, mock_training_config: TrainingConfig):
     """
     Tests that a NoTrainingDataError is raised if the database is empty.
     """
-    db_path = mock_training_config.data_source_db
-    db_path.touch()
-    mock_db_connect.return_value.__enter__.return_value.select.return_value = []
+    mock_read_data.return_value = []
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with pytest.raises(NoTrainingDataError):
-        trainer.train(generation=1)
+        trainer.perform_training(generation=1)

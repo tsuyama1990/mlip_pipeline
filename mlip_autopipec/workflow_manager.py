@@ -103,7 +103,7 @@ class WorkflowManager:
 
         logger.info("Starting training for generation %d...", self.state.active_learning_generation)
         try:
-            potential_path, metrics = self.trainer.train(generation=self.state.active_learning_generation)
+            potential_path, metrics = self.trainer.perform_training(generation=self.state.active_learning_generation)
 
             # Update state
             self.state.training_history.append(metrics)

@@ -24,34 +24,6 @@ tests/test_workflow_manager.py .......                                   [ 90%]
 tests/utils/test_resilience.py ......                                    [100%]
 
 =============================== warnings summary ===============================
-.venv/lib/python3.12/site-packages/dscribe/core/system.py:192
-  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:192: SyntaxWarning: invalid escape sequence '\l'
-    A_{ij} = \lvert \mathbf{r}_i - \mathbf{r}_j \\rvert
-
-.venv/lib/python3.12/site-packages/dscribe/core/system.py:234
-  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:234: SyntaxWarning: invalid escape sequence '\l'
-    A_{ij} = \\frac{1}{\lvert \mathbf{r}_i - \mathbf{r}_j \\rvert }
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54: SyntaxWarning: invalid escape sequence '\e'
-    g2_params (n*2 np.ndarray): A list of pairs of :math:`\eta` and
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212: SyntaxWarning: invalid escape sequence '\l'
-    indirectly determine it through :math:`s=-\log()`:.
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130: SyntaxWarning: invalid escape sequence '\l'
-    indirectly determine it through :math:`s=-\log()`:.
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509: SyntaxWarning: invalid escape sequence '\s'
-    :math:`\sum_{k=0}^{n-1} n + k = n^2+(n-1)*n/2`. This number of
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81: SyntaxWarning: invalid escape sequence '\s'
-    * ``"gto"``: Spherical gaussian type orbitals defined as :math:`g_{nl}(r) = \sum_{n'=1}^{n_\mathrm{max}}\,\\beta_{nn'l} r^l e^{-\\alpha_{n'l}r^2}`
-
 .venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
   /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
     _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
@@ -73,49 +45,49 @@ tests/test_workflow_manager.py::test_save_checkpoint
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 46325 instead
+  Hosting the HTTP server on port 44575 instead
 
 tests/test_workflow_manager.py::test_load_checkpoint
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 37749 instead
+  Hosting the HTTP server on port 45299 instead
 
 tests/test_workflow_manager.py::test_init_does_not_load_state_unnecessarily
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 38361 instead
+  Hosting the HTTP server on port 37909 instead
 
 tests/test_workflow_manager.py::test_resubmit_pending_jobs
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 35191 instead
+  Hosting the HTTP server on port 37001 instead
 
 tests/test_workflow_manager.py::test_checkpoint_training_history
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 32777 instead
+  Hosting the HTTP server on port 44755 instead
 
 tests/test_workflow_manager.py::test_checkpoint_training_history
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 41081 instead
+  Hosting the HTTP server on port 34209 instead
 
 tests/test_workflow_manager.py::test_perform_training
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 36143 instead
+  Hosting the HTTP server on port 45151 instead
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-============ 63 passed, 2 skipped, 18 warnings in 95.80s (0:01:35) =============
+============ 63 passed, 2 skipped, 11 warnings in 60.44s (0:01:00) =============

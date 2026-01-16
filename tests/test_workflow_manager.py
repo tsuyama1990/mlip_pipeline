@@ -186,7 +186,7 @@ def test_perform_training(valid_system_config, mock_dask_client, tmp_path):
     metrics = TrainingRunMetrics(
         generation=0, num_structures=50, rmse_forces=0.05, rmse_energy_per_atom=0.005
     )
-    mock_trainer.train.return_value = (Path("potential.yace"), metrics)
+    mock_trainer.perform_training.return_value = (Path("potential.yace"), metrics)
 
     manager = WorkflowManager(
         system_config=valid_system_config,
@@ -201,7 +201,7 @@ def test_perform_training(valid_system_config, mock_dask_client, tmp_path):
     assert manager.state.training_history[0] == metrics
     assert manager.state.current_potential_path == Path("potential.yace")
 
-    mock_trainer.train.assert_called_once_with(generation=0)
+    mock_trainer.perform_training.assert_called_once_with(generation=0)
 
     # Verify checkpoint
     checkpoint_path = tmp_path / "checkpoint.json"

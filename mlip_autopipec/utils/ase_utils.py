@@ -19,8 +19,9 @@ from typing import Any as AtomsObject
 import numpy as np
 from ase.db import connect
 from ase.db.row import AtomsRow
+from pydantic import ValidationError
 
-from mlip_autopipec.config.models import DFTResult
+from mlip_autopipec.config.models import DFTResult, TrainingData
 
 
 def save_dft_result(
@@ -85,3 +86,34 @@ def check_if_exists(db_path: Path, atoms: AtomsObject) -> AtomsRow | None:
                 # for a robust duplicate check.
                 pass  # Placeholder for more complex comparison
     return None
+
+def read_training_data(db_path: Path) -> list[AtomsObject]:
+    """
+    Read and validate all atomic structures from the configured ASE database.
+
+    Args:
+        db_path: Path to the ASE database.
+
+    Returns:
+        List of ASE Atoms objects with energy and forces populated.
+
+    Raises:
+        ValueError: If data in the database does not match the TrainingData schema.
+    """
+    atoms_list = []
+    if not db_path.exists():
+        return []
+
+    with connect(db_path) as db:
+        for row in db.select():
+            try:
+                # Validate that the row has the required data fields
+                validated_data = TrainingData(**row.data)
+
+                atoms = row.toatoms()
+                atoms.info["energy"] = validated_data.energy
+                atoms.arrays["forces"] = np.array(validated_data.forces)
+                atoms_list.append(atoms)
+            except ValidationError as e:
+                raise ValueError(f"Invalid data in database at row {row.id}: {e}") from e
+    return atoms_list

@@ -7,14 +7,12 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import numpy as np
 from ase import Atoms
-from ase.db import connect as ase_db_connect
 from ase.io import write as ase_write
 from jinja2 import Template
-from pydantic import ValidationError
 
-from mlip_autopipec.config.models import TrainingConfig, TrainingData, TrainingRunMetrics
+from mlip_autopipec.config.models import TrainingConfig, TrainingRunMetrics
+from mlip_autopipec.utils.ase_utils import read_training_data
 
 log = logging.getLogger(__name__)
 
@@ -34,9 +32,13 @@ class PacemakerTrainer:
         """Initialize the trainer with a validated configuration."""
         self.config = training_config
 
-    def train(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
+    def perform_training(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
         """Execute the full training workflow."""
-        atoms_list = self._read_data_from_db()
+        try:
+            atoms_list = read_training_data(self.config.data_source_db)
+        except ValueError as e:
+            raise NoTrainingDataError(f"Error reading training data: {e}") from e
+
         if not atoms_list:
             msg = f"No training data found in '{self.config.data_source_db}'."
             raise NoTrainingDataError(msg)
@@ -55,21 +57,6 @@ class PacemakerTrainer:
                 rmse_energy_per_atom=rmse_energy
             )
             return final_path, metrics
-
-    def _read_data_from_db(self) -> list[Atoms]:
-        """Read and validate all atomic structures from the configured ASE database."""
-        atoms_list = []
-        with ase_db_connect(self.config.data_source_db) as db:
-            for row in db.select():
-                try:
-                    validated_data = TrainingData(**row.data)
-                    atoms = row.toatoms()
-                    atoms.info["energy"] = validated_data.energy
-                    atoms.arrays["forces"] = np.array(validated_data.forces)
-                    atoms_list.append(atoms)
-                except ValidationError as e:
-                    raise NoTrainingDataError(f"Invalid data in database: {e}") from e
-        return atoms_list
 
     def _prepare_pacemaker_input(self, training_data: list[Atoms], working_dir: Path) -> None:
         """Create the necessary input files for the Pacemaker executable."""

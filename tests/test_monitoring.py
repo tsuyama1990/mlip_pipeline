@@ -79,7 +79,7 @@ def test_gather_data(mock_connect, mock_checkpoint_data, tmp_path):
     assert len(data.training_history) == 2
     assert data.training_history[0].rmse_forces == 0.1
     # Check dataset composition
-    assert data.dataset_composition == {"initial": 2, "active_learning": 1}
+    assert data.dataset_composition.root == {"initial": 2, "active_learning": 1}
     # Check completed calcs
     assert data.completed_calcs == 3
 

@@ -64,8 +64,9 @@ def _create_plots(data: DashboardData) -> dict[str, str]:
     plots = {}
 
     # Composition Pie Chart
-    if data.dataset_composition:
-        df_comp = pd.DataFrame(list(data.dataset_composition.items()), columns=["Type", "Count"])
+    # Access via .root because it's a RootModel
+    if data.dataset_composition.root:
+        df_comp = pd.DataFrame(list(data.dataset_composition.root.items()), columns=["Type", "Count"])
         fig_comp = px.pie(df_comp, values="Count", names="Type", title="Dataset Composition")
         plots["composition_plot"] = fig_comp.to_html(full_html=False, include_plotlyjs="cdn")
     else:
