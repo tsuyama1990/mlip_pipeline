@@ -37,6 +37,9 @@ SSSP_DATA_PATH = DATA_DIR / "sssp_p_data.json"
 MAGNETIC_ELEMENTS = {"Fe", "Co", "Ni", "Cr", "Mn"}
 
 
+from mlip_autopipec.utils.data_loader import load_sssp_data
+
+
 class DFTHeuristics:
     """
     A dedicated class for generating sensible DFT parameters based on heuristics.
@@ -47,19 +50,7 @@ class DFTHeuristics:
     """
 
     def __init__(self, sssp_data_path: Path = SSSP_DATA_PATH):
-        self._sssp_data = self._load_sssp_data(sssp_data_path)
-
-    def _load_sssp_data(self, path: Path) -> Dict[str, Any]:
-        """Loads the SSSP pseudopotential data from a JSON file."""
-        try:
-            with path.open() as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logger.error(f"SSSP data file not found at: {path}")
-            raise
-        except json.JSONDecodeError:
-            logger.error(f"Error decoding SSSP data file: {path}")
-            raise
+        self._sssp_data = load_sssp_data(sssp_data_path)
 
     def get_heuristic_parameters(self, atoms: Atoms) -> DFTInputParameters:
         """

@@ -1,32 +1,14 @@
-     Program PWSCF v.6.5 starts on 16Jan2024 at 12:00:00
-
-     bravais-lattice index     = 0
-     lattice parameter (alat)  =   10.00000000  a.u.
-     unit-cell volume          =  1000.0000000  a.u.^3
-     number of atoms/cell      =           2
-     number of atomic types    =           1
-
-     celldm(1)=  10.00  celldm(2)=   0.00  celldm(3)=   0.00
-     celldm(4)=   0.00  celldm(5)=   0.00  celldm(6)=   0.00
-
-     crystal axes: (cartesian coordinates in units of alat)
-               1.000000000   0.000000000   0.000000000
-               0.000000000   1.000000000   0.000000000
-               0.000000000   0.000000000   1.000000000
-
+     Program PWSCF v.6.5 starts on 12Jan2024 at 12:00:00
+     celldm(1)=   18.897261246,
+     crystal axes: (cart. coord. in units of alat)
+          a(1) = (   1.0000000   0.0000000   0.0000000  )
+          a(2) = (   0.0000000   1.0000000   0.0000000  )
+          a(3) = (   0.0000000   0.0000000   1.0000000  )
      site n.     atom                  positions (alat units)
-         1           H_             (   0.000000000   0.000000000   0.000000000  )
-         2           H_             (   0.000000000   0.000000000   0.074000000  )
-
-
+         1           H   tau(   1) = (   0.000000000   0.000000000   0.000000000  )
+         2           H   tau(   2) = (   0.000000000   0.000000000   0.039158315  )
      Forces acting on atoms (cartesian axes, Ry/au):
-
-     atom    1 type  1   force =    -0.00000135   -0.00000000    0.00000000
-     atom    2 type  1   force =     0.00000135    0.00000000    0.00000000
-
-!    total energy              =     -16.42531639 Ry
-
-     total stress  (Ry/bohr**3)                       (kbar)
-      0.00000000    0.00000000    0.00000000       0.00       0.00       0.00
-      0.00000000    0.00000000    0.00000000       0.00       0.00       0.00
-      0.00000000    0.00000000    0.00000000       0.00       0.00       0.00
+          atom    1 type  1   force =  -0.00000135   0.00000000   0.00000000
+          atom    2 type  1   force =   0.00000135   0.00000000   0.00000000
+     !    total energy              =     -16.42531639 Ry
+     JOB DONE.

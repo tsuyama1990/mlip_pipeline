@@ -17,19 +17,39 @@ def retry(
     on_retry: Callable | None = None,
 ) -> Callable:
     """
-    A decorator that retries a function, with an optional callback to modify
-    arguments on failure.
+    A decorator that retries a function upon specific exceptions, with an
+    optional callback to modify arguments for the next attempt.
+
+    This decorator provides a powerful mechanism for building resilient functions.
+    When the decorated function raises an exception listed in the `exceptions`
+    tuple, the decorator will catch it and, instead of crashing, will wait for a
+    specified `delay` and then re-invoke the function. This is repeated up to
+    the number of `attempts`.
+
+    A key feature is the `on_retry` callback, which allows for domain-specific
+    error handling. Before a retry, this callback is invoked with the caught
+    exception and the keyword arguments of the failed function call. The
+    callback can inspect the error and return a dictionary of modified keyword
+    arguments, which will be used in the next attempt. This enables intelligent
+    recovery strategies, such as adjusting numerical parameters in response to
+    a convergence failure.
 
     Args:
-        attempts: The maximum number of times to try the function.
+        attempts: The maximum number of times to try the function. Must be >= 1.
         delay: The number of seconds to wait between retries.
-        exceptions: A tuple of exception types to catch and trigger a retry.
-        on_retry: An optional function to call before a retry. It receives the
-                  exception and the keyword arguments of the failed call. It
-                  should return a dictionary of updated keyword arguments.
+        exceptions: A tuple of exception types that should trigger a retry.
+        on_retry: An optional function to call before a retry.
+                  It receives two arguments:
+                  - The exception instance that was caught.
+                  - A dictionary of the keyword arguments from the failed call.
+                  It should return a dictionary of keyword arguments to update
+                  for the next attempt, or `None` if no changes are needed.
 
     Returns:
-        A decorator that can be applied to a function.
+        A decorator that wraps a function with the specified retry logic.
+
+    Raises:
+        The original exception if the function fails on its final attempt.
     """
 
     def decorator(func: Callable) -> Callable:

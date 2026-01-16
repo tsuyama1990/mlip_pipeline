@@ -25,3 +25,7 @@ env/
 # Artifacts
 *.model
 *.yace
+*.pwo
+*.pwi
+*.err
+temp_ase_calc/
