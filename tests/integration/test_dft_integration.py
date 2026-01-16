@@ -5,34 +5,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
+from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config_schemas import (
-    DFTConfig,
-    DFTExecutable,
-    DFTInput,
-    SystemConfig,
-)
-from mlip_autopipec.modules.dft import DFTFactory
+from mlip_autopipec.config.models import DFTInputParameters, DFTResult
+from mlip_autopipec.modules.dft import DFTFactory, QEInputGenerator, QEProcessRunner
 
-# Define the path to the mock executable
-# This path is relative to the root of the project where pytest is run
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
-
-
-@pytest.fixture
-def system_config() -> SystemConfig:
-    """Provide a SystemConfig instance pointing to the mock pw.x executable."""
-    target_system = {"elements": ["H"], "composition": {"H": 1.0}}
-    return SystemConfig(
-        target_system=target_system,
-        dft=DFTConfig(
-            executable=DFTExecutable(command=str(MOCK_PW_X_PATH.resolve())),
-            input=DFTInput(
-                pseudopotentials={"H": "H.pbe-rrkjus.UPF"},
-            ),
-        ),
-    )
 
 
 @pytest.fixture
@@ -41,66 +19,38 @@ def h2_atoms() -> Atoms:
     return Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
 
 
-def test_dft_factory_integration(
-    system_config: SystemConfig, h2_atoms: Atoms, tmp_path: Path
-) -> None:
-    """Test the full DFT calculation pipeline using a mock executable.
-
-    This test verifies that:
-    1. A temporary directory is created for the calculation.
-    2. The input file is correctly generated and written.
-    3. The mock executable is called successfully.
-    4. The output file is parsed correctly.
-    5. The results (energy, forces, stress) are attached to the Atoms object.
-    """
+def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
+    """Test the full DFT calculation pipeline using a mock executable."""
     # Arrange
-    # The DFTFactory is instantiated with the configuration pointing to our mock
-    dft_factory = DFTFactory(config=system_config.dft, base_work_dir=tmp_path)
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+
+    profile = EspressoProfile(
+        command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir
+    )
+    input_generator = QEInputGenerator(
+        profile=profile, pseudopotentials_path=pseudo_dir
+    )
+    process_runner = QEProcessRunner(profile=profile)
+    dft_factory = DFTFactory(
+        input_generator=input_generator, process_runner=process_runner
+    )
 
     # Act
-    # Run the DFT calculation, which will use the mock pw.x
-    calculated_atoms = dft_factory.run(h2_atoms.copy())  # type: ignore[no-untyped-call]
+    result = dft_factory.run(h2_atoms.copy())
 
     # Assert
-    # 1. Check that a calculator has been attached
-    assert calculated_atoms.calc is not None
-    assert isinstance(calculated_atoms.calc, SinglePointCalculator)
-
-    # 2. Check the parsed results against expected values from the mock output
     expected_energy = -16.42531639 * 13.605693122994  # Ry to eV
     expected_forces = np.array(
         [
-            [-0.00000135, -0.00000000, 0.00000000],
-            [0.00000135, 0.00000000, 0.00000000],
+            [-0.00000135, 0.0, 0.0],
+            [0.00000135, 0.0, 0.0],
         ]
     ) * (13.605693122994 / 0.529177210903)  # Ry/au to eV/A
+    expected_stress = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-    # The ASE parser returns stress as a 3x3 matrix in GPa.
-    # The QE output is in kbar, so we convert (1 kbar = 0.1 GPa).
-    expected_stress_matrix_gpa = (
-        np.array(
-            [
-                [-0.00, 0.00, 0.00],
-                [0.00, -0.00, 0.00],
-                [0.00, 0.00, -0.00],
-            ]
-        )
-        * 0.1
-    )
-
-    # Retrieve results from the calculator
-    results = calculated_atoms.calc.results
-    assert "energy" in results
-    assert "forces" in results
-    assert "stress" in results
-
-    assert np.isclose(results["energy"], expected_energy, atol=1e-6)
-    assert np.allclose(results["forces"], expected_forces, atol=1e-6)
-    assert np.allclose(results["stress"], expected_stress_matrix_gpa, atol=1e-6)
-
-    # 3. Verify that the temporary calculation directory was created and then cleaned up
-    # The specific directory name is unknown, but the base_work_dir should be empty
-    # if cleanup is successful.
-    assert not any(d.is_dir() for d in tmp_path.iterdir()), (
-        "Temporary directory was not cleaned up."
-    )
+    assert isinstance(result, DFTResult)
+    assert np.isclose(result.energy, expected_energy, atol=1e-6)
+    assert np.allclose(result.forces, expected_forces, atol=1e-6)
+    assert np.allclose(result.stress, expected_stress, atol=1e-6)

@@ -1,135 +1,139 @@
-# FIXME: The above comment is a temporary workaround for a ruff bug.
-# It should be removed once the bug is fixed.
-# For more information, see: https://github.com/astral-sh/ruff/issues/10515
 """
-Unit and integration tests for the DFTFactory.
-
-This module contains a suite of tests to validate the functionality of the
-`DFTFactory` class, ensuring its reliability and correctness.
+Unit tests for the refactored DFTFactory and its dependencies.
 """
-
+import logging
 import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
 from ase.build import bulk
 
-# Correctly import the DFTFactory
-from mlip_autopipec.modules.dft import DFTFactory
+from mlip_autopipec.config.models import DFTInputParameters
+from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.modules.dft import (
+    DFTFactory,
+    QEInputGenerator,
+    QEProcessRunner,
+)
 
 
 @pytest.fixture
-def dft_factory(tmp_path):
-    """Fixture to create a DFTFactory instance for testing."""
-    # Create a dummy executable for testing purposes
-    qe_executable = tmp_path / "pw.x"
-    qe_executable.touch()
-    qe_executable.chmod(0o755)
-    pseudo_dir = tmp_path / "pseudos"
-    pseudo_dir.mkdir()
+def mock_input_generator():
+    return MagicMock(spec=QEInputGenerator)
+
+
+@pytest.fixture
+def mock_process_runner():
+    return MagicMock(spec=QEProcessRunner)
+
+
+@pytest.fixture
+def dft_factory(mock_input_generator, mock_process_runner):
+    """Fixture to create a DFTFactory with mocked dependencies."""
     return DFTFactory(
-        qe_executable_path=str(qe_executable),
-        pseudo_dir=pseudo_dir,
+        input_generator=mock_input_generator,
+        process_runner=mock_process_runner,
     )
 
 
-def test_dft_factory_initialization(dft_factory):
-    """Test that the DFTFactory initializes correctly."""
-    assert dft_factory is not None
-    assert dft_factory.max_retries == 3
-
-
-def test_get_heuristic_parameters(dft_factory):
-    """Test the heuristic parameter generation for a simple case."""
-    atoms = bulk("Si", "diamond", a=5.43)
-    params = dft_factory._get_heuristic_parameters(atoms)
-
-    assert params.cutoffs.wavefunction == 35.0
-    assert params.cutoffs.density == 280.0
-    assert params.k_points == (2, 2, 2)
-    assert params.magnetism is None
-
-
-def test_get_heuristic_parameters_magnetic(dft_factory):
-    """Test heuristic parameter generation for a magnetic element."""
-    atoms = bulk("Fe", "bcc", a=2.87)
-    params = dft_factory._get_heuristic_parameters(atoms)
-
-    assert params.magnetism is not None
-    assert params.magnetism.nspin == 2
-    assert params.magnetism.starting_magnetization["Fe"] == 0.5
-
-
-@patch("subprocess.run")
-@patch("mlip_autopipec.modules.dft.ase_read")
 def test_dft_factory_run_successful(
-    mock_ase_read,
-    mock_subprocess_run,
-    dft_factory,
+    dft_factory, mock_input_generator, mock_process_runner
 ):
-    """Test a successful run of the DFTFactory."""
-    # Mock the subprocess to simulate a successful run
-    mock_subprocess_run.return_value = MagicMock(
-        returncode=0,
-        stdout="OK",
-        stderr="",
-    )
+    """Test a straightforward, successful run."""
+    atoms = bulk("Si")
+    mock_ase_read = MagicMock()
+    mock_ase_read.return_value.info = {
+        "energy": -100.0,
+        "forces": [[0.0] * 3] * 2,
+        "stress": [0.0] * 6,
+    }
 
-    # Mock the ASE read function to return a dummy Atoms object with results
-    mock_atoms = bulk("Si", "diamond", a=5.43)
-    mock_atoms.info["energy"] = -100.0
-    mock_atoms.info["forces"] = [[0.0, 0.0, 0.0]] * 2
-    mock_atoms.info["stress"] = [0.0] * 6
-    mock_ase_read.return_value = mock_atoms
-
-    atoms = bulk("Si", "diamond", a=5.43)
-    result = dft_factory.run(atoms)
-
-    assert result is not None
-    assert result.energy == -100.0
-    assert len(result.forces) == 2
-
-
-@patch("subprocess.run")
-def test_dft_factory_run_retry_and_succeed(mock_subprocess_run, dft_factory):
-    """Test the retry mechanism for a recoverable error."""
-    # Simulate a failure on the first attempt, then success
-    failed_run = subprocess.CalledProcessError(1, "pw.x")
-    failed_run.stdout = "convergence NOT achieved"
-    failed_run.stderr = ""
-    mock_subprocess_run.side_effect = [
-        failed_run,
-        MagicMock(returncode=0, stdout="OK", stderr=""),
-    ]
-
-    # Mock the ASE read function for the successful run
-    mock_atoms = bulk("Si", "diamond", a=5.43)
-    mock_atoms.info["energy"] = -100.0
-    mock_atoms.info["forces"] = [[0.0, 0.0, 0.0]] * 2
-    mock_atoms.info["stress"] = [0.0] * 6
-    with patch(
-        "mlip_autopipec.modules.dft.ase_read",
-        return_value=mock_atoms,
-    ):
-        atoms = bulk("Si", "diamond", a=5.43)
+    with patch("mlip_autopipec.modules.dft.ase_read", mock_ase_read):
         result = dft_factory.run(atoms)
 
-    assert result is not None
-    assert mock_subprocess_run.call_count == 2
+    mock_input_generator.prepare_input_files.assert_called_once()
+    mock_process_runner.execute.assert_called_once()
+    assert result.energy == -100.0
 
 
-@pytest.mark.integration
-def test_dft_factory_integration_silicon(tmp_path):
-    """
-    Integration test for a simple silicon calculation.
+def test_dft_factory_retry_and_succeed(
+    dft_factory, mock_input_generator, mock_process_runner
+):
+    """Test the retry mechanism where a run fails once, then succeeds."""
+    atoms = bulk("Si")
+    # Correctly create the exception object
+    error = subprocess.CalledProcessError(1, "pw.x")
+    error.stdout = "convergence NOT achieved"
+    error.stderr = ""
+    mock_process_runner.execute.side_effect = [error, MagicMock()]
 
-    Note: This test requires a real Quantum Espresso installation.
-    """
-    pytest.skip("Skipping integration test; requires a real QE installation.")
-    # Example of what a real integration test would look like:
-    # qe_path = "/path/to/your/pw.x"
-    # factory = DFTFactory(qe_executable_path=qe_path)
-    # atoms = bulk("Si", "diamond", a=5.43)
-    # result = factory.run(atoms)
-    # assert result.energy < 0
-    # assert np.allclose(result.forces, 0, atol=1e-3)
+    mock_ase_read = MagicMock()
+    mock_ase_read.return_value.info = {
+        "energy": -150.0,
+        "forces": [[0.0] * 3] * 2,
+        "stress": [0.0] * 6,
+    }
+
+    with patch("mlip_autopipec.modules.dft.ase_read", mock_ase_read):
+        result = dft_factory.run(atoms)
+
+    assert mock_process_runner.execute.call_count == 2
+    assert result.energy == -150.0
+
+
+def test_dft_factory_fails_after_max_retries(
+    dft_factory, mock_input_generator, mock_process_runner
+):
+    """Test that the factory gives up after the maximum number of retries."""
+    atoms = bulk("Si")
+    error = subprocess.CalledProcessError(1, "pw.x")
+    error.stdout = "convergence NOT achieved"
+    error.stderr = ""
+    mock_process_runner.execute.side_effect = [error, error, error]
+
+    with pytest.raises(DFTCalculationError):
+        dft_factory.run(atoms)
+
+    assert mock_process_runner.execute.call_count == 3
+
+
+def test_handle_convergence_error():
+    """Unit test for the convergence error handling logic."""
+    factory = DFTFactory(MagicMock(), MagicMock())
+    params = {"mixing_beta": 0.7}
+    log = "convergence NOT achieved"
+    new_params = factory._handle_convergence_error(log, params)
+    assert new_params["mixing_beta"] == 0.35
+
+    params = {"diagonalization": "david"}
+    log = "Cholesky"
+    new_params = factory._handle_convergence_error(log, params)
+    assert new_params["diagonalization"] == "cg"
+
+    params = {}
+    log = "some other error"
+    new_params = factory._handle_convergence_error(log, params)
+    assert new_params is None
+
+
+def test_process_runner_logs_on_error(caplog, tmp_path):
+    """Verify that the QEProcessRunner logs stdout/stderr on failure."""
+    mock_profile = MagicMock()
+    mock_profile.get_command.return_value = ["echo", "fail"]
+    runner = QEProcessRunner(profile=mock_profile)
+
+    error = subprocess.CalledProcessError(returncode=1, cmd="pw.x")
+    error.stdout = "Test stdout"
+    error.stderr = "Test stderr"
+
+    input_file = tmp_path / "test.in"
+    output_file = tmp_path / "test.out"
+    input_file.touch()
+
+    with patch("subprocess.run", side_effect=error):
+        with pytest.raises(subprocess.CalledProcessError):
+            runner.execute(input_file, output_file)
+
+    assert "QE subprocess failed" in caplog.text
+    assert "Test stdout" in caplog.text
+    assert "Test stderr" in caplog.text

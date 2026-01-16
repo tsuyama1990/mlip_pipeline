@@ -16,8 +16,24 @@ from mlip_autopipec.config.models import ExplorerConfig
 
 class SurrogateExplorer:
     """
-    Uses a surrogate model (MACE) and Farthest Point Sampling (FPS) to
-    curate a list of candidate structures.
+    Intelligently curates a list of atomic structures using a surrogate model.
+
+    This class implements a two-stage process to select a small, diverse, and
+    physically plausible subset of structures from a large pool of candidates,
+    preventing wasted resources on expensive DFT calculations.
+
+    1.  **Pre-screening**: A pre-trained MACE model is used as a fast surrogate
+        to evaluate forces. Any structure with forces exceeding a defined
+        threshold is discarded as unphysical.
+    2.  **Intelligent Selection**: For the surviving structures, structural
+        fingerprints (SOAP) are calculated. Farthest Point Sampling (FPS)
+        is then used on these fingerprints to select a subset that is
+        maximally diverse.
+
+    Args:
+        config: An `ExplorerConfig` Pydantic model containing all necessary
+                parameters, including the path to the surrogate model, force
+                thresholds, and fingerprint settings.
     """
 
     def __init__(self, config: ExplorerConfig):

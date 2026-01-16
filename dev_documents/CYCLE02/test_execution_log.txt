@@ -4,50 +4,189 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: mock-3.15.1, anyio-4.12.1
-collected 58 items
+collected 57 items
 
 tests/integration/test_dft_integration.py F                              [  1%]
 tests/modules/test_config_generator.py .                                 [  3%]
-tests/modules/test_dft.py .....s                                         [ 13%]
-tests/modules/test_exploration.py .....ss                                [ 25%]
-tests/modules/test_explorer.py .....                                     [ 34%]
-tests/modules/test_generator.py ....                                     [ 41%]
-tests/modules/test_inference.py ........                                 [ 55%]
+tests/modules/test_dft.py .....                                          [ 12%]
+tests/modules/test_exploration.py .....ss                                [ 24%]
+tests/modules/test_explorer.py .....                                     [ 33%]
+tests/modules/test_generator.py ....                                     [ 40%]
+tests/modules/test_inference.py ........                                 [ 54%]
 tests/modules/test_trainer.py .....                                      [ 63%]
-tests/test_app.py .                                                      [ 65%]
+tests/test_app.py .                                                      [ 64%]
 tests/test_config_schemas.py ....................                        [100%]
 
 =================================== FAILURES ===================================
 _________________________ test_dft_factory_integration _________________________
 
-system_config = SystemConfig(target_system=TargetSystem(elements=['H'], composition={'H': 1.0}), dft=DFTConfig(executable=DFTExecutabl...element_dependent_cutoffs=False)), inference=None, dask=DaskConfig(scheduler_address=None), db_path='mlip_database.db')
-h2_atoms = Atoms(symbols='H2', pbc=False)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_dft_factory_integration0')
+self = <mlip_autopipec.modules.dft.DFTFactory object at 0x7f53a63c6630>
+output_path = PosixPath('/tmp/tmpx5j08aun/espresso.pwo')
+job_id = UUID('75429019-0f29-467c-bd5e-67d71abdb92f')
 
-    def test_dft_factory_integration(
-        system_config: SystemConfig, h2_atoms: Atoms, tmp_path: Path
-    ) -> None:
-        """Test the full DFT calculation pipeline using a mock executable.
-
-        This test verifies that:
-        1. A temporary directory is created for the calculation.
-        2. The input file is correctly generated and written.
-        3. The mock executable is called successfully.
-        4. The output file is parsed correctly.
-        5. The results (energy, forces, stress) are attached to the Atoms object.
+    def _parse_output(self, output_path: Path, job_id: Any) -> DFTResult:
         """
+        Parses the output file of a successful QE run.
+        """
+        try:
+>           result_atoms = ase_read(output_path, format="espresso-out")
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+mlip_autopipec/modules/dft.py:184:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/ase/io/formats.py:794: in read
+    return next(_iread(filename, slice(index, None), format, io,
+.venv/lib/python3.12/site-packages/ase/parallel.py:300: in new_generator
+    for result in generator(*args, **kwargs):
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/ase/io/formats.py:860: in _iread
+    for dct in io.read(fd, *args, **kwargs):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/ase/io/formats.py:618: in wrap_read_function
+    yield from read(filename, index, **kwargs)
+.venv/lib/python3.12/site-packages/ase/io/espresso.py:181: in read_espresso_out
+    pwscf_start_info[prev_start_index] = parse_pwo_start(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+lines = ['     Program PWSCF v.6.5 starts on 16Jan2024 at 12:00:00\n', '\n', '     This program is part of the open-source Qua...dens. Matter 21 395502 (2009);\n', '         "P. Giannozzi et al., J. Phys.: Condens. Matter 29 465901 (2017);\n', ...]
+index = 0
+
+    def parse_pwo_start(lines, index=0):
+        """Parse Quantum ESPRESSO calculation info from lines,
+        starting from index. Return a dictionary containing extracted
+        information.
+
+        - `celldm(1)`: lattice parameters (alat)
+        - `cell`: unit cell in Angstrom
+        - `symbols`: element symbols for the structure
+        - `positions`: cartesian coordinates of atoms in Angstrom
+        - `atoms`: an `ase.Atoms` object constructed from the extracted data
+
+        Parameters
+        ----------
+        lines : list[str]
+            Contents of PWSCF output file.
+        index : int
+            Line number to begin parsing. Only first calculation will
+            be read.
+
+        Returns
+        -------
+        info : dict
+            Dictionary of calculation parameters, including `celldm(1)`, `cell`,
+            `symbols`, `positions`, `atoms`.
+
+        Raises
+        ------
+        KeyError
+            If interdependent values cannot be found (especially celldm(1))
+            an error will be raised as other quantities cannot then be
+            calculated (e.g. cell and positions).
+        """
+        # TODO: extend with extra DFT info?
+
+        info = {}
+
+        for idx, line in enumerate(lines[index:], start=index):
+            if 'celldm(1)' in line:
+                # celldm(1) has more digits than alat!!
+                info['celldm(1)'] = float(line.split()[1]) * units['Bohr']
+                info['alat'] = info['celldm(1)']
+            elif 'number of atoms/cell' in line:
+                info['nat'] = int(line.split()[-1])
+            elif 'number of atomic types' in line:
+                info['ntyp'] = int(line.split()[-1])
+            elif 'crystal axes:' in line:
+                info['cell'] = info['celldm(1)'] * np.array([
+                    [float(x) for x in lines[idx + 1].split()[3:6]],
+                    [float(x) for x in lines[idx + 2].split()[3:6]],
+                    [float(x) for x in lines[idx + 3].split()[3:6]]])
+            elif 'positions (alat units)' in line:
+                info['symbols'], info['positions'] = [], []
+
+                for at_line in lines[idx + 1:idx + 1 + info['nat']]:
+                    sym, x, y, z = parse_position_line(at_line)
+                    info['symbols'].append(label_to_symbol(sym))
+                    info['positions'].append([x * info['celldm(1)'],
+                                              y * info['celldm(1)'],
+                                              z * info['celldm(1)']])
+                # This should be the end of interesting info.
+                # Break here to avoid dealing with large lists of kpoints.
+                # Will need to be extended for DFTCalculator info.
+                break
+
+        # Make atoms for convenience
+>       info['atoms'] = Atoms(symbols=info['symbols'],
+                                      ^^^^^^^^^^^^^^^
+                              positions=info['positions'],
+                              cell=info['cell'], pbc=True)
+E       KeyError: 'symbols'
+
+.venv/lib/python3.12/site-packages/ase/io/espresso.py:470: KeyError
+
+The above exception was the direct cause of the following exception:
+
+h2_atoms = Atoms(symbols='H2', pbc=False)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_dft_factory_integration0')
+
+    def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
+        """Test the full DFT calculation pipeline using a mock executable."""
         # Arrange
-        # The DFTFactory is instantiated with the configuration pointing to our mock
->       dft_factory = DFTFactory(config=system_config.dft, base_work_dir=tmp_path)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E       TypeError: DFTFactory.__init__() got an unexpected keyword argument 'config'
+        pseudo_dir = tmp_path / "pseudos"
+        pseudo_dir.mkdir()
+        (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
-tests/integration/test_dft_integration.py:58: TypeError
+        profile = EspressoProfile(
+            command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir
+        )
+        input_generator = QEInputGenerator(
+            profile=profile, pseudopotentials_path=pseudo_dir
+        )
+        process_runner = QEProcessRunner(profile=profile)
+        dft_factory = DFTFactory(
+            input_generator=input_generator, process_runner=process_runner
+        )
+
+        # Act
+>       result = dft_factory.run(h2_atoms.copy())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_dft_integration.py:41:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+mlip_autopipec/modules/dft.py:147: in run
+    result = self._parse_output(output_path, job.job_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.modules.dft.DFTFactory object at 0x7f53a63c6630>
+output_path = PosixPath('/tmp/tmpx5j08aun/espresso.pwo')
+job_id = UUID('75429019-0f29-467c-bd5e-67d71abdb92f')
+
+    def _parse_output(self, output_path: Path, job_id: Any) -> DFTResult:
+        """
+        Parses the output file of a successful QE run.
+        """
+        try:
+            result_atoms = ase_read(output_path, format="espresso-out")
+            energy = result_atoms.info["energy"]
+            forces = result_atoms.info["forces"]
+            stress = result_atoms.info["stress"]
+
+            return DFTResult(
+                job_id=job_id,
+                energy=energy,
+                forces=forces,
+                stress=stress,
+            )
+        except Exception as e:
+>           raise DFTCalculationError(f"Failed to parse QE output file: {output_path}") from e
+E           mlip_autopipec.exceptions.DFTCalculationError: Failed to parse QE output file: /tmp/tmpx5j08aun/espresso.pwo
+E           --- STDOUT ---
+E
+E           --- STDERR ---
+
+mlip_autopipec/modules/dft.py:196: DFTCalculationError
 =============================== warnings summary ===============================
-tests/modules/test_dft.py:121
-  /app/tests/modules/test_dft.py:121: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
 .venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
   /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
     _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
@@ -63,4 +202,4 @@ tests/modules/test_exploration.py:142
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
 FAILED tests/integration/test_dft_integration.py::test_dft_factory_integration
-============= 1 failed, 54 passed, 3 skipped, 4 warnings in 9.35s ==============
+============= 1 failed, 54 passed, 2 skipped, 3 warnings in 8.77s ==============
