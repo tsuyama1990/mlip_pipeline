@@ -1,12 +1,9 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Common / Shared Models
 
 class SimulationGoal(BaseModel):
-    # Moved from models.py
-    # But wait, SimulationGoal was using Enum in one version and Literal in another.
-    # config/models.py used Literal.
-    from typing import Literal
     type: Literal["melt_quench", "elastic", "diffusion"]
     temperature_range: tuple[float, float] | None = None
     model_config = ConfigDict(extra="forbid")
@@ -25,9 +22,6 @@ class TargetSystem(BaseModel):
                 raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
         return elements
 
-    # Validator for composition sum... implemented in UserInputConfig or here?
-    # It was in TargetSystem in models.py.
-    from pydantic import model_validator
     @model_validator(mode="after")
     def check_composition_keys_and_sum(self):
         if set(self.elements) != set(self.composition.keys()):

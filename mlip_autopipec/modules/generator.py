@@ -46,7 +46,15 @@ class PhysicsInformedGenerator:
             calculation.
         """
         logger.info("Starting structure generation...")
-        num_elements = len(self.config.dft.input.pseudopotentials)
+
+        # Access elements via new schema
+        # target_system has elements list
+        if self.config.target_system:
+             num_elements = len(self.config.target_system.elements)
+        else:
+             # Fallback to dft params if target_system is not set (should not happen in valid config)
+             num_elements = len(self.config.dft_config.dft_input_params.pseudopotentials.root)
+
         if num_elements > 1:
             logger.info("Detected multiple elements, running MOCK alloy generation workflow.")
             return self._generate_for_alloy()
@@ -88,6 +96,8 @@ class PhysicsInformedGenerator:
             A single ASE Atoms object representing a simple alloy structure.
         """
         logger.warning("Creating MOCK alloy structure due to dependency issues.")
+        # Hardcoding Cu/Au here as per original mock logic,
+        # normally this would use target_system.elements
         atoms: Atoms = bulk("Cu", "fcc", a=4.0).repeat((2, 2, 2))
         symbols = ["Cu"] * 4 + ["Au"] * 4
         atoms.set_chemical_symbols(symbols)
@@ -109,6 +119,7 @@ class PhysicsInformedGenerator:
         """
         strained_atoms_list = []
         original_cell = atoms.get_cell()
+        # Use new schema path for parameters
         strain_magnitudes = self.config.generator.alloy_params.strain_magnitudes
 
         for strain in strain_magnitudes:
@@ -136,6 +147,7 @@ class PhysicsInformedGenerator:
             displacements.
         """
         rattled_atoms_list = []
+        # Use new schema path for parameters
         std_devs = self.config.generator.alloy_params.rattle_std_devs
 
         for std_dev in std_devs:
@@ -156,7 +168,12 @@ class PhysicsInformedGenerator:
             structures.
         """
         final_structures = []
-        element = next(iter(self.config.dft.input.pseudopotentials.keys()))
+        # Access elements via new schema
+        if self.config.target_system:
+             element = self.config.target_system.elements[0]
+        else:
+             element = next(iter(self.config.dft_config.dft_input_params.pseudopotentials.root.keys()))
+
         pristine_supercell: Atoms = bulk(element, "fcc", a=4.0, cubic=True).repeat((3, 3, 3))
 
         defect_types = self.config.generator.crystal_params.defect_types

@@ -1,11 +1,8 @@
-from typing import Any
-
+from typing import Any, Literal
+from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, FilePath, ValidationInfo, field_validator
 
-
 class MDConfig(BaseModel):
-    ensemble: str = "nvt" # Literal["nvt", "npt"] in models.py, fixing
-    from typing import Literal
     ensemble: Literal["nvt", "npt"] = "nvt"
     temperature: float = Field(300.0, gt=0)
     timestep: float = Field(1.0, gt=0)

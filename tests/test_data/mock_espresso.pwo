@@ -1,17 +1,34 @@
      Program PWSCF v.6.5 starts on 12Jan2024 at 12:00:00
-     celldm(1)=   18.897261246,
-     crystal axes: (cart. coord. in units of alat)
-          a(1) = (   1.0000000   0.0000000   0.0000000  )
-          a(2) = (   0.0000000   1.0000000   0.0000000  )
-          a(3) = (   0.0000000   0.0000000   1.0000000  )
+
+     Parallel version (MPI), running on     1 processors
+     R & G space division:  proc/nbgrp/npool/nimage =       1
+
+     Current dimensions of program PWSCF are:
+     Max number of wfc lines =  0
+     Max number of k points  =  0
+     Max number of atoms     =  0
+
+     ...
+
      site n.     atom                  positions (alat units)
          1           H   tau(   1) = (   0.000000000   0.000000000   0.000000000  )
          2           H   tau(   2) = (   0.000000000   0.000000000   0.039158315  )
-     ATOMIC_POSITIONS (angstrom)
-     H       0.000000000   0.000000000   0.000000000
-     H       0.000000000   0.000000000   0.740000000
-     Forces acting on atoms (cartesian axes, Ry/au):
-          atom    1 type  1   force =  -0.00000135   0.00000000   0.00000000
-          atom    2 type  1   force =   0.00000135   0.00000000   0.00000000
+
+     ...
+
+     cart. coord. in units of alat
+
+     ...
+
 !    total energy              =     -16.42531639 Ry
+
+     Forces acting on atoms (cartesian axes, Ry/au):
+     atom    1 type  1   force =    -0.00000135    0.00000000    0.00000000
+     atom    2 type  1   force =     0.00000135    0.00000000    0.00000000
+
+     Total force =     0.000002     Total SCF correction =     0.000000
+
+
+     enter write_ns
+
      JOB DONE.
