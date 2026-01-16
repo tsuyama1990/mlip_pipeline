@@ -51,6 +51,9 @@ class DFTHeuristics:
     NOTE: The methods in this class are designed to be generic and data-driven,
     avoiding repeated logic for different chemical elements. The parameters
     are derived from loops and lookups into the SSSP data file.
+
+    Args:
+        sssp_data_path: The path to the JSON file containing the SSSP data.
     """
 
     def __init__(self, sssp_data_path: Path):
@@ -105,6 +108,10 @@ class DFTJobFactory:
     instance to determine the appropriate parameters and then constructs a
     validated `DFTJob` object, which is ready for execution by a `DFTRunner`.
     This separation of concerns makes the process more modular and testable.
+
+    Args:
+        heuristics: An instance of `DFTHeuristics` to use for parameter
+                    generation.
     """
 
     def __init__(self, heuristics: DFTHeuristics):
@@ -151,6 +158,14 @@ def dft_retry_handler(exception: Exception, kwargs: Dict[str, Any]) -> Dict[str,
 class DFTRunner:
     """
     Executes and manages a `DFTJob`.
+
+    Args:
+        input_generator: An instance of `QEInputGenerator` to use for
+                         creating input files.
+        process_runner: An instance of `QEProcessRunner` to use for
+                        running the DFT calculation.
+        output_parser: An instance of `QEOutputParser` to use for
+                       parsing the output of the calculation.
     """
 
     def __init__(
