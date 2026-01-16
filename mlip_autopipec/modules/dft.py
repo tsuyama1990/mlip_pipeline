@@ -27,13 +27,9 @@ from .dft_handlers.output_parser import QEOutputParser
 from .dft_handlers.process_runner import QEProcessRunner
 from .dft_handlers.retry import dft_retry_handler
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent / "data"
-SSSP_DATA_PATH = DATA_DIR / "sssp_p_data.json"
+# Constants
 MAGNETIC_ELEMENTS = {"Fe", "Co", "Ni", "Cr", "Mn"}
 
 
@@ -45,20 +41,22 @@ class DFTHeuristics:
     parameters like k-points, cutoffs, and magnetism settings for a given
     atomic structure. It is designed to be a stateless utility class.
 
-    NOTE: The methods in this class are designed to be generic and data-driven,
-    avoiding repeated logic for different chemical elements. The parameters
-    are derived from loops and lookups into the SSSP data file.
-
     Args:
         sssp_data_path: The path to the JSON file containing the SSSP data.
     """
 
-    def __init__(self, sssp_data_path: Path):
+    def __init__(self, sssp_data_path: Path) -> None:
         self._sssp_data = load_sssp_data(sssp_data_path)
 
     def get_heuristic_parameters(self, atoms: Atoms) -> DFTInputParameters:
         """
         Determines a set of reasonable DFT parameters for a given structure.
+
+        Args:
+            atoms: The atomic structure.
+
+        Returns:
+            DFTInputParameters: The generated parameters.
         """
         elements = set(atoms.get_chemical_symbols())
         return DFTInputParameters(
@@ -104,14 +102,12 @@ class DFTJobFactory:
     This class acts as a high-level factory. It utilizes a `DFTHeuristics`
     instance to determine the appropriate parameters and then constructs a
     validated `DFTJob` object, which is ready for execution by a `DFTRunner`.
-    This separation of concerns makes the process more modular and testable.
 
     Args:
-        heuristics: An instance of `DFTHeuristics` to use for parameter
-                    generation.
+        heuristics: An instance of `DFTHeuristics` to use for parameter generation.
     """
 
-    def __init__(self, heuristics: DFTHeuristics):
+    def __init__(self, heuristics: DFTHeuristics) -> None:
         self.heuristics = heuristics
 
     def create_job(self, atoms: Atoms) -> DFTJob:
@@ -127,12 +123,9 @@ class DFTRunner:
     Executes and manages a `DFTJob`.
 
     Args:
-        input_generator: An instance of `QEInputGenerator` to use for
-                         creating input files.
-        process_runner: An instance of `QEProcessRunner` to use for
-                        running the DFT calculation.
-        output_parser: An instance of `QEOutputParser` to use for
-                       parsing the output of the calculation.
+        input_generator: An instance of `QEInputGenerator`.
+        process_runner: An instance of `QEProcessRunner`.
+        output_parser: An instance of `QEOutputParser`.
     """
 
     def __init__(
@@ -154,30 +147,44 @@ class DFTRunner:
     def run(self, job: DFTJob) -> DFTResult:
         """
         Runs a DFTJob, handling transient errors with the @retry decorator.
+
+        Args:
+            job: The DFT job configuration.
+
+        Returns:
+            DFTResult: The parsed results of the calculation.
+
+        Raises:
+            DFTCalculationError: If the calculation fails after retries.
         """
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 work_dir = Path(temp_dir)
                 input_path = work_dir / "espresso.pwi"
                 output_path = work_dir / "espresso.pwo"
+
                 self.input_generator.prepare_input_files(work_dir, job.atoms, job.params)
                 self.process_runner.execute(input_path, output_path)
                 result = self.output_parser.parse(output_path, job.job_id)
+
                 logger.info(f"DFT job {job.job_id} succeeded.")
                 return result
+
+        except DFTCalculationError:
+            # Let domain-specific errors propagate directly (likely from process_runner or parser)
+            raise
+
         except subprocess.CalledProcessError as e:
-            # Wrap subprocess errors into domain-specific error
-            logger.exception("DFT process failed.")
+            # Wrap low-level subprocess errors with context
+            # NOTE: QEProcessRunner usually handles this, but if it leaks:
             raise DFTCalculationError(
-                f"DFT job {job.job_id} failed due to subprocess error.",
+                f"DFT subprocess failed for job {job.job_id}",
                 stdout=getattr(e, "stdout", ""),
                 stderr=getattr(e, "stderr", ""),
             ) from e
-        except DFTCalculationError:
-            # Log and re-raise domain errors
-            logger.exception(f"DFT job {job.job_id} failed calculation.")
-            raise
+
         except Exception as e:
-            # Catch-all for unexpected errors, wrapping them
-            logger.exception(f"DFT job {job.job_id} failed unexpectedly.")
-            raise DFTCalculationError(f"Unexpected error in DFT job {job.job_id}: {e}") from e
+            # Catch-all for unexpected runtime errors to prevent crash
+            # We explicitly allow 'Exception' here to ensure the pipeline is robust against bugs
+            logger.exception(f"Unexpected error executing DFT job {job.job_id}")
+            raise DFTCalculationError(f"Unexpected error: {e}") from e

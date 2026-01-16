@@ -1,15 +1,19 @@
 """
 Main CLI application for MLIP-AutoPipe.
 """
+import logging
 from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
+from rich.logging import RichHandler
 
-from mlip_autopipec.config.factory import ConfigFactory
-from mlip_autopipec.config.loaders.yaml_loader import ConfigLoader
-from mlip_autopipec.workflow_manager import WorkflowManager
+from mlip_autopipec.services.pipeline import PipelineController
+
+# Configure logging to use Rich
+logging.basicConfig(
+    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+)
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 console = Console()
@@ -32,32 +36,12 @@ def run(
 ) -> None:
     """Execute the MLIP-AutoPipe workflow."""
     try:
-        # 1. Load User Config
-        console.print(f"[bold blue]Loading configuration from:[/bold blue] {config_file}")
-        user_config = ConfigLoader.load_user_config(config_file)
-        console.print(f"[green]✅ Validated project:[/green] [bold]{user_config.project_name}[/bold]")
-
-        # 2. Create System Config
-        system_config = ConfigFactory.from_user_input(user_config)
-
-        # 3. Initialize Workflow
-        summary = (
-            f"Project: {system_config.project_name}\n"
-            f"UUID: {system_config.run_uuid}\n"
-            f"Elements: {', '.join(system_config.target_system.elements)}\n"
-            f"Goal: {user_config.simulation_goal.type}"
-        )
-        console.print(Panel(summary, title="Workflow Initialization", border_style="blue"))
-
-        manager = WorkflowManager(system_config=system_config, work_dir=Path.cwd())
-
-        # 4. Run
-        console.print("[bold yellow]🚀 Starting Workflow...[/bold yellow]")
-        manager.run()
-        console.print("[bold green]🎉 Workflow completed successfully![/bold green]")
-
+        console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
+        PipelineController.execute(config_file)
+        console.print("[bold green]SUCCESS:[/bold green] Workflow finished.")
     except Exception as e:
-        console.print(f"[bold red]ERROR:[/bold red] {e}")
+        console.print(f"[bold red]FAILURE:[/bold red] {e}")
+        logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
