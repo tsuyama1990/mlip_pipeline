@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from mlip_autopipec.config_schemas import SystemConfig
+from mlip_autopipec.config.models import SystemConfig
 
 
 class PacemakerConfigGenerator:
@@ -36,7 +36,7 @@ class PacemakerConfigGenerator:
             The path to the newly generated YAML configuration file.
 
         """
-        trainer_params = self.config.trainer
+        trainer_params = self.config.training_config
         config_dict = {
             "fit_params": {
                 "dataset_filename": str(data_file_path),
@@ -48,9 +48,7 @@ class PacemakerConfigGenerator:
                 "ace": {
                     "radial_basis": trainer_params.ace_params.radial_basis,
                     "correlation_order": trainer_params.ace_params.correlation_order,
-                    "element_dependent_cutoffs": (
-                        trainer_params.ace_params.element_dependent_cutoffs
-                    ),
+                    "element_dependent_cutoffs": trainer_params.ace_params.element_dependent_cutoffs
                 },
             }
         }

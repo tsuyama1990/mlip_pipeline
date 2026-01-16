@@ -13,7 +13,7 @@ from ase.io import write as ase_write
 from jinja2 import Template
 from pydantic import ValidationError
 
-from mlip_autopipec.config.training import TrainingConfig, TrainingData
+from mlip_autopipec.config.models import TrainingConfig, TrainingData
 
 
 class TrainingFailedError(Exception):

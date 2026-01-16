@@ -1,0 +1,42 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: mock-3.15.1
+collected 59 items
+
+tests/modules/test_config_generator.py .                                 [  1%]
+tests/modules/test_dft.py .......                                        [ 13%]
+tests/modules/test_exploration.py .....ss                                [ 25%]
+tests/modules/test_explorer.py .....                                     [ 33%]
+tests/modules/test_generator.py ....                                     [ 40%]
+tests/modules/test_inference.py ....                                     [ 47%]
+tests/modules/test_training.py .....                                     [ 55%]
+tests/test_app.py x                                                      [ 57%]
+tests/test_config.py .....                                               [ 66%]
+tests/test_config_schemas.py ....................                        [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+tests/modules/test_exploration.py:128
+  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_exploration.py:138
+  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_inference.py:152
+  /app/tests/modules/test_inference.py:152: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
+  /app/.venv/lib/python3.12/site-packages/ase/atoms.py:1082: RuntimeWarning: invalid value encountered in divide
+    com = masses @ self.positions[indices] / masses.sum()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============= 56 passed, 2 skipped, 1 xfailed, 5 warnings in 7.77s =============

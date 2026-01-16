@@ -8,7 +8,6 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from ase import Atoms
@@ -119,7 +118,7 @@ class LammpsRunner:
         """
         self.config = inference_config
 
-    def run(self, initial_structure: Atoms) -> Optional[UncertainStructure]:
+    def run(self, initial_structure: Atoms) -> UncertainStructure | None:
         """
         Runs a LAMMPS MD simulation and monitors it for uncertainty.
 
@@ -226,7 +225,7 @@ class LammpsRunner:
 
     def _execute_lammps(
         self, working_dir: Path, input_script: Path
-    ) -> Optional[subprocess.CompletedProcess[str]]:
+    ) -> subprocess.CompletedProcess[str] | None:
         """Executes the LAMMPS simulation as a subprocess."""
         cmd = [str(self.config.lammps_executable), "-in", str(input_script)]
         log.debug(f"Running LAMMPS command: {' '.join(cmd)}")
@@ -249,7 +248,7 @@ class LammpsRunner:
 
     def _get_frame_index_for_timestep(
         self, trajectory_file: Path, target_timestep: int
-    ) -> Optional[int]:
+    ) -> int | None:
         """Finds the 0-based index of a frame for a given timestep in a dump file."""
         if not trajectory_file.exists():
             return None
@@ -265,9 +264,9 @@ class LammpsRunner:
                 frame_index += 1
         return None
 
-    def _parse_dump_file(self, file_path: Path) -> Dict[int, np.ndarray]:
+    def _parse_dump_file(self, file_path: Path) -> dict[int, np.ndarray]:
         """Parses a LAMMPS dump file and returns a dictionary mapping timestep to data."""
-        timesteps: Dict[int, np.ndarray] = {}
+        timesteps: dict[int, np.ndarray] = {}
         if not file_path.exists():
             return timesteps
 
@@ -295,7 +294,7 @@ class LammpsRunner:
 
     def _find_first_uncertain_frame(
         self, working_dir: Path
-    ) -> Optional[Tuple[int, int]]:
+    ) -> tuple[int, int] | None:
         """Parses LAMMPS output for the first frame exceeding the uncertainty threshold."""
         uncertainty_data = self._parse_dump_file(working_dir / "uncertainty.dump")
 
@@ -324,10 +323,10 @@ class LammpsRunner:
 
     def _find_atom_id_in_frame(
         self,
-        traj_lines: List[str],
+        traj_lines: list[str],
         timestep: int,
         atom_index: int,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Finds the ID of a specific atom in a specific frame of a trajectory."""
         for i, line in enumerate(traj_lines):
             if "ITEM: TIMESTEP" in line and int(traj_lines[i + 1]) == timestep:

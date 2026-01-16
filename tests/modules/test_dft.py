@@ -2,7 +2,7 @@
 Unit tests for the refactored DFTFactory and its dependencies.
 """
 import subprocess
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
 import pytest
