@@ -19,6 +19,7 @@ from pydantic import (
     ConfigDict,
     Field,
     FilePath,
+    RootModel,
     ValidationInfo,
     field_validator,
 )
@@ -86,6 +87,20 @@ class MagnetismConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class Pseudopotentials(RootModel[dict[str, str]]):
+    """A mapping from chemical symbols to pseudopotential file names."""
+
+    @field_validator("root")
+    def validate_symbols(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate that the keys are valid chemical symbols."""
+        from ase.data import chemical_symbols
+
+        for symbol in v:
+            if symbol not in chemical_symbols:
+                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+        return v
+
+
 class DFTInputParameters(BaseModel):
     """
     A complete and validated set of parameters for a single Quantum Espresso
@@ -96,7 +111,7 @@ class DFTInputParameters(BaseModel):
     """
 
     calculation_type: Literal["scf"] = "scf"
-    pseudopotentials: dict[str, str]
+    pseudopotentials: Pseudopotentials
     cutoffs: CutoffConfig
     k_points: tuple[int, int, int]
     smearing: SmearingConfig | None = None
@@ -155,8 +170,8 @@ class InferenceConfig(BaseModel):
 class UncertainStructure(BaseModel):
     """Data transfer object for a structure with high uncertainty."""
 
-    atoms: Any
-    force_mask: Any
+    atoms: object
+    force_mask: object
     metadata: dict[str, Any] = {}
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 

@@ -85,16 +85,18 @@ def extract_embedded_structure(
 
 class LammpsRunner:
     """
-    Manages the execution and monitoring of LAMMPS simulations for active
-    learning.
+    A component for running molecular dynamics (MD) simulations with LAMMPS to
+    drive active learning.
 
-    This class is responsible for:
-    -   Generating LAMMPS input scripts that can track model uncertainty.
-    -   Running the LAMMPS simulation as a subprocess.
-    -   Parsing the output to find the first atomic configuration that
-        exceeds the uncertainty threshold.
-    -   Orchestrating the extraction of that configuration using the
-        `extract_embedded_structure` function.
+    The `LammpsRunner` takes a trained MLIP and an initial atomic structure, then
+    runs an MD simulation. It continuously monitors the uncertainty of the MLIP's
+    predictions for each atom. If any atom's uncertainty exceeds a predefined
+    threshold, the simulation is stopped.
+
+    The primary output of this process is an `UncertainStructure` object, which
+    contains the atomic configuration that triggered the high uncertainty, along
+    with a force mask. This object is specifically designed to be passed to the
+    DFTFactory for high-fidelity re-calculation, closing the active learning loop.
     """
 
     def __init__(self, inference_config: InferenceConfig) -> None:

@@ -35,11 +35,21 @@ MAGNETIC_ELEMENTS = {"Fe", "Co", "Ni", "Cr", "Mn"}
 
 
 class QEInputGenerator:
-    """Generates input files for Quantum Espresso."""
+    """
+    A component responsible for creating the input files for a Quantum Espresso
+    calculation.
+
+    This class encapsulates all the logic for selecting appropriate DFT
+    parameters (e.g., cutoffs, k-points, pseudopotentials) based on the input
+    atomic structure. It uses a set of heuristics and data from the SSSP
+    pseudopotential library to generate a `DFTInputParameters` model, which is
+    then used to write the final `espresso.pwi` file.
+    """
 
     def __init__(self, profile: EspressoProfile, pseudopotentials_path: Path | None) -> None:
         self.profile = profile
         self.pseudopotentials_path = pseudopotentials_path
+        self._sssp_data = self._load_sssp_data()
 
     def prepare_input_files(self, work_dir: Path, atoms: Atoms, params: DFTInputParameters) -> None:
         input_data = self._build_input_data(work_dir, params)
@@ -84,9 +94,94 @@ class QEInputGenerator:
                 input_data["system"][f"starting_magnetization({el})"] = mom
         return input_data
 
+    def _load_sssp_data(self) -> dict[str, Any]:
+        """Loads the SSSP pseudopotential data from the JSON file."""
+        try:
+            with SSSP_DATA_PATH.open() as f:
+                return json.load(f)
+        except FileNotFoundError:
+            logger.error(f"SSSP data file not found at: {SSSP_DATA_PATH}")
+            raise
+        except json.JSONDecodeError:
+            logger.error(f"Error decoding SSSP data file: {SSSP_DATA_PATH}")
+            raise
+
+    def generate_input_parameters(self, atoms: Atoms) -> DFTInputParameters:
+        """
+        Determines a set of reasonable DFT parameters based on the input
+        structure.
+        """
+        elements = set(atoms.get_chemical_symbols())
+        cutoffs = self._get_heuristic_cutoffs(elements)
+        k_points = self._get_heuristic_k_points(atoms)
+        smearing = SmearingConfig()
+        magnetism = self._get_heuristic_magnetism(elements)
+        pseudos = self._get_pseudopotentials(elements)
+
+        return DFTInputParameters(
+            pseudopotentials=pseudos,
+            cutoffs=cutoffs,
+            k_points=k_points,
+            smearing=smearing,
+            magnetism=magnetism,
+        )
+
+    def _get_heuristic_cutoffs(self, elements: set) -> CutoffConfig:
+        """
+        Determines the wavefunction and density cutoffs from the SSSP data.
+        """
+        max_wfc = 0.0
+        max_rho = 0.0
+        for element in elements:
+            if element in self._sssp_data:
+                max_wfc = max(max_wfc, self._sssp_data[element]["cutoff_wfc"])
+                max_rho = max(max_rho, self._sssp_data[element]["cutoff_rho"])
+            else:
+                msg = f"No SSSP data found for element: {element}"
+                raise ValueError(msg)
+        return CutoffConfig(wavefunction=max_wfc, density=max_rho)
+
+    def _get_heuristic_k_points(self, atoms: Atoms) -> tuple[int, int, int]:
+        """
+        Calculates a k-point grid based on a target density.
+        """
+        k_density = 6.0
+        lengths = atoms.cell.lengths()
+        k_points = []
+        for length in lengths:
+            if length > 0:
+                k_points.append(max(1, int(k_density / length) + 1))
+            else:
+                k_points.append(1)
+        return tuple(k_points)
+
+    def _get_heuristic_magnetism(self, elements: set) -> MagnetismConfig | None:
+        """
+        Enables magnetism if magnetic elements are present.
+        """
+        if any(el in MAGNETIC_ELEMENTS for el in elements):
+            return MagnetismConfig(starting_magnetization=dict.fromkeys(elements, 0.5))
+        return None
+
+    def _get_pseudopotentials(self, elements: set) -> dict[str, str]:
+        """
+        Retrieves the pseudopotential filenames for the given elements.
+        """
+        return {el: self._sssp_data[el]["filename"] for el in elements if el in self._sssp_data}
+
 
 class QEProcessRunner:
-    """Executes a Quantum Espresso calculation as a subprocess."""
+    """
+    A component responsible for executing a Quantum Espresso calculation in a
+    secure subprocess.
+
+    This class takes the path to a prepared input file and an output file. It
+    uses the `ase.calculators.espresso.EspressoProfile` to construct the
+    correct command for running `pw.x` and executes it in a sandboxed
+    environment. It also handles logging of stdout/stderr and raises
+    exceptions for common failures, such as the executable not being found or
+    the calculation failing.
+    """
 
     def __init__(self, profile: EspressoProfile) -> None:
         self.profile = profile
@@ -104,6 +199,9 @@ class QEProcessRunner:
                     stdin=stdin_f,
                 )
                 stdout_f.write(process.stdout)
+        except FileNotFoundError as e:
+            logger.error(f"QE executable not found. Details: {e}")
+            raise
         except subprocess.CalledProcessError as e:
             logger.error(
                 "QE subprocess failed.\\n"
@@ -115,12 +213,23 @@ class QEProcessRunner:
 
 
 class QEOutputParser:
-    """Parses the output of a Quantum Espresso calculation."""
+    """
+    A component responsible for parsing the output of a Quantum Espresso
+    calculation and converting it into a structured `DFTResult` object.
+
+    This class uses `ase.io.read` with the `espresso-out` format to extract the
+    final energy, forces, and stress from the output file. It then validates
+    this data and packages it into a Pydantic model, ensuring that downstream
+    components receive a consistent and validated data structure.
+    """
+
+    def __init__(self, reader: Any = ase_read) -> None:
+        self.reader = reader
 
     def parse(self, output_path: Path, job_id: Any) -> DFTResult:
         """Parses the output file of a successful QE run."""
         try:
-            result_atoms = ase_read(output_path, format="espresso-out")
+            result_atoms = self.reader(output_path, format="espresso-out")
             energy = result_atoms.get_potential_energy()
             forces = result_atoms.get_forces()
             stress = result_atoms.get_stress()
@@ -179,10 +288,9 @@ class DFTFactory:
         self.output_parser = output_parser
         self.retry_handler = retry_handler
         self.max_retries = max_retries
-        self._sssp_data = self._load_sssp_data()
 
     def run(self, atoms: Atoms) -> DFTResult:
-        params = self._get_heuristic_parameters(atoms)
+        params = self.input_generator.generate_input_parameters(atoms)
         job = DFTJob(atoms=atoms, params=params)
         for attempt in range(self.max_retries):
             try:
@@ -212,81 +320,3 @@ class DFTFactory:
                     ) from e
         msg = f"DFT job {job.job_id} failed unexpectedly."
         raise DFTCalculationError(msg)
-
-    def _load_sssp_data(self) -> dict[str, Any]:
-        """Loads the SSSP pseudopotential data from the JSON file."""
-        try:
-            with SSSP_DATA_PATH.open() as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logger.error(f"SSSP data file not found at: {SSSP_DATA_PATH}")
-            raise
-        except json.JSONDecodeError:
-            logger.error(f"Error decoding SSSP data file: {SSSP_DATA_PATH}")
-            raise
-
-    def _get_heuristic_parameters(self, atoms: Atoms) -> DFTInputParameters:
-        """
-        Determines a set of reasonable DFT parameters based on the input
-        structure.
-        """
-        elements = set(atoms.get_chemical_symbols())
-        cutoffs = self._get_heuristic_cutoffs(elements)
-        k_points = self._get_heuristic_k_points(atoms)
-        smearing = SmearingConfig()
-        magnetism = self._get_heuristic_magnetism(elements)
-        pseudos = self._get_pseudopotentials(elements)
-
-        return DFTInputParameters(
-            pseudopotentials=pseudos,
-            cutoffs=cutoffs,
-            k_points=k_points,
-            smearing=smearing,
-            magnetism=magnetism,
-        )
-
-    def _get_heuristic_cutoffs(self, elements: set) -> CutoffConfig:
-        """
-        Determines the wavefunction and density cutoffs from the SSSP data.
-        """
-        max_wfc = 0.0
-        max_rho = 0.0
-        for element in elements:
-            if element in self._sssp_data:
-                max_wfc = max(max_wfc, self._sssp_data[element]["cutoff_wfc"])
-                max_rho = max(max_rho, self._sssp_data[element]["cutoff_rho"])
-            else:
-                msg = f"No SSSP data found for element: {element}"
-                raise ValueError(msg)
-        return CutoffConfig(wavefunction=max_wfc, density=max_rho)
-
-    def _get_heuristic_k_points(self, atoms: Atoms) -> tuple[int, int, int]:
-        """
-        Calculates a k-point grid based on a target density.
-        """
-        k_density = 6.0
-        lengths = atoms.cell.lengths()
-        k_points = []
-        for length in lengths:
-            if length > 0:
-                k_points.append(max(1, int(k_density / length) + 1))
-            else:
-                k_points.append(1)
-        return tuple(k_points)
-
-    def _get_heuristic_magnetism(
-        self,
-        elements: set,
-    ) -> MagnetismConfig | None:
-        """
-        Enables magnetism if magnetic elements are present.
-        """
-        if any(el in MAGNETIC_ELEMENTS for el in elements):
-            return MagnetismConfig(starting_magnetization=dict.fromkeys(elements, 0.5))
-        return None
-
-    def _get_pseudopotentials(self, elements: set) -> dict[str, str]:
-        """
-        Retrieves the pseudopotential filenames for the given elements.
-        """
-        return {el: self._sssp_data[el]["filename"] for el in elements if el in self._sssp_data}

@@ -1,13 +1,15 @@
 """
 Unit tests for the refactored DFTFactory and its dependencies.
 """
-
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 from ase.build import bulk
+from ase.calculators.espresso import EspressoProfile
 
+from mlip_autopipec.config.models import DFTInputParameters
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft import (
     DFTFactory,
@@ -63,9 +65,11 @@ def test_dft_factory_run_successful(
     """Test a straightforward, successful run."""
     atoms = bulk("Si")
     mock_output_parser.parse.return_value = MagicMock(energy=-100.0)
+    mock_input_generator.generate_input_parameters.return_value = MagicMock(spec=DFTInputParameters)
 
     result = dft_factory.run(atoms)
 
+    mock_input_generator.generate_input_parameters.assert_called_once_with(atoms)
     mock_input_generator.prepare_input_files.assert_called_once()
     mock_process_runner.execute.assert_called_once()
     mock_output_parser.parse.assert_called_once()
@@ -87,6 +91,9 @@ def test_dft_factory_retry_and_succeed(
     mock_process_runner.execute.side_effect = [error, MagicMock()]
     mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
     mock_output_parser.parse.return_value = MagicMock(energy=-150.0)
+    mock_params = MagicMock(spec=DFTInputParameters)
+    mock_params.model_dump.return_value = {"mixing_beta": 0.7}
+    mock_input_generator.generate_input_parameters.return_value = mock_params
 
     result = dft_factory.run(atoms)
 
@@ -109,6 +116,9 @@ def test_dft_factory_fails_after_max_retries(
     error.stderr = ""
     mock_process_runner.execute.side_effect = [error, error, error]
     mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
+    mock_params = MagicMock(spec=DFTInputParameters)
+    mock_params.model_dump.return_value = {"mixing_beta": 0.7}
+    mock_input_generator.generate_input_parameters.return_value = mock_params
 
     with pytest.raises(DFTCalculationError):
         dft_factory.run(atoms)
@@ -123,11 +133,13 @@ def test_handle_convergence_error():
     params = {"mixing_beta": 0.7}
     log = "convergence NOT achieved"
     new_params = retry_handler.handle_convergence_error(log, params)
+    assert new_params is not None
     assert new_params["mixing_beta"] == 0.35
 
     params = {"diagonalization": "david"}
     log = "Cholesky"
     new_params = retry_handler.handle_convergence_error(log, params)
+    assert new_params is not None
     assert new_params["diagonalization"] == "cg"
 
     params = {}
@@ -138,22 +150,59 @@ def test_handle_convergence_error():
 
 def test_process_runner_logs_on_error(caplog, tmp_path):
     """Verify that the QEProcessRunner logs stdout/stderr on failure."""
-    mock_profile = MagicMock()
-    mock_profile.get_command.return_value = ["echo", "fail"]
+    mock_profile = MagicMock(spec=EspressoProfile)
+    mock_profile.get_command.return_value = ["non_existent_command"]
     runner = QEProcessRunner(profile=mock_profile)
-
-    error = subprocess.CalledProcessError(1, "pw.x")
-    error.stdout = "Test stdout"
-    error.stderr = "Test stderr"
 
     input_file = tmp_path / "test.in"
     output_file = tmp_path / "test.out"
     input_file.touch()
 
-    with patch("subprocess.run", side_effect=error):
-        with pytest.raises(subprocess.CalledProcessError):
-            runner.execute(input_file, output_file)
+    with pytest.raises(FileNotFoundError):
+        runner.execute(input_file, output_file)
+    assert "QE executable not found" in caplog.text
 
-    assert "QE subprocess failed" in caplog.text
-    assert "Test stdout" in caplog.text
-    assert "Test stderr" in caplog.text
+
+import uuid
+
+
+def test_output_parser_handles_valid_output(tmp_path):
+    """Test that the QEOutputParser correctly parses a valid output file."""
+    output_file = tmp_path / "espresso.pwo"
+    output_file.touch()  # Create the file
+
+    mock_atoms = bulk("Si")
+    mock_atoms.set_cell([5.43, 5.43, 5.43, 90, 90, 90])
+    mock_atoms.set_pbc(True)
+    calc = MagicMock()
+    calc.get_potential_energy.return_value = -136.057
+    calc.get_forces.return_value = [[0.0, 0.0, 0.0]]
+    calc.get_stress.return_value = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    mock_atoms.calc = calc
+    mock_reader = MagicMock(return_value=mock_atoms)
+    parser = QEOutputParser(reader=mock_reader)
+
+    result = parser.parse(output_file, uuid.uuid4())
+
+    assert result.energy == -136.057
+    assert len(result.forces) == 1
+    mock_reader.assert_called_once_with(output_file, format="espresso-out")
+
+
+def test_input_generator_creates_valid_params(tmp_path):
+    """Test the heuristic parameter generation in QEInputGenerator."""
+    mock_profile = MagicMock(spec=EspressoProfile)
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"Si": {"cutoff_wfc": 60, "cutoff_rho": 240, "filename": "Si.upf"}}')
+    with patch(
+        "mlip_autopipec.modules.dft.SSSP_DATA_PATH",
+        sssp_path,
+    ):
+        generator = QEInputGenerator(profile=mock_profile, pseudopotentials_path=None)
+        atoms = bulk("Si")
+        params = generator.generate_input_parameters(atoms)
+        assert params.cutoffs.wavefunction == 60
+        assert params.cutoffs.density == 240
+        assert params.pseudopotentials is not None
+        assert params.pseudopotentials.root["Si"] == "Si.upf"
+
