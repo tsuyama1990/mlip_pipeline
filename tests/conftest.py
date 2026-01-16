@@ -12,6 +12,7 @@ from mlip_autopipec.config.models import (
     Pseudopotentials,
     SystemConfig,
     TargetSystem,
+    Composition,
 )
 
 
@@ -26,7 +27,7 @@ def sample_system_config() -> SystemConfig:
     dft_config = DFTConfig(dft_input_params=dft_params)
     target_system = TargetSystem(
         elements=["Ni"],
-        composition={"Ni": 1.0},
+        composition=Composition({"Ni": 1.0}),
         crystal_structure="fcc"
     )
 

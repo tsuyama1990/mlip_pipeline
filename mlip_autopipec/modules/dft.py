@@ -171,12 +171,11 @@ class DFTRunner:
                 return result
 
         except DFTCalculationError:
-            # Let domain-specific errors propagate directly (likely from process_runner or parser)
+            # Let domain-specific errors propagate directly
             raise
 
         except subprocess.CalledProcessError as e:
             # Wrap low-level subprocess errors with context
-            # NOTE: QEProcessRunner usually handles this, but if it leaks:
             raise DFTCalculationError(
                 f"DFT subprocess failed for job {job.job_id}",
                 stdout=getattr(e, "stdout", ""),
@@ -185,6 +184,5 @@ class DFTRunner:
 
         except Exception as e:
             # Catch-all for unexpected runtime errors to prevent crash
-            # We explicitly allow 'Exception' here to ensure the pipeline is robust against bugs
             logger.exception(f"Unexpected error executing DFT job {job.job_id}")
             raise DFTCalculationError(f"Unexpected error: {e}") from e
