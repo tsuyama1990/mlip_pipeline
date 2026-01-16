@@ -3,6 +3,7 @@ Unit tests for the refactored DFTFactory and its dependencies.
 """
 
 import subprocess
+import uuid
 from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
@@ -10,8 +11,7 @@ import pytest
 from ase.build import bulk
 from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config.models import DFTInputParameters, DFTJob, Pseudopotentials, CutoffConfig
-from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.config.models import CutoffConfig, DFTInputParameters, DFTJob, Pseudopotentials
 from mlip_autopipec.modules.dft import (
     DFTHeuristics,
     DFTJobFactory,
@@ -20,7 +20,6 @@ from mlip_autopipec.modules.dft import (
     QEOutputParser,
     QEProcessRunner,
 )
-import uuid
 
 
 @pytest.fixture

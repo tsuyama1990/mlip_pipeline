@@ -3,10 +3,8 @@ Unit tests for the DFTHeuristics class.
 """
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-from ase import Atoms
 from ase.build import bulk, molecule
 
 from mlip_autopipec.modules.dft import DFTHeuristics

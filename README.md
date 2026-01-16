@@ -30,8 +30,7 @@ This cycle implements the `PacemakerTrainer`, the component responsible for cons
   - **Data Ingestion**: Automatically reads training data from the central ASE database.
   - **Dynamic Configuration**: Generates the necessary input files for the Pacemaker training code using a Jinja2 template.
   - **Secure Execution**: Invokes the Pacemaker training process in a secure, monitored subprocess.
-- **Schema-Driven Configuration**: The entire training process is configured via a strict Pydantic model, a
-- ensuring that all hyperparameters are valid before the training process is launched.
+- **Schema-Driven Configuration**: The entire training process is configured via a strict Pydantic model, ensuring that all hyperparameters are valid before the training process is launched.
 
 ## Cycle 04: Active Learning with On-The-Fly Inference
 
@@ -60,6 +59,16 @@ This cycle transforms the workflow from a linear process into a robust, high-thr
 - **Parallel Execution with Dask**: The system is now integrated with the Dask distributed computing library. The `WorkflowManager` acts as a dispatcher, submitting hundreds of independent DFT calculations to a Dask cluster for parallel execution. This dramatically reduces the time required for data generation.
 - **Robust Retry Decorator**: The DFT auto-recovery logic has been refactored into a generic and extensible `@retry` decorator. It now supports domain-specific callbacks, allowing for intelligent, context-aware error recovery (such as modifying DFT parameters on convergence failure) while keeping the core retry logic reusable.
 
+## Cycle 07: User Interface (CLI)
+
+This cycle focuses on usability, providing a polished and professional Command Line Interface (CLI) for the application.
+
+### Key Features:
+- **`mlip-auto` CLI**: A unified entry point built with `Typer` and `rich`, allowing users to start workflows with a simple command: `mlip-auto run input.yaml`.
+- **Helpful Feedback**: The CLI provides clear, color-coded output for success, errors, and progress updates.
+- **Robust Validation**: Invalid configurations or command-line usage errors are caught immediately with helpful messages, ensuring a "fail-fast" experience before expensive computations begin.
+- **Schema Integration**: The CLI fully integrates with the project's rigorous Pydantic schemas, ensuring that user input is validated against the same rules used by the backend.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:
@@ -67,4 +76,10 @@ To get started with the project, create a virtual environment and install the de
 ```bash
 uv venv
 uv pip install -e ".[dev]"
+```
+
+Run the workflow:
+
+```bash
+mlip-auto run input.yaml
 ```

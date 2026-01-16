@@ -2,12 +2,11 @@
 This module contains the components for creating, managing, and running DFT
 calculations, forming a key part of the data generation pipeline.
 """
-import json
 import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Set
+from typing import Any
 
 from ase.atoms import Atoms
 
@@ -72,7 +71,7 @@ class DFTHeuristics:
             magnetism=self._get_heuristic_magnetism(elements),
         )
 
-    def _get_heuristic_cutoffs(self, elements: Set[str]) -> CutoffConfig:
+    def _get_heuristic_cutoffs(self, elements: set[str]) -> CutoffConfig:
         """Determines cutoffs from SSSP data for the present elements."""
         max_wfc = max(self._sssp_data[el]["cutoff_wfc"] for el in elements)
         max_rho = max(self._sssp_data[el]["cutoff_rho"] for el in elements)
@@ -87,14 +86,14 @@ class DFTHeuristics:
         ]
         return (k_points[0], k_points[1], k_points[2])
 
-    def _get_heuristic_magnetism(self, elements: Set[str]) -> MagnetismConfig | None:
+    def _get_heuristic_magnetism(self, elements: set[str]) -> MagnetismConfig | None:
         """Enables magnetism if any magnetic elements are present."""
         if any(el in MAGNETIC_ELEMENTS for el in elements):
-            mag_dict = {el: 0.5 for el in elements}
+            mag_dict = dict.fromkeys(elements, 0.5)
             return MagnetismConfig(starting_magnetization=mag_dict)
         return None
 
-    def _get_pseudopotentials(self, elements: Set[str]) -> Pseudopotentials:
+    def _get_pseudopotentials(self, elements: set[str]) -> Pseudopotentials:
         """Retrieves pseudopotential filenames for the given elements."""
         pseudos = {el: self._sssp_data[el]["filename"] for el in elements}
         return Pseudopotentials.model_validate(pseudos)
@@ -125,7 +124,7 @@ class DFTJobFactory:
         return DFTJob(atoms=atoms, params=params)
 
 
-def dft_retry_handler(exception: Exception, kwargs: Dict[str, Any]) -> Dict[str, Any] | None:
+def dft_retry_handler(exception: Exception, kwargs: dict[str, Any]) -> dict[str, Any] | None:
     """
     Handles specific DFT convergence errors by suggesting modified parameters.
     This function is designed to be used as an `on_retry` callback for the

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from unittest.mock import patch
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -12,7 +13,7 @@ from mlip_autopipec.config.models import (
     DFTInputParameters,
     Pseudopotentials,
 )
-from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner, DFTHeuristics
+from mlip_autopipec.modules.dft import DFTHeuristics, DFTJobFactory, DFTRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -136,7 +137,6 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
 
     from ase.calculators.espresso import EspressoProfile
 
-    from mlip_autopipec.exceptions import DFTCalculationError
     from mlip_autopipec.modules.dft import (
         DFTJobFactory,
         DFTRunner,

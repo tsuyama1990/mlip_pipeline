@@ -17,13 +17,13 @@ from mlip_autopipec.workflow_manager import WorkflowManager
 def valid_system_config(tmp_path):
     # A minimal but structurally complete SystemConfig for serialization tests
     from mlip_autopipec.config.models import (
+        CutoffConfig,
         DFTConfig,
         DFTInputParameters,
         ExplorerConfig,
         FingerprintConfig,
         InferenceConfig,
         Pseudopotentials,
-        CutoffConfig,
         TrainingConfig,
     )
 

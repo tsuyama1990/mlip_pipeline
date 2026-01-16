@@ -4,12 +4,12 @@ This module provides utility functions for loading data files.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def load_sssp_data(sssp_data_path: Path) -> Dict[str, Any]:
+def load_sssp_data(sssp_data_path: Path) -> dict[str, Any]:
     """
     Loads the SSSP pseudopotential data from a JSON file.
 
