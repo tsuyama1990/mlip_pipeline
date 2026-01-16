@@ -1,0 +1,76 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: mock-3.15.1
+collected 64 items
+
+tests/integration/test_dft_integration.py x..                            [  4%]
+tests/modules/test_config_generator.py .                                 [  6%]
+tests/modules/test_dft.py ........                                       [ 18%]
+tests/modules/test_exploration.py .....ss                                [ 29%]
+tests/modules/test_explorer.py .....                                     [ 37%]
+tests/modules/test_generator.py ....                                     [ 43%]
+tests/modules/test_inference.py ..F                                      [ 48%]
+tests/modules/test_training.py .....                                     [ 56%]
+tests/test_app.py x                                                      [ 57%]
+tests/test_config.py .....                                               [ 65%]
+tests/test_config_factory.py .                                           [ 67%]
+tests/test_config_schemas.py ....................                        [ 98%]
+tests/test_workflow_manager.py .                                         [100%]
+
+=================================== FAILURES ===================================
+____________________ test_end_to_end_uncertainty_detection _____________________
+
+mock_inference_config = InferenceConfig(lammps_executable=PosixPath('/tmp/pytest-of-jules/pytest-45/test_end_to_end_uncertainty_de0/lmp'), pot...1.0, run_duration=1000), uncertainty_params=UncertaintyConfig(threshold=0.5, embedding_cutoff=8.0, masking_cutoff=4.0))
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-45/test_end_to_end_uncertainty_de0')
+
+    @pytest.mark.integration
+    def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
+        """
+        Test the full LAMMPS run and uncertainty detection workflow by mocking
+        the subprocess and the LAMMPS output files.
+        """
+        from unittest.mock import patch, MagicMock
+
+        runner = LammpsRunner(inference_config=mock_inference_config)
+        atoms = bulk("Si", "diamond", a=5.43)
+
+        # Create mock LAMMPS output files
+        dump_content = "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.35 1.35 1.35\n"
+        uncertainty_content = (
+            "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS c_uncert[1]\n0.1\n0.8\n"
+        )
+        (tmp_path / "dump.custom").write_text(dump_content)
+        (tmp_path / "uncertainty.dump").write_text(uncertainty_content)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            result = runner.run(atoms)
+
+>       assert result is not None
+E       assert None is not None
+
+tests/modules/test_inference.py:91: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+tests/modules/test_exploration.py:128
+  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_exploration.py:138
+  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_inference.py:68
+  /app/tests/modules/test_inference.py:68: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
+======== 1 failed, 59 passed, 2 skipped, 2 xfailed, 4 warnings in 8.44s ========

@@ -42,6 +42,15 @@ This cycle introduces the `LammpsRunner`, a key component for active learning. T
 - **Data Extraction for DFT**: When high uncertainty is detected, the runner extracts the specific atomic configuration and its local environment for subsequent high-fidelity DFT calculations.
 - **Periodic Embedding and Force Masking**: Implements sophisticated data extraction techniques to ensure that the data sent to the DFT factory is physically meaningful and periodic.
 
+## Cycle 05: Configuration-Driven Workflow
+
+This cycle introduces a user-friendly, configuration-driven workflow. The user now interacts with the system through a simple `input.yaml` file, and the `WorkflowManager` orchestrates the entire process based on this high-level input.
+
+### Key Features:
+- **User-Friendly Configuration**: A simple `input.yaml` file is now the single point of entry for the user, abstracting away the low-level details of the workflow.
+- **Centralized Orchestration**: The `WorkflowManager` class takes the user's input and expands it into a comprehensive, validated `SystemConfig` object, which is then used to configure and run the entire active learning pipeline.
+- **Rich Metadata**: The data persistence layer has been enhanced to store rich metadata, including unique IDs and the configuration type, for every DFT calculation, ensuring data provenance and traceability.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:

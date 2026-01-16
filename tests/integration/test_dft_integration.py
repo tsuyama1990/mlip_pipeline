@@ -1,20 +1,18 @@
-"""Integration test for the DFTFactory to ensure end-to-end functionality."""
+"""Integration test for the DFTJobFactory to ensure end-to-end functionality."""
 
 from pathlib import Path
 
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config.models import DFTResult
-from mlip_autopipec.modules.dft import (
-    DFTFactory,
-    QEInputGenerator,
-    QEOutputParser,
-    QEProcessRunner,
-    QERetryHandler,
+from mlip_autopipec.config.models import (
+    DFTConfig,
+    DFTInputParameters,
+    CutoffConfig,
+    Pseudopotentials,
 )
+from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -33,20 +31,37 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
+    dft_config = DFTConfig(
+        dft_input_params=DFTInputParameters(
+            pseudopotentials=Pseudopotentials({"H": "H.pbe-rrkjus.UPF"}),
+            cutoffs=CutoffConfig(wavefunction=30, density=120),
+            k_points=(1, 1, 1),
+        )
+    )
+    from mlip_autopipec.modules.dft import (
+        QEInputGenerator,
+        QEProcessRunner,
+        QEOutputParser,
+        QERetryHandler,
+    )
+    from ase.calculators.espresso import EspressoProfile
+
     profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
     retry_handler = QERetryHandler()
-    dft_factory = DFTFactory(
+    dft_job_factory = DFTJobFactory()
+
+    # Act
+    job = dft_job_factory.create_job(h2_atoms.copy())
+    dft_runner = DFTRunner(
         input_generator=input_generator,
         process_runner=process_runner,
         output_parser=output_parser,
         retry_handler=retry_handler,
     )
-
-    # Act
-    result = dft_factory.run(h2_atoms.copy())
+    result = dft_runner.run(job)
 
     # Assert
     expected_energy = -16.42531639 * 13.605693122994  # Ry to eV
@@ -58,7 +73,6 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     ) * (13.605693122994 / 0.529177210903)  # Ry/au to eV/A
     expected_stress = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-    assert isinstance(result, DFTResult)
     assert np.isclose(result.energy, expected_energy, atol=1e-6)
     assert np.allclose(result.forces, expected_forces, atol=1e-6)
     assert np.allclose(result.stress, expected_stress, atol=1e-6)
@@ -71,19 +85,84 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
-    non_existent_command = "/path/to/non/existent/pw.x"
-    profile = EspressoProfile(command=non_existent_command, pseudo_dir=pseudo_dir)
+    dft_config = DFTConfig(
+        dft_input_params=DFTInputParameters(
+            pseudopotentials=Pseudopotentials({"H": "H.pbe-rrkjus.UPF"}),
+            cutoffs=CutoffConfig(wavefunction=30, density=120),
+            k_points=(1, 1, 1),
+        )
+    )
+    from mlip_autopipec.modules.dft import (
+        QEInputGenerator,
+        QEProcessRunner,
+        QEOutputParser,
+        QERetryHandler,
+    )
+    from ase.calculators.espresso import EspressoProfile
+
+    profile = EspressoProfile(command="/path/to/non/existent/pw.x", pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
     retry_handler = QERetryHandler()
-    dft_factory = DFTFactory(
+    dft_job_factory = DFTJobFactory()
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError):
+        job = dft_job_factory.create_job(h2_atoms.copy())
+        dft_runner = DFTRunner(
+            input_generator=input_generator,
+            process_runner=process_runner,
+            output_parser=output_parser,
+            retry_handler=retry_handler,
+        )
+        dft_runner.run(job)
+
+
+def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
+    """Test that the DFTRunner correctly handles retries and raises an error."""
+    # Arrange
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+
+    from mlip_autopipec.modules.dft import (
+        QEInputGenerator,
+        QEProcessRunner,
+        QEOutputParser,
+        QERetryHandler,
+        DFTJobFactory,
+        DFTRunner,
+    )
+    from ase.calculators.espresso import EspressoProfile
+    from mlip_autopipec.exceptions import DFTCalculationError
+    import subprocess
+
+    profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
+    input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
+    process_runner = QEProcessRunner(profile=profile)
+    output_parser = QEOutputParser()
+    retry_handler = QERetryHandler()
+    dft_job_factory = DFTJobFactory()
+
+    mocker.patch.object(
+        process_runner,
+        "execute",
+        side_effect=subprocess.CalledProcessError(
+            1, "pw.x", "stdout convergence NOT achieved", "stderr"
+        ),
+    )
+
+    dft_runner = DFTRunner(
         input_generator=input_generator,
         process_runner=process_runner,
         output_parser=output_parser,
         retry_handler=retry_handler,
+        max_retries=2,
     )
+    job = dft_job_factory.create_job(h2_atoms.copy())
 
     # Act & Assert
-    with pytest.raises(FileNotFoundError):
-        dft_factory.run(h2_atoms.copy())
+    with pytest.raises(DFTCalculationError):
+        dft_runner.run(job)
+    assert process_runner.execute.call_count == 2

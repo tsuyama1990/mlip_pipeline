@@ -8,7 +8,6 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from ase import Atoms
@@ -56,9 +55,9 @@ def extract_embedded_structure(
     new_cell = np.diag([2 * cutoff, 2 * cutoff, 2 * cutoff])
 
     # Wrap all positions relative to the center atom to handle PBC
-    wrapped_positions = wrap_positions(
-        large_cell.positions, large_cell.cell, pbc=large_cell.pbc, center=center_pos
-    )
+    positions = large_cell.positions - center_pos
+    wrapped_positions = wrap_positions(positions, large_cell.cell, pbc=large_cell.pbc)
+    wrapped_positions += center_pos
 
     # Find atoms within the spherical cutoff of the *unwrapped* center position
     distances = np.linalg.norm(wrapped_positions - center_pos, axis=1)
@@ -77,6 +76,7 @@ def extract_embedded_structure(
     center_of_new_cell = embedded_atoms.get_center_of_mass()
 
     # Manually calculate MIC distances to avoid ASE's quirky API
+    center_of_new_cell = embedded_atoms.get_center_of_mass()
     _, distances_from_center = find_mic(
         embedded_atoms.positions - center_of_new_cell, embedded_atoms.cell, pbc=True
     )
@@ -87,9 +87,7 @@ def extract_embedded_structure(
         uncertain_atom_id=0,
         uncertain_atom_index_in_original_cell=center_atom_index,
     )
-    return UncertainStructure(
-        atoms=embedded_atoms, force_mask=force_mask, metadata=metadata
-    )
+    return UncertainStructure(atoms=embedded_atoms, force_mask=force_mask, metadata=metadata)
 
 
 class LammpsRunner:
@@ -119,7 +117,7 @@ class LammpsRunner:
         """
         self.config = inference_config
 
-    def run(self, initial_structure: Atoms) -> Optional[UncertainStructure]:
+    def run(self, initial_structure: Atoms) -> UncertainStructure | None:
         """
         Runs a LAMMPS MD simulation and monitors it for uncertainty.
 
@@ -158,8 +156,7 @@ class LammpsRunner:
             if uncertain_frame_info:
                 timestep, atom_id = uncertain_frame_info
                 log.info(
-                    f"Uncertainty threshold exceeded at timestep {timestep} "
-                    f"by atom ID {atom_id}."
+                    f"Uncertainty threshold exceeded at timestep {timestep} by atom ID {atom_id}."
                 )
                 frame_index = self._get_frame_index_for_timestep(
                     working_dir / "dump.custom", timestep
@@ -226,7 +223,7 @@ class LammpsRunner:
 
     def _execute_lammps(
         self, working_dir: Path, input_script: Path
-    ) -> Optional[subprocess.CompletedProcess[str]]:
+    ) -> subprocess.CompletedProcess[str] | None:
         """Executes the LAMMPS simulation as a subprocess."""
         cmd = [str(self.config.lammps_executable), "-in", str(input_script)]
         log.debug(f"Running LAMMPS command: {' '.join(cmd)}")
@@ -239,9 +236,7 @@ class LammpsRunner:
                 check=True,
             )
         except FileNotFoundError:
-            log.exception(
-                f"Lammps executable not found at {self.config.lammps_executable}"
-            )
+            log.exception(f"Lammps executable not found at {self.config.lammps_executable}")
             raise
         except subprocess.CalledProcessError as e:
             log.exception(f"LAMMPS simulation failed with exit code {e.returncode}")
@@ -249,7 +244,7 @@ class LammpsRunner:
 
     def _get_frame_index_for_timestep(
         self, trajectory_file: Path, target_timestep: int
-    ) -> Optional[int]:
+    ) -> int | None:
         """Finds the 0-based index of a frame for a given timestep in a dump file."""
         if not trajectory_file.exists():
             return None
@@ -265,9 +260,9 @@ class LammpsRunner:
                 frame_index += 1
         return None
 
-    def _parse_dump_file(self, file_path: Path) -> Dict[int, np.ndarray]:
+    def _parse_dump_file(self, file_path: Path) -> dict[int, np.ndarray]:
         """Parses a LAMMPS dump file and returns a dictionary mapping timestep to data."""
-        timesteps: Dict[int, np.ndarray] = {}
+        timesteps: dict[int, np.ndarray] = {}
         if not file_path.exists():
             return timesteps
 
@@ -293,9 +288,7 @@ class LammpsRunner:
                 i += 1
         return timesteps
 
-    def _find_first_uncertain_frame(
-        self, working_dir: Path
-    ) -> Optional[Tuple[int, int]]:
+    def _find_first_uncertain_frame(self, working_dir: Path) -> tuple[int, int] | None:
         """Parses LAMMPS output for the first frame exceeding the uncertainty threshold."""
         uncertainty_data = self._parse_dump_file(working_dir / "uncertainty.dump")
 
@@ -324,10 +317,10 @@ class LammpsRunner:
 
     def _find_atom_id_in_frame(
         self,
-        traj_lines: List[str],
+        traj_lines: list[str],
         timestep: int,
         atom_index: int,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Finds the ID of a specific atom in a specific frame of a trajectory."""
         for i, line in enumerate(traj_lines):
             if "ITEM: TIMESTEP" in line and int(traj_lines[i + 1]) == timestep:

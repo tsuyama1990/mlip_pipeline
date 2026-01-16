@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase.build import bulk
 from ase.db import connect
+from mlip_autopipec.config.models import TrainingConfig
 
-from mlip_autopipec.config.training import TrainingConfig
 from mlip_autopipec.modules.training import (
     NoTrainingDataError,
     PacemakerTrainer,

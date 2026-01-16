@@ -4,23 +4,40 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from mlip_autopipec.config.pacemaker_config import PacemakerConfig
-from mlip_autopipec.config_schemas import SystemConfig
+from mlip_autopipec.config.models import PacemakerConfig, SystemConfig
 from mlip_autopipec.modules.config_generator import PacemakerConfigGenerator
 
 
 @pytest.fixture
-def test_system_config() -> SystemConfig:
+def test_system_config(tmp_path: Path) -> SystemConfig:
     """Provide a default SystemConfig for testing."""
-    dft_config = {"executable": {}, "input": {"pseudopotentials": {"Ni": "ni.upf"}}}
-    target_system = {"elements": ["Ni"], "composition": {"Ni": 1.0}}
-    config = SystemConfig(
-        target_system=target_system, dft=dft_config, db_path="config_generator_test.db"
-    )
-    config.trainer.loss_weights.energy = 2.0
-    config.trainer.ace_params.correlation_order = 4
-    return config
+    user_config_dict = {
+        "project_name": "test_project",
+        "target_system": {
+            "elements": ["Ni"],
+            "composition": {"Ni": 1.0},
+            "crystal_structure": "fcc",
+        },
+        "simulation_goal": {"type": "melt_quench"},
+    }
+    from mlip_autopipec.config.models import UserInputConfig
+    from mlip_autopipec.config.factory import ConfigFactory
+
+    user_config = UserInputConfig.model_validate(user_config_dict)
+    system_config = ConfigFactory.from_user_input(user_config)
+
+    # We need to create some dummy files for the paths
+    (tmp_path / "pacemaker").touch()
+    (tmp_path / "lammps").touch()
+    (tmp_path / "template.in").touch()
+    (tmp_path / "potential.yace").touch()
+
+    system_config.training_config.pacemaker_executable = tmp_path / "pacemaker"
+    system_config.training_config.template_file = tmp_path / "template.in"
+    system_config.inference_config.lammps_executable = tmp_path / "lammps"
+    system_config.inference_config.potential_path = tmp_path / "potential.yace"
+
+    return system_config
 
 
 def test_generate_pacemaker_config(test_system_config: SystemConfig, tmp_path: Path) -> None:
@@ -40,7 +57,8 @@ def test_generate_pacemaker_config(test_system_config: SystemConfig, tmp_path: P
     # Verify that the generated config matches the SystemConfig
     fit_params = parsed_config.fit_params
     assert fit_params.dataset_filename == str(dummy_data_path)
-    assert fit_params.loss_weights.energy == test_system_config.trainer.loss_weights.energy
+    assert fit_params.loss_weights.energy == test_system_config.training_config.loss_weights.energy
     assert (
-        fit_params.ace.correlation_order == test_system_config.trainer.ace_params.correlation_order
+        fit_params.ace.correlation_order
+        == test_system_config.training_config.ace_params.correlation_order
     )

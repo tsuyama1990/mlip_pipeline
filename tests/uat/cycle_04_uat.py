@@ -1,6 +1,7 @@
 """
 UAT Test for the LammpsRunner module.
 """
+
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -61,9 +62,7 @@ def main(mocker: MagicMock) -> None:
 
         # THEN an uncertain structure is returned
         assert result is not None, "An uncertain structure should be detected."
-        assert (
-            result.metadata["uncertain_timestep"] == 10
-        ), "Incorrect timestep for uncertainty."
+        assert result.metadata["uncertain_timestep"] == 10, "Incorrect timestep for uncertainty."
 
 
 if __name__ == "__main__":

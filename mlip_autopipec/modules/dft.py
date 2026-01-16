@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ase.atoms import Atoms
-from ase.calculators.espresso import Espresso, EspressoProfile
+from ase.calculators.espresso import EspressoProfile
 from ase.io import read as ase_read
 
 from mlip_autopipec.config.models import (
@@ -23,6 +23,11 @@ from mlip_autopipec.config.models import (
     SmearingConfig,
 )
 from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.utils.resilience import QERetryHandler
+from .dft_handlers.input_generator import QEInputGenerator
+from .dft_handlers.process_runner import QEProcessRunner
+from .dft_handlers.output_parser import QEOutputParser
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -34,176 +39,32 @@ SSSP_DATA_PATH = DATA_DIR / "sssp_p_data.json"
 MAGNETIC_ELEMENTS = {"Fe", "Co", "Ni", "Cr", "Mn"}
 
 
-class QEInputGenerator:
+class DFTJobFactory:
     """
-    A component responsible for creating the input files for a Quantum Espresso
-    calculation.
+    Creates `DFTJob` objects with heuristic-driven parameters.
 
-    This class encapsulates all the logic for selecting appropriate DFT
-    parameters (e.g., cutoffs, k-points, pseudopotentials) based on the input
-    atomic structure. It uses a set of heuristics and data from the SSSP
-    pseudopotential library to generate a `DFTInputParameters` model, which is
-    then used to write the final `espresso.pwi` file.
+    This class is responsible for taking a raw `ase.Atoms` object and
+    determining a sensible set of DFT parameters for it based on a set of
+    pre-defined heuristics (e.g., k-point density, cutoffs from SSSP).
+    Its sole purpose is to create a validated `DFTJob` that can be
+    executed by a `DFTRunner`.
     """
-
-    def __init__(self, profile: EspressoProfile, pseudopotentials_path: Path | None) -> None:
-        self.profile = profile
-        self.pseudopotentials_path = pseudopotentials_path
-
-    def prepare_input_files(self, work_dir: Path, atoms: Atoms, params: DFTInputParameters) -> None:
-        input_data = self._build_input_data(work_dir, params)
-        calculator = Espresso(
-            profile=self.profile,
-            directory=str(work_dir),
-            kpts=params.k_points,
-            pseudopotentials=params.pseudopotentials,
-            input_data=input_data,
-        )
-        calculator.write_inputfiles(atoms, properties=["energy", "forces", "stress"])
-
-    def _build_input_data(self, work_dir: Path, params: DFTInputParameters) -> dict:
-        input_data = {
-            "control": {
-                "calculation": params.calculation_type,
-                "pseudo_dir": str(self.pseudopotentials_path)
-                if self.pseudopotentials_path
-                else ".",
-                "outdir": str(work_dir),
-            },
-            "system": {
-                "ecutwfc": params.cutoffs.wavefunction,
-                "ecutrho": params.cutoffs.density,
-            },
-            "electrons": {
-                "mixing_beta": params.mixing_beta,
-                "diagonalization": params.diagonalization,
-            },
-        }
-        if params.smearing:
-            input_data["system"].update(
-                {
-                    "occupations": "smearing",
-                    "smearing": params.smearing.smearing_type,
-                    "degauss": params.smearing.degauss,
-                }
-            )
-        if params.magnetism:
-            input_data["system"]["nspin"] = params.magnetism.nspin
-            for el, mom in params.magnetism.starting_magnetization.items():
-                input_data["system"][f"starting_magnetization({el})"] = mom
-        return input_data
-
-
-class QEProcessRunner:
-    """
-    A component responsible for executing a Quantum Espresso calculation in a
-    secure subprocess.
-
-    This class takes the path to a prepared input file and an output file. It
-    uses the `ase.calculators.espresso.EspressoProfile` to construct the
-    correct command for running `pw.x` and executes it in a sandboxed
-    environment. It also handles logging of stdout/stderr and raises
-    exceptions for common failures, such as the executable not being found or
-    the calculation failing.
-    """
-
-    def __init__(self, profile: EspressoProfile) -> None:
-        self.profile = profile
-
-    def execute(self, input_path: Path, output_path: Path) -> None:
-        command = self.profile.get_command(inputfile=str(input_path))
-        try:
-            with input_path.open() as stdin_f, output_path.open("w") as stdout_f:
-                process = subprocess.run(
-                    command,
-                    shell=False,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    stdin=stdin_f,
-                )
-                stdout_f.write(process.stdout)
-        except FileNotFoundError as e:
-            logger.error(f"QE executable not found. Details: {e}")
-            raise
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "QE subprocess failed.\\n"
-                f"  Exit Code: {e.returncode}\\n"
-                f"  Stdout: {e.stdout}\\n"
-                f"  Stderr: {e.stderr}"
-            )
-            raise
-
-
-class QEOutputParser:
-    """
-    A component responsible for parsing the output of a Quantum Espresso
-    calculation and converting it into a structured `DFTResult` object.
-
-    This class uses `ase.io.read` with the `espresso-out` format to extract the
-    final energy, forces, and stress from the output file. It then validates
-    this data and packages it into a Pydantic model, ensuring that downstream
-    components receive a consistent and validated data structure.
-    """
-
-    def __init__(self, reader: Any = ase_read) -> None:
-        self.reader = reader
-
-    def parse(self, output_path: Path, job_id: Any) -> DFTResult:
-        """Parses the output file of a successful QE run."""
-        try:
-            result_atoms = self.reader(output_path, format="espresso-out")
-            energy = result_atoms.get_potential_energy()
-            forces = result_atoms.get_forces()
-            stress = result_atoms.get_stress()
-
-            return DFTResult(
-                job_id=job_id,
-                energy=energy,
-                forces=forces,
-                stress=stress,
-            )
-        except (OSError, IndexError) as e:
-            msg = f"Failed to parse QE output file: {output_path}"
-            raise DFTCalculationError(msg) from e
-
-
-class QERetryHandler:
-    """Handles convergence errors in Quantum Espresso calculations."""
-
-    def handle_convergence_error(
-        self,
-        log_content: str,
-        current_params: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Diagnoses a convergence error and suggests modified parameters."""
-        new_params = current_params.copy()
-        if "convergence NOT achieved" in log_content:
-            current_beta = new_params.get("mixing_beta", 0.7)
-            new_beta = round(current_beta * 0.5, 2)
-            if new_beta > 0.01:
-                new_params["mixing_beta"] = new_beta
-                logger.info(f"Convergence failed. Reducing mixing_beta to {new_beta}")
-                return new_params
-
-        if "Cholesky" in log_content:
-            if new_params.get("diagonalization") != "cg":
-                new_params["diagonalization"] = "cg"
-                logger.info("Cholesky error detected. Switching to 'cg' diagonalization.")
-                return new_params
-
-        return None
-
-
-class DFTFactory:
-    """A factory for creating `DFTJob` objects with heuristic parameters."""
 
     def __init__(self) -> None:
         self._sssp_data = self._load_sssp_data()
 
     def create_job(self, atoms: Atoms) -> DFTJob:
-        """Creates a DFTJob with heuristic parameters."""
+        """
+        Creates a DFTJob with heuristic parameters for a given atomic structure.
+
+        Args:
+            atoms: An `ase.Atoms` object representing the structure to be
+                   calculated.
+
+        Returns:
+            A `DFTJob` object containing the atoms and the generated DFT
+            parameters, ready for execution.
+        """
         params = self._get_heuristic_parameters(atoms)
         return DFTJob(atoms=atoms, params=params)
 
@@ -279,12 +140,28 @@ class DFTFactory:
     def _get_pseudopotentials(self, elements: set) -> dict[str, str]:
         """
         Retrieves the pseudopotential filenames for the given elements.
+
+        Args:
+            elements: A set of chemical symbols.
+
+        Returns:
+            A dictionary mapping chemical symbols to their corresponding
+            pseudopotential filenames.
         """
         return {el: self._sssp_data[el]["filename"] for el in elements if el in self._sssp_data}
 
 
 class DFTRunner:
-    """Orchestrates DFT calculations using a dependency-injected workflow."""
+    """
+    Executes and manages a `DFTJob`.
+
+    This class is responsible for the practical execution of a DFT calculation.
+    It takes a `DFTJob` object, which contains the atomic structure and all
+    necessary parameters, and orchestrates the process of running the external
+    DFT code. This includes generating input files, running the calculation in a
+    subprocess, parsing the output, and handling retries for convergence
+    errors. It is designed to be a stateful, single-job runner.
+    """
 
     def __init__(
         self,
@@ -294,6 +171,17 @@ class DFTRunner:
         retry_handler: QERetryHandler,
         max_retries: int = 3,
     ) -> None:
+        """
+        Initializes the DFTRunner.
+
+        Args:
+            input_generator: A component for generating QE input files.
+            process_runner: A component for running the QE executable.
+            output_parser: A component for parsing QE output files.
+            retry_handler: A component for handling convergence errors.
+            max_retries: The maximum number of times to retry a failed
+                         calculation.
+        """
         self.input_generator = input_generator
         self.process_runner = process_runner
         self.output_parser = output_parser
@@ -314,13 +202,23 @@ class DFTRunner:
                     logger.info(f"DFT job {job.job_id} succeeded on attempt {attempt + 1}.")
                     return result
             except (subprocess.CalledProcessError, DFTCalculationError) as e:
-                logger.warning(f"DFT job {job.job_id} failed on attempt {attempt + 1}.")
-                log_content = e.stdout + "\\n" + e.stderr
+                logger.exception(
+                    f"DFT job {job.job_id} failed on attempt {attempt + 1}.",
+                    extra={
+                        "job_id": job.job_id,
+                        "attempt": attempt + 1,
+                        "stdout": e.stdout if hasattr(e, "stdout") else "",
+                        "stderr": e.stderr if hasattr(e, "stderr") else "",
+                    },
+                )
+                log_content = e.stdout + "\\n" + e.stderr if hasattr(e, "stdout") else ""
                 new_params = self.retry_handler.handle_convergence_error(
                     log_content, job.params.model_dump()
                 )
                 if new_params and attempt < self.max_retries - 1:
-                    job.params = job.params.model_copy(update=new_params)
+                    updated_params = job.params.model_dump()
+                    updated_params.update(new_params)
+                    job.params = DFTInputParameters.model_validate(updated_params)
                     logger.info("Retrying with modified parameters...")
                 else:
                     raise DFTCalculationError(

@@ -10,11 +10,13 @@ other components of the application.
 """
 
 from pathlib import Path
+from typing import Any
 
 # Note: Using `Any` for ase.Atoms is a pragmatic choice, consistent with
 # the Pydantic models, as it is a complex object.
 from typing import Any as AtomsObject
 
+import numpy as np
 from ase.db import connect
 from ase.db.row import AtomsRow
 
@@ -25,29 +27,30 @@ def save_dft_result(
     db_path: Path,
     atoms: AtomsObject,
     result: DFTResult,
-    config_type: str,
+    metadata: dict[str, Any],
 ) -> None:
     """
-    Saves a DFT calculation result to the specified ASE database.
-
-    This function connects to the database, attaches the energy, forces, and
-    stress from the `DFTResult` object to the `ase.Atoms` object's `info`
-    dictionary, and then writes the a toms object to the database.
+    Saves a DFT calculation result and its metadata to the ASE database.
 
     Args:
-        db_path: The path to the ASE database file (e.g., an SQLite file).
+        db_path: Path to the ASE database file.
         atoms: The `ase.Atoms` object that was calculated.
         result: The `DFTResult` object containing the calculation output.
-        config_type: A label to categorize the structure (e.g.,
-                     'initial_training_set').
+        metadata: A dictionary of metadata, e.g., {'uuid': '...', 'config_type': '...', 'force_mask': np.array}.
     """
     with connect(db_path) as db:
-        # Attach results and metadata to the Atoms object before saving
+        # Separate metadata for info dict and arrays
+        info_metadata = metadata.copy()
+        force_mask = info_metadata.pop("force_mask", None)
+
         atoms.info["energy"] = result.energy
         atoms.info["forces"] = result.forces
         atoms.info["stress"] = result.stress
-        atoms.info["job_id"] = str(result.job_id)
-        atoms.info["config_type"] = config_type
+        atoms.info.update(info_metadata)
+
+        if force_mask is not None:
+            atoms.arrays["force_mask"] = np.array(force_mask)
+
         db.write(atoms)
 
 
