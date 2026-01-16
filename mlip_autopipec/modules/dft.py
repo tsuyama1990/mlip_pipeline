@@ -6,7 +6,6 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from ase.atoms import Atoms
 
@@ -26,6 +25,7 @@ from mlip_autopipec.utils.resilience import retry
 from .dft_handlers.input_generator import QEInputGenerator
 from .dft_handlers.output_parser import QEOutputParser
 from .dft_handlers.process_runner import QEProcessRunner
+from .dft_handlers.retry import dft_retry_handler
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -122,36 +122,6 @@ class DFTJobFactory:
         return DFTJob(atoms=atoms, params=params)
 
 
-def dft_retry_handler(exception: Exception, kwargs: dict[str, Any]) -> dict[str, Any] | None:
-    """
-    Handles specific DFT convergence errors by suggesting modified parameters.
-    This function is designed to be used as an `on_retry` callback for the
-    `@retry` decorator.
-    """
-    log_content = getattr(exception, "stdout", "") + getattr(exception, "stderr", "")
-    job = kwargs.get("job")
-    if not isinstance(job, DFTJob):
-        return None
-
-    current_params = job.params.model_copy()
-    updated_fields = {}
-
-    if "convergence NOT achieved" in log_content and current_params.mixing_beta > 0.1:
-        updated_fields["mixing_beta"] = current_params.mixing_beta / 2
-        logger.info(f"Convergence failed. Halving mixing_beta to {updated_fields['mixing_beta']}.")
-
-    if "Cholesky" in log_content and current_params.diagonalization == "david":
-        updated_fields["diagonalization"] = "cg"
-        logger.info("Cholesky issue detected. Switching diagonalization to 'cg'.")
-
-    if updated_fields:
-        new_params = current_params.model_copy(update=updated_fields)
-        job.params = new_params
-        return {"job": job}
-
-    return None
-
-
 class DFTRunner:
     """
     Executes and manages a `DFTJob`.
@@ -195,29 +165,19 @@ class DFTRunner:
                 result = self.output_parser.parse(output_path, job.job_id)
                 logger.info(f"DFT job {job.job_id} succeeded.")
                 return result
-        except (subprocess.CalledProcessError, DFTCalculationError) as e:
-            logger.exception(
-                f"DFT job {job.job_id} failed.",
-                extra={
-                    "job_id": job.job_id,
-                    "stdout": getattr(e, "stdout", ""),
-                    "stderr": getattr(e, "stderr", ""),
-                },
-            )
-            # Re-raise explicit DFTCalculationError if possible, or just propagate.
-            # The feedback specifically mentioned managing exceptions better.
-            # The current code re-raises `e`. If `e` is CalledProcessError, it might not be informative enough.
-            # QEProcessRunner already wraps CalledProcessError in DFTCalculationError.
-            # So if we catch DFTCalculationError here, we are good.
-            # If we catch CalledProcessError here, it implies QEProcessRunner failed to wrap it?
-            # QEProcessRunner uses `check=True` and `capture_output=True`, but it catches `CalledProcessError`.
-            # Wait, `QEProcessRunner` in `execute` calls `subprocess.run(..., check=True)`.
-            # If that fails, it catches `CalledProcessError` and raises `DFTCalculationError`.
-            # So `DFTRunner.run` only catches `DFTCalculationError`.
-            # The exception handling here seems OK, but maybe the Auditor wants explicit re-raising or wrapping?
-            # "The DFTRunner class catches a generic Exception and logs the error, but it does not provide any meaningful error message or propagate the exception to the caller."
-            # The provided code catches `(subprocess.CalledProcessError, DFTCalculationError)`.
-            # It logs and then `raise` (propagates).
-            # The previous code (before I just read it) might have been worse, or maybe I am misreading.
-            # I will ensure it propagates. It does `raise`.
+        except subprocess.CalledProcessError as e:
+            # Wrap subprocess errors into domain-specific error
+            logger.exception("DFT process failed.")
+            raise DFTCalculationError(
+                f"DFT job {job.job_id} failed due to subprocess error.",
+                stdout=getattr(e, "stdout", ""),
+                stderr=getattr(e, "stderr", ""),
+            ) from e
+        except DFTCalculationError:
+            # Log and re-raise domain errors
+            logger.exception(f"DFT job {job.job_id} failed calculation.")
             raise
+        except Exception as e:
+            # Catch-all for unexpected errors, wrapping them
+            logger.exception(f"DFT job {job.job_id} failed unexpectedly.")
+            raise DFTCalculationError(f"Unexpected error in DFT job {job.job_id}: {e}") from e

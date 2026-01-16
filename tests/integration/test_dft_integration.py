@@ -7,12 +7,6 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.config.models import (
-    CutoffConfig,
-    DFTConfig,
-    DFTInputParameters,
-    Pseudopotentials,
-)
 from mlip_autopipec.modules.dft import DFTHeuristics, DFTJobFactory, DFTRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"

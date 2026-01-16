@@ -133,8 +133,9 @@ def test_resubmit_pending_jobs(valid_system_config, mock_dask_client, tmp_path):
 
     # Manually create a state representing a mid-run failure
     job_id = uuid.uuid4()
+    # Mock atoms is not JSON serializable, but job_submission_args in memory can hold objects
+    # Checkpoint serialization would fail if we didn't handle it, but here we just test re-submission logic
     mock_atoms = MagicMock()
-    # Ensure args are serializable
     manager.state.pending_job_ids.append(job_id)
     manager.state.job_submission_args[job_id] = (mock_atoms,)
 
