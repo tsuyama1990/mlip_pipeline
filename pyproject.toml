@@ -38,6 +38,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "ase",
+    "dask[distributed]",
 ]
 
 [tool.setuptools]

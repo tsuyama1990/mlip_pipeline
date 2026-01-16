@@ -12,7 +12,7 @@ from mlip_autopipec.config.models import (
     DFTInputParameters,
     Pseudopotentials,
 )
-from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner
+from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner, DFTHeuristics
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -50,7 +50,8 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    dft_job_factory = DFTJobFactory()
+    heuristics = DFTHeuristics()
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act
     job = dft_job_factory.create_job(h2_atoms.copy())
@@ -102,7 +103,8 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    dft_job_factory = DFTJobFactory()
+    heuristics = DFTHeuristics()
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act & Assert
     with pytest.raises(FileNotFoundError):
@@ -139,7 +141,8 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    dft_job_factory = DFTJobFactory()
+    heuristics = DFTHeuristics()
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     mocker.patch.object(
         process_runner,

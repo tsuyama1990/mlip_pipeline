@@ -13,6 +13,7 @@ from ase.calculators.espresso import EspressoProfile
 from mlip_autopipec.config.models import DFTInputParameters, DFTJob, Pseudopotentials, CutoffConfig
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft import (
+    DFTHeuristics,
     DFTJobFactory,
     DFTRunner,
     QEInputGenerator,
@@ -166,7 +167,8 @@ def test_dft_job_factory_creates_valid_job(tmp_path):
         "mlip_autopipec.modules.dft.SSSP_DATA_PATH",
         sssp_path,
     ):
-        factory = DFTJobFactory()
+        heuristics = DFTHeuristics(sssp_data_path=sssp_path)
+        factory = DFTJobFactory(heuristics=heuristics)
         atoms = bulk("Si")
         job = factory.create_job(atoms)
         assert isinstance(job, DFTJob)
