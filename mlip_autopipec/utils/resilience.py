@@ -1,65 +1,35 @@
-"""Utilities for improving application resilience, such as retry mechanisms."""
+"""
+This module contains handlers for resilience engineering, such as retry mechanisms.
+"""
 
 import logging
-import time
-from collections.abc import Callable
-from functools import wraps
-from typing import Any, TypeVar
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=Callable[..., Any])
 
+class QERetryHandler:
+    """Handles convergence errors in Quantum Espresso calculations."""
 
-def retry(
-    max_retries: int,
-    delay_seconds: float = 1.0,
-    exceptions: tuple[type[Exception], ...] = (Exception,),
-) -> Callable[[T], T]:
-    """Retry a function call on failure.
+    def handle_convergence_error(
+        self,
+        log_content: str,
+        current_params: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Diagnoses a convergence error and suggests modified parameters."""
+        new_params = current_params.copy()
+        if "convergence NOT achieved" in log_content:
+            current_beta = new_params.get("mixing_beta", 0.7)
+            new_beta = round(current_beta * 0.5, 2)
+            if new_beta > 0.01:
+                new_params["mixing_beta"] = new_beta
+                logger.info(f"Convergence failed. Reducing mixing_beta to {new_beta}")
+                return new_params
 
-    This decorator will attempt to run the decorated function a total of
-    `max_retries + 1` times (1 initial attempt + `max_retries` retries).
+        if "Cholesky" in log_content:
+            if new_params.get("diagonalization") != "cg":
+                new_params["diagonalization"] = "cg"
+                logger.info("Cholesky error detected. Switching to 'cg' diagonalization.")
+                return new_params
 
-    Args:
-        max_retries: Maximum number of retry attempts.
-        delay_seconds: Time to wait between retries.
-        exceptions: A tuple of exception types to catch and trigger a retry.
-
-    Returns:
-        The wrapped function.
-
-    """
-
-    def decorator(func: T) -> T:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            last_exception = None
-            # The loop runs `max_retries + 1` times in total.
-            for attempt in range(max_retries + 1):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    last_exception = e
-                    if attempt < max_retries:
-                        log_msg = "Attempt %d/%d for %s failed with %s. Retrying in %.2f s..."
-                        logger.warning(
-                            log_msg,
-                            attempt + 1,
-                            max_retries + 1,
-                            func.__name__,
-                            e,
-                            delay_seconds,
-                        )
-                        time.sleep(delay_seconds)
-
-            logger.error(
-                "Function %s failed after %d retries. Giving up.",
-                func.__name__,
-                max_retries,
-            )
-            raise last_exception  # type: ignore
-
-        return wrapper  # type: ignore
-
-    return decorator
+        return None

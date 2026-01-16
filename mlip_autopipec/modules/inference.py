@@ -55,9 +55,11 @@ def extract_embedded_structure(
     new_cell = np.diag([2 * cutoff, 2 * cutoff, 2 * cutoff])
 
     # Wrap all positions relative to the center atom to handle PBC
+    positions = large_cell.positions - center_pos
     wrapped_positions = wrap_positions(
-        large_cell.positions, large_cell.cell, pbc=large_cell.pbc, center=center_pos
+        positions, large_cell.cell, pbc=large_cell.pbc
     )
+    wrapped_positions += center_pos
 
     # Find atoms within the spherical cutoff of the *unwrapped* center position
     distances = np.linalg.norm(wrapped_positions - center_pos, axis=1)
@@ -76,6 +78,7 @@ def extract_embedded_structure(
     center_of_new_cell = embedded_atoms.get_center_of_mass()
 
     # Manually calculate MIC distances to avoid ASE's quirky API
+    center_of_new_cell = embedded_atoms.get_center_of_mass()
     _, distances_from_center = find_mic(
         embedded_atoms.positions - center_of_new_cell, embedded_atoms.cell, pbc=True
     )
@@ -271,25 +274,36 @@ class LammpsRunner:
             return timesteps
 
         with file_path.open() as f:
-            lines = f.readlines()
+            content = f.read()
 
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            if "ITEM: TIMESTEP" in line:
-                current_timestep = int(lines[i + 1])
-                i += 2
-            elif "ITEM: NUMBER OF ATOMS" in line:
-                num_atoms = int(lines[i + 1])
-                i += 2
-            elif "ITEM: ATOMS" in line:
-                data_lines = lines[i + 1 : i + 1 + num_atoms]
-                if data_lines:
-                    data = np.loadtxt(data_lines)
-                    timesteps[current_timestep] = data
-                i += num_atoms + 1
-            else:
-                i += 1
+        frames = content.strip().split("ITEM: TIMESTEP")
+        for frame in frames:
+            if not frame.strip():
+                continue
+
+            lines = frame.strip().splitlines()
+            current_timestep = int(lines[0])
+
+            num_atoms_index = -1
+            for i, line in enumerate(lines):
+                if "ITEM: NUMBER OF ATOMS" in line:
+                    num_atoms_index = i
+                    break
+
+            if num_atoms_index != -1:
+                num_atoms = int(lines[num_atoms_index + 1])
+
+                atoms_index = -1
+                for i, line in enumerate(lines):
+                    if "ITEM: ATOMS" in line:
+                        atoms_index = i
+                        break
+
+                if atoms_index != -1:
+                    data_lines = lines[atoms_index + 1 : atoms_index + 1 + num_atoms]
+                    if data_lines:
+                        data = np.loadtxt(data_lines)
+                        timesteps[current_timestep] = data
         return timesteps
 
     def _find_first_uncertain_frame(

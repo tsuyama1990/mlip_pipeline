@@ -187,10 +187,18 @@ class UncertaintyMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 class UncertainStructure(BaseModel):
-    # NOTE: `object` is used here for `atoms` and `force_mask` because these fields
-    # hold complex types from external libraries (ASE and NumPy) that are not
-    # directly serializable. Type safety is enforced at runtime by the
-    # Pydantic validators below, which check for `ase.Atoms` and `np.ndarray`.
+    """
+    Data transfer object for a structure with high uncertainty.
+
+    Attributes:
+        atoms: The atomic structure flagged for high uncertainty. `object` is
+               used as the type hint because `ase.Atoms` is not directly
+               serializable. Type safety is enforced by a Pydantic validator.
+        force_mask: A NumPy array indicating which atoms' forces should be
+                    included in training. `object` is used as the type hint
+                    for compatibility, with runtime validation.
+        metadata: Additional metadata about the uncertainty event.
+    """
     atoms: object
     force_mask: object
     metadata: UncertaintyMetadata
@@ -221,6 +229,16 @@ class UncertainStructure(BaseModel):
         return v
 
 class DFTJob(BaseModel):
+    """
+    Represents a single, self-contained DFT job to be executed.
+
+    Attributes:
+        atoms: The atomic structure to be calculated. `object` is used as the
+               type hint because `ase.Atoms` is not directly serializable.
+               Type safety is enforced by a Pydantic validator.
+        params: The validated input parameters for the DFT calculation.
+        job_id: A unique identifier for this specific job.
+    """
     atoms: object
     params: DFTInputParameters
     job_id: UUID = Field(default_factory=uuid4)
