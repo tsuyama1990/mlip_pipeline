@@ -15,7 +15,7 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ase.atoms import Atoms
 from ase.calculators.espresso import Espresso, EspressoProfile
@@ -64,7 +64,7 @@ class DFTFactory:
         qe_executable_path: str,
         max_retries: int = 3,
         pseudopotentials_path: Path | None = None,
-        pseudo_dir: Optional[Path] = None,
+        pseudo_dir: Path | None = None,
     ):
         """
         Initializes the DFTFactory.

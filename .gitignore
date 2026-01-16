@@ -21,3 +21,6 @@ env/
 # IDEs
 .idea/
 .vscode/
+
+# Artifacts
+*.model

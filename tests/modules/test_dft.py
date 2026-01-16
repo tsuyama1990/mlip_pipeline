@@ -1,4 +1,3 @@
-# ruff: noqa: N999
 # FIXME: The above comment is a temporary workaround for a ruff bug.
 # It should be removed once the bug is fixed.
 # For more information, see: https://github.com/astral-sh/ruff/issues/10515

@@ -1,4 +1,3 @@
-# ruff: noqa: N999
 # FIXME: The above comment is a temporary workaround for a ruff bug.
 # It should be removed once the bug is fixed.
 # For more information, see: https://github.com/astral-sh/ruff/issues/10515
@@ -42,7 +41,7 @@ def run_uat_scenario(scenario_id: str, description: str):
                 func(*args, **kwargs)
                 logging.info(f"--- PASSED: {scenario_id} ---")
             except Exception as e:
-                logging.error(f"--- FAILED: {scenario_id} ---")
+                logging.exception(f"--- FAILED: {scenario_id} ---")
                 logging.error(f"Reason: {e}", exc_info=True)
                 raise
 

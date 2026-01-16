@@ -32,6 +32,26 @@ class CutoffConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class FingerprintConfig(BaseModel):
+    """Configuration for generating structural fingerprints."""
+
+    type: Literal["soap"] = "soap"
+    soap_rcut: float = Field(5.0, gt=0)
+    soap_nmax: int = Field(8, gt=0)
+    soap_lmax: int = Field(6, gt=0)
+    species: list[str] = Field(..., min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+
+class ExplorerConfig(BaseModel):
+    """Configuration for the SurrogateExplorer."""
+
+    surrogate_model_path: str  # Pydantic's FilePath is too strict for remote paths
+    max_force_threshold: float = Field(10.0, gt=0)
+    fingerprint: FingerprintConfig
+    model_config = ConfigDict(extra="forbid")
+
+
 class SmearingConfig(BaseModel):
     """Configuration for metallic smearing."""
 
