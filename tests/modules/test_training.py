@@ -1,20 +1,16 @@
 """Unit and integration tests for the PacemakerTrainer module."""
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import numpy as np
 from ase.build import bulk
 from ase.db import connect
-from pydantic import ValidationError
 
 from mlip_autopipec.config.training import TrainingConfig
 from mlip_autopipec.modules.training import (
-    PacemakerTrainer,
-    TrainingFailedError,
     NoTrainingDataError,
+    PacemakerTrainer,
 )
 
 
@@ -43,7 +39,13 @@ def mock_ase_db(mock_training_config: TrainingConfig) -> Path:
     with connect(db_path) as db:
         for i in range(5):
             atoms = bulk("Si", "diamond", a=5.43 + i * 0.1)
-            db.write(atoms, data={"energy": -4.0 * len(atoms), "forces": (-0.1 * atoms.get_positions()).tolist()})
+            db.write(
+                atoms,
+                data={
+                    "energy": -4.0 * len(atoms),
+                    "forces": (-0.1 * atoms.get_positions()).tolist(),
+                },
+            )
     return db_path
 
 
@@ -53,9 +55,7 @@ def test_pacemaker_trainer_initialization(mock_training_config: TrainingConfig):
     assert trainer.config == mock_training_config
 
 
-def test_read_data_from_db(
-    mock_training_config: TrainingConfig, mock_ase_db: Path
-):
+def test_read_data_from_db(mock_training_config: TrainingConfig, mock_ase_db: Path):
     """Test that the trainer can correctly read data from the ASE database."""
     trainer = PacemakerTrainer(training_config=mock_training_config)
     atoms_list = trainer._read_data_from_db()

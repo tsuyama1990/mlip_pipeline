@@ -4,7 +4,6 @@ pre-screening and selection of atomic structures before they are sent for
 expensive DFT calculations.
 """
 
-
 import numpy as np
 import torch
 from ase import Atoms
@@ -39,9 +38,7 @@ class SurrogateExplorer:
     def __init__(self, config: ExplorerConfig):
         self.config = config
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.mace_model = mace_mp(
-            model=self.config.surrogate_model_path, device=self.device
-        )
+        self.mace_model = mace_mp(model=self.config.surrogate_model_path, device=self.device)
         self.fingerprint_generator = self._init_fingerprint_generator()
 
     def _init_fingerprint_generator(self):

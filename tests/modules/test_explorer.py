@@ -16,8 +16,10 @@ from mlip_autopipec.modules.screening import SurrogateModelScreener
 def mock_explorer_config() -> ExplorerParams:
     """Fixture for creating a mock ExplorerParams object."""
     return ExplorerParams(
-        surrogate_model=SurrogateModelParams(model_path="test_model.pt", energy_threshold_ev=-100.0),
-        fps=FPSParams(num_structures_to_select=2)
+        surrogate_model=SurrogateModelParams(
+            model_path="test_model.pt", energy_threshold_ev=-100.0
+        ),
+        fps=FPSParams(num_structures_to_select=2),
     )
 
 

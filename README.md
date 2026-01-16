@@ -30,7 +30,17 @@ This cycle implements the `PacemakerTrainer`, the component responsible for cons
   - **Data Ingestion**: Automatically reads training data from the central ASE database.
   - **Dynamic Configuration**: Generates the necessary input files for the Pacemaker training code using a Jinja2 template.
   - **Secure Execution**: Invokes the Pacemaker training process in a secure, monitored subprocess.
-- **Schema-Driven Configuration**: The entire training process is configured via a strict Pydantic model, ensuring that all hyperparameters are valid before the training process is launched.
+- **Schema-Driven Configuration**: The entire training process is configured via a strict Pydantic model, a
+- ensuring that all hyperparameters are valid before the training process is launched.
+
+## Cycle 04: Active Learning with On-The-Fly Inference
+
+This cycle introduces the `LammpsRunner`, a key component for active learning. This module runs molecular dynamics (MD) simulations using the trained MLIP and detects when the model's predictions are uncertain, signaling the need for new DFT data.
+
+### Key Features:
+- **On-The-Fly Uncertainty Detection**: The `LammpsRunner` executes LAMMPS simulations and monitors the MLIP's uncertainty on-the-fly.
+- **Data Extraction for DFT**: When high uncertainty is detected, the runner extracts the specific atomic configuration and its local environment for subsequent high-fidelity DFT calculations.
+- **Periodic Embedding and Force Masking**: Implements sophisticated data extraction techniques to ensure that the data sent to the DFT factory is physically meaningful and periodic.
 
 ## Getting Started
 

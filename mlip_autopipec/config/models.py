@@ -11,9 +11,17 @@ The "Schema-First" design principle is strictly enforced here. These models
 are the single source of truth for the application's data, ensuring type
 safety, validation, and clear data contracts between different components.
 """
+from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FilePath,
+    ValidationInfo,
+    field_validator,
+)
 
 
 class CutoffConfig(BaseModel):
@@ -107,6 +115,78 @@ class DFTInputParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class MDConfig(BaseModel):
+    """Configuration for the molecular dynamics simulation."""
+
+    ensemble: Literal["nvt", "npt"] = "nvt"
+    temperature: float = Field(300.0, gt=0)
+    timestep: float = Field(1.0, gt=0)
+    run_duration: int = Field(1000, gt=0)
+    model_config = ConfigDict(extra="forbid")
+
+
+class UncertaintyConfig(BaseModel):
+    """Configuration for the active learning trigger."""
+
+    threshold: float = Field(5.0, gt=0)
+    embedding_cutoff: float = Field(8.0, gt=0)
+    masking_cutoff: float = Field(5.0, gt=0)
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("masking_cutoff")
+    @classmethod
+    def masking_must_be_less_than_embedding(cls, v: float, info: ValidationInfo) -> float:
+        """Validate that masking_cutoff is smaller than embedding_cutoff."""
+        if "embedding_cutoff" in info.data and v >= info.data["embedding_cutoff"]:
+            raise ValueError("masking_cutoff must be smaller than embedding_cutoff.")
+        return v
+
+
+class InferenceConfig(BaseModel):
+    """Top-level configuration for the LammpsRunner."""
+
+    lammps_executable: FilePath
+    potential_path: FilePath
+    md_params: MDConfig = Field(default_factory=MDConfig)
+    uncertainty_params: UncertaintyConfig = Field(default_factory=UncertaintyConfig)
+    model_config = ConfigDict(extra="forbid")
+
+
+class UncertainStructure(BaseModel):
+    """Data transfer object for a structure with high uncertainty."""
+
+    atoms: Any
+    force_mask: Any
+    metadata: dict[str, Any] = {}
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    @field_validator("atoms")
+    @classmethod
+    def validate_atoms_type(cls, v: Any) -> Any:
+        """Ensure 'atoms' is an ASE Atoms object."""
+        try:
+            from ase import Atoms
+        except ImportError as e:
+            raise ImportError("ASE is required for this model.") from e
+        if not isinstance(v, Atoms):
+            raise TypeError("Field 'atoms' must be an instance of ase.Atoms.")
+        return v
+
+    @field_validator("force_mask")
+    @classmethod
+    def validate_force_mask(cls, v: Any, info: ValidationInfo) -> Any:
+        """Ensure 'force_mask' is a NumPy array with the correct shape."""
+        try:
+            import numpy as np
+        except ImportError as e:
+            raise ImportError("NumPy is required for this model.") from e
+        if not isinstance(v, np.ndarray):
+            raise TypeError("Field 'force_mask' must be a NumPy array.")
+        if "atoms" in info.data and len(v) != len(info.data["atoms"]):
+            raise ValueError("force_mask must have the same length as the number of atoms.")
+        return v
+
+
 class DFTJob(BaseModel):
     """
     Represents a single, self-contained DFT job to be executed.
@@ -114,6 +194,7 @@ class DFTJob(BaseModel):
     This model bundles the atomic structure (`ase.Atoms`) with its
     corresponding validated input parameters.
     """
+
     atoms: object  # Using `object` to prevent circular imports with `ase.Atoms`
     params: DFTInputParameters
     job_id: UUID = Field(default_factory=uuid4)
@@ -124,9 +205,7 @@ class DFTJob(BaseModel):
         try:
             from ase import Atoms
         except ImportError as e:
-            raise ImportError(
-                "ASE is not installed. Please install it to use this feature."
-            ) from e
+            raise ImportError("ASE is not installed. Please install it to use this feature.") from e
 
         if not isinstance(v, Atoms):
             raise TypeError("The 'atoms' field must be an instance of ase.Atoms.")

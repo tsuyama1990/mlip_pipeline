@@ -12,8 +12,8 @@ from mlip_autopipec.modules.dft import (
     DFTFactory,
     QEInputGenerator,
     QEOutputParser,
-    QERetryHandler,
     QEProcessRunner,
+    QERetryHandler,
 )
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
@@ -33,12 +33,8 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
-    profile = EspressoProfile(
-        command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir
-    )
-    input_generator = QEInputGenerator(
-        profile=profile, pseudopotentials_path=pseudo_dir
-    )
+    profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
+    input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
     retry_handler = QERetryHandler()
@@ -77,9 +73,7 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
 
     non_existent_command = "/path/to/non/existent/pw.x"
     profile = EspressoProfile(command=non_existent_command, pseudo_dir=pseudo_dir)
-    input_generator = QEInputGenerator(
-        profile=profile, pseudopotentials_path=pseudo_dir
-    )
+    input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
     retry_handler = QERetryHandler()

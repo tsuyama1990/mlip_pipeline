@@ -1,123 +1,202 @@
-"""Unit tests for the LAMMPS runner and uncertainty quantification modules."""
+"""
+Unit and integration tests for the `LammpsRunner` and the embedding logic
+in `mlip_autopipec.modules.inference`.
+"""
+
+from pathlib import Path
 
 import numpy as np
 import pytest
-from ase import Atoms
 from ase.build import bulk
+from ase.geometry import find_mic
+from pytest_mock import MockerFixture
 
-from mlip_autopipec.config_schemas import SystemConfig
-from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
+from mlip_autopipec.config.models import (
+    InferenceConfig,
+    MDConfig,
+    UncertainStructure,
+    UncertaintyConfig,
+)
+from mlip_autopipec.modules.inference import LammpsRunner, extract_embedded_structure
 
 
 @pytest.fixture
-def mock_system_config(tmp_path) -> SystemConfig:
-    """Fixture for a mock SystemConfig object."""
-    # In a real scenario, this would be loaded from a file or user input
-    config_dict = {
-        "target_system": {"elements": ["Cu"], "composition": {"Cu": 1.0}},
-        "dft": {
-            "executable": {},
-            "input": {"pseudopotentials": {"Cu": "cu.upf"}},
-            "retry_strategy": {"max_retries": 1, "parameter_adjustments": []},
-        },
-        "inference": {
-            "simulation_timestep_fs": 1.0,
-            "total_simulation_steps": 100,
-            "uncertainty_threshold": 4.0,
-            "embedding_rcut": 6.0,
-            "embedding_delta_buffer": 1.0,
-        },
-    }
-    return SystemConfig(**config_dict)
-
-
-def test_uncertainty_quantifier_cycles_through_sequence() -> None:
-    """Test that the mock quantifier cycles through its predefined sequence."""
-    quantifier = UncertaintyQuantifier()
-    atoms = Atoms("H")
-    # The sequence is [1.0, 1.5, 2.0, 4.5, 2.5]
-    assert quantifier.get_extrapolation_grade(atoms) == 1.0
-    assert quantifier.get_extrapolation_grade(atoms) == 1.5
-    assert quantifier.get_extrapolation_grade(atoms) == 2.0
-    assert quantifier.get_extrapolation_grade(atoms) == 4.5
-    assert quantifier.get_extrapolation_grade(atoms) == 2.5
-    # Check that it wraps around
-    assert quantifier.get_extrapolation_grade(atoms) == 1.0
-
-
-def test_lammps_runner_initialization(mock_system_config: SystemConfig) -> None:
-    """Test that the LammpsRunner can be initialized."""
-    runner = LammpsRunner(
-        config=mock_system_config,
-        potential_path="test.yace",
-        quantifier=UncertaintyQuantifier(),
+def lammps_config(tmp_path: Path) -> InferenceConfig:
+    """Provides a default InferenceConfig for testing."""
+    # The potential path must be parsable by the implementation to get symbols
+    potential_path = tmp_path / "model-Si_-2024-01-01.yace"
+    potential_path.touch()
+    # Create a dummy executable to satisfy Pydantic's FilePath validation
+    lammps_exe = tmp_path / "lammps"
+    lammps_exe.touch()
+    return InferenceConfig(
+        lammps_executable=lammps_exe,
+        potential_path=potential_path,
+        md_params=MDConfig(run_duration=10),
+        uncertainty_params=UncertaintyConfig(
+            threshold=2.5, embedding_cutoff=8.0, masking_cutoff=4.0
+        ),
     )
-    assert runner.config == mock_system_config
 
 
-def test_runner_yields_embedded_atoms_and_mask_on_uncertainty(
-    mock_system_config: SystemConfig,
+def test_embedding_wraps_atoms_correctly() -> None:
+    """
+    Tests the periodic embedding logic.
+
+    It creates a large supercell and selects an atom near a periodic
+    boundary. It then asserts that the extracted smaller cell correctly
+    "wraps" atoms from the other side of the large cell, preserving the
+    periodic environment.
+    """
+    large_cell = bulk("Si", "diamond", a=5.43, cubic=True) * (4, 4, 4)
+    center_atom_index = 0  # An atom at the corner
+    config = UncertaintyConfig(embedding_cutoff=6.0, masking_cutoff=4.0)
+
+    # Manually find an atom that *should* be wrapped into the embedded cell
+    # Atom 0 is at [0, 0, 0]. The cell vector is ~21.72 along x.
+    # An atom at the far side of the box would be at ~21.72.
+    # The wrap_positions function will bring it close to 0.
+    # Let's find an atom near the far x-boundary by finding the max x-coordinate
+    far_atom_index = np.argmax(large_cell.positions[:, 0])
+
+    # Execute the embedding
+    result = extract_embedded_structure(large_cell, center_atom_index, config)
+    embedded_atoms = result.atoms
+
+    # Assertion 1: A wrapped atom is now present in the new cell at a close position
+    original_far_pos = large_cell.positions[far_atom_index]
+
+    # Find the position of the 'far_atom' if it were in the embedded cell's coordinates
+    # This involves finding the minimum image of the vector from the center atom to the far atom
+    find_mic(
+        original_far_pos - large_cell.positions[center_atom_index],
+        large_cell.cell,
+        pbc=True,
+    )
+
+    # Assertion 1: The number of atoms in the embedded cell should be greater
+    # than a simple cutoff, proving that atoms were wrapped.
+    distances_from_center = np.linalg.norm(
+        large_cell.positions - large_cell.positions[center_atom_index], axis=1
+    )
+    n_atoms_in_simple_cutoff = np.sum(distances_from_center < config.embedding_cutoff)
+    assert len(embedded_atoms) > n_atoms_in_simple_cutoff
+
+    # Assertion 2: The new cell is periodic
+    assert np.all(embedded_atoms.pbc), "The new cell should be periodic."
+
+
+def test_force_mask_is_correct() -> None:
+    """
+    Tests that the force mask correctly identifies core and buffer atoms.
+    """
+    atoms = bulk("Si", "diamond", a=5.43, cubic=True) * (2, 2, 2)
+    center_atom_index = 0
+    config = UncertaintyConfig(embedding_cutoff=6.0, masking_cutoff=4.0)
+
+    result = extract_embedded_structure(atoms, center_atom_index, config)
+    embedded_atoms = result.atoms
+    force_mask = result.force_mask
+
+    # Assertion 1: Mask has the correct shape
+    assert len(force_mask) == len(embedded_atoms)
+
+    # Assertion 2: Check core and buffer atoms
+    center_point = embedded_atoms.get_center_of_mass()
+    _, distances = find_mic(
+        embedded_atoms.positions - center_point, embedded_atoms.cell, pbc=True
+    )
+
+    for i, dist in enumerate(distances):
+        if dist < config.masking_cutoff:
+            assert force_mask[i] == 1, f"Atom {i} should be a core atom but is not."
+        else:
+            assert force_mask[i] == 0, f"Atom {i} should be a buffer atom but is not."
+
+    # Assertion 3: There are both core and buffer atoms
+    assert 1 in force_mask, "There should be at least one core atom."
+    assert 0 in force_mask, "There should be at least one buffer atom."
+
+
+def test_lammps_script_generation(
+    lammps_config: InferenceConfig, tmp_path: Path
 ) -> None:
-    """Verify the runner yields the embedded sub-cell and mask correctly."""
-    quantifier = UncertaintyQuantifier()
-    quantifier._mock_sequence = [1.0, 4.5]  # The second grade is above the threshold
-    runner = LammpsRunner(
-        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
+    """
+    Tests that the generated LAMMPS script contains the correct parameters
+    from the InferenceConfig.
+    """
+    runner = LammpsRunner(inference_config=lammps_config)
+    structure_file = tmp_path / "structure.data"
+    structure_file.touch()
+    potential_file = lammps_config.potential_path
+    atoms = bulk("Si")
+
+    # Method under test
+    script_path = runner._prepare_lammps_input(
+        atoms, tmp_path, structure_file, potential_file
     )
-    generator = runner.run()
 
-    # The generator should yield on the second step and then terminate
-    embedded_atoms, force_mask = next(generator)
+    script_content = script_path.read_text()
 
-    # Verify the output types
-    assert isinstance(embedded_atoms, Atoms)
-    assert isinstance(force_mask, np.ndarray)
-
-    # Verify the sub-cell properties
-    assert all(embedded_atoms.get_pbc())
-    expected_size = 2 * (
-        mock_system_config.inference.embedding_rcut
-        + mock_system_config.inference.embedding_delta_buffer
-    )
-    assert np.allclose(embedded_atoms.get_cell().lengths(), [expected_size] * 3)
-
-    # Verify the force mask shape and content
-    assert force_mask.shape == (len(embedded_atoms), 3)
-    assert np.all(np.isin(force_mask, [0.0, 1.0]))
+    # Assertions to check if config values are correctly written into the script
+    assert f"pair_coeff      * * {potential_file.name} Si" in script_content
+    assert (
+        f"fix             1 all nvt temp {lammps_config.md_params.temperature} "
+        f"{lammps_config.md_params.temperature} 0.1"
+    ) in script_content
+    assert f"timestep        {lammps_config.md_params.timestep}" in script_content
+    assert "compute         uncert all pace/extrapol" in script_content
+    assert f"run             {lammps_config.md_params.run_duration}" in script_content
 
 
-def test_periodic_embedding_logic(mock_system_config: SystemConfig) -> None:
-    """Test the _extract_periodic_subcell method with a corner case."""
-    runner = LammpsRunner(
-        config=mock_system_config,
-        potential_path="test.yace",
-        quantifier=UncertaintyQuantifier(),
-    )
-    # Create a large cell to test periodic wrapping
-    large_atoms = bulk("Cu", "fcc", a=3.6) * (5, 5, 5)
-    # Choose a corner atom as the uncertain one
-    uncertain_atom_index = 0
-    subcell = runner._extract_periodic_subcell(
-        atoms=large_atoms,
-        uncertain_atom_index=uncertain_atom_index,
-        rcut=6.0,
-        delta_buffer=1.0,
-    )
-    # Check that the sub-cell is not empty and has periodic boundary conditions
-    assert len(subcell) > 1
-    assert all(subcell.get_pbc())
+@pytest.mark.integration
+def test_end_to_end_uncertainty_detection(
+    lammps_config: InferenceConfig, tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """
+    Tests the full LammpsRunner.run workflow.
+    """
+    # --- Setup Mocks ---
+    mock_run = mocker.patch("subprocess.run")
 
+    def side_effect_subprocess_run(*args, **kwargs):
+        working_dir = Path(kwargs["cwd"])
+        # Create a fake trajectory file
+        traj_file = working_dir / "dump.custom"
+        with traj_file.open("w") as f:
+            # Frame at timestep 0
+            f.write("ITEM: TIMESTEP\n0\n")
+            f.write("ITEM: NUMBER OF ATOMS\n2\n")
+            f.write("ITEM: BOX BOUNDS pp pp pp\n0 10\n0 10\n0 10\n")
+            f.write("ITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.0 1.0 1.0\n")
+            # Frame at timestep 10 (the uncertain one)
+            f.write("ITEM: TIMESTEP\n10\n")
+            f.write("ITEM: NUMBER OF ATOMS\n2\n")
+            f.write("ITEM: BOX BOUNDS pp pp pp\n0 10\n0 10\n0 10\n")
+            f.write("ITEM: ATOMS id type x y z\n1 1 1.0 1.0 1.0\n2 1 2.0 2.0 2.0\n")
 
-def test_force_mask_generation(mock_system_config: SystemConfig) -> None:
-    """Test the _generate_force_mask method."""
-    runner = LammpsRunner(
-        config=mock_system_config,
-        potential_path="test.yace",
-        quantifier=UncertaintyQuantifier(),
-    )
-    # Create a test sub-cell
-    subcell = Atoms("Cu2", positions=[[0, 0, 0], [1, 1, 1]], cell=[10, 10, 10], pbc=True)
-    mask = runner._generate_force_mask(subcell, rcut=0.5)
-    # The first atom should be masked (weight 0), the second should not (weight 1)
-    assert np.allclose(mask[0], [0.0, 0.0, 0.0])
-    assert np.allclose(mask[1], [0.0, 0.0, 0.0])
+        # Create a fake uncertainty file
+        uncert_file = working_dir / "uncertainty.dump"
+        with uncert_file.open("w") as f:
+            f.write("ITEM: TIMESTEP\n0\n")
+            f.write("ITEM: NUMBER OF ATOMS\n2\n")
+            f.write("ITEM: ATOMS c_uncert[1]\n0.5\n1.0\n")
+            f.write("ITEM: TIMESTEP\n10\n")
+            f.write("ITEM: NUMBER OF ATOMS\n2\n")
+            f.write("ITEM: ATOMS c_uncert[1]\n0.8\n3.0\n")
+        return mocker.Mock(returncode=0)
+
+    mock_run.side_effect = side_effect_subprocess_run
+    runner = LammpsRunner(inference_config=lammps_config)
+
+    # --- Execute the Method Under Test ---
+    initial_structure = bulk("Si") * (2, 1, 1)
+    result = runner.run(initial_structure)
+
+    # --- Assertions ---
+    mock_run.assert_called_once()
+    assert result is not None
+    assert isinstance(result, UncertainStructure)
+    assert len(result.atoms) < len(initial_structure)
+    assert result.metadata["uncertain_timestep"] == 10
+    assert result.metadata["uncertain_atom_index_in_original_cell"] is not None

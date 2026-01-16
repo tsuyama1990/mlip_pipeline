@@ -41,9 +41,7 @@ class QEInputGenerator:
         self.profile = profile
         self.pseudopotentials_path = pseudopotentials_path
 
-    def prepare_input_files(
-        self, work_dir: Path, atoms: Atoms, params: DFTInputParameters
-    ) -> None:
+    def prepare_input_files(self, work_dir: Path, atoms: Atoms, params: DFTInputParameters) -> None:
         input_data = self._build_input_data(work_dir, params)
         calculator = Espresso(
             profile=self.profile,
@@ -192,9 +190,7 @@ class DFTFactory:
                     work_dir = Path(temp_dir)
                     input_path = work_dir / "espresso.pwi"
                     output_path = work_dir / "espresso.pwo"
-                    self.input_generator.prepare_input_files(
-                        work_dir, job.atoms, job.params
-                    )
+                    self.input_generator.prepare_input_files(work_dir, job.atoms, job.params)
                     self.process_runner.execute(input_path, output_path)
                     result = self.output_parser.parse(output_path, job.job_id)
                     logger.info(f"DFT job {job.job_id} succeeded on attempt {attempt + 1}.")

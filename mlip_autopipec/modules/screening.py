@@ -57,9 +57,7 @@ class SurrogateModelScreener:
                     screened_list.append(atoms)
                 else:
                     logger.debug(
-                        "Discarding structure with energy "
-                        "%.2f eV/atom (threshold: "
-                        "%.2f eV/atom).",
+                        "Discarding structure with energy %.2f eV/atom (threshold: %.2f eV/atom).",
                         energy_per_atom,
                         self.config.energy_threshold_ev,
                     )

@@ -1,6 +1,7 @@
 """
 Unit tests for the refactored DFTFactory and its dependencies.
 """
+
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -12,8 +13,8 @@ from mlip_autopipec.modules.dft import (
     DFTFactory,
     QEInputGenerator,
     QEOutputParser,
-    QERetryHandler,
     QEProcessRunner,
+    QERetryHandler,
 )
 
 
@@ -144,7 +145,6 @@ def test_process_runner_logs_on_error(caplog, tmp_path):
     error = subprocess.CalledProcessError(1, "pw.x")
     error.stdout = "Test stdout"
     error.stderr = "Test stderr"
-
 
     input_file = tmp_path / "test.in"
     output_file = tmp_path / "test.out"

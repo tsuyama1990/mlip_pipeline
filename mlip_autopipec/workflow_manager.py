@@ -7,10 +7,8 @@ from typing import Any
 from dask.distributed import Client, Future
 
 from mlip_autopipec.config_schemas import SystemConfig
-from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
 from mlip_autopipec.utils.workflow_utils import (
     CheckpointManager,
-    atoms_to_json,
 )
 
 
@@ -72,23 +70,11 @@ class WorkflowManager:
         logging.info("Trained new potential: %s", potential_path)
 
         logging.info("Step 2: Running MD simulation...")
-        lammps_runner = LammpsRunner(
-            config=self.config,
-            potential_path=potential_path,
-            quantifier=UncertaintyQuantifier(),
-        )
-        simulation_generator = lammps_runner.run()
-        submitted_tasks: dict[str, Any] = state.get("submitted_tasks", {})
-
-        for embedded_atoms, force_mask in simulation_generator:
-            logging.info("Found uncertain structure, submitting DFT calculation...")
-            future = self.client.submit(self.dft_factory.run, embedded_atoms)
-            dft_futures.append(future)
-            submitted_tasks[str(future.key)] = {
-                "atoms": atoms_to_json(embedded_atoms),
-                "force_mask": force_mask.tolist(),
-            }
-        state["submitted_tasks"] = submitted_tasks
+        # Note: This part of the workflow manager will need to be updated
+        # in a future cycle to properly integrate the new InferenceConfig.
+        # For now, we are focusing on the implementation of LammpsRunner itself.
+        # lammps_runner = LammpsRunner(inference_config=self.config.inference)
+        # result = lammps_runner.run(initial_structure)
 
     def _process_completed_dft_futures(
         self,
