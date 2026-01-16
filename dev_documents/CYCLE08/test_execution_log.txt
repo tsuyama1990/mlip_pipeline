@@ -1,0 +1,121 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: mock-3.15.1
+collected 65 items
+
+tests/integration/test_dft_integration.py ...                            [  4%]
+tests/integration/test_monitoring_integration.py ..                      [  7%]
+tests/modules/test_config_generator.py .                                 [  9%]
+tests/modules/test_dft.py ......                                         [ 18%]
+tests/modules/test_dft_heuristics.py .......                             [ 29%]
+tests/modules/test_exploration.py .....ss                                [ 40%]
+tests/modules/test_explorer.py ....                                      [ 46%]
+tests/modules/test_generator.py ....                                     [ 52%]
+tests/modules/test_inference.py ...                                      [ 56%]
+tests/modules/test_training.py ....                                      [ 63%]
+tests/test_app.py ...                                                    [ 67%]
+tests/test_config.py .....                                               [ 75%]
+tests/test_config_factory.py .                                           [ 76%]
+tests/test_monitoring.py ..                                              [ 80%]
+tests/test_workflow_manager.py .......                                   [ 90%]
+tests/utils/test_resilience.py ......                                    [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/dscribe/core/system.py:192
+  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:192: SyntaxWarning: invalid escape sequence '\l'
+    A_{ij} = \lvert \mathbf{r}_i - \mathbf{r}_j \\rvert
+
+.venv/lib/python3.12/site-packages/dscribe/core/system.py:234
+  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:234: SyntaxWarning: invalid escape sequence '\l'
+    A_{ij} = \\frac{1}{\lvert \mathbf{r}_i - \mathbf{r}_j \\rvert }
+
+.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54
+  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54: SyntaxWarning: invalid escape sequence '\e'
+    g2_params (n*2 np.ndarray): A list of pairs of :math:`\eta` and
+
+.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212
+  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212: SyntaxWarning: invalid escape sequence '\l'
+    indirectly determine it through :math:`s=-\log()`:.
+
+.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130
+  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130: SyntaxWarning: invalid escape sequence '\l'
+    indirectly determine it through :math:`s=-\log()`:.
+
+.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509
+  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509: SyntaxWarning: invalid escape sequence '\s'
+    :math:`\sum_{k=0}^{n-1} n + k = n^2+(n-1)*n/2`. This number of
+
+.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81
+  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81: SyntaxWarning: invalid escape sequence '\s'
+    * ``"gto"``: Spherical gaussian type orbitals defined as :math:`g_{nl}(r) = \sum_{n'=1}^{n_\mathrm{max}}\,\\beta_{nn'l} r^l e^{-\\alpha_{n'l}r^2}`
+
+.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+tests/modules/test_exploration.py:128
+  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_exploration.py:138
+  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_inference.py:70
+  /app/tests/modules/test_inference.py:70: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/test_workflow_manager.py::test_save_checkpoint
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 46325 instead
+
+tests/test_workflow_manager.py::test_load_checkpoint
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 37749 instead
+
+tests/test_workflow_manager.py::test_init_does_not_load_state_unnecessarily
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 38361 instead
+
+tests/test_workflow_manager.py::test_resubmit_pending_jobs
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 35191 instead
+
+tests/test_workflow_manager.py::test_checkpoint_training_history
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 32777 instead
+
+tests/test_workflow_manager.py::test_checkpoint_training_history
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 41081 instead
+
+tests/test_workflow_manager.py::test_perform_training
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 36143 instead
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============ 63 passed, 2 skipped, 18 warnings in 95.80s (0:01:35) =============

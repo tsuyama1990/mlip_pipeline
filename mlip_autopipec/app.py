@@ -2,12 +2,14 @@
 Main CLI application for MLIP-AutoPipe.
 """
 import logging
+import webbrowser
 from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.logging import RichHandler
 
+from mlip_autopipec.monitoring.dashboard import generate_dashboard
 from mlip_autopipec.services.pipeline import PipelineController
 
 # Configure logging to use Rich
@@ -39,6 +41,36 @@ def run(
         console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
         PipelineController.execute(config_file)
         console.print("[bold green]SUCCESS:[/bold green] Workflow finished.")
+    except Exception as e:
+        console.print(f"[bold red]FAILURE:[/bold red] {e}")
+        logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def status(
+    project_dir: Path = typer.Argument(
+        ".",
+        help="Path to the project directory.",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+    ),
+    open_browser: bool = typer.Option(
+        True, "--open/--no-open", help="Open the dashboard in a web browser."
+    ),
+) -> None:
+    """Generate and view the project status dashboard."""
+    console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Generating dashboard for {project_dir}")
+    try:
+        dashboard_path = generate_dashboard(project_dir)
+        console.print(f"[bold green]SUCCESS:[/bold green] Dashboard generated at {dashboard_path}")
+
+        if open_browser:
+            console.print("Opening dashboard in web browser...")
+            webbrowser.open(f"file://{dashboard_path.absolute()}")
+
     except Exception as e:
         console.print(f"[bold red]FAILURE:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)

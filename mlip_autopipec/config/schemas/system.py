@@ -8,7 +8,7 @@ from .common import TargetSystem
 from .dft import DFTConfig
 from .exploration import ExplorerConfig, ExplorerParams, GeneratorParams
 from .inference import InferenceConfig
-from .training import TrainingConfig
+from .training import TrainingConfig, TrainingRunMetrics
 
 
 class WorkflowConfig(BaseModel):
@@ -74,6 +74,7 @@ class CheckpointState(BaseModel):
     current_potential_path: Path | None = None
     pending_job_ids: list[UUID] = Field(default_factory=list)
     job_submission_args: dict[UUID, Any] = Field(default_factory=dict)
+    training_history: list[TrainingRunMetrics] = Field(default_factory=list)
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
 class CalculationMetadata(BaseModel):

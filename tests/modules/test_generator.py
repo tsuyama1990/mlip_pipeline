@@ -1,10 +1,12 @@
+import uuid
+
 import numpy as np
 import pytest
-import uuid
 from ase.build import bulk
 
 from mlip_autopipec.config.models import (
     AlloyParams,
+    Composition,
     CrystalParams,
     CutoffConfig,
     DFTConfig,
@@ -13,7 +15,6 @@ from mlip_autopipec.config.models import (
     Pseudopotentials,
     SystemConfig,
     TargetSystem,
-    Composition,
 )
 from mlip_autopipec.modules.generator import PhysicsInformedGenerator
 

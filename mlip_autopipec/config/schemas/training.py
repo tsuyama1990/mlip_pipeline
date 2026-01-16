@@ -48,3 +48,10 @@ class TrainingData(BaseModel):
     energy: float
     forces: list[list[float]]
     model_config = ConfigDict(extra="forbid")
+
+class TrainingRunMetrics(BaseModel):
+    generation: int
+    num_structures: int
+    rmse_forces: float
+    rmse_energy_per_atom: float
+    model_config = ConfigDict(extra="forbid")

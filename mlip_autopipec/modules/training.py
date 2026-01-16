@@ -14,7 +14,7 @@ from ase.io import write as ase_write
 from jinja2 import Template
 from pydantic import ValidationError
 
-from mlip_autopipec.config.models import TrainingConfig, TrainingData
+from mlip_autopipec.config.models import TrainingConfig, TrainingData, TrainingRunMetrics
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class PacemakerTrainer:
         """Initialize the trainer with a validated configuration."""
         self.config = training_config
 
-    def train(self) -> Path:
+    def train(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
         """Execute the full training workflow."""
         atoms_list = self._read_data_from_db()
         if not atoms_list:
@@ -44,10 +44,17 @@ class PacemakerTrainer:
         with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
             working_dir = Path(temp_dir_str)
             self._prepare_pacemaker_input(atoms_list, working_dir)
-            potential_path = self._execute_training(working_dir)
+            potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
             final_path = Path.cwd() / potential_path.name
             shutil.move(potential_path, final_path)
-            return final_path
+
+            metrics = TrainingRunMetrics(
+                generation=generation,
+                num_structures=len(atoms_list),
+                rmse_forces=rmse_forces,
+                rmse_energy_per_atom=rmse_energy
+            )
+            return final_path, metrics
 
     def _read_data_from_db(self) -> list[Atoms]:
         """Read and validate all atomic structures from the configured ASE database."""
@@ -86,7 +93,7 @@ class PacemakerTrainer:
         config_file_path = working_dir / "pacemaker.in"
         config_file_path.write_text(rendered_config)
 
-    def _execute_training(self, working_dir: Path) -> Path:
+    def _execute_training(self, working_dir: Path) -> tuple[Path, float, float]:
         """Execute the `pacemaker` command in a secure subprocess."""
         executable = str(self.config.pacemaker_executable)
         if not shutil.which(executable):
@@ -125,4 +132,16 @@ class PacemakerTrainer:
             msg = f"Potential file '{potential_file}' not found."
             raise TrainingFailedError(msg)
 
-        return potential_file
+        # Extract metrics
+        rmse_forces = 0.0
+        rmse_energy = 0.0
+
+        match_f = re.search(r"RMSE forces:\s*([\d\.]+)", result.stdout)
+        if match_f:
+            rmse_forces = float(match_f.group(1))
+
+        match_e = re.search(r"RMSE energy.*:\s*([\d\.]+)", result.stdout)
+        if match_e:
+            rmse_energy = float(match_e.group(1))
+
+        return potential_file, rmse_forces, rmse_energy

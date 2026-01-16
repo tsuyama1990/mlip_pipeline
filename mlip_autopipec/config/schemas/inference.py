@@ -1,6 +1,7 @@
 from typing import Any, Literal
-from pathlib import Path
+
 from pydantic import BaseModel, ConfigDict, Field, FilePath, ValidationInfo, field_validator
+
 
 class MDConfig(BaseModel):
     ensemble: Literal["nvt", "npt"] = "nvt"
