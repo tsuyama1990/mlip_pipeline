@@ -1,4 +1,3 @@
-# ruff: noqa: D101
 """Tests for the SurrogateExplorer module."""
 
 from unittest.mock import MagicMock
@@ -59,9 +58,7 @@ def test_fps_selection_logic(
         mock_surrogate_explorer_config, mock_descriptor_calculator, mock_screener
     )
     np.random.seed(0)
-    selected_indices = explorer._farthest_point_sampling(
-        descriptors, num_structures_to_select
-    )
+    selected_indices = explorer._farthest_point_sampling(descriptors, num_structures_to_select)
 
     assert sorted(selected_indices) == [0, 4, 5]
 

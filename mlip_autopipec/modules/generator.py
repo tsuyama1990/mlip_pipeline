@@ -1,8 +1,6 @@
-# ruff: noqa: D101, D102, D103, D107
 """Module for the Physics-Informed Generator."""
 
 import logging
-from typing import List
 
 import numpy as np
 from ase import Atoms
@@ -20,21 +18,17 @@ class PhysicsInformedGenerator:
         """Initialize the PhysicsInformedGenerator."""
         self.config = config
 
-    def generate(self) -> List[Atoms]:
+    def generate(self) -> list[Atoms]:
         """Generate a set of atomic structures based on the configuration."""
         logger.info("Starting structure generation...")
         num_elements = len(self.config.dft.input.pseudopotentials)
         if num_elements > 1:
-            logger.info(
-                "Detected multiple elements, running MOCK alloy generation workflow."
-            )
+            logger.info("Detected multiple elements, running MOCK alloy generation workflow.")
             return self._generate_for_alloy()
-        logger.info(
-            "Detected single element, running MOCK crystal defect generation workflow."
-        )
+        logger.info("Detected single element, running MOCK crystal defect generation workflow.")
         return self._generate_for_crystal()
 
-    def _generate_for_alloy(self) -> List[Atoms]:
+    def _generate_for_alloy(self) -> list[Atoms]:
         """Generate a mock structure for an alloy system."""
         base_structure = self._create_mock_alloy_structure()
         strained_structures = self._apply_strains(base_structure)
@@ -59,7 +53,7 @@ class PhysicsInformedGenerator:
         atoms.set_chemical_symbols(symbols)
         return atoms  # type: ignore[no-any-return]
 
-    def _apply_strains(self, atoms: Atoms) -> List[Atoms]:
+    def _apply_strains(self, atoms: Atoms) -> list[Atoms]:
         """Apply a series of isotropic strains to an Atoms object."""
         strained_atoms_list = []
         original_cell = atoms.get_cell()  # type: ignore[no-untyped-call]
@@ -74,7 +68,7 @@ class PhysicsInformedGenerator:
         logger.info("Applied %d strain levels.", len(strained_atoms_list))
         return strained_atoms_list
 
-    def _apply_rattling(self, atoms: Atoms) -> List[Atoms]:
+    def _apply_rattling(self, atoms: Atoms) -> list[Atoms]:
         """Apply random atomic displacements to an Atoms object."""
         rattled_atoms_list = []
         std_devs = self.config.generator.alloy_params.rattle_std_devs
@@ -86,7 +80,7 @@ class PhysicsInformedGenerator:
         logger.info("Applied %d rattle levels.", len(rattled_atoms_list))
         return rattled_atoms_list
 
-    def _generate_for_crystal(self) -> List[Atoms]:
+    def _generate_for_crystal(self) -> list[Atoms]:
         """Generate a mock structure for a crystalline system with defects."""
         final_structures = []
         element = next(iter(self.config.dft.input.pseudopotentials.keys()))
@@ -96,9 +90,7 @@ class PhysicsInformedGenerator:
         if "vacancy" in defect_types:
             final_structures.append(self._create_vacancy(pristine_supercell))
 
-        logger.info(
-            "Generated %d MOCK crystal defect structures.", len(final_structures)
-        )
+        logger.info("Generated %d MOCK crystal defect structures.", len(final_structures))
         return final_structures
 
     def _create_vacancy(self, atoms: Atoms) -> Atoms:

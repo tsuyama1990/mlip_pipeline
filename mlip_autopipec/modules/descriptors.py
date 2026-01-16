@@ -1,8 +1,6 @@
-# ruff: noqa: D101
 """Handles the calculation of structural descriptors."""
 
 import logging
-from typing import List
 
 import numpy as np
 from ase import Atoms
@@ -11,9 +9,7 @@ from dscribe.descriptors import SOAP
 from mlip_autopipec.config_schemas import SOAPParams
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -25,7 +21,7 @@ class SOAPDescriptorCalculator:
     logic from the main workflow orchestration.
     """
 
-    def __init__(self, soap_params: SOAPParams, species: List[str]):
+    def __init__(self, soap_params: SOAPParams, species: list[str]):
         """Initialise the SOAPDescriptorCalculator.
 
         Args:
@@ -64,7 +60,7 @@ class SOAPDescriptorCalculator:
             logger.exception("Invalid parameters provided for SOAP configuration.")
             raise RuntimeError("Failed to configure SOAP generator.") from e
 
-    def calculate(self, structures: List[Atoms]) -> np.ndarray:
+    def calculate(self, structures: list[Atoms]) -> np.ndarray:
         """Calculate the SOAP descriptors for a list of structures.
 
         Args:
@@ -83,7 +79,5 @@ class SOAPDescriptorCalculator:
             descriptors = self._soap_generator.create(structures, n_jobs=-1)
             return descriptors  # type: ignore[no-any-return]
         except Exception as e:
-            logger.exception(
-                "An unexpected error occurred during SOAP descriptor calculation."
-            )
+            logger.exception("An unexpected error occurred during SOAP descriptor calculation.")
             raise RuntimeError("Failed to calculate SOAP descriptors.") from e

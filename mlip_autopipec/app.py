@@ -1,4 +1,3 @@
-# ruff: noqa: D101, T201
 """Main CLI application for MLIP-AutoPipe."""
 
 import logging
@@ -21,9 +20,7 @@ from mlip_autopipec.utils.workflow_utils import setup_dask_client
 from mlip_autopipec.workflow_manager import WorkflowManager
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 app = typer.Typer()
 
@@ -59,10 +56,10 @@ def run(
         user_config = UserConfig(**user_config_data)
         config = generate_system_config_from_user_config(user_config)
     except ValidationError as e:
-        logging.error(f"Configuration error: {e}")
+        logging.exception(f"Configuration error: {e}")
         raise typer.Exit(code=1)
     except Exception as e:
-        logging.error(f"An unexpected error occurred during setup: {e}")
+        logging.exception(f"An unexpected error occurred during setup: {e}")
         raise typer.Exit(code=2)
 
     # Use provided instances or create default implementations

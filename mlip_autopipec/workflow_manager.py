@@ -1,4 +1,3 @@
-# ruff: noqa: D101, T201
 """Module for the main workflow orchestration."""
 
 import logging
@@ -65,9 +64,7 @@ class WorkflowManager:
         self._wait_for_remaining_dft_futures(dft_futures, state)
         self.client.close()  # type: ignore[no-untyped-call]
 
-    def _run_training_and_md(
-        self, state: dict[str, Any], dft_futures: list[Future[Any]]
-    ) -> None:
+    def _run_training_and_md(self, state: dict[str, Any], dft_futures: list[Future[Any]]) -> None:
         """Run the training and MD simulation for a single cycle."""
         logging.info("Step 1: Training the MLIP...")
         self.trainer.train.return_value = "model.yace"

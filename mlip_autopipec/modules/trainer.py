@@ -1,4 +1,3 @@
-# ruff: noqa: D101, D102, D103, D107
 """Module for training a Pacemaker potential."""
 
 import re
@@ -36,9 +35,7 @@ class PacemakerTrainer:
 
     """
 
-    def __init__(
-        self, config: SystemConfig, config_generator: PacemakerConfigGenerator
-    ):
+    def __init__(self, config: SystemConfig, config_generator: PacemakerConfigGenerator):
         self.config = config
         self.config_generator = config_generator
         self._temp_dir: Path | None = None
@@ -66,9 +63,7 @@ class PacemakerTrainer:
         try:
             self._temp_dir = Path(tempfile.mkdtemp(prefix="pacemaker_train_"))
             data_file_path = self._prepare_training_data(atoms_list, self._temp_dir)
-            config_file_path = self.config_generator.generate_config(
-                data_file_path, self._temp_dir
-            )
+            config_file_path = self.config_generator.generate_config(data_file_path, self._temp_dir)
             potential_path = self._execute_training(config_file_path, self._temp_dir)
             return potential_path
         finally:

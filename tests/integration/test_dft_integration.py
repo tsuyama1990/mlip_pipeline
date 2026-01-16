@@ -1,4 +1,3 @@
-# ruff: noqa: S101
 """Integration test for the DFTFactory to ensure end-to-end functionality."""
 
 from pathlib import Path
@@ -14,7 +13,7 @@ from mlip_autopipec.config_schemas import (
     DFTInput,
     SystemConfig,
 )
-from mlip_autopipec.modules.dft.factory import DFTFactory
+from mlip_autopipec.modules.dft import DFTFactory
 
 # Define the path to the mock executable
 # This path is relative to the root of the project where pytest is run

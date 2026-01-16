@@ -1,4 +1,3 @@
-# ruff: noqa: D101, D102, D103, D107, PT019, PT023
 """Tests for the PacemakerTrainer module."""
 
 import subprocess
@@ -101,9 +100,7 @@ def test_train_failure_on_malformed_output(
 
     trainer = PacemakerTrainer(test_system_config, mock_config_generator)
     atoms_list = mock_db_manager.get_completed_calculations()
-    with pytest.raises(
-        TrainingFailedError, match="Could not find the output potential file"
-    ):
+    with pytest.raises(TrainingFailedError, match="Could not find the output potential file"):
         trainer.train(atoms_list)
 
 
@@ -136,9 +133,7 @@ def test_train_failure_if_executable_not_found(
     mocker.patch("shutil.which", return_value=None)
     trainer = PacemakerTrainer(test_system_config, mock_config_generator)
     atoms_list = mock_db_manager.get_completed_calculations()
-    with pytest.raises(
-        FileNotFoundError, match="Executable 'pacemaker_train' not found"
-    ):
+    with pytest.raises(FileNotFoundError, match="Executable 'pacemaker_train' not found"):
         trainer.train(atoms_list)
 
 

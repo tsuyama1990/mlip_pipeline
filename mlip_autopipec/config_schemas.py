@@ -1,4 +1,3 @@
-# ruff: noqa: D101
 """Configuration schemas for MLIP-AutoPipe.
 
 Defines the data structures for user input and internal system configuration.
@@ -70,12 +69,8 @@ class Resources(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    dft_cores: int = Field(
-        1, ge=1, description="Number of CPU cores for each DFT calculation."
-    )
-    md_cores: int = Field(
-        1, ge=1, description="Number of CPU cores for each MD simulation."
-    )
+    dft_cores: int = Field(1, ge=1, description="Number of CPU cores for each DFT calculation.")
+    md_cores: int = Field(1, ge=1, description="Number of CPU cores for each MD simulation.")
     max_dft_calculations: int = Field(
         100,
         ge=1,
@@ -88,9 +83,7 @@ class UserConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    target_system: TargetSystem = Field(
-        ..., description="The chemical system to be simulated."
-    )
+    target_system: TargetSystem = Field(..., description="The chemical system to be simulated.")
     simulation_goal: SimulationGoal = Field(
         ..., description="The primary scientific goal of the simulation campaign."
     )
@@ -186,8 +179,7 @@ class DFTInput(BaseModel):
         for filename in values.values():
             if ".." in filename or os.path.isabs(filename):
                 raise ValueError(
-                    f"Pseudopotential '{filename}' must be a relative path and "
-                    "cannot contain '..'"
+                    f"Pseudopotential '{filename}' must be a relative path and cannot contain '..'"
                 )
         return values
 
@@ -272,14 +264,11 @@ class SurrogateModelParams(BaseModel):
     """Parameters for the surrogate model screening."""
 
     model_config = ConfigDict(extra="forbid")
-    model_path: str = Field(
-        ..., description="Path to the pre-trained surrogate model file."
-    )
+    model_path: str = Field(..., description="Path to the pre-trained surrogate model file.")
     energy_threshold_ev: float = Field(
         -2.0,
         description=(
-            "Energy per atom threshold in eV. Structures with higher energy will be "
-            "discarded."
+            "Energy per atom threshold in eV. Structures with higher energy will be discarded."
         ),
     )
 
@@ -290,9 +279,7 @@ class SurrogateModelParams(BaseModel):
         import os
 
         if ".." in v or os.path.isabs(v):
-            raise ValueError(
-                "model_path must be a relative path and cannot contain '..'"
-            )
+            raise ValueError("model_path must be a relative path and cannot contain '..'")
         return v
 
 
@@ -303,9 +290,7 @@ class SOAPParams(BaseModel):
     n_max: int = Field(8, description="Number of radial basis functions.")
     l_max: int = Field(6, description="Maximum degree of spherical harmonics.")
     r_cut: float = Field(5.0, description="Cutoff radius for the local environment.")
-    atomic_sigma: float = Field(
-        0.5, description="Standard deviation of the Gaussian smearing."
-    )
+    atomic_sigma: float = Field(0.5, description="Standard deviation of the Gaussian smearing.")
 
 
 class FPSParams(BaseModel):
@@ -342,9 +327,7 @@ class ACEParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     radial_basis: str = Field("chebyshev", description="The type of radial basis.")
-    correlation_order: int = Field(
-        3, ge=2, description="The body order of the potential."
-    )
+    correlation_order: int = Field(3, ge=2, description="The body order of the potential.")
     element_dependent_cutoffs: bool = Field(
         False, description="Whether to use different cutoffs for different elements."
     )
@@ -370,9 +353,7 @@ class MDEnsemble(BaseModel):
     ensemble_type: Literal["nvt", "npt"] = Field(
         "nvt", description="The thermodynamic ensemble to use (e.g., NVT, NPT)."
     )
-    target_temperature_k: float = Field(
-        300.0, ge=0, description="Target temperature in Kelvin."
-    )
+    target_temperature_k: float = Field(300.0, ge=0, description="Target temperature in Kelvin.")
 
 
 class InferenceParams(BaseModel):
@@ -439,9 +420,7 @@ class SystemConfig(BaseModel):
     dask: DaskConfig = Field(
         default_factory=DaskConfig, description="Dask scheduler configuration."
     )
-    db_path: str = Field(
-        "mlip_database.db", description="Path to the central ASE database."
-    )
+    db_path: str = Field("mlip_database.db", description="Path to the central ASE database.")
 
     @field_validator("db_path")
     @classmethod
