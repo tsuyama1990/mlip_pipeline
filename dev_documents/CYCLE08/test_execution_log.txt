@@ -4,25 +4,282 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: mock-3.15.1
-collected 65 items
+collected 66 items
 
-tests/integration/test_dft_integration.py ...                            [  4%]
-tests/integration/test_monitoring_integration.py ..                      [  7%]
-tests/modules/test_config_generator.py .                                 [  9%]
-tests/modules/test_dft.py ......                                         [ 18%]
-tests/modules/test_dft_heuristics.py .......                             [ 29%]
+tests/integration/test_dft_integration.py ...F                           [  6%]
+tests/integration/test_monitoring_integration.py ..                      [  9%]
+tests/modules/test_config_generator.py .                                 [ 10%]
+tests/modules/test_dft.py ......                                         [ 19%]
+tests/modules/test_dft_heuristics.py .......                             [ 30%]
 tests/modules/test_exploration.py .....ss                                [ 40%]
 tests/modules/test_explorer.py ....                                      [ 46%]
-tests/modules/test_generator.py ....                                     [ 52%]
-tests/modules/test_inference.py ...                                      [ 56%]
-tests/modules/test_training.py ....                                      [ 63%]
-tests/test_app.py ...                                                    [ 67%]
+tests/modules/test_generator.py ....                                     [ 53%]
+tests/modules/test_inference.py ...                                      [ 57%]
+tests/modules/test_training.py .F..                                      [ 63%]
+tests/test_app.py ...                                                    [ 68%]
 tests/test_config.py .....                                               [ 75%]
-tests/test_config_factory.py .                                           [ 76%]
+tests/test_config_factory.py .                                           [ 77%]
 tests/test_monitoring.py ..                                              [ 80%]
 tests/test_workflow_manager.py .......                                   [ 90%]
 tests/utils/test_resilience.py ......                                    [100%]
 
+=================================== FAILURES ===================================
+_______________________ test_dft_runner_failure_handling _______________________
+
+h2_atoms = Atoms(symbols='H2', pbc=False)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-16/test_dft_runner_failure_handli0')
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fd84581eff0>
+
+    def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
+        """Test that DFTRunner raises DFTCalculationError when execution fails completely."""
+        # Arrange
+        pseudo_dir = tmp_path / "pseudos"
+        pseudo_dir.mkdir()
+        (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+        sssp_path = tmp_path / "sssp.json"
+        sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+
+        from ase.calculators.espresso import EspressoProfile
+        from mlip_autopipec.modules.dft import QEInputGenerator, QEOutputParser, QEProcessRunner
+
+        profile = EspressoProfile(command="pw.x", pseudo_dir=pseudo_dir)
+        input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
+        process_runner = QEProcessRunner(profile=profile)
+        output_parser = QEOutputParser()
+
+        heuristics = DFTHeuristics(sssp_data_path=sssp_path)
+        dft_job_factory = DFTJobFactory(heuristics=heuristics)
+
+        # Patch execution to fail with generic error
+        mocker.patch.object(
+            process_runner,
+            "execute",
+            side_effect=subprocess.CalledProcessError(1, "pw.x", "Unknown Error", "stderr")
+        )
+
+        dft_runner = DFTRunner(
+            input_generator=input_generator,
+            process_runner=process_runner,
+            output_parser=output_parser,
+        )
+        job = dft_job_factory.create_job(h2_atoms.copy())
+
+        with pytest.raises(DFTCalculationError) as excinfo:
+            dft_runner.run(job)
+
+>       assert "DFT calculation failed" in str(excinfo.value)
+E       AssertionError: assert 'DFT calculation failed' in 'DFT subprocess failed for job 8b0cdce0-84b7-418b-a3f1-2ff85c5902e6\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr'
+E        +  where 'DFT subprocess failed for job 8b0cdce0-84b7-418b-a3f1-2ff85c5902e6\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr' = str(DFTCalculationError('DFT subprocess failed for job 8b0cdce0-84b7-418b-a3f1-2ff85c5902e6'))
+E        +    where DFTCalculationError('DFT subprocess failed for job 8b0cdce0-84b7-418b-a3f1-2ff85c5902e6') = <ExceptionInfo DFTCalculationError('DFT subprocess failed for job 8b0cdce0-84b7-418b-a3f1-2ff85c5902e6') tblen=3>.value
+
+tests/integration/test_dft_integration.py:204: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  mlip_autopipec.utils.resilience:resilience.py:72 Attempt 1/3 for run failed with DFTCalculationError.
+WARNING  mlip_autopipec.utils.resilience:resilience.py:72 Attempt 2/3 for run failed with DFTCalculationError.
+ERROR    mlip_autopipec.utils.resilience:resilience.py:65 Function run failed after 3 attempts.
+Traceback (most recent call last):
+  File "/app/mlip_autopipec/modules/dft.py", line 167, in run
+    self.process_runner.execute(input_path, output_path)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+  File "/app/mlip_autopipec/modules/dft.py", line 167, in run
+    self.process_runner.execute(input_path, output_path)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+  File "/app/mlip_autopipec/modules/dft.py", line 167, in run
+    self.process_runner.execute(input_path, output_path)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+subprocess.CalledProcessError: Command 'pw.x' returned non-zero exit status 1.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/mlip_autopipec/utils/resilience.py", line 62, in wrapper
+    return func(*args, **current_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/mlip_autopipec/modules/dft.py", line 179, in run
+    raise DFTCalculationError(
+mlip_autopipec.exceptions.DFTCalculationError: DFT subprocess failed for job 8b0cdce0-84b7-418b-a3f1-2ff85c5902e6
+--- STDOUT ---
+Unknown Error
+--- STDERR ---
+stderr
+_________________ test_pacemaker_trainer_executable_not_found __________________
+
+self = <mlip_autopipec.modules.training.PacemakerTrainer object at 0x7fd82bd308c0>
+generation = 1
+
+    def perform_training(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
+        """
+        Executes the full training workflow:
+        1. Reads data from the database.
+        2. Prepares input files in a temporary directory.
+        3. Runs the Pacemaker training executable.
+        4. Parses metrics and moves the resulting potential.
+
+        Args:
+            generation: The current active learning generation index.
+
+        Returns:
+            A tuple containing the path to the trained potential file and the training metrics.
+
+        Raises:
+            NoTrainingDataError: If no data is found or database cannot be read.
+            TrainingFailedError: If the training subprocess fails or output is invalid.
+        """
+        try:
+            atoms_list = read_training_data(self.config.data_source_db)
+        except ValueError as e:
+            log.exception("Failed to read training data from database.")
+            raise NoTrainingDataError(f"Error reading training data: {e}") from e
+
+        if not atoms_list:
+            msg = f"No training data found in '{self.config.data_source_db}'."
+            log.error(msg)
+            raise NoTrainingDataError(msg)
+
+        # Use a temporary directory for the training process to avoid clutter
+        # and ensure isolation. The context manager ensures cleanup.
+        try:
+            with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
+                working_dir = Path(temp_dir_str)
+                log.info(f"Preparing training input in {working_dir}...")
+                self._prepare_pacemaker_input(atoms_list, working_dir)
+
+                log.info("Executing Pacemaker training...")
+>               potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
+                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+mlip_autopipec/modules/training.py:73:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.modules.training.PacemakerTrainer object at 0x7fd82bd308c0>
+working_dir = PosixPath('/tmp/pacemaker_train_uzlacoox')
+
+    def _execute_training(self, working_dir: Path) -> tuple[Path, float, float]:
+        """Execute the `pacemaker` command in a secure subprocess."""
+        executable = str(self.config.pacemaker_executable)
+        if not shutil.which(executable):
+            msg = f"Executable '{executable}' not found."
+            log.error(msg)
+>           raise FileNotFoundError(msg)
+E           FileNotFoundError: Executable '/tmp/pytest-of-jules/pytest-16/test_pacemaker_trainer_executa0/pacemaker' not found.
+
+mlip_autopipec/modules/training.py:130: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+mock_read_data = <MagicMock name='read_training_data' id='140566424928128'>
+mock_training_config = TrainingConfig(pacemaker_executable=PosixPath('/tmp/pytest-of-jules/pytest-16/test_pacemaker_trainer_executa0/pacemake...ress=10.0), ace_params=PacemakerACEParams(radial_basis='radial', correlation_order=3, element_dependent_cutoffs=False))
+
+    @patch("mlip_autopipec.modules.training.read_training_data")
+    def test_pacemaker_trainer_executable_not_found(mock_read_data, mock_training_config: TrainingConfig):
+        """
+        Tests that a FileNotFoundError is raised if the pacemaker executable
+        is not found.
+        """
+        atoms = bulk("Si")
+        atoms.info["energy"] = -10.0
+        atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
+        atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
+        mock_read_data.return_value = [atoms]
+
+        trainer = PacemakerTrainer(training_config=mock_training_config)
+        with patch("shutil.which", return_value=False), pytest.raises(FileNotFoundError):
+>           trainer.perform_training(generation=1)
+
+tests/modules/test_training.py:110:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.modules.training.PacemakerTrainer object at 0x7fd82bd308c0>
+generation = 1
+
+    def perform_training(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
+        """
+        Executes the full training workflow:
+        1. Reads data from the database.
+        2. Prepares input files in a temporary directory.
+        3. Runs the Pacemaker training executable.
+        4. Parses metrics and moves the resulting potential.
+
+        Args:
+            generation: The current active learning generation index.
+
+        Returns:
+            A tuple containing the path to the trained potential file and the training metrics.
+
+        Raises:
+            NoTrainingDataError: If no data is found or database cannot be read.
+            TrainingFailedError: If the training subprocess fails or output is invalid.
+        """
+        try:
+            atoms_list = read_training_data(self.config.data_source_db)
+        except ValueError as e:
+            log.exception("Failed to read training data from database.")
+            raise NoTrainingDataError(f"Error reading training data: {e}") from e
+
+        if not atoms_list:
+            msg = f"No training data found in '{self.config.data_source_db}'."
+            log.error(msg)
+            raise NoTrainingDataError(msg)
+
+        # Use a temporary directory for the training process to avoid clutter
+        # and ensure isolation. The context manager ensures cleanup.
+        try:
+            with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
+                working_dir = Path(temp_dir_str)
+                log.info(f"Preparing training input in {working_dir}...")
+                self._prepare_pacemaker_input(atoms_list, working_dir)
+
+                log.info("Executing Pacemaker training...")
+                potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
+
+                final_path = Path.cwd() / potential_path.name
+                shutil.move(potential_path, final_path)
+                log.info(f"Potential saved to {final_path}")
+
+                metrics = TrainingRunMetrics(
+                    generation=generation,
+                    num_structures=len(atoms_list),
+                    rmse_forces=rmse_forces,
+                    rmse_energy_per_atom=rmse_energy
+                )
+                return final_path, metrics
+        except OSError as e:
+            log.exception("Filesystem error during training.")
+>           raise TrainingFailedError(f"Filesystem error: {e}") from e
+E           mlip_autopipec.modules.training.TrainingFailedError: Filesystem error: Executable '/tmp/pytest-of-jules/pytest-16/test_pacemaker_trainer_executa0/pacemaker' not found.
+
+mlip_autopipec/modules/training.py:88: TrainingFailedError
+------------------------------ Captured log call -------------------------------
+ERROR    mlip_autopipec.modules.training:training.py:129 Executable '/tmp/pytest-of-jules/pytest-16/test_pacemaker_trainer_executa0/pacemaker' not found.
+ERROR    mlip_autopipec.modules.training:training.py:87 Filesystem error during training.
+Traceback (most recent call last):
+  File "/app/mlip_autopipec/modules/training.py", line 73, in perform_training
+    potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/mlip_autopipec/modules/training.py", line 130, in _execute_training
+    raise FileNotFoundError(msg)
+FileNotFoundError: Executable '/tmp/pytest-of-jules/pytest-16/test_pacemaker_trainer_executa0/pacemaker' not found.
 =============================== warnings summary ===============================
 .venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
   /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
@@ -45,49 +302,52 @@ tests/test_workflow_manager.py::test_save_checkpoint
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 44575 instead
+  Hosting the HTTP server on port 34237 instead
 
 tests/test_workflow_manager.py::test_load_checkpoint
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 45299 instead
+  Hosting the HTTP server on port 36659 instead
 
 tests/test_workflow_manager.py::test_init_does_not_load_state_unnecessarily
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 37909 instead
+  Hosting the HTTP server on port 34825 instead
 
 tests/test_workflow_manager.py::test_resubmit_pending_jobs
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 37001 instead
+  Hosting the HTTP server on port 34023 instead
 
 tests/test_workflow_manager.py::test_checkpoint_training_history
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 44755 instead
+  Hosting the HTTP server on port 45011 instead
 
 tests/test_workflow_manager.py::test_checkpoint_training_history
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 34209 instead
+  Hosting the HTTP server on port 41977 instead
 
 tests/test_workflow_manager.py::test_perform_training
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 45151 instead
+  Hosting the HTTP server on port 38451 instead
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-============ 63 passed, 2 skipped, 11 warnings in 60.44s (0:01:00) =============
+=========================== short test summary info ============================
+FAILED tests/integration/test_dft_integration.py::test_dft_runner_failure_handling
+FAILED tests/modules/test_training.py::test_pacemaker_trainer_executable_not_found
+======= 2 failed, 62 passed, 2 skipped, 11 warnings in 81.06s (0:01:21) ========

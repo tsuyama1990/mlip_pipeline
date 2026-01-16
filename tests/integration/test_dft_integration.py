@@ -1,5 +1,6 @@
 """Integration test for the DFTJobFactory to ensure end-to-end functionality."""
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -126,14 +127,9 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     sssp_path = tmp_path / "sssp.json"
     sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
-    import subprocess
-
     from ase.calculators.espresso import EspressoProfile
 
-    from mlip_autopipec.exceptions import DFTCalculationError
     from mlip_autopipec.modules.dft import (
-        DFTJobFactory,
-        DFTRunner,
         QEInputGenerator,
         QEOutputParser,
         QEProcessRunner,
@@ -167,3 +163,43 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     with pytest.raises(DFTCalculationError):
         dft_runner.run(job)
     assert process_runner.execute.call_count == 3
+
+def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
+    """Test that DFTRunner raises DFTCalculationError when execution fails completely."""
+    # Arrange
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+
+    from ase.calculators.espresso import EspressoProfile
+
+    from mlip_autopipec.modules.dft import QEInputGenerator, QEOutputParser, QEProcessRunner
+
+    profile = EspressoProfile(command="pw.x", pseudo_dir=pseudo_dir)
+    input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
+    process_runner = QEProcessRunner(profile=profile)
+    output_parser = QEOutputParser()
+
+    heuristics = DFTHeuristics(sssp_data_path=sssp_path)
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
+
+    # Patch execution to fail with generic error
+    mocker.patch.object(
+        process_runner,
+        "execute",
+        side_effect=subprocess.CalledProcessError(1, "pw.x", "Unknown Error", "stderr")
+    )
+
+    dft_runner = DFTRunner(
+        input_generator=input_generator,
+        process_runner=process_runner,
+        output_parser=output_parser,
+    )
+    job = dft_job_factory.create_job(h2_atoms.copy())
+
+    with pytest.raises(DFTCalculationError) as excinfo:
+        dft_runner.run(job)
+
+    assert "DFT calculation failed" in str(excinfo.value)

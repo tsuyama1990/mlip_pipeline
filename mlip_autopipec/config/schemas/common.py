@@ -10,14 +10,24 @@ class SimulationGoal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 class Composition(RootModel[dict[str, float]]):
-    # RootModel does not support extra="forbid" because it's a wrapper around a type,
-    # and dict[str, float] naturally allows any keys that are strings.
-    # Validation of keys is done in TargetSystem.
+    """
+    Represents the chemical composition of the system.
+    Keys must be valid chemical symbols, and values must sum to 1.0.
+    """
 
     @field_validator("root")
-    def validate_fractions(cls, v: dict[str, float]) -> dict[str, float]:
+    def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:
+        from ase.data import chemical_symbols
+
+        # Check sum
         if not abs(sum(v.values()) - 1.0) < 1e-6:
             raise ValueError("Composition fractions must sum to 1.0.")
+
+        # Check keys are valid symbols
+        for symbol in v:
+            if symbol not in chemical_symbols:
+                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+
         return v
 
 class TargetSystem(BaseModel):

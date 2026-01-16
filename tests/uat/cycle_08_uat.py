@@ -74,10 +74,6 @@ def main():
         # but since we run subprocess, we can't easily mock it unless we set an env var or argument.
         # The command has --no-open.
 
-        # Test default (tries to open) - might fail or just print.
-        # Actually in `app.py`, `webbrowser.open` is called. If no browser, it might just fail or do nothing.
-        # To avoid side effects, we'll use --no-open for the automated part.
-
         # We will test generation first.
         res = run_command(["mlip-auto", "status", ".", "--no-open"], cwd=work_dir)
 
@@ -85,8 +81,8 @@ def main():
             print(f"{GREEN}✅ Dashboard generation successful.{RESET}")
         else:
             print(f"{RED}❌ Dashboard generation failed.{RESET}")
-            print(res.stdout)
-            print(res.stderr)
+            print("STDOUT:", res.stdout)
+            print("STDERR:", res.stderr)
             sys.exit(1)
 
         dashboard_path = work_dir / "dashboard.html"
@@ -123,6 +119,9 @@ def main():
             print(f"\n{RED}Cycle 08 UAT Failed.{RESET}")
             sys.exit(1)
 
+    except Exception as e:
+        print(f"{RED}An unexpected error occurred during UAT:{RESET} {e}")
+        sys.exit(1)
     finally:
         if work_dir.exists():
             shutil.rmtree(work_dir)

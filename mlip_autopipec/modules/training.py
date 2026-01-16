@@ -33,39 +33,80 @@ class PacemakerTrainer:
         self.config = training_config
 
     def perform_training(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
-        """Execute the full training workflow."""
+        """
+        Executes the full training workflow:
+        1. Reads data from the database.
+        2. Prepares input files in a temporary directory.
+        3. Runs the Pacemaker training executable.
+        4. Parses metrics and moves the resulting potential.
+
+        Args:
+            generation: The current active learning generation index.
+
+        Returns:
+            A tuple containing the path to the trained potential file and the training metrics.
+
+        Raises:
+            NoTrainingDataError: If no data is found or database cannot be read.
+            TrainingFailedError: If the training subprocess fails or output is invalid.
+        """
         try:
             atoms_list = read_training_data(self.config.data_source_db)
         except ValueError as e:
+            log.exception("Failed to read training data from database.")
             raise NoTrainingDataError(f"Error reading training data: {e}") from e
 
         if not atoms_list:
             msg = f"No training data found in '{self.config.data_source_db}'."
+            log.error(msg)
             raise NoTrainingDataError(msg)
 
-        with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
-            working_dir = Path(temp_dir_str)
-            self._prepare_pacemaker_input(atoms_list, working_dir)
-            potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
-            final_path = Path.cwd() / potential_path.name
-            shutil.move(potential_path, final_path)
+        # Use a temporary directory for the training process to avoid clutter
+        # and ensure isolation. The context manager ensures cleanup.
+        try:
+            with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
+                working_dir = Path(temp_dir_str)
+                log.info(f"Preparing training input in {working_dir}...")
+                self._prepare_pacemaker_input(atoms_list, working_dir)
 
-            metrics = TrainingRunMetrics(
-                generation=generation,
-                num_structures=len(atoms_list),
-                rmse_forces=rmse_forces,
-                rmse_energy_per_atom=rmse_energy
-            )
-            return final_path, metrics
+                log.info("Executing Pacemaker training...")
+                potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
+
+                final_path = Path.cwd() / potential_path.name
+                shutil.move(potential_path, final_path)
+                log.info(f"Potential saved to {final_path}")
+
+                metrics = TrainingRunMetrics(
+                    generation=generation,
+                    num_structures=len(atoms_list),
+                    rmse_forces=rmse_forces,
+                    rmse_energy_per_atom=rmse_energy
+                )
+                return final_path, metrics
+        except OSError as e:
+            log.exception("Filesystem error during training.")
+            raise TrainingFailedError(f"Filesystem error: {e}") from e
 
     def _prepare_pacemaker_input(self, training_data: list[Atoms], working_dir: Path) -> None:
         """Create the necessary input files for the Pacemaker executable."""
         data_file_path = working_dir / "training_data.xyz"
+
+        # Ensure directory exists (TemporaryDirectory should do this, but just in case)
+        working_dir.mkdir(parents=True, exist_ok=True)
+
         ase_write(data_file_path, training_data, format="extxyz")
 
         try:
-            with self.config.template_file.open() as f:
-                template = Template(f.read())
+            if self.config.template_file:
+                with self.config.template_file.open() as f:
+                    template_content = f.read()
+            else:
+                # Fallback or error if no template provided? Schema says Optional, but logic implies required.
+                # Assuming config validation enforces it if needed, or providing a default string here.
+                # For now, let's assume it might be None and raise if so.
+                raise FileNotFoundError("No template file specified in configuration.")
+
+            template = Template(template_content)
         except FileNotFoundError as e:
             log.exception(
                 "Failed to open Jinja2 template file for Pacemaker.",
@@ -85,6 +126,7 @@ class PacemakerTrainer:
         executable = str(self.config.pacemaker_executable)
         if not shutil.which(executable):
             msg = f"Executable '{executable}' not found."
+            log.error(msg)
             raise FileNotFoundError(msg)
 
         command = [executable]
@@ -112,11 +154,13 @@ class PacemakerTrainer:
         match = re.search(r"Final potential saved to: (.*\.yace)", result.stdout)
         if not match:
             msg = "Could not find output potential file in training log."
+            log.error(msg)
             raise TrainingFailedError(msg)
 
         potential_file = working_dir / match.group(1)
         if not potential_file.exists():
             msg = f"Potential file '{potential_file}' not found."
+            log.error(msg)
             raise TrainingFailedError(msg)
 
         # Extract metrics
