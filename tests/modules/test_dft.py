@@ -3,6 +3,7 @@ Unit tests for the refactored DFTFactory and its dependencies.
 """
 
 import subprocess
+import uuid
 from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
@@ -10,7 +11,7 @@ import pytest
 from ase.build import bulk
 from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config.models import DFTInputParameters, DFTJob, Pseudopotentials, CutoffConfig
+from mlip_autopipec.config.models import CutoffConfig, DFTInputParameters, DFTJob, Pseudopotentials
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft import (
     DFTHeuristics,
@@ -20,7 +21,6 @@ from mlip_autopipec.modules.dft import (
     QEOutputParser,
     QEProcessRunner,
 )
-import uuid
 
 
 @pytest.fixture
@@ -117,7 +117,8 @@ def test_dft_runner_raises_dft_calculation_error(
     params = MagicMock(spec=DFTInputParameters)
     job = DFTJob(atoms=atoms, params=params)
 
-    with pytest.raises(subprocess.CalledProcessError):
+    # DFTRunner now wraps CalledProcessError into DFTCalculationError
+    with pytest.raises(DFTCalculationError):
         dft_runner.run(job)
 
 
@@ -163,16 +164,13 @@ def test_dft_job_factory_creates_valid_job(tmp_path):
     """Test the heuristic parameter generation in DFTJobFactory."""
     sssp_path = tmp_path / "sssp.json"
     sssp_path.write_text('{"Si": {"cutoff_wfc": 60, "cutoff_rho": 240, "filename": "Si.upf"}}')
-    with patch(
-        "mlip_autopipec.modules.dft.SSSP_DATA_PATH",
-        sssp_path,
-    ):
-        heuristics = DFTHeuristics(sssp_data_path=sssp_path)
-        factory = DFTJobFactory(heuristics=heuristics)
-        atoms = bulk("Si")
-        job = factory.create_job(atoms)
-        assert isinstance(job, DFTJob)
-        assert job.params.cutoffs.wavefunction == 60
-        assert job.params.cutoffs.density == 240
-        assert job.params.pseudopotentials is not None
-        assert job.params.pseudopotentials.root["Si"] == "Si.upf"
+    # Removed unnecessary patch as path is passed in constructor
+    heuristics = DFTHeuristics(sssp_data_path=sssp_path)
+    factory = DFTJobFactory(heuristics=heuristics)
+    atoms = bulk("Si")
+    job = factory.create_job(atoms)
+    assert isinstance(job, DFTJob)
+    assert job.params.cutoffs.wavefunction == 60
+    assert job.params.cutoffs.density == 240
+    assert job.params.pseudopotentials is not None
+    assert job.params.pseudopotentials.root["Si"] == "Si.upf"

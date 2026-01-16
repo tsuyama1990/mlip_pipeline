@@ -29,6 +29,8 @@ dependencies = [
     "distributed",
     "numba>=0.59.0",
     "mace-torch",
+    "typer",
+    "rich",
 ]
 
 [project.urls]
@@ -124,3 +126,6 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+
+[project.scripts]
+mlip-auto = "mlip_autopipec.app:app"

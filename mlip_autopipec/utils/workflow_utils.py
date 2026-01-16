@@ -9,7 +9,7 @@ from ase import Atoms
 from ase.io.jsonio import decode, encode
 from dask.distributed import Client, LocalCluster
 
-from mlip_autopipec.config_schemas import SystemConfig
+from mlip_autopipec.config.models import SystemConfig
 
 
 def setup_dask_client(config: SystemConfig) -> Client:

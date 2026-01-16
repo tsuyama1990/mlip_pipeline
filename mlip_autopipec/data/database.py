@@ -11,7 +11,7 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect
 
-from mlip_autopipec.config_schemas import CalculationMetadata
+from mlip_autopipec.config.models import CalculationMetadata
 
 
 class DatabaseManager:

@@ -1,4 +1,4 @@
-"""Unit tests for the SurrogateExplorer module."""
+"""Unit tests for the Surrogate Explorer."""
 
 from unittest.mock import MagicMock
 
@@ -6,91 +6,85 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.config_schemas import ExplorerParams, FPSParams, SurrogateModelParams
+from mlip_autopipec.config.models import ExplorerParams, FPSParams, SOAPParams, SurrogateModelParams
 from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
 from mlip_autopipec.modules.explorer import SurrogateExplorer
 from mlip_autopipec.modules.screening import SurrogateModelScreener
 
 
 @pytest.fixture
-def mock_explorer_config() -> ExplorerParams:
-    """Fixture for creating a mock ExplorerParams object."""
+def mock_config():
+    """Create a mock configuration."""
     return ExplorerParams(
-        surrogate_model=SurrogateModelParams(
-            model_path="test_model.pt", energy_threshold_ev=-100.0
-        ),
-        fps=FPSParams(num_structures_to_select=2),
+        surrogate_model=SurrogateModelParams(model_path="dummy.model"),
+        fps=FPSParams(num_structures_to_select=2, soap_params=SOAPParams(n_max=2, l_max=2, r_cut=3.0, atomic_sigma=0.5))
     )
 
 
 @pytest.fixture
-def mock_dependencies() -> tuple[MagicMock, MagicMock]:
-    """Fixture for creating mock dependencies for SurrogateExplorer."""
-    return MagicMock(spec=SOAPDescriptorCalculator), MagicMock(spec=SurrogateModelScreener)
+def mock_descriptor_calculator():
+    """Create a mock descriptor calculator."""
+    mock = MagicMock(spec=SOAPDescriptorCalculator)
+    # Mock return value for calculate (random features)
+    mock.calculate.return_value = np.random.rand(5, 10)
+    return mock
 
 
-def test_explorer_initialization(
-    mock_explorer_config: ExplorerParams,
-    mock_dependencies: tuple[MagicMock, MagicMock],
-) -> None:
-    """Test that the SurrogateExplorer initializes correctly."""
-    calc, screener = mock_dependencies
-    explorer = SurrogateExplorer(
-        config=mock_explorer_config, descriptor_calculator=calc, screener=screener
-    )
-    assert explorer.config == mock_explorer_config
-    assert explorer.descriptor_calculator == calc
-    assert explorer.screener == screener
+@pytest.fixture
+def mock_screener():
+    """Create a mock screener."""
+    mock = MagicMock(spec=SurrogateModelScreener)
+    return mock
 
 
-def test_select_returns_empty_list_for_empty_input(
-    mock_explorer_config: ExplorerParams,
-    mock_dependencies: tuple[MagicMock, MagicMock],
-) -> None:
-    """Test that the select method returns an empty list for empty input."""
-    calc, screener = mock_dependencies
-    explorer = SurrogateExplorer(
-        config=mock_explorer_config, descriptor_calculator=calc, screener=screener
-    )
-    assert explorer.select([]) == []
+def test_select_empty_list(mock_config, mock_descriptor_calculator, mock_screener):
+    """Test selection with an empty candidate list."""
+    explorer = SurrogateExplorer(mock_config, mock_descriptor_calculator, mock_screener)
+    result = explorer.select([])
+    assert result == []
+    mock_screener.screen.assert_not_called()
 
 
-def test_select_returns_all_candidates_if_less_than_selection_num(
-    mock_explorer_config: ExplorerParams,
-    mock_dependencies: tuple[MagicMock, MagicMock],
-) -> None:
-    """Test that all candidates are returned if their number is less than the selection number."""
-    calc, screener = mock_dependencies
+def test_select_all_screened_out(mock_config, mock_descriptor_calculator, mock_screener):
+    """Test when the screener filters out all candidates."""
+    mock_screener.screen.return_value = []
     candidates = [Atoms("H"), Atoms("He")]
-    screener.screen.return_value = candidates
-    explorer = SurrogateExplorer(
-        config=mock_explorer_config, descriptor_calculator=calc, screener=screener
-    )
-    assert explorer.select(candidates) == candidates
+
+    explorer = SurrogateExplorer(mock_config, mock_descriptor_calculator, mock_screener)
+    result = explorer.select(candidates)
+
+    assert result == []
+    mock_screener.screen.assert_called_once_with(candidates)
+    mock_descriptor_calculator.calculate.assert_not_called()
 
 
-def test_select_returns_empty_list_if_all_screened_out(
-    mock_explorer_config: ExplorerParams,
-    mock_dependencies: tuple[MagicMock, MagicMock],
-) -> None:
-    """Test that an empty list is returned if all candidates are screened out."""
-    calc, screener = mock_dependencies
-    screener.screen.return_value = []
-    explorer = SurrogateExplorer(
-        config=mock_explorer_config, descriptor_calculator=calc, screener=screener
-    )
-    assert explorer.select([Atoms("H")]) == []
+def test_select_fewer_than_requested(mock_config, mock_descriptor_calculator, mock_screener):
+    """Test when fewer candidates pass screening than requested by FPS."""
+    # Requested is 2 in fixture
+    candidates = [Atoms("H")]
+    mock_screener.screen.return_value = candidates
+
+    explorer = SurrogateExplorer(mock_config, mock_descriptor_calculator, mock_screener)
+    result = explorer.select(candidates)
+
+    assert result == candidates
+    mock_screener.screen.assert_called_once()
+    # Should skip FPS if not enough candidates
+    mock_descriptor_calculator.calculate.assert_not_called()
 
 
-def test_farthest_point_sampling_selects_correct_number(
-    mock_explorer_config: ExplorerParams,
-    mock_dependencies: tuple[MagicMock, MagicMock],
-) -> None:
-    """Test that Farthest Point Sampling selects the correct number of structures."""
-    calc, screener = mock_dependencies
-    explorer = SurrogateExplorer(
-        config=mock_explorer_config, descriptor_calculator=calc, screener=screener
-    )
-    descriptors = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
-    selected_indices = explorer._farthest_point_sampling(descriptors, 2)
-    assert len(selected_indices) == 2
+def test_select_fps(mock_config, mock_descriptor_calculator, mock_screener):
+    """Test normal FPS selection flow."""
+    # 5 candidates, want 2
+    candidates = [Atoms("H") for _ in range(5)]
+    mock_screener.screen.return_value = candidates
+
+    # Descriptors for 5 atoms
+    mock_descriptor_calculator.calculate.return_value = np.random.rand(5, 10)
+
+    explorer = SurrogateExplorer(mock_config, mock_descriptor_calculator, mock_screener)
+    result = explorer.select(candidates)
+
+    assert len(result) == 2
+    mock_screener.screen.assert_called_once()
+    mock_descriptor_calculator.calculate.assert_called_once()

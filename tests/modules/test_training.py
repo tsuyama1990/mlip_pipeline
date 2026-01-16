@@ -1,15 +1,19 @@
 """
 Unit tests for the PacemakerTrainer class.
 """
+import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from ase.build import bulk
-import subprocess
 
 from mlip_autopipec.config.models import TrainingConfig
-from mlip_autopipec.modules.training import PacemakerTrainer, TrainingFailedError, NoTrainingDataError
+from mlip_autopipec.modules.training import (
+    NoTrainingDataError,
+    PacemakerTrainer,
+    TrainingFailedError,
+)
 
 
 @pytest.fixture
@@ -80,9 +84,8 @@ def test_pacemaker_trainer_executable_not_found(mock_db_connect, mock_training_c
         MagicMock(toatoms=lambda: bulk("Si"), data={"energy": 0, "forces": [[0,0,0]]})
     ]
     trainer = PacemakerTrainer(training_config=mock_training_config)
-    with patch("shutil.which", return_value=False):
-        with pytest.raises(FileNotFoundError):
-            trainer.train()
+    with patch("shutil.which", return_value=False), pytest.raises(FileNotFoundError):
+        trainer.train()
 
 
 @patch("mlip_autopipec.modules.training.ase_db_connect")
@@ -97,9 +100,8 @@ def test_pacemaker_trainer_training_failed(mock_db_connect, mock_training_config
     ]
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")), \
-         patch("shutil.which", return_value=True):
-        with pytest.raises(TrainingFailedError):
-            trainer.train()
+         patch("shutil.which", return_value=True), pytest.raises(TrainingFailedError):
+        trainer.train()
 
 
 @patch("mlip_autopipec.modules.training.ase_db_connect")

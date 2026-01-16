@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 from ase.build import bulk
@@ -76,19 +78,32 @@ def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
     runner = LammpsRunner(inference_config=mock_inference_config)
     atoms = bulk("Si", "diamond", a=5.43)
 
-    # Create mock LAMMPS output files
-    dump_content = "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.35 1.35 1.35\n"
+    # Create content for mock LAMMPS output files
+    # Added ITEM: BOX BOUNDS pp pp pp
+    dump_content = (
+        "ITEM: TIMESTEP\n10\n"
+        "ITEM: NUMBER OF ATOMS\n2\n"
+        "ITEM: BOX BOUNDS pp pp pp\n0.0 5.43\n0.0 5.43\n0.0 5.43\n"
+        "ITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.35 1.35 1.35\n"
+    )
     uncertainty_content = (
         "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS c_uncert[1]\n0.1\n0.8\n"
     )
-    (tmp_path / "dump.custom").write_text(dump_content)
-    (tmp_path / "uncertainty.dump").write_text(uncertainty_content)
 
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    # Define a side_effect function to create files in the runner's temp dir
+    def mock_subprocess_run(cmd, cwd=None, **kwargs):
+        if cwd:
+            cwd_path = Path(cwd)
+            (cwd_path / "dump.custom").write_text(dump_content)
+            (cwd_path / "uncertainty.dump").write_text(uncertainty_content)
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    with patch("subprocess.run", side_effect=mock_subprocess_run) as mock_run:
+        # runner.run() returns a single UncertainStructure or None
         result = runner.run(atoms)
 
     assert result is not None
     assert result.metadata.uncertain_timestep == 10
     assert result.metadata.uncertain_atom_id == 2
-    assert result.atoms.get_chemical_symbols() == ["Si", "Si"]
+    # ASE defaults type 1 to 'H' when reading LAMMPS dump without species info
+    assert result.atoms.get_chemical_symbols() == ["H", "H"]

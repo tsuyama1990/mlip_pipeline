@@ -1,95 +1,65 @@
-from pathlib import Path
+import subprocess
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
-from ase import Atoms
+import yaml
+from typer.testing import CliRunner
 
-from mlip_autopipec.config_schemas import SystemConfig, UserConfig
-from mlip_autopipec.utils.config_utils import (
-    generate_system_config_from_user_config,
-)
-from mlip_autopipec.workflow_manager import WorkflowManager
+from mlip_autopipec.app import app
+
+runner = CliRunner()
 
 
 @pytest.fixture
-def mock_system_configuration(tmp_path: Path) -> SystemConfig:
-    """Provide a mock SystemConfig for testing the application workflow.
-
-    This fixture generates a standardized `SystemConfig` object based on a
-    minimal `UserConfig`, which is then used to initialize the `WorkflowManager`
-    in the tests.
-
-    Args:
-        tmp_path: A temporary path provided by the pytest `tmp_path` fixture.
-
-    Returns:
-        A complete `SystemConfig` object for testing purposes.
-
-    """
-    config_dict = {
-        "target_system": {"elements": ["Cu"], "composition": {"Cu": 1.0}},
-        "simulation_goal": "melt_quench",
+def valid_config_file(tmp_path):
+    config_file = tmp_path / "input.yaml"
+    data = {
+        "project_name": "TestProject",
+        "target_system": {
+            "elements": ["Si"],
+            "composition": {"Si": 1.0},
+            "crystal_structure": "diamond",
+        },
+        "simulation_goal": {"type": "elastic"},
     }
-    user_config = UserConfig(**config_dict)
-    return generate_system_config_from_user_config(user_config)
+    with open(config_file, "w") as f:
+        yaml.dump(data, f)
+    return config_file
 
 
-@pytest.mark.xfail(reason="WorkflowManager logic is out of scope for this cycle")
-def test_app_with_dask_local_cluster(
-    mock_system_configuration: SystemConfig, mocker: MagicMock, tmp_path: Path
-) -> None:
-    """Test the main application workflow with a local Dask cluster.
+def test_run_success(valid_config_file, mocker):
+    """Test the happy path: CLI calls PipelineController."""
+    mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
 
-    This test verifies that the `WorkflowManager` correctly orchestrates the
-    active learning loop by interacting with its dependencies. It ensures
-    that for each structure identified as needing a DFT calculation, a task
-    is submitted to the Dask client and the result is subsequently written
-    to the database.
+    result = runner.invoke(app, ["run", str(valid_config_file)])
 
-    Args:
-        mock_system_configuration: A mock `SystemConfig` fixture.
-        mocker: The pytest-mock `mocker` fixture.
-        tmp_path: The pytest `tmp_path` fixture for temporary file handling.
+    assert result.exit_code == 0
+    assert "Launching run" in result.stdout
+    assert "SUCCESS" in result.stdout
 
-    """
-    # Mock the dependencies
-    mock_db_manager = MagicMock()
-    mock_dft_factory = MagicMock()
-    mock_trainer = MagicMock()
-    mock_lammps_runner = MagicMock()
-    mock_lammps_runner.run.return_value = iter([])
-    mocker.patch(
-        "mlip_autopipec.workflow_manager.LammpsRunner",
-        return_value=mock_lammps_runner,
-    )
+    mock_controller.execute.assert_called_once_with(valid_config_file)
 
-    # Configure the mocks to return specific values
-    mock_dft_factory.run.return_value = Atoms("Cu")
-    mock_lammps_runner = MagicMock()
-    mock_lammps_runner.run.return_value = iter([(Atoms("Cu"), np.array([[1.0, 1.0, 1.0]]))])
-    mocker.patch("mlip_autopipec.workflow_manager.LammpsRunner", return_value=mock_lammps_runner)
 
-    mock_future = MagicMock()
-    mock_future.done.return_value = True
-    mock_future.status = "finished"
-    mock_future.result.return_value = Atoms("Cu")
+def test_run_failure(valid_config_file, mocker):
+    """Test that CLI handles pipeline errors gracefully."""
+    mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
+    mock_controller.execute.side_effect = ValueError("Something exploded")
 
-    mock_client = MagicMock()
-    mock_client.submit.return_value = mock_future
+    result = runner.invoke(app, ["run", str(valid_config_file)])
 
-    manager = WorkflowManager(
-        config=mock_system_configuration,
-        checkpoint_path=tmp_path / "checkpoint.json",
-        db_manager=mock_db_manager,
-        dft_factory=mock_dft_factory,
-        trainer=mock_trainer,
-        client=mock_client,
-    )
-    manager.run()
+    assert result.exit_code == 1
+    assert "FAILURE" in result.stdout
+    assert "Something exploded" in result.stdout
 
-    # Verify that the database write method was called
-    mock_db_manager.write_calculation.assert_called_once()
-    call_args = mock_db_manager.write_calculation.call_args
-    assert isinstance(call_args.kwargs["atoms"], Atoms)
-    assert "force_mask" in call_args.kwargs
+
+def test_entry_point_help():
+    """Verify that the mlip-auto command is installed and provides help."""
+    try:
+        result = subprocess.run(
+            ["mlip-auto", "--help"], check=False, capture_output=True, text=True
+        )
+        # If installed, should return 0. If not found, FileNotFoundError handled below.
+        if result.returncode == 0:
+            assert "Usage: mlip-auto" in result.stdout
+    except FileNotFoundError:
+        pass

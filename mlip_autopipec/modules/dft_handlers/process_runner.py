@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from ase.calculators.espresso import EspressoProfile
+
 from mlip_autopipec.exceptions import DFTCalculationError
 
 logger = logging.getLogger(__name__)

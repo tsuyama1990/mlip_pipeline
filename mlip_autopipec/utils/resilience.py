@@ -4,8 +4,9 @@ such as retry decorators.
 """
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Type
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 def retry(
     attempts: int,
     delay: float,
-    exceptions: tuple[Type[Exception], ...],
+    exceptions: tuple[type[Exception], ...],
     on_retry: Callable | None = None,
 ) -> Callable:
     """
