@@ -198,5 +198,5 @@ def test_end_to_end_uncertainty_detection(
     assert result is not None
     assert isinstance(result, UncertainStructure)
     assert len(result.atoms) < len(initial_structure)
-    assert result.metadata["uncertain_timestep"] == 10
-    assert result.metadata["uncertain_atom_index_in_original_cell"] is not None
+    assert result.metadata.uncertain_timestep == 10
+    assert result.metadata.uncertain_atom_index_in_original_cell is not None

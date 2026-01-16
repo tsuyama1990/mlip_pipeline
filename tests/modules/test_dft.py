@@ -2,17 +2,18 @@
 Unit tests for the refactored DFTFactory and its dependencies.
 """
 import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 
 import numpy as np
 import pytest
 from ase.build import bulk
 from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config.models import DFTInputParameters
+from mlip_autopipec.config.models import DFTInputParameters, DFTJob
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft import (
     DFTFactory,
+    DFTRunner,
     QEInputGenerator,
     QEOutputParser,
     QEProcessRunner,
@@ -41,14 +42,14 @@ def mock_retry_handler():
 
 
 @pytest.fixture
-def dft_factory(
+def dft_runner(
     mock_input_generator,
     mock_process_runner,
     mock_output_parser,
     mock_retry_handler,
 ):
-    """Fixture to create a DFTFactory with mocked dependencies."""
-    return DFTFactory(
+    """Fixture to create a DFTRunner with mocked dependencies."""
+    return DFTRunner(
         input_generator=mock_input_generator,
         process_runner=mock_process_runner,
         output_parser=mock_output_parser,
@@ -56,28 +57,28 @@ def dft_factory(
     )
 
 
-def test_dft_factory_run_successful(
-    dft_factory,
+def test_dft_runner_run_successful(
+    dft_runner,
     mock_input_generator,
     mock_process_runner,
     mock_output_parser,
 ):
     """Test a straightforward, successful run."""
     atoms = bulk("Si")
+    params = MagicMock(spec=DFTInputParameters)
+    job = DFTJob(atoms=atoms, params=params)
     mock_output_parser.parse.return_value = MagicMock(energy=-100.0)
-    mock_input_generator.generate_input_parameters.return_value = MagicMock(spec=DFTInputParameters)
 
-    result = dft_factory.run(atoms)
+    result = dft_runner.run(job)
 
-    mock_input_generator.generate_input_parameters.assert_called_once_with(atoms)
-    mock_input_generator.prepare_input_files.assert_called_once()
+    mock_input_generator.prepare_input_files.assert_called_with(ANY, atoms, params)
     mock_process_runner.execute.assert_called_once()
-    mock_output_parser.parse.assert_called_once()
+    mock_output_parser.parse.assert_called_with(ANY, job.job_id)
     assert result.energy == -100.0
 
 
-def test_dft_factory_retry_and_succeed(
-    dft_factory,
+def test_dft_runner_retry_and_succeed(
+    dft_runner,
     mock_input_generator,
     mock_process_runner,
     mock_output_parser,
@@ -91,37 +92,39 @@ def test_dft_factory_retry_and_succeed(
     mock_process_runner.execute.side_effect = [error, MagicMock()]
     mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
     mock_output_parser.parse.return_value = MagicMock(energy=-150.0)
-    mock_params = MagicMock(spec=DFTInputParameters)
-    mock_params.model_dump.return_value = {"mixing_beta": 0.7}
-    mock_input_generator.generate_input_parameters.return_value = mock_params
+    params = MagicMock(spec=DFTInputParameters)
+    params.model_dump.return_value = {"mixing_beta": 0.7}
+    job = DFTJob(atoms=atoms, params=params)
 
-    result = dft_factory.run(atoms)
+    result = dft_runner.run(job)
 
     assert mock_process_runner.execute.call_count == 2
-    mock_retry_handler.handle_convergence_error.assert_called_once()
+    mock_retry_handler.handle_convergence_error.assert_called_with(
+        "convergence NOT achieved\\n", {"mixing_beta": 0.7}
+    )
     assert result.energy == -150.0
 
 
-def test_dft_factory_fails_after_max_retries(
-    dft_factory,
+def test_dft_runner_fails_after_max_retries(
+    dft_runner,
     mock_input_generator,
     mock_process_runner,
     mock_retry_handler,
 ):
     """Test that the factory gives up after the maximum number of retries."""
-    dft_factory.max_retries = 3
+    dft_runner.max_retries = 3
     atoms = bulk("Si")
     error = subprocess.CalledProcessError(1, "pw.x")
     error.stdout = "convergence NOT achieved"
     error.stderr = ""
     mock_process_runner.execute.side_effect = [error, error, error]
     mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
-    mock_params = MagicMock(spec=DFTInputParameters)
-    mock_params.model_dump.return_value = {"mixing_beta": 0.7}
-    mock_input_generator.generate_input_parameters.return_value = mock_params
+    params = MagicMock(spec=DFTInputParameters)
+    params.model_dump.return_value = {"mixing_beta": 0.7}
+    job = DFTJob(atoms=atoms, params=params)
 
     with pytest.raises(DFTCalculationError):
-        dft_factory.run(atoms)
+        dft_runner.run(job)
 
     assert mock_process_runner.execute.call_count == 3
     assert mock_retry_handler.handle_convergence_error.call_count == 3
@@ -189,20 +192,20 @@ def test_output_parser_handles_valid_output(tmp_path):
     mock_reader.assert_called_once_with(output_file, format="espresso-out")
 
 
-def test_input_generator_creates_valid_params(tmp_path):
-    """Test the heuristic parameter generation in QEInputGenerator."""
-    mock_profile = MagicMock(spec=EspressoProfile)
+def test_dft_factory_creates_valid_job(tmp_path):
+    """Test the heuristic parameter generation in DFTFactory."""
     sssp_path = tmp_path / "sssp.json"
     sssp_path.write_text('{"Si": {"cutoff_wfc": 60, "cutoff_rho": 240, "filename": "Si.upf"}}')
     with patch(
         "mlip_autopipec.modules.dft.SSSP_DATA_PATH",
         sssp_path,
     ):
-        generator = QEInputGenerator(profile=mock_profile, pseudopotentials_path=None)
+        factory = DFTFactory()
         atoms = bulk("Si")
-        params = generator.generate_input_parameters(atoms)
-        assert params.cutoffs.wavefunction == 60
-        assert params.cutoffs.density == 240
-        assert params.pseudopotentials is not None
-        assert params.pseudopotentials.root["Si"] == "Si.upf"
+        job = factory.create_job(atoms)
+        assert isinstance(job, DFTJob)
+        assert job.params.cutoffs.wavefunction == 60
+        assert job.params.cutoffs.density == 240
+        assert job.params.pseudopotentials is not None
+        assert job.params.pseudopotentials.root["Si"] == "Si.upf"
 

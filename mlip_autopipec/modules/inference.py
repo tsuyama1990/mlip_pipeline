@@ -8,6 +8,7 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from ase import Atoms
@@ -18,6 +19,7 @@ from mlip_autopipec.config.models import (
     InferenceConfig,
     UncertainStructure,
     UncertaintyConfig,
+    UncertaintyMetadata,
 )
 
 log = logging.getLogger(__name__)
@@ -80,7 +82,14 @@ def extract_embedded_structure(
     )
     force_mask = (distances_from_center < masking_cutoff).astype(int)
 
-    return UncertainStructure(atoms=embedded_atoms, force_mask=force_mask)
+    metadata = UncertaintyMetadata(
+        uncertain_timestep=0,
+        uncertain_atom_id=0,
+        uncertain_atom_index_in_original_cell=center_atom_index,
+    )
+    return UncertainStructure(
+        atoms=embedded_atoms, force_mask=force_mask, metadata=metadata
+    )
 
 
 class LammpsRunner:
@@ -110,7 +119,7 @@ class LammpsRunner:
         """
         self.config = inference_config
 
-    def run(self, initial_structure: Atoms) -> UncertainStructure | None:
+    def run(self, initial_structure: Atoms) -> Optional[UncertainStructure]:
         """
         Runs a LAMMPS MD simulation and monitors it for uncertainty.
 
@@ -159,13 +168,11 @@ class LammpsRunner:
                     log.error(f"Could not find timestep {timestep} in trajectory file.")
                     return None
 
-                # Read the full structure from the trajectory at the uncertain timestep
                 full_structure = read(
                     working_dir / "dump.custom",
                     index=frame_index,
                     format="lammps-dump-text",
                 )
-                # LAMMPS atom IDs are 1-based, ASE indices are 0-based
                 atom_index_in_cell = atom_id - 1
 
                 extracted_data = extract_embedded_structure(
@@ -173,11 +180,8 @@ class LammpsRunner:
                     atom_index_in_cell,
                     self.config.uncertainty_params,
                 )
-                extracted_data.metadata = {
-                    "uncertain_timestep": timestep,
-                    "uncertain_atom_id": atom_id,
-                    "uncertain_atom_index_in_original_cell": atom_index_in_cell,
-                }
+                extracted_data.metadata.uncertain_timestep = timestep
+                extracted_data.metadata.uncertain_atom_id = atom_id
                 return extracted_data
 
             log.info("No uncertainty detected within the simulation run.")
@@ -222,7 +226,7 @@ class LammpsRunner:
 
     def _execute_lammps(
         self, working_dir: Path, input_script: Path
-    ) -> subprocess.CompletedProcess[str] | None:
+    ) -> Optional[subprocess.CompletedProcess[str]]:
         """Executes the LAMMPS simulation as a subprocess."""
         cmd = [str(self.config.lammps_executable), "-in", str(input_script)]
         log.debug(f"Running LAMMPS command: {' '.join(cmd)}")
@@ -232,20 +236,20 @@ class LammpsRunner:
                 cwd=str(working_dir),
                 capture_output=True,
                 text=True,
-                check=True,  # Raise exception on non-zero exit code
+                check=True,
             )
         except FileNotFoundError:
-            log.error(f"Lammps executable not found at {self.config.lammps_executable}")
+            log.exception(
+                f"Lammps executable not found at {self.config.lammps_executable}"
+            )
             raise
         except subprocess.CalledProcessError as e:
-            log.error(f"LAMMPS simulation failed with exit code {e.returncode}")
-            log.error(f"Stdout:\n{e.stdout}")
-            log.error(f"Stderr:\n{e.stderr}")
+            log.exception(f"LAMMPS simulation failed with exit code {e.returncode}")
             raise
 
     def _get_frame_index_for_timestep(
         self, trajectory_file: Path, target_timestep: int
-    ) -> int | None:
+    ) -> Optional[int]:
         """Finds the 0-based index of a frame for a given timestep in a dump file."""
         if not trajectory_file.exists():
             return None
@@ -261,9 +265,9 @@ class LammpsRunner:
                 frame_index += 1
         return None
 
-    def _parse_dump_file(self, file_path: Path) -> dict[int, np.ndarray]:
+    def _parse_dump_file(self, file_path: Path) -> Dict[int, np.ndarray]:
         """Parses a LAMMPS dump file and returns a dictionary mapping timestep to data."""
-        timesteps: dict[int, np.ndarray] = {}
+        timesteps: Dict[int, np.ndarray] = {}
         if not file_path.exists():
             return timesteps
 
@@ -291,12 +295,11 @@ class LammpsRunner:
 
     def _find_first_uncertain_frame(
         self, working_dir: Path
-    ) -> tuple[int, int] | None:
-        """Parses LAMMPS output to find the first frame exceeding the uncertainty threshold."""
+    ) -> Optional[Tuple[int, int]]:
+        """Parses LAMMPS output for the first frame exceeding the uncertainty threshold."""
         uncertainty_data = self._parse_dump_file(working_dir / "uncertainty.dump")
 
         for timestep, uncert_values in sorted(uncertainty_data.items()):
-            # Handle single-atom case
             if uncert_values.ndim == 0:
                 uncert_values_arr = np.array([uncert_values])
             else:
@@ -305,7 +308,6 @@ class LammpsRunner:
             if uncert_values_arr.max() > self.config.uncertainty_params.threshold:
                 uncertain_atom_index = np.argmax(uncert_values_arr)
 
-                # To get the atom ID, we need to read the corresponding trajectory frame
                 traj_file = working_dir / "dump.custom"
                 with traj_file.open() as f:
                     traj_lines = f.readlines()
@@ -322,14 +324,13 @@ class LammpsRunner:
 
     def _find_atom_id_in_frame(
         self,
-        traj_lines: list[str],
+        traj_lines: List[str],
         timestep: int,
         atom_index: int,
-    ) -> int | None:
+    ) -> Optional[int]:
         """Finds the ID of a specific atom in a specific frame of a trajectory."""
         for i, line in enumerate(traj_lines):
             if "ITEM: TIMESTEP" in line and int(traj_lines[i + 1]) == timestep:
-                # Find the start of the atom data for this frame
                 j = i
                 while "ITEM: ATOMS" not in traj_lines[j]:
                     j += 1

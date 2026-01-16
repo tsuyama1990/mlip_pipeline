@@ -76,11 +76,25 @@ class SmearingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class StartingMagnetization(RootModel[dict[str, float]]):
+    """A mapping from chemical symbols to starting magnetic moments."""
+
+    @field_validator("root")
+    def validate_symbols(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate that the keys are valid chemical symbols."""
+        from ase.data import chemical_symbols
+
+        for symbol in v:
+            if symbol not in chemical_symbols:
+                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+        return v
+
+
 class MagnetismConfig(BaseModel):
     """Configuration for spin-polarized (magnetic) calculations."""
 
     nspin: Literal[2] = 2
-    starting_magnetization: dict[str, float] = Field(
+    starting_magnetization: StartingMagnetization = Field(
         ...,
         description="Initial magnetic moment for each atomic species.",
     )
@@ -167,12 +181,21 @@ class InferenceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class UncertaintyMetadata(BaseModel):
+    """Metadata for an uncertain structure."""
+
+    uncertain_timestep: int
+    uncertain_atom_id: int
+    uncertain_atom_index_in_original_cell: int
+    model_config = ConfigDict(extra="forbid")
+
+
 class UncertainStructure(BaseModel):
     """Data transfer object for a structure with high uncertainty."""
 
     atoms: object
     force_mask: object
-    metadata: dict[str, Any] = {}
+    metadata: UncertaintyMetadata
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     @field_validator("atoms")
