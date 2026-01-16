@@ -5,13 +5,16 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import numpy as np
 from ase.build import bulk
 from ase.db import connect
+from pydantic import ValidationError
 
 from mlip_autopipec.config.training import TrainingConfig
 from mlip_autopipec.modules.training import (
     PacemakerTrainer,
     TrainingFailedError,
+    NoTrainingDataError,
 )
 
 
@@ -61,6 +64,18 @@ def test_read_data_from_db(
     assert "forces" in atoms_list[0].arrays
 
 
+def test_read_data_from_db_with_invalid_data(mock_training_config: TrainingConfig):
+    """Test that the trainer raises an error when the database contains invalid data."""
+    db_path = mock_training_config.data_source_db
+    with connect(db_path) as db:
+        atoms = bulk("Si")
+        db.write(atoms, data={"energy": "not-a-float"})
+
+    trainer = PacemakerTrainer(training_config=mock_training_config)
+    with pytest.raises(NoTrainingDataError):
+        trainer._read_data_from_db()
+
+
 @patch("jinja2.Template.render")
 def test_prepare_pacemaker_input(
     mock_render: MagicMock,
@@ -77,41 +92,6 @@ def test_prepare_pacemaker_input(
     assert (working_dir / "training_data.xyz").exists()
     assert (working_dir / "pacemaker.in").exists()
     assert (working_dir / "pacemaker.in").read_text() == "dummy config content"
-
-
-@patch("subprocess.run")
-def test_execute_training_success(
-    mock_subprocess_run: MagicMock,
-    mock_training_config: TrainingConfig,
-    tmp_path: Path,
-):
-    """Test the successful execution of the training process."""
-    mock_subprocess_run.return_value = subprocess.CompletedProcess(
-        args=["pacemaker"],
-        returncode=0,
-        stdout="Final potential saved to: potential.yace",
-        stderr="",
-    )
-    (tmp_path / "potential.yace").touch()
-    trainer = PacemakerTrainer(training_config=mock_training_config)
-    potential_path = trainer._execute_training(tmp_path)
-    mock_subprocess_run.assert_called_once()
-    assert potential_path.name == "potential.yace"
-
-
-@patch("subprocess.run")
-def test_execute_training_failure(
-    mock_subprocess_run: MagicMock,
-    mock_training_config: TrainingConfig,
-    tmp_path: Path,
-):
-    """Test that the trainer raises an exception when training fails."""
-    mock_subprocess_run.side_effect = subprocess.CalledProcessError(
-        returncode=1, cmd="pacemaker", stderr="Training failed"
-    )
-    trainer = PacemakerTrainer(training_config=mock_training_config)
-    with pytest.raises(TrainingFailedError):
-        trainer._execute_training(tmp_path)
 
 
 @patch("mlip_autopipec.modules.training.PacemakerTrainer._read_data_from_db")

@@ -10,8 +10,9 @@ from ase import Atoms
 from ase.db import connect as ase_db_connect
 from ase.io import write as ase_write
 from jinja2 import Template
+from pydantic import ValidationError
 
-from mlip_autopipec.config.training import TrainingConfig
+from mlip_autopipec.config.training import TrainingConfig, TrainingData
 
 
 class TrainingFailedError(Exception):
@@ -45,17 +46,18 @@ class PacemakerTrainer:
             return final_path
 
     def _read_data_from_db(self) -> list[Atoms]:
-        """Read all atomic structures from the configured ASE database."""
+        """Read and validate all atomic structures from the configured ASE database."""
         atoms_list = []
         with ase_db_connect(self.config.data_source_db) as db:
             for row in db.select():
-                atoms = row.toatoms()
-                if hasattr(row, "data") and row.data:
-                    if "energy" in row.data:
-                        atoms.info["energy"] = row.data["energy"]
-                    if "forces" in row.data:
-                        atoms.arrays["forces"] = np.array(row.data["forces"])
-                atoms_list.append(atoms)
+                try:
+                    validated_data = TrainingData(**row.data)
+                    atoms = row.toatoms()
+                    atoms.info["energy"] = validated_data.energy
+                    atoms.arrays["forces"] = np.array(validated_data.forces)
+                    atoms_list.append(atoms)
+                except ValidationError as e:
+                    raise NoTrainingDataError(f"Invalid data in database: {e}") from e
         return atoms_list
 
     def _prepare_pacemaker_input(
@@ -65,8 +67,11 @@ class PacemakerTrainer:
         data_file_path = working_dir / "training_data.xyz"
         ase_write(data_file_path, training_data, format="extxyz")
 
-        with self.config.template_file.open() as f:
-            template = Template(f.read())
+        try:
+            with self.config.template_file.open() as f:
+                template = Template(f.read())
+        except FileNotFoundError as e:
+            raise TrainingFailedError(f"Template file not found: {self.config.template_file}") from e
 
         rendered_config = template.render(
             config=self.config, data_file_path=str(data_file_path)
@@ -96,7 +101,7 @@ class PacemakerTrainer:
             msg = f"Pacemaker training failed with exit code {e.returncode}.\nStderr:\n{e.stderr}"
             raise TrainingFailedError(msg) from e
 
-        match = re.search(r"Final potential saved to: (.*\.yace)", result.stdout)
+        match = re.search(r"Final potential saved to: (.*\\.yace)", result.stdout)
         if not match:
             msg = "Could not find output potential file in training log."
             raise TrainingFailedError(msg)

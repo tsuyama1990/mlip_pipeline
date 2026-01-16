@@ -12,6 +12,8 @@ from mlip_autopipec.config_schemas import SystemConfig
 
 logger = logging.getLogger(__name__)
 
+K_POINT_DENSITY = 6.0
+
 
 class UncertaintyQuantifier:
     """Handles the uncertainty quantification for a given structure."""
@@ -112,7 +114,7 @@ class LammpsRunner:
                     yield embedded_atoms, force_mask
                     return
 
-            except Exception as e:
+            except RuntimeError as e:
                 logger.exception("An error occurred during MD step %s", self._step)
                 msg = f"LAMMPS simulation failed at step {self._step}"
                 raise RuntimeError(msg) from e

@@ -113,8 +113,56 @@ class QEProcessRunner:
                 f"  Stdout: {e.stdout}\\n"
                 f"  Stderr: {e.stderr}"
             )
-            # Re-raise the original exception after logging
             raise
+
+
+class QEOutputParser:
+    """Parses the output of a Quantum Espresso calculation."""
+
+    def parse(self, output_path: Path, job_id: Any) -> DFTResult:
+        """Parses the output file of a successful QE run."""
+        try:
+            result_atoms = ase_read(output_path, format="espresso-out")
+            energy = result_atoms.get_potential_energy()
+            forces = result_atoms.get_forces()
+            stress = result_atoms.get_stress()
+
+            return DFTResult(
+                job_id=job_id,
+                energy=energy,
+                forces=forces,
+                stress=stress,
+            )
+        except (OSError, IndexError) as e:
+            msg = f"Failed to parse QE output file: {output_path}"
+            raise DFTCalculationError(msg) from e
+
+
+class QERetryHandler:
+    """Handles convergence errors in Quantum Espresso calculations."""
+
+    def handle_convergence_error(
+        self,
+        log_content: str,
+        current_params: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Diagnoses a convergence error and suggests modified parameters."""
+        new_params = current_params.copy()
+        if "convergence NOT achieved" in log_content:
+            current_beta = new_params.get("mixing_beta", 0.7)
+            new_beta = round(current_beta * 0.5, 2)
+            if new_beta > 0.01:
+                new_params["mixing_beta"] = new_beta
+                logger.info(f"Convergence failed. Reducing mixing_beta to {new_beta}")
+                return new_params
+
+        if "Cholesky" in log_content:
+            if new_params.get("diagonalization") != "cg":
+                new_params["diagonalization"] = "cg"
+                logger.info("Cholesky error detected. Switching to 'cg' diagonalization.")
+                return new_params
+
+        return None
 
 
 class DFTFactory:
@@ -124,10 +172,14 @@ class DFTFactory:
         self,
         input_generator: QEInputGenerator,
         process_runner: QEProcessRunner,
+        output_parser: QEOutputParser,
+        retry_handler: QERetryHandler,
         max_retries: int = 3,
     ) -> None:
         self.input_generator = input_generator
         self.process_runner = process_runner
+        self.output_parser = output_parser
+        self.retry_handler = retry_handler
         self.max_retries = max_retries
         self._sssp_data = self._load_sssp_data()
 
@@ -144,17 +196,17 @@ class DFTFactory:
                         work_dir, job.atoms, job.params
                     )
                     self.process_runner.execute(input_path, output_path)
-                    result = self._parse_output(output_path, job.job_id)
+                    result = self.output_parser.parse(output_path, job.job_id)
                     logger.info(f"DFT job {job.job_id} succeeded on attempt {attempt + 1}.")
                     return result
-            except subprocess.CalledProcessError as e:
+            except (subprocess.CalledProcessError, DFTCalculationError) as e:
                 logger.warning(f"DFT job {job.job_id} failed on attempt {attempt + 1}.")
                 log_content = e.stdout + "\\n" + e.stderr
-                new_params = self._handle_convergence_error(
+                new_params = self.retry_handler.handle_convergence_error(
                     log_content, job.params.model_dump()
                 )
                 if new_params and attempt < self.max_retries - 1:
-                    job.params = DFTInputParameters(**new_params)
+                    job.params = job.params.model_copy(update=new_params)
                     logger.info("Retrying with modified parameters...")
                 else:
                     raise DFTCalculationError(
@@ -176,51 +228,6 @@ class DFTFactory:
         except json.JSONDecodeError:
             logger.error(f"Error decoding SSSP data file: {SSSP_DATA_PATH}")
             raise
-
-    def _parse_output(self, output_path: Path, job_id: Any) -> DFTResult:
-        """
-        Parses the output file of a successful QE run.
-        """
-        try:
-            result_atoms = ase_read(output_path, format="espresso-out")
-            energy = result_atoms.info["energy"]
-            forces = result_atoms.info["forces"]
-            stress = result_atoms.info["stress"]
-
-            return DFTResult(
-                job_id=job_id,
-                energy=energy,
-                forces=forces,
-                stress=stress,
-            )
-        except Exception as e:
-            msg = f"Failed to parse QE output file: {output_path}"
-            raise DFTCalculationError(msg) from e
-
-    def _handle_convergence_error(
-        self,
-        log_content: str,
-        current_params: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """
-        Diagnoses a convergence error and suggests modified parameters.
-        """
-        new_params = current_params.copy()
-        if "convergence NOT achieved" in log_content:
-            current_beta = new_params.get("mixing_beta", 0.7)
-            new_beta = round(current_beta * 0.5, 2)  # Reduce by 50%
-            if new_beta > 0.01:
-                new_params["mixing_beta"] = new_beta
-                logger.info(f"Convergence failed. Reducing mixing_beta to {new_beta}")
-                return new_params
-
-        if "Cholesky" in log_content:
-            if new_params.get("diagonalization") != "cg":
-                new_params["diagonalization"] = "cg"
-                logger.info("Cholesky error detected. Switching to 'cg' diagonalization.")
-                return new_params
-
-        return None
 
     def _get_heuristic_parameters(self, atoms: Atoms) -> DFTInputParameters:
         """
