@@ -32,6 +32,26 @@ class CutoffConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class FingerprintConfig(BaseModel):
+    """Configuration for generating structural fingerprints."""
+
+    type: Literal["soap"] = "soap"
+    soap_rcut: float = Field(5.0, gt=0)
+    soap_nmax: int = Field(8, gt=0)
+    soap_lmax: int = Field(6, gt=0)
+    species: list[str] = Field(..., min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+
+class ExplorerConfig(BaseModel):
+    """Configuration for the SurrogateExplorer."""
+
+    surrogate_model_path: str  # Pydantic's FilePath is too strict for remote paths
+    max_force_threshold: float = Field(10.0, gt=0)
+    fingerprint: FingerprintConfig
+    model_config = ConfigDict(extra="forbid")
+
+
 class SmearingConfig(BaseModel):
     """Configuration for metallic smearing."""
 
@@ -94,25 +114,19 @@ class DFTJob(BaseModel):
     This model bundles the atomic structure (`ase.Atoms`) with its
     corresponding validated input parameters.
     """
-
-    # Note: Using `Any` for ase.Atoms is a pragmatic choice as Pydantic
-    # cannot validate it out-of-the-box. The validation is handled at the
-    # application layer before creating the DFTJob instance.
-    atoms: "object"  # This will be an ase.Atoms object.
+    atoms: object  # Using `object` to prevent circular imports with `ase.Atoms`
     params: DFTInputParameters
     job_id: UUID = Field(default_factory=uuid4)
 
     @field_validator("atoms")
-    @classmethod
-    def validate_atoms_type(cls, v: "object") -> object:
-        """Validate that the provided object is a genuine ase.Atoms instance."""
+    def validate_atoms_type(cls, v):
+        """Validate that the atoms object is a valid ase.Atoms instance."""
         try:
             from ase import Atoms
-        except ImportError:
-            # Re-raise with a more informative message if ASE is not installed
+        except ImportError as e:
             raise ImportError(
                 "ASE is not installed. Please install it to use this feature."
-            ) from None
+            ) from e
 
         if not isinstance(v, Atoms):
             raise TypeError("The 'atoms' field must be an instance of ase.Atoms.")
