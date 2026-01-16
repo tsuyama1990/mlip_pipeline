@@ -25,7 +25,7 @@ class WorkflowManager:
         dft_factory: Any,
         trainer: Any,
         client: Client,
-    ):
+    ) -> None:
         self.config = config
         self.checkpoint_manager = CheckpointManager(checkpoint_path)
         self.db_manager = db_manager
@@ -35,7 +35,7 @@ class WorkflowManager:
 
     def run(self) -> None:
         """Execute the main asynchronous workflow logic."""
-        logging.info(f"Dask dashboard link: {self.client.dashboard_link}")
+        logging.info("Dask dashboard link: %s", self.client.dashboard_link)
         state = self.checkpoint_manager.load() or {}
 
         dft_futures: list[Future[Any]] = []
@@ -46,7 +46,7 @@ class WorkflowManager:
 
         for cycle in range(start_cycle, max_cycles + 1):
             logging.info("-" * 50)
-            logging.info(f"Starting Active Learning Cycle {cycle}/{max_cycles}")
+            logging.info("Starting Active Learning Cycle %d/%d", cycle, max_cycles)
 
             self._run_training_and_md(state, dft_futures)
 
@@ -56,20 +56,20 @@ class WorkflowManager:
 
             if new_dft_calculations_count >= retrain_threshold:
                 logging.info(
-                    f"Reached {new_dft_calculations_count} new calculations. "
-                    "Triggering next training cycle."
+                    "Reached %d new calculations. Triggering next training cycle.",
+                    new_dft_calculations_count,
                 )
                 new_dft_calculations_count = 0  # Reset counter
 
         self._wait_for_remaining_dft_futures(dft_futures, state)
-        self.client.close()  # type: ignore[no-untyped-call]
+        self.client.close()
 
     def _run_training_and_md(self, state: dict[str, Any], dft_futures: list[Future[Any]]) -> None:
         """Run the training and MD simulation for a single cycle."""
         logging.info("Step 1: Training the MLIP...")
         self.trainer.train.return_value = "model.yace"
         potential_path = self.trainer.train()
-        logging.info(f"Trained new potential: {potential_path}")
+        logging.info("Trained new potential: %s", potential_path)
 
         logging.info("Step 2: Running MD simulation...")
         lammps_runner = LammpsRunner(
@@ -97,7 +97,7 @@ class WorkflowManager:
         state: dict[str, Any],
     ) -> int:
         """Process completed DFT calculations and update the database."""
-        completed_futures = [f for f in dft_futures if f.done()]  # type: ignore[no-untyped-call]
+        completed_futures = [f for f in dft_futures if f.done()]
         for future in completed_futures:
             if future.status == "finished":
                 atoms_result = future.result()
@@ -119,7 +119,7 @@ class WorkflowManager:
     ) -> None:
         """Wait for and process any remaining DFT calculations."""
         logging.info("Waiting for remaining DFT calculations to finish...")
-        self.client.gather(dft_futures)  # type: ignore[no-untyped-call]
+        self.client.gather(dft_futures)
         for future in dft_futures:
             if future.status == "finished":
                 atoms_result = future.result()

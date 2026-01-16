@@ -21,6 +21,17 @@ This cycle introduces the crucial **`SurrogateExplorer`** module, which adds a l
 - **Surrogate Pre-screening**: Uses a fast, pre-trained MACE model to perform a "sanity check" on candidate structures, immediately discarding any with unphysically high forces.
 - **Intelligent Down-selection**: For the structures that pass screening, it employs Farthest Point Sampling (FPS) on structural fingerprints (SOAP) to select a small, maximally diverse subset for DFT calculation. This ensures that computational effort is focused on the most informative new structures.
 
+## Cycle 03: The Training Engine
+
+This cycle implements the `PacemakerTrainer`, the component responsible for consuming the DFT data and producing a trained Machine Learning Interatomic Potential (MLIP). This bridges the gap between raw quantum mechanical results and a fast, accurate, and usable surrogate model.
+
+### Key Features:
+- **Automated Training**: The `PacemakerTrainer` class orchestrates the entire training workflow, including:
+  - **Data Ingestion**: Automatically reads training data from the central ASE database.
+  - **Dynamic Configuration**: Generates the necessary input files for the Pacemaker training code using a Jinja2 template.
+  - **Secure Execution**: Invokes the Pacemaker training process in a secure, monitored subprocess.
+- **Schema-Driven Configuration**: The entire training process is configured via a strict Pydantic model, ensuring that all hyperparameters are valid before the training process is launched.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:

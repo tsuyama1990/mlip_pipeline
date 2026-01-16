@@ -1,0 +1,44 @@
+# pacemaker.in.j2 - Jinja2 Template for Pacemaker Configuration
+
+# ==============================================================================
+# General Settings
+# ==============================================================================
+# This is a template file. Values enclosed in {{ }} are placeholders that will
+# be dynamically filled in by the MLIP-AutoPipe training engine.
+
+job_type = "train"
+calc_type = "ace"
+
+# ==============================================================================
+# Data Source
+# ==============================================================================
+# The path to the training data file will be set by the trainer.
+train_structures_file = "{{ data_file_path }}"
+
+# ==============================================================================
+# ACE Potential Settings
+# ==============================================================================
+[ace]
+# These are typical hyperparameters for an ACE potential.
+# In a more advanced system, these could also be part of the config.
+radial_basis = "chebyshev"
+correlation_order = 3
+max_degree = 12
+
+# ==============================================================================
+# Training Hyperparameters
+# ==============================================================================
+[training]
+# Flag for delta learning, which learns relative to a baseline potential.
+# The value is converted to lowercase to ensure it's a valid boolean in INI format.
+delta_learn = {{ config.delta_learning | lower }}
+
+# ==============================================================================
+# Loss Function Weights
+# ==============================================================================
+# These weights control the contribution of energy, forces, and stress
+# to the total loss, allowing fine-tuning of the model's priorities.
+[loss_weights]
+energy = {{ config.loss_weights.energy }}
+forces = {{ config.loss_weights.forces }}
+stress = {{ config.loss_weights.stress }}

@@ -24,3 +24,4 @@ env/
 
 # Artifacts
 *.model
+*.yace

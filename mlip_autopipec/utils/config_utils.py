@@ -35,9 +35,8 @@ def generate_system_config_from_user_config(
     md_ensemble = MDEnsemble(target_temperature_k=350.0)
     inference_params = InferenceParams(md_ensemble=md_ensemble)
 
-    system_config = SystemConfig(
+    return SystemConfig(
         dft=dft_config,
         inference=inference_params,
         target_system=user_config.target_system.model_copy(),
     )
-    return system_config
