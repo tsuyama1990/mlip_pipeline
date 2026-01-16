@@ -32,14 +32,13 @@ def mock_training_config(tmp_path: Path) -> TrainingConfig:
     )
 
 
-@patch("mlip_autopipec.modules.training.read_training_data")
-def test_pacemaker_trainer_perform_training(mock_read_data, mock_training_config: TrainingConfig, tmp_path: Path):
+def test_pacemaker_trainer_perform_training(mock_training_config: TrainingConfig, tmp_path: Path):
     """
     Tests that the PacemakerTrainer correctly prepares input files and executes
     the training process.
     """
     # Arrange
-    # Mock data reading using real Atoms for ase.io.write compatibility
+    # Data is now passed explicitly
     atoms1 = bulk("Si")
     atoms1.info["energy"] = -10.0
     atoms1.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms1))
@@ -48,7 +47,7 @@ def test_pacemaker_trainer_perform_training(mock_read_data, mock_training_config
     atoms2.info["energy"] = -10.1
     atoms2.arrays["forces"] = np.array([[0.05, 0.05, 0.05]] * len(atoms2))
 
-    mock_read_data.return_value = [atoms1, atoms2]
+    training_data = [atoms1, atoms2]
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
 
@@ -70,16 +69,12 @@ def test_pacemaker_trainer_perform_training(mock_read_data, mock_training_config
         (tmp_path / "potential.yace").touch()
 
         # Act
-        result_path, metrics = trainer.perform_training(generation=1)
+        result_path, metrics = trainer.perform_training(training_data, generation=1)
 
     # Assert
     assert result_path.name == "potential.yace"
-    mock_read_data.assert_called_once_with(mock_training_config.data_source_db)
     assert isinstance(metrics, TrainingRunMetrics)
     assert metrics.num_structures == 2
-    # Verify parsing logic matches what we mocked (implementation details TBD)
-    # We will assume regex matches 0.123 and 0.045
-    # Since we haven't implemented it yet, we just assert the interface.
 
     mock_run.assert_called_once_with(
         [str(mock_training_config.pacemaker_executable)],
@@ -94,8 +89,7 @@ def test_pacemaker_trainer_perform_training(mock_read_data, mock_training_config
     assert (tmp_path / "training_data.xyz").exists()
 
 
-@patch("mlip_autopipec.modules.training.read_training_data")
-def test_pacemaker_trainer_executable_not_found(mock_read_data, mock_training_config: TrainingConfig):
+def test_pacemaker_trainer_executable_not_found(mock_training_config: TrainingConfig):
     """
     Tests that a FileNotFoundError is raised if the pacemaker executable
     is not found.
@@ -103,36 +97,32 @@ def test_pacemaker_trainer_executable_not_found(mock_read_data, mock_training_co
     atoms = bulk("Si")
     atoms.info["energy"] = -10.0
     atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
-    atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
-    mock_read_data.return_value = [atoms]
+    training_data = [atoms]
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with patch("shutil.which", return_value=False), pytest.raises(TrainingFailedError):
-        trainer.perform_training(generation=1)
+        trainer.perform_training(training_data, generation=1)
 
 
-@patch("mlip_autopipec.modules.training.read_training_data")
-def test_pacemaker_trainer_training_failed(mock_read_data, mock_training_config: TrainingConfig):
+def test_pacemaker_trainer_training_failed(mock_training_config: TrainingConfig):
     """
     Tests that a TrainingFailedError is raised if the subprocess fails.
     """
     atoms = bulk("Si")
     atoms.info["energy"] = -10.0
     atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
-    mock_read_data.return_value = [atoms]
+    training_data = [atoms]
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")), \
          patch("shutil.which", return_value=True), pytest.raises(TrainingFailedError):
-        trainer.perform_training(generation=1)
+        trainer.perform_training(training_data, generation=1)
 
 
-@patch("mlip_autopipec.modules.training.read_training_data")
-def test_pacemaker_trainer_no_data(mock_read_data, mock_training_config: TrainingConfig):
+def test_pacemaker_trainer_no_data(mock_training_config: TrainingConfig):
     """
-    Tests that a NoTrainingDataError is raised if the database is empty.
+    Tests that a NoTrainingDataError is raised if the input data is empty.
     """
-    mock_read_data.return_value = []
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with pytest.raises(NoTrainingDataError):
-        trainer.perform_training(generation=1)
+        trainer.perform_training([], generation=1)

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from mlip_autopipec.config.models import CheckpointState, SystemConfig
 from mlip_autopipec.modules.dft import DFTRunner
 from mlip_autopipec.modules.training import PacemakerTrainer
+from mlip_autopipec.utils.ase_utils import read_training_data
 from mlip_autopipec.utils.dask_utils import get_dask_client
 
 logger = logging.getLogger(__name__)
@@ -101,9 +102,30 @@ class WorkflowManager:
             logger.warning("Trainer not initialized. Skipping training.")
             return
 
+        # Fetch training data
+        db_path = self.system_config.training_config.data_source_db if self.system_config.training_config else None
+
+        # Resolve relative DB path if necessary
+        if db_path and not db_path.is_absolute():
+            db_path = self.work_dir / db_path
+
+        if not db_path or not db_path.exists():
+            logger.warning("No training database found. Skipping training.")
+            return
+
+        try:
+            logger.info(f"Reading training data from {db_path}...")
+            training_data = read_training_data(db_path)
+        except Exception:
+            logger.exception("Failed to read training data from database.")
+            return # Don't crash, just skip training this cycle
+
         logger.info("Starting training for generation %d...", self.state.active_learning_generation)
         try:
-            potential_path, metrics = self.trainer.perform_training(generation=self.state.active_learning_generation)
+            potential_path, metrics = self.trainer.perform_training(
+                training_data=training_data,
+                generation=self.state.active_learning_generation
+            )
 
             # Update state
             self.state.training_history.append(metrics)

@@ -175,7 +175,8 @@ def test_checkpoint_training_history(valid_system_config, mock_dask_client, tmp_
     assert len(manager2.state.training_history) == 1
     assert manager2.state.training_history[0].rmse_forces == 0.1
 
-def test_perform_training(valid_system_config, mock_dask_client, tmp_path):
+@patch("mlip_autopipec.workflow_manager.read_training_data")
+def test_perform_training(mock_read_data, valid_system_config, mock_dask_client, tmp_path):
     """Tests that perform_training updates state and checkpoints."""
     from pathlib import Path
 
@@ -188,6 +189,9 @@ def test_perform_training(valid_system_config, mock_dask_client, tmp_path):
     )
     mock_trainer.perform_training.return_value = (Path("potential.yace"), metrics)
 
+    # Mock data return
+    mock_read_data.return_value = [MagicMock()] * 50
+
     manager = WorkflowManager(
         system_config=valid_system_config,
         work_dir=tmp_path,
@@ -195,13 +199,18 @@ def test_perform_training(valid_system_config, mock_dask_client, tmp_path):
     )
     manager.dask_client = mock_dask_client
 
+    # Create DB file so check passes
+    (tmp_path / "test.db").touch()
+
     manager.perform_training()
 
     assert len(manager.state.training_history) == 1
     assert manager.state.training_history[0] == metrics
     assert manager.state.current_potential_path == Path("potential.yace")
 
-    mock_trainer.perform_training.assert_called_once_with(generation=0)
+    mock_trainer.perform_training.assert_called_once()
+    assert mock_trainer.perform_training.call_args[1]["generation"] == 0
+    assert len(mock_trainer.perform_training.call_args[1]["training_data"]) == 50
 
     # Verify checkpoint
     checkpoint_path = tmp_path / "checkpoint.json"

@@ -12,7 +12,6 @@ from ase.io import write as ase_write
 from jinja2 import Template
 
 from mlip_autopipec.config.models import TrainingConfig, TrainingRunMetrics
-from mlip_autopipec.utils.ase_utils import read_training_data
 
 log = logging.getLogger(__name__)
 
@@ -29,35 +28,35 @@ class PacemakerTrainer:
     """Orchestrates the training of a Machine Learning Interatomic Potential."""
 
     def __init__(self, training_config: TrainingConfig) -> None:
-        """Initialize the trainer with a validated configuration."""
-        self.config = training_config
-
-    def perform_training(self, generation: int) -> tuple[Path, TrainingRunMetrics]:
         """
-        Executes the full training workflow:
-        1. Reads data from the database.
-        2. Prepares input files in a temporary directory.
-        3. Runs the Pacemaker training executable.
-        4. Parses metrics and moves the resulting potential.
+        Initialize the trainer with a validated configuration.
 
         Args:
+            training_config: The configuration object for training.
+        """
+        self.config = training_config
+
+    def perform_training(self, training_data: list[Atoms], generation: int) -> tuple[Path, TrainingRunMetrics]:
+        """
+        Executes the full training workflow using the provided data.
+
+        1. Prepares input files in a temporary directory.
+        2. Runs the Pacemaker training executable.
+        3. Parses metrics and moves the resulting potential.
+
+        Args:
+            training_data: A list of ASE Atoms objects to train on.
             generation: The current active learning generation index.
 
         Returns:
             A tuple containing the path to the trained potential file and the training metrics.
 
         Raises:
-            NoTrainingDataError: If no data is found or database cannot be read.
+            NoTrainingDataError: If the provided training_data list is empty.
             TrainingFailedError: If the training subprocess fails or output is invalid.
         """
-        try:
-            atoms_list = read_training_data(self.config.data_source_db)
-        except ValueError as e:
-            log.exception("Failed to read training data from database.")
-            raise NoTrainingDataError(f"Error reading training data: {e}") from e
-
-        if not atoms_list:
-            msg = f"No training data found in '{self.config.data_source_db}'."
+        if not training_data:
+            msg = "No training data provided."
             log.error(msg)
             raise NoTrainingDataError(msg)
 
@@ -67,7 +66,7 @@ class PacemakerTrainer:
             with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
                 working_dir = Path(temp_dir_str)
                 log.info(f"Preparing training input in {working_dir}...")
-                self._prepare_pacemaker_input(atoms_list, working_dir)
+                self._prepare_pacemaker_input(training_data, working_dir)
 
                 log.info("Executing Pacemaker training...")
                 potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
@@ -78,30 +77,39 @@ class PacemakerTrainer:
 
                 metrics = TrainingRunMetrics(
                     generation=generation,
-                    num_structures=len(atoms_list),
+                    num_structures=len(training_data),
                     rmse_forces=rmse_forces,
                     rmse_energy_per_atom=rmse_energy
                 )
                 return final_path, metrics
-        except OSError as e:
+        except (OSError, shutil.Error) as e:
             log.exception("Filesystem error during training.")
             raise TrainingFailedError(f"Filesystem error: {e}") from e
 
     def _prepare_pacemaker_input(self, training_data: list[Atoms], working_dir: Path) -> None:
-        """Create the necessary input files for the Pacemaker executable."""
+        """
+        Create the necessary input files for the Pacemaker executable.
+
+        Args:
+            training_data: List of atoms to write to disk.
+            working_dir: Directory where files should be created.
+        """
         data_file_path = working_dir / "training_data.xyz"
 
         # Ensure directory exists (TemporaryDirectory should do this, but just in case)
         working_dir.mkdir(parents=True, exist_ok=True)
 
-        ase_write(data_file_path, training_data, format="extxyz")
+        try:
+            ase_write(data_file_path, training_data, format="extxyz")
+        except Exception as e:
+            log.exception("Failed to write training data file.")
+            raise TrainingFailedError(f"Failed to write training data: {e}") from e
 
         try:
             if self.config.template_file:
                 with self.config.template_file.open() as f:
                     template_content = f.read()
             else:
-                # Fallback or error if no template provided? Schema says Optional, but logic implies required.
                 # Assuming config validation enforces it if needed, or providing a default string here.
                 # For now, let's assume it might be None and raise if so.
                 raise FileNotFoundError("No template file specified in configuration.")
@@ -122,7 +130,15 @@ class PacemakerTrainer:
         config_file_path.write_text(rendered_config)
 
     def _execute_training(self, working_dir: Path) -> tuple[Path, float, float]:
-        """Execute the `pacemaker` command in a secure subprocess."""
+        """
+        Execute the `pacemaker` command in a secure subprocess.
+
+        Args:
+            working_dir: The directory to run the command in.
+
+        Returns:
+            Tuple of (potential_path, rmse_forces, rmse_energy).
+        """
         executable = str(self.config.pacemaker_executable)
         if not shutil.which(executable):
             msg = f"Executable '{executable}' not found."

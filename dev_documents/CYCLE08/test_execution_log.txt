@@ -26,7 +26,7 @@ tests/utils/test_resilience.py ......                                    [100%]
 ==================================== ERRORS ====================================
 _______________ ERROR at setup of test_lammps_script_generation ________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-24/test_lammps_script_generation0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-29/test_lammps_script_generation0')
 
     @pytest.fixture
     def mock_inference_config(tmp_path):
@@ -43,13 +43,13 @@ tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-24/test_lammps_script_generati
         )
 E       pydantic_core._pydantic_core.ValidationError: 1 validation error for InferenceConfig
 E       lammps_executable
-E         Value error, File at /tmp/pytest-of-jules/pytest-24/test_lammps_script_generation0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...script_generation0/lmp'), input_type=PosixPath]
+E         Value error, File at /tmp/pytest-of-jules/pytest-29/test_lammps_script_generation0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...script_generation0/lmp'), input_type=PosixPath]
 E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
 
 tests/modules/test_inference.py:20: ValidationError
 ___________ ERROR at setup of test_end_to_end_uncertainty_detection ____________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-24/test_end_to_end_uncertainty_de0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-29/test_end_to_end_uncertainty_de0')
 
     @pytest.fixture
     def mock_inference_config(tmp_path):
@@ -66,7 +66,7 @@ tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-24/test_end_to_end_uncertainty
         )
 E       pydantic_core._pydantic_core.ValidationError: 1 validation error for InferenceConfig
 E       lammps_executable
-E         Value error, File at /tmp/pytest-of-jules/pytest-24/test_end_to_end_uncertainty_de0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...nd_uncertainty_de0/lmp'), input_type=PosixPath]
+E         Value error, File at /tmp/pytest-of-jules/pytest-29/test_end_to_end_uncertainty_de0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...nd_uncertainty_de0/lmp'), input_type=PosixPath]
 E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
 
 tests/modules/test_inference.py:20: ValidationError
@@ -74,8 +74,8 @@ tests/modules/test_inference.py:20: ValidationError
 _______________________ test_dft_runner_failure_handling _______________________
 
 h2_atoms = Atoms(symbols='H2', pbc=False)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-24/test_dft_runner_failure_handli0')
-mocker = <pytest_mock.plugin.MockerFixture object at 0x7efbf83e5d00>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-29/test_dft_runner_failure_handli0')
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fdea9c45a30>
 
     def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
         """Test that DFTRunner raises DFTCalculationError when execution fails completely."""
@@ -116,9 +116,9 @@ mocker = <pytest_mock.plugin.MockerFixture object at 0x7efbf83e5d00>
             dft_runner.run(job)
 
 >       assert "DFT calculation failed" in str(excinfo.value)
-E       AssertionError: assert 'DFT calculation failed' in 'DFT subprocess failed for job e89c2a29-b206-4a75-b442-5d02c2052e48\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr'
-E        +  where 'DFT subprocess failed for job e89c2a29-b206-4a75-b442-5d02c2052e48\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr' = str(DFTCalculationError('DFT subprocess failed for job e89c2a29-b206-4a75-b442-5d02c2052e48'))
-E        +    where DFTCalculationError('DFT subprocess failed for job e89c2a29-b206-4a75-b442-5d02c2052e48') = <ExceptionInfo DFTCalculationError('DFT subprocess failed for job e89c2a29-b206-4a75-b442-5d02c2052e48') tblen=3>.value
+E       AssertionError: assert 'DFT calculation failed' in 'DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr'
+E        +  where 'DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr' = str(DFTCalculationError('DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30'))
+E        +    where DFTCalculationError('DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30') = <ExceptionInfo DFTCalculationError('DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30') tblen=3>.value
 
 tests/integration/test_dft_integration.py:205: AssertionError
 ------------------------------ Captured log call -------------------------------
@@ -166,7 +166,7 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/app/mlip_autopipec/modules/dft.py", line 179, in run
     raise DFTCalculationError(
-mlip_autopipec.exceptions.DFTCalculationError: DFT subprocess failed for job e89c2a29-b206-4a75-b442-5d02c2052e48
+mlip_autopipec.exceptions.DFTCalculationError: DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30
 --- STDOUT ---
 Unknown Error
 --- STDERR ---
@@ -193,53 +193,53 @@ tests/test_workflow_manager.py::test_save_checkpoint
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 36305 instead
+  Hosting the HTTP server on port 35019 instead
 
 tests/test_workflow_manager.py::test_load_checkpoint
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 41051 instead
+  Hosting the HTTP server on port 44469 instead
 
 tests/test_workflow_manager.py::test_init_does_not_load_state_unnecessarily
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 37555 instead
+  Hosting the HTTP server on port 35355 instead
 
 tests/test_workflow_manager.py::test_resubmit_pending_jobs
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 43627 instead
+  Hosting the HTTP server on port 39409 instead
 
 tests/test_workflow_manager.py::test_checkpoint_training_history
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 42645 instead
+  Hosting the HTTP server on port 41923 instead
 
 tests/test_workflow_manager.py::test_checkpoint_training_history
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 44625 instead
+  Hosting the HTTP server on port 46579 instead
 
 tests/test_workflow_manager.py::test_perform_training
   /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
 
   Port 8787 is already in use.
   Perhaps you already have a cluster running?
-  Hosting the HTTP server on port 39935 instead
+  Hosting the HTTP server on port 45297 instead
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
 FAILED tests/integration/test_dft_integration.py::test_dft_runner_failure_handling
 ERROR tests/modules/test_inference.py::test_lammps_script_generation - pydant...
 ERROR tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
-== 1 failed, 63 passed, 2 skipped, 11 warnings, 2 errors in 76.29s (0:01:16) ===
+== 1 failed, 63 passed, 2 skipped, 11 warnings, 2 errors in 81.75s (0:01:21) ===
