@@ -47,6 +47,10 @@ class DFTHeuristics:
     This class encapsulates the domain-specific knowledge required to choose
     parameters like k-points, cutoffs, and magnetism settings for a given
     atomic structure. It is designed to be a stateless utility class.
+
+    NOTE: The methods in this class are designed to be generic and data-driven,
+    avoiding repeated logic for different chemical elements. The parameters
+    are derived from loops and lookups into the SSSP data file.
     """
 
     def __init__(self, sssp_data_path: Path = SSSP_DATA_PATH):

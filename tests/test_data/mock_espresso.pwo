@@ -7,8 +7,11 @@
      site n.     atom                  positions (alat units)
          1           H   tau(   1) = (   0.000000000   0.000000000   0.000000000  )
          2           H   tau(   2) = (   0.000000000   0.000000000   0.039158315  )
+     ATOMIC_POSITIONS (angstrom)
+     H       0.000000000   0.000000000   0.000000000
+     H       0.000000000   0.000000000   0.740000000
      Forces acting on atoms (cartesian axes, Ry/au):
           atom    1 type  1   force =  -0.00000135   0.00000000   0.00000000
           atom    2 type  1   force =   0.00000135   0.00000000   0.00000000
-     !    total energy              =     -16.42531639 Ry
+!    total energy              =     -16.42531639 Ry
      JOB DONE.
