@@ -1,4 +1,17 @@
-from mlip_autopipec.config.models import SystemConfig
+
+import json
+import logging
+from pathlib import Path
+from uuid import UUID
+
+from dask.distributed import Client, Future, as_completed
+from pydantic import ValidationError
+
+from mlip_autopipec.config.models import CheckpointState, SystemConfig
+from mlip_autopipec.modules.dft import DFTRunner
+from mlip_autopipec.utils.dask_utils import get_dask_client
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowManager:
@@ -6,25 +19,117 @@ class WorkflowManager:
     The central orchestrator for the MLIP-AutoPipe workflow.
 
     This class is responsible for initializing and coordinating the various
-    modules (DFT, Explorer, etc.) and managing the main active learning loop.
-    It operates on a fully validated SystemConfig.
+    modules, managing the main active learning loop with Dask for parallel
+    execution, and handling checkpointing for resilience.
     """
 
-    def __init__(self, system_config: SystemConfig):
-        """
-        Initializes the WorkflowManager.
-
-        Args:
-            system_config: A fully validated Pydantic model of the entire
-                           system configuration.
-        """
+    def __init__(
+        self,
+        system_config: SystemConfig,
+        work_dir: Path,
+        dft_runner: DFTRunner | None = None,
+    ):
         self.system_config = system_config
+        self.work_dir = work_dir
+        self.checkpoint_path = self.work_dir / "checkpoint.json"
+        self.dask_client: Client = get_dask_client()
+        self.dft_runner: DFTRunner | None = dft_runner
+        self.futures: dict[UUID, Future] = {}
+        self.state: CheckpointState | None = None
+
+        self._load_or_initialize_state()
+
+    def _load_or_initialize_state(self):
+        """Loads state from a checkpoint or initializes a new one."""
+        if self.checkpoint_path.exists():
+            self._load_checkpoint()
+            self._resubmit_pending_jobs()
+        else:
+            self.state = CheckpointState(
+                run_uuid=self.system_config.run_uuid,
+                system_config=self.system_config,
+            )
+            self._save_checkpoint()
+            logger.info("Initialized a new workflow state.")
+
+    def _save_checkpoint(self):
+        """Serializes the current state to a checkpoint file."""
+        logger.info("Saving checkpoint...")
+        with self.checkpoint_path.open("w") as f:
+            # Pydantic's model_dump_json handles serialization of complex types
+            # like UUID and Path to standard JSON types.
+            f.write(self.state.model_dump_json(indent=4))
+        logger.info("Checkpoint saved to %s", self.checkpoint_path)
+
+    def _load_checkpoint(self):
+        """Loads and validates the state from a checkpoint file."""
+        logger.info("Loading state from checkpoint: %s", self.checkpoint_path)
+        try:
+            with self.checkpoint_path.open() as f:
+                state_data = json.load(f)
+                self.state = CheckpointState.model_validate(state_data)
+            logger.info("Successfully loaded workflow state.")
+        except (OSError, json.JSONDecodeError, ValidationError) as e:
+            logger.error("Failed to load or validate checkpoint.", exc_info=True)
+            raise RuntimeError("Could not load a valid checkpoint file.") from e
+
+    def _resubmit_pending_jobs(self):
+        """Re-submits jobs that were pending at the time of the last checkpoint."""
+        if not self.state.pending_job_ids:
+            return
+
+        logger.info("Re-submitting %d pending jobs...", len(self.state.pending_job_ids))
+        if self.dft_runner is None:
+            # This is a safeguard; dft_runner should be set before this is called in a real run.
+            raise RuntimeError("DFTRunner is not initialized.")
+
+        for job_id in self.state.pending_job_ids:
+            args = self.state.job_submission_args.get(job_id)
+            if args:
+                future = self.dask_client.submit(self.dft_runner.run, *args)
+                self.futures[job_id] = future
+            else:
+                logger.warning("No submission arguments found for pending job ID: %s", job_id)
+        logger.info("All pending jobs have been re-submitted.")
 
     def run(self):
         """
         Executes the main active learning workflow.
+
+        This method is a placeholder for the full active learning loop. In this
+        cycle, it focuses on demonstrating the Dask integration and checkpointing
+        by managing a batch of futures.
         """
-        # This is a placeholder implementation that will be fleshed out in future cycles.
-        # For now, we just demonstrate that the workflow can be initiated.
-        print("WorkflowManager: run() called")
-        print(f"Project: {self.system_config.project_name}")
+        logger.info("WorkflowManager: run() started.")
+        # In a full implementation, structures would be generated here and
+        # submitted as jobs. For now, we assume jobs are submitted externally
+        # for testing purposes.
+
+        if not self.futures:
+            logger.info("No active jobs to monitor. Workflow exiting.")
+            return
+
+        # Process results as they complete
+        for future in as_completed(self.futures.values()):
+            try:
+                result = future.result()
+                job_id = result.job_id
+
+                # Update state: remove job from pending and args dict
+                if job_id in self.state.pending_job_ids:
+                    self.state.pending_job_ids.remove(job_id)
+                if job_id in self.state.job_submission_args:
+                    del self.state.job_submission_args[job_id]
+
+                # Save the result to the database (placeholder)
+                logger.info("Processed result for job %s", job_id)
+
+                # Save state after processing the result
+                self._save_checkpoint()
+
+            except Exception:
+                logger.error("A DFT calculation job failed.", exc_info=True)
+                # Here you might add logic to handle failed jobs, e.g.,
+                # marking them as failed in the state.
+
+        logger.info("All jobs completed. Workflow finished.")

@@ -168,12 +168,11 @@ class UncertaintyConfig(BaseModel):
         return v
 
 
-from typing import Optional
 
 
 class InferenceConfig(BaseModel):
-    lammps_executable: Optional[FilePath] = None
-    potential_path: Optional[FilePath] = None
+    lammps_executable: FilePath | None = None
+    potential_path: FilePath | None = None
     md_params: MDConfig = Field(default_factory=MDConfig)
     uncertainty_params: UncertaintyConfig = Field(default_factory=UncertaintyConfig)
     model_config = ConfigDict(extra="forbid")
@@ -187,9 +186,9 @@ class LossWeights(BaseModel):
 
 
 class TrainingConfig(BaseModel):
-    pacemaker_executable: Optional[FilePath] = None
+    pacemaker_executable: FilePath | None = None
     data_source_db: Path
-    template_file: Optional[FilePath] = None
+    template_file: FilePath | None = None
     delta_learning: bool = True
     loss_weights: LossWeights = Field(default_factory=LossWeights)
     ace_params: "PacemakerACEParams" = Field(
@@ -354,3 +353,24 @@ class PacemakerFitParams(BaseModel):
 class PacemakerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     fit_params: PacemakerFitParams
+
+
+class CheckpointState(BaseModel):
+    """
+    Represents the serializable state of a workflow run for checkpointing.
+
+    This model captures all the necessary information to resume a workflow
+    from an interruption. It includes the original configuration, the current
+    stage of the active learning loop, and, most importantly, the state of
+    all submitted jobs. By storing the arguments needed to recreate a job
+    rather than a non-serializable object like a Dask Future, the state can
+    be reliably saved to and loaded from a file.
+    """
+
+    run_uuid: UUID
+    system_config: SystemConfig
+    active_learning_generation: int = Field(0, ge=0)
+    current_potential_path: Path | None = None
+    pending_job_ids: list[UUID] = Field(default_factory=list)
+    job_submission_args: dict[UUID, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)

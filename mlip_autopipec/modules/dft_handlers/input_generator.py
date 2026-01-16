@@ -3,6 +3,7 @@ This module contains the `QEInputGenerator` class.
 """
 
 from pathlib import Path
+
 from ase.atoms import Atoms
 from ase.calculators.espresso import Espresso, EspressoProfile
 

@@ -1,5 +1,6 @@
 """Module for training a Pacemaker potential."""
 
+import logging
 import re
 import shutil
 import subprocess
@@ -10,7 +11,6 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect as ase_db_connect
 from ase.io import write as ase_write
-import logging
 from jinja2 import Template
 from pydantic import ValidationError
 

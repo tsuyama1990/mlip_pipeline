@@ -1,6 +1,7 @@
 """Unit tests for the ConfigFactory module."""
 
 from uuid import UUID
+
 from mlip_autopipec.config.factory import ConfigFactory
 from mlip_autopipec.config.models import UserInputConfig
 

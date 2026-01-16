@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from ase.atoms import Atoms
-from ase.calculators.espresso import EspressoProfile
-from ase.io import read as ase_read
 
 from mlip_autopipec.config.models import (
     CutoffConfig,
@@ -22,12 +20,13 @@ from mlip_autopipec.config.models import (
     MagnetismConfig,
     SmearingConfig,
 )
-from mlip_autopipec.exceptions import DFTCalculationError
-from mlip_autopipec.utils.resilience import QERetryHandler
-from .dft_handlers.input_generator import QEInputGenerator
-from .dft_handlers.process_runner import QEProcessRunner
-from .dft_handlers.output_parser import QEOutputParser
+from typing import Any, Dict
 
+from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.utils.resilience import retry
+from .dft_handlers.input_generator import QEInputGenerator
+from .dft_handlers.output_parser import QEOutputParser
+from .dft_handlers.process_runner import QEProcessRunner
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -151,16 +150,45 @@ class DFTJobFactory:
         return {el: self._sssp_data[el]["filename"] for el in elements if el in self._sssp_data}
 
 
+def dft_retry_handler(exception: Exception, kwargs: Dict[str, Any]) -> Dict[str, Any] | None:
+    """
+    Handles specific DFT convergence errors and suggests modified parameters.
+    """
+    log_content = ""
+    if hasattr(exception, "stdout"):
+        log_content += exception.stdout
+    if hasattr(exception, "stderr"):
+        log_content += exception.stderr
+
+    job = kwargs.get("job")
+    if not job or not isinstance(job, DFTJob):
+        return None
+
+    current_params = job.params
+    new_params = {}
+
+    if "convergence NOT achieved" in log_content:
+        if current_params.mixing_beta > 0.1:
+            new_params["mixing_beta"] = current_params.mixing_beta / 2
+            logger.info(f"Convergence failed. Halving mixing_beta to {new_params['mixing_beta']}.")
+
+    if "Cholesky" in log_content:
+        if current_params.diagonalization == "david":
+            new_params["diagonalization"] = "cg"
+            logger.info("Cholesky issue detected. Switching diagonalization to 'cg'.")
+
+    if new_params:
+        updated_params = current_params.model_dump()
+        updated_params.update(new_params)
+        job.params = DFTInputParameters.model_validate(updated_params)
+        return {"job": job}
+
+    return None
+
+
 class DFTRunner:
     """
     Executes and manages a `DFTJob`.
-
-    This class is responsible for the practical execution of a DFT calculation.
-    It takes a `DFTJob` object, which contains the atomic structure and all
-    necessary parameters, and orchestrates the process of running the external
-    DFT code. This includes generating input files, running the calculation in a
-    subprocess, parsing the output, and handling retries for convergence
-    errors. It is designed to be a stateful, single-job runner.
     """
 
     def __init__(
@@ -168,63 +196,38 @@ class DFTRunner:
         input_generator: QEInputGenerator,
         process_runner: QEProcessRunner,
         output_parser: QEOutputParser,
-        retry_handler: QERetryHandler,
-        max_retries: int = 3,
     ) -> None:
-        """
-        Initializes the DFTRunner.
-
-        Args:
-            input_generator: A component for generating QE input files.
-            process_runner: A component for running the QE executable.
-            output_parser: A component for parsing QE output files.
-            retry_handler: A component for handling convergence errors.
-            max_retries: The maximum number of times to retry a failed
-                         calculation.
-        """
         self.input_generator = input_generator
         self.process_runner = process_runner
         self.output_parser = output_parser
-        self.retry_handler = retry_handler
-        self.max_retries = max_retries
 
+    @retry(
+        attempts=3,
+        delay=5.0,
+        exceptions=(DFTCalculationError, subprocess.CalledProcessError),
+        on_retry=dft_retry_handler,
+    )
     def run(self, job: DFTJob) -> DFTResult:
-        """Runs a DFTJob and returns a DFTResult."""
-        for attempt in range(self.max_retries):
-            try:
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    work_dir = Path(temp_dir)
-                    input_path = work_dir / "espresso.pwi"
-                    output_path = work_dir / "espresso.pwo"
-                    self.input_generator.prepare_input_files(work_dir, job.atoms, job.params)
-                    self.process_runner.execute(input_path, output_path)
-                    result = self.output_parser.parse(output_path, job.job_id)
-                    logger.info(f"DFT job {job.job_id} succeeded on attempt {attempt + 1}.")
-                    return result
-            except (subprocess.CalledProcessError, DFTCalculationError) as e:
-                logger.exception(
-                    f"DFT job {job.job_id} failed on attempt {attempt + 1}.",
-                    extra={
-                        "job_id": job.job_id,
-                        "attempt": attempt + 1,
-                        "stdout": e.stdout if hasattr(e, "stdout") else "",
-                        "stderr": e.stderr if hasattr(e, "stderr") else "",
-                    },
-                )
-                log_content = e.stdout + "\\n" + e.stderr if hasattr(e, "stdout") else ""
-                new_params = self.retry_handler.handle_convergence_error(
-                    log_content, job.params.model_dump()
-                )
-                if new_params and attempt < self.max_retries - 1:
-                    updated_params = job.params.model_dump()
-                    updated_params.update(new_params)
-                    job.params = DFTInputParameters.model_validate(updated_params)
-                    logger.info("Retrying with modified parameters...")
-                else:
-                    raise DFTCalculationError(
-                        f"DFT calculation failed for job {job.job_id} after all retries.",
-                        stdout=e.stdout,
-                        stderr=e.stderr,
-                    ) from e
-        msg = f"DFT job {job.job_id} failed unexpectedly."
-        raise DFTCalculationError(msg)
+        """
+        Runs a DFTJob and returns a DFTResult.
+        """
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                work_dir = Path(temp_dir)
+                input_path = work_dir / "espresso.pwi"
+                output_path = work_dir / "espresso.pwo"
+                self.input_generator.prepare_input_files(work_dir, job.atoms, job.params)
+                self.process_runner.execute(input_path, output_path)
+                result = self.output_parser.parse(output_path, job.job_id)
+                logger.info(f"DFT job {job.job_id} succeeded.")
+                return result
+        except (subprocess.CalledProcessError, DFTCalculationError) as e:
+            logger.error(
+                f"DFT job {job.job_id} failed.",
+                extra={
+                    "job_id": job.job_id,
+                    "stdout": e.stdout if hasattr(e, "stdout") else "",
+                    "stderr": e.stderr if hasattr(e, "stderr") else "",
+                },
+            )
+            raise

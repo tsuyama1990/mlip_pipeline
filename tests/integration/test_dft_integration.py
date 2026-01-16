@@ -7,9 +7,9 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.models import (
+    CutoffConfig,
     DFTConfig,
     DFTInputParameters,
-    CutoffConfig,
     Pseudopotentials,
 )
 from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner
@@ -38,19 +38,18 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
             k_points=(1, 1, 1),
         )
     )
+    from ase.calculators.espresso import EspressoProfile
+
     from mlip_autopipec.modules.dft import (
         QEInputGenerator,
-        QEProcessRunner,
         QEOutputParser,
-        QERetryHandler,
+        QEProcessRunner,
     )
-    from ase.calculators.espresso import EspressoProfile
 
     profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    retry_handler = QERetryHandler()
     dft_job_factory = DFTJobFactory()
 
     # Act
@@ -59,7 +58,6 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
         input_generator=input_generator,
         process_runner=process_runner,
         output_parser=output_parser,
-        retry_handler=retry_handler,
     )
     result = dft_runner.run(job)
 
@@ -92,19 +90,18 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
             k_points=(1, 1, 1),
         )
     )
+    from ase.calculators.espresso import EspressoProfile
+
     from mlip_autopipec.modules.dft import (
         QEInputGenerator,
-        QEProcessRunner,
         QEOutputParser,
-        QERetryHandler,
+        QEProcessRunner,
     )
-    from ase.calculators.espresso import EspressoProfile
 
     profile = EspressoProfile(command="/path/to/non/existent/pw.x", pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    retry_handler = QERetryHandler()
     dft_job_factory = DFTJobFactory()
 
     # Act & Assert
@@ -114,7 +111,6 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
             input_generator=input_generator,
             process_runner=process_runner,
             output_parser=output_parser,
-            retry_handler=retry_handler,
         )
         dft_runner.run(job)
 
@@ -126,23 +122,23 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
+    import subprocess
+
+    from ase.calculators.espresso import EspressoProfile
+
+    from mlip_autopipec.exceptions import DFTCalculationError
     from mlip_autopipec.modules.dft import (
-        QEInputGenerator,
-        QEProcessRunner,
-        QEOutputParser,
-        QERetryHandler,
         DFTJobFactory,
         DFTRunner,
+        QEInputGenerator,
+        QEOutputParser,
+        QEProcessRunner,
     )
-    from ase.calculators.espresso import EspressoProfile
-    from mlip_autopipec.exceptions import DFTCalculationError
-    import subprocess
 
     profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    retry_handler = QERetryHandler()
     dft_job_factory = DFTJobFactory()
 
     mocker.patch.object(
@@ -157,12 +153,10 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
         input_generator=input_generator,
         process_runner=process_runner,
         output_parser=output_parser,
-        retry_handler=retry_handler,
-        max_retries=2,
     )
     job = dft_job_factory.create_job(h2_atoms.copy())
 
     # Act & Assert
-    with pytest.raises(DFTCalculationError):
+    with pytest.raises(subprocess.CalledProcessError):
         dft_runner.run(job)
-    assert process_runner.execute.call_count == 2
+    assert process_runner.execute.call_count == 3

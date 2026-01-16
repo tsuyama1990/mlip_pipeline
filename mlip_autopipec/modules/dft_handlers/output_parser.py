@@ -4,6 +4,7 @@ This module contains the `QEOutputParser` class.
 
 from pathlib import Path
 from typing import Any
+
 from ase.io import read as ase_read
 
 from mlip_autopipec.config.models import DFTResult

@@ -5,6 +5,7 @@ This module contains the `QEProcessRunner` class.
 import logging
 import subprocess
 from pathlib import Path
+
 from ase.calculators.espresso import EspressoProfile
 
 logger = logging.getLogger(__name__)
