@@ -51,6 +51,15 @@ This cycle introduces a user-friendly, configuration-driven workflow. The user n
 - **Centralized Orchestration**: The `WorkflowManager` class takes the user's input and expands it into a comprehensive, validated `SystemConfig` object, which is then used to configure and run the entire active learning pipeline.
 - **Rich Metadata**: The data persistence layer has been enhanced to store rich metadata, including unique IDs and the configuration type, for every DFT calculation, ensuring data provenance and traceability.
 
+## Cycle 06: Resilience and Scalability
+
+This cycle transforms the workflow from a linear process into a robust, high-throughput data generation factory. It introduces two critical features for real-world, long-duration simulations: resilience through checkpointing and scalability through parallel execution.
+
+### Key Features:
+- **Checkpointing and Recovery**: The `WorkflowManager` now periodically saves its entire state to a `checkpoint.json` file. If the workflow is interrupted for any reason (e.g., a system crash), it can be restarted and will seamlessly resume from the last saved state, preventing any loss of work.
+- **Parallel Execution with Dask**: The system is now integrated with the Dask distributed computing library. The `WorkflowManager` acts as a dispatcher, submitting hundreds of independent DFT calculations to a Dask cluster for parallel execution. This dramatically reduces the time required for data generation.
+- **Robust Retry Decorator**: The DFT auto-recovery logic has been refactored into a generic and extensible `@retry` decorator. It now supports domain-specific callbacks, allowing for intelligent, context-aware error recovery (such as modifying DFT parameters on convergence failure) while keeping the core retry logic reusable.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:

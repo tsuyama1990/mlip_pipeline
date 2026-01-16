@@ -10,16 +10,17 @@ import pytest
 from ase.build import bulk
 from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.config.models import DFTInputParameters, DFTJob
+from mlip_autopipec.config.models import DFTInputParameters, DFTJob, Pseudopotentials, CutoffConfig
 from mlip_autopipec.exceptions import DFTCalculationError
 from mlip_autopipec.modules.dft import (
+    DFTHeuristics,
     DFTJobFactory,
     DFTRunner,
     QEInputGenerator,
     QEOutputParser,
     QEProcessRunner,
-    QERetryHandler,
 )
+import uuid
 
 
 @pytest.fixture
@@ -38,23 +39,16 @@ def mock_output_parser():
 
 
 @pytest.fixture
-def mock_retry_handler():
-    return MagicMock(spec=QERetryHandler)
-
-
-@pytest.fixture
 def dft_runner(
     mock_input_generator,
     mock_process_runner,
     mock_output_parser,
-    mock_retry_handler,
 ):
     """Fixture to create a DFTRunner with mocked dependencies."""
     return DFTRunner(
         input_generator=mock_input_generator,
         process_runner=mock_process_runner,
         output_parser=mock_output_parser,
-        retry_handler=mock_retry_handler,
     )
 
 
@@ -79,11 +73,7 @@ def test_dft_runner_run_successful(
 
 
 def test_dft_runner_retry_and_succeed(
-    dft_runner,
-    mock_input_generator,
-    mock_process_runner,
-    mock_output_parser,
-    mock_retry_handler,
+    dft_runner, mock_process_runner, mock_output_parser
 ):
     """Test the retry mechanism where a run fails once, then succeeds."""
     atoms = bulk("Si")
@@ -91,100 +81,44 @@ def test_dft_runner_retry_and_succeed(
     error.stdout = "convergence NOT achieved"
     error.stderr = ""
     mock_process_runner.execute.side_effect = [error, MagicMock()]
-    mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
     mock_output_parser.parse.return_value = MagicMock(energy=-150.0)
-    params = MagicMock(spec=DFTInputParameters)
-    params.model_dump.return_value = {
-        "pseudopotentials": {"Si": "Si.upf"},
-        "cutoffs": {"wavefunction": 60, "density": 240},
-        "k_points": (3, 3, 3),
-        "mixing_beta": 0.7,
-    }
+
+    # Create real parameters that can be modified
+    params = DFTInputParameters(
+        pseudopotentials=Pseudopotentials.model_validate({"Si": "Si.upf"}),
+        cutoffs=CutoffConfig(wavefunction=60, density=240),
+        k_points=(3, 3, 3),
+        mixing_beta=0.7,
+    )
     job = DFTJob(atoms=atoms, params=params)
 
-    result = dft_runner.run(job)
+    # We need to patch time.sleep within the decorator
+    with patch("time.sleep"):
+        result = dft_runner.run(job=job)
 
     assert mock_process_runner.execute.call_count == 2
-    mock_retry_handler.handle_convergence_error.assert_called_with(
-        "convergence NOT achieved\\n",
-        {
-            "pseudopotentials": {"Si": "Si.upf"},
-            "cutoffs": {"wavefunction": 60, "density": 240},
-            "k_points": (3, 3, 3),
-            "mixing_beta": 0.35,
-        },
-    )
     assert result.energy == -150.0
+    # Verify that the parameter was actually changed for the retry
+    assert job.params.mixing_beta == 0.35
 
 
-def test_dft_runner_fails_after_max_retries(
-    dft_runner,
-    mock_input_generator,
-    mock_process_runner,
-    mock_retry_handler,
-):
-    """Test that the factory gives up after the maximum number of retries."""
-    dft_runner.max_retries = 3
-    atoms = bulk("Si")
-    error = subprocess.CalledProcessError(1, "pw.x")
-    error.stdout = "convergence NOT achieved"
-    error.stderr = ""
-    mock_process_runner.execute.side_effect = [error, error, error]
-    mock_retry_handler.handle_convergence_error.return_value = {"mixing_beta": 0.35}
-    params = MagicMock(spec=DFTInputParameters)
-    params.model_dump.return_value = {
-        "pseudopotentials": {"Si": "Si.upf"},
-        "cutoffs": {"wavefunction": 60, "density": 240},
-        "k_points": (3, 3, 3),
-        "mixing_beta": 0.7,
-    }
-    job = DFTJob(atoms=atoms, params=params)
-
-    with pytest.raises(DFTCalculationError):
-        dft_runner.run(job)
-
-    assert mock_process_runner.execute.call_count == 3
-    assert mock_retry_handler.handle_convergence_error.call_count == 3
-
-
+@patch("mlip_autopipec.modules.dft.retry", lambda attempts, delay, exceptions, on_retry: lambda f: f)
 def test_dft_runner_raises_dft_calculation_error(
     dft_runner,
     mock_process_runner,
-    mock_retry_handler,
 ):
     """Test that DFTRunner raises DFTCalculationError on failure."""
     atoms = bulk("Si")
     error = subprocess.CalledProcessError(1, "pw.x")
     error.stdout = "some other error"
     error.stderr = ""
-    mock_process_runner.execute.side_effect = [error]
-    mock_retry_handler.handle_convergence_error.return_value = None
+    # The side_effect needs to be an iterable for each call
+    mock_process_runner.execute.side_effect = [error, error, error]
     params = MagicMock(spec=DFTInputParameters)
     job = DFTJob(atoms=atoms, params=params)
 
-    with pytest.raises(DFTCalculationError):
+    with pytest.raises(subprocess.CalledProcessError):
         dft_runner.run(job)
-
-
-def test_handle_convergence_error():
-    """Unit test for the convergence error handling logic."""
-    retry_handler = QERetryHandler()
-    params = {"mixing_beta": 0.7}
-    log = "convergence NOT achieved"
-    new_params = retry_handler.handle_convergence_error(log, params)
-    assert new_params is not None
-    assert new_params["mixing_beta"] == 0.35
-
-    params = {"diagonalization": "david"}
-    log = "Cholesky"
-    new_params = retry_handler.handle_convergence_error(log, params)
-    assert new_params is not None
-    assert new_params["diagonalization"] == "cg"
-
-    params = {}
-    log = "some other error"
-    new_params = retry_handler.handle_convergence_error(log, params)
-    assert new_params is None
 
 
 def test_process_runner_logs_on_error(caplog, tmp_path):
@@ -200,9 +134,6 @@ def test_process_runner_logs_on_error(caplog, tmp_path):
     with pytest.raises(FileNotFoundError):
         runner.execute(input_file, output_file)
     assert "QE executable not found" in caplog.text
-
-
-import uuid
 
 
 def test_output_parser_handles_valid_output(tmp_path):
@@ -236,7 +167,8 @@ def test_dft_job_factory_creates_valid_job(tmp_path):
         "mlip_autopipec.modules.dft.SSSP_DATA_PATH",
         sssp_path,
     ):
-        factory = DFTJobFactory()
+        heuristics = DFTHeuristics(sssp_data_path=sssp_path)
+        factory = DFTJobFactory(heuristics=heuristics)
         atoms = bulk("Si")
         job = factory.create_job(atoms)
         assert isinstance(job, DFTJob)

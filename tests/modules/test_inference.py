@@ -71,7 +71,7 @@ def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
     Test the full LAMMPS run and uncertainty detection workflow by mocking
     the subprocess and the LAMMPS output files.
     """
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
 
     runner = LammpsRunner(inference_config=mock_inference_config)
     atoms = bulk("Si", "diamond", a=5.43)

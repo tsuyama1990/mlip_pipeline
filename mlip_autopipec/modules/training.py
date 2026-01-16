@@ -1,5 +1,6 @@
 """Module for training a Pacemaker potential."""
 
+import logging
 import re
 import shutil
 import subprocess
@@ -10,7 +11,6 @@ import numpy as np
 from ase import Atoms
 from ase.db import connect as ase_db_connect
 from ase.io import write as ase_write
-import logging
 from jinja2 import Template
 from pydantic import ValidationError
 
@@ -115,7 +115,7 @@ class PacemakerTrainer:
             msg = f"Pacemaker training failed with exit code {e.returncode}.\nStderr:\n{e.stderr}"
             raise TrainingFailedError(msg) from e
 
-        match = re.search(r"Final potential saved to: (.*\\.yace)", result.stdout)
+        match = re.search(r"Final potential saved to: (.*\.yace)", result.stdout)
         if not match:
             msg = "Could not find output potential file in training log."
             raise TrainingFailedError(msg)

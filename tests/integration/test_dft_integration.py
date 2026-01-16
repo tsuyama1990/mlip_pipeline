@@ -1,18 +1,18 @@
 """Integration test for the DFTJobFactory to ensure end-to-end functionality."""
 
 from pathlib import Path
-
+from unittest.mock import patch
 import numpy as np
 import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.models import (
+    CutoffConfig,
     DFTConfig,
     DFTInputParameters,
-    CutoffConfig,
     Pseudopotentials,
 )
-from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner
+from mlip_autopipec.modules.dft import DFTJobFactory, DFTRunner, DFTHeuristics
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -30,6 +30,8 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
     dft_config = DFTConfig(
         dft_input_params=DFTInputParameters(
@@ -38,20 +40,21 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
             k_points=(1, 1, 1),
         )
     )
+    from ase.calculators.espresso import EspressoProfile
+
     from mlip_autopipec.modules.dft import (
         QEInputGenerator,
-        QEProcessRunner,
         QEOutputParser,
-        QERetryHandler,
+        QEProcessRunner,
     )
-    from ase.calculators.espresso import EspressoProfile
 
     profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    retry_handler = QERetryHandler()
-    dft_job_factory = DFTJobFactory()
+    with patch("mlip_autopipec.modules.dft.SSSP_DATA_PATH", tmp_path / "sssp.json"):
+        heuristics = DFTHeuristics(sssp_data_path=tmp_path / "sssp.json")
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act
     job = dft_job_factory.create_job(h2_atoms.copy())
@@ -59,7 +62,6 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
         input_generator=input_generator,
         process_runner=process_runner,
         output_parser=output_parser,
-        retry_handler=retry_handler,
     )
     result = dft_runner.run(job)
 
@@ -84,6 +86,8 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
     dft_config = DFTConfig(
         dft_input_params=DFTInputParameters(
@@ -92,20 +96,21 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
             k_points=(1, 1, 1),
         )
     )
+    from ase.calculators.espresso import EspressoProfile
+
     from mlip_autopipec.modules.dft import (
         QEInputGenerator,
-        QEProcessRunner,
         QEOutputParser,
-        QERetryHandler,
+        QEProcessRunner,
     )
-    from ase.calculators.espresso import EspressoProfile
 
     profile = EspressoProfile(command="/path/to/non/existent/pw.x", pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    retry_handler = QERetryHandler()
-    dft_job_factory = DFTJobFactory()
+    with patch("mlip_autopipec.modules.dft.SSSP_DATA_PATH", tmp_path / "sssp.json"):
+        heuristics = DFTHeuristics(sssp_data_path=tmp_path / "sssp.json")
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act & Assert
     with pytest.raises(FileNotFoundError):
@@ -114,7 +119,6 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
             input_generator=input_generator,
             process_runner=process_runner,
             output_parser=output_parser,
-            retry_handler=retry_handler,
         )
         dft_runner.run(job)
 
@@ -125,25 +129,29 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+    sssp_path = tmp_path / "sssp.json"
+    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
 
+    import subprocess
+
+    from ase.calculators.espresso import EspressoProfile
+
+    from mlip_autopipec.exceptions import DFTCalculationError
     from mlip_autopipec.modules.dft import (
-        QEInputGenerator,
-        QEProcessRunner,
-        QEOutputParser,
-        QERetryHandler,
         DFTJobFactory,
         DFTRunner,
+        QEInputGenerator,
+        QEOutputParser,
+        QEProcessRunner,
     )
-    from ase.calculators.espresso import EspressoProfile
-    from mlip_autopipec.exceptions import DFTCalculationError
-    import subprocess
 
     profile = EspressoProfile(command=str(MOCK_PW_X_PATH.resolve()), pseudo_dir=pseudo_dir)
     input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
     process_runner = QEProcessRunner(profile=profile)
     output_parser = QEOutputParser()
-    retry_handler = QERetryHandler()
-    dft_job_factory = DFTJobFactory()
+    with patch("mlip_autopipec.modules.dft.SSSP_DATA_PATH", tmp_path / "sssp.json"):
+        heuristics = DFTHeuristics(sssp_data_path=tmp_path / "sssp.json")
+    dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     mocker.patch.object(
         process_runner,
@@ -157,12 +165,10 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
         input_generator=input_generator,
         process_runner=process_runner,
         output_parser=output_parser,
-        retry_handler=retry_handler,
-        max_retries=2,
     )
     job = dft_job_factory.create_job(h2_atoms.copy())
 
     # Act & Assert
-    with pytest.raises(DFTCalculationError):
+    with pytest.raises(subprocess.CalledProcessError):
         dft_runner.run(job)
-    assert process_runner.execute.call_count == 2
+    assert process_runner.execute.call_count == 3

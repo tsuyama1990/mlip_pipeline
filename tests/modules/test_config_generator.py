@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from mlip_autopipec.config.models import PacemakerConfig, SystemConfig
 from mlip_autopipec.modules.config_generator import PacemakerConfigGenerator
 
@@ -20,8 +21,8 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
         },
         "simulation_goal": {"type": "melt_quench"},
     }
-    from mlip_autopipec.config.models import UserInputConfig
     from mlip_autopipec.config.factory import ConfigFactory
+    from mlip_autopipec.config.models import UserInputConfig
 
     user_config = UserInputConfig.model_validate(user_config_dict)
     system_config = ConfigFactory.from_user_input(user_config)
