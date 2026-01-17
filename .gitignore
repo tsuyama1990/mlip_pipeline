@@ -29,3 +29,7 @@ env/
 *.pwi
 *.err
 temp_ase_calc/
+
+# AC-CDD Configuration
+.ac_cdd/.env
+dev_documents/project_state.json
