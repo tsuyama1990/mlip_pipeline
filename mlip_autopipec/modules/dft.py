@@ -125,10 +125,14 @@ class DFTRunner:
     """
     Executes and manages a `DFTJob`.
 
+    This class is responsible for running the DFT calculation using the
+    provided handler components. It handles transient errors and ensures
+    that the calculation is executed robustly.
+
     Args:
-        input_generator: An instance of `QEInputGenerator`.
-        process_runner: An instance of `QEProcessRunner`.
-        output_parser: An instance of `QEOutputParser`.
+        input_generator: An instance of `QEInputGenerator` for creating inputs.
+        process_runner: An instance of `QEProcessRunner` for executing the code.
+        output_parser: An instance of `QEOutputParser` for parsing results.
     """
 
     def __init__(
@@ -166,6 +170,10 @@ class DFTRunner:
 
         if not job.params:
             msg = "DFTJob must have initialized parameters."
+            raise ValueError(msg)
+
+        if job.atoms is None:
+            msg = "DFTJob must have a valid 'atoms' attribute."
             raise ValueError(msg)
 
         try:

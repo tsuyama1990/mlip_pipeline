@@ -15,6 +15,14 @@ class WorkflowConfig(BaseModel):
     checkpoint_filename: str = "checkpoint.json"
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("checkpoint_filename")
+    @classmethod
+    def validate_extension(cls, v: str) -> str:
+        if not v.endswith(".json"):
+            msg = "checkpoint_filename must have a .json extension."
+            raise ValueError(msg)
+        return v
+
 class DaskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scheduler_address: str | None = Field(None)
@@ -42,10 +50,6 @@ class SystemConfig(BaseModel):
     generator: GeneratorParams | None = None
     explorer: ExplorerParams | None = None
     dask: DaskConfig | None = None
-    dft: DFTConfig | None = Field(
-        None,
-        description="Legacy alias for `dft_config`. Please use `dft_config` instead. This field is deprecated and will be removed in future versions.",
-    )
 
     db_path: str = "mlip_database.db"
     working_dir: Path | None = None

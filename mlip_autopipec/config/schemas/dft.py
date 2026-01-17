@@ -59,6 +59,9 @@ class DFTInputParameters(BaseModel):
     @field_validator("k_points")
     @classmethod
     def k_points_must_be_positive(cls, k_points: tuple[int, int, int]) -> tuple[int, int, int]:
+        if len(k_points) != 3:
+            msg = "k_points must be a tuple of exactly three integers."
+            raise ValueError(msg)
         if not all(k > 0 for k in k_points):
             msg = "All k-point dimensions must be positive integers."
             raise ValueError(msg)
