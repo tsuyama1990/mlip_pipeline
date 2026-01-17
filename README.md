@@ -2,16 +2,17 @@
 
 MLIP-AutoPipe is a project designed to provide a "Zero-Human" protocol for the autonomous generation of Machine Learning Interatomic Potentials (MLIPs). This system automates the entire MLIP lifecycle, from initial data generation to active learning and large-scale production simulations.
 
-## Cycle 01: The Foundation - Automated DFT Factory
+## Cycle 01: Core Framework & User Interface
 
-This cycle implements the cornerstone of the MLIP-AutoPipe system: a robust and autonomous DFT calculation factory. This module is responsible for taking an atomic structure and reliably returning its DFT-calculated properties, handling the complexities of the underlying quantum mechanics engine.
+This cycle establishes the robust foundation for the MLIP-AutoPipe system. It implements the configuration management, data persistence, and the command-line interface.
 
 ### Key Features:
-- **Schema-Driven Design**: All data structures for DFT jobs and results are rigorously defined using Pydantic, ensuring type safety and data integrity throughout the workflow.
-- **Automated DFT Factory**: The `DFTFactory` class provides a high-level interface for running Quantum Espresso calculations. It encapsulates:
-  - **Heuristic Parameter Generation**: Automatically determines optimal DFT parameters (e.g., cutoffs, k-points) based on the input structure's elements and geometry.
-  - **Resilient Execution**: Includes an auto-recovery mechanism that can handle common DFT convergence failures by intelligently adjusting parameters and retrying the calculation.
-- **Data Persistence**: All successful DFT results are saved to an ASE-compatible database, creating a structured and queryable training set for future machine learning cycles.
+- **Schema-Driven Design**: Strict Pydantic models (`MinimalConfig`, `SystemConfig`) ensure type safety and validation of user inputs.
+- **Configuration Factory**: Automates the expansion of user inputs into full system configurations, handling path resolution and workspace creation.
+- **Core Utilities**:
+  - **Database Manager**: A robust wrapper around `ase.db` that enforces metadata provenance and schema integrity.
+  - **Centralized Logging**: Structured logging with `rich` integration for clear feedback.
+- **CLI Entry Point**: The `mlip-auto run` command allows users to initialize and run the workflow from a simple YAML configuration.
 
 ## Cycle 02: Surrogate-First Exploration
 

@@ -1,64 +1,70 @@
-import subprocess
-
 import pytest
-import yaml
 from typer.testing import CliRunner
-
+from pathlib import Path
 from mlip_autopipec.app import app
+import yaml
+import os
 
 runner = CliRunner()
 
-
-@pytest.fixture
-def valid_config_file(tmp_path):
-    config_file = tmp_path / "input.yaml"
-    data = {
-        "project_name": "TestProject",
+def test_run_valid(tmp_path):
+    # Setup valid input
+    input_file = tmp_path / "input.yaml"
+    config_data = {
+        "project_name": "AppTest",
         "target_system": {
-            "elements": ["Si"],
-            "composition": {"Si": 1.0},
-            "crystal_structure": "diamond",
+            "elements": ["Al"],
+            "composition": {"Al": 1.0},
+            "crystal_structure": "fcc"
         },
-        "simulation_goal": {"type": "elastic"},
+        "resources": {
+            "dft_code": "quantum_espresso",
+            "parallel_cores": 1
+        },
+        "simulation_goal": {
+            "type": "melt_quench"
+        }
     }
-    with open(config_file, "w") as f:
-        yaml.dump(data, f)
-    return config_file
+    with open(input_file, 'w') as f:
+        yaml.dump(config_data, f)
 
+    # Run in tmp_path context
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        result = runner.invoke(app, ["run", str(input_file)])
 
-def test_run_success(valid_config_file, mocker):
-    """Test the happy path: CLI calls PipelineController."""
-    mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
+        assert result.exit_code == 0
+        assert "System initialized successfully" in result.stdout
 
-    result = runner.invoke(app, ["run", str(valid_config_file)])
+        # Verify artifacts
+        assert (tmp_path / "AppTest").is_dir()
+        assert (tmp_path / "AppTest" / "project.db").exists()
+        assert (tmp_path / "AppTest" / "system.log").exists()
 
-    assert result.exit_code == 0
-    assert "Launching run" in result.stdout
-    assert "SUCCESS" in result.stdout
+    finally:
+        os.chdir(original_cwd)
 
-    mock_controller.execute.assert_called_once_with(valid_config_file)
+def test_run_invalid_config(tmp_path):
+    input_file = tmp_path / "bad.yaml"
+    config_data = {
+        "project_name": "BadAppTest",
+        "target_system": {
+            "elements": ["Al"],
+            "composition": {"Al": 0.9}, # Invalid
+        }
+    }
+    with open(input_file, 'w') as f:
+        yaml.dump(config_data, f)
 
-
-def test_run_failure(valid_config_file, mocker):
-    """Test that CLI handles pipeline errors gracefully."""
-    mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
-    mock_controller.execute.side_effect = ValueError("Something exploded")
-
-    result = runner.invoke(app, ["run", str(valid_config_file)])
+    result = runner.invoke(app, ["run", str(input_file)])
 
     assert result.exit_code == 1
-    assert "FAILURE" in result.stdout
-    assert "Something exploded" in result.stdout
+    assert "CONFIGURATION ERROR" in result.stdout
+    assert "Composition fractions must sum to 1.0" in result.stdout
 
-
-def test_entry_point_help():
-    """Verify that the mlip-auto command is installed and provides help."""
-    try:
-        result = subprocess.run(
-            ["mlip-auto", "--help"], check=False, capture_output=True, text=True
-        )
-        # If installed, should return 0. If not found, FileNotFoundError handled below.
-        if result.returncode == 0:
-            assert "Usage: mlip-auto" in result.stdout
-    except FileNotFoundError:
-        pass
+def test_run_file_not_found():
+    result = runner.invoke(app, ["run", "non_existent.yaml"])
+    assert result.exit_code != 0
+    # Typer handles exists=True, so it prints error before our function
+    assert "does not exist" in result.stderr or "does not exist" in result.stdout

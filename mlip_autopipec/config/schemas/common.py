@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, RootModel, field_validator, model_validator
 
+from .resources import Resources
+
 # Common / Shared Models
 
 class SimulationGoal(BaseModel):
@@ -50,8 +52,9 @@ class TargetSystem(BaseModel):
             raise ValueError("Composition keys must match the elements list.")
         return self
 
-class UserInputConfig(BaseModel):
+class MinimalConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
-    simulation_goal: SimulationGoal
+    resources: Resources
+    simulation_goal: SimulationGoal | None = None
     model_config = ConfigDict(extra="forbid")
