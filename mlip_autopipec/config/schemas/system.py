@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .common import MinimalConfig, TargetSystem
 from .dft import DFTConfig
 from .exploration import ExplorerConfig, ExplorerParams, GeneratorParams
+from .generator import GeneratorConfig
 from .inference import InferenceConfig
 from .training import TrainingConfig, TrainingRunMetrics
 
@@ -43,6 +44,7 @@ class SystemConfig(BaseModel):
     explorer_config: ExplorerConfig | None = None
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
+    generator_config: GeneratorConfig | None = None
 
     # Legacy / Transition Fields (Deprecated)
     generator: GeneratorParams | None = None

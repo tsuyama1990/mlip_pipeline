@@ -15,6 +15,9 @@ class Composition(RootModel[dict[str, float]]):
     def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:  # noqa: N805
         from ase.data import chemical_symbols
 
+        if not v:
+            raise ValueError("Composition dictionary cannot be empty.")
+
         # Check sum
         if not abs(sum(v.values()) - 1.0) < 1e-6:
             msg = "Composition fractions must sum to 1.0."
@@ -30,6 +33,8 @@ class Composition(RootModel[dict[str, float]]):
 
 
 class TargetSystem(BaseModel):
+    name: str = Field("System", description="Name of the system, e.g., 'Fe-Ni' or 'H2O'")
+    structure_type: Literal["bulk", "molecule", "defect"] = Field("bulk", description="Type of structure to generate")
     elements: list[str]
     composition: Composition
     model_config = ConfigDict(extra="forbid")

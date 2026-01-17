@@ -1,4 +1,77 @@
-ImportError while loading conftest '/app/tests/conftest.py'.
-tests/conftest.py:4: in <module>
-    from ase import Atoms
-E   ModuleNotFoundError: No module named 'ase'
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: mock-3.15.1, cov-7.0.0
+collected 22 items
+
+tests/unit/test_generator_schemas.py ..                                  [  9%]
+tests/generator/test_alloy.py ......                                     [ 36%]
+tests/generator/test_builder.py ..                                       [ 45%]
+tests/generator/test_defect.py ....                                      [ 63%]
+tests/generator/test_molecule.py ...                                     [ 77%]
+tests/uat/cycle_03_uat.py ....                                           [ 95%]
+tests/unit/test_common_schemas.py .                                      [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                           Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------
+mlip_autopipec/__init__.py                         1      0   100%
+mlip_autopipec/app.py                             36     36     0%   5-63
+mlip_autopipec/config/__init__.py                  0      0   100%
+mlip_autopipec/config/factory.py                  37     37     0%   1-62
+mlip_autopipec/config/models.py                    7      0   100%
+mlip_autopipec/config/schemas/common.py           46      4    91%   48-49, 55-56
+mlip_autopipec/config/schemas/dft.py              70     20    71%   27-32, 46-51, 68-70, 101-107
+mlip_autopipec/config/schemas/exploration.py      51      4    92%   35-39
+mlip_autopipec/config/schemas/generator.py        38      2    95%   17, 20
+mlip_autopipec/config/schemas/inference.py        65     23    65%   26-28, 41-44, 63-69, 74-82
+mlip_autopipec/config/schemas/monitoring.py       12      0   100%
+mlip_autopipec/config/schemas/system.py           65     15    77%   62, 67-82
+mlip_autopipec/config/schemas/training.py         51      4    92%   56-59
+mlip_autopipec/core/__init__.py                    0      0   100%
+mlip_autopipec/core/database.py                  104    104     0%   1-200
+mlip_autopipec/core/logging.py                    18     18     0%   5-47
+mlip_autopipec/core/workspace.py                  13     13     0%   1-25
+mlip_autopipec/data/__init__.py                    0      0   100%
+mlip_autopipec/data/database.py                   23     23     0%   7-73
+mlip_autopipec/data_models/__init__.py             1      1     0%   1
+mlip_autopipec/data_models/dft_models.py          35     35     0%   1-45
+mlip_autopipec/data_models/training_data.py       21     21     0%   7-39
+mlip_autopipec/dft/__init__.py                     0      0   100%
+mlip_autopipec/dft/constants.py                    3      3     0%   1-91
+mlip_autopipec/dft/inputs.py                      57     57     0%   1-166
+mlip_autopipec/dft/parsers.py                     21     21     0%   5-83
+mlip_autopipec/dft/recovery.py                    30     30     0%   1-81
+mlip_autopipec/dft/runner.py                      79     79     0%   1-170
+mlip_autopipec/exceptions.py                      25      8    68%   42-47, 50-51, 64
+mlip_autopipec/generator/__init__.py               5      0   100%
+mlip_autopipec/generator/alloy.py                101     22    78%   57, 76-81, 88, 99-103, 137-139, 167-169, 233-237
+mlip_autopipec/generator/builder.py               75     32    57%   33-34, 57-58, 66-73, 80-84, 102-104, 117, 123-138
+mlip_autopipec/generator/defect.py                66     21    68%   37-38, 50-52, 104-106, 141-157
+mlip_autopipec/generator/molecule.py              54      7    87%   80-81, 107-111
+mlip_autopipec/modules/__init__.py                 0      0   100%
+mlip_autopipec/modules/config_generator.py        15     15     0%   3-74
+mlip_autopipec/modules/descriptors.py             31     31     0%   3-62
+mlip_autopipec/modules/dft.py                     67     67     0%   6-189
+mlip_autopipec/modules/exploration.py             51     51     0%   7-130
+mlip_autopipec/modules/explorer.py                46     46     0%   3-90
+mlip_autopipec/modules/generator.py               72     72     0%   3-203
+mlip_autopipec/modules/inference.py              136    136     0%   7-333
+mlip_autopipec/modules/screening.py               41     41     0%   3-68
+mlip_autopipec/modules/training.py                94     94     0%   9-234
+mlip_autopipec/monitoring/__init__.py              0      0   100%
+mlip_autopipec/monitoring/dashboard.py            63     63     0%   1-115
+mlip_autopipec/utils/__init__.py                   0      0   100%
+mlip_autopipec/utils/ase_utils.py                 42     42     0%   12-120
+mlip_autopipec/utils/config_utils.py               7      7     0%   3-38
+mlip_autopipec/utils/dask_utils.py                12     12     0%   6-43
+mlip_autopipec/utils/data_loader.py               15     15     0%   5-39
+mlip_autopipec/utils/resilience.py                29     29     0%   6-93
+mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
+mlip_autopipec/workflow_manager.py               106    106     0%   1-191
+----------------------------------------------------------------------------
+TOTAL                                           2069   1499    28%
+============================== 22 passed in 4.61s ==============================

@@ -1,9 +1,12 @@
-import pytest
-from unittest.mock import MagicMock
 from pathlib import Path
-from mlip_autopipec.dft.parsers import QEOutputParser
-from mlip_autopipec.data_models.dft_models import DFTResult
+from unittest.mock import MagicMock
+
 import numpy as np
+import pytest
+
+from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.dft.parsers import QEOutputParser
+
 
 def test_parse_success():
     mock_reader = MagicMock()

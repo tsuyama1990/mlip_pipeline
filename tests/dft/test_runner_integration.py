@@ -1,10 +1,13 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.dft.runner import QERunner, DFTFatalError
 from mlip_autopipec.data_models.dft_models import DFTErrorType
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 def test_runner_propagates_fatal_exceptions():
     """Test that fatal exceptions during execution are propagated."""

@@ -4,6 +4,7 @@ This module defines custom exceptions for the MLIP-AutoPipe application.
 Using custom exceptions allows for more specific and expressive error
 handling throughout the workflow.
 """
+from typing import Any, Dict, Optional
 
 
 class MLIPError(Exception):
@@ -36,10 +37,29 @@ class DFTCalculationError(MLIPError):
         message: str,
         stdout: str = "",
         stderr: str = "",
+        is_timeout: bool = False,
     ) -> None:
         super().__init__(message)
-        self.stdout = stdout
-        self.stderr = stderr
+        # Truncate stdout/stderr if too long
+        max_len = 5000
+        self.stdout = stdout if len(stdout) <= max_len else stdout[:max_len] + "... [TRUNCATED]"
+        self.stderr = stderr if len(stderr) <= max_len else stderr[:max_len] + "... [TRUNCATED]"
+        self.is_timeout = is_timeout
 
     def __str__(self) -> str:
-        return f"{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+        timeout_msg = "[TIMEOUT] " if self.is_timeout else ""
+        return f"{timeout_msg}{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+
+
+class GeneratorError(MLIPError):
+    """Raised when structure generation fails."""
+
+    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.context = context or {}
+
+    def __str__(self) -> str:
+        base_msg = super().__str__()
+        if self.context:
+            return f"{base_msg} | Context: {self.context}"
+        return base_msg

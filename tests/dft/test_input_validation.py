@@ -1,6 +1,7 @@
-import pytest
 from ase import Atoms
+
 from mlip_autopipec.dft.inputs import InputGenerator
+
 
 def test_input_generator_missing_cell_raises_error():
     # If atoms object has no cell (or trivial cell), density calculation might fail or produce infinity
@@ -12,7 +13,6 @@ def test_input_generator_missing_cell_raises_error():
     # We should probably catch that in code, but for now we verify behavior.
 
     # If we pass cell=None, it uses [0,0,0] which causes density calc to explode.
-    pass
 
 def test_input_generator_invalid_species():
     # SSSP dict has limited species.
