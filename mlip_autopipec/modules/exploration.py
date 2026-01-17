@@ -1,130 +1,96 @@
-"""
-This module contains the SurrogateExplorer class, responsible for intelligent
-pre-screening and selection of atomic structures before they are sent for
-expensive DFT calculations.
-"""
+"""The Surrogate Explorer module for intelligent candidate selection."""
+
+import logging
 
 import numpy as np
-import torch
 from ase import Atoms
-from dscribe.descriptors import SOAP
-from mace.calculators import mace_mp
+from scipy.spatial.distance import cdist
 
-from mlip_autopipec.config.models import ExplorerConfig
+from mlip_autopipec.config.models import ExplorerParams
+from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
+from mlip_autopipec.modules.screening import SurrogateModelScreener
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class SurrogateExplorer:
     """
-    Intelligently curates a list of atomic structures using a surrogate model.
+    Orchestrates the intelligent selection of structures.
 
-    This class implements a two-stage process to select a small, diverse, and
-    physically plausible subset of structures from a large pool of candidates,
-    preventing wasted resources on expensive DFT calculations.
-
-    1.  **Pre-screening**: A pre-trained MACE model is used as a fast surrogate
-        to evaluate forces. Any structure with forces exceeding a defined
-        threshold is discarded as unphysical.
-    2.  **Intelligent Selection**: For the surviving structures, structural
-        fingerprints (SOAP) are calculated. Farthest Point Sampling (FPS)
-        is then used on these fingerprints to select a subset that is
-        maximally diverse.
-
-    Args:
-        config: An `ExplorerConfig` Pydantic model containing all necessary
-                parameters, including the path to the surrogate model, force
-                thresholds, and fingerprint settings.
+    This class manages the pipeline for selecting the most diverse and
+    stable structures from a candidate pool using surrogate model screening
+    and Farthest Point Sampling (FPS).
     """
 
-    def __init__(self, config: ExplorerConfig) -> None:
+    def __init__(
+        self,
+        config: ExplorerParams,
+        descriptor_calculator: SOAPDescriptorCalculator,
+        screener: SurrogateModelScreener,
+    ) -> None:
+        """Initialise the SurrogateExplorer with system configuration."""
         self.config = config
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.mace_model = mace_mp(model=self.config.surrogate_model_path, device=self.device)
-        self.fingerprint_generator = self._init_fingerprint_generator()
+        self.descriptor_calculator = descriptor_calculator
+        self.screener = screener
 
-    def _init_fingerprint_generator(self):
-        """Initializes the fingerprint generator based on the config."""
-        fp_config = self.config.fingerprint
-        if fp_config.type == "soap":
-            return SOAP(
-                species=fp_config.species,
-                r_cut=fp_config.soap_rcut,
-                n_max=fp_config.soap_nmax,
-                l_max=fp_config.soap_lmax,
-                periodic=True,
-                sparse=False,
-                average="inner",
+    def select(self, candidates: list[Atoms]) -> list[Atoms]:
+        """Execute the full surrogate screening and FPS selection pipeline."""
+        if not candidates:
+            logger.warning("Candidate list is empty. Returning an empty list.")
+            return []
+
+        logger.info("Starting selection process with %s candidates.", len(candidates))
+
+        # Stage 1: Screen with surrogate model
+        screened_candidates = self.screener.screen(candidates)
+        logger.info("After surrogate screening, %s candidates remain.", len(screened_candidates))
+
+        if not screened_candidates:
+            logger.warning(
+                "No candidates remained after surrogate screening. Returning empty list."
             )
-        # This can be extended to support other fingerprint types
-        msg = f"Fingerprint type '{fp_config.type}' not supported."
-        raise NotImplementedError(msg)
+            return []
 
-    def select(self, structures: list[Atoms], num_to_select: int) -> list[Atoms]:
-        """
-        Orchestrates the full selection workflow: pre-screening, fingerprinting,
-        and Farthest Point Sampling.
+        num_structures_to_select = self.config.fps.num_structures_to_select
+        if len(screened_candidates) <= num_structures_to_select:
+            logger.warning(
+                "Number of available candidates (%d) is less than or equal to the "
+                "requested number (%d). Returning all available candidates.",
+                len(screened_candidates),
+                num_structures_to_select,
+            )
+            return screened_candidates
 
-        Args:
-            structures: A list of candidate ase.Atoms objects.
-            num_to_select: The target number of structures to select.
+        # Stage 2: Calculate descriptors
+        descriptors = self.descriptor_calculator.calculate(screened_candidates)
 
-        Returns:
-            A smaller, curated list of ase.Atoms objects.
-        """
-        screened_structures = self._pre_screen_structures(structures)
+        # Stage 3: Farthest Point Sampling
+        selected_indices = self._farthest_point_sampling(descriptors, num_structures_to_select)
 
-        if not screened_structures or len(screened_structures) <= num_to_select:
-            return screened_structures
+        final_selection = [screened_candidates[i] for i in selected_indices]
+        logger.info("Selected %s final candidates via FPS.", len(final_selection))
 
-        fingerprints = self._calculate_fingerprints(screened_structures)
-        selected_indices = self._farthest_point_sampling(fingerprints, num_to_select)
+        return final_selection
 
-        return [screened_structures[i] for i in selected_indices]
+    def _farthest_point_sampling(
+        self, descriptors: np.ndarray, num_structures_to_select: int
+    ) -> list[int]:
+        """Select a diverse subset using the Farthest Point Sampling algorithm."""
+        if num_structures_to_select >= len(descriptors):
+            return list(range(len(descriptors)))
 
-    def _pre_screen_structures(self, structures: list[Atoms]) -> list[Atoms]:
-        """
-        Filters out unstable structures using the MACE surrogate model.
-        """
-        passed_structures = []
-        for atoms in structures:
-            atoms.calc = self.mace_model
-            forces = atoms.get_forces()
-            max_force = np.max(np.linalg.norm(forces, axis=1))
-            if max_force < self.config.max_force_threshold:
-                passed_structures.append(atoms)
-        return passed_structures
+        selected_indices = []
+        initial_index = np.random.randint(0, len(descriptors))
+        selected_indices.append(int(initial_index))
 
-    def _calculate_fingerprints(self, structures: list[Atoms]) -> np.ndarray:
-        """
-        Computes structural fingerprints for a list of structures.
-        """
-        return self.fingerprint_generator.create(structures, n_jobs=-1)
+        min_distances = cdist(descriptors, descriptors[selected_indices, :]).min(axis=1)
 
-    @staticmethod
-    def _farthest_point_sampling(points: np.ndarray, num_to_select: int) -> list[int]:
-        """
-        Selects a diverse subset of points using the Farthest Point Sampling algorithm.
-        """
-        n_points = points.shape[0]
-        if n_points <= num_to_select:
-            return list(range(n_points))
+        for _ in range(num_structures_to_select - 1):
+            next_index = int(np.argmax(min_distances))
+            selected_indices.append(next_index)
+            new_distances = cdist(descriptors, descriptors[selected_indices[-1:], :]).flatten()
+            min_distances = np.minimum(min_distances, new_distances)
 
-        selected_indices = np.zeros(num_to_select, dtype=int)
-        min_dist_sq = np.full(n_points, np.inf)
-
-        # Start with the first point
-        selected_indices[0] = 0
-
-        for i in range(1, num_to_select):
-            last_selected_idx = selected_indices[i - 1]
-            last_selected_pt = points[last_selected_idx]
-
-            # Calculate distance from all points to the last selected point
-            dist_sq_to_last = np.sum((points - last_selected_pt) ** 2, axis=1)
-
-            # Update the minimum distance for each point
-            min_dist_sq = np.minimum(min_dist_sq, dist_sq_to_last)
-
-            # Select the point with the maximum minimum distance
-            selected_indices[i] = np.argmax(min_dist_sq)
-
-        return selected_indices.tolist()
+        return selected_indices
