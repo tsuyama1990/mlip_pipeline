@@ -36,6 +36,7 @@ def setup_logging(log_path: Path, level: str = "INFO") -> None:
         logging.getLogger("ase").setLevel(logging.WARNING)
 
         logging.info(f"Logging initialized. Log file: {log_path}")
-    except Exception as e:
+    except (OSError, ValueError) as e:
+        # Catch specific exceptions: OSError for file issues, ValueError for bad levels
         msg = f"Failed to setup logging: {e}"
         raise LoggingError(msg) from e

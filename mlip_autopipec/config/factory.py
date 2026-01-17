@@ -25,8 +25,19 @@ class ConfigFactory:
             raise FileNotFoundError(msg)
 
         try:
-            with path.open("r") as f:
-                data = yaml.safe_load(f)
+            # We strictly read the file content as text first
+            file_content = path.read_text(encoding="utf-8")
+            # Basic sanity check to avoid processing massive files
+            if len(file_content) > 10 * 1024 * 1024: # 10MB limit
+                msg = "Configuration file too large."
+                raise ConfigError(msg)
+
+            data = yaml.safe_load(file_content)
+
+            if not isinstance(data, dict):
+                msg = "Configuration file must contain a YAML dictionary."
+                raise ConfigError(msg)
+
         except YAMLError as e:
             msg = f"Failed to parse YAML configuration: {e}"
             raise ConfigError(msg) from e
@@ -37,11 +48,6 @@ class ConfigFactory:
         try:
             minimal = MinimalConfig.model_validate(data)
         except Exception as e:
-             # Pydantic validation errors are detailed, re-raising them as is usually better
-             # or wrapping them. The user wants specific error messages.
-             # Pydantic ValidationError is a safe exception to propagate or wrap.
-             # We will wrap it if we want a unified ConfigError, but keeping the detail is key.
-             # Let's wrap but ensure detail is preserved.
              msg = f"Configuration validation failed: {e}"
              raise ConfigError(msg) from e
 
