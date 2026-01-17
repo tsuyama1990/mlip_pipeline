@@ -11,8 +11,10 @@ from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.core.logging import setup_logging
 from mlip_autopipec.core.workspace import WorkspaceManager
+from mlip_autopipec.workflow_manager import WorkflowManager
 
 logger = logging.getLogger(__name__)
+
 
 class PipelineController:
     """
@@ -45,5 +47,9 @@ class PipelineController:
         db.initialize()
         db.set_system_config(config)
 
-        logger.info("System initialized via PipelineController")
+        # 5. Execute Workflow
+        manager = WorkflowManager(config, config.working_dir)
+        manager.run()
+
+        logger.info("System initialized and workflow executed via PipelineController")
         return config

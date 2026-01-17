@@ -22,7 +22,8 @@ class InputGenerator:
 
         Args:
             atoms: The ASE Atoms object.
-            params: Optional overrides for parameters.
+            params: Optional overrides for parameters. Dictionary is used here for flexibility
+                    but should ideally align with DFTInputParameters model where possible.
         """
         if params is None:
             params = {}
