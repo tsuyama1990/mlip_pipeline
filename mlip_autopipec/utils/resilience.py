@@ -8,6 +8,8 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
+from mlip_autopipec.exceptions import MaxRetriesExceededError
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,7 +70,8 @@ def retry(
                             attempts,
                             exc_info=True,
                         )
-                        raise
+                        msg = f"Max retries ({attempts}) exceeded for {func.__name__}."
+                        raise MaxRetriesExceededError(msg) from e
                     logger.warning(
                         "Attempt %d/%d for %s failed with %s.",
                         attempt,

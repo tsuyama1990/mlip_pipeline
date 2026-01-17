@@ -93,6 +93,9 @@ class ConfigFactory:
             uncertainty_params=UncertaintyConfig(),
         )
 
+        # We explicitly set dft_config (the new field) and NOT dft (the legacy field).
+        # The legacy field should remain None (or handled by a root validator if complex migration was needed,
+        # but here we just ensure we populate the correct new field).
         return SystemConfig(
             project_name=project_name,
             run_uuid=run_uuid,

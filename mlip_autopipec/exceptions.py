@@ -39,3 +39,7 @@ class DFTCalculationError(Exception):
     def __str__(self) -> str:
         """Returns a detailed string representation of the error."""
         return f"{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+
+class MaxRetriesExceededError(Exception):
+    """Raised when a function fails after the maximum number of retry attempts."""
+    pass

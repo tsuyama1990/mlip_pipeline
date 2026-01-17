@@ -10,7 +10,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.exceptions import DFTCalculationError
-from mlip_autopipec.modules.dft import DFTHeuristics, DFTJobFactory, DFTRunner
+from mlip_autopipec.modules.dft import DFTHeuristics, DFTJobFactory, DFTRunner, DFTJob
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -108,7 +108,8 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     dft_job_factory = DFTJobFactory(heuristics=heuristics)
 
     # Act & Assert
-    with pytest.raises(DFTCalculationError):
+    from mlip_autopipec.exceptions import MaxRetriesExceededError
+    with pytest.raises(MaxRetriesExceededError):
         job = dft_job_factory.create_job(h2_atoms.copy())
         dft_runner = DFTRunner(
             input_generator=input_generator,
@@ -160,7 +161,9 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     job = dft_job_factory.create_job(h2_atoms.copy())
 
     # Act & Assert
-    with pytest.raises(DFTCalculationError):
+    # Modified to expect MaxRetriesExceededError
+    from mlip_autopipec.exceptions import MaxRetriesExceededError
+    with pytest.raises(MaxRetriesExceededError):
         dft_runner.run(job)
     assert process_runner.execute.call_count == 3
 
@@ -199,7 +202,53 @@ def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) ->
     )
     job = dft_job_factory.create_job(h2_atoms.copy())
 
-    with pytest.raises(DFTCalculationError) as excinfo:
+    from mlip_autopipec.exceptions import MaxRetriesExceededError
+    # Because retry logic is on, generic errors also trigger retries and eventually MaxRetriesExceededError
+    with pytest.raises(MaxRetriesExceededError) as excinfo:
         dft_runner.run(job)
 
-    assert "DFT subprocess failed for job" in str(excinfo.value)
+    # The exception cause should be DFTCalculationError which wraps the CalledProcessError
+    assert isinstance(excinfo.value.__cause__, DFTCalculationError)
+    assert "DFT subprocess failed for job" in str(excinfo.value.__cause__)
+
+def test_dft_runner_invalid_job(h2_atoms: Atoms, tmp_path: Path) -> None:
+    """Test that DFTRunner raises ValueError when passed an improperly initialized DFTJob."""
+    # Arrange - Minimal components needed
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+
+    from ase.calculators.espresso import EspressoProfile
+    from mlip_autopipec.modules.dft import QEInputGenerator, QEOutputParser, QEProcessRunner
+
+    profile = EspressoProfile(command="pw.x", pseudo_dir=pseudo_dir)
+    input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
+    process_runner = QEProcessRunner(profile=profile)
+    output_parser = QEOutputParser()
+
+    dft_runner = DFTRunner(
+        input_generator=input_generator,
+        process_runner=process_runner,
+        output_parser=output_parser,
+    )
+
+    # 1. Test None job
+    with pytest.raises(ValueError, match="A valid DFTJob object is required"):
+        dft_runner.run(None) # type: ignore
+
+    # 2. Test job with missing params (if possible to construct, Pydantic prevents it usually, but we check guard)
+    # We can mock DFTJob to simulate missing attribute
+    mock_job = MagicMock(spec=DFTJob)
+    mock_job.params = None
+    mock_job.atoms = h2_atoms
+    mock_job.job_id = "123"
+
+    with pytest.raises(ValueError, match="DFTJob must have initialized parameters"):
+        dft_runner.run(mock_job)
+
+    # 3. Test job with missing atoms
+    mock_job.params = MagicMock()
+    mock_job.atoms = None
+
+    with pytest.raises(ValueError, match="DFTJob must have a valid 'atoms' attribute"):
+        dft_runner.run(mock_job)
