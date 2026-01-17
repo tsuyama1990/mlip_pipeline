@@ -26,7 +26,7 @@ mlip_autopipec/config/models.py                    7      0   100%
 mlip_autopipec/config/schemas/common.py           46      4    91%   48-49, 55-56
 mlip_autopipec/config/schemas/dft.py              70     20    71%   27-32, 46-51, 68-70, 101-107
 mlip_autopipec/config/schemas/exploration.py      51      4    92%   35-39
-mlip_autopipec/config/schemas/generator.py        30      0   100%
+mlip_autopipec/config/schemas/generator.py        38      2    95%   17, 20
 mlip_autopipec/config/schemas/inference.py        65     23    65%   26-28, 41-44, 63-69, 74-82
 mlip_autopipec/config/schemas/monitoring.py       12      0   100%
 mlip_autopipec/config/schemas/system.py           65     15    77%   62, 67-82
@@ -73,5 +73,5 @@ mlip_autopipec/utils/resilience.py                29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
 mlip_autopipec/workflow_manager.py               106    106     0%   1-191
 ----------------------------------------------------------------------------
-TOTAL                                           2061   1497    27%
-============================== 22 passed in 4.34s ==============================
+TOTAL                                           2069   1499    28%
+============================== 22 passed in 4.61s ==============================

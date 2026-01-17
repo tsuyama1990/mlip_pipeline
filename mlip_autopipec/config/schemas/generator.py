@@ -1,15 +1,24 @@
 from typing import List, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SQSConfig(BaseModel):
     enabled: bool = Field(True, description="Enable SQS generation for bulk alloys.")
     supercell_matrix: List[List[int]] = Field(
         default=[[2, 0, 0], [0, 2, 0], [0, 0, 2]],
-        description="Transformation matrix for the supercell."
+        description="Transformation matrix for the supercell (3x3)."
     )
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("supercell_matrix")
+    def validate_matrix_shape(cls, v: List[List[int]]) -> List[List[int]]:  # noqa: N805
+        if len(v) != 3:
+            raise ValueError("Supercell matrix must have 3 rows.")
+        for row in v:
+            if len(row) != 3:
+                raise ValueError("Supercell matrix rows must have 3 elements.")
+        return v
 
 
 class DistortionConfig(BaseModel):
