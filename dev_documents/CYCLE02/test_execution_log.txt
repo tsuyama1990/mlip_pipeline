@@ -3,23 +3,410 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 31 items
+collected 33 items
 
 tests/dft/test_input_validation.py ..                                    [  6%]
-tests/dft/test_inputs.py ...                                             [ 16%]
-tests/dft/test_parsers.py ..                                             [ 22%]
-tests/dft/test_recovery.py ....                                          [ 35%]
-tests/dft/test_runner.py ..                                              [ 41%]
-tests/dft/test_runner_integration.py ..                                  [ 48%]
-tests/uat/cycle_02_uat.py ...                                            [ 58%]
-tests/unit/test_common_schemas.py .                                      [ 61%]
-tests/config/test_system_config.py .                                     [ 64%]
-tests/test_app.py ...                                                    [ 74%]
-tests/core/test_logging_robustness.py ..                                 [ 80%]
+tests/dft/test_inputs.py ...                                             [ 15%]
+tests/dft/test_parsers.py ..                                             [ 21%]
+tests/dft/test_recovery.py ....                                          [ 33%]
+tests/dft/test_runner.py FF                                              [ 39%]
+tests/dft/test_runner_executable_check.py ..                             [ 45%]
+tests/dft/test_runner_integration.py F.                                  [ 51%]
+tests/uat/cycle_02_uat.py FF.                                            [ 60%]
+tests/unit/test_common_schemas.py .                                      [ 63%]
+tests/config/test_system_config.py .                                     [ 66%]
+tests/test_app.py ...                                                    [ 75%]
+tests/core/test_logging_robustness.py ..                                 [ 81%]
 tests/modules/test_generator.py ....                                     [ 93%]
 tests/data_models/test_dft_result.py .                                   [ 96%]
 tests/services/test_pipeline.py .                                        [100%]
 
+=================================== FAILURES ===================================
+_____________________________ test_runner_success ______________________________
+
+mock_parser_class = <MagicMock name='QEOutputParser' id='140298651078624'>
+mock_create_input = <MagicMock name='create_input_string' id='140298684579280'>
+mock_subprocess = <MagicMock name='run' id='140298651443392'>
+mock_dft_config = DFTConfig(command='pw.x', pseudo_dir=PosixPath('/tmp/pseudos'), timeout=10, recoverable=True, max_retries=2, dft_input_params=None)
+mock_atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
+
+    @patch("subprocess.run")
+    @patch("mlip_autopipec.dft.runner.InputGenerator.create_input_string")
+    @patch("mlip_autopipec.dft.runner.QEOutputParser")
+    def test_runner_success(mock_parser_class, mock_create_input, mock_subprocess, mock_dft_config, mock_atoms):
+        # Setup mocks
+        mock_create_input.return_value = "CONTROL..."
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = "JOB DONE"
+        mock_proc.stderr = ""
+        mock_subprocess.return_value = mock_proc
+
+        # Setup parser mock
+        mock_parser_instance = mock_parser_class.return_value
+        mock_parser_instance.parse.return_value = DFTResult(
+            uid="test-run",
+            energy=-100.0,
+            forces=[[0.0, 0.0, 0.0]],
+            stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+            succeeded=True,
+            wall_time=10.0,
+            parameters={},
+            final_mixing_beta=0.7,
+        )
+
+        runner = QERunner(mock_dft_config)
+>       result = runner.run(mock_atoms, uid="test-run")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/dft/test_runner.py:51:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.dft.runner.QERunner object at 0x7f99d34bb650>
+atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0]), uid = 'test-run'
+
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """
+        Runs the DFT calculation for the given atoms object.
+        """
+        if uid is None:
+            uid = str(uuid4())
+
+        # Create a working directory for this run
+        # Use temp dir or configured working dir?
+        # Ideally, we should use a scratch space.
+        # For now, let's use a temporary directory to be safe and clean up later.
+
+        # Check executable existence
+        # The command might be complex like "mpirun -np 4 pw.x"
+        # We try to find the executable part.
+        executable_candidate = self.config.command.split()[0]
+        # If it's mpirun, we assume it's installed. If it's pw.x directly, we check.
+        # But really we should check whatever is being run if possible.
+        # Simple heuristic: if command starts with something that shutil.which can find, we are good.
+        if not shutil.which(executable_candidate):
+            # If mpirun is not found, or pw.x is not found
+            # If the command is absolute path, which also handles it.
+            # One edge case: "mpirun" might be aliased or loaded via module.
+            # But generally for robustness we can warn or fail.
+            # Given the audit feedback, let's raise a clear error if we can't find it.
+            # Wait, splitting "mpirun -np 4 pw.x" gives "mpirun".
+            # If "pw.x" is used, it gives "pw.x".
+            # We should check if the executable exists.
+            if not shutil.which(executable_candidate):
+>               raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+E               mlip_autopipec.dft.runner.DFTFatalError: Executable 'pw.x' not found in PATH.
+
+mlip_autopipec/dft/runner.py:58: DFTFatalError
+______________________________ test_runner_retry _______________________________
+
+mock_get_strategy = <MagicMock name='get_strategy' id='140298651680208'>
+mock_analyze = <MagicMock name='analyze' id='140298652011168'>
+mock_create_input = <MagicMock name='create_input_string' id='140298653055120'>
+mock_subprocess = <MagicMock name='run' id='140298652018800'>
+mock_dft_config = DFTConfig(command='pw.x', pseudo_dir=PosixPath('/tmp/pseudos'), timeout=10, recoverable=True, max_retries=2, dft_input_params=None)
+mock_atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
+
+    @patch("subprocess.run")
+    @patch("mlip_autopipec.dft.runner.InputGenerator.create_input_string")
+    @patch("mlip_autopipec.dft.recovery.RecoveryHandler.analyze")
+    @patch("mlip_autopipec.dft.recovery.RecoveryHandler.get_strategy")
+    def test_runner_retry(
+        mock_get_strategy, mock_analyze, mock_create_input, mock_subprocess, mock_dft_config, mock_atoms
+    ):
+        runner = QERunner(mock_dft_config)
+
+        # First attempt fails
+        proc_fail = MagicMock()
+        proc_fail.returncode = 1
+        proc_fail.stdout = "Error"
+
+        # Second attempt succeeds
+        proc_success = MagicMock()
+        proc_success.returncode = 0
+        proc_success.stdout = "Done"
+
+        mock_subprocess.side_effect = [proc_fail, proc_success]
+
+        mock_analyze.return_value = DFTErrorType.CONVERGENCE_FAIL
+        mock_get_strategy.return_value = {"mixing_beta": 0.3}
+
+        # Mock create_input_string to return string, NOT MagicMock
+        mock_create_input.return_value = "mock_input_file_content"
+
+        # We need to mock ase.io.read for the success case?
+        # Or just assume QERunner handles the second success.
+        # For this test, let's assume we mock _parse_result or similar if we extracted it,
+        # but here we are testing the loop.
+
+        # Wait, if I mock `run` method it defeats the purpose.
+        # I should mock `_run_command` or similar?
+        # But I am testing `run`.
+
+        # IMPORTANT: The _parse_output must FAIL on the first attempt so that retry logic is triggered.
+        # QERunner logic:
+        # 1. run subprocess
+        # 2. try parse output -> if success, return result. if fail, proceed to recovery analysis.
+
+        # In my test, first attempt has proc.returncode=1.
+        # If parse succeeds anyway (e.g. partial output), it might return?
+        # But QERunner does:
+        # try:
+        #    result = self._parse_output(...)
+        #    if result.succeeded: return result
+        # except: pass
+
+        # So we need _parse_output to raise exception on first call (or return failed result),
+        # and return success on second call.
+
+        with patch("mlip_autopipec.dft.runner.QERunner._parse_output") as mock_parse:
+            # First call raises Exception (parse failed because job failed)
+            # Second call returns valid result
+            mock_parse.side_effect = [
+                Exception("Parse failed"),
+                DFTResult(
+                    uid="test-run",
+                    energy=-100,
+                    forces=[[0, 0, 0]],
+                    stress=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+                    succeeded=True,
+                    wall_time=10,
+                    parameters={},
+                    final_mixing_beta=0.3,
+                ),
+            ]
+
+>           result = runner.run(mock_atoms, uid="test-run")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/dft/test_runner.py:129:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.dft.runner.QERunner object at 0x7f99d34bbda0>
+atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0]), uid = 'test-run'
+
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """
+        Runs the DFT calculation for the given atoms object.
+        """
+        if uid is None:
+            uid = str(uuid4())
+
+        # Create a working directory for this run
+        # Use temp dir or configured working dir?
+        # Ideally, we should use a scratch space.
+        # For now, let's use a temporary directory to be safe and clean up later.
+
+        # Check executable existence
+        # The command might be complex like "mpirun -np 4 pw.x"
+        # We try to find the executable part.
+        executable_candidate = self.config.command.split()[0]
+        # If it's mpirun, we assume it's installed. If it's pw.x directly, we check.
+        # But really we should check whatever is being run if possible.
+        # Simple heuristic: if command starts with something that shutil.which can find, we are good.
+        if not shutil.which(executable_candidate):
+            # If mpirun is not found, or pw.x is not found
+            # If the command is absolute path, which also handles it.
+            # One edge case: "mpirun" might be aliased or loaded via module.
+            # But generally for robustness we can warn or fail.
+            # Given the audit feedback, let's raise a clear error if we can't find it.
+            # Wait, splitting "mpirun -np 4 pw.x" gives "mpirun".
+            # If "pw.x" is used, it gives "pw.x".
+            # We should check if the executable exists.
+            if not shutil.which(executable_candidate):
+>               raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+E               mlip_autopipec.dft.runner.DFTFatalError: Executable 'pw.x' not found in PATH.
+
+mlip_autopipec/dft/runner.py:58: DFTFatalError
+___________________ test_runner_propagates_fatal_exceptions ____________________
+
+    def test_runner_propagates_fatal_exceptions():
+        """Test that fatal exceptions during execution are propagated."""
+        config = DFTConfig(command="pw.x", pseudo_dir=Path("/tmp"), max_retries=0)
+        runner = QERunner(config)
+        atoms = Atoms("H", cell=[10, 10, 10], pbc=True) # Must have cell for input generator
+
+        with patch("subprocess.run") as mock_run:
+            # Simulate immediate failure that is not recoverable
+            mock_run.side_effect = Exception("System Crash")
+
+            with pytest.raises(Exception) as excinfo:
+                runner.run(atoms)
+>           assert "System Crash" in str(excinfo.value)
+E           assert 'System Crash' in "Executable 'pw.x' not found in PATH."
+E            +  where "Executable 'pw.x' not found in PATH." = str(DFTFatalError("Executable 'pw.x' not found in PATH."))
+E            +    where DFTFatalError("Executable 'pw.x' not found in PATH.") = <ExceptionInfo DFTFatalError("Executable 'pw.x' not found in PATH.") tblen=2>.value
+
+tests/dft/test_runner_integration.py:21: AssertionError
+_________________________ test_uat_02_01_standard_scf __________________________
+
+    def test_uat_02_01_standard_scf():
+        print("\n--- UAT-02-01: Standard SCF Calculation ---")
+        config = DFTConfig(command="pw.x", pseudo_dir=Path("/tmp"), timeout=100)
+        runner = QERunner(config)
+        atoms = create_mock_atoms()
+
+        # Mock everything
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("mlip_autopipec.dft.runner.InputGenerator.create_input_string") as mock_input,
+            patch("mlip_autopipec.dft.runner.QERunner._parse_output") as mock_parse,
+        ):
+            mock_input.return_value = "pw.in content"
+
+            proc = MagicMock()
+            proc.returncode = 0
+            mock_run.return_value = proc
+
+            expected_result = DFTResult(
+                uid="uat-01",
+                energy=-100.0,
+                forces=[[0.0, 0.0, 0.0]],
+                stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                succeeded=True,
+                wall_time=10.0,
+                parameters={},
+                final_mixing_beta=0.7,
+            )
+            mock_parse.return_value = expected_result
+
+>           result = runner.run(atoms, uid="uat-01")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/uat/cycle_02_uat.py:53:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.dft.runner.QERunner object at 0x7f99d31eade0>
+atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0]), uid = 'uat-01'
+
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """
+        Runs the DFT calculation for the given atoms object.
+        """
+        if uid is None:
+            uid = str(uuid4())
+
+        # Create a working directory for this run
+        # Use temp dir or configured working dir?
+        # Ideally, we should use a scratch space.
+        # For now, let's use a temporary directory to be safe and clean up later.
+
+        # Check executable existence
+        # The command might be complex like "mpirun -np 4 pw.x"
+        # We try to find the executable part.
+        executable_candidate = self.config.command.split()[0]
+        # If it's mpirun, we assume it's installed. If it's pw.x directly, we check.
+        # But really we should check whatever is being run if possible.
+        # Simple heuristic: if command starts with something that shutil.which can find, we are good.
+        if not shutil.which(executable_candidate):
+            # If mpirun is not found, or pw.x is not found
+            # If the command is absolute path, which also handles it.
+            # One edge case: "mpirun" might be aliased or loaded via module.
+            # But generally for robustness we can warn or fail.
+            # Given the audit feedback, let's raise a clear error if we can't find it.
+            # Wait, splitting "mpirun -np 4 pw.x" gives "mpirun".
+            # If "pw.x" is used, it gives "pw.x".
+            # We should check if the executable exists.
+            if not shutil.which(executable_candidate):
+>               raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+E               mlip_autopipec.dft.runner.DFTFatalError: Executable 'pw.x' not found in PATH.
+
+mlip_autopipec/dft/runner.py:58: DFTFatalError
+----------------------------- Captured stdout call -----------------------------
+
+--- UAT-02-01: Standard SCF Calculation ---
+_________________________ test_uat_02_02_auto_recovery _________________________
+
+    def test_uat_02_02_auto_recovery():
+        print("\n--- UAT-02-02: Convergence Auto-Recovery ---")
+        config = DFTConfig(command="pw.x", pseudo_dir=Path("/tmp"), recoverable=True)
+        runner = QERunner(config)
+        atoms = create_mock_atoms()
+
+        with (
+            patch("subprocess.run") as mock_run,
+            patch("mlip_autopipec.dft.runner.InputGenerator.create_input_string") as mock_input,
+            patch("mlip_autopipec.dft.recovery.RecoveryHandler.analyze") as mock_analyze,
+            patch("mlip_autopipec.dft.recovery.RecoveryHandler.get_strategy") as mock_strategy,
+            patch("mlip_autopipec.dft.runner.QERunner._parse_output") as mock_parse,
+        ):
+            # 1st run fails
+            proc_fail = MagicMock()
+            proc_fail.returncode = 1
+            proc_fail.stdout = "Error"
+
+            # 2nd run succeeds
+            proc_success = MagicMock()
+            proc_success.returncode = 0
+            proc_success.stdout = "Done"
+
+            mock_run.side_effect = [proc_fail, proc_success]
+
+            mock_analyze.return_value = DFTErrorType.CONVERGENCE_FAIL
+            mock_strategy.return_value = {"mixing_beta": 0.3}
+
+            # Capture the input params passed to generator
+            mock_input.side_effect = lambda atoms, params: f"input with {params}"
+
+            # Parse output mock: 1st time fails (raises), 2nd time succeeds
+            expected_result = DFTResult(
+                uid="uat-02",
+                energy=-100.0,
+                forces=[[0, 0, 0]],
+                stress=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+                succeeded=True,
+                wall_time=10,
+                parameters={"mixing_beta": 0.3},
+                final_mixing_beta=0.3,
+            )
+            mock_parse.side_effect = [Exception("Fail"), expected_result]
+
+>           result = runner.run(atoms, uid="uat-02")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/uat/cycle_02_uat.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.dft.runner.QERunner object at 0x7f99d31f1220>
+atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0]), uid = 'uat-02'
+
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """
+        Runs the DFT calculation for the given atoms object.
+        """
+        if uid is None:
+            uid = str(uuid4())
+
+        # Create a working directory for this run
+        # Use temp dir or configured working dir?
+        # Ideally, we should use a scratch space.
+        # For now, let's use a temporary directory to be safe and clean up later.
+
+        # Check executable existence
+        # The command might be complex like "mpirun -np 4 pw.x"
+        # We try to find the executable part.
+        executable_candidate = self.config.command.split()[0]
+        # If it's mpirun, we assume it's installed. If it's pw.x directly, we check.
+        # But really we should check whatever is being run if possible.
+        # Simple heuristic: if command starts with something that shutil.which can find, we are good.
+        if not shutil.which(executable_candidate):
+            # If mpirun is not found, or pw.x is not found
+            # If the command is absolute path, which also handles it.
+            # One edge case: "mpirun" might be aliased or loaded via module.
+            # But generally for robustness we can warn or fail.
+            # Given the audit feedback, let's raise a clear error if we can't find it.
+            # Wait, splitting "mpirun -np 4 pw.x" gives "mpirun".
+            # If "pw.x" is used, it gives "pw.x".
+            # We should check if the executable exists.
+            if not shutil.which(executable_candidate):
+>               raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+E               mlip_autopipec.dft.runner.DFTFatalError: Executable 'pw.x' not found in PATH.
+
+mlip_autopipec/dft/runner.py:58: DFTFatalError
+----------------------------- Captured stdout call -----------------------------
+
+--- UAT-02-02: Convergence Auto-Recovery ---
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
@@ -51,7 +438,7 @@ mlip_autopipec/dft/constants.py                              3      0   100%
 mlip_autopipec/dft/inputs.py                                57      4    93%   84-88
 mlip_autopipec/dft/parsers.py                               21      0   100%
 mlip_autopipec/dft/recovery.py                              30      6    80%   40, 70-74, 77-78
-mlip_autopipec/dft/runner.py                                74      6    92%   92-94, 124-125, 148
+mlip_autopipec/dft/runner.py                                79     20    75%   104-107, 120-140, 152, 161, 169-170
 mlip_autopipec/exceptions.py                                12      4    67%   40-42, 45
 mlip_autopipec/modules/__init__.py                           0      0   100%
 mlip_autopipec/modules/config_generator.py                  15     15     0%   3-74
@@ -79,5 +466,11 @@ mlip_autopipec/utils/resilience.py                          29     17    41%   6
 mlip_autopipec/utils/workflow_utils.py                      32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                         106     85    20%   35-49, 53-62, 66-71, 75-84, 88-104, 108-144, 154-191
 --------------------------------------------------------------------------------------
-TOTAL                                                     1825   1009    45%
-============================== 31 passed in 7.08s ==============================
+TOTAL                                                     1830   1023    44%
+=========================== short test summary info ============================
+FAILED tests/dft/test_runner.py::test_runner_success - mlip_autopipec.dft.run...
+FAILED tests/dft/test_runner.py::test_runner_retry - mlip_autopipec.dft.runne...
+FAILED tests/dft/test_runner_integration.py::test_runner_propagates_fatal_exceptions
+FAILED tests/uat/cycle_02_uat.py::test_uat_02_01_standard_scf - mlip_autopipe...
+FAILED tests/uat/cycle_02_uat.py::test_uat_02_02_auto_recovery - mlip_autopip...
+========================= 5 failed, 28 passed in 9.14s =========================

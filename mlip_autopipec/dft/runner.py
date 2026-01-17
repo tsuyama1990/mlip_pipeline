@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import tempfile
 import time
@@ -37,6 +38,25 @@ class QERunner:
         # Ideally, we should use a scratch space.
         # For now, let's use a temporary directory to be safe and clean up later.
 
+        # Check executable existence
+        # The command might be complex like "mpirun -np 4 pw.x"
+        # We try to find the executable part.
+        executable_candidate = self.config.command.split()[0]
+        # If it's mpirun, we assume it's installed. If it's pw.x directly, we check.
+        # But really we should check whatever is being run if possible.
+        # Simple heuristic: if command starts with something that shutil.which can find, we are good.
+        if not shutil.which(executable_candidate):
+            # If mpirun is not found, or pw.x is not found
+            # If the command is absolute path, which also handles it.
+            # One edge case: "mpirun" might be aliased or loaded via module.
+            # But generally for robustness we can warn or fail.
+            # Given the audit feedback, let's raise a clear error if we can't find it.
+            # Wait, splitting "mpirun -np 4 pw.x" gives "mpirun".
+            # If "pw.x" is used, it gives "pw.x".
+            # We should check if the executable exists.
+            if not shutil.which(executable_candidate):
+                raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+
         # We need to preserve params across retries
         current_params = {}  # Start with defaults (empty dict means InputGenerator uses defaults)
 
@@ -52,13 +72,6 @@ class QERunner:
                 output_path = work_dir / "pw.out"
 
                 input_path.write_text(input_str)
-
-                # Copy pseudos? No, InputGenerator assumes pseudo_dir is set in control or environment.
-                # The config has pseudo_dir. We should set ESPRESSO_PSEUDO environment var
-                # or ensure pw.in points to it.
-                # InputGenerator sets pseudo_dir='./'. So we should symlink pseudos or set env?
-                # Actually, InputGenerator sets 'pseudo_dir': './'. This means we must copy/symlink UPFs to work_dir.
-                # Or we can change InputGenerator to use self.config.pseudo_dir.
 
                 # Let's symlink pseudos for now as it's safer for QE
                 self._stage_pseudos(work_dir, atoms)
