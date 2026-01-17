@@ -69,6 +69,18 @@ This cycle focuses on usability, providing a polished and professional Command L
 - **Robust Validation**: Invalid configurations or command-line usage errors are caught immediately with helpful messages, ensuring a "fail-fast" experience before expensive computations begin.
 - **Schema Integration**: The CLI fully integrates with the project's rigorous Pydantic schemas, ensuring that user input is validated against the same rules used by the backend.
 
+## Cycle 08: Monitoring and Usability
+
+This cycle adds critical introspection capabilities to the workflow, allowing users to monitor the progress and performance of their long-running active learning jobs.
+
+### Key Features:
+- **Status Dashboard**: A new `mlip-auto status` command generates a comprehensive HTML dashboard. This report provides:
+  - **Key Metrics**: Real-time stats on the current generation, completed calculations, and pending jobs.
+  - **Performance Tracking**: A plot of the model's Force RMSE over training generations, providing quantitative proof of learning.
+  - **Dataset Insights**: A visualization of the dataset composition, showing how active learning is enriching the training data.
+- **On-Demand Generation**: The dashboard is generated on-demand from the project's checkpoint and database, ensuring the user always gets the latest status without needing a persistent web server.
+- **Enhanced Checkpointing**: The system state now tracks the full history of training metrics, enabling historical performance analysis.
+
 ## Getting Started
 
 To get started with the project, create a virtual environment and install the dependencies:
@@ -82,4 +94,10 @@ Run the workflow:
 
 ```bash
 mlip-auto run input.yaml
+```
+
+Check status:
+
+```bash
+mlip-auto status .
 ```

@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.models import UserInputConfig, Composition
+from mlip_autopipec.config.models import UserInputConfig
 
 
 def test_valid_user_config_parses_correctly():

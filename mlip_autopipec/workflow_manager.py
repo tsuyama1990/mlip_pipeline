@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 from mlip_autopipec.config.models import CheckpointState, SystemConfig
 from mlip_autopipec.modules.dft import DFTRunner
+from mlip_autopipec.modules.training import PacemakerTrainer
+from mlip_autopipec.utils.ase_utils import read_training_data
 from mlip_autopipec.utils.dask_utils import get_dask_client
 
 logger = logging.getLogger(__name__)
@@ -28,12 +30,14 @@ class WorkflowManager:
         system_config: SystemConfig,
         work_dir: Path,
         dft_runner: DFTRunner | None = None,
+        trainer: PacemakerTrainer | None = None,
     ):
         self.system_config = system_config
         self.work_dir = work_dir
         self.checkpoint_path = self.work_dir / system_config.workflow_config.checkpoint_filename
         self.dask_client: Client = get_dask_client()
         self.dft_runner: DFTRunner | None = dft_runner
+        self.trainer: PacemakerTrainer | None = trainer
         self.futures: dict[UUID, Future] = {}
         self.state: CheckpointState | None = None
 
@@ -92,6 +96,50 @@ class WorkflowManager:
                 logger.warning("No submission arguments found for pending job ID: %s", job_id)
         logger.info("All pending jobs have been re-submitted.")
 
+    def perform_training(self):
+        """Executes the training step and updates state with metrics."""
+        if not self.trainer:
+            logger.warning("Trainer not initialized. Skipping training.")
+            return
+
+        # Fetch training data
+        db_path = self.system_config.training_config.data_source_db if self.system_config.training_config else None
+
+        # Resolve relative DB path if necessary
+        if db_path and not db_path.is_absolute():
+            db_path = self.work_dir / db_path
+
+        if not db_path or not db_path.exists():
+            logger.warning("No training database found. Skipping training.")
+            return
+
+        try:
+            logger.info(f"Reading training data from {db_path}...")
+            training_data = read_training_data(db_path)
+        except Exception:
+            logger.exception("Failed to read training data from database.")
+            return # Don't crash, just skip training this cycle
+
+        logger.info("Starting training for generation %d...", self.state.active_learning_generation)
+        try:
+            potential_path, metrics = self.trainer.perform_training(
+                training_data=training_data,
+                generation=self.state.active_learning_generation
+            )
+
+            # Update state
+            self.state.training_history.append(metrics)
+            self.state.current_potential_path = potential_path
+
+            self._save_checkpoint()
+            logger.info("Training completed successfully. Metrics saved.")
+
+        except Exception as e:
+            logger.exception("Training failed.")
+            # Depending on policy, we might re-raise or just log.
+            # For now re-raise to be safe.
+            raise e
+
     def run(self):
         """
         Executes the main active learning workflow.
@@ -133,3 +181,7 @@ class WorkflowManager:
                 # marking them as failed in the state.
 
         logger.info("All jobs completed. Workflow finished.")
+
+        # Trigger training if configured
+        if self.trainer:
+            self.perform_training()

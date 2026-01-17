@@ -1,18 +1,19 @@
 """Fixtures for the test suite."""
 
-import pytest
 import uuid
+
+import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from mlip_autopipec.config.models import (
+    Composition,
     CutoffConfig,
     DFTConfig,
     DFTInputParameters,
     Pseudopotentials,
     SystemConfig,
     TargetSystem,
-    Composition,
 )
 
 

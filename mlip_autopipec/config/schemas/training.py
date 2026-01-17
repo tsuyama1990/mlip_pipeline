@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, FilePath
+from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
 
 
 class LossWeights(BaseModel):
@@ -44,7 +45,22 @@ class TrainingConfig(BaseModel):
     )
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("pacemaker_executable")
+    @classmethod
+    def validate_executable(cls, v: FilePath | None) -> FilePath | None:
+        if v is not None:
+            if not os.access(v, os.X_OK):
+                raise ValueError(f"File at {v} is not executable.")
+        return v
+
 class TrainingData(BaseModel):
     energy: float
     forces: list[list[float]]
+    model_config = ConfigDict(extra="forbid")
+
+class TrainingRunMetrics(BaseModel):
+    generation: int
+    num_structures: int
+    rmse_forces: float
+    rmse_energy_per_atom: float
     model_config = ConfigDict(extra="forbid")
