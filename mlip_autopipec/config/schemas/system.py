@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .common import MinimalConfig, TargetSystem
 from .dft import DFTConfig
@@ -50,7 +50,7 @@ class SystemConfig(BaseModel):
     dask: DaskConfig | None = None
     dft: DFTConfig | None = None  # Legacy alias
 
-    model_config = ConfigDict(frozen=False, extra="forbid")  # Must be mutable to populate fields
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     @field_validator("db_path")
     @classmethod
@@ -59,13 +59,25 @@ class SystemConfig(BaseModel):
         # Cycle 01 spec ensures paths are absolute from factory.
         return v
 
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-        # Auto-populate duplicate fields from minimal if not provided
-        if self.target_system is None and self.minimal:
-            self.target_system = self.minimal.target_system
-        if self.project_name is None and self.minimal:
-            self.project_name = self.minimal.project_name
+    @model_validator(mode="before")
+    @classmethod
+    def populate_fields_from_minimal(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            minimal = data.get("minimal")
+            if minimal:
+                # If minimal is a dict
+                if isinstance(minimal, dict):
+                    if data.get("target_system") is None:
+                        data["target_system"] = minimal.get("target_system")
+                    if data.get("project_name") is None:
+                        data["project_name"] = minimal.get("project_name")
+                # If minimal is an object (MinimalConfig)
+                elif hasattr(minimal, "target_system"):
+                    if data.get("target_system") is None:
+                        data["target_system"] = minimal.target_system
+                    if data.get("project_name") is None:
+                        data["project_name"] = minimal.project_name
+        return data
 
 
 class CheckpointState(BaseModel):
