@@ -1,3 +1,6 @@
+"""
+Common configuration schemas shared across the application.
+"""
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, RootModel, field_validator, model_validator
@@ -7,6 +10,9 @@ from .resources import Resources
 # Common / Shared Models
 
 class SimulationGoal(BaseModel):
+    """
+    Defines the high-level scientific goal of the simulation.
+    """
     type: Literal["melt_quench", "elastic", "diffusion"]
     temperature_range: tuple[float, float] | None = None
     model_config = ConfigDict(extra="forbid")
@@ -19,6 +25,9 @@ class Composition(RootModel[dict[str, float]]):
 
     @field_validator("root")
     def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:
+        """
+        Validates that composition fractions sum to 1.0 and keys are valid symbols.
+        """
         from ase.data import chemical_symbols
 
         # Check sum
@@ -33,6 +42,9 @@ class Composition(RootModel[dict[str, float]]):
         return v
 
 class TargetSystem(BaseModel):
+    """
+    Defines the material system to be studied.
+    """
     elements: list[str]
     composition: Composition
     crystal_structure: str
@@ -40,6 +52,9 @@ class TargetSystem(BaseModel):
 
     @field_validator("elements")
     def validate_elements(cls, elements: list[str]) -> list[str]:
+        """
+        Validates that all elements are valid chemical symbols.
+        """
         from ase.data import chemical_symbols
         for symbol in elements:
             if symbol not in chemical_symbols:
@@ -48,11 +63,18 @@ class TargetSystem(BaseModel):
 
     @model_validator(mode="after")
     def check_composition_keys(self):
+        """
+        Ensures that the keys in the composition map match the elements list.
+        """
         if set(self.elements) != set(self.composition.root.keys()):
             raise ValueError("Composition keys must match the elements list.")
         return self
 
 class MinimalConfig(BaseModel):
+    """
+    The user-facing configuration model.
+    Represents the content of the input.yaml file provided by the user.
+    """
     project_name: str
     target_system: TargetSystem
     resources: Resources

@@ -1,3 +1,7 @@
+"""
+This module provides a factory class for creating the comprehensive
+SystemConfig from a high-level UserInputConfig.
+"""
 import yaml
 from pathlib import Path
 from typing import Any
@@ -16,6 +20,13 @@ class ConfigFactory:
         """
         Reads a YAML file, validates it against MinimalConfig,
         creates the project directory structure, and returns the SystemConfig.
+
+        The process involves:
+        1. Reading the YAML file using PyYAML.
+        2. Validating the dictionary using Pydantic's model_validate.
+           (Note: Pydantic V2 does not natively parse YAML strings, so the standard
+            pattern is yaml.safe_load -> model_validate).
+        3. Resolving paths and creating the workspace on disk.
         """
         # Resolve input file path
         input_path = Path(path).resolve()
@@ -30,11 +41,12 @@ class ConfigFactory:
                 raise ValueError(f"Invalid YAML format: {e}") from e
 
         # Validate User Input
+        # We explicitly validate the dict here.
+        # This is robust because Pydantic handles type coercion and validation.
         try:
             minimal = MinimalConfig.model_validate(data)
         except Exception as e:
-            # Wrap validation error for better CLI handling if needed
-            # But usually Pydantic ValidationError is good enough
+            # Re-raise to be handled by caller (likely CLI)
             raise e
 
         # Determine Paths
@@ -43,7 +55,10 @@ class ConfigFactory:
         working_dir = cwd / minimal.project_name
 
         # Create directory structure
-        working_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            working_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise RuntimeError(f"Failed to create project directory {working_dir}: {e}") from e
 
         # Define internal paths
         db_path = working_dir / "project.db"

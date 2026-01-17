@@ -3,13 +3,13 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 19 items
+collected 21 items
 
-tests/test_config.py .....                                               [ 26%]
-tests/test_config_factory.py ...                                         [ 42%]
-tests/test_database.py ...                                               [ 57%]
-tests/test_logging.py ..                                                 [ 68%]
-tests/test_app.py ...                                                    [ 84%]
+tests/test_config.py .....                                               [ 23%]
+tests/test_config_factory.py ...                                         [ 38%]
+tests/test_database.py ...                                               [ 52%]
+tests/test_logging.py ....                                               [ 71%]
+tests/test_app.py ...                                                    [ 85%]
 tests/uat/cycle_01_uat.py ...                                            [100%]
 
 ================================ tests coverage ================================
@@ -18,11 +18,11 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                           Stmts   Miss  Cover   Missing
 ----------------------------------------------------------------------------
 mlip_autopipec/__init__.py                         1      0   100%
-mlip_autopipec/app.py                             41      8    80%   61-63, 70-73, 76
+mlip_autopipec/app.py                             34      8    76%   50-52, 57-60, 63
 mlip_autopipec/config/__init__.py                  0      0   100%
-mlip_autopipec/config/factory.py                  27      2    93%   29-30
+mlip_autopipec/config/factory.py                  30      4    87%   40-41, 60-61
 mlip_autopipec/config/models.py                    7      0   100%
-mlip_autopipec/config/schemas/common.py           40      1    98%   52
+mlip_autopipec/config/schemas/common.py           40      1    98%   70
 mlip_autopipec/config/schemas/dft.py              82     26    68%   22-26, 38-42, 58-60, 75-81, 98-100, 105-107
 mlip_autopipec/config/schemas/exploration.py      51      4    92%   32-35
 mlip_autopipec/config/schemas/inference.py        65     23    65%   23-25, 37-40, 57-63, 68-76
@@ -30,8 +30,9 @@ mlip_autopipec/config/schemas/monitoring.py       12      0   100%
 mlip_autopipec/config/schemas/resources.py         7      0   100%
 mlip_autopipec/config/schemas/system.py           35      0   100%
 mlip_autopipec/config/schemas/training.py         51      4    92%   51-54
-mlip_autopipec/core/database.py                   22      1    95%   37
-mlip_autopipec/core/logging.py                    24      5    79%   9-10, 38-42
+mlip_autopipec/core/bootstrap.py                  15      0   100%
+mlip_autopipec/core/database.py                   34      9    74%   37-38, 54-55, 68, 73-74, 93-94
+mlip_autopipec/core/logging.py                    34      7    79%   12-13, 30-31, 62-66
 mlip_autopipec/data/__init__.py                    0      0   100%
 mlip_autopipec/data/database.py                   23     23     0%   7-73
 mlip_autopipec/exceptions.py                       7      7     0%   13-41
@@ -56,5 +57,5 @@ mlip_autopipec/utils/resilience.py                29     29     0%   5-92
 mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
 mlip_autopipec/workflow_manager.py               104    104     0%   2-187
 ----------------------------------------------------------------------------
-TOTAL                                           1346    955    29%
-============================== 19 passed in 3.45s ==============================
+TOTAL                                           1379    967    30%
+============================== 21 passed in 3.63s ==============================

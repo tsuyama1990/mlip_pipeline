@@ -10,9 +10,7 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 
-from mlip_autopipec.config.factory import ConfigFactory
-from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.core.logging import setup_logging
+from mlip_autopipec.core.bootstrap import initialize_project
 
 # Configure basic logging for app startup
 logging.basicConfig(
@@ -43,17 +41,8 @@ def run(
     try:
         console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
 
-        # 1. Config Factory: Load and Expand
-        config = ConfigFactory.from_yaml(config_file)
-
-        # 2. Setup Logging
-        setup_logging(config.log_path)
-        log.info("System logging initialized.")
-
-        # 3. Initialize Database
-        db = DatabaseManager(config.db_path)
-        db.initialize(config)
-        log.info(f"System initialized. DB: {config.db_path}")
+        # Use bootstrap logic to separate concerns
+        initialize_project(config_file)
 
         console.print("[bold green]SUCCESS:[/bold green] System initialized successfully.")
 
@@ -63,8 +52,6 @@ def run(
         raise typer.Exit(code=1)
     except ValidationError as e:
         console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
-        # The UAT says "user should not see a raw Python traceback", but e is formatted by Pydantic?
-        # Maybe we want to print str(e) which is readable.
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
     except Exception as e:

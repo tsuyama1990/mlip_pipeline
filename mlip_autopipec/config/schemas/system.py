@@ -1,3 +1,7 @@
+"""
+System-level configuration schemas.
+These models represent the fully hydrated state of the application.
+"""
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -12,16 +16,24 @@ from .training import TrainingConfig, TrainingRunMetrics
 
 
 class WorkflowConfig(BaseModel):
+    """
+    Configuration for workflow execution parameters.
+    """
     checkpoint_filename: str = "checkpoint.json"
     model_config = ConfigDict(extra="forbid")
 
 class DaskConfig(BaseModel):
+    """
+    Configuration for Dask distributed execution.
+    """
     model_config = ConfigDict(extra="forbid")
     scheduler_address: str | None = Field(None)
 
 class SystemConfig(BaseModel):
     """
     Comprehensive configuration for the MLIP-AutoPipe system.
+    This object is created by the ConfigFactory and serves as the single source of truth.
+    It contains the user input (MinimalConfig) plus resolved runtime paths.
     """
     minimal: MinimalConfig
     working_dir: Path
@@ -37,6 +49,9 @@ class SystemConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class CheckpointState(BaseModel):
+    """
+    Represents the state of the workflow for checkpointing and recovery.
+    """
     run_uuid: UUID
     system_config: SystemConfig
     active_learning_generation: int = Field(0, ge=0)
@@ -49,6 +64,9 @@ class CheckpointState(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
 class CalculationMetadata(BaseModel):
+    """
+    Metadata attached to calculations in the database.
+    """
     model_config = ConfigDict(extra="forbid")
     stage: str
     uuid: str

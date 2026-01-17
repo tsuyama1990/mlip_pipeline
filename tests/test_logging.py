@@ -9,14 +9,9 @@ def test_setup_logging(tmp_path):
 
     assert log_path.exists()
 
-    # We cannot use caplog here easily because setup_logging clears handlers.
     # We verify via file output.
-
     logging.debug("This is a debug message")
     logging.info("This is an info message")
-
-    # Force flush not needed for file handler usually, but let's be safe if buffering
-    # logging.shutdown() # Don't shutdown, might break other tests
 
     # Check if log file contains messages
     with open(log_path, 'r') as f:
@@ -35,3 +30,32 @@ def test_logging_level(tmp_path):
         content = f.read()
         assert "Should not see this" not in content
         assert "Should see this" in content
+
+def test_invalid_logging_level(tmp_path):
+    log_path = tmp_path / "test_invalid.log"
+    setup_logging(log_path, level="INVALID_LEVEL")
+
+    # Should default to INFO (or whatever logic handles it, but not crash)
+    logging.info("Should see this")
+
+    with open(log_path, 'r') as f:
+        content = f.read()
+        assert "Should see this" in content
+
+def test_logging_permission_error(tmp_path):
+    # Simulate a read-only directory
+    ro_dir = tmp_path / "readonly"
+    ro_dir.mkdir()
+
+    # This is tricky to test portably (root vs user), but we can try chmod
+    import os
+    os.chmod(ro_dir, 0o500) # Read/Execute only, no Write
+
+    try:
+        log_path = ro_dir / "test.log"
+
+        # Should raise IOError as per our implementation
+        with pytest.raises(IOError):
+            setup_logging(log_path)
+    finally:
+        os.chmod(ro_dir, 0o700) # Restore permissions for cleanup
