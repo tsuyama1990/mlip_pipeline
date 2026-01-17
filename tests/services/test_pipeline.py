@@ -1,7 +1,8 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 from mlip_autopipec.services.pipeline import PipelineController
+
 
 def test_pipeline_execute():
     input_file = Path("input.yaml")

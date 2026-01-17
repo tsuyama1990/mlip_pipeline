@@ -1,9 +1,12 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.dft.runner import QERunner, DFTFatalError
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 def test_runner_executable_missing():
     config = DFTConfig(command="non_existent_executable", pseudo_dir=Path("/tmp"))

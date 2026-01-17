@@ -1,8 +1,11 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
 from mlip_autopipec.core.logging import setup_logging
 from mlip_autopipec.exceptions import LoggingError
+
 
 def test_setup_logging_permission_error():
     path = Path("/root/protected.log")
