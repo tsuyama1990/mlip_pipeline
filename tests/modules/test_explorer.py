@@ -33,8 +33,7 @@ def mock_descriptor_calculator():
 @pytest.fixture
 def mock_screener():
     """Create a mock screener."""
-    mock = MagicMock(spec=SurrogateModelScreener)
-    return mock
+    return MagicMock(spec=SurrogateModelScreener)
 
 
 def test_select_empty_list(mock_config, mock_descriptor_calculator, mock_screener):

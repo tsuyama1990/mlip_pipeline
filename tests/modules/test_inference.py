@@ -16,15 +16,15 @@ def mock_inference_config(tmp_path):
     lammps_exec = tmp_path / "lmp"
     potential_path = tmp_path / "potential.yace"
     lammps_exec.touch()
+    lammps_exec.chmod(0o755) # Make executable
     potential_path.touch()
-    config = InferenceConfig(
+    return InferenceConfig(
         lammps_executable=lammps_exec,
         potential_path=potential_path,
         uncertainty_params=UncertaintyConfig(
             embedding_cutoff=8.0, masking_cutoff=4.0, threshold=0.5
         ),
     )
-    return config
 
 
 def test_extract_embedded_structure():
@@ -98,7 +98,7 @@ def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
             (cwd_path / "uncertainty.dump").write_text(uncertainty_content)
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch("subprocess.run", side_effect=mock_subprocess_run) as mock_run:
+    with patch("subprocess.run", side_effect=mock_subprocess_run):
         # runner.run() returns a single UncertainStructure or None
         result = runner.run(atoms)
 

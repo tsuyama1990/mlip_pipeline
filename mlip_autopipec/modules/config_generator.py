@@ -17,7 +17,7 @@ class PacemakerConfigGenerator:
     configuration is valid and ready for use in a training job.
     """
 
-    def __init__(self, config: SystemConfig):
+    def __init__(self, config: SystemConfig) -> None:
         """
         Initializes the PacemakerConfigGenerator.
 

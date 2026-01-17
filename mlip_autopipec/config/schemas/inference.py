@@ -21,7 +21,8 @@ class UncertaintyConfig(BaseModel):
     @classmethod
     def masking_must_be_less_than_embedding(cls, masking_cutoff: float, info: ValidationInfo) -> float:
         if "embedding_cutoff" in info.data and masking_cutoff >= info.data["embedding_cutoff"]:
-            raise ValueError("masking_cutoff must be smaller than embedding_cutoff.")
+            msg = "masking_cutoff must be smaller than embedding_cutoff."
+            raise ValueError(msg)
         return masking_cutoff
 
 class InferenceConfig(BaseModel):
@@ -34,9 +35,9 @@ class InferenceConfig(BaseModel):
     @field_validator("lammps_executable")
     @classmethod
     def validate_executable(cls, v: FilePath | None) -> FilePath | None:
-        if v is not None:
-            if not os.access(v, os.X_OK):
-                raise ValueError(f"File at {v} is not executable.")
+        if v is not None and not os.access(v, os.X_OK):
+            msg = f"File at {v} is not executable."
+            raise ValueError(msg)
         return v
 
 class UncertaintyMetadata(BaseModel):
@@ -57,9 +58,11 @@ class UncertainStructure(BaseModel):
         try:
             from ase import Atoms
         except ImportError as e:
-            raise ImportError("ASE is required.") from e
+            msg = "ASE is required."
+            raise ImportError(msg) from e
         if not isinstance(atoms_obj, Atoms):
-            raise TypeError("Field 'atoms' must be an instance of ase.Atoms.")
+            msg = "Field 'atoms' must be an instance of ase.Atoms."
+            raise TypeError(msg)
         return atoms_obj
 
     @field_validator("force_mask")
@@ -68,9 +71,12 @@ class UncertainStructure(BaseModel):
         try:
             import numpy as np
         except ImportError as e:
-            raise ImportError("NumPy is required.") from e
+            msg = "NumPy is required."
+            raise ImportError(msg) from e
         if not isinstance(force_mask_obj, np.ndarray):
-            raise TypeError("Field 'force_mask' must be a NumPy array.")
+            msg = "Field 'force_mask' must be a NumPy array."
+            raise TypeError(msg)
         if "atoms" in info.data and len(force_mask_obj) != len(info.data["atoms"]):
-            raise ValueError("force_mask must have the same length as the number of atoms.")
+            msg = "force_mask must have the same length as the number of atoms."
+            raise ValueError(msg)
         return force_mask_obj

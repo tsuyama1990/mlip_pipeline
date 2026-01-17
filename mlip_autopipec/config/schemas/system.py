@@ -45,6 +45,7 @@ class SystemConfig(BaseModel):
     dft: DFTConfig | None = None # Legacy alias
 
     db_path: str = "mlip_database.db"
+    working_dir: Path | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -53,7 +54,8 @@ class SystemConfig(BaseModel):
     def validate_db_path(cls, v: str) -> str:
         import os
         if ".." in v or os.path.isabs(v):
-            raise ValueError("db_path must be a relative path.")
+            msg = "db_path must be a relative path."
+            raise ValueError(msg)
         return v
 
 class CheckpointState(BaseModel):

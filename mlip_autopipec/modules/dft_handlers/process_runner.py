@@ -63,12 +63,13 @@ class QEProcessRunner:
                 )
                 stdout_f.write(process.stdout)
         except FileNotFoundError as e:
-            logger.error(f"QE executable not found. Details: {e}")
+            logger.exception(f"QE executable not found. Details: {e}")
             raise
         except subprocess.CalledProcessError as e:
             logger.exception("QE subprocess failed with a non-zero exit code.")
+            msg = "The DFT calculation failed."
             raise DFTCalculationError(
-                "The DFT calculation failed.",
+                msg,
                 stdout=e.stdout,
                 stderr=e.stderr,
             ) from e

@@ -57,17 +57,13 @@ def setup_project(work_dir: Path):
             db.write(Atoms('Si'), data={'config_type': 'active_learning_gen2'})
 
 def run_command(cmd, cwd):
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, check=False, cwd=cwd, capture_output=True, text=True)
-    return result
+    return subprocess.run(cmd, check=False, cwd=cwd, capture_output=True, text=True)
 
 def main():
-    print("Starting UAT for Cycle 08: Monitoring and Usability")
     work_dir = Path("uat_cycle_08_workspace")
 
     try:
         # Scenario 1: Generating and Viewing the Status Dashboard
-        print("\n--- UAT-C8-001: Generating and Viewing the Status Dashboard ---")
         setup_project(work_dir)
 
         # We need to mock webbrowser open so it doesn't fail in headless environment,
@@ -78,22 +74,17 @@ def main():
         res = run_command(["mlip-auto", "status", ".", "--no-open"], cwd=work_dir)
 
         if res.returncode == 0 and "Dashboard generated at" in res.stdout:
-            print(f"{GREEN}✅ Dashboard generation successful.{RESET}")
+            pass
         else:
-            print(f"{RED}❌ Dashboard generation failed.{RESET}")
-            print("STDOUT:", res.stdout)
-            print("STDERR:", res.stderr)
             sys.exit(1)
 
         dashboard_path = work_dir / "dashboard.html"
         if dashboard_path.exists():
-             print(f"{GREEN}✅ dashboard.html exists.{RESET}")
+             pass
         else:
-             print(f"{RED}❌ dashboard.html not found.{RESET}")
              sys.exit(1)
 
         # Scenario 2: Interpreting Dashboard for Workflow Insights
-        print("\n--- UAT-C8-002: Interpreting Dashboard for Workflow Insights ---")
         content = dashboard_path.read_text()
 
         checks = [
@@ -106,21 +97,18 @@ def main():
         ]
 
         all_passed = True
-        for text, desc in checks:
+        for text, _desc in checks:
             if text in content:
-                print(f"{GREEN}✅ Found {desc} ('{text}'){RESET}")
+                pass
             else:
-                print(f"{RED}❌ Missing {desc} ('{text}'){RESET}")
                 all_passed = False
 
         if all_passed:
-            print(f"\n{GREEN}🎉 Cycle 08 UAT Passed!{RESET}")
+            pass
         else:
-            print(f"\n{RED}Cycle 08 UAT Failed.{RESET}")
             sys.exit(1)
 
-    except Exception as e:
-        print(f"{RED}An unexpected error occurred during UAT:{RESET} {e}")
+    except Exception:
         sys.exit(1)
     finally:
         if work_dir.exists():

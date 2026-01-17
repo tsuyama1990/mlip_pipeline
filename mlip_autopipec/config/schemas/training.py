@@ -48,9 +48,9 @@ class TrainingConfig(BaseModel):
     @field_validator("pacemaker_executable")
     @classmethod
     def validate_executable(cls, v: FilePath | None) -> FilePath | None:
-        if v is not None:
-            if not os.access(v, os.X_OK):
-                raise ValueError(f"File at {v} is not executable.")
+        if v is not None and not os.access(v, os.X_OK):
+            msg = f"File at {v} is not executable."
+            raise ValueError(msg)
         return v
 
 class TrainingData(BaseModel):

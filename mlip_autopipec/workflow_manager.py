@@ -31,7 +31,7 @@ class WorkflowManager:
         work_dir: Path,
         dft_runner: DFTRunner | None = None,
         trainer: PacemakerTrainer | None = None,
-    ):
+    ) -> None:
         self.system_config = system_config
         self.work_dir = work_dir
         self.checkpoint_path = self.work_dir / system_config.workflow_config.checkpoint_filename
@@ -75,7 +75,8 @@ class WorkflowManager:
             logger.info("Successfully loaded workflow state.")
         except (OSError, json.JSONDecodeError, ValidationError) as e:
             logger.error("Failed to load or validate checkpoint.", exc_info=True)
-            raise RuntimeError("Could not load a valid checkpoint file.") from e
+            msg = "Could not load a valid checkpoint file."
+            raise RuntimeError(msg) from e
 
     def _resubmit_pending_jobs(self):
         """Re-submits jobs that were pending at the time of the last checkpoint."""
@@ -85,7 +86,8 @@ class WorkflowManager:
         logger.info("Re-submitting %d pending jobs...", len(self.state.pending_job_ids))
         if self.dft_runner is None:
             # This is a safeguard; dft_runner should be set before this is called in a real run.
-            raise RuntimeError("DFTRunner is not initialized.")
+            msg = "DFTRunner is not initialized."
+            raise RuntimeError(msg)
 
         for job_id in self.state.pending_job_ids:
             args = self.state.job_submission_args.get(job_id)
@@ -134,11 +136,11 @@ class WorkflowManager:
             self._save_checkpoint()
             logger.info("Training completed successfully. Metrics saved.")
 
-        except Exception as e:
+        except Exception:
             logger.exception("Training failed.")
             # Depending on policy, we might re-raise or just log.
             # For now re-raise to be safe.
-            raise e
+            raise
 
     def run(self):
         """
