@@ -1,0 +1,925 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: mock-3.15.1, cov-7.0.0
+collected 72 items
+
+tests/integration/test_dft_integration.py ....                           [  5%]
+tests/integration/test_monitoring_integration.py ...                     [  9%]
+tests/modules/test_config_generator.py .                                 [ 11%]
+tests/modules/test_dft.py ......                                         [ 19%]
+tests/modules/test_dft_heuristics.py .......                             [ 29%]
+tests/modules/test_exploration.py .....ss                                [ 38%]
+tests/modules/test_explorer.py ....                                      [ 44%]
+tests/modules/test_generator.py ....                                     [ 50%]
+tests/modules/test_inference.py ...                                      [ 54%]
+tests/modules/test_training.py ....                                      [ 59%]
+tests/test_app.py ...                                                    [ 63%]
+tests/test_config.py .....                                               [ 70%]
+tests/test_config_factory.py .                                           [ 72%]
+tests/test_database.py ..                                                [ 75%]
+tests/test_logging.py ..                                                 [ 77%]
+tests/test_monitoring.py ...                                             [ 81%]
+tests/test_workflow_manager.py .......                                   [ 91%]
+tests/utils/test_resilience.py ....../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning:
+
+Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning:
+
+Module src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+
+/app/.venv/lib/python3.12/site-packages/coverage/control.py:958: CoverageWarning:
+
+No data was collected. (no-data-collected); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-no-data-collected
+
+/app/.venv/lib/python3.12/site-packages/pytest_cov/plugin.py:363: CovReportWarning:
+
+Failed to generate report: No data to report.
+
+
+
+WARNING: Failed to generate report: No data to report.
+
+                                                                         [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+tests/modules/test_exploration.py:128
+  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_exploration.py:138
+  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_inference.py:71
+  /app/tests/modules/test_inference.py:71: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/test_workflow_manager.py::test_save_checkpoint
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 36539 instead
+
+tests/test_workflow_manager.py::test_load_checkpoint
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 34453 instead
+
+tests/test_workflow_manager.py::test_init_does_not_load_state_unnecessarily
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 45869 instead
+
+tests/test_workflow_manager.py::test_resubmit_pending_jobs
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 46755 instead
+
+tests/test_workflow_manager.py::test_checkpoint_training_history
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 33163 instead
+
+tests/test_workflow_manager.py::test_checkpoint_training_history
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 34769 instead
+
+tests/test_workflow_manager.py::test_perform_training
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 35289 instead
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+============ 70 passed, 2 skipped, 11 warnings in 142.84s (0:02:22) ============
+[01/17/26 10:23:58] INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645438.3680308') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:38145'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:44201'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:33047'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:41095'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:45236; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:45222; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:45248; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:37691 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645438.57105')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:40315 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645438.6061804')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:45825 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645438.6119053')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:45242; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:43193 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645438.628323')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Nanny at 'tcp://127.0.0.1:44201'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:38145'       nanny.py:626
+                             closed.
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:37799
+                             remote=tcp://127.0.0.1:45242>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+[01/17/26 10:23:59] INFO     Nanny at 'tcp://127.0.0.1:33047'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:41095'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+                    INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645439.230129') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:45127'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:33171'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:38319'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:39587'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:47042; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:47008; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:47028; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:40587 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645439.5127265')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:41673 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645439.5297477')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:42197 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645439.558337')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:47018; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:38225 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645439.580778')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Nanny at 'tcp://127.0.0.1:45127'       nanny.py:626
+                             closed.
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:36871
+                             remote=tcp://127.0.0.1:47018>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Nanny at 'tcp://127.0.0.1:33171'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:39587'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:38319'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+[01/17/26 10:24:00] INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645440.078945') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:38485'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:44005'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:41865'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:34397'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:49658; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:49660; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:35995 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645440.19852')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:44815 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645440.2159574')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:49662; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:49678; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:35325 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645440.2415464')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:44963 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645440.2506657')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:40177
+                             remote=tcp://127.0.0.1:49662>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:40177
+                             remote=tcp://127.0.0.1:49678>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Nanny at 'tcp://127.0.0.1:38485'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:44005'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:41865'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:34397'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+                    INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645440.8538618') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:44615'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:42609'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:33657'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:38551'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:56206; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:56218; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:56196; closing.
+[01/17/26 10:24:01] INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:34001 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.0001202')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:41799 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.0182874')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:33957 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.0305493')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:56222; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:35663 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.0455718')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:40751
+                             remote=tcp://127.0.0.1:56222>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Nanny at 'tcp://127.0.0.1:44615'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:33657'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:42609'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:38551'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+                    INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645441.3683386') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:41325'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:33175'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:39821'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:43447'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:42272; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:42280; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:43347 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.4237082')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:38191 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.4285214')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:42252; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:42268; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:37729 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.4476638')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:42135 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645441.453292')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:39261
+                             remote=tcp://127.0.0.1:42252>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:39261
+                             remote=tcp://127.0.0.1:42268>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Nanny at 'tcp://127.0.0.1:33175'       nanny.py:626
+                             closed.
+[01/17/26 10:24:02] INFO     Nanny at 'tcp://127.0.0.1:43447'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:39821'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:41325'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+                    INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645442.0323806') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:41183'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:40167'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:39273'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:44149'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:53902; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:53906; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:53888; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:40073 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.1038337')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:43487 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.1148183')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:45903 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.1313982')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:53912; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:41169 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.1489882')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Batched Comm Closed <TCP (closed)    batched.py:122
+                             Scheduler connection to worker
+                             local=tcp://127.0.0.1:40595
+                             remote=tcp://127.0.0.1:53912>
+                             ╭─ Traceback (most recent call las─╮
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/batched.py:1 │
+                             │ 15 in _background_send           │
+                             │                                  │
+                             │   112 │   │   │   │   │   │   pa │
+                             │   113 │   │   │   │   │   )      │
+                             │   114 │   │   │   │   ) as coro: │
+                             │ ❱ 115 │   │   │   │   │   nbytes │
+                             │   116 │   │   │   │   if nbytes  │
+                             │   117 │   │   │   │   │   self.r │
+                             │   118 │   │   │   │   else:      │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/tornado/gen.py:783 in    │
+                             │ run                              │
+                             │                                  │
+                             │   780 │   │   │   │   self.futur │
+                             │   781 │   │   │   │   try:       │
+                             │   782 │   │   │   │   │   try:   │
+                             │ ❱ 783 │   │   │   │   │   │   va │
+                             │   784 │   │   │   │   │   except │
+                             │   785 │   │   │   │   │   │   #  │
+                             │   786 │   │   │   │   │   │   #  │
+                             │                                  │
+                             │ /app/.venv/lib/python3.12/site-p │
+                             │ ackages/distributed/comm/tcp.py: │
+                             │ 263 in write                     │
+                             │                                  │
+                             │   260 │   async def write(self,  │
+                             │   261 │   │   stream = self.stre │
+                             │   262 │   │   if stream is None: │
+                             │ ❱ 263 │   │   │   raise CommClos │
+                             │   264 │   │                      │
+                             │   265 │   │   frames = await to_ │
+                             │   266 │   │   │   msg,           │
+                             ╰──────────────────────────────────╯
+                             CommClosedError
+                    INFO     Nanny at 'tcp://127.0.0.1:41183'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:40167'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:44149'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:39273'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+                    INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645442.4262874') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:45209'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:34749'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:43523'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:46265'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:40240; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:40230; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:40262; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:37607 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.4687011')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:35935 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.4746153')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:34027 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.4829156')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:40252; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:43611 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.5031707')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Nanny at 'tcp://127.0.0.1:45209'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:34749'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:43523'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:46265'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371
+                    INFO     Retire worker addresses           scheduler.py:7614
+                             (stimulus_id='retire-workers-1768
+                             645442.658446') (0, 1, 2, 3)
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:37273'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:40527'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:41441'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Closing Nanny at                       nanny.py:611
+                             'tcp://127.0.0.1:38351'. Reason:
+                             nanny-close
+                    INFO     Nanny asking worker to close. Reason:  nanny.py:858
+                             nanny-close
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:38272; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:38286; closing.
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:38262; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:35929 name: 1
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.7066722')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:33437 name: 2
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.7107036')
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:39199 name: 0
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.7224429')
+                    INFO     Received 'close-stream' from            core.py:908
+                             tcp://127.0.0.1:38288; closing.
+                    INFO     Remove worker addr:               scheduler.py:5444
+                             tcp://127.0.0.1:45051 name: 3
+                             (stimulus_id='handle-worker-clean
+                             up-1768645442.7356374')
+                    INFO     Lost all workers                  scheduler.py:5582
+                    INFO     Nanny at 'tcp://127.0.0.1:41441'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:40527'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:37273'       nanny.py:626
+                             closed.
+                    INFO     Nanny at 'tcp://127.0.0.1:38351'       nanny.py:626
+                             closed.
+                    INFO     Closing scheduler. Reason:        scheduler.py:4343
+                             unknown
+                    INFO     Scheduler closing all comms       scheduler.py:4371

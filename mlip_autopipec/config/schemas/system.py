@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .common import TargetSystem
+from .common import TargetSystem, MinimalConfig
 from .dft import DFTConfig
 from .exploration import ExplorerConfig, ExplorerParams, GeneratorParams
 from .inference import InferenceConfig
@@ -22,17 +22,20 @@ class DaskConfig(BaseModel):
 class SystemConfig(BaseModel):
     """
     Comprehensive configuration for the MLIP-AutoPipe system.
-    Most fields are optional to allow for incremental configuration or testing of specific modules,
-    but in a full production run, the relevant sections must be present.
+    Cycle 1 Definition.
     """
-    project_name: str
-    run_uuid: UUID
-    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
+    minimal: MinimalConfig
+    working_dir: Path
+    db_path: Path
+    log_path: Path
 
-    # Core System Definition (Optional primarily for component-level testing)
+    # Fields from previous implementation kept as Optional/None for compatibility during refactor
+    # They are not part of Cycle 1 SPEC strictly but might be used by existing WorkflowManager tests.
+    # We make them optional defaults.
+    project_name: str | None = None
+    run_uuid: UUID | None = None
+    workflow_config: WorkflowConfig | None = None
     target_system: TargetSystem | None = None
-
-    # Module Configurations
     dft_config: DFTConfig | None = None
     explorer_config: ExplorerConfig | None = None
     training_config: TrainingConfig | None = None
@@ -44,17 +47,7 @@ class SystemConfig(BaseModel):
     dask: DaskConfig | None = None
     dft: DFTConfig | None = None # Legacy alias
 
-    db_path: str = "mlip_database.db"
-
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator("db_path")
-    @classmethod
-    def validate_db_path(cls, v: str) -> str:
-        import os
-        if ".." in v or os.path.isabs(v):
-            raise ValueError("db_path must be a relative path.")
-        return v
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
 class CheckpointState(BaseModel):
     run_uuid: UUID

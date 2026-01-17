@@ -29,3 +29,6 @@ env/
 *.pwi
 *.err
 temp_ase_calc/
+dist/
+build/
+site/

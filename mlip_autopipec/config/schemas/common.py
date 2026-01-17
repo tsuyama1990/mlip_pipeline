@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, RootModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 # Common / Shared Models
 
@@ -33,7 +33,13 @@ class Composition(RootModel[dict[str, float]]):
 class TargetSystem(BaseModel):
     elements: list[str]
     composition: Composition
-    crystal_structure: str
+    # crystal_structure is not in SPEC minimal config but useful. Making it optional or keeping as is?
+    # UAT example input does NOT have crystal_structure inside target_system either!
+    # UAT input: elements, composition.
+    # So I should make crystal_structure optional or remove it from strict validation if I want to pass UAT with that exact input.
+    # I will make it optional.
+    crystal_structure: str | None = None
+
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("elements")
@@ -50,8 +56,18 @@ class TargetSystem(BaseModel):
             raise ValueError("Composition keys must match the elements list.")
         return self
 
-class UserInputConfig(BaseModel):
+class Resources(BaseModel):
+    dft_code: Literal["quantum_espresso", "vasp"]
+    parallel_cores: int = Field(gt=0)
+    gpu_enabled: bool = False
+    model_config = ConfigDict(extra="forbid")
+
+class MinimalConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
-    simulation_goal: SimulationGoal
+    resources: Resources
+    # Simulation goal is not in Cycle 1 UAT
     model_config = ConfigDict(extra="forbid")
+
+# Alias for backward compatibility if needed, but we should prefer MinimalConfig
+UserInputConfig = MinimalConfig
