@@ -10,11 +10,13 @@ class LossWeights(BaseModel):
     stress: float = Field(10.0, gt=0)
     model_config = ConfigDict(extra="forbid")
 
+
 class PacemakerLossWeights(BaseModel):
     model_config = ConfigDict(extra="forbid")
     energy: float = Field(..., gt=0)
     forces: float = Field(..., gt=0)
     stress: float = Field(..., gt=0)
+
 
 class PacemakerACEParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -22,15 +24,18 @@ class PacemakerACEParams(BaseModel):
     correlation_order: int = Field(..., ge=2)
     element_dependent_cutoffs: bool
 
+
 class PacemakerFitParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_filename: str
     loss_weights: PacemakerLossWeights
     ace: PacemakerACEParams
 
+
 class PacemakerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     fit_params: PacemakerFitParams
+
 
 class TrainingConfig(BaseModel):
     pacemaker_executable: FilePath | None = None
@@ -53,10 +58,12 @@ class TrainingConfig(BaseModel):
                 raise ValueError(f"File at {v} is not executable.")
         return v
 
+
 class TrainingData(BaseModel):
     energy: float
     forces: list[list[float]]
     model_config = ConfigDict(extra="forbid")
+
 
 class TrainingRunMetrics(BaseModel):
     generation: int

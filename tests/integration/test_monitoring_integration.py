@@ -27,6 +27,7 @@ def create_system_config():
         training_config=TrainingConfig(data_source_db=Path("mlip_database.db")),
     )
 
+
 @pytest.fixture
 def populated_project(tmp_path):
     # Create checkpoint
@@ -46,12 +47,14 @@ def populated_project(tmp_path):
     # Create DB using real ASE DB
     from ase import Atoms
     from ase.db import connect
+
     db_path = tmp_path / "mlip_database.db"
     with connect(db_path) as db:
-         db.write(Atoms('H2'), data={'config_type': 'initial'})
-         db.write(Atoms('O2'), data={'config_type': 'active_learning'})
+        db.write(Atoms("H2"), data={"config_type": "initial"})
+        db.write(Atoms("O2"), data={"config_type": "active_learning"})
 
     return tmp_path
+
 
 def test_status_command(populated_project):
     with patch("webbrowser.open") as mock_open:
@@ -74,14 +77,16 @@ def test_status_command(populated_project):
 
         mock_open.assert_called_once()
 
+
 def test_status_command_no_open(populated_project):
     with patch("webbrowser.open") as mock_open:
         result = runner.invoke(app, ["status", str(populated_project), "--no-open"])
         if result.exit_code == 2:
-             pytest.fail("Command 'status' not found in app.")
+            pytest.fail("Command 'status' not found in app.")
 
         assert result.exit_code == 0
         mock_open.assert_not_called()
+
 
 def test_status_command_failure(tmp_path):
     """Test status command failure when checkpoint is missing."""

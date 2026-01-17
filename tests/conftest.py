@@ -27,14 +27,8 @@ def sample_system_config(tmp_path: Path) -> SystemConfig:
 
     minimal = MinimalConfig(
         project_name="test_project",
-        target_system=TargetSystem(
-            elements=["Ni"],
-            composition=Composition({"Ni": 1.0})
-        ),
-        resources=Resources(
-            dft_code="quantum_espresso",
-            parallel_cores=1
-        )
+        target_system=TargetSystem(elements=["Ni"], composition=Composition({"Ni": 1.0})),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=1),
     )
 
     dft_params = DFTInputParameters(
@@ -49,13 +43,13 @@ def sample_system_config(tmp_path: Path) -> SystemConfig:
         working_dir=tmp_path / "work",
         db_path=tmp_path / "work" / "test.db",
         log_path=tmp_path / "work" / "log.log",
-        project_name="test_project", # Optional future
-        run_uuid=uuid.uuid4(),       # Optional future
-        target_system=minimal.target_system, # Optional future
-        dft_config=dft_config,       # Optional future
+        project_name="test_project",  # Optional future
+        run_uuid=uuid.uuid4(),  # Optional future
+        target_system=minimal.target_system,  # Optional future
+        dft_config=dft_config,  # Optional future
         inference_config=None,
         training_config=None,
-        explorer_config=None
+        explorer_config=None,
     )
 
 

@@ -48,14 +48,26 @@ class QEOutputParser:
         try:
             result_atoms = self.reader(output_path, format="espresso-out")
             energy = result_atoms.get_potential_energy()
+
+            # Check if forces/stress are numpy arrays or lists before tolist()
+            # ASE generally returns numpy arrays
             forces = result_atoms.get_forces()
-            stress = result_atoms.get_stress()
+            if hasattr(forces, "tolist"):
+                forces = forces.tolist()
+
+            stress = result_atoms.get_stress(voigt=False)
+            if hasattr(stress, "tolist"):
+                stress = stress.tolist()
 
             return DFTResult(
-                job_id=job_id,
+                uid=str(job_id),
                 energy=energy,
                 forces=forces,
                 stress=stress,
+                succeeded=True,
+                wall_time=0.0,  # Placeholder as this legacy parser didn't track it
+                parameters={},  # Placeholder
+                final_mixing_beta=0.7,  # Placeholder
             )
         except (OSError, IndexError) as e:
             msg = f"Failed to parse QE output file: {output_path}"

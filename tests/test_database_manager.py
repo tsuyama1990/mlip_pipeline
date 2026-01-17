@@ -20,13 +20,16 @@ def test_initialize_security(tmp_path):
 
     # Check permissions (only works on POSIX)
     import os
+
     if os.name == "posix":
         mode = db_path.stat().st_mode
         # Check for 600 (rw-------)
         # Note: Depending on umask, it might be different, but we explicitly set it.
         # stat.S_IMODE gets the last 12 bits
         import stat
+
         assert stat.S_IMODE(mode) == 0o600
+
 
 def test_get_metadata_error_handling(tmp_path):
     """Test that get_metadata raises DatabaseError if connection fails."""

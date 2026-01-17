@@ -27,6 +27,7 @@ def test_setup_logging_creates_file(tmp_path):
         content = f.read()
         assert "Test log message" in content
 
+
 def test_setup_logging_creates_parent_dir(tmp_path):
     """Test that setup_logging creates parent directories."""
     log_file = tmp_path / "subdir" / "test.log"

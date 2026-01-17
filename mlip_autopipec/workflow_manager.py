@@ -1,4 +1,3 @@
-
 import json
 import logging
 from pathlib import Path
@@ -116,7 +115,7 @@ class WorkflowManager:
             training_data = self.db_manager.get_training_data()
         except Exception:
             logger.exception("Failed to read training data from database.")
-            return # Don't crash, just skip training this cycle
+            return  # Don't crash, just skip training this cycle
 
         if not training_data:
             logger.warning("No training data found in database. Skipping training.")
@@ -128,8 +127,7 @@ class WorkflowManager:
             batch = TrainingBatch(atoms_list=training_data)
 
             potential_path, metrics = self.trainer.perform_training(
-                training_data=batch,
-                generation=self.state.active_learning_generation
+                training_data=batch, generation=self.state.active_learning_generation
             )
 
             # Update state

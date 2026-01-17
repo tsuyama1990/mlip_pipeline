@@ -1,4 +1,3 @@
-
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.exceptions import WorkspaceError
 

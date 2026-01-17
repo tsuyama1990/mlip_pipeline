@@ -1,4 +1,3 @@
-
 import subprocess
 from pathlib import Path
 
@@ -7,13 +6,12 @@ GREEN = "\033[92m"
 RED = "\033[91m"
 RESET = "\033[0m"
 
+
 def run_command(command, description):
     print(f"\n--- {description} ---")
     print(f"Running: {' '.join(command)}")
     try:
-        result = subprocess.run(
-            command, capture_output=True, text=True, check=False
-        )
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
         print(f"Exit Code: {result.returncode}")
         if result.stdout:
             print(f"STDOUT:\n{result.stdout.strip()}")
@@ -23,6 +21,7 @@ def run_command(command, description):
     except Exception as e:
         print(f"{RED}Execution failed: {e}{RESET}")
         return None
+
 
 def main():
     print("Starting UAT for Cycle 07: CLI User Interface")
@@ -60,11 +59,12 @@ simulation_goal:
     if res.returncode == 0:
         print(f"{GREEN}✅ Happy Path Success (Fully completed){RESET}")
     elif "Starting Workflow" in res.stdout:
-        print(f"{GREEN}✅ Happy Path Success (CLI started workflow, failure downstream expected in dev env){RESET}")
+        print(
+            f"{GREEN}✅ Happy Path Success (CLI started workflow, failure downstream expected in dev env){RESET}"
+        )
     else:
         # It might fail earlier if ConfigFactory fails
         print(f"{RED}❌ Happy Path Failed to start workflow{RESET}")
-
 
     # Scenario UAT-C7-002: Helpful Messages for Command-Line Errors
 
@@ -77,7 +77,7 @@ simulation_goal:
 
     # Case 2: File Not Found
     res = run_command(["mlip-auto", "run", "no_such_file.yaml"], "UAT-C7-002: File Not Found")
-    if res.returncode != 0 and "does not exist" in (res.stderr + res.stdout): # Typer output varies
+    if res.returncode != 0 and "does not exist" in (res.stderr + res.stdout):  # Typer output varies
         print(f"{GREEN}✅ Verified file not found error{RESET}")
     else:
         print(f"{RED}❌ Failed to verify file not found error{RESET}")
@@ -88,7 +88,6 @@ simulation_goal:
         print(f"{GREEN}✅ Verified help command{RESET}")
     else:
         print(f"{RED}❌ Failed to verify help command{RESET}")
-
 
     # Scenario UAT-C7-003: Graceful Handling of Invalid Configuration Files
 
@@ -112,10 +111,12 @@ simulation_goal:
 
     # Cleanup
     import shutil
+
     try:
         shutil.rmtree(work_dir)
     except:
         pass
+
 
 if __name__ == "__main__":
     main()

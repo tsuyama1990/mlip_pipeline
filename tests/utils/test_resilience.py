@@ -1,6 +1,7 @@
 """
 Unit tests for the resilience utilities, such as the @retry decorator.
 """
+
 import time
 from unittest.mock import Mock, patch
 

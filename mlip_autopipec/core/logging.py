@@ -1,42 +1,47 @@
-import logging
-from pathlib import Path
+"""
+Centralized logging configuration for MLIP-AutoPipe.
+"""
 
-from rich.logging import RichHandler
+import logging
+import sys
+from pathlib import Path
 
 from mlip_autopipec.exceptions import LoggingError
 
 
-def setup_logging(log_path: Path, level: str = "INFO") -> None:
+def setup_logging(log_file: Path, level: int = logging.INFO) -> None:
     """
-    Sets up the logging configuration.
+    Configures the root logger to write to both console and a log file.
 
     Args:
-        log_path: Path to the log file.
-        level: Logging level (default: "INFO").
+        log_file: Path to the log file.
+        level: Logging level (default: INFO).
 
     Raises:
         LoggingError: If logging configuration fails.
     """
     try:
-        # Create directory for log file if it doesn't exist
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+        # Create log directory if it doesn't exist
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Reset existing handlers to allow reconfiguration in tests/re-runs
+        root_logger = logging.getLogger()
+        if root_logger.hasHandlers():
+            root_logger.handlers.clear()
 
         logging.basicConfig(
             level=level,
-            format="%(message)s",
-            datefmt="[%X]",
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[
-                RichHandler(rich_tracebacks=True),
-                logging.FileHandler(log_path, mode="a")
+                logging.FileHandler(log_file),
+                logging.StreamHandler(sys.stdout),
             ],
         )
+        logging.info(f"Logging initialized. Writing to {log_file}")
 
-        # Set logger levels for noisy libraries
-        logging.getLogger("matplotlib").setLevel(logging.WARNING)
-        logging.getLogger("ase").setLevel(logging.WARNING)
-
-        logging.info(f"Logging initialized. Log file: {log_path}")
-    except (OSError, ValueError) as e:
-        # Catch specific exceptions: OSError for file issues, ValueError for bad levels
-        msg = f"Failed to setup logging: {e}"
+    except OSError as e:
+        msg = f"Failed to create log file or directory: {log_file}"
+        raise LoggingError(msg) from e
+    except Exception as e:
+        msg = f"Unexpected error during logging setup: {e}"
         raise LoggingError(msg) from e

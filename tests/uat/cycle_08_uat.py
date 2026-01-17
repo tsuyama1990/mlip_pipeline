@@ -9,6 +9,7 @@ GREEN = "\033[92m"
 RED = "\033[91m"
 RESET = "\033[0m"
 
+
 def setup_project(work_dir: Path):
     if work_dir.exists():
         shutil.rmtree(work_dir)
@@ -24,9 +25,15 @@ def setup_project(work_dir: Path):
     )
 
     metrics = [
-        TrainingRunMetrics(generation=1, num_structures=100, rmse_forces=0.1, rmse_energy_per_atom=0.01),
-        TrainingRunMetrics(generation=2, num_structures=130, rmse_forces=0.08, rmse_energy_per_atom=0.008),
-        TrainingRunMetrics(generation=3, num_structures=155, rmse_forces=0.05, rmse_energy_per_atom=0.005),
+        TrainingRunMetrics(
+            generation=1, num_structures=100, rmse_forces=0.1, rmse_energy_per_atom=0.01
+        ),
+        TrainingRunMetrics(
+            generation=2, num_structures=130, rmse_forces=0.08, rmse_energy_per_atom=0.008
+        ),
+        TrainingRunMetrics(
+            generation=3, num_structures=155, rmse_forces=0.05, rmse_energy_per_atom=0.005
+        ),
     ]
 
     state = CheckpointState(
@@ -39,7 +46,7 @@ def setup_project(work_dir: Path):
         ),
         active_learning_generation=3,
         training_history=metrics,
-        pending_job_ids=[uuid.uuid4() for _ in range(15)]
+        pending_job_ids=[uuid.uuid4() for _ in range(15)],
     )
 
     (work_dir / "checkpoint.json").write_text(state.model_dump_json())
@@ -47,19 +54,22 @@ def setup_project(work_dir: Path):
     # Create DB
     from ase import Atoms
     from ase.db import connect
+
     db_path = work_dir / "project.db"
     with connect(db_path) as db:
         for _ in range(100):
-            db.write(Atoms('Si'), data={'config_type': 'initial'})
+            db.write(Atoms("Si"), data={"config_type": "initial"})
         for _ in range(30):
-            db.write(Atoms('Si'), data={'config_type': 'active_learning_gen1'})
+            db.write(Atoms("Si"), data={"config_type": "active_learning_gen1"})
         for _ in range(25):
-            db.write(Atoms('Si'), data={'config_type': 'active_learning_gen2'})
+            db.write(Atoms("Si"), data={"config_type": "active_learning_gen2"})
+
 
 def run_command(cmd, cwd):
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, check=False, cwd=cwd, capture_output=True, text=True)
     return result
+
 
 def main():
     print("Starting UAT for Cycle 08: Monitoring and Usability")
@@ -87,10 +97,10 @@ def main():
 
         dashboard_path = work_dir / "dashboard.html"
         if dashboard_path.exists():
-             print(f"{GREEN}✅ dashboard.html exists.{RESET}")
+            print(f"{GREEN}✅ dashboard.html exists.{RESET}")
         else:
-             print(f"{RED}❌ dashboard.html not found.{RESET}")
-             sys.exit(1)
+            print(f"{RED}❌ dashboard.html not found.{RESET}")
+            sys.exit(1)
 
         # Scenario 2: Interpreting Dashboard for Workflow Insights
         print("\n--- UAT-C8-002: Interpreting Dashboard for Workflow Insights ---")
@@ -102,7 +112,7 @@ def main():
             ("3", "Generation Value"),
             ("Force RMSE vs. Generation", "RMSE Plot"),
             ("Dataset Composition", "Composition Plot"),
-            ("155", "Completed Calculations"), # 100+30+25
+            ("155", "Completed Calculations"),  # 100+30+25
         ]
 
         all_passed = True
@@ -125,6 +135,7 @@ def main():
     finally:
         if work_dir.exists():
             shutil.rmtree(work_dir)
+
 
 if __name__ == "__main__":
     main()

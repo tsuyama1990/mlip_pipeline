@@ -12,9 +12,19 @@ This cycle lays the bedrock for the entire MLIP-AutoPipe ecosystem. Before any p
 - **Centralized Logging**: A unified logging system provides structured, machine-parsable logs, essential for debugging autonomous workflows.
 - **CLI Initialization**: The `mlip-auto run input.yaml` command initializes a project workspace, validates the configuration, and establishes the database connection.
 
+## Cycle 02: Automated DFT Factory
+
+This cycle implements the **Automated DFT Factory**, the "engine room" of the pipeline. It autonomously manages Quantum Espresso calculations, ensuring robust data generation for MLIP training.
+
+### Key Features:
+- **Autonomous Execution**: The `QERunner` manages the entire lifecycle of a DFT calculation, from input generation to output parsing.
+- **Auto-Recovery**: A state-machine-based `RecoveryHandler` automatically detects and fixes common DFT errors (convergence failure, diagonalization errors) by adjusting parameters like mixing beta and temperature.
+- **Physics-Informed Input Generation**: The `InputGenerator` automatically selects appropriate pseudopotentials (SSSP) and K-point grids based on cell density and material composition (e.g., handling magnetism for Fe, Co, Ni).
+- **Data Standardization**: All results are encapsulated in a strictly typed `DFTResult` object, ensuring consistency across the pipeline.
+
 ## Development Status
 
-The project is currently implementing Cycle 01 features.
+Cycle 01 and Cycle 02 features are implemented.
 
 ## Getting Started
 

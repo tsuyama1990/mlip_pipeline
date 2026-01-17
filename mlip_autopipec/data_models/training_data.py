@@ -14,6 +14,7 @@ class TrainingBatch(BaseModel):
     A container for a batch of atomic structures to be used for training.
     Wraps a list of ase.Atoms objects to ensure they are valid.
     """
+
     atoms_list: list[Any] = Field(..., description="List of ase.Atoms objects.")
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 

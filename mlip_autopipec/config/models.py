@@ -5,3 +5,4 @@ from .schemas.inference import *
 from .schemas.monitoring import *
 from .schemas.system import *
 from .schemas.training import *
+from mlip_autopipec.data_models.dft_models import DFTResult
