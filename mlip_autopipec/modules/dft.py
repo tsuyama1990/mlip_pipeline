@@ -168,13 +168,20 @@ class DFTRunner:
             msg = "A valid DFTJob object is required to run a calculation."
             raise ValueError(msg)
 
-        if not job.params:
+        # Checking existence of attributes is defensive coding against
+        # potential dynamic modification or incomplete mocking in tests.
+        if not getattr(job, "params", None):
             msg = "DFTJob must have initialized parameters."
             raise ValueError(msg)
 
-        if job.atoms is None:
+        if getattr(job, "atoms", None) is None:
             msg = "DFTJob must have a valid 'atoms' attribute."
             raise ValueError(msg)
+
+        if getattr(job, "job_id", None) is None:
+             # Should not happen with default_factory but good for robustness
+             msg = "DFTJob must have a valid 'job_id'."
+             raise ValueError(msg)
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
