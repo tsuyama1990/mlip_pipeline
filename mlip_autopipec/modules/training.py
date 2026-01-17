@@ -101,7 +101,7 @@ class PacemakerTrainer:
 
         try:
             ase_write(data_file_path, training_data, format="extxyz")
-        except Exception as e:
+        except (IOError, ValueError) as e:
             log.exception("Failed to write training data file.")
             raise TrainingFailedError(f"Failed to write training data: {e}") from e
 
