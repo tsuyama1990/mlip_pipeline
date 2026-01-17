@@ -1,10 +1,21 @@
 from pathlib import Path
+from uuid import uuid4
 
+import pytest
 from ase import Atoms
 
-from mlip_autopipec.config.models import CalculationMetadata
+from mlip_autopipec.config.models import CalculationMetadata, SystemConfig
 from mlip_autopipec.core.database import DatabaseManager
 
+
+@pytest.fixture
+def minimal_system_config(tmp_path):
+    return SystemConfig(
+        project_name="TestProject",
+        run_uuid=uuid4(),
+        working_dir=tmp_path,
+        db_path="test.db",
+    )
 
 def test_database_initialization(tmp_path: Path) -> None:
     """Test that the database can be initialized."""
@@ -20,6 +31,29 @@ def test_database_initialization(tmp_path: Path) -> None:
     assert conn is not None
     assert db_path.exists()
 
+def test_database_initialize_metadata(tmp_path: Path, minimal_system_config: SystemConfig) -> None:
+    """Test that initialize stores the system config in metadata."""
+    db_path = tmp_path / "metadata_test.db"
+    db_manager = DatabaseManager(db_path)
+
+    db_manager.initialize(minimal_system_config)
+
+    assert db_path.exists()
+
+    # Re-connect and check metadata
+    conn = db_manager.connect()
+    # Force metadata load if needed
+    try:
+        metadata = conn.metadata
+    except Exception:
+        pytest.fail("Failed to retrieve metadata from initialized database.")
+
+    assert "system_config" in metadata
+    stored_config = metadata["system_config"]
+    assert stored_config["project_name"] == "TestProject"
+    assert stored_config["run_uuid"] == str(minimal_system_config.run_uuid)
+
+
 def test_write_calculation(tmp_path: Path) -> None:
     """Test writing a calculation to the database."""
     db_path = tmp_path / "test.db"
@@ -28,13 +62,8 @@ def test_write_calculation(tmp_path: Path) -> None:
     atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
     metadata = CalculationMetadata(
         stage="test",
-        uuid="12345",
+        uuid="uuid-12345",
     )
-
-    # ASE DB complains if a string value looks like a number.
-    # The uuid "12345" looks like an int. "1" looks like an int.
-    # We should use actual UUIDs or non-numeric strings for tests.
-    metadata.uuid = "uuid-12345"
 
     db_manager.write_calculation(atoms, metadata)
 
@@ -51,20 +80,20 @@ def test_get_completed_calculations(tmp_path: Path) -> None:
 
     atoms = Atoms("He")
     metadata = CalculationMetadata(stage="test", uuid="uuid-1")
+    # Write one without results (not calculated)
     db_manager.write_calculation(atoms, metadata)
 
-    # Simulate a calculation being "done" (often indicated by energy being present,
-    # but ase.db.select(calculated=True) checks for energy/forces usually)
-    # The default atoms object has no energy, so calculated=True might filter it out.
-    # Let's attach energy.
+    # Write another one with results (calculated)
+    atoms.calc = None # clear previous if any
     from ase.calculators.singlepoint import SinglePointCalculator
-    atoms.calc = SinglePointCalculator(atoms, energy=-1.0, forces=[[0,0,0]]) # type: ignore[no-untyped-call]
-    db_manager.write_calculation(atoms, metadata) # Write another one with results
+    atoms2 = Atoms("He")
+    atoms2.calc = SinglePointCalculator(atoms2, energy=-1.0, forces=[[0,0,0]]) # type: ignore[no-untyped-call]
+    db_manager.write_calculation(atoms2, CalculationMetadata(stage="test", uuid="uuid-2"))
 
-    # ASE DB's calculated=True seems to rely on calculator params being saved or specific fields.
-    # For now, let's just select all and check if we get them back.
-    # Or query by metadata.
+    # Currently get_completed_calculations uses `select(calculated=True)`.
+    # SinglePointCalculator usually satisfies this if energy/forces are present.
 
-    conn = db_manager.connect()
-    rows = list(conn.select(mlip_stage="test"))
-    assert len(rows) == 2
+    completed = db_manager.get_completed_calculations()
+    assert len(completed) == 1
+    # Verify we got the one with results (cannot check uuid easily on atoms unless we preserved it in atoms info/arrays)
+    # But checking count is enough for now.
