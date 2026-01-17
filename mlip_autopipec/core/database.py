@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict
 from ase import Atoms
 from mlip_autopipec.config.schemas.system import SystemConfig
+from mlip_autopipec.exceptions import DatabaseError
 
 class DatabaseManager:
     """
@@ -28,31 +29,27 @@ class DatabaseManager:
             system_config: The full system configuration to store as metadata.
 
         Raises:
-            IOError: If the database directory cannot be created.
-            RuntimeError: If database initialization fails.
+            DatabaseError: If database initialization fails.
         """
         # Ensure directory exists
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            raise IOError(f"Failed to create database directory {self.db_path.parent}: {e}") from e
+            raise DatabaseError(f"Failed to create database directory {self.db_path.parent}: {e}") from e
 
         try:
             # Connect to DB
             with ase.db.connect(self.db_path) as db:
                 # Force initialization of the database file structure
-                # This is a quirk of ase.db with SQLite
                 db.count()
 
                 # Prepare metadata
-                # Convert SystemConfig to a JSON-compatible dictionary
                 config_dict = system_config.model_dump(mode='json')
 
                 # Store configuration in metadata
-                # We overwrite existing metadata to ensure it matches current config
                 db.metadata = config_dict
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize database at {self.db_path}: {e}") from e
+            raise DatabaseError(f"Failed to initialize database at {self.db_path}: {e}") from e
 
     def get_metadata(self) -> Dict[str, Any]:
         """
@@ -63,6 +60,7 @@ class DatabaseManager:
 
         Raises:
             FileNotFoundError: If the database file does not exist.
+            DatabaseError: If reading metadata fails.
         """
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database file {self.db_path} does not exist.")
@@ -71,7 +69,7 @@ class DatabaseManager:
             with ase.db.connect(self.db_path) as db:
                 return db.metadata
         except Exception as e:
-            raise RuntimeError(f"Failed to read metadata from {self.db_path}: {e}") from e
+            raise DatabaseError(f"Failed to read metadata from {self.db_path}: {e}") from e
 
     def add_structure(self, atoms: Atoms, **kwargs: Any) -> int:
         """
@@ -85,10 +83,10 @@ class DatabaseManager:
             The ID of the inserted row.
 
         Raises:
-            RuntimeError: If the write operation fails.
+            DatabaseError: If the write operation fails.
         """
         try:
             with ase.db.connect(self.db_path) as db:
                 return db.write(atoms, **kwargs)
         except Exception as e:
-            raise RuntimeError(f"Failed to add structure to database: {e}") from e
+            raise DatabaseError(f"Failed to add structure to database: {e}") from e

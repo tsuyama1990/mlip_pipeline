@@ -2,6 +2,7 @@ import pytest
 import logging
 from pathlib import Path
 from mlip_autopipec.core.logging import setup_logging
+from mlip_autopipec.exceptions import LoggingError
 
 def test_setup_logging(tmp_path):
     log_path = tmp_path / "test.log"
@@ -54,8 +55,8 @@ def test_logging_permission_error(tmp_path):
     try:
         log_path = ro_dir / "test.log"
 
-        # Should raise IOError as per our implementation
-        with pytest.raises(IOError):
+        # Should raise LoggingError as per our implementation (inherits from MLIPError)
+        with pytest.raises(LoggingError):
             setup_logging(log_path)
     finally:
         os.chmod(ro_dir, 0o700) # Restore permissions for cleanup

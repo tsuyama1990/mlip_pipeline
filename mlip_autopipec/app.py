@@ -6,11 +6,11 @@ import webbrowser
 from pathlib import Path
 
 import typer
-from pydantic import ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 
 from mlip_autopipec.core.bootstrap import initialize_project
+from mlip_autopipec.exceptions import ConfigError, WorkspaceError, DatabaseError, LoggingError
 
 # Configure basic logging for app startup
 logging.basicConfig(
@@ -46,12 +46,20 @@ def run(
 
         console.print("[bold green]SUCCESS:[/bold green] System initialized successfully.")
 
-    except FileNotFoundError as e:
-        console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
+    except ConfigError as e:
+        console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
-    except ValidationError as e:
-        console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
+    except WorkspaceError as e:
+        console.print(f"[bold red]WORKSPACE ERROR:[/bold red] {e}")
+        logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+    except DatabaseError as e:
+        console.print(f"[bold red]DATABASE ERROR:[/bold red] {e}")
+        logging.debug("Exception traceback:", exc_info=True)
+        raise typer.Exit(code=1)
+    except LoggingError as e:
+        console.print(f"[bold red]LOGGING ERROR:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
     except Exception as e:

@@ -4,6 +4,7 @@ Centralized logging configuration for the MLIP-AutoPipe project.
 import logging
 import sys
 from pathlib import Path
+from mlip_autopipec.exceptions import LoggingError
 
 # Try importing RichHandler, fall back to standard StreamHandler if not present
 try:
@@ -22,13 +23,13 @@ def setup_logging(log_path: Path, level: str = "INFO") -> None:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
 
     Raises:
-        IOError: If log directory cannot be created.
+        LoggingError: If log directory cannot be created or file handler fails.
     """
     try:
         # Create directory if it doesn't exist
         log_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        raise IOError(f"Failed to create log directory {log_path.parent}: {e}") from e
+        raise LoggingError(f"Failed to create log directory {log_path.parent}: {e}") from e
 
     root_logger = logging.getLogger()
     try:
@@ -49,11 +50,7 @@ def setup_logging(log_path: Path, level: str = "INFO") -> None:
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
     except Exception as e:
-        # If we can't create the file handler (e.g. permission error), we should probably fail hard
-        # in the context of this "robust" system, OR we just warn.
-        # However, the previous test expected IOError. But my code was catching Exception and printing warning.
-        # I should assume that if the user asked for a log file and we can't write it, that's an error.
-        raise IOError(f"Failed to setup file logging at {log_path}: {e}") from e
+        raise LoggingError(f"Failed to setup file logging at {log_path}: {e}") from e
 
     # Console Handler
     if HAS_RICH:

@@ -5,6 +5,7 @@ from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.config.schemas.system import SystemConfig
 from mlip_autopipec.config.schemas.common import MinimalConfig, TargetSystem, Composition
 from mlip_autopipec.config.schemas.resources import Resources
+from mlip_autopipec.exceptions import DatabaseError
 
 @pytest.fixture
 def sample_system_config(tmp_path):
@@ -59,3 +60,25 @@ def test_add_structure(sample_system_config):
         row = db.get(id=row_id)
         assert row.data.source == "test"
         assert len(row.toatoms()) == 2
+
+def test_init_permission_error(sample_system_config):
+    # Simulate directory creation failure
+    parent = sample_system_config.db_path.parent
+    import os
+    # We can't easily fail mkdir on tmp_path, but we can try to init DB in a read-only dir
+    ro_dir = parent / "readonly"
+    ro_dir.mkdir()
+    os.chmod(ro_dir, 0o500)
+
+    config = sample_system_config.model_copy(update={"db_path": ro_dir / "db.sqlite"})
+
+    manager = DatabaseManager(config.db_path)
+    with pytest.raises(DatabaseError):
+        manager.initialize(config)
+
+    os.chmod(ro_dir, 0o700)
+
+def test_get_metadata_not_found(tmp_path):
+    manager = DatabaseManager(tmp_path / "non_existent.db")
+    with pytest.raises(FileNotFoundError):
+        manager.get_metadata()
