@@ -1,9 +1,13 @@
-
 import pytest
 from pydantic import ValidationError
 
 from mlip_autopipec.config.models import UserInputConfig
 
+RESOURCES_DEFAULT = {
+    "dft_code": "quantum_espresso",
+    "parallel_cores": 4,
+    "gpu_enabled": False
+}
 
 def test_valid_user_config_parses_correctly():
     """Tests that a valid user configuration is parsed without errors."""
@@ -18,6 +22,7 @@ def test_valid_user_config_parses_correctly():
             "type": "melt_quench",
             "temperature_range": [300, 2000],
         },
+        "resources": RESOURCES_DEFAULT
     }
     try:
         UserInputConfig.model_validate(valid_config)
@@ -35,8 +40,8 @@ def test_composition_sum_not_one_raises_error():
             "crystal_structure": "fcc",
         },
         "simulation_goal": {"type": "melt_quench"},
+        "resources": RESOURCES_DEFAULT
     }
-    # With RootModel, the error location might be slightly different in message, but validation happens
     with pytest.raises(ValidationError, match="Composition fractions must sum to 1.0"):
         UserInputConfig.model_validate(invalid_config)
 
@@ -51,6 +56,7 @@ def test_composition_elements_mismatch_raises_error():
             "crystal_structure": "fcc",
         },
         "simulation_goal": {"type": "melt_quench"},
+        "resources": RESOURCES_DEFAULT
     }
     with pytest.raises(ValidationError, match="Composition keys must match the elements list"):
         UserInputConfig.model_validate(invalid_config)
@@ -66,6 +72,7 @@ def test_invalid_element_symbol_raises_error():
             "crystal_structure": "fcc",
         },
         "simulation_goal": {"type": "melt_quench"},
+        "resources": RESOURCES_DEFAULT
     }
     with pytest.raises(ValidationError, match="'Xy' is not a valid chemical symbol"):
         UserInputConfig.model_validate(invalid_config)
@@ -82,6 +89,7 @@ def test_extra_field_raises_error():
             "crystal_structure": "fcc",
         },
         "simulation_goal": {"type": "melt_quench"},
+        "resources": RESOURCES_DEFAULT
     }
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         UserInputConfig.model_validate(invalid_config)

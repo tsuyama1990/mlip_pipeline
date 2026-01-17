@@ -24,11 +24,28 @@ def valid_system_config(tmp_path):
         FingerprintConfig,
         InferenceConfig,
         Pseudopotentials,
+        Resources,
         TrainingConfig,
+        UserInputConfig,
+    )
+
+    resources = Resources(dft_code="quantum_espresso", parallel_cores=4)
+    user = UserInputConfig(
+        project_name="test_project",
+        target_system={
+            "elements": ["Si"],
+            "composition": {"Si": 1.0},
+            "crystal_structure": "diamond"
+        },
+        simulation_goal={"type": "elastic"},
+        resources=resources
     )
 
     return SystemConfig(
-        project_name="test_project",
+        user_input=user,
+        working_dir=tmp_path,
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
         run_uuid=uuid.uuid4(),
         dft_config=DFTConfig(
             dft_input_params=DFTInputParameters(
@@ -41,7 +58,7 @@ def valid_system_config(tmp_path):
             surrogate_model_path="path/to/model",
             fingerprint=FingerprintConfig(species=["Si"]),
         ),
-        training_config=TrainingConfig(data_source_db=tmp_path / "test.db"),
+        training_config=TrainingConfig(data_source_db=str(tmp_path / "test.db")),
         inference_config=InferenceConfig(),
     )
 

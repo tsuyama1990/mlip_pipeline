@@ -1,70 +1,66 @@
 from pathlib import Path
+from uuid import uuid4
 
 from ase import Atoms
 
-from mlip_autopipec.config.models import CalculationMetadata
+from mlip_autopipec.config.models import Resources, SystemConfig, UserInputConfig
 from mlip_autopipec.core.database import DatabaseManager
 
 
-def test_database_initialization(tmp_path: Path) -> None:
-    """Test that the database can be initialized."""
-    db_path = tmp_path / "test.db"
-    db_manager = DatabaseManager(db_path)
-    conn = db_manager.connect()
-    # ase.db.connect might not create the file immediately if nothing is written,
-    # or it might create an empty file.
-    # In sqlite, connecting usually creates the file.
-    # However, depending on ASE version/implementation, it might delay creation.
-    # Let's write something to ensure it exists.
-    conn.write(Atoms("H"), name="init_test")
-    assert conn is not None
-    assert db_path.exists()
-
-def test_write_calculation(tmp_path: Path) -> None:
-    """Test writing a calculation to the database."""
-    db_path = tmp_path / "test.db"
-    db_manager = DatabaseManager(db_path)
-
-    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
-    metadata = CalculationMetadata(
-        stage="test",
-        uuid="12345",
+def get_dummy_config(tmp_path):
+    resources = Resources(dft_code="quantum_espresso", parallel_cores=4)
+    user = UserInputConfig(
+        project_name="test",
+        target_system={
+            "elements": ["Fe"],
+            "composition": {"Fe": 1.0},
+            "crystal_structure": "bcc"
+        },
+        simulation_goal={"type": "melt_quench"},
+        resources=resources
+    )
+    return SystemConfig(
+        user_input=user,
+        working_dir=tmp_path,
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
+        run_uuid=uuid4()
     )
 
-    # ASE DB complains if a string value looks like a number.
-    # The uuid "12345" looks like an int. "1" looks like an int.
-    # We should use actual UUIDs or non-numeric strings for tests.
-    metadata.uuid = "uuid-12345"
+def test_database_initialization_metadata(tmp_path: Path) -> None:
+    """Test that the database initializes with SystemConfig metadata."""
+    config = get_dummy_config(tmp_path)
+    db_manager = DatabaseManager(config.db_path)
 
-    db_manager.write_calculation(atoms, metadata)
+    db_manager.initialize(config)
 
-    conn = db_manager.connect()
-    row = conn.get(id=1)
-    assert row.mlip_stage == "test"
-    assert row.mlip_uuid == "uuid-12345"
-    assert row.natoms == 2
+    assert config.db_path.exists()
 
-def test_get_completed_calculations(tmp_path: Path) -> None:
-    """Test retrieving completed calculations."""
-    db_path = tmp_path / "test.db"
-    db_manager = DatabaseManager(db_path)
+    # Read back metadata
+    metadata = db_manager.get_metadata()
+    # Assuming it returns the stored dict
 
-    atoms = Atoms("He")
-    metadata = CalculationMetadata(stage="test", uuid="uuid-1")
-    db_manager.write_calculation(atoms, metadata)
+    # Note: SystemConfig serialized usually has 'user_input' etc.
+    # We check if project_name from user_input is present if flattened, or verify structure
+    # ASE DB metadata is a dict.
 
-    # Simulate a calculation being "done" (often indicated by energy being present,
-    # but ase.db.select(calculated=True) checks for energy/forces usually)
-    # The default atoms object has no energy, so calculated=True might filter it out.
-    # Let's attach energy.
-    from ase.calculators.singlepoint import SinglePointCalculator
-    atoms.calc = SinglePointCalculator(atoms, energy=-1.0, forces=[[0,0,0]]) # type: ignore[no-untyped-call]
-    db_manager.write_calculation(atoms, metadata) # Write another one with results
+    # If implementation stores model_dump(), we expect keys like 'user_input', 'run_uuid'.
+    assert "user_input" in metadata
+    assert metadata["user_input"]["project_name"] == "test"
 
-    # ASE DB's calculated=True seems to rely on calculator params being saved or specific fields.
-    # For now, let's just select all and check if we get them back.
-    # Or query by metadata.
+def test_add_structure(tmp_path: Path) -> None:
+    """Test adding structure with metadata."""
+    config = get_dummy_config(tmp_path)
+    db_manager = DatabaseManager(config.db_path)
+    db_manager.initialize(config)
 
-    conn = db_manager.connect()
-    rows = list(conn.select(mlip_stage="test"))
-    assert len(rows) == 2
+    atoms = Atoms("Fe")
+    meta = {"source": "test", "gen": 0}
+
+    db_manager.add_structure(atoms, **meta)
+
+    from ase.db import connect
+    with connect(config.db_path) as conn:
+        row = conn.get(id=1)
+        assert row.source == "test"
+        assert row.gen == 0

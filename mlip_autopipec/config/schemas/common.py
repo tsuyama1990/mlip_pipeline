@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, RootModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 # Common / Shared Models
 
@@ -50,14 +50,21 @@ class TargetSystem(BaseModel):
         return elements
 
     @model_validator(mode="after")
-    def check_composition_keys(self):
+    def check_composition_keys(self) -> "TargetSystem":
         if set(self.elements) != set(self.composition.root.keys()):
             msg = "Composition keys must match the elements list."
             raise ValueError(msg)
         return self
 
+class Resources(BaseModel):
+    dft_code: Literal["quantum_espresso", "vasp"]
+    parallel_cores: int = Field(gt=0)
+    gpu_enabled: bool = False
+    model_config = ConfigDict(extra="forbid")
+
 class UserInputConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
     simulation_goal: SimulationGoal
+    resources: Resources
     model_config = ConfigDict(extra="forbid")

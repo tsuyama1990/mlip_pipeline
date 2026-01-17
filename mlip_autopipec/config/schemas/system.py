@@ -4,9 +4,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .common import TargetSystem
+from .common import UserInputConfig
 from .dft import DFTConfig
-from .exploration import ExplorerConfig, ExplorerParams, GeneratorParams
+from .exploration import ExplorerConfig
 from .inference import InferenceConfig
 from .training import TrainingConfig, TrainingRunMetrics
 
@@ -23,51 +23,27 @@ class WorkflowConfig(BaseModel):
             raise ValueError(msg)
         return v
 
-class DaskConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    scheduler_address: str | None = Field(None)
-
 class SystemConfig(BaseModel):
     """
     Comprehensive configuration for the MLIP-AutoPipe system.
-    Most fields are optional to allow for incremental configuration or testing of specific modules,
-    but in a full production run, the relevant sections must be present.
     """
-    project_name: str
+    # Core (Cycle 1)
+    user_input: UserInputConfig
+    working_dir: Path
+    db_path: Path
+    log_path: Path
     run_uuid: UUID
+
+    # Workflow (Cycle 8)
     workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
 
-    # Core System Definition (Optional primarily for component-level testing)
-    target_system: TargetSystem | None = None
-
-    # Module Configurations
+    # Modules (Cycle 2-7)
     dft_config: DFTConfig | None = None
     explorer_config: ExplorerConfig | None = None
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
 
-    # Legacy / Transition Fields (Deprecated)
-    generator: GeneratorParams | None = None
-    explorer: ExplorerParams | None = None
-    dask: DaskConfig | None = None
-    dft: DFTConfig | None = Field(
-        None,
-        description="Legacy alias for `dft_config`. Please use `dft_config` instead. This field is deprecated and will be removed in future versions.",
-    )
-
-    db_path: str = "mlip_database.db"
-    working_dir: Path | None = None
-
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator("db_path")
-    @classmethod
-    def validate_db_path(cls, v: str) -> str:
-        import os
-        if ".." in v or os.path.isabs(v):
-            msg = "db_path must be a relative path."
-            raise ValueError(msg)
-        return v
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
 class CheckpointState(BaseModel):
     run_uuid: UUID

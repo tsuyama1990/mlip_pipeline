@@ -6,6 +6,8 @@ SystemConfig from a high-level UserInputConfig.
 from pathlib import Path
 from uuid import uuid4
 
+import yaml
+
 from mlip_autopipec.config.models import (
     CutoffConfig,
     DFTConfig,
@@ -29,7 +31,15 @@ class ConfigFactory:
     """A factory for creating application configurations."""
 
     @staticmethod
-    def from_user_input(user_config: UserInputConfig) -> SystemConfig:
+    def from_yaml(config_path: Path) -> SystemConfig:
+        """Reads a YAML file and creates a SystemConfig."""
+        with open(config_path) as f:
+            data = yaml.safe_load(f)
+        user_config = UserInputConfig.model_validate(data)
+        return ConfigFactory.from_user_input(user_config)
+
+    @staticmethod
+    def from_user_input(user_config: UserInputConfig, base_dir: Path | None = None) -> SystemConfig:
         """
         Constructs the comprehensive SystemConfig from the UserInputConfig.
 
@@ -41,10 +51,15 @@ class ConfigFactory:
         elements = user_config.target_system.elements
 
         # Resolve Working Directory
-        # The working directory is created relative to CWD with the project name
-        work_dir = Path.cwd() / project_name
+        if base_dir is None:
+            base_dir = Path.cwd()
+
+        work_dir = base_dir / project_name
         if not work_dir.exists():
             work_dir.mkdir(parents=True)
+
+        db_path = work_dir / f"{project_name}.db"
+        log_path = work_dir / "system.log"
 
         # DFT Config Heuristics
         pseudos = {el: f"{el}_pbe_v1.uspp.F.UPF" for el in elements}
@@ -75,13 +90,8 @@ class ConfigFactory:
 
         # Training Config Heuristics
         training_config = TrainingConfig(
-            data_source_db=f"{project_name}.db",
+            data_source_db=db_path.name,
         )
-
-        # Determine Database Path for SystemConfig
-        # We align this with the training config source db for consistency,
-        # ensuring it's relative to the working dir (handled by logic consuming this).
-        db_path = f"{project_name}.db"
 
         # Inference Config Heuristics
         temp_range = user_config.simulation_goal.temperature_range
@@ -93,14 +103,12 @@ class ConfigFactory:
             uncertainty_params=UncertaintyConfig(),
         )
 
-        # We explicitly set dft_config (the new field) and NOT dft (the legacy field).
-        # The legacy field should remain None (or handled by a root validator if complex migration was needed,
-        # but here we just ensure we populate the correct new field).
         return SystemConfig(
-            project_name=project_name,
+            user_input=user_config,
             run_uuid=run_uuid,
             working_dir=work_dir,
             db_path=db_path,
+            log_path=log_path,
             dft_config=dft_config,
             explorer_config=explorer_config,
             training_config=training_config,
