@@ -3,13 +3,13 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 13 items
+collected 19 items
 
-tests/unit/test_generator_schemas.py ..                                  [ 15%]
-tests/generator/test_alloy.py ...                                        [ 38%]
-tests/generator/test_builder.py .                                        [ 46%]
-tests/generator/test_defect.py ..                                        [ 61%]
-tests/generator/test_molecule.py .                                       [ 69%]
+tests/unit/test_generator_schemas.py ..                                  [ 10%]
+tests/generator/test_alloy.py .....                                      [ 36%]
+tests/generator/test_builder.py ..                                       [ 47%]
+tests/generator/test_defect.py ...                                       [ 63%]
+tests/generator/test_molecule.py ...                                     [ 78%]
 tests/uat/cycle_03_uat.py ....                                           [100%]
 
 ================================ tests coverage ================================
@@ -25,7 +25,7 @@ mlip_autopipec/config/models.py                    7      0   100%
 mlip_autopipec/config/schemas/common.py           44      8    82%   20-21, 26-27, 45-46, 52-53
 mlip_autopipec/config/schemas/dft.py              70     20    71%   27-32, 46-51, 68-70, 101-107
 mlip_autopipec/config/schemas/exploration.py      51      4    92%   35-39
-mlip_autopipec/config/schemas/generator.py         9      0   100%
+mlip_autopipec/config/schemas/generator.py        29      0   100%
 mlip_autopipec/config/schemas/inference.py        65     23    65%   26-28, 41-44, 63-69, 74-82
 mlip_autopipec/config/schemas/monitoring.py       12      0   100%
 mlip_autopipec/config/schemas/system.py           65     15    77%   62, 67-82
@@ -45,12 +45,12 @@ mlip_autopipec/dft/inputs.py                      57     57     0%   1-166
 mlip_autopipec/dft/parsers.py                     21     21     0%   5-83
 mlip_autopipec/dft/recovery.py                    30     30     0%   1-81
 mlip_autopipec/dft/runner.py                      79     79     0%   1-170
-mlip_autopipec/exceptions.py                      12     12     0%   9-45
+mlip_autopipec/exceptions.py                      13      4    69%   40-42, 45
 mlip_autopipec/generator/__init__.py               5      0   100%
-mlip_autopipec/generator/alloy.py                 80      8    90%   22, 44-48, 55, 60-62
-mlip_autopipec/generator/builder.py               46     10    78%   20-21, 33, 50-52, 65-69
-mlip_autopipec/generator/defect.py                36      1    97%   80
-mlip_autopipec/generator/molecule.py              50     10    80%   27-31, 58-59, 84-86
+mlip_autopipec/generator/alloy.py                100     18    82%   51, 72-77, 84, 95-98, 127-128, 150-151, 208-211
+mlip_autopipec/generator/builder.py               80     32    60%   34-35, 53-54, 61-74, 93-95, 116-123, 127-139
+mlip_autopipec/generator/defect.py                52      6    88%   50-51, 63-64, 120-121
+mlip_autopipec/generator/molecule.py              54      6    89%   84-85, 111-114
 mlip_autopipec/modules/__init__.py                 0      0   100%
 mlip_autopipec/modules/config_generator.py        15     15     0%   3-74
 mlip_autopipec/modules/descriptors.py             31     31     0%   3-62
@@ -72,5 +72,5 @@ mlip_autopipec/utils/resilience.py                29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
 mlip_autopipec/workflow_manager.py               106    106     0%   1-191
 ----------------------------------------------------------------------------
-TOTAL                                           1941   1452    25%
-============================== 13 passed in 4.16s ==============================
+TOTAL                                           2036   1477    27%
+============================== 19 passed in 4.46s ==============================

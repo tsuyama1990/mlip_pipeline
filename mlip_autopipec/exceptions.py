@@ -43,3 +43,7 @@ class DFTCalculationError(MLIPError):
 
     def __str__(self) -> str:
         return f"{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+
+
+class GeneratorError(MLIPError):
+    """Raised when structure generation fails."""

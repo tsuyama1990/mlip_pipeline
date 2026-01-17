@@ -1,4 +1,3 @@
-
 import numpy as np
 import pytest
 from ase.build import bulk, molecule
@@ -22,12 +21,12 @@ def setup_uat_logging():
 
 @pytest.fixture
 def uat_alloy_generator():
-    config = GeneratorConfig(
-        supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]], # 8 atoms
-        rattling_amplitude=0.1,
-        strain_range=(-0.1, 0.1),
-        n_strain_steps=3 # -0.1, 0.0, 0.1
-    )
+    config = GeneratorConfig()
+    config.sqs.supercell_matrix = [[2,0,0], [0,2,0], [0,0,2]] # 8 atoms
+    config.distortion.rattling_amplitude = 0.1
+    config.distortion.strain_range = (-0.1, 0.1)
+    config.distortion.n_strain_steps = 3 # -0.1, 0.0, 0.1
+
     return AlloyGenerator(config)
 
 def test_uat_03_01_alloy_sqs_generation(uat_alloy_generator):
@@ -71,12 +70,7 @@ def test_uat_03_02_distortion_pipeline(uat_alloy_generator):
     # Strains: -0.1, 0.0, 0.1. 0.0 skipped (dup of base). So 2 strains.
     # Rattles: 3 base structures (Base + 2 Strains).
     # n_rattle_steps default is 3.
-    # Total = 3 + (3 * 3) = 12 structures?
-    # Let's check logic in AlloyGenerator.generate_batch
-    # results = [base]
-    # + Strains (2)
-    # + Rattles (for base + strains = 3 structures, each rattled 3 times) = 9 rattles.
-    # Total = 1 base + 2 strains + 9 rattles = 12.
+    # Total = 3 + (3 * 3) = 12 structures.
 
     assert len(batch) == 1 + 2 + 9
 
@@ -98,8 +92,6 @@ def test_uat_03_03_molecule_nms():
     UAT-03-03: Molecule NMS
     Verify that for a molecular system (e.g., H2O), the system generates distorted geometries.
     """
-    # Requires patching Vibrations again
-
     config = GeneratorConfig()
     mol_gen = MoleculeGenerator(config)
     h2o = molecule('H2O')
@@ -122,10 +114,10 @@ def test_uat_03_04_metadata_integrity():
     UAT-03-04: Metadata Integrity
     Verify that every generated structure includes the correct metadata.
     """
-    # Using Builder Facade
     gen_config = GeneratorConfig()
     target = TargetSystem(name="Fe", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk")
     minimal = MinimalConfig(project_name="uat", target_system=target, resources={"dft_code": "quantum_espresso", "parallel_cores": 1})
+
     sys_config = MagicMock(spec=SystemConfig)
     sys_config.generator_config = gen_config
     sys_config.target_system = target
@@ -143,7 +135,5 @@ def test_uat_03_04_metadata_integrity():
         assert 'config_type' in s.info
 
 if __name__ == "__main__":
-    # If run as script
     setup_uat_logging()
-    # Manual execution logic if needed, but pytest is preferred
     pass

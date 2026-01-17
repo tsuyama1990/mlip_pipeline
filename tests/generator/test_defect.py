@@ -8,6 +8,10 @@ from mlip_autopipec.generator.defect import DefectGenerator
 @pytest.fixture
 def defect_generator():
     config = GeneratorConfig()
+    # Enable defects explicitly for test
+    config.defects.enabled = True
+    config.defects.vacancies = True
+    config.defects.interstitials = True
     return DefectGenerator(config)
 
 def test_create_vacancy(defect_generator):
@@ -16,8 +20,8 @@ def test_create_vacancy(defect_generator):
     # Simple vacancy
     vacancies = defect_generator.create_vacancy(atoms)
 
-    # Should return at least 1 structure
-    assert len(vacancies) > 0
+    # Should return at least 1 structure (16 atoms -> 16 vacancies naive)
+    assert len(vacancies) == 16
 
     for vac in vacancies:
         assert len(vac) == 15 # One less atom
@@ -35,3 +39,12 @@ def test_create_interstitial(defect_generator):
     for inter in interstitials:
         assert len(inter) == 17 # One more atom
         assert inter.info['config_type'] == 'interstitial'
+
+def test_defects_disabled():
+    config = GeneratorConfig()
+    config.defects.enabled = False
+    gen = DefectGenerator(config)
+    atoms = bulk('Si')
+
+    assert gen.create_vacancy(atoms) == []
+    assert gen.create_interstitial(atoms, 'Si') == []
