@@ -1,92 +1,116 @@
-# MLIP-AutoPipe: Cycle 05 User Acceptance Testing
-
-- **Cycle**: 05
-- **Title**: The Intelligence - Full Active Learning Loop
-- **Status**: Design
-
----
+# CYCLE05: Data Modelling and Configuration (UAT.md)
 
 ## 1. Test Scenarios
 
-User Acceptance Testing for Cycle 05 is the grand reveal. It's where the "magic" of the autonomous, self-improving system is made manifest. The UAT is designed to be a compelling narrative, demonstrating a system that can identify its own knowledge gaps and actively work to fill them. The user will be amazed as they watch the system's performance metrics (like the error rate of the potential) tangibly improve with each iteration of the active learning loop. The UAT will take the form of a Jupyter Notebook (`05_active_learning_in_action.ipynb`) that simulates the entire end-to-end workflow, using extensive mocks and visualizations to tell a clear and powerful story of a system that learns.
+User Acceptance Testing (UAT) for Cycle 5 is focused on the user's interaction with the system's configuration and the integrity of the data it produces. The key user experience is one of **simplicity and confidence**. The user should be amazed at how a very simple, human-readable input file can control such a complex workflow, and they should be confident that the data being stored is rich, traceable, and correct. A Jupyter Notebook is the perfect environment to demonstrate these two aspects side-by-side.
+
+| Scenario ID   | Test Scenario                                             | Priority |
+|---------------|-----------------------------------------------------------|----------|
+| UAT-C5-001    | **Simple and Intuitive User Configuration**               | **High**     |
+| UAT-C5-002    | **Robust Validation of User Input**                       | **High**     |
+| UAT-C5-003    | **Verification of Rich Metadata in Database**             | **Medium**   |
 
 ---
 
-### **Scenario ID: UAT-C05-01**
-- **Title**: Observing the Self-Improving MLIP in a Live Simulation
-- **Priority**: Critical
+### **Scenario UAT-C5-001: Simple and Intuitive User Configuration**
+
+**(Min 300 words)**
 
 **Description:**
-This scenario provides a simulated but complete end-to-end demonstration of the active learning loop. The user will start with a "bad" version-1 potential trained on minimal data. They will launch a simulated MD run which will quickly encounter a situation where the potential is uncertain. The user will then watch as the system automatically pauses the simulation, triggers a new DFT calculation (which will be mocked), retrains the potential to create a "better" version-2 model, and then resumes the simulation. A simple plot of the potential's error over time will show a distinct drop after the retraining event, providing clear, quantitative proof of the system's learning capability.
+This scenario is designed to showcase the "Zero-Human" philosophy from the user's point of view. It will demonstrate how the user can define a complex materials science project using a minimal, declarative, and human-readable `input.yaml` file. The user will then see how the `WorkflowManager` takes this simple input and expands it into a comprehensive, detailed `SystemConfig` object, filling in hundreds of sensible default parameters. This "magical" expansion is a core feature, showing the user that they only need to specify their high-level goals, and the system will handle the expert-level details.
 
-**UAT Steps via Jupyter Notebook (`05_active_learning_in_action.ipynb`):**
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will import the `UserInputConfig` model and the `WorkflowManager` class.
+2.  **The User's View:** A string representing a simple `input.yaml` file will be defined in a notebook cell. The contents will be clean and easy to read:
+    ```yaml
+    project_name: "My FeNi Alloy Study"
+    target_system:
+      elements: ["Fe", "Ni"]
+      composition: { "Fe": 0.7, "Ni": 0.3 }
+      crystal_structure: "fcc"
+    simulation_goal:
+      type: "melt_quench"
+      temperature_range: [300, 2000]
+    ```
+    The notebook will print this string under the heading: "This is all you need to provide."
+3.  **Parsing and Validation:** The notebook will load this YAML string and parse it into the `UserInputConfig` Pydantic model. The success of this step, with no errors, is the first confirmation.
+4.  **The System's View:** An instance of the `WorkflowManager` will be created using the parsed user config. The notebook will then access the `manager.system_config` attribute. To avoid overwhelming the user, instead of printing the entire massive object, it will selectively display a few key expanded parameters. For example:
+    -   `system_config.dft_config.magnetism`: "Automatically enabled because 'Fe' and 'Ni' are magnetic."
+    -   `system_config.explorer_config.fingerprint.species`: "Set to `['Fe', 'Ni']` based on your `target_system`."
+    -   `system_config.inference_config.md_params.temperature`: "Set to 2000 K, the maximum of your specified `temperature_range`."
+5.  **Explanation:** A markdown cell will conclude the demonstration: "As you can see, your simple, high-level request was automatically expanded into a detailed and consistent execution plan. The system applied expert heuristics for magnetism, fingerprinting, simulation parameters, and more, without requiring any detailed input from you. This is the power of the 'Zero-Human' protocol."
 
-**Part 1: The Initial State**
-*   The notebook will import all the necessary application components and plotting libraries.
-*   **Step 1.1:** It will start with a pre-prepared database containing a small initial dataset, and a pre-trained "v1" potential file based on this data.
-*   **Step 1.2:** To establish a baseline, the notebook will load the "v1" potential and evaluate its Root Mean Square Error (RMSE) on a small, known test set of structures. The RMSE will be intentionally high. A plot will be created showing the current RMSE value.
+---
 
-**Part 2: The Active Learning Loop in Action**
-*   **Step 2.1:** The user will execute a cell that kicks off the main application logic from `app.py`. The notebook will explain that the MD simulation (`LammpsRunner`) and DFT calculations (`QEProcessRunner`) are heavily mocked to make the process visual and instantaneous.
-*   **Step 2.2 (The Trigger):** The mocked `LammpsRunner` is programmed to run for a few steps and then report a high uncertainty. The notebook cell's output will print log messages in real-time, showing:
-    *   "Starting MD simulation with potential v1..."
-    *   "MD step 1... stable."
-    *   "MD step 2... stable."
-    *   "MD step 3... UNCERTAINTY DETECTED! Pausing simulation."
-    *   "Submitting high-uncertainty structure to DFT Factory..."
-    *   (Mocked) "DFT calculation complete."
-    *   "Adding new data to database..."
-*   This clear, narrative output lets the user follow the system's decision-making process.
+### **Scenario UAT-C5-002: Robust Validation of User Input**
 
-**Part 3: The "Aha!" Moment - Verifiable Improvement**
-*   **Step 3.1:** The log output will continue, showing the system's response:
-    *   "New data detected. Retraining potential..."
-    *   (Mocked) "Training complete. New potential 'v2' created."
-*   **Step 3.2 (The Payoff):** The user will execute a new cell that loads the newly generated "v2" potential. It will then re-calculate the RMSE on the *exact same test set* as before.
-*   **Step 3.3:** The notebook will update the plot of RMSE vs. Training Cycle. The user will see a clear, significant drop in the error bar from cycle 1 to cycle 2. This is the ultimate proof: the system identified a weakness, acquired new knowledge, and demonstrably improved its own performance. The user is amazed because they have just witnessed a fully autonomous learning cycle. The notebook will conclude by explaining that the real system would now resume the MD simulation with this more accurate potential, continuing the cycle until the entire simulation is stable.
+**(Min 300 words)**
+
+**Description:**
+A good user experience isn't just about making things easy; it's also about preventing mistakes. This scenario demonstrates the robustness of the system's input validation. The user will be shown several examples of common, simple mistakes in an `input.yaml` file. They will see how the system, thanks to its schema-first design with Pydantic, catches these errors immediately and provides clear, helpful error messages, rather than failing cryptically in the middle of a long run. This builds trust and shows that the system is designed to be user-friendly and safe.
+
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will import the `UserInputConfig` model and `pydantic.ValidationError`.
+2.  **Error Case 1: Composition Mismatch:** An `input.yaml` string will be shown where the `composition` percentages do not sum to 1.0 (e.g., `{'Fe': 0.7, 'Ni': 0.2}`). The notebook will then contain a `try...except` block that attempts to parse this configuration. The `except` block will catch the `ValidationError` and print the formatted error message from Pydantic, which will clearly state something like: "Composition fractions must sum to 1.0."
+3.  **Error Case 2: Invalid Element:** Another `input.yaml` string will be shown, this time with a typo in an element symbol (e.g., `elements: ["Fe", "Nx"]`). Again, the `try...except` block will catch the error, and the user will see a clear message: "'Nx' is not a valid chemical symbol."
+4.  **Error Case 3: Typo in a Key:** A third example will show a typo in one of the keys of the YAML file (e.g., `project_nam: "My Project"`). The user will see that the system catches this and reports an error like: "Extra inputs are not permitted. Did you mean `project_name`?"
+5.  **Explanation:** A final markdown cell will summarise the results: "The system's strict data validation acts as a safety net. It checks your input for common mistakes *before* launching the workflow, providing immediate and helpful feedback. This saves you time and prevents wasted computational resources on incorrectly configured runs."
 
 ---
 
 ## 2. Behavior Definitions
 
-These Gherkin-style definitions specify the expected high-level behavior of the fully integrated active learning system.
+### **UAT-C5-001: Simple and Intuitive User Configuration**
 
-**Feature: Autonomous Potential Refinement**
-As a materials scientist, I want the system to automatically detect when its MLIP is uncertain and then trigger a retraining loop with new DFT data, so that the potential's accuracy and reliability improve over the course of the simulation.
+```gherkin
+Feature: User-Friendly Workflow Configuration
+  As a user,
+  I want to define my project using a simple, high-level configuration file,
+  So that I can focus on my scientific goals instead of low-level parameters.
 
----
+  Scenario: A minimal user configuration is expanded into a full system configuration
+    Given a valid `input.yaml` file specifying only the project name, target elements, and simulation goal
+    When the WorkflowManager processes this input
+    Then it should successfully generate a complete internal `SystemConfig` object without errors
+    And the `SystemConfig` should contain detailed, non-empty configurations for all modules (DFT, training, etc.)
+    And the parameters in the `SystemConfig` should be consistent with the user's high-level request (e.g., element species match, temperatures match).
+```
 
-**Scenario: Successful Active Learning Cycle**
+### **UAT-C5-002: Robust Validation of User Input**
 
-*   **GIVEN** a simulation is running with the current best MLIP, "potential_v1".
-*   **AND** the `LammpsRunner` is executing an MD simulation.
-*   **AND** at timestep 50, the `extrapolation_grade` calculated for the current structure exceeds the `uncertainty_threshold`.
-*   **WHEN** this uncertainty is detected.
-*   **THEN** the `LammpsRunner` must pause and yield the high-uncertainty `Atoms` object.
-*   **AND** the main application logic must send this `Atoms` object to the `QEProcessRunner` to be calculated.
-*   **AND** the result of the DFT calculation must be written to the database.
-*   **AND** the `PacemakerTrainer` must then be invoked to train a new potential, "potential_v2", which now includes the new data point.
-*   **AND** the simulation must then be prepared to resume using the improved "potential_v2".
+```gherkin
+Feature: Input Configuration Validation
+  As a user,
+  I want the system to validate my input configuration and provide clear error messages,
+  So that I can quickly correct mistakes.
 
----
+  Scenario: User provides a configuration with an invalid chemical element
+    Given an `input.yaml` file where the `elements` list contains an invalid symbol like "Xx"
+    When the system attempts to parse this configuration
+    Then it should raise a `ValidationError`
+    And the error message should clearly indicate that "Xx" is not a valid element.
 
-**Scenario: Simulation Completes Without Uncertainty**
+  Scenario: User provides a configuration where composition fractions do not sum to 1.0
+    Given an `input.yaml` file where the `composition` fractions sum to 0.9
+    When the system attempts to parse this configuration
+    Then it should raise a `ValidationError`
+    And the error message should clearly state that the composition must sum to 1.0.
+```
 
-*   **GIVEN** a simulation is running with a highly accurate MLIP.
-*   **AND** the simulation is configured to run for 1000 steps.
-*   **WHEN** the `LammpsRunner` executes all 1000 steps of the MD simulation.
-*   **AND** the `extrapolation_grade` never exceeds the `uncertainty_threshold` during the entire run.
-*   **THEN** the DFT Factory and the Pacemaker Trainer must not be called at all.
-*   **AND** the simulation should run to completion without interruption.
-*   **AND** the application should exit gracefully, reporting a successful run.
+### **UAT-C5-003: Verification of Rich Metadata in Database**
 
----
+```gherkin
+Feature: Data Provenance and Traceability
+  As a researcher,
+  I want every piece of data in the training database to be tagged with rich metadata,
+  So that I can trace its origin and understand how it was generated.
 
-**Scenario: Resuming a Paused Simulation**
-
-*   **GIVEN** an active learning cycle has just completed, producing a new "potential_v2".
-*   **AND** the MD simulation was paused at timestep 50.
-*   **WHEN** the main application loop continues.
-*   **THEN** a new `LammpsRunner` must be instantiated, loaded with the new "potential_v2".
-*   **AND** the simulation it starts must resume from the state at timestep 50 (or a closely related starting point).
-*   **AND** it should not restart the simulation from scratch at timestep 0.
+  Scenario: A structure generated by the active learning loop is saved with its metadata
+    Given a DFT result for a structure that was extracted by the inference engine
+    And this structure has a `force_mask` associated with it
+    And the metadata indicates it is from 'active_learning_gen_4'
+    When the system saves this result to the database
+    Then a new entry should be created in the database
+    And when I read this entry back, its `info` dictionary should contain the key 'config_type' with the value 'active_learning_gen_4'
+    And its `arrays` dictionary should contain the key 'force_mask' with the correct numerical data.
+```

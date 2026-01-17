@@ -1,136 +1,187 @@
-# ruff: noqa: D101, T201
-"""Module for the main workflow orchestration."""
 
+import json
 import logging
 from pathlib import Path
-from typing import Any
+from uuid import UUID
 
-from dask.distributed import Client, Future
+from dask.distributed import Client, Future, as_completed
+from pydantic import ValidationError
 
-from mlip_autopipec.config_schemas import SystemConfig
-from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
-from mlip_autopipec.utils.workflow_utils import (
-    CheckpointManager,
-    atoms_to_json,
-)
+from mlip_autopipec.config.models import CheckpointState, SystemConfig
+from mlip_autopipec.modules.dft import DFTRunner
+from mlip_autopipec.modules.training import PacemakerTrainer
+from mlip_autopipec.utils.ase_utils import read_training_data
+from mlip_autopipec.utils.dask_utils import get_dask_client
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowManager:
-    """Orchestrates the entire MLIP-AutoPipe workflow."""
+    """
+    The central orchestrator for the MLIP-AutoPipe workflow.
+
+    This class is responsible for initializing and coordinating the various
+    modules, managing the main active learning loop with Dask for parallel
+    execution, and handling checkpointing for resilience.
+    """
 
     def __init__(
         self,
-        config: SystemConfig,
-        checkpoint_path: Path,
-        db_manager: Any,
-        dft_factory: Any,
-        trainer: Any,
-        client: Client,
+        system_config: SystemConfig,
+        work_dir: Path,
+        dft_runner: DFTRunner | None = None,
+        trainer: PacemakerTrainer | None = None,
     ):
-        self.config = config
-        self.checkpoint_manager = CheckpointManager(checkpoint_path)
-        self.db_manager = db_manager
-        self.dft_factory = dft_factory
-        self.trainer = trainer
-        self.client = client
+        self.system_config = system_config
+        self.work_dir = work_dir
+        self.checkpoint_path = self.work_dir / system_config.workflow_config.checkpoint_filename
+        self.dask_client: Client = get_dask_client()
+        self.dft_runner: DFTRunner | None = dft_runner
+        self.trainer: PacemakerTrainer | None = trainer
+        self.futures: dict[UUID, Future] = {}
+        self.state: CheckpointState | None = None
 
-    def run(self) -> None:
-        """Execute the main asynchronous workflow logic."""
-        logging.info(f"Dask dashboard link: {self.client.dashboard_link}")
-        state = self.checkpoint_manager.load() or {}
+        self._load_or_initialize_state()
 
-        dft_futures: list[Future[Any]] = []
-        max_cycles = state.get("max_cycles", 5)
-        start_cycle = state.get("cycle", 1)
-        new_dft_calculations_count = state.get("new_dft_calculations_count", 0)
-        retrain_threshold = 3
+    def _load_or_initialize_state(self):
+        """Loads state from a checkpoint or initializes a new one."""
+        if self.checkpoint_path.exists():
+            self._load_checkpoint()
+            self._resubmit_pending_jobs()
+        else:
+            self.state = CheckpointState(
+                run_uuid=self.system_config.run_uuid,
+                system_config=self.system_config,
+            )
+            self._save_checkpoint()
+            logger.info("Initialized a new workflow state.")
 
-        for cycle in range(start_cycle, max_cycles + 1):
-            logging.info("-" * 50)
-            logging.info(f"Starting Active Learning Cycle {cycle}/{max_cycles}")
+    def _save_checkpoint(self):
+        """Serializes the current state to a checkpoint file."""
+        logger.info("Saving checkpoint...")
+        with self.checkpoint_path.open("w") as f:
+            # Pydantic's model_dump_json handles serialization of complex types
+            # like UUID and Path to standard JSON types.
+            f.write(self.state.model_dump_json(indent=4))
+        logger.info("Checkpoint saved to %s", self.checkpoint_path)
 
-            self._run_training_and_md(state, dft_futures)
+    def _load_checkpoint(self):
+        """Loads and validates the state from a checkpoint file."""
+        logger.info("Loading state from checkpoint: %s", self.checkpoint_path)
+        try:
+            with self.checkpoint_path.open() as f:
+                state_data = json.load(f)
+                self.state = CheckpointState.model_validate(state_data)
+            logger.info("Successfully loaded workflow state.")
+        except (OSError, json.JSONDecodeError, ValidationError) as e:
+            logger.error("Failed to load or validate checkpoint.", exc_info=True)
+            raise RuntimeError("Could not load a valid checkpoint file.") from e
 
-            new_dft_calculations_count = self._process_completed_dft_futures(
-                dft_futures, new_dft_calculations_count, state
+    def _resubmit_pending_jobs(self):
+        """Re-submits jobs that were pending at the time of the last checkpoint."""
+        if not self.state.pending_job_ids:
+            return
+
+        logger.info("Re-submitting %d pending jobs...", len(self.state.pending_job_ids))
+        if self.dft_runner is None:
+            # This is a safeguard; dft_runner should be set before this is called in a real run.
+            raise RuntimeError("DFTRunner is not initialized.")
+
+        for job_id in self.state.pending_job_ids:
+            args = self.state.job_submission_args.get(job_id)
+            if args:
+                future = self.dask_client.submit(self.dft_runner.run, *args)
+                self.futures[job_id] = future
+            else:
+                logger.warning("No submission arguments found for pending job ID: %s", job_id)
+        logger.info("All pending jobs have been re-submitted.")
+
+    def perform_training(self):
+        """Executes the training step and updates state with metrics."""
+        if not self.trainer:
+            logger.warning("Trainer not initialized. Skipping training.")
+            return
+
+        # Fetch training data
+        db_path = self.system_config.training_config.data_source_db if self.system_config.training_config else None
+
+        # Resolve relative DB path if necessary
+        if db_path and not db_path.is_absolute():
+            db_path = self.work_dir / db_path
+
+        if not db_path or not db_path.exists():
+            logger.warning("No training database found. Skipping training.")
+            return
+
+        try:
+            logger.info(f"Reading training data from {db_path}...")
+            training_data = read_training_data(db_path)
+        except Exception:
+            logger.exception("Failed to read training data from database.")
+            return # Don't crash, just skip training this cycle
+
+        logger.info("Starting training for generation %d...", self.state.active_learning_generation)
+        try:
+            potential_path, metrics = self.trainer.perform_training(
+                training_data=training_data,
+                generation=self.state.active_learning_generation
             )
 
-            if new_dft_calculations_count >= retrain_threshold:
-                logging.info(
-                    f"Reached {new_dft_calculations_count} new calculations. "
-                    "Triggering next training cycle."
-                )
-                new_dft_calculations_count = 0  # Reset counter
+            # Update state
+            self.state.training_history.append(metrics)
+            self.state.current_potential_path = potential_path
 
-        self._wait_for_remaining_dft_futures(dft_futures, state)
-        self.client.close()  # type: ignore[no-untyped-call]
+            self._save_checkpoint()
+            logger.info("Training completed successfully. Metrics saved.")
 
-    def _run_training_and_md(
-        self, state: dict[str, Any], dft_futures: list[Future[Any]]
-    ) -> None:
-        """Run the training and MD simulation for a single cycle."""
-        logging.info("Step 1: Training the MLIP...")
-        self.trainer.train.return_value = "model.yace"
-        potential_path = self.trainer.train()
-        logging.info(f"Trained new potential: {potential_path}")
+        except Exception as e:
+            logger.exception("Training failed.")
+            # Depending on policy, we might re-raise or just log.
+            # For now re-raise to be safe.
+            raise e
 
-        logging.info("Step 2: Running MD simulation...")
-        lammps_runner = LammpsRunner(
-            config=self.config,
-            potential_path=potential_path,
-            quantifier=UncertaintyQuantifier(),
-        )
-        simulation_generator = lammps_runner.run()
-        submitted_tasks: dict[str, Any] = state.get("submitted_tasks", {})
+    def run(self):
+        """
+        Executes the main active learning workflow.
 
-        for embedded_atoms, force_mask in simulation_generator:
-            logging.info("Found uncertain structure, submitting DFT calculation...")
-            future = self.client.submit(self.dft_factory.run, embedded_atoms)
-            dft_futures.append(future)
-            submitted_tasks[str(future.key)] = {
-                "atoms": atoms_to_json(embedded_atoms),
-                "force_mask": force_mask.tolist(),
-            }
-        state["submitted_tasks"] = submitted_tasks
+        This method is a placeholder for the full active learning loop. In this
+        cycle, it focuses on demonstrating the Dask integration and checkpointing
+        by managing a batch of futures.
+        """
+        logger.info("WorkflowManager: run() started.")
+        # In a full implementation, structures would be generated here and
+        # submitted as jobs. For now, we assume jobs are submitted externally
+        # for testing purposes.
 
-    def _process_completed_dft_futures(
-        self,
-        dft_futures: list[Future[Any]],
-        new_dft_calculations_count: int,
-        state: dict[str, Any],
-    ) -> int:
-        """Process completed DFT calculations and update the database."""
-        completed_futures = [f for f in dft_futures if f.done()]  # type: ignore[no-untyped-call]
-        for future in completed_futures:
-            if future.status == "finished":
-                atoms_result = future.result()
-                task_id = str(future.key)
-                force_mask = state["submitted_tasks"][task_id]["force_mask"]
-                self.db_manager.write_calculation(
-                    atoms=atoms_result,
-                    metadata={"stage": "active_learning", "uuid": task_id},
-                    force_mask=force_mask,
-                )
-                new_dft_calculations_count += 1
-                del state["submitted_tasks"][task_id]
-            dft_futures.remove(future)
-        self.checkpoint_manager.save(state)
-        return new_dft_calculations_count
+        if not self.futures:
+            logger.info("No active jobs to monitor. Workflow exiting.")
+            return
 
-    def _wait_for_remaining_dft_futures(
-        self, dft_futures: list[Future[Any]], state: dict[str, Any]
-    ) -> None:
-        """Wait for and process any remaining DFT calculations."""
-        logging.info("Waiting for remaining DFT calculations to finish...")
-        self.client.gather(dft_futures)  # type: ignore[no-untyped-call]
-        for future in dft_futures:
-            if future.status == "finished":
-                atoms_result = future.result()
-                task_id = str(future.key)
-                force_mask = state["submitted_tasks"][task_id]["force_mask"]
-                self.db_manager.write_calculation(
-                    atoms=atoms_result,
-                    metadata={"stage": "active_learning", "uuid": task_id},
-                    force_mask=force_mask,
-                )
-        self.checkpoint_manager.path.unlink(missing_ok=True)
+        # Process results as they complete
+        for future in as_completed(self.futures.values()):
+            try:
+                result = future.result()
+                job_id = result.job_id
+
+                # Update state: remove job from pending and args dict
+                if job_id in self.state.pending_job_ids:
+                    self.state.pending_job_ids.remove(job_id)
+                if job_id in self.state.job_submission_args:
+                    del self.state.job_submission_args[job_id]
+
+                # Save the result to the database (placeholder)
+                logger.info("Processed result for job %s", job_id)
+
+                # Save state after processing the result
+                self._save_checkpoint()
+
+            except Exception:
+                logger.error("A DFT calculation job failed.", exc_info=True)
+                # Here you might add logic to handle failed jobs, e.g.,
+                # marking them as failed in the state.
+
+        logger.info("All jobs completed. Workflow finished.")
+
+        # Trigger training if configured
+        if self.trainer:
+            self.perform_training()

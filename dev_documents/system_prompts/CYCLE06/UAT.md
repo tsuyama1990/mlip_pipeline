@@ -1,107 +1,117 @@
-# MLIP-AutoPipe: Cycle 06 User Acceptance Testing
-
-- **Cycle**: 06
-- **Title**: Production Readiness - Advanced Embedding and Scalability
-- **Status**: Design
-
----
+# CYCLE06: Resilience and Scalability (UAT.md)
 
 ## 1. Test Scenarios
 
-User Acceptance Testing for Cycle 06 is designed to showcase the system's most scientifically advanced and operationally robust features. This UAT provides the user with a powerful demonstration of why MLIP-AutoPipe is not just a prototype, but a production-grade tool capable of generating high-quality, physically accurate potentials at scale. The key "wow" factor will be a clear, visual demonstration of the **Periodic Embedding and Force Masking** strategy, showing how this advanced technique leads to better, more transferable models. The UAT will be presented as a Jupyter Notebook (`06_advanced_techniques_and_scaling.ipynb`), which will use visualizations and simulated performance metrics to make the benefits of these advanced features clear and compelling.
+User Acceptance Testing (UAT) for Cycle 6 is designed to build the user's trust in the system's ability to handle long, complex, and potentially failure-prone workflows. The key user experiences are **security** and **speed**. The user should be amazed by the system's ability to recover from a simulated catastrophic failure without losing any progress, and they should clearly see the performance benefits of parallel execution. These scenarios are best demonstrated in a Jupyter Notebook, which allows for process control and clear timing metrics.
+
+| Scenario ID   | Test Scenario                                             | Priority |
+|---------------|-----------------------------------------------------------|----------|
+| UAT-C6-001    | **"Pull the Plug" - Catastrophic Failure and Recovery**   | **High**     |
+| UAT-C6-002    | **High-Throughput Parallel Execution with Dask**          | **High**     |
+| UAT-C6-003    | **Demonstration of Automatic DFT Retry Decorator**        | **Medium**   |
 
 ---
 
-### **Scenario ID: UAT-C06-01**
-- **Title**: Visualising the Benefit of Force Masking
-- **Priority**: Critical
+### **Scenario UAT-C6-001: "Pull the Plug" - Catastrophic Failure and Recovery**
+
+**(Min 300 words)**
 
 **Description:**
-This scenario provides a powerful, side-by-side comparison to demonstrate the scientific value of the force masking technique. The user will train two simple potentials. The first will be trained the "naive" way, using a small, periodically embedded cell but without applying a force mask. The second will be trained on the exact same structure but *with* force masking applied. The notebook will then evaluate a key physical property (e.g., the energy of a point defect) with both potentials. The user will be amazed to see that the potential trained with force masking gives a physically accurate result, while the naive potential gives a completely wrong answer. This provides a direct, quantitative demonstration of how the advanced scientific features in this cycle lead to superior outcomes.
+This is the most critical and impressive UAT for this cycle. It directly addresses a major source of anxiety for anyone running computations that last for days: what happens if the power goes out or the system crashes? This scenario will simulate this exact event. The user will watch a workflow start, see that it has work in progress, and then see the process get forcefully terminated. They will then witness a new process start up, read the checkpoint file, and seamlessly resume the work exactly where the previous one left off. This provides a powerful demonstration of the system's resilience and gives the user peace of mind.
 
-**UAT Steps via Jupyter Notebook (`06_advanced_techniques_and_scaling.ipynb`):**
-
-**Part 1: The Problem - Boundary Artefacts**
-*   The notebook will begin by importing the necessary components and creating a large, pristine crystal structure.
-*   **Step 1.1:** It will then programmatically create a vacancy in the center.
-*   **Step 1.2:** The notebook will perform the periodic embedding extraction around the vacancy, creating a small sub-cell.
-*   **Step 1.3:** A (mocked) DFT calculation is run on this small cell to get the "ground truth" forces.
-*   **Step 1.4:** The notebook will use arrows to visualise the forces on the atoms in this sub-cell. The user will clearly see that the forces on the atoms at the very edge of the box are distorted and unphysical due to the artificial periodic boundary. This visually establishes the problem that force masking solves.
-
-**Part 2: Training Two Potentials**
-*   **Step 2.1 (Naive):** The notebook will use the `PacemakerTrainer` to train a simple potential (`potential_naive.yace`) using the data from the sub-cell, but with force masking turned OFF.
-*   **Step 2.2 (Masked):** It will then train a second potential (`potential_masked.yace`) on the *exact same data*, but this time with force masking turned ON. The notebook will show the `force_mask` array of `1`s and `0`s, making it clear which atomic forces are being ignored.
-
-**Part 3: The Payoff - Verifiable Accuracy**
-*   **Step 3.1:** The user will now test the quality of both potentials. A key physical property that depends on accurate forces, like the vacancy formation energy, will be the test case.
-*   **Step 3.2:** The notebook will calculate this property using the `potential_naive.yace`. The result will be significantly different from the expected DFT value.
-*   **Step 3.3:** It will then calculate the same property using `potential_masked.yace`. The user will see that this result is in excellent agreement with the DFT value.
-*   **Step 3.4:** A simple bar chart will compare the results: "DFT Ground Truth", "Prediction with Force Masking", and "Prediction without Force Masking". The visual makes the conclusion inescapable: the advanced force masking technique is essential for scientific accuracy.
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will set up a temporary working directory. It will also define a simple "mock" DFT function that takes 5 seconds to run (`time.sleep(5)`) and returns a dummy result. This allows the test to be run quickly and predictably.
+2.  **Part 1: The Initial Run and the "Crash":**
+    -   A `WorkflowManager` will be configured to run 10 of these mock DFT jobs.
+    -   The `WorkflowManager` will be launched in a separate Python process using `multiprocessing.Process`. This is crucial as it allows the notebook to remain in control.
+    -   The notebook will let the process run for just 7 seconds—enough time to submit the jobs, but only enough for one to complete.
+    -   The notebook will then forcefully terminate the process using `process.kill()`. A dramatic message will be printed: "🔴 **Workflow process terminated unexpectedly!**"
+3.  **Inspect the Damage (and the Checkpoint):**
+    -   The notebook will then inspect the working directory. It will show that a `checkpoint.json` file exists.
+    -   It will load and display the contents of this file, pointing out the key fields: `pending_job_ids` (which should list 9 jobs) and `completed_job_ids` (which should list 1 job). This makes the state of the crashed run completely transparent.
+4.  **Part 2: The Recovery:**
+    -   A *new* `WorkflowManager` instance will be created in a new process, pointed at the *same* working directory.
+    -   The notebook will launch this new process. The user will see logs indicating that a checkpoint has been found and that the manager is re-submitting the 9 pending jobs.
+    -   The notebook will let this new process run to completion.
+5.  **Final Verification:**
+    -   Finally, the notebook will connect to the ASE database in the working directory and count the number of entries. It will print the triumphant result: "✅ **Recovery successful!** The database contains all 10 results, proving that no work was lost."
 
 ---
 
-### **Scenario ID: UAT-C06-02**
-- **Title**: Demonstrating DFT Auto-Recovery
-- **Priority**: High
+### **Scenario UAT-C6-002: High-Throughput Parallel Execution with Dask**
+
+**(Min 300 words)**
 
 **Description:**
-This scenario provides the user with a tangible sense of the system's operational robustness. It simulates a common failure mode in a DFT calculation and shows how the `QEProcessRunner` can autonomously recover from it. This builds confidence that the system can be trusted to run unattended for long periods.
+This scenario demonstrates the immense performance gain from using a parallel task scheduler like Dask. The user will see a direct, timed comparison between running a batch of jobs sequentially versus running them in parallel across multiple workers. The visual and quantitative difference will be striking, showing how the system is designed to effectively leverage modern multi-core processors or HPC clusters to accelerate research.
 
-**UAT Steps via Jupyter Notebook:**
-
-*   **Step 1:** The user will instantiate the `QEProcessRunner`.
-*   **Step 2:** The notebook will explain that the underlying `subprocess.run` call is mocked. This mock is specially configured to fail the *first* time it is called (simulating a convergence failure) but to succeed on the second call.
-*   **Step 3:** The user will execute `runner.run(atoms)`.
-*   **Step 4:** The cell output will show a real-time log of the runner's internal logic:
-    *   `INFO: Starting DFT calculation (Attempt 1/3)...`
-    *   `WARNING: DFT calculation failed. Retrying with relaxed parameters (mixing_beta=0.3)...`
-    *   `INFO: Starting DFT calculation (Attempt 2/3)...`
-    *   `INFO: DFT calculation successful.`
-*   The user is amazed because the system handled a potentially critical failure gracefully and automatically, without crashing or requiring any human input.
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will import Dask and start a `dask.distributed.LocalCluster` with a specific number of workers (e.g., 4). It will also use the same 2-second mock DFT function (`time.sleep(2)`) from the previous scenario.
+2.  **The Sequential Baseline:**
+    -   The notebook will first run a simple `for` loop to execute 8 of the mock DFT jobs one after the other.
+    -   It will use the `%%time` magic command to measure the total execution time.
+    -   The result will be printed: "Total time for 8 jobs sequentially: **~16 seconds**."
+3.  **The Parallel Workflow:**
+    -   Next, the notebook will configure a `WorkflowManager` to use the local Dask cluster.
+    -   It will then launch the workflow to process the same 8 mock DFT jobs.
+    -   The notebook will provide a link to the Dask dashboard, allowing the user to open it in another tab and watch the tasks being distributed across the 4 workers in real-time. This is a very compelling visualisation.
+    -   Again, the `%%time` magic command will measure the total time.
+4.  **The Comparison:**
+    -   The result will be printed directly below the sequential one: "Total time for 8 jobs in parallel with 4 workers: **~4 seconds**."
+5.  **Explanation:** A markdown cell will summarize the outcome with a clear, powerful statement: "By distributing the work across 4 parallel workers, the system achieved a **4x speedup**, completing the same amount of work in a fraction of the time. This scalability is what allows the MLIP-AutoPipe to tackle large-scale problems efficiently."
 
 ---
 
 ## 2. Behavior Definitions
 
-**Feature: High-Fidelity Training with Force Masking**
-As a scientist, I want the system to use periodic embedding with force masking when learning from local atomic events, so that the resulting potential is free from artificial boundary effects and yields physically accurate properties.
+### **UAT-C6-001: "Pull the Plug" - Catastrophic Failure and Recovery**
 
-**Scenario: Training with Force Masking Enabled**
+```gherkin
+Feature: Workflow Resilience and Recovery
+  As a researcher running a multi-day simulation,
+  I want the system to save its state continuously,
+  So that I can resume the workflow from the last checkpoint if the system crashes.
 
-*   **GIVEN** an active learning loop has detected an uncertain atom and extracted a periodic sub-cell.
-*   **AND** a `force_mask` array has been generated, with `0.0` for buffer atoms and `1.0` for core atoms.
-*   **AND** this data has been saved to the database.
-*   **WHEN** the `PacemakerTrainer` is invoked.
-*   **THEN** it must query the database and retrieve the `force_mask` array along with the structure.
-*   **AND** it must configure the Pacemaker training job to use these per-atom force weights.
-*   **AND** the resulting MLIP's predictions for physical properties must be more accurate than a potential trained without the mask.
+  Scenario: A workflow is terminated mid-run and then resumed
+    Given a workflow is running a batch of 20 DFT jobs
+    And the workflow is forcefully terminated after only 5 jobs have completed
+    When a new workflow is started in the same directory
+    Then the new workflow should detect and load the checkpoint file
+    And it should re-submit the 15 jobs that were pending
+    And it should not re-submit the 5 jobs that were already complete
+    And the new workflow should eventually complete, having processed all 20 unique jobs.
+```
 
----
+### **UAT-C6-002: High-Throughput Parallel Execution with Dask**
 
-**Feature: Resilient DFT Execution**
-As an HPC operator, I want the system to be resilient to common, transient DFT calculation failures, so that long-running workflows can complete successfully without unnecessary manual intervention.
+```gherkin
+Feature: Scalable Parallel Execution
+  As a user with access to a multi-core machine or HPC cluster,
+  I want the system to execute independent DFT calculations in parallel,
+  So that I can complete my data generation campaign faster.
 
-**Scenario: Automatic Recovery from Convergence Failure**
+  Scenario: Running a batch of jobs on a multi-worker Dask cluster
+    Given a batch of 12 independent jobs, each of which takes 3 seconds
+    And a Dask cluster with 6 available workers
+    When the workflow is run to process the batch
+    Then the total execution time should be significantly less than 36 seconds (12 * 3s)
+    And the total execution time should be close to 6 seconds (12 jobs / 6 workers * 3s/job), plus system overhead.
+```
 
-*   **GIVEN** the `QEProcessRunner` is asked to calculate a difficult-to-converge structure.
-*   **AND** the initial DFT run with default parameters fails to converge.
-*   **WHEN** the `QEProcessRunner` detects this failure.
-*   **THEN** it must not immediately crash or report failure.
-*   **AND** it must automatically generate a new QE input file with more robust, relaxed convergence parameters (e.g., a lower `mixing_beta`).
-*   **AND** it must re-submit the calculation with these new parameters.
-*   **AND** if the second attempt succeeds, it should return the successful result as normal.
+### **UAT-C6-003: Demonstration of Automatic DFT Retry Decorator**
 
----
+```gherkin
+Feature: Automated Retry for Failed Calculations
+  As a user running thousands of calculations,
+  I want the system to automatically retry a calculation with different parameters if it fails,
+  So that transient errors do not halt my entire workflow.
 
-**Feature: Scalable Parallel Execution**
-As a researcher, I want the system to leverage a task queue to execute multiple DFT calculations in parallel, so that the overall time-to-solution for generating a potential is dramatically reduced.
-
-**Scenario: Submitting Multiple DFT Jobs to a Queue**
-
-*   **GIVEN** the main application is connected to a Dask task queue.
-*   **AND** the MD simulation identifies 5 high-uncertainty structures in rapid succession.
-*   **WHEN** these 5 structures are detected.
-*   **THEN** the main application must not block and calculate them one by one.
-*   **AND** it must submit 5 independent DFT calculation tasks to the Dask queue in a non-blocking manner.
-*   **AND** it should then proceed to monitor the status of the 5 corresponding "futures".
-*   **AND** as each future is completed, the result should be added to the database.
+  Scenario: A DFT calculation fails, but succeeds on the second try
+    Given a DFT calculation that is configured to fail on its first run but succeed on its second
+    And the system is configured with a retry-decorator of 3 attempts
+    When the workflow attempts to run this calculation
+    Then the system logs should show that the first attempt failed
+    And the system logs should show that it is "Retrying calculation (attempt 2 of 3)..."
+    And the second attempt should succeed
+    And the workflow should continue without crashing.
+```

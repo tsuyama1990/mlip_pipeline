@@ -1,146 +1,158 @@
-# MLIP-AutoPipe: Cycle 03 Specification
-
-- **Cycle**: 03
-- **Title**: The Filter - Surrogate Explorer and Selector
-- **Status**: Scoping
-
----
+# CYCLE03: The Training Engine (SPEC.md)
 
 ## 1. Summary
 
-Cycle 03 introduces the first layer of intelligence and cost-saving to the MLIP-AutoPipe workflow. The previous cycle, the Physics-Informed Generator, is designed to produce a vast number of candidate structures—potentially tens of thousands. Performing DFT calculations on all of them would be computationally prohibitive and inefficient, as many structures may be redundant or physically unimportant. This cycle focuses on implementing **Module B: the Surrogate Explorer and Selector**, a critical component designed to intelligently down-select this large pool of candidates to a small, information-rich subset that is truly worthy of DFT resources. This module embodies the "Surrogate-First" strategy, a core tenet of the system's design.
+This document outlines the detailed technical specifications for Cycle 3 of the MLIP-AutoPipe project. The focus of this cycle is to develop the **Training Engine**, the component responsible for consuming the DFT data and producing a trained Machine Learning Interatomic Potential (MLIP). This represents the heart of the "learning" part of the active learning loop. While previous cycles focused on generating and curating high-quality data, this cycle puts that data to use. It bridges the gap between raw quantum mechanical results and a fast, accurate, and usable surrogate model for large-scale simulations.
 
-The implementation will be encapsulated in a new `SurrogateExplorer` class. This class will orchestrate a two-stage filtering process. First, it will perform a rapid pre-screening using a general-purpose, pre-trained MLIP, such as MACE-MP-0. This surrogate model will be used to quickly calculate the energy and forces of every candidate structure generated in Cycle 02. Any structure that is deemed unphysical—for example, by having an exceptionally high energy, indicating overlapping atoms—will be immediately discarded. This step acts as a low-cost sanity check.
+The primary deliverable for this cycle is a `PacemakerTrainer` class. This class will encapsulate all the logic required to interact with the external Pacemaker training code. Its main responsibility will be to orchestrate the training workflow, which involves several key steps. First, it must read the accumulated DFT data from the central ASE database, which was populated in Cycle 1. Second, it must dynamically generate the necessary input configuration files for the Pacemaker executable. This configuration includes critical training hyperparameters such as the relative weights of energy, forces, and stress in the loss function, and settings for advanced features like Delta Learning.
 
-The second stage is a sophisticated diversity selection process. For the structures that pass the initial screening, the module will compute a structural fingerprint or "descriptor" for each one. We will use the Smooth Overlap of Atomic Positions (SOAP) descriptor, a powerful and widely-used representation of local atomic environments. With each structure now represented as a vector in a high-dimensional descriptor space, the module will employ the **Farthest Point Sampling (FPS)** algorithm. FPS is an iterative selection process that, starting from a random point, greedily selects the structure that is farthest away in descriptor space from all previously selected structures. This process ensures that the final selection of a few hundred structures is maximally diverse, providing the most "bang for the buck" for the subsequent DFT calculations. By the end of this cycle, we will have a complete "cold-start" data preparation pipeline: Module A generates a massive candidate pool, and Module B intelligently filters it down to a small, high-value dataset ready for the DFT Factory.
+Third, the `PacemakerTrainer` will be responsible for invoking the Pacemaker training process as a secure and monitored subprocess. It will capture the output logs to check for successful completion or to report errors. Finally, upon successful training, it will locate the generated potential file (typically with a `.yace` extension) and make it available for the next stages of the workflow.
 
----
+This cycle is a major milestone because it creates the first complete, albeit "open-loop," pipeline. By the end of this cycle, the system will be able to go from a set of atomic structures all the way to a trained potential, ready for use. This sets the stage for Cycle 4, where this potential will be deployed in a live simulation to close the active learning loop.
 
 ## 2. System Architecture
 
-This cycle's architecture introduces a new module for the exploration logic and requires extending the system configuration to manage its parameters. It directly consumes the output of Module A.
+The architecture for Cycle 3 introduces a new, specialised module for training, `mlip_autopipec/modules/training.py`. This module will depend on the database utilities created in Cycle 1 and will be orchestrated by the main workflow manager in a future cycle.
 
-**File Structure for Cycle 03:**
+**File Structure for Cycle 3:**
 
-The following files will be created or modified. New files are marked in **bold**.
+The following ASCII tree highlights the new files to be created in this cycle in **bold**.
 
 ```
-.
-└── src/
-    └── mlip_autopipec/
-        ├── config/
-        │   └── system.py       # Modified to add ExplorerParams
-        └── modules/
-            ├── generator.py
-            └── **explorer.py**     # Module B: SurrogateExplorer class
+mlip-autopipe/
+├── dev_documents/
+│   └── system_prompts/
+│       ├── CYCLE01/
+│       ├── CYCLE02/
+│       └── CYCLE03/
+│           ├── **SPEC.md**
+│           └── **UAT.md**
+├── mlip_autopipec/
+│   ├── modules/
+│   │   ├── __init__.py
+│   │   ├── dft.py
+│   │   ├── exploration.py
+│   │   └── **training.py**     # Core PacemakerTrainer implementation
+│   └── utils/
+│       └── ase_utils.py
+├── tests/
+│   └── modules/
+│       ├── __init__.py
+│       ├── test_dft.py
+│       ├── test_exploration.py
+│       └── **test_training.py**  # Unit and integration tests for training.py
+└── pyproject.toml
 ```
 
-**Component Breakdown:**
+**Component Blueprint: `modules/training.py`**
 
-*   **`config/system.py`**: The `SystemConfig` Pydantic model will be extended to include a new `ExplorerParams` sub-model. This configuration schema will define the parameters for Module B, such as the path to the pre-trained surrogate model file (e.g., `MACE-MP-0.model`), the energy threshold for the initial screening, the number of structures to select via FPS, and the parameters for the SOAP descriptor calculation (e.g., cutoff radius, atomic sigma).
+This file will contain the `PacemakerTrainer` class.
 
-*   **`modules/explorer.py`**: This new file will contain the `SurrogateExplorer` class. It will be initialized with the `SystemConfig`. Its main public method, `select()`, will take the list of `Atoms` objects produced by the `PhysicsInformedGenerator` as input. The class will encapsulate all the logic for the two-stage filtering process:
-    1.  **Surrogate Screening:** It will use the `mace-torch` library to load the surrogate model and run predictions.
-    2.  **Descriptor Calculation:** It will integrate with the `dscribe` library to compute the SOAP descriptors.
-    3.  **FPS Implementation:** It will contain a direct implementation of the Farthest Point Sampling algorithm.
-    The `select()` method will return a much smaller list of `Atoms` objects, representing the final, diverse selection.
+-   **`PacemakerTrainer` class:**
+    -   **`__init__(self, training_config)`**: The constructor takes a `TrainingConfig` Pydantic model. This object will specify all necessary parameters, such as the path to the Pacemaker executable, the database path, and all training hyperparameters. This dependency injection approach keeps the class decoupled and highly testable.
+    -   **`train(self) -> Path`**: This is the primary public method. It executes the entire training workflow and, upon success, returns the `Path` object pointing to the newly created potential file (`.yace`).
+    -   **`_read_data_from_db(self) -> List[ase.Atoms]`**: A private helper method that connects to the ASE database specified in the configuration and reads all stored atomic structures into a list. It will use the utilities defined in `ase_utils.py`.
+    -   **`_prepare_pacemaker_input(self, training_data: List[ase.Atoms], working_dir: Path) -> None`**: This method is responsible for setting up the training directory. It will:
+        1.  Write the `training_data` to a `.xyz` file in the format expected by Pacemaker.
+        2.  Generate the `pacemaker.in` configuration file. This will be done using a template engine (like Jinja2) to combine a base template with the specific hyperparameters from the `TrainingConfig` model.
+    -   **`_execute_training(self, working_dir: Path) -> subprocess.CompletedProcess`**: This method invokes the external `pacemaker` binary. It will change the current working directory to `working_dir` for the duration of the subprocess call. It uses `subprocess.run` to execute the command, capturing `stdout` and `stderr` for logging and diagnostics. It will raise an exception if the training code returns a non-zero exit code.
+    -   **`_find_output_potential(self, working_dir: Path) -> Path`**: After a successful training run, this method scans the `working_dir` to find the output potential file. It will typically look for a file ending in `.yace` and return its absolute path. If no such file is found, it will raise an error, as this indicates the training process failed silently.
 
-This design neatly separates the concerns of generation (Module A) and selection (Module B), making the data preparation pipeline modular and clear.
-
----
+This modular design ensures a clear separation of concerns: reading data, preparing inputs, executing the external process, and handling the output are all distinct, testable steps.
 
 ## 3. Design Architecture
 
-The `SurrogateExplorer` is designed as a data processing pipeline, taking a large list of data points and applying a sequence of filtering and selection transformations to it.
+The design of the Training Engine is guided by the project's Schema-First philosophy. The entire training process is configured via a strict Pydantic model, ensuring that all hyperparameters are valid and well-defined before the potentially time-consuming training process is launched.
 
-**Pydantic Schema Design (`system.py` extension):**
+**Pydantic Schema Definitions:**
 
-*   **`ExplorerParams`**: This new `BaseModel` within `SystemConfig` will be the single source of truth for all selection parameters.
-    *   **Nested Structure**: To maintain clarity, it will contain sub-models like `SurrogateModelParams` and `FPSParams`.
-    *   **`SurrogateModelParams`**: Will include `model_path: str` and `energy_threshold_ev: float`. The threshold will be used to discard any structure whose predicted energy per atom is above this value.
-    *   **`FPSParams`**: Will define `n_select: int` (the final number of structures to choose) and `soap_params: SOAPParams`, a further nested model defining the hyperparameters for the SOAP descriptor (e.g., `n_max`, `l_max`, `r_cut`).
-    *   **Producers and Consumers**: The `HeuristicEngine` produces these parameters, and the `SurrogateExplorer` is the sole consumer.
+The following Pydantic models will be added to `mlip_autopipec/config/models.py`.
 
-**`SurrogateExplorer` Class Design (`explorer.py`):**
+1.  **`LossWeights(BaseModel)`**: A nested model to define the relative weights in the loss function.
+    -   `energy: float = Field(1.0, gt=0)`: Weight for the energy term.
+    -   `forces: float = Field(100.0, gt=0)`: Weight for the force components.
+    -   `stress: float = Field(10.0, gt=0)`: Weight for the stress tensor components.
 
-*   **Interface**: The public API will be minimal and clear: `__init__(self, config: SystemConfig)` and `select(self, candidates: List[Atoms]) -> List[Atoms]`. This functional design (list in, list out) makes the component easy to test and reason about.
-*   **Internal Logic**: The `select` method will orchestrate the filtering pipeline:
-    1.  **`_screen_with_surrogate`**: A private method that takes the full list of candidates. It will initialize the MACE model (from the path in the config) and iterate through the structures, calculating the potential energy for each. It will return a new list containing only those structures whose energy per atom is below the configured threshold.
-    2.  **`_calculate_descriptors`**: This method will take the screened list of structures. It will configure the SOAP descriptor generator from `dscribe` using the `soap_params` from the config. It will then compute the average SOAP descriptor for each structure, returning a 2D NumPy array where each row is the descriptor vector for a structure.
-    3.  **`_farthest_point_sampling`**: This method will contain the core FPS logic. It will take the descriptor matrix and the `n_select` parameter. Its implementation will be as follows:
-        *   Initialize an empty list for the selected indices and choose a random starting index.
-        *   Maintain an array of the minimum distance from each point to any *already selected* point.
-        *   In a loop that runs `n_select` times:
-            *   Find the point with the maximum value in the minimum-distance array. This is the point "farthest" from the current selection.
-            *   Add its index to the list of selected indices.
-            *   Update the minimum-distance array by comparing each point's distance to the newly selected point.
-        *   This method will return the list of indices of the selected structures.
-    4.  The main `select` method will then use these indices to build the final list of `Atoms` objects to be returned.
-*   **Efficiency**: For performance, descriptor calculation will be batched if possible. The distance calculations in FPS will leverage NumPy's vectorized operations to be efficient.
+2.  **`TrainingConfig(BaseModel)`**: The main configuration object for the `PacemakerTrainer`.
+    -   `pacemaker_executable: FilePath`: The path to the Pacemaker training binary. `FilePath` ensures the executable exists.
+    -   `data_source_db: Path`: The path to the ASE database containing the training data.
+    -   `template_file: FilePath`: The path to the Jinja2 template for the `pacemaker.in` file.
+    -   `delta_learning: bool = True`: A flag to enable or disable learning relative to a ZBL baseline.
+    -   `loss_weights: LossWeights = Field(default_factory=LossWeights)`: The nested model for loss function weights.
+    -   `model_config = ConfigDict(extra='forbid')`: Enforces strictness in the configuration.
 
-This design ensures the selection process is deterministic (with a fixed random seed for the initial point), configurable, and modular. Replacing the selection algorithm or the descriptor type would only require changing one or two private methods, without altering the class's public interface.
+**Data Flow and Consumers:**
 
----
+-   **Producer of Data:** The ASE Database, populated by the `DFTFactory` (Cycle 1) and curated by the `SurrogateExplorer` (Cycle 2), is the source of training data.
+-   **Consumer of Data:** The `PacemakerTrainer` is the primary consumer of the data in the ASE database.
+-   **Producer of Model:** The `PacemakerTrainer` produces the final MLIP file (`.yace`).
+-   **Consumer of Model:** The `LammpsRunner` (to be implemented in Cycle 4) will be the primary consumer of the generated `.yace` file, using it to run molecular dynamics simulations.
+-   **Trigger:** The `WorkflowManager` (future cycle) will be responsible for instantiating and calling the `PacemakerTrainer.train()` method whenever sufficient new data has been added to the database.
+
+**Invariants and Constraints:**
+-   A training run will not be attempted if the number of structures in the database is below a certain threshold (e.g., 50). This prevents wasted effort on training a model with insufficient data.
+-   The `template_file` must contain the correct Jinja2 placeholders corresponding to the fields in the `TrainingConfig` and `LossWeights` models.
+-   All structures read from the database for training must contain forces. Structures without forces will be ignored or will cause an error.
+
+This design ensures that the training process is reproducible, configurable, and robust, with clear data contracts between the different parts of the overall system.
 
 ## 4. Implementation Approach
 
-The implementation will focus on integrating the `mace-torch` and `dscribe` libraries and then implementing the FPS algorithm.
+The implementation will proceed logically, starting with configuration, then data handling, and finally process execution.
 
-1.  **Extend Configuration (`system.py`):**
-    *   Add the `mace-torch` and `dscribe` libraries to the dependencies in `pyproject.toml`.
-    *   Define the `SOAPParams`, `SurrogateModelParams`, and `FPSParams` Pydantic models.
-    *   Compose them into the main `ExplorerParams` model.
-    *   Add the `explorer: ExplorerParams` attribute to the `SystemConfig`.
+1.  **Add Dependencies:** If a template engine like Jinja2 is to be used, it will be added to the project's dependencies in `pyproject.toml`.
 
-2.  **Scaffold the Explorer Class (`explorer.py`):**
-    *   Create the new file `src/mlip_autopipec/modules/explorer.py`.
-    *   Define the `SurrogateExplorer` class with its `__init__` and `select` methods.
-    *   Create empty private methods for each stage of the pipeline: `_screen_with_surrogate`, `_calculate_descriptors`, and `_farthest_point_sampling`.
+2.  **Update Pydantic Models:** The first step is to add the `LossWeights` and `TrainingConfig` models to the `mlip_autopipec/config/models.py` file.
 
-3.  **Implement Surrogate Screening:**
-    *   In `_screen_with_surrogate`, write the code to load a MACE model using `mace.models.MACE.load()`.
-    *   Use the ASE `mace_mp_calculator` to attach the calculator to each `Atoms` object and get the potential energy.
-    *   Implement the filtering logic based on the `energy_threshold_ev` from the config.
+3.  **Create `pacemaker.in` Template:** A template file (`pacemaker.in.j2`) will be created. This file will look like a standard `pacemaker.in` file, but with Jinja2 placeholders for values that will be configured at runtime.
+    ```ini
+    # pacemaker.in.j2
+    ...
+    delta_learn = {{ config.delta_learning | lower }}
+    ...
+    [loss_weights]
+    energy = {{ config.loss_weights.energy }}
+    forces = {{ config.loss_weights.forces }}
+    stress = {{ config.loss_weights.stress }}
+    ...
+    ```
 
-4.  **Implement Descriptor Calculation:**
-    *   In `_calculate_descriptors`, instantiate `dscribe.descriptors.SOAP` with the parameters from `config.explorer.fps.soap_params`.
-    *   Use the `soap.create()` method to generate the descriptors for the list of structures. Crucially, SOAP returns a 3D array (`n_atoms`, `n_features`) for each structure, so we must average this over the atoms (axis=1) to get a single descriptor vector per structure.
+4.  **Implement Data Reading:** In `modules/training.py`, implement the `_read_data_from_db` helper method. This will use `ase.db.connect(self.config.data_source_db)` and a simple loop to read all rows into a list of `ase.Atoms` objects.
 
-5.  **Implement Farthest Point Sampling:**
-    *   In `_farthest_point_sampling`, implement the algorithm as described in the Design Architecture section. Use `scipy.spatial.distance.cdist` for efficient distance matrix calculations between descriptor vectors. Ensure the initial point selection is seeded for reproducibility.
+5.  **Implement Input Preparation:** Implement the `_prepare_pacemaker_input` method.
+    -   It will first use ASE's `ase.io.write` to save the list of `ase.Atoms` objects to a file named `training_data.xyz` inside the specified `working_dir`.
+    -   It will then load the Jinja2 template, render it with the `TrainingConfig` object, and write the result to `pacemaker.in` inside the `working_dir`.
 
-6.  **Integrate and Finalise:**
-    *   Assemble the logic in the main `select` method to call the private methods in the correct sequence.
-    *   Add logging statements to provide visibility into the filtering process (e.g., "Generated 10,000 candidates. After surrogate screening, 8,500 remain. Selecting 200 via FPS.").
-    *   Ensure all necessary imports are added and run linters and type checkers.
+6.  **Implement Training Execution:** Implement the `_execute_training` method. It will use `subprocess.run`, setting the `cwd` (current working directory) argument to the `working_dir`. It will also set `check=True` to ensure that an exception is raised automatically if the subprocess returns a non-zero exit code.
 
-7.  **Write Tests (`tests/modules/test_explorer.py`):**
-    *   Create a new test file.
-    *   Unit test the FPS algorithm with a simple, 2D dataset where the correct selection sequence is known by inspection.
-    *   Write an integration test for the `select` method. This test will use a fixture providing a list of `Atoms` objects. It will mock the `mace` model's predictions and the `dscribe` descriptor calculation to return predefined values. The test will then assert that the final selection contains the expected number of structures and that the selection logic was applied correctly.
+7.  **Implement Output Handling:** Implement the `_find_output_potential` method. It will use `pathlib.Path.glob` to search for `*.yace` files within the `working_dir`. It should handle cases where zero or more than one potential file is found.
 
----
+8.  **Assemble the `PacemakerTrainer` Class:** Finally, implement the main `train()` method. This method will create a temporary directory for the training run, then call the helper methods in sequence: `_read_data_from_db`, `_prepare_pacemaker_input`, `_execute_training`, and `_find_output_potential`. It will return the path provided by the final method.
+
+This structured approach ensures that each part of the complex training orchestration is handled by a dedicated, single-responsibility function, which is easier to debug and test.
 
 ## 5. Test Strategy
 
-Testing for Cycle 03 must verify both the filtering logic and the core selection algorithm's correctness.
+Testing the `PacemakerTrainer` involves a combination of unit tests with extensive mocking to validate the logic, and a targeted integration test to verify the interaction with the external training code.
 
 **Unit Testing Approach (Min 300 words):**
 
-The primary focus of unit testing will be the `_farthest_point_sampling` method, as it is a pure, self-contained algorithm.
+Unit tests in `tests/modules/test_training.py` will focus on the orchestration logic of the `PacemakerTrainer` without actually running the expensive training process.
 
-*   **FPS Algorithm Correctness (`tests/modules/test_explorer.py`):**
-    We will design a test case, `test_fps_selection_logic`, that is simple and visually verifiable. We will create a 2D NumPy array representing the descriptor vectors of a few points arranged in a specific geometry, for example, several points clustered together and two or three points far away from the cluster and each other. We will then call the `_farthest_point_sampling` method, asking it to select, say, 3 points. The test will fix the random seed so the starting point is always the same. By simple geometric intuition, the algorithm should select the three widely separated points. The test will assert that the indices returned by the FPS function are exactly the indices of these known "far" points. We can have another test where the points are on a simple line (e.g., at x=0, 1, 5, 10). If we ask for 3 points and start at 0, it should select 10, then 5. This test directly validates the core logic of the diversity selection mechanism without any dependencies on surrogate models or descriptors.
+-   **Testing Input File Generation:** The most critical unit test will be for the `_prepare_pacemaker_input` method. We will create a test that instantiates a `PacemakerTrainer` with a specific `TrainingConfig` object. It will then call the preparation method, pointing it to a temporary directory. The test will then read the generated `pacemaker.in` file from this directory and assert that its contents are exactly as expected. For example, it will assert that the line `energy = 1.0` is present if the `LossWeights` were set to their default values. It will also check that the `training_data.xyz` file was created.
+
+-   **Mocking Process Execution:** The main `train()` method will be tested by mocking `subprocess.run`.
+    -   A test for the "happy path" (`test_train_success`) will configure the mock to return a `CompletedProcess` with a return code of 0. The test will then assert that the `train` method completes without raising an exception and returns a path. We can also mock `_find_output_potential` to return a dummy path to ensure the full chain is tested.
+    -   A test for the failure path (`test_train_failure`) will configure the mock to raise a `CalledProcessError` (or to have a non-zero return code). The test will then use `pytest.raises` to assert that the `train` method correctly raises a custom exception (e.g., `TrainingError`).
+
+-   **Mocking Database Interaction:** We can test the `_read_data_from_db` method by creating a mock ASE database object and patching `ase.db.connect`. This allows us to test the data reading logic without needing a real database file on disk.
 
 **Integration Testing Approach (Min 300 words):**
 
-The integration tests will verify the orchestration of the entire selection pipeline within the `SurrogateExplorer` class, using mocks for the external libraries.
+The integration test provides the ultimate confidence that the trainer can successfully interact with the real Pacemaker executable. While potentially slow, a single end-to-end test is invaluable.
 
-*   **Full Selection Pipeline (`tests/modules/test_explorer.py`):**
-    The main integration test, `test_select_pipeline`, will verify the sequence of operations.
-    1.  **Test Fixture**: We will create a `pytest` fixture that provides a list of ten simple ASE `Atoms` objects.
-    2.  **Mocking**: We will use `mocker` to patch the `mace` model's `get_potential_energy` method and the `dscribe` `SOAP.create` method.
-    3.  **Configuration**: We will create a `SystemConfig` for the test. The `SurrogateModelParams` will have an `energy_threshold_ev` set to a specific value. The `FPSParams` will request `n_select = 3`.
-    4.  **Mock Behaviour**: We will configure the mock for the MACE model to return high energies for three of the ten atoms, ensuring they should be filtered out. For the remaining seven structures, the mock for `dscribe` will be configured to return a pre-defined set of descriptor vectors, where we know which three are the most diverse (as in the unit test).
-    5.  **Execution**: We will instantiate the `SurrogateExplorer` and call its public `select` method with the list of ten `Atoms` objects.
-    6.  **Assertions**: The test will make several assertions. First, it will assert that the returned list contains exactly 3 `Atoms` objects, matching `n_select`. Second, it will assert that none of the three structures that were assigned high energies are present in the final list. Finally, by checking the identity of the atoms in the final list, it will assert that the three structures selected are indeed the ones corresponding to the most diverse descriptors we pre-defined. This test comprehensively validates that both the energy screening and FPS selection stages are working together as intended.
+-   **End-to-End Mini-Training Run:** This test, marked with `@pytest.mark.integration`, will validate the entire process on a small scale.
+    1.  **Setup:** The test will first create a temporary directory. Inside it, it will create a "toy" ASE database and populate it with a small number (e.g., 20-30) of pre-calculated, valid `ase.Atoms` objects for a simple system like Silicon. This provides a self-contained, reproducible dataset.
+    2.  **Configuration:** A `TrainingConfig` object will be created, pointing to the real `pacemaker` executable and the toy database created in the setup step. The training parameters in the template will be set for a very short, fast run (e.g., only a few iterations).
+    3.  **Execution:** The test will instantiate a `PacemakerTrainer` with this configuration and call the `train()` method.
+    4.  **Assertion:** The assertions will verify the successful completion of the process. The test will assert that the `train` method does not raise an exception. Most importantly, it will assert that the returned path exists, is a file, and has the `.yace` extension. A more advanced assertion could even use ASE to try and load the resulting potential file to ensure it is not corrupted. This test provides a definitive "yes/no" answer to the question: "Can our trainer successfully produce a potential?"

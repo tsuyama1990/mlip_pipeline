@@ -1,93 +1,136 @@
-# MLIP-AutoPipe: Cycle 01 User Acceptance Testing
-
-- **Cycle**: 01
-- **Title**: The Foundation - Schemas and DFT Factory Core
-- **Status**: Design
-
----
+# CYCLE01: The Foundation - Automated DFT Factory (UAT.md)
 
 ## 1. Test Scenarios
 
-User Acceptance Testing (UAT) for Cycle 01 is designed to be a developer-centric tutorial. Its goal is to demonstrate the foundational capabilities of the system—configuration management and core DFT execution—and to build confidence in the architectural choices made. The UAT will be presented as a single, narrative-driven Jupyter Notebook (`01_core_functionality.ipynb`). This format is chosen to provide a hands-on, exploratory experience, allowing the "user" (in this case, a fellow developer or system integrator) to execute code snippets, inspect the objects created, and directly verify that the system's core components behave exactly as specified. This notebook serves not only as a test but also as the first piece of developer documentation, showcasing how to programmatically interact with the core objects of the MLIP-AutoPipe system.
+User Acceptance Testing (UAT) for Cycle 1 is designed to verify that the core functionality of the Automated DFT Factory is robust, reliable, and delivers the expected outcomes for a foundational component. The scenarios are designed from the perspective of a user (or a component acting on the user's behalf) who wants to perform a DFT calculation on a given atomic structure without needing to understand the intricate details of the underlying DFT engine. The primary vehicle for this UAT will be a Jupyter Notebook, which provides an ideal interactive environment to demonstrate each feature, show the inputs and outputs clearly, and serve as a living document and tutorial for the system's capabilities.
+
+| Scenario ID   | Test Scenario                                             | Priority |
+|---------------|-----------------------------------------------------------|----------|
+| UAT-C1-001    | **Successful "Happy Path" Calculation**                   | **High**     |
+| UAT-C1-002    | **Automatic Parameter Heuristics Verification**           | **High**     |
+| UAT-C1-003    | **Resilience to Convergence Failure**                     | **High**     |
+| UAT-C1-004    | **Data Persistence and Retrieval**                        | **Medium**   |
 
 ---
 
-### **Scenario ID: UAT-C01-01**
-- **Title**: Verifying Configuration Schema and DFT Execution
-- **Priority**: Critical
+### **Scenario UAT-C1-001: Successful "Happy Path" Calculation**
+
+**(Min 300 words)**
 
 **Description:**
-This scenario guides the user through the entire workflow of Cycle 01. It demonstrates how the Pydantic schemas enforce correctness, how a configuration object is used to control a DFT calculation, and how the results are reliably parsed and stored. The user will interact with the `SystemConfig`, the `QEProcessRunner`, and the `DatabaseManager` to perform a single, validated, end-to-end calculation for a simple material (a single Nickel atom). This provides tangible proof that the foundational building blocks of the entire MLIP-AutoPipe system are robust, predictable, and working as designed.
+This is the most fundamental test case. Its purpose is to verify that the system can successfully perform a standard, end-to-end DFT calculation for a well-behaved atomic structure and return a physically plausible result. This scenario confirms that all the basic components—input file generation, process execution, and output parsing—are correctly integrated and functioning as expected. It serves as the baseline for all other tests. A simple, well-understood material like a bulk Silicon (Si) crystal provides a perfect test case, as its properties are widely known, and DFT calculations on it are typically stable and fast.
 
-**UAT Steps via Jupyter Notebook (`01_core_functionality.ipynb`):**
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** The notebook will begin by importing the necessary libraries (`ase`, `pathlib`) and the `DFTFactory` class from the project's source code. It will also define the path to the ASE database file that will be used for the tests.
+2.  **Create Structure:** An `ase.Atoms` object for a standard 2-atom conventional cell of Silicon will be created. The cell parameters and atomic positions will be explicitly defined. The notebook cell will display a 3D visualisation of this structure to provide clear visual confirmation of the input.
+3.  **Instantiate Factory:** An instance of the `DFTFactory` will be created. The configuration passed to it will be minimal, primarily specifying the location of the Quantum Espresso executable.
+4.  **Execute Calculation:** The `dft_factory.run(si_atoms)` method will be called. The notebook cell will print a message like "Running DFT calculation for Si...". The execution will be timed to ensure it completes within an expected timeframe (e.g., under 60 seconds for a simple system).
+5.  **Display Results:** Upon successful completion, the returned `DFTResult` object will be captured. The notebook will then display its contents in a clean, readable format. This includes printing the calculated total energy (in eV), the forces on each atom (as a NumPy array), and the virial stress tensor.
+6.  **Assertion:** The final step will involve a simple check to confirm the results are reasonable. The test will assert that the calculated energy is negative (as expected for a bound system) and within a known, wide range for bulk silicon. It will also verify that the forces are very close to zero, as the input structure is already at its equilibrium position. This demonstrates that the calculation was physically meaningful.
 
-**Part 1: The Power of Schemas**
-*   The notebook will begin by importing the `SystemConfig` and `UserConfig` models.
-*   **Step 1.1 (Happy Path):** We will instantiate `UserConfig` with a valid, minimal input for a Nickel system. Then, we will show how this is programmatically expanded into the comprehensive `SystemConfig`, and we will print a few key default parameters (e.g., `config.dft.control.verbosity`, `config.dft.system.ecutwfc`) to demonstrate the automated, heuristic-driven parameterisation.
-*   **Step 1.2 (Failure Path):** To showcase the system's robustness, we will then attempt to create a `UserConfig` with an invalid `composition` (fractions don't sum to 1.0). The notebook cell will execute this, and the expected output will be a clean `pydantic.ValidationError`. This amazes the user by proving that the system is self-protecting against simple user errors, catching them early with clear messages.
+---
 
-**Part 2: Executing a DFT Calculation**
-*   **Step 2.1 (Setup):** We will create a simple ASE `Atoms` object representing a single Ni atom in a periodic box.
-*   **Step 2.2 (Instantiation):** We will instantiate the `QEProcessRunner` with the valid `SystemConfig` created in Step 1.1.
-*   **Step 2.3 (Execution):** The notebook will call `runner.run(atoms)`. **Crucially, this will use a mocked backend.** The UAT is not about testing Quantum Espresso, but our system's interaction with it. The notebook will explain that a `pytest-mock` patch is active, simulating a successful QE run and returning pre-canned output. This keeps the UAT fast and self-contained.
-*   **Step 2.4 (Verification):** We will print the `results` dictionary from the returned `Atoms` object. The user will see the correctly parsed energy, forces, and stress, verifying the parsing logic.
+### **Scenario UAT-C1-002: Automatic Parameter Heuristics Verification**
 
-**Part 3: Data Persistence**
-*   **Step 3.1 (Setup):** We will instantiate the `DatabaseManager`, pointing it to a temporary file (`test_db.sqlite`).
-*   **Step 3.2 (Writing):** We will call `db_manager.write_calculation(result_atoms, metadata={'config_type': 'uat_c01'})`.
-*   **Step 3.3 (Verification):** Finally, we will use the `ase.db.connect` function directly to open the database file. We will retrieve the last entry and print its contents. The user will see not only the standard ASE data but also our custom `key_value_pairs`, including the `config_type`. This provides definitive proof that our data persistence layer is working correctly and extending the ASE DB as designed. The notebook will conclude by cleaning up the created database file.
+**(Min 300 words)**
+
+**Description:**
+A core value proposition of the `DFTFactory` is its ability to automatically determine sensible calculation parameters, removing this burden from the user. This UAT scenario is designed to amaze the user by demonstrating this "magic" in action. It will show that by providing two vastly different atomic structures—a simple metal and a more complex, magnetic alloy—the factory intelligently adapts the DFT parameters to suit each case without requiring any specific instructions. This directly validates the system's codified domain knowledge.
+
+**UAT Steps in Jupyter Notebook:**
+1.  **Setup:** As before, the `DFTFactory` is imported. This test will also require a way to "spy" on the parameters being used. A temporary logging configuration will be added to the notebook to print the generated DFT input file to the screen.
+2.  **Case 1: Simple Metal (Aluminium):**
+    -   An `ase.Atoms` object for a face-centred cubic (FCC) Aluminium (Al) cell is created.
+    -   The `dft_factory.run(al_atoms)` method is called.
+    -   The test will then capture and display the generated Quantum Espresso input file. The user will be shown that the system automatically selected an appropriate k-point mesh (e.g., 8x8x8) and correctly identified the system as a metal by including `'smearing'` parameters.
+3.  **Case 2: Magnetic Alloy (Iron):**
+    -   An `ase.Atoms` object for a body-centred cubic (BCC) Iron (Fe) cell is created.
+    -   The `dft_factory.run(fe_atoms)` method is called.
+    -   Again, the generated input file is displayed. The user will be shown two key differences:
+        1.  The system has correctly identified Iron as a magnetic element and has automatically enabled a spin-polarised calculation (`nspin = 2`).
+        2.  It has also set an initial magnetic moment (`starting_magnetization(1) = 0.5`) to ensure the calculation converges to the correct magnetic state.
+4.  **Assertion:** The notebook will explicitly point out these automatically generated parameters, contrasting the two cases. The success of this scenario is not in the final energy value but in demonstrating that the system's internal heuristics are working correctly and adapting to the chemical nature of the input structure. This provides confidence that the factory is not just a simple wrapper but an intelligent agent.
 
 ---
 
 ## 2. Behavior Definitions
 
-These behaviors describe the expected outcomes of the UAT scenario in a Gherkin-style format. They precisely define the contract that the Cycle 01 implementation must fulfill.
+This section defines the expected behaviors of the system in the Gherkin-style Given/When/Then format. These definitions provide a clear and unambiguous specification of the system's requirements for each scenario.
 
-**Feature: Core System Foundation**
-As a developer, I want to ensure that the system's configuration is strictly validated and that the DFT factory can reliably execute and persist a calculation, so that I can build more complex modules on a stable foundation.
+### **UAT-C1-001: Successful "Happy Path" Calculation**
 
----
+```gherkin
+Feature: Basic DFT Calculation
+  As a materials science researcher,
+  I want to calculate the energy and forces of an atomic structure,
+  So that I can obtain its fundamental physical properties.
 
-**Scenario: Validating Configuration Schemas**
+  Scenario: Calculate properties for a standard Silicon crystal
+    Given a valid atomic structure for a 2-atom Silicon conventional cell
+    And a correctly configured DFT Factory
+    When I run a DFT calculation for the Silicon structure
+    Then the process should complete successfully within 90 seconds
+    And the returned result should contain a total energy, forces, and stress
+    And the total energy should be a negative floating-point number
+    And the forces on each atom should be close to zero (e.g., magnitude < 1e-4 eV/Angstrom)
+```
 
-*   **GIVEN** I am a developer working within the Jupyter Notebook environment.
-*   **AND** I have imported the `UserConfig` and `SystemConfig` Pydantic models.
-*   **WHEN** I instantiate `UserConfig` with a valid dictionary, for example `{'elements': ['Ni'], 'composition': {'Ni': 1.0}}`.
-*   **THEN** a `UserConfig` object is successfully created without errors.
-*   **AND** I can then create a `SystemConfig` from this `UserConfig`.
-*   **AND** the `SystemConfig` object contains the expected default DFT parameters, such as `config.dft.system.nspin` being `2` because Nickel is a magnetic element.
+### **UAT-C1-002: Automatic Parameter Heuristics Verification**
 
----
+```gherkin
+Feature: Intelligent DFT Parameter Generation
+  As a user with minimal DFT expertise,
+  I want the system to automatically choose correct and safe DFT parameters,
+  So that I can run reliable calculations for different types of materials.
 
-**Scenario: Rejecting Invalid Configuration**
+  Scenario: System automatically detects a metal and applies smearing
+    Given an atomic structure for a metallic element like Aluminium
+    And a DFT Factory with basic configuration
+    When I run a DFT calculation for the Aluminium structure
+    Then the system should generate a DFT input file
+    And that file must contain parameters for metallic smearing (e.g., occupations = 'smearing' and degauss > 0).
 
-*   **GIVEN** I am a developer working within the Jupyter Notebook environment.
-*   **AND** I have imported the `UserConfig` Pydantic model.
-*   **WHEN** I attempt to instantiate `UserConfig` with an invalid `composition` where the fractions do not sum to 1.0 (e.g., `{'Ni': 0.8, 'Fe': 0.3}`).
-*   **THEN** the system MUST raise a `pydantic.ValidationError`.
-*   **AND** the error message MUST clearly indicate that the composition fractions do not sum to 1.0.
+  Scenario: System automatically detects a magnetic element and enables spin-polarization
+    Given an atomic structure for a magnetic element like Iron
+    And a DFT Factory with basic configuration
+    When I run a DFT calculation for the Iron structure
+    Then the system should generate a DFT input file
+    And that file must contain the parameter to enable spin-polarization (e.g., nspin = 2)
+    And that file must contain a non-zero starting magnetization.
+```
 
----
+### **UAT-C1-003: Resilience to Convergence Failure**
 
-**Scenario: Successful Mocked DFT Execution and Parsing**
+```gherkin
+Feature: Automated Error Recovery
+  As a researcher running a large-scale automated workflow,
+  I want the system to automatically recover from common DFT convergence errors,
+  So that my workflow does not crash and require manual intervention.
 
-*   **GIVEN** I have a valid `SystemConfig` object for a Nickel system.
-*   **AND** I have created an ASE `Atoms` object for a single Ni atom.
-*   **AND** the `subprocess.run` call inside the `QEProcessRunner` is mocked to simulate a successful Quantum Espresso execution.
-*   **AND** the mock is configured to return a standard QE output string containing known values for energy, forces, and stress.
-*   **WHEN** I instantiate `QEProcessRunner` with the `SystemConfig` and call its `run` method with the `Atoms` object.
-*   **THEN** the `run` method returns the `Atoms` object.
-*   **AND** the returned object's `.calc.results` dictionary contains the keys `'energy'`, `'forces'`, and `'stress'`.
-*   **AND** the values for these keys match the known values from the mocked output string, with units correctly converted to eV and Ångströms.
+  Scenario: Calculation fails to converge but recovers by adjusting parameters
+    Given a computationally "difficult" atomic structure known to cause convergence issues
+    And a DFT Factory configured with a maximum of 3 retry attempts
+    When I run a DFT calculation for the difficult structure
+    Then the system should initially fail the first DFT run
+    And the system should log that it is attempting a recovery (e.g., "Convergence failed. Retrying with modified parameters...")
+    And the system should automatically modify a relevant parameter (e.g., reduce 'mixing_beta')
+    And the system should eventually succeed within the allowed retry attempts
+    And the final result returned should be a valid DFT result object.
+```
 
----
+### **UAT-C1-004: Data Persistence and Retrieval**
 
-**Scenario: Persisting Calculation Results with Custom Metadata**
+```gherkin
+Feature: Storing Calculation Results
+  As a user running multiple calculations,
+  I want the system to save every successful result to a database,
+  So that I have a persistent and queryable record of my training data.
 
-*   **GIVEN** I have an ASE `Atoms` object that contains the results from a successful (mocked) DFT calculation.
-*   **AND** I have instantiated a `DatabaseManager` pointing to a new, temporary SQLite database file.
-*   **WHEN** I call the `db_manager.write_calculation` method, passing the `Atoms` object and a metadata dictionary `{'config_type': 'uat_c01', 'custom_id': 'abc'}`.
-*   **THEN** the method completes without errors.
-*   **AND** when I connect to the SQLite file and retrieve the last row written.
-*   **AND** that row's `key_value_pairs` correctly contains the key `'mlip_config_type'` with the value `'uat_c01'`.
-*   **AND** it also contains the key `'mlip_custom_id'` with the value `'abc'`.
+  Scenario: Save a successful DFT result to an ASE database
+    Given a valid atomic structure and its corresponding successful DFT result
+    And the path to a new, empty ASE database file
+    When I use the database utility to save the result
+    Then the database file should be created on disk
+    And the database should contain exactly one entry
+    And when I read that entry back from the database, its stored energy and forces should match the original DFT result.
+```

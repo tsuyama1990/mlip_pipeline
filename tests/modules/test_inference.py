@@ -1,155 +1,109 @@
-# ruff: noqa: D101, D102
-from unittest.mock import MagicMock
+from pathlib import Path
 
 import numpy as np
 import pytest
-from ase import Atoms
 from ase.build import bulk
 
-from mlip_autopipec.config_schemas import SystemConfig
-from mlip_autopipec.modules.inference import LammpsRunner, UncertaintyQuantifier
+from mlip_autopipec.config.models import InferenceConfig, UncertaintyConfig
+from mlip_autopipec.modules.inference import (
+    LammpsRunner,
+    extract_embedded_structure,
+)
 
 
 @pytest.fixture
-def mock_system_config() -> SystemConfig:
-    """Provide a mock SystemConfig for testing the LammpsRunner."""
-    config_dict = {
-        "target_system": {"elements": ["Cu"], "composition": {"Cu": 1.0}},
-        "dft": {
-            "executable": {"command": "pw.x"},
-            "input": {"pseudopotentials": {"Cu": "Cu.UPF"}},
-        },
-        "inference": {
-            "uncertainty_threshold": 4.0,
-            "total_simulation_steps": 10,
-        },
-    }
-    return SystemConfig(**config_dict)
-
-
-def test_lammps_runner_initialization(mock_system_config: SystemConfig) -> None:
-    """Test that the LammpsRunner initializes correctly."""
-    quantifier = UncertaintyQuantifier()
-    runner = LammpsRunner(
-        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
+def mock_inference_config(tmp_path):
+    lammps_exec = tmp_path / "lmp"
+    potential_path = tmp_path / "potential.yace"
+    lammps_exec.touch()
+    potential_path.touch()
+    config = InferenceConfig(
+        lammps_executable=lammps_exec,
+        potential_path=potential_path,
+        uncertainty_params=UncertaintyConfig(
+            embedding_cutoff=8.0, masking_cutoff=4.0, threshold=0.5
+        ),
     )
-    assert runner.config == mock_system_config
-    assert runner.potential_path == "test.yace"
-    assert runner.quantifier == quantifier
+    return config
 
 
-def test_runner_raises_error_if_inference_config_missing(
-    mock_system_config: SystemConfig,
-) -> None:
-    """Test that ValueError is raised if inference config is missing."""
-    mock_system_config.inference = None
-    with pytest.raises(
-        ValueError, match="Inference parameters must be defined in the config."
-    ):
-        LammpsRunner(
-            config=mock_system_config,
-            potential_path="test.yace",
-            quantifier=UncertaintyQuantifier(),
-        )
+def test_extract_embedded_structure():
+    """
+    Unit test for the periodic embedding and force masking logic.
+    """
+    large_cell = bulk("Si", "diamond", a=5.43, cubic=True) * (4, 4, 4)
+    center_atom_index = len(large_cell) // 2  # Pick an atom in the middle
+    config = UncertaintyConfig(embedding_cutoff=6.0, masking_cutoff=3.0, threshold=0.5)
+
+    result = extract_embedded_structure(large_cell, center_atom_index, config)
+
+    # Check embedding
+    assert result.atoms.get_pbc().all()
+    assert np.all(result.atoms.cell.lengths() > 11.9)  # Close to 2*cutoff
+    assert len(result.atoms) < len(large_cell)
+
+    # Check force masking
+    assert result.force_mask.dtype == int
+    assert np.sum(result.force_mask) > 0  # At least one core atom
+    assert np.sum(result.force_mask) < len(result.atoms)  # At least one buffer
 
 
-def test_runner_yields_embedded_atoms_and_mask_on_uncertainty(
-    mock_system_config: SystemConfig,
-) -> None:
-    """Verify the runner yields the embedded sub-cell and mask correctly."""
-    quantifier = UncertaintyQuantifier()
-    quantifier._mock_sequence = [1.0, 4.5]  # The second grade is above the threshold
-    runner = LammpsRunner(
-        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
+def test_lammps_script_generation(mock_inference_config, tmp_path):
+    """
+    Test that the LAMMPS input script is generated correctly.
+    """
+    runner = LammpsRunner(inference_config=mock_inference_config)
+    atoms = bulk("Si", "diamond", a=5.43)
+    structure_file = tmp_path / "structure.data"
+    script_path = runner._prepare_lammps_input(
+        atoms, tmp_path, structure_file, mock_inference_config.potential_path
     )
-    generator = runner.run()
+    script_content = script_path.read_text()
 
-    # The generator should yield on the second step and then terminate
-    embedded_atoms, force_mask = next(generator)
-    assert isinstance(embedded_atoms, Atoms)
-    assert isinstance(force_mask, np.ndarray)
-    assert embedded_atoms.get_pbc().all()  # type: ignore[no-untyped-call]
-    assert len(embedded_atoms) < 32  # Original structure was 32 atoms
-
-    # Verify the generator is exhausted
-    with pytest.raises(StopIteration):
-        next(generator)
+    assert "pair_style      pace" in script_content
+    assert f"pair_coeff      * * {mock_inference_config.potential_path.name} Si" in script_content
+    assert f"read_data       {structure_file.name}" in script_content
+    assert f"timestep        {runner.config.md_params.timestep}" in script_content
+    assert f"run             {runner.config.md_params.run_duration}" in script_content
 
 
-def test_periodic_embedding_logic(mock_system_config: SystemConfig) -> None:
-    """Test the _extract_periodic_subcell method with a corner case."""
-    runner = LammpsRunner(
-        config=mock_system_config,
-        potential_path="test.yace",
-        quantifier=UncertaintyQuantifier(),
+@pytest.mark.integration
+def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
+    """
+    Test the full LAMMPS run and uncertainty detection workflow by mocking
+    the subprocess and the LAMMPS output files.
+    """
+    from unittest.mock import MagicMock, patch
+
+    runner = LammpsRunner(inference_config=mock_inference_config)
+    atoms = bulk("Si", "diamond", a=5.43)
+
+    # Create content for mock LAMMPS output files
+    # Added ITEM: BOX BOUNDS pp pp pp
+    dump_content = (
+        "ITEM: TIMESTEP\n10\n"
+        "ITEM: NUMBER OF ATOMS\n2\n"
+        "ITEM: BOX BOUNDS pp pp pp\n0.0 5.43\n0.0 5.43\n0.0 5.43\n"
+        "ITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.35 1.35 1.35\n"
     )
-    # Create a large cell to test periodic wrapping
-    large_atoms = bulk("Cu", "fcc", a=3.6) * (5, 5, 5)
-    # Choose a corner atom as the uncertain one
-    uncertain_atom_index = 0
-    subcell = runner._extract_periodic_subcell(
-        atoms=large_atoms,
-        uncertain_atom_index=uncertain_atom_index,
-        rcut=6.0,
-        delta_buffer=1.0,
+    uncertainty_content = (
+        "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS c_uncert[1]\n0.1\n0.8\n"
     )
-    # Assert that the number of atoms is reasonable for the given cutoff
-    assert len(subcell) > 50
-    assert subcell.get_pbc().all()  # type: ignore[no-untyped-call]
 
+    # Define a side_effect function to create files in the runner's temp dir
+    def mock_subprocess_run(cmd, cwd=None, **kwargs):
+        if cwd:
+            cwd_path = Path(cwd)
+            (cwd_path / "dump.custom").write_text(dump_content)
+            (cwd_path / "uncertainty.dump").write_text(uncertainty_content)
+        return MagicMock(returncode=0, stdout="", stderr="")
 
-def test_force_mask_generation(mock_system_config: SystemConfig) -> None:
-    """Test the _generate_force_mask method."""
-    runner = LammpsRunner(
-        config=mock_system_config,
-        potential_path="test.yace",
-        quantifier=UncertaintyQuantifier(),
-    )
-    atoms = Atoms("Cu", positions=[(5, 5, 5)], cell=[10, 10, 10], pbc=True)
-    mask = runner._generate_force_mask(subcell_atoms=atoms, rcut=1.0)
-    # The atom is at the center, so the distance is 0, which is less than rcut.
-    # The mask should be all 1s.
-    assert np.all(mask == 1.0)
+    with patch("subprocess.run", side_effect=mock_subprocess_run) as mock_run:
+        # runner.run() returns a single UncertainStructure or None
+        result = runner.run(atoms)
 
-
-def test_runner_completes_if_no_uncertainty(mock_system_config: SystemConfig) -> None:
-    """Test the generator completes without yielding if threshold is not met."""
-    quantifier = UncertaintyQuantifier()
-    quantifier._mock_sequence = [1.0, 2.0, 3.0]  # All grades are below the threshold
-    runner = LammpsRunner(
-        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
-    )
-    # The generator should be exhausted without yielding anything
-    with pytest.raises(StopIteration):
-        next(runner.run())
-
-
-def test_runner_handles_simulation_error(
-    mock_system_config: SystemConfig, mocker: MagicMock
-) -> None:
-    """Test that LammpsRunner catches and re-raises simulation errors."""
-    quantifier = UncertaintyQuantifier()
-    mocker.patch.object(
-        quantifier, "get_extrapolation_grade", side_effect=ValueError("Test error")
-    )
-    runner = LammpsRunner(
-        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
-    )
-    generator = runner.run()
-
-    with pytest.raises(RuntimeError, match="LAMMPS simulation failed at step 1"):
-        next(generator)
-
-
-def test_runner_stops_at_total_steps(mock_system_config: SystemConfig) -> None:
-    """Test that the simulation stops after the specified number of steps."""
-    assert mock_system_config.inference is not None  # For type checker
-    mock_system_config.inference.total_simulation_steps = 5
-    quantifier = UncertaintyQuantifier()
-    quantifier._mock_sequence = [1.0] * 10
-    runner = LammpsRunner(
-        config=mock_system_config, potential_path="test.yace", quantifier=quantifier
-    )
-    # The generator should exhaust without yielding anything.
-    results = list(runner.run())
-    assert len(results) == 0
+    assert result is not None
+    assert result.metadata.uncertain_timestep == 10
+    assert result.metadata.uncertain_atom_id == 2
+    # ASE defaults type 1 to 'H' when reading LAMMPS dump without species info
+    assert result.atoms.get_chemical_symbols() == ["H", "H"]

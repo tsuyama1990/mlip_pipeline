@@ -1,67 +1,92 @@
-# ruff: noqa: D101, D103
-"""Utilities for improving application resilience, such as retry mechanisms."""
-
+"""
+This module provides generic, reusable patterns for building robust functions,
+such as retry decorators.
+"""
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Type, TypeVar
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=Callable[..., Any])
-
 
 def retry(
-    max_retries: int,
-    delay_seconds: float = 1.0,
-    exceptions: tuple[Type[Exception], ...] = (Exception,),
-) -> Callable[[T], T]:
-    """Retry a function call on failure.
+    attempts: int,
+    delay: float,
+    exceptions: tuple[type[Exception], ...],
+    on_retry: Callable | None = None,
+) -> Callable:
+    """
+    A decorator that retries a function upon specific exceptions, with an
+    optional callback to modify arguments for the next attempt.
 
-    This decorator will attempt to run the decorated function a total of
-    `max_retries + 1` times (1 initial attempt + `max_retries` retries).
+    This decorator provides a powerful mechanism for building resilient functions.
+    When the decorated function raises an exception listed in the `exceptions`
+    tuple, the decorator will catch it and, instead of crashing, will wait for a
+    specified `delay` and then re-invoke the function. This is repeated up to
+    the number of `attempts`.
+
+    A key feature is the `on_retry` callback, which allows for domain-specific
+    error handling. Before a retry, this callback is invoked with the caught
+    exception and the keyword arguments of the failed function call. The
+    callback can inspect the error and return a dictionary of modified keyword
+    arguments, which will be used in the next attempt. This enables intelligent
+    recovery strategies, such as adjusting numerical parameters in response to
+    a convergence failure.
 
     Args:
-        max_retries: Maximum number of retry attempts.
-        delay_seconds: Time to wait between retries.
-        exceptions: A tuple of exception types to catch and trigger a retry.
+        attempts: The maximum number of times to try the function. Must be >= 1.
+        delay: The number of seconds to wait between retries.
+        exceptions: A tuple of exception types that should trigger a retry.
+        on_retry: An optional function to call before a retry.
+                  It receives two arguments:
+                  - The exception instance that was caught.
+                  - A dictionary of the keyword arguments from the failed call.
+                  It should return a dictionary of keyword arguments to update
+                  for the next attempt, or `None` if no changes are needed.
 
     Returns:
-        The wrapped function.
+        A decorator that wraps a function with the specified retry logic.
 
+    Raises:
+        The original exception if the function fails on its final attempt.
     """
 
-    def decorator(func: T) -> T:
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            last_exception = None
-            # The loop runs `max_retries + 1` times in total.
-            for attempt in range(max_retries + 1):
+            current_kwargs = kwargs.copy()
+            for attempt in range(1, attempts + 1):
                 try:
-                    return func(*args, **kwargs)
+                    return func(*args, **current_kwargs)
                 except exceptions as e:
-                    last_exception = e
-                    if attempt < max_retries:
-                        log_msg = (
-                            "Attempt %d/%d for %s failed with %s. Retrying in %.2f s..."
-                        )
-                        logger.warning(
-                            log_msg,
-                            attempt + 1,
-                            max_retries + 1,
+                    if attempt == attempts:
+                        logger.error(
+                            "Function %s failed after %d attempts.",
                             func.__name__,
-                            e,
-                            delay_seconds,
+                            attempts,
+                            exc_info=True,
                         )
-                        time.sleep(delay_seconds)
+                        raise
+                    logger.warning(
+                        "Attempt %d/%d for %s failed with %s.",
+                        attempt,
+                        attempts,
+                        func.__name__,
+                        e.__class__.__name__,
+                    )
+                    if on_retry:
+                        new_kwargs = on_retry(e, current_kwargs)
+                        if new_kwargs:
+                            logger.info("Retrying with modified parameters...")
+                            current_kwargs.update(new_kwargs)
+                        else:
+                            logger.info("No parameter modifications suggested by on_retry handler.")
 
-            logger.error(
-                "Function %s failed after %d retries. Giving up.",
-                func.__name__,
-                max_retries,
-            )
-            raise last_exception  # type: ignore
+                    logger.info("Retrying in %.2f seconds...", delay)
+                    time.sleep(delay)
 
-        return wrapper  # type: ignore
+        return wrapper
 
     return decorator

@@ -1,0 +1,245 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: mock-3.15.1
+collected 68 items
+
+tests/integration/test_dft_integration.py ...F                           [  5%]
+tests/integration/test_monitoring_integration.py ...                     [ 10%]
+tests/modules/test_config_generator.py .                                 [ 11%]
+tests/modules/test_dft.py ......                                         [ 20%]
+tests/modules/test_dft_heuristics.py .......                             [ 30%]
+tests/modules/test_exploration.py .....ss                                [ 41%]
+tests/modules/test_explorer.py ....                                      [ 47%]
+tests/modules/test_generator.py ....                                     [ 52%]
+tests/modules/test_inference.py .EE                                      [ 57%]
+tests/modules/test_training.py ....                                      [ 63%]
+tests/test_app.py ...                                                    [ 67%]
+tests/test_config.py .....                                               [ 75%]
+tests/test_config_factory.py .                                           [ 76%]
+tests/test_monitoring.py ...                                             [ 80%]
+tests/test_workflow_manager.py .......                                   [ 91%]
+tests/utils/test_resilience.py ......                                    [100%]
+
+==================================== ERRORS ====================================
+_______________ ERROR at setup of test_lammps_script_generation ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-29/test_lammps_script_generation0')
+
+    @pytest.fixture
+    def mock_inference_config(tmp_path):
+        lammps_exec = tmp_path / "lmp"
+        potential_path = tmp_path / "potential.yace"
+        lammps_exec.touch()
+        potential_path.touch()
+>       config = InferenceConfig(
+            lammps_executable=lammps_exec,
+            potential_path=potential_path,
+            uncertainty_params=UncertaintyConfig(
+                embedding_cutoff=8.0, masking_cutoff=4.0, threshold=0.5
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for InferenceConfig
+E       lammps_executable
+E         Value error, File at /tmp/pytest-of-jules/pytest-29/test_lammps_script_generation0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...script_generation0/lmp'), input_type=PosixPath]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+tests/modules/test_inference.py:20: ValidationError
+___________ ERROR at setup of test_end_to_end_uncertainty_detection ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-29/test_end_to_end_uncertainty_de0')
+
+    @pytest.fixture
+    def mock_inference_config(tmp_path):
+        lammps_exec = tmp_path / "lmp"
+        potential_path = tmp_path / "potential.yace"
+        lammps_exec.touch()
+        potential_path.touch()
+>       config = InferenceConfig(
+            lammps_executable=lammps_exec,
+            potential_path=potential_path,
+            uncertainty_params=UncertaintyConfig(
+                embedding_cutoff=8.0, masking_cutoff=4.0, threshold=0.5
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for InferenceConfig
+E       lammps_executable
+E         Value error, File at /tmp/pytest-of-jules/pytest-29/test_end_to_end_uncertainty_de0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...nd_uncertainty_de0/lmp'), input_type=PosixPath]
+E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+tests/modules/test_inference.py:20: ValidationError
+=================================== FAILURES ===================================
+_______________________ test_dft_runner_failure_handling _______________________
+
+h2_atoms = Atoms(symbols='H2', pbc=False)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-29/test_dft_runner_failure_handli0')
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fdea9c45a30>
+
+    def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
+        """Test that DFTRunner raises DFTCalculationError when execution fails completely."""
+        # Arrange
+        pseudo_dir = tmp_path / "pseudos"
+        pseudo_dir.mkdir()
+        (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
+        sssp_path = tmp_path / "sssp.json"
+        sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+
+        from ase.calculators.espresso import EspressoProfile
+
+        from mlip_autopipec.modules.dft import QEInputGenerator, QEOutputParser, QEProcessRunner
+
+        profile = EspressoProfile(command="pw.x", pseudo_dir=pseudo_dir)
+        input_generator = QEInputGenerator(profile=profile, pseudopotentials_path=pseudo_dir)
+        process_runner = QEProcessRunner(profile=profile)
+        output_parser = QEOutputParser()
+
+        heuristics = DFTHeuristics(sssp_data_path=sssp_path)
+        dft_job_factory = DFTJobFactory(heuristics=heuristics)
+
+        # Patch execution to fail with generic error
+        mocker.patch.object(
+            process_runner,
+            "execute",
+            side_effect=subprocess.CalledProcessError(1, "pw.x", "Unknown Error", "stderr")
+        )
+
+        dft_runner = DFTRunner(
+            input_generator=input_generator,
+            process_runner=process_runner,
+            output_parser=output_parser,
+        )
+        job = dft_job_factory.create_job(h2_atoms.copy())
+
+        with pytest.raises(DFTCalculationError) as excinfo:
+            dft_runner.run(job)
+
+>       assert "DFT calculation failed" in str(excinfo.value)
+E       AssertionError: assert 'DFT calculation failed' in 'DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr'
+E        +  where 'DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr' = str(DFTCalculationError('DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30'))
+E        +    where DFTCalculationError('DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30') = <ExceptionInfo DFTCalculationError('DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30') tblen=3>.value
+
+tests/integration/test_dft_integration.py:205: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  mlip_autopipec.utils.resilience:resilience.py:72 Attempt 1/3 for run failed with DFTCalculationError.
+WARNING  mlip_autopipec.utils.resilience:resilience.py:72 Attempt 2/3 for run failed with DFTCalculationError.
+ERROR    mlip_autopipec.utils.resilience:resilience.py:65 Function run failed after 3 attempts.
+Traceback (most recent call last):
+  File "/app/mlip_autopipec/modules/dft.py", line 167, in run
+    self.process_runner.execute(input_path, output_path)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+  File "/app/mlip_autopipec/modules/dft.py", line 167, in run
+    self.process_runner.execute(input_path, output_path)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+  File "/app/mlip_autopipec/modules/dft.py", line 167, in run
+    self.process_runner.execute(input_path, output_path)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+subprocess.CalledProcessError: Command 'pw.x' returned non-zero exit status 1.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/mlip_autopipec/utils/resilience.py", line 62, in wrapper
+    return func(*args, **current_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/mlip_autopipec/modules/dft.py", line 179, in run
+    raise DFTCalculationError(
+mlip_autopipec.exceptions.DFTCalculationError: DFT subprocess failed for job 0bc89e9b-78b1-49f4-b29d-e07158892a30
+--- STDOUT ---
+Unknown Error
+--- STDERR ---
+stderr
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+tests/modules/test_exploration.py:128
+  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_exploration.py:138
+  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/modules/test_inference.py:70
+  /app/tests/modules/test_inference.py:70: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/test_workflow_manager.py::test_save_checkpoint
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 35019 instead
+
+tests/test_workflow_manager.py::test_load_checkpoint
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 44469 instead
+
+tests/test_workflow_manager.py::test_init_does_not_load_state_unnecessarily
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 35355 instead
+
+tests/test_workflow_manager.py::test_resubmit_pending_jobs
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 39409 instead
+
+tests/test_workflow_manager.py::test_checkpoint_training_history
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 41923 instead
+
+tests/test_workflow_manager.py::test_checkpoint_training_history
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 46579 instead
+
+tests/test_workflow_manager.py::test_perform_training
+  /app/.venv/lib/python3.12/site-packages/distributed/node.py:188: UserWarning:
+
+  Port 8787 is already in use.
+  Perhaps you already have a cluster running?
+  Hosting the HTTP server on port 45297 instead
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_dft_integration.py::test_dft_runner_failure_handling
+ERROR tests/modules/test_inference.py::test_lammps_script_generation - pydant...
+ERROR tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
+== 1 failed, 63 passed, 2 skipped, 11 warnings, 2 errors in 81.75s (0:01:21) ===

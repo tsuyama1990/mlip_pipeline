@@ -1,53 +1,35 @@
-# ruff: noqa: D101
 """Handles the calculation of structural descriptors."""
 
 import logging
-from typing import List
 
 import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
 
-from mlip_autopipec.config_schemas import SOAPParams
+from mlip_autopipec.config.models import SOAPParams
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 class SOAPDescriptorCalculator:
-    """Calculates SOAP descriptors for a list of atomic structures.
+    """Calculates SOAP descriptors for a list of atomic structures."""
 
-    This class encapsulates the configuration and execution of descriptor
-    calculations using the dscribe library, separating the data processing
-    logic from the main workflow orchestration.
-    """
-
-    def __init__(self, soap_params: SOAPParams, species: List[str]):
-        """Initialise the SOAPDescriptorCalculator.
-
-        Args:
-            soap_params: The Pydantic model containing SOAP hyperparameters.
-            species: A list of chemical symbols present in the structures.
-
-        """
+    def __init__(self, soap_params: SOAPParams, species: list[str]) -> None:
+        """Initialise the SOAPDescriptorCalculator."""
         self.soap_params = soap_params
         self.species = species
         self._soap_generator = self._configure_generator()
 
     def _configure_generator(self) -> SOAP:
-        """Configure the dscribe SOAP generator based on the input parameters.
-
-        Returns:
-            An instance of the dscribe SOAP generator.
-
-        """
+        """Configure the dscribe SOAP generator based on the input parameters."""
         logger.info(
-            f"Configuring SOAP generator for species: {self.species} with "
-            f"r_cut={self.soap_params.r_cut}, n_max={self.soap_params.n_max}, "
-            f"l_max={self.soap_params.l_max}."
+            "Configuring SOAP generator for species: %s with r_cut=%s, n_max=%s, l_max=%s.",
+            self.species,
+            self.soap_params.r_cut,
+            self.soap_params.n_max,
+            self.soap_params.l_max,
         )
         try:
             return SOAP(
@@ -62,28 +44,19 @@ class SOAPDescriptorCalculator:
             )
         except (ValueError, TypeError) as e:
             logger.exception("Invalid parameters provided for SOAP configuration.")
-            raise RuntimeError("Failed to configure SOAP generator.") from e
+            msg = "Failed to configure SOAP generator."
+            raise RuntimeError(msg) from e
 
-    def calculate(self, structures: List[Atoms]) -> np.ndarray:
-        """Calculate the SOAP descriptors for a list of structures.
-
-        Args:
-            structures: A list of ASE Atoms objects.
-
-        Returns:
-            A 2D NumPy array where each row is the average SOAP descriptor
-            vector for a structure.
-
-        """
+    def calculate(self, structures: list[Atoms]) -> np.ndarray:
+        """Calculate the SOAP descriptors for a list of structures."""
         if not structures:
             return np.array([])
 
-        logger.info(f"Calculating SOAP descriptors for {len(structures)} structures.")
+        logger.info("Calculating SOAP descriptors for %s structures.", len(structures))
         try:
             descriptors = self._soap_generator.create(structures, n_jobs=-1)
             return descriptors  # type: ignore[no-any-return]
         except Exception as e:
-            logger.exception(
-                "An unexpected error occurred during SOAP descriptor calculation."
-            )
-            raise RuntimeError("Failed to calculate SOAP descriptors.") from e
+            logger.exception("An unexpected error occurred during SOAP descriptor calculation.")
+            msg = "Failed to calculate SOAP descriptors."
+            raise RuntimeError(msg) from e

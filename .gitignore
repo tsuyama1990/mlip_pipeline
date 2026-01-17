@@ -21,3 +21,11 @@ env/
 # IDEs
 .idea/
 .vscode/
+
+# Artifacts
+*.model
+*.yace
+*.pwo
+*.pwi
+*.err
+temp_ase_calc/
