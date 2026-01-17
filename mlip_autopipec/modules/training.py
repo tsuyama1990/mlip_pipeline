@@ -84,7 +84,8 @@ class PacemakerTrainer:
                 return final_path, metrics
         except (OSError, shutil.Error) as e:
             log.exception("Filesystem error during training.")
-            raise TrainingFailedError(f"Filesystem error: {e}") from e
+            msg = f"Filesystem error: {e}"
+            raise TrainingFailedError(msg) from e
 
     def _prepare_pacemaker_input(self, training_data: list[Atoms], working_dir: Path) -> None:
         """
@@ -103,7 +104,8 @@ class PacemakerTrainer:
             ase_write(data_file_path, training_data, format="extxyz")
         except (OSError, ValueError) as e:
             log.exception("Failed to write training data file.")
-            raise TrainingFailedError(f"Failed to write training data: {e}") from e
+            msg = f"Failed to write training data: {e}"
+            raise TrainingFailedError(msg) from e
 
         try:
             if self.config.template_file:
@@ -112,7 +114,8 @@ class PacemakerTrainer:
             else:
                 # Assuming config validation enforces it if needed, or providing a default string here.
                 # For now, let's assume it might be None and raise if so.
-                raise FileNotFoundError("No template file specified in configuration.")
+                msg = "No template file specified in configuration."
+                raise FileNotFoundError(msg)
 
             template = Template(template_content)
         except FileNotFoundError as e:
@@ -120,9 +123,8 @@ class PacemakerTrainer:
                 "Failed to open Jinja2 template file for Pacemaker.",
                 extra={"template_file": self.config.template_file},
             )
-            raise TrainingFailedError(
-                f"Template file not found: {self.config.template_file}"
-            ) from e
+            msg = f"Template file not found: {self.config.template_file}"
+            raise TrainingFailedError(msg) from e
 
         rendered_config = template.render(config=self.config, data_file_path=str(data_file_path))
 
@@ -164,7 +166,7 @@ class PacemakerTrainer:
                     "stderr": e.stderr,
                 },
             )
-            msg = f"Pacemaker training failed with exit code {e.returncode}.\nStderr:\n{e.stderr}"
+            msg = f"Pacemaker training failed with exit code {e.returncode}.\nSTDOUT:\n{e.stdout}\nSTDERR:\n{e.stderr}"
             raise TrainingFailedError(msg) from e
 
         match = re.search(r"Final potential saved to: (.*\.yace)", result.stdout)
