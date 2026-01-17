@@ -12,7 +12,7 @@ from .training import TrainingConfig, TrainingRunMetrics
 
 
 class WorkflowConfig(BaseModel):
-    checkpoint_filename: str = "checkpoint.json"
+    checkpoint_file_path: str = "checkpoint.json"
     model_config = ConfigDict(extra="forbid")
 
 class DaskConfig(BaseModel):

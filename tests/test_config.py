@@ -59,6 +59,38 @@ def test_minimal_config_invalid_element():
         )
     assert "not a valid chemical symbol" in str(excinfo.value)
 
+def test_minimal_config_element_mismatch():
+    """Test mismatch between elements list and composition keys."""
+    with pytest.raises(ValidationError) as excinfo:
+        MinimalConfig(
+            project_name="TestProject",
+            target_system=TargetSystem(
+                elements=["Al", "Cu"],
+                composition=Composition({"Al": 1.0}) # Missing Cu
+            ),
+            resources=Resources(
+                dft_code="quantum_espresso",
+                parallel_cores=4
+            )
+        )
+    assert "Composition keys must match the elements list" in str(excinfo.value)
+
+def test_resources_positive_cores():
+    """Test that parallel_cores must be positive."""
+    with pytest.raises(ValidationError) as excinfo:
+        MinimalConfig(
+            project_name="TestProject",
+            target_system=TargetSystem(
+                elements=["Al"],
+                composition=Composition({"Al": 1.0})
+            ),
+            resources=Resources(
+                dft_code="quantum_espresso",
+                parallel_cores=0
+            )
+        )
+    assert "Input should be greater than 0" in str(excinfo.value)
+
 def test_system_config_immutability(tmp_path):
     """Test that SystemConfig is immutable."""
     minimal = MinimalConfig(

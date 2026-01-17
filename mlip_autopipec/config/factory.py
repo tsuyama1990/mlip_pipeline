@@ -1,8 +1,10 @@
 from pathlib import Path
 
 import yaml
+from yaml.error import YAMLError
 
 from mlip_autopipec.config.models import MinimalConfig, SystemConfig
+from mlip_autopipec.exceptions import ConfigError
 
 
 class ConfigFactory:
@@ -22,20 +24,31 @@ class ConfigFactory:
             msg = f"Configuration file not found: {path}"
             raise FileNotFoundError(msg)
 
-        with path.open("r") as f:
-            data = yaml.safe_load(f)
+        try:
+            with path.open("r") as f:
+                data = yaml.safe_load(f)
+        except YAMLError as e:
+            msg = f"Failed to parse YAML configuration: {e}"
+            raise ConfigError(msg) from e
+        except OSError as e:
+            msg = f"Failed to read configuration file: {e}"
+            raise ConfigError(msg) from e
 
-        minimal = MinimalConfig.model_validate(data)
+        try:
+            minimal = MinimalConfig.model_validate(data)
+        except Exception as e:
+             # Pydantic validation errors are detailed, re-raising them as is usually better
+             # or wrapping them. The user wants specific error messages.
+             # Pydantic ValidationError is a safe exception to propagate or wrap.
+             # We will wrap it if we want a unified ConfigError, but keeping the detail is key.
+             # Let's wrap but ensure detail is preserved.
+             msg = f"Configuration validation failed: {e}"
+             raise ConfigError(msg) from e
 
         # Resolve paths
-        # Working dir is created in the current working directory under project_name
-        # Or should it be where the input file is? UAT says "in the current path".
         # We assume current working directory of the process.
         cwd = Path.cwd()
         working_dir = cwd / minimal.project_name
-
-        # Create directory structure
-        working_dir.mkdir(parents=True, exist_ok=True)
 
         db_path = working_dir / "project.db"
         log_path = working_dir / "system.log"

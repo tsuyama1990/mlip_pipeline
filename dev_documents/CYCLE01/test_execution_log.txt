@@ -3,14 +3,14 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /dev
 configfile: null
 plugins: mock-3.15.1
-collected 6 items
+collected 13 items
 
-../dev ......                                                            [100%]
+../dev .............                                                     [100%]
 
 =============================== warnings summary ===============================
 .venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475
-  /app/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/dev/pytest-cache-files-5wklhlsi'
+  /app/.venv/lib/python3.12/site-packages/_pytest/cacheprovider.py:475: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/dev/pytest-cache-files-8r45lnhe'
     config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================== 6 passed, 1 warning in 13.44s =========================
+======================== 13 passed, 1 warning in 3.81s =========================

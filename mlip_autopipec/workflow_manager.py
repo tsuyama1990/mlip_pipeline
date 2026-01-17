@@ -34,7 +34,7 @@ class WorkflowManager:
     ):
         self.system_config = system_config
         self.work_dir = work_dir
-        self.checkpoint_path = self.work_dir / system_config.workflow_config.checkpoint_filename
+        self.checkpoint_path = self.work_dir / system_config.workflow_config.checkpoint_file_path
         self.dask_client: Client = get_dask_client()
         self.dft_runner: DFTRunner | None = dft_runner
         self.trainer: PacemakerTrainer | None = trainer
