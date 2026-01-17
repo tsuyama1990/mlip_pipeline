@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,12 +16,14 @@ from mlip_autopipec.config.models import (
     Pseudopotentials,
     SystemConfig,
     TargetSystem,
+    MinimalConfig,
+    Resources
 )
 from mlip_autopipec.modules.generator import PhysicsInformedGenerator
 
 
 @pytest.fixture
-def mock_system_config() -> SystemConfig:
+def mock_system_config(tmp_path) -> SystemConfig:
     """Provide a mock SystemConfig for a CuAu alloy."""
     target_system = TargetSystem(
         elements=["Cu", "Au"],
@@ -34,7 +37,17 @@ def mock_system_config() -> SystemConfig:
         k_points=(2, 2, 2)
     )
 
+    minimal = MinimalConfig(
+        project_name="TestAlloy",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
+
     return SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path / "TestAlloy",
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
         project_name="TestAlloy",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
@@ -49,7 +62,7 @@ def mock_system_config() -> SystemConfig:
 
 
 @pytest.fixture
-def mock_crystal_config() -> SystemConfig:
+def mock_crystal_config(tmp_path) -> SystemConfig:
     """Provide a mock SystemConfig for a Si crystal."""
     target_system = TargetSystem(
         elements=["Si"],
@@ -63,7 +76,17 @@ def mock_crystal_config() -> SystemConfig:
         k_points=(2, 2, 2)
     )
 
+    minimal = MinimalConfig(
+        project_name="TestCrystal",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
+
     return SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path / "TestCrystal",
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
         project_name="TestCrystal",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
@@ -107,7 +130,7 @@ def test_generate_crystal_workflow(mock_crystal_config: SystemConfig) -> None:
     assert len(vacancy_structure) == expected_pristine_atoms - 1
 
 
-def test_apply_strains() -> None:
+def test_apply_strains(tmp_path) -> None:
     """Unit test for the _apply_strains method."""
     atoms = bulk("Ni", "fcc", a=3.5)
     target_system = TargetSystem(
@@ -122,7 +145,17 @@ def test_apply_strains() -> None:
         k_points=(2, 2, 2)
     )
 
+    minimal = MinimalConfig(
+        project_name="TestStrain",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
+
     config = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path / "TestStrain",
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
         project_name="TestStrain",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
@@ -144,7 +177,7 @@ def test_apply_strains() -> None:
     assert np.isclose(strained_vol_2, original_volume * 1.1**3)
 
 
-def test_apply_rattling() -> None:
+def test_apply_rattling(tmp_path) -> None:
     """Unit test for the _apply_rattling method."""
     atoms = bulk("Ni", "fcc", a=3.5).repeat((2, 2, 2))
     target_system = TargetSystem(
@@ -159,7 +192,17 @@ def test_apply_rattling() -> None:
         k_points=(2, 2, 2)
     )
 
+    minimal = MinimalConfig(
+        project_name="TestRattle",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
+
     config = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path / "TestRattle",
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
         project_name="TestRattle",
         run_uuid=uuid.uuid4(),
         target_system=target_system,

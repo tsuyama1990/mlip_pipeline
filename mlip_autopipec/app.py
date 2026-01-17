@@ -10,10 +10,14 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 
+# Import new Cycle 1 components
+from mlip_autopipec.config.factory import ConfigFactory
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.core.logging import setup_logging
+# Keep dashboard for status command if it works, or comment out if broken
 from mlip_autopipec.monitoring.dashboard import generate_dashboard
-from mlip_autopipec.services.pipeline import PipelineController
 
-# Configure logging to use Rich
+# Configure basic logging for CLI before system logging is set up
 logging.basicConfig(
     level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
@@ -40,14 +44,32 @@ def run(
     """Execute the MLIP-AutoPipe workflow."""
     try:
         console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
-        PipelineController.execute(config_file)
-        console.print("[bold green]SUCCESS:[/bold green] Workflow finished.")
+
+        # Step 1: Load and Validate Config
+        config = ConfigFactory.from_yaml(config_file)
+
+        # Step 2: Setup Logging
+        setup_logging(config.log_path)
+        # Re-get logger to ensure it uses the new config
+        logger = logging.getLogger("mlip_autopipec")
+
+        # Step 3: Initialize Database
+        db = DatabaseManager(config.db_path)
+        db.initialize(config)
+
+        logger.info("System initialized successfully")
+        console.print("[bold green]System initialized successfully[/bold green]")
+        console.print(f"Working Directory: {config.working_dir}")
+        console.print(f"Database: {config.db_path}")
+        console.print(f"Log: {config.log_path}")
+
     except FileNotFoundError as e:
         console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
     except ValidationError as e:
         console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
+        # Make it human readable if possible, but raw error is also fine for now
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
     except Exception as e:

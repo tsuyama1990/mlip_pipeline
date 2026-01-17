@@ -25,11 +25,26 @@ def valid_system_config(tmp_path):
         InferenceConfig,
         Pseudopotentials,
         TrainingConfig,
+        MinimalConfig,
+        Resources,
+        TargetSystem,
+        WorkflowConfig # Added
+    )
+
+    minimal = MinimalConfig(
+        project_name="test_project",
+        target_system=TargetSystem(elements=["Si"], composition={"Si": 1.0}),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
     )
 
     return SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path / "test_project",
+        db_path=tmp_path / "test.db",
+        log_path=tmp_path / "system.log",
         project_name="test_project",
         run_uuid=uuid.uuid4(),
+        workflow_config=WorkflowConfig(), # Added default
         dft_config=DFTConfig(
             dft_input_params=DFTInputParameters(
                 pseudopotentials=Pseudopotentials.model_validate({"Si": "Si.upf"}),
@@ -41,7 +56,7 @@ def valid_system_config(tmp_path):
             surrogate_model_path="path/to/model",
             fingerprint=FingerprintConfig(species=["Si"]),
         ),
-        training_config=TrainingConfig(data_source_db=tmp_path / "test.db"),
+        training_config=TrainingConfig(data_source_db=str(tmp_path / "test.db")),
         inference_config=InferenceConfig(),
     )
 

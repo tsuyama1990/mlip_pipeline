@@ -19,7 +19,10 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
             "composition": {"Ni": 1.0},
             "crystal_structure": "fcc",
         },
-        "simulation_goal": {"type": "melt_quench"},
+        "resources": {
+            "dft_code": "quantum_espresso",
+            "parallel_cores": 4
+        }
     }
     from mlip_autopipec.config.factory import ConfigFactory
     from mlip_autopipec.config.models import UserInputConfig
@@ -33,10 +36,13 @@ def test_system_config(tmp_path: Path) -> SystemConfig:
     (tmp_path / "template.in").touch()
     (tmp_path / "potential.yace").touch()
 
-    system_config.training_config.pacemaker_executable = tmp_path / "pacemaker"
-    system_config.training_config.template_file = tmp_path / "template.in"
-    system_config.inference_config.lammps_executable = tmp_path / "lammps"
-    system_config.inference_config.potential_path = tmp_path / "potential.yace"
+    # Manually populate paths as they might not be set by from_user_input for these specific files
+    if system_config.training_config:
+        system_config.training_config.pacemaker_executable = tmp_path / "pacemaker"
+        system_config.training_config.template_file = tmp_path / "template.in"
+    if system_config.inference_config:
+        system_config.inference_config.lammps_executable = tmp_path / "lammps"
+        system_config.inference_config.potential_path = tmp_path / "potential.yace"
 
     return system_config
 

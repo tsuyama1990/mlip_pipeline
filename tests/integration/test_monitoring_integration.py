@@ -11,6 +11,9 @@ from mlip_autopipec.config.models import (
     SystemConfig,
     TrainingRunMetrics,
     WorkflowConfig,
+    MinimalConfig,
+    TargetSystem,
+    Resources
 )
 
 runner = CliRunner()
@@ -20,11 +23,20 @@ from mlip_autopipec.config.models import TrainingConfig
 
 # Helper to create valid system config
 def create_system_config():
+    minimal = MinimalConfig(
+        project_name="Integration Test Project",
+        target_system=TargetSystem(elements=["Si"], composition={"Si": 1.0}),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
     return SystemConfig(
+        minimal=minimal,
+        working_dir=Path("."),
+        db_path=Path("mlip_database.db"),
+        log_path=Path("system.log"),
         project_name="Integration Test Project",
         run_uuid=uuid.uuid4(),
         workflow_config=WorkflowConfig(checkpoint_filename="checkpoint.json"),
-        training_config=TrainingConfig(data_source_db=Path("mlip_database.db")),
+        training_config=TrainingConfig(data_source_db="mlip_database.db"), # Should be str?
     )
 
 @pytest.fixture

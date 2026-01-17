@@ -16,6 +16,7 @@ def mock_inference_config(tmp_path):
     lammps_exec = tmp_path / "lmp"
     potential_path = tmp_path / "potential.yace"
     lammps_exec.touch()
+    lammps_exec.chmod(0o755) # Make executable
     potential_path.touch()
     config = InferenceConfig(
         lammps_executable=lammps_exec,

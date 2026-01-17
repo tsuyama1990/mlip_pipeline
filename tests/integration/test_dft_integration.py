@@ -202,4 +202,5 @@ def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) ->
     with pytest.raises(DFTCalculationError) as excinfo:
         dft_runner.run(job)
 
-    assert "DFT calculation failed" in str(excinfo.value)
+    # Expect "DFT subprocess failed" instead of "DFT calculation failed"
+    assert "DFT subprocess failed" in str(excinfo.value)
