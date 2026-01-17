@@ -5,13 +5,332 @@ configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
 collected 19 items
 
-tests/unit/test_generator_schemas.py ..                                  [ 10%]
-tests/generator/test_alloy.py .....                                      [ 36%]
-tests/generator/test_builder.py ..                                       [ 47%]
-tests/generator/test_defect.py ...                                       [ 63%]
+tests/unit/test_generator_schemas.py F.                                  [ 10%]
+tests/generator/test_alloy.py EEEEF                                      [ 36%]
+tests/generator/test_builder.py FF                                       [ 47%]
+tests/generator/test_defect.py EEF                                       [ 63%]
 tests/generator/test_molecule.py ...                                     [ 78%]
-tests/uat/cycle_03_uat.py ....                                           [100%]
+tests/uat/cycle_03_uat.py EEFF                                           [100%]
 
+==================================== ERRORS ====================================
+_____________ ERROR at setup of test_sqs_generation_stoichiometry ______________
+
+    @pytest.fixture
+    def alloy_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_alloy.py:12: ValidationError
+__________ ERROR at setup of test_sqs_generation_invalid_composition ___________
+
+    @pytest.fixture
+    def alloy_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_alloy.py:12: ValidationError
+_____________________ ERROR at setup of test_apply_strain ______________________
+
+    @pytest.fixture
+    def alloy_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_alloy.py:12: ValidationError
+_____________________ ERROR at setup of test_apply_rattle ______________________
+
+    @pytest.fixture
+    def alloy_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_alloy.py:12: ValidationError
+____________________ ERROR at setup of test_create_vacancy _____________________
+
+    @pytest.fixture
+    def defect_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_defect.py:10: ValidationError
+__________________ ERROR at setup of test_create_interstitial __________________
+
+    @pytest.fixture
+    def defect_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_defect.py:10: ValidationError
+____________ ERROR at setup of test_uat_03_01_alloy_sqs_generation _____________
+
+    @pytest.fixture
+    def uat_alloy_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/uat/cycle_03_uat.py:24: ValidationError
+_____________ ERROR at setup of test_uat_03_02_distortion_pipeline _____________
+
+    @pytest.fixture
+    def uat_alloy_generator():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/uat/cycle_03_uat.py:24: ValidationError
+=================================== FAILURES ===================================
+________________________ test_generator_config_defaults ________________________
+
+    def test_generator_config_defaults():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/unit/test_generator_schemas.py:8: ValidationError
+___________________ test_generate_batch_disabled_distortions ___________________
+
+    def test_generate_batch_disabled_distortions():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_alloy.py:77: ValidationError
+____________________________ test_builder_pipeline _____________________________
+
+    def test_builder_pipeline():
+        # Setup Config using updated schema hierarchy
+>       gen_config = GeneratorConfig()
+                     ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_builder.py:11: ValidationError
+__________________________ test_builder_with_defects ___________________________
+
+    def test_builder_with_defects():
+>       gen_config = GeneratorConfig()
+                     ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_builder.py:56: ValidationError
+____________________________ test_defects_disabled _____________________________
+
+    def test_defects_disabled():
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/generator/test_defect.py:44: ValidationError
+_________________________ test_uat_03_03_molecule_nms __________________________
+
+    def test_uat_03_03_molecule_nms():
+        """
+        UAT-03-03: Molecule NMS
+        Verify that for a molecular system (e.g., H2O), the system generates distorted geometries.
+        """
+>       config = GeneratorConfig()
+                 ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/uat/cycle_03_uat.py:95: ValidationError
+______________________ test_uat_03_04_metadata_integrity _______________________
+
+    def test_uat_03_04_metadata_integrity():
+        """
+        UAT-03-04: Metadata Integrity
+        Verify that every generated structure includes the correct metadata.
+        """
+>       gen_config = GeneratorConfig()
+                     ^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
+E       sqs
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       distortion
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       nms
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       defects
+E         Field required [type=missing, input_value={}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+tests/uat/cycle_03_uat.py:117: ValidationError
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
@@ -22,10 +341,10 @@ mlip_autopipec/app.py                             36     36     0%   5-63
 mlip_autopipec/config/__init__.py                  0      0   100%
 mlip_autopipec/config/factory.py                  37     37     0%   1-62
 mlip_autopipec/config/models.py                    7      0   100%
-mlip_autopipec/config/schemas/common.py           44      8    82%   20-21, 26-27, 45-46, 52-53
+mlip_autopipec/config/schemas/common.py           44     19    57%   16-29, 41-47, 51-54
 mlip_autopipec/config/schemas/dft.py              70     20    71%   27-32, 46-51, 68-70, 101-107
 mlip_autopipec/config/schemas/exploration.py      51      4    92%   35-39
-mlip_autopipec/config/schemas/generator.py        29      0   100%
+mlip_autopipec/config/schemas/generator.py        30      0   100%
 mlip_autopipec/config/schemas/inference.py        65     23    65%   26-28, 41-44, 63-69, 74-82
 mlip_autopipec/config/schemas/monitoring.py       12      0   100%
 mlip_autopipec/config/schemas/system.py           65     15    77%   62, 67-82
@@ -45,11 +364,11 @@ mlip_autopipec/dft/inputs.py                      57     57     0%   1-166
 mlip_autopipec/dft/parsers.py                     21     21     0%   5-83
 mlip_autopipec/dft/recovery.py                    30     30     0%   1-81
 mlip_autopipec/dft/runner.py                      79     79     0%   1-170
-mlip_autopipec/exceptions.py                      13      4    69%   40-42, 45
+mlip_autopipec/exceptions.py                      15      6    60%   41-44, 47-48
 mlip_autopipec/generator/__init__.py               5      0   100%
-mlip_autopipec/generator/alloy.py                100     18    82%   51, 72-77, 84, 95-98, 127-128, 150-151, 208-211
-mlip_autopipec/generator/builder.py               80     32    60%   34-35, 53-54, 61-74, 93-95, 116-123, 127-139
-mlip_autopipec/generator/defect.py                52      6    88%   50-51, 63-64, 120-121
+mlip_autopipec/generator/alloy.py                100     86    14%   30, 52-105, 124-141, 160-170, 191-237
+mlip_autopipec/generator/builder.py               80     65    19%   29-44, 56-90, 96-128, 132-145
+mlip_autopipec/generator/defect.py                52     41    21%   25, 43-64, 83-121
 mlip_autopipec/generator/molecule.py              54      6    89%   84-85, 111-114
 mlip_autopipec/modules/__init__.py                 0      0   100%
 mlip_autopipec/modules/config_generator.py        15     15     0%   3-74
@@ -72,5 +391,21 @@ mlip_autopipec/utils/resilience.py                29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
 mlip_autopipec/workflow_manager.py               106    106     0%   1-191
 ----------------------------------------------------------------------------
-TOTAL                                           2036   1477    27%
-============================== 19 passed in 4.46s ==============================
+TOTAL                                           2039   1626    20%
+=========================== short test summary info ============================
+FAILED tests/unit/test_generator_schemas.py::test_generator_config_defaults
+FAILED tests/generator/test_alloy.py::test_generate_batch_disabled_distortions
+FAILED tests/generator/test_builder.py::test_builder_pipeline - pydantic_core...
+FAILED tests/generator/test_builder.py::test_builder_with_defects - pydantic_...
+FAILED tests/generator/test_defect.py::test_defects_disabled - pydantic_core....
+FAILED tests/uat/cycle_03_uat.py::test_uat_03_03_molecule_nms - pydantic_core...
+FAILED tests/uat/cycle_03_uat.py::test_uat_03_04_metadata_integrity - pydanti...
+ERROR tests/generator/test_alloy.py::test_sqs_generation_stoichiometry - pyda...
+ERROR tests/generator/test_alloy.py::test_sqs_generation_invalid_composition
+ERROR tests/generator/test_alloy.py::test_apply_strain - pydantic_core._pydan...
+ERROR tests/generator/test_alloy.py::test_apply_rattle - pydantic_core._pydan...
+ERROR tests/generator/test_defect.py::test_create_vacancy - pydantic_core._py...
+ERROR tests/generator/test_defect.py::test_create_interstitial - pydantic_cor...
+ERROR tests/uat/cycle_03_uat.py::test_uat_03_01_alloy_sqs_generation - pydant...
+ERROR tests/uat/cycle_03_uat.py::test_uat_03_02_distortion_pipeline - pydanti...
+==================== 7 failed, 4 passed, 8 errors in 4.40s =====================

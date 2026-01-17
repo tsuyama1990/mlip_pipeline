@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 class AlloyGenerator:
     """
     Generator for alloy structures, including SQS, strain, and thermal rattling.
+
+    This class handles the creation of Special Quasirandom Structures (SQS) to model
+    random alloys, and applies physical distortions (strain and rattling) to explore
+    the potential energy surface.
     """
 
     def __init__(self, config: GeneratorConfig):
@@ -21,7 +25,7 @@ class AlloyGenerator:
         Initialize the AlloyGenerator.
 
         Args:
-            config (GeneratorConfig): The generator configuration.
+            config (GeneratorConfig): The generator configuration containing settings for SQS and distortions.
         """
         self.config = config
 
@@ -29,17 +33,20 @@ class AlloyGenerator:
         """
         Generates a Special Quasirandom Structure (SQS) for the given composition.
 
-        Tries to use `icet` if available; falls back to random shuffling if not.
+        This method attempts to create a supercell that matches the target composition
+        as closely as possible. It currently implements a fallback strategy using
+        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
 
         Args:
-            prim_cell (Atoms): The primitive unit cell.
-            composition (Dict[str, float]): Target composition (e.g., {'Fe': 0.7, 'Ni': 0.3}).
+            prim_cell (Atoms): The primitive unit cell to expand.
+            composition (Dict[str, float]): Target composition map, e.g., {'Fe': 0.7, 'Ni': 0.3}.
+                                            Values must sum to approximately 1.0.
 
         Returns:
-            Atoms: The generated SQS structure.
+            Atoms: The generated SQS supercell structure.
 
         Raises:
-            GeneratorError: If composition is invalid or generation fails.
+            GeneratorError: If the composition is invalid (does not sum to 1.0) or if generation fails.
         """
         # Validate composition sums to 1 (approx)
         if abs(sum(composition.values()) - 1.0) > 1e-4:
@@ -99,14 +106,20 @@ class AlloyGenerator:
 
     def apply_strain(self, atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
         """
-        Applies a strain tensor to the atoms object.
+        Applies a generic strain tensor to the atoms object.
+
+        The new cell is calculated as: cell_new = cell_old @ (I + epsilon).
+        Atomic positions are scaled accordingly.
 
         Args:
             atoms (Atoms): The structure to strain.
-            strain_tensor (np.ndarray): 3x3 strain tensor epsilon.
+            strain_tensor (np.ndarray): A 3x3 symmetric strain tensor (epsilon).
 
         Returns:
-            Atoms: The strained structure.
+            Atoms: The new strained structure with updated cell dimensions.
+
+        Raises:
+            GeneratorError: If matrix operations fail.
         """
         try:
             strained = atoms.copy()
@@ -129,14 +142,20 @@ class AlloyGenerator:
 
     def apply_rattle(self, atoms: Atoms, sigma: float) -> Atoms:
         """
-        Applies Gaussian noise to atomic positions.
+        Applies random thermal displacement (rattling) to atomic positions.
+
+        Displacements are drawn from a Gaussian distribution centered at 0 with
+        standard deviation `sigma`.
 
         Args:
             atoms (Atoms): The structure to rattle.
-            sigma (float): Standard deviation of the Gaussian noise in Angstroms.
+            sigma (float): Standard deviation of the displacement in Angstroms.
 
         Returns:
             Atoms: The rattled structure.
+
+        Raises:
+            GeneratorError: If the operation fails.
         """
         try:
             rattled = atoms.copy()
@@ -152,15 +171,22 @@ class AlloyGenerator:
 
     def generate_batch(self, base_structure: Atoms) -> List[Atoms]:
         """
-        Generates a batch of structures: SQS -> Strain -> Rattle.
+        Generates a combinatorial batch of structures from a base structure.
 
-        Combinatorial expansion based on configuration.
+        The pipeline is:
+        1. Keep base structure.
+        2. Generate strained structures based on `distortion.strain_range` and `n_strain_steps`.
+        3. For every structure produced so far (Base + Strained), generate `n_rattle_steps` rattled versions.
 
         Args:
-            base_structure (Atoms): The starting structure (e.g., SQS).
+            base_structure (Atoms): The starting structure (e.g., an SQS).
 
         Returns:
-            List[Atoms]: A list of generated structures.
+            List[Atoms]: A list containing the base, strained, and rattled structures.
+                         If distortions are disabled, returns only the base structure.
+
+        Raises:
+            GeneratorError: If batch generation fails.
         """
         results = []
 

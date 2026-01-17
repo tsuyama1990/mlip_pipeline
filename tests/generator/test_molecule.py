@@ -1,17 +1,32 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from ase.build import molecule
-from unittest.mock import MagicMock, patch
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.generator.molecule import MoleculeGenerator
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
 from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.generator.molecule import MoleculeGenerator
 
 
 @pytest.fixture
-def molecule_generator():
-    config = GeneratorConfig()
-    return MoleculeGenerator(config)
+def base_config():
+    return GeneratorConfig(
+        sqs=SQSConfig(enabled=True),
+        distortion=DistortionConfig(enabled=True),
+        nms=NMSConfig(enabled=True),
+        defects=DefectConfig(enabled=False)
+    )
+
+@pytest.fixture
+def molecule_generator(base_config):
+    return MoleculeGenerator(base_config)
 
 def test_normal_mode_sampling(molecule_generator):
     # H2O molecule
@@ -38,52 +53,22 @@ def test_normal_mode_sampling(molecule_generator):
             assert atoms.info['temperature'] == 300
             assert atoms.get_chemical_symbols() == h2o.get_chemical_symbols()
 
-def test_nms_disabled():
-    config = GeneratorConfig()
-    config.nms.enabled = False
-    gen = MoleculeGenerator(config)
+def test_nms_disabled(base_config):
+    base_config.nms.enabled = False
+    gen = MoleculeGenerator(base_config)
     h2o = molecule('H2O')
 
     res = gen.normal_mode_sampling(h2o, 300)
     assert res == []
 
-def test_nms_no_calculator():
-    gen = MoleculeGenerator(GeneratorConfig())
+def test_nms_no_calculator(base_config):
+    gen = MoleculeGenerator(base_config)
     h2o = molecule('H2O')
     h2o.calc = None
 
-    # We want to test that GeneratorError is raised when EMT cannot be imported.
-    # The MoleculeGenerator tries to import EMT inside normal_mode_sampling.
-    # We simulate ImportError by patching sys.modules.
-
-    # However, 'ase.calculators.emt' might be lazy loaded.
-    # And we must ensure we don't break subsequent tests.
-
-    with patch.dict('sys.modules', {'ase.calculators.emt': None}):
-        # When 'None' is in sys.modules, import raises ModuleNotFoundError.
-        # MoleculeGenerator catches Exception and raises GeneratorError.
-
-        # Note: In Python, if sys.modules[name] is None, import raises ModuleNotFoundError.
-        # But MoleculeGenerator code is:
-        # try:
-        #    atoms.calc = EMT()
-        # except Exception as e:
-        #    raise GeneratorError...
-
-        # The 'from ase.calculators.emt import EMT' statement is BEFORE the try block in my previous code?
-        # Let's check MoleculeGenerator code.
-
-        # Code:
-        # if not self.config.nms.enabled: ...
-        # from ase.calculators.emt import EMT  <-- This line will fail if patched
-
-        # Wait, if the import fails, it raises ModuleNotFoundError immediately, NOT GeneratorError.
-        # I should wrap imports or move them or catch ImportError.
-
-        # If I want to test the try-except block around atoms.calc = EMT(), I should allow import but make instantiation fail.
-        pass
-
-    # Alternative strategy: Mock EMT to fail instantiation
-    with patch('ase.calculators.emt.EMT', side_effect=Exception("EMT missing")):
-         with pytest.raises(GeneratorError, match="NMS requires a calculator"):
-             gen.normal_mode_sampling(h2o, 300)
+    # We simulate failure to import/instantiate EMT
+    with (
+        patch('ase.calculators.emt.EMT', side_effect=ImportError("Mocked EMT missing")),
+        pytest.raises(GeneratorError, match="NMS requires a calculator")
+    ):
+        gen.normal_mode_sampling(h2o, 300)

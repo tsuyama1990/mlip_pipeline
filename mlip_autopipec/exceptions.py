@@ -36,13 +36,16 @@ class DFTCalculationError(MLIPError):
         message: str,
         stdout: str = "",
         stderr: str = "",
+        is_timeout: bool = False,
     ) -> None:
         super().__init__(message)
         self.stdout = stdout
         self.stderr = stderr
+        self.is_timeout = is_timeout
 
     def __str__(self) -> str:
-        return f"{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+        timeout_msg = "[TIMEOUT] " if self.is_timeout else ""
+        return f"{timeout_msg}{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
 
 
 class GeneratorError(MLIPError):

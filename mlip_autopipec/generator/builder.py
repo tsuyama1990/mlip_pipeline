@@ -1,13 +1,12 @@
 import logging
 import uuid
-from typing import List
 
 from ase import Atoms
 from ase.build import bulk, molecule
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.system import SystemConfig
 from mlip_autopipec.exceptions import GeneratorError
+
 from .alloy import AlloyGenerator
 from .defect import DefectGenerator
 from .molecule import MoleculeGenerator
@@ -20,7 +19,7 @@ class StructureBuilder:
     Facade for structure generation. Orchestrates Alloy, Molecule, and Defect generators.
     """
 
-    def __init__(self, system_config: SystemConfig):
+    def __init__(self, system_config: SystemConfig) -> None:
         """
         Initialize the StructureBuilder.
 
@@ -32,13 +31,19 @@ class StructureBuilder:
 
         if not self.generator_config:
             logger.info("No generator_config provided in SystemConfig, using defaults.")
-            self.generator_config = GeneratorConfig()
+            # This should ideally be populated by ConfigFactory, but providing safe defaults here
+            # requires manual construction if the fields are mandatory.
+            # However, system_config.generator_config is Optional in SystemConfig schema.
+            # If it's missing, we cannot proceed if we strictly require it.
+            # But the user might have provided it.
+            # We raise error or mock it for now if this path is hit unexpectedly.
+            raise GeneratorError("GeneratorConfig is missing in SystemConfig.")
 
         self.alloy_gen = AlloyGenerator(self.generator_config)
         self.mol_gen = MoleculeGenerator(self.generator_config)
         self.defect_gen = DefectGenerator(self.generator_config)
 
-    def build(self) -> List[Atoms]:
+    def build(self) -> list[Atoms]:
         """
         Orchestrates the generation process based on TargetSystem.
 
@@ -53,7 +58,7 @@ class StructureBuilder:
             logger.warning("No target_system defined. Returning empty structure list.")
             return []
 
-        structures: List[Atoms] = []
+        structures: list[Atoms] = []
 
         try:
             if target.structure_type == "bulk":
@@ -71,7 +76,8 @@ class StructureBuilder:
         except Exception as e:
             if isinstance(e, GeneratorError):
                 raise
-            raise GeneratorError(f"Structure generation failed: {e}") from e
+            msg = f"Structure generation failed: {e}"
+            raise GeneratorError(msg) from e
 
         # Post-processing: Add UUIDs and Metadata
         final_list = []
@@ -83,11 +89,11 @@ class StructureBuilder:
 
         return final_list
 
-    def _build_bulk(self, structures: List[Atoms], target) -> None:
+    def _build_bulk(self, structures: list[Atoms], target) -> None:
         """Helper to build bulk structures."""
         # Heuristic: Take the first element from composition and use its bulk structure.
         # This assumes standard crystal structures. In a real scenario, user might provide CIF/POSCAR.
-        primary_elem = list(target.composition.root.keys())[0]
+        primary_elem = next(iter(target.composition.root.keys()))
         try:
             prim = bulk(primary_elem)
         except Exception as e:
@@ -95,7 +101,6 @@ class StructureBuilder:
             prim = bulk('Fe')
 
         # 1. SQS Generation
-        # Only if enabled in config (checked inside generator, but also check here to avoid unnecessary calls)
         if self.generator_config.sqs.enabled:
             sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
 
@@ -122,12 +127,13 @@ class StructureBuilder:
                         interstitials = self.defect_gen.create_interstitial(sqs, el)
                         structures.extend(interstitials)
 
-    def _build_molecule(self, structures: List[Atoms], target) -> None:
+    def _build_molecule(self, structures: list[Atoms], target) -> None:
         """Helper to build molecular structures."""
         try:
             mol = molecule(target.name)
         except Exception as e:
-             raise GeneratorError(f"Could not build molecule '{target.name}': {e}") from e
+             msg = f"Could not build molecule '{target.name}': {e}"
+             raise GeneratorError(msg) from e
 
         if self.generator_config.nms.enabled:
             n_samples = self.generator_config.nms.n_samples
