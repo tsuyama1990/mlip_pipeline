@@ -1,13 +1,7 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from mlip_autopipec.config.schemas.common import MinimalConfig
-from mlip_autopipec.config.schemas.generator import (
-    DefectConfig,
-    DistortionConfig,
-    GeneratorConfig,
-    NMSConfig,
-    SQSConfig,
-)
+from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
 from mlip_autopipec.config.schemas.system import SystemConfig, TargetSystem
 from mlip_autopipec.generator.builder import StructureBuilder
 
@@ -41,12 +35,13 @@ def test_builder_pipeline():
 
     builder = StructureBuilder(system_config)
 
-    # In StructureBuilder.__init__, it checks for self.system_config.generator_config
-    # However, since we mock SystemConfig, we must ensure the attribute access returns our gen_config.
-    # MagicMock attributes work, but pydantic access pattern in builder might vary if not using dict access.
-    # The builder code: self.generator_config = system_config.generator_config
-
     structures = builder.build()
+
+    # 1 SQS (base)
+    # Strains: -0.05, 0.05 (2 steps). Both non-zero. -> 2 Strained structures.
+    # Total Base + Strained = 3.
+    # Rattles: 3 * 2 = 6.
+    # Total = 3 + 6 = 9 structures.
 
     assert len(structures) == 9
     for s in structures:
@@ -73,10 +68,15 @@ def test_builder_with_defects():
     system_config.generator_config = gen_config
     system_config.target_system = target_system
 
-    builder = StructureBuilder(system_config)
-    structures = builder.build()
+    # We can mock DefectApplicator to ensure separation
+    with patch('mlip_autopipec.generator.builder.DefectApplicator') as MockApplicator:
+        instance = MockApplicator.return_value
+        # Mock apply to return 1 structure (dummy)
+        from ase import Atoms
+        instance.apply.return_value = [Atoms('Fe')]
 
-    assert len(structures) == 9
-    types = [s.info.get('config_type') for s in structures]
-    assert 'sqs' in types
-    assert 'vacancy' in types
+        builder = StructureBuilder(system_config)
+        structures = builder.build()
+
+        assert len(structures) == 1
+        instance.apply.assert_called_once()

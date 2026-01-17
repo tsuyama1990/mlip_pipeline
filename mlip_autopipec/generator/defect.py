@@ -14,15 +14,6 @@ class DefectGenerator:
     Generator for point defects (vacancies and interstitials) in atomic structures.
     """
 
-    def __init__(self, config: GeneratorConfig) -> None:
-        """
-        Initialize the DefectGenerator.
-
-        Args:
-            config (GeneratorConfig): The generator configuration.
-        """
-        self.config = config
-
     def create_vacancy(self, atoms: Atoms) -> list[Atoms]:
         """
         Creates vacancies by removing atoms.
@@ -39,9 +30,6 @@ class DefectGenerator:
         Raises:
             GeneratorError: If vacancy generation fails.
         """
-        if not self.config.defects.enabled or not self.config.defects.vacancies:
-            return []
-
         results = []
         n_atoms = len(atoms)
 
@@ -80,9 +68,6 @@ class DefectGenerator:
         Raises:
             GeneratorError: If interstitial generation fails.
         """
-        if not self.config.defects.enabled or not self.config.defects.interstitials:
-            return []
-
         results = []
         try:
             candidates = [
@@ -119,3 +104,54 @@ class DefectGenerator:
         except Exception as e:
             msg = f"Failed to create interstitials: {e}"
             raise GeneratorError(msg) from e
+
+
+class DefectApplicator:
+    """
+    Applies defects to a list of structures based on configuration.
+
+    This class orchestrates the DefectGenerator to apply defects to a batch of
+    structures, handling the iteration and configuration checks.
+    """
+
+    def __init__(self, config: GeneratorConfig) -> None:
+        """
+        Initialize the DefectApplicator.
+
+        Args:
+            config (GeneratorConfig): The generator configuration.
+        """
+        self.config = config
+        self.generator = DefectGenerator() # Stateless generator now
+
+    def apply(self, structures: list[Atoms], primary_element: str) -> list[Atoms]:
+        """
+        Applies configured defects to the provided structures.
+
+        Args:
+            structures (List[Atoms]): List of base structures.
+            primary_element (str): Element to use for interstitials if not configured.
+
+        Returns:
+            List[Atoms]: A new list containing the original structures plus defect structures.
+        """
+        if not self.config.defects.enabled:
+            return structures
+
+        extended_list = list(structures)
+
+        elements_to_insert = self.config.defects.interstitial_elements
+        if not elements_to_insert:
+            elements_to_insert = [primary_element]
+
+        for s in structures:
+            if self.config.defects.vacancies:
+                vacancies = self.generator.create_vacancy(s)
+                extended_list.extend(vacancies)
+
+            if self.config.defects.interstitials:
+                for el in elements_to_insert:
+                    interstitials = self.generator.create_interstitial(s, el)
+                    extended_list.extend(interstitials)
+
+        return extended_list

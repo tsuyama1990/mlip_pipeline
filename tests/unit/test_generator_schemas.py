@@ -1,11 +1,17 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, DistortionConfig
+from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
 
 
 def test_generator_config_defaults():
-    config = GeneratorConfig()
+    # Now we must provide arguments because defaults were removed from schema
+    config = GeneratorConfig(
+        sqs=SQSConfig(),
+        distortion=DistortionConfig(),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
 
     # SQS
     assert config.sqs.enabled is True
@@ -29,12 +35,28 @@ def test_generator_config_defaults():
 def test_generator_config_validation():
     # rattling_amplitude must be > 0
     with pytest.raises(ValidationError):
-        GeneratorConfig(distortion=DistortionConfig(rattling_amplitude=0.0))
+        GeneratorConfig(
+            sqs=SQSConfig(),
+            distortion=DistortionConfig(rattling_amplitude=0.0),
+            nms=NMSConfig(),
+            defects=DefectConfig()
+        )
 
     # n_strain_steps must be >= 1
     with pytest.raises(ValidationError):
-        GeneratorConfig(distortion=DistortionConfig(n_strain_steps=0))
+        GeneratorConfig(
+            sqs=SQSConfig(),
+            distortion=DistortionConfig(n_strain_steps=0),
+            nms=NMSConfig(),
+            defects=DefectConfig()
+        )
 
     # Extra fields not allowed
     with pytest.raises(ValidationError):
-        GeneratorConfig(extra_field="invalid")
+        GeneratorConfig(
+            sqs=SQSConfig(),
+            distortion=DistortionConfig(),
+            nms=NMSConfig(),
+            defects=DefectConfig(),
+            extra_field="invalid"
+        )

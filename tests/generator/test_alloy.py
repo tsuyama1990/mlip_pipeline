@@ -96,3 +96,35 @@ def test_generate_batch_disabled_distortions():
 
     assert len(batch) == 1
     assert batch[0] == base
+
+def test_generate_batch_single_strain_step():
+    # Edge case: n_strain_steps = 1
+    config = GeneratorConfig(
+        sqs=SQSConfig(),
+        distortion=DistortionConfig(
+            enabled=True,
+            strain_range=(-0.05, 0.05),
+            n_strain_steps=1,
+            n_rattle_steps=1
+        ),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
+    gen = AlloyGenerator(config)
+    base = bulk('Fe')
+
+    batch = gen.generate_batch(base)
+    # Linspace(-0.05, 0.05, 1) -> [-0.05]. One strain.
+    # Base + 1 strain = 2 structures.
+    # 1 rattle per structure (including base?)
+    # generate_batch logic:
+    # results = [base]
+    # + strain list -> results = [base, strained]
+    # For s in [base, strained]: rattle 1 time.
+    # total = 2 (base+strained) + 2 (rattled base + rattled strained) = 4 structures.
+
+    assert len(batch) == 4
+    types = [s.info.get('config_type') for s in batch]
+    assert types.count('base') == 1
+    assert types.count('strain') == 1
+    assert types.count('rattle') == 2

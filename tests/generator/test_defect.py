@@ -8,13 +8,7 @@ from mlip_autopipec.generator.defect import DefectGenerator
 
 @pytest.fixture
 def defect_generator():
-    config = GeneratorConfig(
-        sqs=SQSConfig(),
-        distortion=DistortionConfig(),
-        nms=NMSConfig(),
-        defects=DefectConfig(enabled=True, vacancies=True, interstitials=True)
-    )
-    return DefectGenerator(config)
+    return DefectGenerator()
 
 def test_create_vacancy(defect_generator):
     atoms = bulk('Si', 'diamond', a=5.43) * (2,2,2) # 16 atoms
@@ -56,14 +50,23 @@ def test_create_interstitial_different_element(defect_generator):
         assert inter.get_chemical_symbols().count('H') == 1
 
 def test_defects_disabled():
+    # To test "disabled", we need to test DefectApplicator, not Generator,
+    # because Generator is now stateless and doesn't know about config.
+    from mlip_autopipec.generator.defect import DefectApplicator
+
     config = GeneratorConfig(
         sqs=SQSConfig(),
         distortion=DistortionConfig(),
         nms=NMSConfig(),
         defects=DefectConfig(enabled=False)
     )
-    gen = DefectGenerator(config)
+
+    applicator = DefectApplicator(config)
     atoms = bulk('Si')
 
-    assert gen.create_vacancy(atoms) == []
-    assert gen.create_interstitial(atoms, 'Si') == []
+    # Passing a list of atoms
+    result = applicator.apply([atoms], 'Si')
+
+    # Should just return original
+    assert len(result) == 1
+    assert result[0] == atoms
