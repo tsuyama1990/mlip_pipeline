@@ -1,157 +1,174 @@
-# CYCLE04: On-The-Fly (OTF) Inference and Embedding (SPEC.md)
+# Cycle 04: Surrogate Explorer
 
 ## 1. Summary
 
-This document provides the detailed technical specification for Cycle 4 of the MLIP-AutoPipe project. This cycle represents a pivotal moment in the project's development, as it finally **closes the active learning loop**. While previous cycles have established the capabilities to generate data (Cycle 1 & 2) and train a model (Cycle 3), this cycle introduces the "production" component that uses the trained model to perform simulations, intelligently identifies its own weaknesses, and generates the precise data needed to remedy them. This is the mechanism that allows the system to autonomously improve.
+Cycle 04 implements **Module B: Surrogate Explorer**. This module represents the "Efficiency" in the system's goals. Running DFT on every single generated candidate (from Module A) is wasteful, as many candidates will be physically redundant (too similar) or physically impossible (atoms overlapping, creating singularities).
 
-The core deliverables for this cycle are twofold. First is the **On-The-Fly (OTF) Inference Engine**, which will be implemented as a `LammpsRunner` class. This class will be responsible for taking a trained MLIP (the `.yace` file from Cycle 3) and using it to run a full-scale molecular dynamics (MD) simulation using the LAMMPS engine. Its most critical function, however, is not just to run the simulation, but to monitor it in real-time. It will be configured to track the uncertainty of the MLIP's predictions for every single atom at every timestep, using the `extrapolation_grade` metric provided by the Pacemaker potential.
+This module solves this by placing a fast "Surrogate Model" (MACE-MP) in front of the DFT factory. MACE-MP is a foundation model trained on the Materials Project; while not accurate enough for final properties, it is excellent at identifying "reasonable" structures. We use it to filter out garbage.
 
-The second, and arguably most innovative, deliverable is the **Intelligent Data Extraction** module. When the `LammpsRunner` detects that an atom's uncertainty has breached a predefined threshold, it will pause the simulation and trigger this extraction logic. This is not a simple "save the whole frame" operation. Instead, it will implement the advanced **Periodic Embedding** and **Force Masking** strategies. It will extract a small, periodic sub-system centred on the uncertain atom, preserving the local bulk environment without introducing artificial surface effects. It will also generate a "force mask," a data array that distinguishes the core atoms (whose forces are reliable training targets) from the buffer atoms at the edge of the extracted box (whose forces might be affected by the artificial boundary). This `(embedded_structure, force_mask)` pair represents a highly informative and precisely curated piece of data to send back to the DFT Factory. By the end of this cycle, the system will have a complete, closed-loop mechanism for a model to explore, find its own deficiencies, and generate the exact data needed to learn and improve.
+Furthermore, we implement **Active Learning Selection**. We compute structural fingerprints (descriptors) for all valid candidates and use **Farthest Point Sampling (FPS)** to select a subset that maximizes information gain. This ensures that if we have budget for 100 DFT calculations, we spend it on the 100 most distinct structures, rather than 100 variations of the same ground state.
 
 ## 2. System Architecture
 
-Cycle 4 introduces the final core module, `mlip_autopipec/modules/inference.py`, which is responsible for running production simulations and closing the active learning loop.
+We add the `surrogate` package.
 
-**File Structure for Cycle 4:**
-
-The following ASCII tree highlights the new files for this cycle in **bold**.
-
-```
-mlip-autopipe/
-├── dev_documents/
-│   └── system_prompts/
-│       ├── ...
-│       └── CYCLE04/
-│           ├── **SPEC.md**
-│           └── **UAT.md**
-├── mlip_autopipec/
-│   ├── modules/
-│   │   ├── ...
-│   │   ├── training.py
-│   │   └── **inference.py**    # Core LammpsRunner and embedding logic
-│   └── utils/
-│       └── ase_utils.py
-├── tests/
-│   └── modules/
-│       ├── ...
-│       ├── test_training.py
-│       └── **test_inference.py** # Unit and integration tests for inference.py
-└── pyproject.toml
+```ascii
+mlip_autopipec/
+├── config/
+├── core/
+├── generators/
+├── surrogate/
+│   ├── __init__.py
+│   ├── mace_client.py      # The fast evaluator.
+│   ├── descriptors.py      # The fingerprint calculator.
+│   └── fps_selector.py     # The diversity algorithm.
+└── tests/
+    ├── test_surrogate.py   # Validates model loading and inference.
+    └── test_fps.py         # Validates selection logic.
 ```
 
-**Component Blueprint: `modules/inference.py`**
+### 2.1 Code Blueprints
 
-This file will house the `LammpsRunner` class and its helper functions for embedding and masking.
+This section details the logic for high-throughput screening.
 
--   **`LammpsRunner` class:**
-    -   **`__init__(self, inference_config)`**: The constructor takes a comprehensive `InferenceConfig` Pydantic model. This config will contain everything needed for the run: the path to the LAMMPS executable, the path to the `.yace` potential, MD simulation parameters (temperature, timestep, etc.), and uncertainty detection settings.
-    -   **`run(self, initial_structure: ase.Atoms) -> Optional[UncertainStructure]`**: The main public method. It takes a starting `ase.Atoms` object and runs an MD simulation. If the simulation completes without exceeding the uncertainty threshold, it returns `None`. If high uncertainty is detected, it stops and returns an `UncertainStructure` object, which contains the newly extracted, smaller atomic structure and its corresponding force mask.
-    -   **`_prepare_lammps_input(self, working_dir: Path, structure_file: Path, potential_file: Path) -> Path`**: This private method generates the complex LAMMPS input script required for the OTF simulation. Critically, this script will not only define the MD run but will also include commands for the `pair_style pace` to compute the per-atom `extrapolation_grade` and dump it to an output file at regular intervals.
-    -   **`_execute_lammps(self, working_dir: Path, input_script: Path) -> subprocess.CompletedProcess`**: Invokes the LAMMPS executable as a subprocess, running in the specified working directory.
-    -   **`_find_first_uncertain_frame(self, working_dir: Path) -> Optional[Tuple[int, int]]`**: This method parses the output files generated by LAMMPS (the trajectory and the uncertainty data). It scans through the simulation, frame by frame, to find the *first* timestep where any atom's uncertainty value exceeds the configured threshold. It returns the timestep and the ID of the uncertain atom. If no uncertainty is found, it returns `None`.
--   **Helper Functions within `inference.py`:**
-    -   **`extract_embedded_structure(large_cell: ase.Atoms, center_atom_index: int, config: UncertaintyConfig) -> UncertainStructure`**: This function contains the core scientific logic. It will be called by `LammpsRunner` when an uncertain frame is found.
-        1.  It performs the **Periodic Embedding**: It calculates a new, smaller periodic cell centred on the `center_atom_index`. It then carves out all atoms within this new box, correctly wrapping their positions across the original periodic boundaries to create a new, small, and fully periodic `ase.Atoms` object.
-        2.  It performs **Force Masking**: It then calculates a boolean/integer `force_mask` array for this new, smaller structure. Atoms within a "core" radius from the center are marked as `1` (to be trained on), while atoms in the outer "buffer" region are marked as `0` (to be ignored during training).
-        3.  It returns a validated `UncertainStructure` Pydantic object containing both the new `ase.Atoms` object and the NumPy array for the force mask.
+#### 2.1.1 MACE Client (`surrogate/mace_client.py`)
 
-This design separates the concerns of process management (`LammpsRunner`) from the complex geometric/scientific logic (`extract_embedded_structure`).
+This class wraps the MACE PyTorch model.
+
+**Class `MaceClient`**
+*   **Attributes**:
+    *   `model` (`torch.nn.Module`): The loaded MACE model.
+    *   `device` (`str`): "cuda" or "cpu".
+    *   `batch_size` (`int`): Default 32.
+*   **Methods**:
+    *   `__init__(self, model_checkpoint: str = "medium", device: str = None)`:
+        *   Loads `mace_mp` model from cache or downloads it.
+        *   Moves model to device.
+    *   `evaluate(self, atoms_list: List[Atoms]) -> List[Atoms]`:
+        *   **Description**: Computes Energy and Forces.
+        *   **Logic**:
+            1.  Convert `atoms_list` to MACE `AtomicData` objects.
+            2.  Batch them using `torch_geometric.data.Batch`.
+            3.  Run `self.model(batch)`.
+            4.  Unpack results and attach `SinglePointCalculator` to each `Atoms` object.
+            5.  Return the annotated list.
+    *   `filter_valid(self, atoms_list: List[Atoms], f_max_threshold: float = 100.0) -> List[Atoms]`:
+        *   Removes structures where $\max|F| > f_{max}$.
+        *   Removes structures with overlapping atoms (distance < 0.5A).
+        *   Logs how many were removed.
+
+#### 2.1.2 Descriptor Calculator (`surrogate/descriptors.py`)
+
+Computes fingerprints for diversity selection.
+
+**Class `DescriptorCalculator`**
+*   **Attributes**:
+    *   `method` (`str`): "soap" or "ace".
+*   **Methods**:
+    *   `compute(self, atoms_list: List[Atoms]) -> np.ndarray`:
+        *   If `method == "soap"`:
+            *   Initialize `dscribe.descriptors.SOAP`.
+            *   Params: `rcut=6.0`, `nmax=8`, `lmax=6`.
+            *   Call `soap.create(atoms_list)`.
+            *   Return matrix `(N_samples, N_features)`.
+        *   If `method == "ace"`:
+            *   Use MACE model's internal representations (invariant features) if accessible.
+
+#### 2.1.3 FPS Selector (`surrogate/fps_selector.py`)
+
+Implements the selection algorithm.
+
+**Class `FPSSelector`**
+*   **Methods**:
+    *   `select(self, descriptors: np.ndarray, n_to_select: int, existing_descriptors: Optional[np.ndarray] = None) -> List[int]`:
+        *   **Input**: `descriptors` (Candidate pool), `existing_descriptors` (Already in DB).
+        *   **Algorithm (Maximin)**:
+            1.  Initialize distance array `min_dists`.
+                *   If `existing` provided: `min_dists = min(dist(candidates, existing))`.
+                *   Else: Pick random first point, calculate dists to it.
+            2.  Loop `k` from 1 to `n_to_select`:
+                *   Idx `next` = `argmax(min_dists)`.
+                *   Add `next` to selection.
+                *   Update `min_dists`: `new_dists = dist(candidates, candidate[next])`.
+                *   `min_dists = minimum(min_dists, new_dists)`.
+            3.  Return list of selected indices.
+        *   **Optimization**: Use `scipy.spatial.distance.cdist` for bulk distance calculation, or simple numpy broadcasting if N is small (< 10k).
+
+#### 2.1.4 Data Flow Diagram (Cycle 04)
+
+```mermaid
+graph TD
+    Generators[Module A] -->|Raw Candidates| Mace[MaceClient]
+    Mace -->|Evaluate| Mace
+    Mace -->|Filter (F_max > 100)| Valid[Valid Candidates]
+
+    Valid -->|Compute SOAP| Descriptors[Descriptor Matrix]
+    Descriptors -->|FPS Algorithm| Selector[FPSSelector]
+    Selector -->|Indices| Selected[Selected Candidates]
+
+    Selected --> DFT[DFT Queue (Module C)]
+```
 
 ## 3. Design Architecture
 
-The design for Cycle 4 relies heavily on Pydantic to manage the complex configuration of an MD simulation and to define the structure of the data that closes the active learning loop.
+### 3.1 Surrogate as a Gatekeeper
 
-**Pydantic Schema Definitions:**
+The design explicitly treats the Surrogate (MACE) as a **Gatekeeper**.
+*   **Cost**: DFT cost is $O(N^3)$. MACE cost is $O(N)$.
+*   **Ratio**: We can afford to generate 10,000 candidates, filter them down to 5,000 valid ones, and select the best 100 for DFT. This gives us a 100x effective speedup in exploring configuration space compared to running DFT on everything.
+*   **Independence**: The surrogate model (MACE-MP) is *not* the model we are training (ACE). It is a "Transfer Learning" source. We use its general knowledge of chemistry to guide our specific learning of the target material.
 
-The following models will be added to `mlip_autopipec/config/models.py`.
+### 3.2 Descriptor Abstraction
 
-1.  **`MDConfig(BaseModel)`**: Defines the parameters for the molecular dynamics simulation.
-    -   `ensemble: Literal['nvt', 'npt'] = 'nvt'`: The thermodynamic ensemble.
-    -   `temperature: float = Field(300.0, gt=0)`: The simulation temperature in Kelvin.
-    -   `timestep: float = Field(1.0, gt=0)`: The simulation timestep in femtoseconds.
-    -   `run_duration: int = Field(1000, gt=0)`: The total number of steps in the simulation.
+We abstract the descriptor calculation.
+*   **Why**: FPS depends on the metric space. "Distance" in SOAP space is different from "Distance" in ACE space.
+*   **Default**: We use SOAP (Smooth Overlap of Atomic Positions) via `dscribe` because it is a robust, widely accepted standard for structural similarity.
+*   **Fallback**: If `dscribe` is heavy, we can implement a simple "Pair Distribution Function" descriptor using `numpy.histogram` of pairwise distances.
 
-2.  **`UncertaintyConfig(BaseModel)`**: Defines the parameters for the active learning trigger.
-    -   `threshold: float = Field(5.0, gt=0)`: The `extrapolation_grade` value that triggers an extraction.
-    -   `embedding_cutoff: float = Field(8.0, gt=0)`: The radius for the periodic embedding box in Angstroms.
-    -   `masking_cutoff: float = Field(5.0, gt=0)`: The inner radius for the force masking core region.
-    -   `@field_validator('masking_cutoff')`: A validator to ensure `masking_cutoff` is always smaller than `embedding_cutoff`.
+### 3.3 FPS Algorithm Efficiency
 
-3.  **`InferenceConfig(BaseModel)`**: The top-level configuration for the `LammpsRunner`.
-    -   `lammps_executable: FilePath`: Path to the LAMMPS binary.
-    -   `potential_path: FilePath`: Path to the `.yace` potential file to be used.
-    -   `md_params: MDConfig = Field(default_factory=MDConfig)`: Nested MD simulation settings.
-    -   `uncertainty_params: UncertaintyConfig = Field(default_factory=UncertaintyConfig)`: Nested uncertainty and embedding settings.
-
-4.  **`UncertainStructure(BaseModel)`**: The data transfer object that is the output of this cycle. This is what connects the inference engine back to the DFT factory.
-    -   `atoms: Any`: The small, embedded `ase.Atoms` object. A validator will ensure it's a real `Atoms` object.
-    -   `force_mask: Any`: The NumPy array for the force mask. A validator will ensure it's a NumPy array with the same length as the number of atoms.
-    -   `metadata: Dict[str, Any] = {}`: A dictionary to store metadata, like the original timestep it was extracted from.
-
-**Data Flow:**
--   **Input:** The `LammpsRunner` consumes a trained potential (`.yace` file) from Cycle 3 and an initial `ase.Atoms` structure.
--   **Process:** It runs an external LAMMPS simulation, which generates trajectory and uncertainty files.
--   **Output:** It parses these files and, if the uncertainty threshold is met, it produces a single `UncertainStructure` object.
--   **Next Stage:** This `UncertainStructure` object is the key. It is designed to be passed back to the start of the workflow. The `atoms` part will be sent to the `DFTFactory` (Cycle 1) for calculation. The `force_mask` will be stored alongside the DFT result in the database, to be used by the `PacemakerTrainer` (Cycle 3) to correctly weight the forces during the next training iteration. This completes the loop.
+Naive FPS is $O(N \cdot K \cdot D)$. For $N=10^4, K=10^3, D=10^3$, this is $10^{10}$ ops, which is fine for Python/Numpy.
+*   **Memory**: Storing the distance matrix ($N \times N$) is bad ($10^4 \times 10^4 \times 8$ bytes $\approx 800$ MB).
+*   **Solution**: We do **not** precompute the full distance matrix. We update `min_dists` vector ($N \times 1$) incrementally. This keeps memory usage low ($O(N)$).
 
 ## 4. Implementation Approach
 
-The implementation will focus on first building the core scientific logic (the embedding) and then wrapping it with the process management class.
+1.  **Environment Check**:
+    *   Check if `mace-torch` and `dscribe` are installed.
+    *   If not, issue a warning and use a "RandomSelector" (mock) to allow development to proceed.
 
-1.  **Update Pydantic Models:** Add the `MDConfig`, `UncertaintyConfig`, `InferenceConfig`, and `UncertainStructure` models to `mlip_autopipec/config/models.py`.
+2.  **MACE Integration**:
+    *   Implement `MaceClient`.
+    *   Download the model file (`2023-12-03-mace-128-L1_epoch-199.model`) to a cache dir `~/.cache/mace`.
+    *   Test inference on a single water molecule.
 
-2.  **Implement Periodic Embedding:** In `modules/inference.py`, implement the `extract_embedded_structure` function. This is the most complex part of the cycle.
-    -   It will take the large cell, the index of the central atom, and the config.
-    -   It will define a new, smaller cell matrix based on the `embedding_cutoff`.
-    -   It will find all atoms from the large cell that fall within this new box, being careful to handle periodic boundary conditions correctly (e.g., using `ase.geometry.wrap_positions`).
-    -   It will create a new `ase.Atoms` object with these selected atoms and the new cell.
+3.  **FPS Implementation**:
+    *   Implement `fps_selector.py`.
+    *   Use `numpy` broadcasting for the distance calculation `np.linalg.norm(X - selected, axis=1)`.
+    *   Verify against a known 2D dataset (e.g., points on a grid).
 
-3.  **Implement Force Masking:** The second part of `extract_embedded_structure` is to generate the mask.
-    -   It will calculate the distances of all atoms in the *new, small cell* from the central point of that cell.
-    -   It will create a NumPy array, setting the value to 1 for atoms whose distance is less than `masking_cutoff` and 0 otherwise.
-
-4.  **Implement LAMMPS Input Generation:** In the `LammpsRunner` class, implement the `_prepare_lammps_input` method. This requires specific knowledge of LAMMPS syntax for the `pace` pair style. The generated script must contain:
-    -   `pair_style pace`: To use the potential.
-    -   `pair_coeff * * ...`: To specify the potential file.
-    -   `compute uncert all pace/extrapol`: To calculate the per-atom uncertainty.
-    -   `dump ...`: To write the trajectory and the per-atom uncertainty values to output files at each step.
-    -   The MD run commands (`fix nvt`, `run ...`).
-
-5.  **Implement LAMMPS Execution:** Implement `_execute_lammps` as a straightforward wrapper around `subprocess.run`.
-
-6.  **Implement Uncertainty Parsing:** Implement the `_find_first_uncertain_frame` method. This will involve reading the LAMMPS dump file containing the uncertainty values. It will likely use a library like `pandas` or simple NumPy file I/O to load the data and efficiently find the first row where any value exceeds the threshold.
-
-7.  **Assemble `LammpsRunner.run`:** The main `run` method will orchestrate the entire process:
-    -   Create a temporary working directory.
-    -   Prepare the LAMMPS input files and the initial structure file.
-    -   Execute LAMMPS.
-    -   Call `_find_first_uncertain_frame` to check for uncertainty.
-    -   If a frame is found, read the corresponding structure from the trajectory file, and call `extract_embedded_structure` to produce and return the final `UncertainStructure` object.
-    -   If no uncertainty is found, return `None`.
+4.  **Pipeline Construction**:
+    *   Create `SelectionPipeline` class in `__init__.py` that stitches these steps together.
 
 ## 5. Test Strategy
 
-Testing this cycle requires validating the complex geometric logic of the embedding and the interaction with the external LAMMPS process.
+### 5.1 Unit Testing
 
-**Unit Testing Approach (Min 300 words):**
+*   **FPS Logic**:
+    *   Create 4 points at $(0,0), (0,1), (1,0), (1,1)$ and a cluster of points near $(0.5, 0.5)$.
+    *   Request 4 points via FPS.
+    *   Assert that the 4 corner points are selected, as they maximize the spread.
 
-Unit tests in `tests/modules/test_inference.py` will meticulously validate the embedding and masking logic in isolation.
+*   **MACE Wrapper**:
+    *   Mock `mace_torch` model.
+    *   Pass a list of atoms.
+    *   Assert that the returned atoms have `calculator` attached and results populated.
 
--   **Testing Periodic Embedding:** A key test, `test_embedding_wraps_atoms_correctly`, will be created. It will start with a large (e.g., 3x3x3) supercell of a crystal. The test will choose a central atom near a periodic boundary. It will then call `extract_embedded_structure`. The assertions will be critical:
-    1.  The number of atoms in the returned small cell must be correct.
-    2.  The test will identify a specific atom that it knows should have been "wrapped" from the other side of the large cell and assert that its position in the new cell is correct.
-    3.  The new cell's lattice vectors must be correct.
+### 5.2 Integration Testing
 
--   **Testing Force Masking:** The test `test_force_mask_is_correct` will use a pre-defined `ase.Atoms` object and call the masking logic. It will then manually check the distances of a few atoms it knows are inside and outside the `masking_cutoff`. It will assert that the corresponding values in the returned `force_mask` array are 1 and 0, respectively. It will also assert that the total number of '1's in the mask is as expected.
-
--   **Testing LAMMPS Input Generation:** The test `test_lammps_script_generation` will not run LAMMPS. It will instantiate a `LammpsRunner` with a specific `InferenceConfig` and call `_prepare_lammps_input`. It will then read the generated script as a string and assert that it contains the correct values from the config (e.g., `fix myfix all nvt temp 300.0 300.0 0.1`, `pair_coeff * * potential.yace ...`). This confirms the configuration is being correctly translated into the LAMMPS language.
-
-**Integration Testing Approach (Min 300 words):**
-
-The integration test will confirm that the `LammpsRunner` can successfully launch and monitor a real LAMMPS simulation and correctly trigger the extraction process.
-
--   **End-to-End Uncertainty Detection and Extraction:** This will be the main integration test.
-    1.  **Setup:** The test will require a simple pre-trained potential (like one from the Cycle 3 tests) and a starting structure. It will also require a working LAMMPS installation in the test environment.
-    2.  **Configuration:** An `InferenceConfig` will be created. Crucially, the `uncertainty_threshold` will be set to an artificially *low* value (e.g., 0.1). This is a trick to ensure that even a stable simulation will trigger the uncertainty mechanism almost immediately, making the test fast and deterministic.
-    3.  **Execution:** The test will instantiate `LammpsRunner` and call the `run()` method.
-    4.  **Assertion:** This is the most important part. The test will assert that the return value is **not** `None`. It will assert that the returned value is an instance of the `UncertainStructure` Pydantic model. It will check that the `atoms` object inside the result is smaller than the initial simulation cell. Finally, it will assert that the `force_mask` array contains both 0s and 1s, proving that the core/buffer distinction was made. This single test validates the entire chain: simulation launch -> uncertainty computation -> output parsing -> triggering -> extraction -> masking -> packaging the result.
+*   **Full Selection Loop**:
+    *   Generate 100 random Al structures (Cycle 03).
+    *   Run them through `SelectionPipeline`.
+    *   Ask for top 10.
+    *   Verify we get exactly 10 structures.
+    *   Verify that none of the "exploded" structures (manually inserted for the test) are in the final set.

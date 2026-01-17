@@ -1,136 +1,106 @@
-# CYCLE01: The Foundation - Automated DFT Factory (UAT.md)
+# Cycle 01: User Acceptance Testing (UAT)
 
 ## 1. Test Scenarios
 
-User Acceptance Testing (UAT) for Cycle 1 is designed to verify that the core functionality of the Automated DFT Factory is robust, reliable, and delivers the expected outcomes for a foundational component. The scenarios are designed from the perspective of a user (or a component acting on the user's behalf) who wants to perform a DFT calculation on a given atomic structure without needing to understand the intricate details of the underlying DFT engine. The primary vehicle for this UAT will be a Jupyter Notebook, which provides an ideal interactive environment to demonstrate each feature, show the inputs and outputs clearly, and serve as a living document and tutorial for the system's capabilities.
+The goal of Cycle 01 is to establish a solid foundation. If the configuration cannot be parsed or the database cannot be written to, the rest of the project is moot. These tests simulate the very first steps a user would take.
 
-| Scenario ID   | Test Scenario                                             | Priority |
-|---------------|-----------------------------------------------------------|----------|
-| UAT-C1-001    | **Successful "Happy Path" Calculation**                   | **High**     |
-| UAT-C1-002    | **Automatic Parameter Heuristics Verification**           | **High**     |
-| UAT-C1-003    | **Resilience to Convergence Failure**                     | **High**     |
-| UAT-C1-004    | **Data Persistence and Retrieval**                        | **Medium**   |
+| ID | Priority | Name | Description |
+| :--- | :--- | :--- | :--- |
+| **UAT-01-01** | High | Configuration Loading | Verify that the system can load a user-provided `input.yaml` and validate its contents against the defined schema. This checks the "Zero-Human" requirement by ensuring invalid inputs are caught early. |
+| **UAT-01-02** | High | Database Operations | Verify that atomic structures can be saved to and retrieved from the persistent storage (ASE database). This checks the "Provenance" requirement. |
+| **UAT-01-03** | Medium | Logging Verification | Confirm that system activities are logged to both the console and a log file with correct formatting. This is critical for "Robustness" and debugging. |
 
----
-
-### **Scenario UAT-C1-001: Successful "Happy Path" Calculation**
-
-**(Min 300 words)**
-
-**Description:**
-This is the most fundamental test case. Its purpose is to verify that the system can successfully perform a standard, end-to-end DFT calculation for a well-behaved atomic structure and return a physically plausible result. This scenario confirms that all the basic components—input file generation, process execution, and output parsing—are correctly integrated and functioning as expected. It serves as the baseline for all other tests. A simple, well-understood material like a bulk Silicon (Si) crystal provides a perfect test case, as its properties are widely known, and DFT calculations on it are typically stable and fast.
-
-**UAT Steps in Jupyter Notebook:**
-1.  **Setup:** The notebook will begin by importing the necessary libraries (`ase`, `pathlib`) and the `DFTFactory` class from the project's source code. It will also define the path to the ASE database file that will be used for the tests.
-2.  **Create Structure:** An `ase.Atoms` object for a standard 2-atom conventional cell of Silicon will be created. The cell parameters and atomic positions will be explicitly defined. The notebook cell will display a 3D visualisation of this structure to provide clear visual confirmation of the input.
-3.  **Instantiate Factory:** An instance of the `DFTFactory` will be created. The configuration passed to it will be minimal, primarily specifying the location of the Quantum Espresso executable.
-4.  **Execute Calculation:** The `dft_factory.run(si_atoms)` method will be called. The notebook cell will print a message like "Running DFT calculation for Si...". The execution will be timed to ensure it completes within an expected timeframe (e.g., under 60 seconds for a simple system).
-5.  **Display Results:** Upon successful completion, the returned `DFTResult` object will be captured. The notebook will then display its contents in a clean, readable format. This includes printing the calculated total energy (in eV), the forces on each atom (as a NumPy array), and the virial stress tensor.
-6.  **Assertion:** The final step will involve a simple check to confirm the results are reasonable. The test will assert that the calculated energy is negative (as expected for a bound system) and within a known, wide range for bulk silicon. It will also verify that the forces are very close to zero, as the input structure is already at its equilibrium position. This demonstrates that the calculation was physically meaningful.
-
----
-
-### **Scenario UAT-C1-002: Automatic Parameter Heuristics Verification**
-
-**(Min 300 words)**
-
-**Description:**
-A core value proposition of the `DFTFactory` is its ability to automatically determine sensible calculation parameters, removing this burden from the user. This UAT scenario is designed to amaze the user by demonstrating this "magic" in action. It will show that by providing two vastly different atomic structures—a simple metal and a more complex, magnetic alloy—the factory intelligently adapts the DFT parameters to suit each case without requiring any specific instructions. This directly validates the system's codified domain knowledge.
-
-**UAT Steps in Jupyter Notebook:**
-1.  **Setup:** As before, the `DFTFactory` is imported. This test will also require a way to "spy" on the parameters being used. A temporary logging configuration will be added to the notebook to print the generated DFT input file to the screen.
-2.  **Case 1: Simple Metal (Aluminium):**
-    -   An `ase.Atoms` object for a face-centred cubic (FCC) Aluminium (Al) cell is created.
-    -   The `dft_factory.run(al_atoms)` method is called.
-    -   The test will then capture and display the generated Quantum Espresso input file. The user will be shown that the system automatically selected an appropriate k-point mesh (e.g., 8x8x8) and correctly identified the system as a metal by including `'smearing'` parameters.
-3.  **Case 2: Magnetic Alloy (Iron):**
-    -   An `ase.Atoms` object for a body-centred cubic (BCC) Iron (Fe) cell is created.
-    -   The `dft_factory.run(fe_atoms)` method is called.
-    -   Again, the generated input file is displayed. The user will be shown two key differences:
-        1.  The system has correctly identified Iron as a magnetic element and has automatically enabled a spin-polarised calculation (`nspin = 2`).
-        2.  It has also set an initial magnetic moment (`starting_magnetization(1) = 0.5`) to ensure the calculation converges to the correct magnetic state.
-4.  **Assertion:** The notebook will explicitly point out these automatically generated parameters, contrasting the two cases. The success of this scenario is not in the final energy value but in demonstrating that the system's internal heuristics are working correctly and adapting to the chemical nature of the input structure. This provides confidence that the factory is not just a simple wrapper but an intelligent agent.
-
----
+### Recommended Notebooks
+*   `notebooks/UAT_01_Config_and_DB.ipynb`: A step-by-step notebook that:
+    1.  Defines a sample YAML configuration string.
+    2.  Parses it using the `MinimalConfig` model.
+    3.  Initializes a `DatabaseManager`.
+    4.  Creates a dummy atom (e.g., Fe crystal).
+    5.  Saves it to the DB and queries it back.
 
 ## 2. Behavior Definitions
 
-This section defines the expected behaviors of the system in the Gherkin-style Given/When/Then format. These definitions provide a clear and unambiguous specification of the system's requirements for each scenario.
+### UAT-01-01: Configuration Loading
 
-### **UAT-C1-001: Successful "Happy Path" Calculation**
+**Narrative**:
+The user, a materials scientist, wants to start a new project to study Iron-Nickel alloys. They prepare a simple text file `input.yaml` specifying the elements and the goal ("melt_quench"). They intentionally make a mistake in one version (empty elements list) to verify the system warns them. They expect the system to accept the valid file and populate the internal settings with sensible defaults (like using 4 cores).
 
 ```gherkin
-Feature: Basic DFT Calculation
-  As a materials science researcher,
-  I want to calculate the energy and forces of an atomic structure,
-  So that I can obtain its fundamental physical properties.
+Feature: Configuration Parsing
 
-  Scenario: Calculate properties for a standard Silicon crystal
-    Given a valid atomic structure for a 2-atom Silicon conventional cell
-    And a correctly configured DFT Factory
-    When I run a DFT calculation for the Silicon structure
-    Then the process should complete successfully within 90 seconds
-    And the returned result should contain a total energy, forces, and stress
-    And the total energy should be a negative floating-point number
-    And the forces on each atom should be close to zero (e.g., magnitude < 1e-4 eV/Angstrom)
+  Scenario: Loading a valid configuration
+    GIVEN a valid YAML configuration file "input.yaml" containing:
+      """
+      project_name: "TestProject"
+      target_system:
+        elements: ["Fe", "Ni"]
+        composition: {"Fe": 0.7, "Ni": 0.3}
+      simulation_goal:
+        type: "melt_quench"
+        temperature_range: [300, 1500]
+      """
+    WHEN the configuration is parsed by the MinimalConfig model
+    THEN no validation errors should be raised
+    AND the "elements" field should contain ["Fe", "Ni"]
+    AND the "project_name" should be "TestProject"
+    AND the SystemConfig should be automatically populated with default resources
+    AND "dft_command" in SystemConfig should strictly match the default MPI command template
+
+  Scenario: Loading an invalid configuration (Empty Elements)
+    GIVEN an invalid YAML configuration where "elements" is an empty list
+    WHEN the configuration is parsed
+    THEN a ValidationError should be raised
+    AND the error message should explicitly mention "elements" cannot be empty
+    AND the application should exit with a non-zero status code
+
+  Scenario: Loading an invalid configuration (Negative Temperature)
+    GIVEN an invalid YAML configuration where "temperature_range" contains -100
+    WHEN the configuration is parsed
+    THEN a ValidationError should be raised
+    AND the error message should mention physical constraints
 ```
 
-### **UAT-C1-002: Automatic Parameter Heuristics Verification**
+### UAT-01-02: Database Persistence
+
+**Narrative**:
+The system has generated a candidate structure (a Silicon crystal). It needs to save this structure to the database so that the DFT worker can pick it up later. The system also needs to tag this structure with "source=test" so we know where it came from. Later, the system queries the database to count how many "test" structures exist.
 
 ```gherkin
-Feature: Intelligent DFT Parameter Generation
-  As a user with minimal DFT expertise,
-  I want the system to automatically choose correct and safe DFT parameters,
-  So that I can run reliable calculations for different types of materials.
+Feature: Database Persistence
 
-  Scenario: System automatically detects a metal and applies smearing
-    Given an atomic structure for a metallic element like Aluminium
-    And a DFT Factory with basic configuration
-    When I run a DFT calculation for the Aluminium structure
-    Then the system should generate a DFT input file
-    And that file must contain parameters for metallic smearing (e.g., occupations = 'smearing' and degauss > 0).
+  Scenario: Saving and Retrieving Atoms
+    GIVEN a DatabaseManager initialized with "test.db"
+    AND an ASE Atoms object representing a Silicon crystal
+    AND a metadata dictionary {"source": "manual_test", "uuid": "12345"}
+    WHEN the atom is added to the database with the metadata
+    THEN the database count should increase by 1
+    AND querying the database for source="manual_test" should return exactly 1 row
+    AND the retrieved structure should match the original Silicon crystal
+    AND the "uuid" key should be present in the key-value pairs
+    AND the file "test.db" should exist on the filesystem
 
-  Scenario: System automatically detects a magnetic element and enables spin-polarization
-    Given an atomic structure for a magnetic element like Iron
-    And a DFT Factory with basic configuration
-    When I run a DFT calculation for the Iron structure
-    Then the system should generate a DFT input file
-    And that file must contain the parameter to enable spin-polarization (e.g., nspin = 2)
-    And that file must contain a non-zero starting magnetization.
+  Scenario: Concurrent Writes
+    GIVEN a DatabaseManager initialized with "concurrent.db"
+    WHEN 5 different threads attempt to write a structure simultaneously
+    THEN the database should not be corrupted
+    AND the final count of structures should be 5
 ```
 
-### **UAT-C1-003: Resilience to Convergence Failure**
+### UAT-01-03: Logging Verification
+
+**Narrative**:
+The system is running in the background. The user wants to know what's happening. They check the `system.log` file. They expect to see a timestamped entry saying "Database initialized". They also check the console output and expect to see a simpler message.
 
 ```gherkin
-Feature: Automated Error Recovery
-  As a researcher running a large-scale automated workflow,
-  I want the system to automatically recover from common DFT convergence errors,
-  So that my workflow does not crash and require manual intervention.
+Feature: System Observability
 
-  Scenario: Calculation fails to converge but recovers by adjusting parameters
-    Given a computationally "difficult" atomic structure known to cause convergence issues
-    And a DFT Factory configured with a maximum of 3 retry attempts
-    When I run a DFT calculation for the difficult structure
-    Then the system should initially fail the first DFT run
-    And the system should log that it is attempting a recovery (e.g., "Convergence failed. Retrying with modified parameters...")
-    And the system should automatically modify a relevant parameter (e.g., reduce 'mixing_beta')
-    And the system should eventually succeed within the allowed retry attempts
-    And the final result returned should be a valid DFT result object.
-```
+  Scenario: Logging to File and Console
+    GIVEN the logging system is configured with file level DEBUG and console level INFO
+    WHEN an INFO level message "System Start" is logged
+    THEN the console should display "System Start"
+    AND the log file should contain "System Start" with a timestamp prefix
 
-### **UAT-C1-004: Data Persistence and Retrieval**
-
-```gherkin
-Feature: Storing Calculation Results
-  As a user running multiple calculations,
-  I want the system to save every successful result to a database,
-  So that I have a persistent and queryable record of my training data.
-
-  Scenario: Save a successful DFT result to an ASE database
-    Given a valid atomic structure and its corresponding successful DFT result
-    And the path to a new, empty ASE database file
-    When I use the database utility to save the result
-    Then the database file should be created on disk
-    And the database should contain exactly one entry
-    And when I read that entry back from the database, its stored energy and forces should match the original DFT result.
+    WHEN a DEBUG level message "Connecting to DB..." is logged
+    THEN the console should NOT display the message
+    BUT the log file SHOULD contain the message
 ```

@@ -1,153 +1,154 @@
-# CYCLE07: User Interface (CLI) (SPEC.md)
+# Cycle 07: Scalable Inference & OTF
 
 ## 1. Summary
 
-This document provides the detailed technical specification for Cycle 7 of the MLIP-AutoPipe project. With the core logic and backend components now designed, this cycle focuses on **usability and the primary user interface**. The goal is to create a clean, professional, and intuitive Command Line Interface (CLI) that serves as the single entry point for the entire application. This CLI is the "front door" to the "Zero-Human" protocol; it must be simple to use, provide helpful feedback, and handle user errors gracefully.
+Cycle 07 closes the loop. We implement **Module E: Scalable Inference & OTF**.
 
-The key deliverable for this cycle is a new `app.py` module that will house a CLI application built using the Typer library. Typer is chosen for its ability to create modern, user-friendly CLIs with minimal boilerplate code, automatically generating help menus and performing input validation. The main command to be implemented will be `mlip-auto run`, which will accept a single argument: the path to the user's `input.yaml` configuration file.
+The purpose of training a potential is to use it. Here, we implement the **Inference Engine** using **LAMMPS**. We run large-scale Molecular Dynamics (MD) simulations. However, in an Active Learning context, we don't just "run" MD; we **monitor** it.
 
-The responsibilities of the CLI module will be strictly limited to interface concerns. It will be a thin wrapper that orchestrates the major components already designed. Its workflow will be:
-1.  Parse the command-line arguments.
-2.  Load and validate the specified `input.yaml` file, leveraging the `UserInputConfig` Pydantic model from Cycle 5 to provide immediate, clear feedback on any configuration errors.
-3.  Instantiate the `WorkflowManager` from Cycle 5.
-4.  Invoke the main `run()` method on the `WorkflowManager` instance.
-5.  Catch any exceptions that propagate up from the workflow and present them to the user in a clean, readable format.
+We implement **On-The-Fly (OTF) Uncertainty Quantification**. The system watches the simulation. If the atomic configuration enters a region of phase space where the potential is unsure (extrapolation grade $\gamma$ is high), the simulation is paused.
 
-By the end of this cycle, the project will be a fully-fledged application that can be installed and run from the command line, providing a polished and professional user experience that abstracts the immense complexity of the underlying workflow into a single, simple command.
+The core innovation here is **Periodic Embedding**. We cannot simply cut out a cluster of atoms and send it to DFT, because the vacuum surface would create massive forces that don't exist in the bulk. Instead, we extract the local environment into a small, periodic supercell. We then apply **Force Masking**: when we train on this new cell, we tell the machine learning code to *ignore* the forces on the atoms near the boundary (the buffer region), because they are artificially perturbed by the new periodicity. We only learn from the "core" atoms which see a true bulk-like environment.
 
 ## 2. System Architecture
 
-The architecture for Cycle 7 introduces the top-level application layer, `app.py`, which integrates all previously designed components into a cohesive, runnable program.
+We add the `inference` package.
 
-**File Structure for Cycle 7:**
-
-The new files for this cycle are highlighted in **bold**.
-
-```
-mlip-autopipe/
-├── dev_documents/
-│   └── system_prompts/
-│       └── CYCLE07/
-│           ├── **SPEC.md**
-│           └── **UAT.md**
-├── mlip_autopipec/
-│   ├── **app.py**              # CLI entry point using Typer
-│   ├── workflow_manager.py
-│   ├── config/
-│   │   └── models.py
-│   └── ...
-├── tests/
-│   ├── **test_app.py**         # Tests for the CLI using CliRunner
-│   └── ...
-└── pyproject.toml              # Will be updated with an entry point
+```ascii
+mlip_autopipec/
+├── config/
+├── core/
+├── inference/
+│   ├── __init__.py
+│   ├── lammps_runner.py    # The engine.
+│   ├── embedding.py        # The surgical tool.
+│   └── otf_loop.py         # The controller.
+└── tests/
+    ├── test_lammps.py      # Validates input generation.
+    └── test_embedding.py   # Validates geometric extraction.
 ```
 
-**Component Blueprint: `app.py`**
+### 2.1 Code Blueprints
 
-This file will contain all the code for the Command Line Interface.
+This section details the geometry and simulation logic.
 
--   **`app = typer.Typer()`**: An instance of the main Typer application.
--   **`@app.command()`**: The decorator to define a CLI command.
--   **`run(config_file: Path = typer.Argument(..., exists=True, readable=True, help="Path to the input.yaml configuration file."))`**: The main function that executes the workflow.
-    -   It uses Typer's built-in validation to ensure the `config_file` argument is a path that exists and is readable, providing automatic, user-friendly errors if these conditions are not met.
-    -   **Step 1: Load and Parse Config.** The function will contain a `try...except` block to handle YAML parsing errors and Pydantic validation errors. It will load the YAML file and attempt to parse it into the `UserInputConfig` model.
-    -   **Step 2: Initialize Workflow.** If parsing is successful, it will print a confirmation message to the console (e.g., using `rich` for formatted output) and instantiate the `WorkflowManager`.
-    -   **Step 3: Launch Workflow.** It will call `workflow_manager.run()`. This call will be wrapped in another `try...except` block to catch high-level `WorkflowError` exceptions that might be raised from the backend.
-    -   **Error Handling:** The `except` blocks will print clean, user-facing error messages and exit the application with a non-zero status code to indicate failure.
+#### 2.1.1 Periodic Embedder (`inference/embedding.py`)
 
-**Project Entry Point:**
+This class handles the surgical extraction of local environments.
 
-To make the CLI runnable via a simple command like `mlip-auto`, an entry point will be added to `pyproject.toml`:
+**Class `PeriodicEmbedder`**
+*   **Methods**:
+    *   `extract_region(self, large_atoms: Atoms, center_idx: int, radius: float, buffer: float) -> Atoms`:
+        *   **Input**: A large supercell, an atom index to center on, a core radius ($r_c$), and a buffer width ($\delta$).
+        *   **Logic**:
+            1.  Define cubic cell size $L = 2(r_c + \delta)$.
+            2.  Create new `Atoms` object with cell $L \times L \times L$.
+            3.  Iterate over all atoms $j$ in `large_atoms`.
+            4.  Compute distance $d_{ij}$ using MIC.
+            5.  If $d_{ij} < (r_c + \delta)$, add atom $j$ to new cell.
+            6.  Shift positions so `center_idx` is at $(L/2, L/2, L/2)$.
+            7.  **Masking**:
+                *   Create array `mask` of length $N_{new}$.
+                *   If $d_{ij} < r_c$, `mask[k] = 1.0` (Core).
+                *   Else `mask[k] = 0.0` (Buffer).
+            8.  Store `mask` in `atoms.arrays['force_mask']`.
+            9.  Return small `atoms`.
 
-```toml
-[project.scripts]
-mlip-auto = "mlip_autopipec.app:app"
+#### 2.1.2 LAMMPS Runner (`inference/lammps_runner.py`)
+
+Runs the MD simulation.
+
+**Class `LammpsRunner`**
+*   **Methods**:
+    *   `run_md(self, atoms: Atoms, potential_path: Path, steps: int, temp: float) -> List[Atoms]`:
+        *   **Logic**:
+            1.  Generate `data.lmp` from atoms.
+            2.  Generate `input.lmp` with:
+                *   `pair_style pace`
+                *   `pair_coeff * * {potential_path} {elements}`
+                *   `compute 1 all extrapolation/grade ...` (if supported) or just dump forces.
+                *   `dump 1 all custom 100 dump.lammpstrj ...`
+            3.  Execute `lmp_serial < input.lmp`.
+            4.  Parse `dump.lammpstrj` using `ase.io.read`.
+            5.  Return trajectory list.
+
+#### 2.1.3 OTF Manager (`inference/otf_loop.py`)
+
+Controls the active learning feedback.
+
+**Class `OTFManager`**
+*   **Methods**:
+    *   `run_and_monitor(self, start_structure: Atoms, potential: Path) -> List[Atoms]`:
+        *   **Logic**:
+            1.  Break simulation into blocks (e.g., 10 blocks of 1000 steps).
+            2.  For `block` in `blocks`:
+                *   Run `LammpsRunner` for `block`.
+                *   Load trajectory.
+                *   Calculate Max Extrapolation Grade $\gamma_{max}$ for the last frame.
+                *   **Pacemaker Check**: Use `pacemaker.calculate_state(atoms, potential)` to get $\gamma$.
+                *   If $\gamma_{max} > \text{threshold}$ (e.g. 5.0):
+                    *   Log "Uncertainty detected".
+                    *   Select atom with max $\gamma$.
+                    *   Call `PeriodicEmbedder.extract_region`.
+                    *   Return `[new_structure]`.
+            3.  If loop finishes without trigger, return `[]`.
+
+#### 2.1.4 Data Flow Diagram (Cycle 07)
+
+```mermaid
+graph TD
+    Manager[WorkflowManager] -->|Start MD| OTF[OTFManager]
+    OTF -->|Step 1..1000| LAMMPS[LammpsRunner]
+    LAMMPS -->|Trajectory| OTF
+
+    OTF -->|Check Uncertainty| Pacemaker[Pacemaker Evaluator]
+    Pacemaker -->|Gamma| Decision{Gamma > 5.0?}
+
+    Decision -- Yes --> Embed[PeriodicEmbedder]
+    Embed -->|Extract & Mask| NewAtom[Small Structure]
+    NewAtom -->|Return| Manager
+    Manager -->|Submit| DFT[DFT Queue]
+
+    Decision -- No --> LAMMPS
 ```
-This tells the package manager to create an executable script named `mlip-auto` that calls the `app` object in our `app.py` module.
 
 ## 3. Design Architecture
 
-The design of the CLI is centered on the principle of a **thin, non-blocking interface**. The CLI's only job is to translate a user's command-line action into a call to the core application logic residing in the `WorkflowManager`.
+### 3.1 Force Masking Principle
 
-**CLI Command Structure:**
+This is the physics-informed part of the cycle.
+*   **Problem**: Cutting a cluster creates surface atoms. These atoms have dangling bonds. DFT will calculate forces trying to heal these bonds (huge forces).
+*   **Consequence**: If we train the MLIP on these forces, it learns that "bulk atoms should suddenly rearrange", which is wrong.
+*   **Solution**: We define a "Buffer Zone". We tell the MLIP: "Use the positions of these buffer atoms to describe the environment of the core atoms, but **do not learn** the forces on the buffer atoms themselves."
+*   **Implementation**: This relies on the ASE database storing `force_mask` and Pacemaker respecting it during training.
 
--   **`mlip-auto`**: The main application command.
-    -   **`run`**: The primary command to execute a workflow.
-        -   **`CONFIG_FILE` (Argument):** The path to the `input.yaml` file. This is a required argument.
+### 3.2 Decoupled Inference
 
-**Data Flow:**
-
-1.  The user executes `$ mlip-auto run /path/to/my_project.yaml` in their terminal.
-2.  The `setuptools` entry point invokes the `app` object in `mlip_autopipec.app`.
-3.  Typer parses the command and arguments, identifying the `run` command and the value for `config_file`.
-4.  Typer performs its built-in checks (`exists=True`, etc.) on the `config_file` argument.
-5.  If checks pass, Typer calls the `run()` Python function, passing the `Path` object as an argument.
-6.  The `run()` function reads the YAML file.
-7.  The YAML data is passed to `UserInputConfig.model_validate()`. Pydantic performs the deep validation defined in Cycle 5.
-8.  If validation passes, the `UserInputConfig` object is used to instantiate the `WorkflowManager`.
-9.  The `workflow_manager.run()` method is called. At this point, control is handed over to the backend, and the CLI layer's job is essentially done, aside from waiting for the process to complete and handling any top-level exceptions.
-
-This design ensures a strong separation of concerns. The `app.py` module knows nothing about DFT, Dask, or machine learning. It only knows how to parse a config file and start the workflow. This makes the core logic highly testable, independent of the CLI.
-
-**User Feedback:**
-
-The CLI will use a library like `rich` to provide pleasant and informative console output.
--   **On start:** A title and a summary of the validated configuration.
--   **On error:** A clearly marked "ERROR" message, printed in red, with a helpful description of what went wrong.
--   **On success:** A confirmation message printed in green.
+The inference (MD) runs independently of the training.
+*   **Async**: We can run 100 MD simulations in parallel.
+*   **Throughput**: Even if 1 simulation finds a bad spot and stops, the others continue. This maximizes the exploration of phase space.
 
 ## 4. Implementation Approach
 
-1.  **Add Dependencies:** Add `typer`, `rich`, and `pyyaml` to the project dependencies in `pyproject.toml`.
-2.  **Create `app.py`:** Create the `mlip_autopipec/app.py` file.
-3.  **Initialize Typer App:** Add `import typer` and `app = typer.Typer()`.
-4.  **Implement the `run` Command:**
-    -   Define the `run` function with the `@app.command()` decorator.
-    -   Add the `config_file` argument with Typer's `Argument` class for validation.
-    -   Implement the logic to read the file, validate it with `UserInputConfig`, instantiate `WorkflowManager`, and call `run()`.
-    -   Add the `try...except` blocks for `ValidationError` and a custom `WorkflowError`, printing formatted messages to the console using `rich`.
-5.  **Add Entry Point to `pyproject.toml`:** Add the `[project.scripts]` table to `pyproject.toml` to make the `mlip-auto` command available after installation.
-6.  **Install for Testing:** Run `pip install -e .` in the terminal. This will install the package in editable mode and create the `mlip-auto` executable, making it available for testing.
+1.  **Embedding Logic**: This is pure geometry. Implement using ASE. Pay close attention to Periodic Boundary Conditions (using `ase.geometry.get_distances`).
+2.  **LAMMPS Integration**: Implement `LammpsRunner`. Use `ase.io.lammps` to write data files.
+3.  **Masking**: Ensure the `force_mask` is correctly stored in `info` or `arrays` so the `DatabaseManager` picks it up.
 
 ## 5. Test Strategy
 
-Testing the CLI involves using a dedicated test runner that can invoke the command line application and capture its output and exit codes. `typer.testing.CliRunner` is the standard tool for this.
+### 5.1 Unit Testing
 
-**Unit Testing Approach (Min 300 words):**
+*   **Embedding**:
+    *   Create a 1D chain of atoms: 0, 1, 2, ... 100.
+    *   Extract around atom 50 with radius 2.
+    *   Assert we get atoms 48, 49, 50, 51, 52.
+    *   Assert atoms 48 and 52 have mask 0 (buffer). Atom 50 has mask 1.
 
-The unit tests in `tests/test_app.py` will test the behavior of the CLI in isolation by mocking the `WorkflowManager` so that the actual complex backend logic is not run.
+### 5.2 Integration Testing
 
--   **`test_run_success`:** This test will validate the "happy path."
-    1.  It will create a temporary, valid `config.yaml` file.
-    2.  It will use `unittest.mock.patch` to replace the `WorkflowManager` class with a mock.
-    3.  It will use `CliRunner.invoke` to run the `run` command with the path to the temporary config file.
-    4.  The assertions will be:
-        -   The exit code of the process is 0.
-        -   The mock `WorkflowManager` was instantiated exactly once with the correct configuration.
-        -   The `run` method on the mock `WorkflowManager` instance was called exactly once.
-        -   The console output contains a success message like "Workflow started".
-
--   **`test_run_config_not_found`:** This test validates Typer's built-in file checking.
-    1.  It will use `CliRunner.invoke` to run the `run` command with a path that does not exist.
-    2.  It will assert that the exit code is non-zero (e.g., 2 for CLI argument errors).
-    3.  It will assert that the captured `stderr` contains the helpful message from Typer, like "File 'no_such_file.yaml' not found."
-
--   **`test_run_invalid_config`:** This test validates our custom error handling for Pydantic.
-    1.  It will create a temporary `config.yaml` file with a known validation error (e.g., composition does not sum to 1.0).
-    2.  It will invoke the `run` command.
-    3.  It will assert that the exit code is non-zero (e.g., 1 for application errors).
-    4.  It will assert that the captured `stderr` contains the specific Pydantic validation message, proving that our `try...except` block is working correctly.
-
-**Integration Testing Approach (Min 300 words):**
-
-The integration test provides confidence that the CLI can successfully launch the *real* workflow.
-
--   **`test_cli_launches_short_mock_workflow`:** This test will run the CLI from a subprocess and have it execute a minimal, fast, and predictable workflow.
-    1.  **Setup:** Create a valid `config.yaml`. The test will patch the `WorkflowManager.run` method to replace the real, complex workflow with a simple mock function that, for example, prints "Workflow running...", sleeps for 1 second, and then prints "Workflow finished."
-    2.  **Execution:** The test will use `subprocess.run` to execute the CLI command: `['mlip-auto', 'run', 'test_config.yaml']`. It will capture `stdout` and `stderr`.
-    3.  **Assertion:** The assertions will confirm that the end-to-end process was launched successfully.
-        -   Assert that the subprocess exit code is 0.
-        -   Assert that `stdout` contains both "Workflow running..." and "Workflow finished."
-        -   Assert that `stderr` is empty.
-
-This test proves that the `mlip-auto` command is correctly installed, that it can parse a real configuration file, instantiate the real `WorkflowManager`, and that a call to its `run` method is successfully made. It validates the entire application wiring, from the command line to the core logic.
+*   **The "Bad Spot" Test**:
+    *   Mock an MD trajectory that has 1 frame with a very weird bond length.
+    *   Run `OTFManager`.
+    *   Assert it flags that frame.
+    *   Run `PeriodicEmbedder` on that frame.
+    *   Assert the resulting structure is small and contains the weird bond.
