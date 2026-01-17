@@ -18,6 +18,7 @@ from ase.io import write as ase_write
 from jinja2 import Template
 
 from mlip_autopipec.config.models import TrainingConfig, TrainingRunMetrics
+from mlip_autopipec.data_models.training_data import TrainingBatch
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class PacemakerTrainer:
         self.config = training_config
 
     def perform_training(
-        self, training_data: list[Atoms], generation: int
+        self, training_data: TrainingBatch, generation: int
     ) -> tuple[Path, TrainingRunMetrics]:
         """
         Executes the full training workflow using the provided data.
@@ -68,7 +69,7 @@ class PacemakerTrainer:
         6. Moving the final potential file to the project directory.
 
         Args:
-            training_data: A list of ASE Atoms objects to train on.
+            training_data: A validated batch of atomic structures (TrainingBatch).
             generation: The current active learning generation index.
 
         Returns:
@@ -79,7 +80,10 @@ class PacemakerTrainer:
             TrainingFailedError: If the training subprocess fails, filesystem errors occur,
                                  or the output is invalid.
         """
-        if not training_data:
+        # Unwrap atoms list from validated model
+        atoms_list = training_data.atoms_list
+
+        if not atoms_list:
             msg = "No training data provided."
             log.error(msg)
             raise NoTrainingDataError(msg)
@@ -90,7 +94,7 @@ class PacemakerTrainer:
             with tempfile.TemporaryDirectory(prefix="pacemaker_train_") as temp_dir_str:
                 working_dir = Path(temp_dir_str)
                 log.info(f"Preparing training input in {working_dir}...")
-                self._prepare_pacemaker_input(training_data, working_dir)
+                self._prepare_pacemaker_input(atoms_list, working_dir)
 
                 log.info("Executing Pacemaker training...")
                 potential_path, rmse_forces, rmse_energy = self._execute_training(working_dir)
@@ -101,7 +105,7 @@ class PacemakerTrainer:
 
                 metrics = TrainingRunMetrics(
                     generation=generation,
-                    num_structures=len(training_data),
+                    num_structures=len(atoms_list),
                     rmse_forces=rmse_forces,
                     rmse_energy_per_atom=rmse_energy,
                 )

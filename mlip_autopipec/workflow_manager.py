@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from mlip_autopipec.config.models import CheckpointState, SystemConfig
 from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.data_models.training_data import TrainingBatch
 from mlip_autopipec.modules.dft import DFTRunner
 from mlip_autopipec.modules.training import PacemakerTrainer
 from mlip_autopipec.utils.dask_utils import get_dask_client
@@ -123,8 +124,11 @@ class WorkflowManager:
 
         logger.info("Starting training for generation %d...", self.state.active_learning_generation)
         try:
+            # Wrap raw list in Pydantic model for validation
+            batch = TrainingBatch(atoms_list=training_data)
+
             potential_path, metrics = self.trainer.perform_training(
-                training_data=training_data,
+                training_data=batch,
                 generation=self.state.active_learning_generation
             )
 
