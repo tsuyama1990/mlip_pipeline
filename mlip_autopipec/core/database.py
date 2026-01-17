@@ -1,3 +1,4 @@
+import contextlib
 from pathlib import Path
 from typing import Any
 from typing import Any as AtomsObject
@@ -32,6 +33,13 @@ class DatabaseManager:
 
             # Connect (or create)
             self._connection = ase.db.connect(str(self.db_path))
+
+            # Secure the database file
+            # Might fail on Windows or some filesystems, log warning but don't crash
+            # Since logger is not imported here to keep it simple, we just pass
+            # or could import logging if strictly required.
+            with contextlib.suppress(OSError):
+                self.db_path.chmod(0o600)
 
             # Force initialization
             self._connection.count()

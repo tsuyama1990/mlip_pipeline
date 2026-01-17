@@ -1,4 +1,10 @@
-"""Module for training a Pacemaker potential."""
+"""
+Module for training a Pacemaker potential.
+
+This module encapsulates the logic for running the Pacemaker training code,
+including input file preparation, subprocess execution, and result parsing.
+It uses Pydantic models for configuration and metrics to ensure type safety.
+"""
 
 import logging
 import re
@@ -17,15 +23,26 @@ log = logging.getLogger(__name__)
 
 
 class TrainingFailedError(Exception):
-    """Custom exception for errors during the training process."""
+    """
+    Custom exception for errors during the training process.
+
+    This exception is raised when the training subprocess fails, input files
+    cannot be created, or the output potential file is missing.
+    """
 
 
 class NoTrainingDataError(Exception):
-    """Custom exception for when no training data is available."""
+    """
+    Custom exception for when no training data is available.
+
+    This exception is raised if the list of atoms provided for training is empty.
+    """
 
 
 class PacemakerTrainer:
-    """Orchestrates the training of a Machine Learning Interatomic Potential."""
+    """
+    Orchestrates the training of a Machine Learning Interatomic Potential using Pacemaker.
+    """
 
     def __init__(self, training_config: TrainingConfig) -> None:
         """
@@ -36,13 +53,19 @@ class PacemakerTrainer:
         """
         self.config = training_config
 
-    def perform_training(self, training_data: list[Atoms], generation: int) -> tuple[Path, TrainingRunMetrics]:
+    def perform_training(
+        self, training_data: list[Atoms], generation: int
+    ) -> tuple[Path, TrainingRunMetrics]:
         """
         Executes the full training workflow using the provided data.
 
-        1. Prepares input files in a temporary directory.
-        2. Runs the Pacemaker training executable.
-        3. Parses metrics and moves the resulting potential.
+        The workflow consists of:
+        1. Creating a temporary working directory.
+        2. Writing the training data to an .extxyz file.
+        3. Rendering the Pacemaker input file from a Jinja2 template.
+        4. Running the Pacemaker executable via subprocess.
+        5. Parsing the output logs for RMSE metrics.
+        6. Moving the final potential file to the project directory.
 
         Args:
             training_data: A list of ASE Atoms objects to train on.
@@ -53,7 +76,8 @@ class PacemakerTrainer:
 
         Raises:
             NoTrainingDataError: If the provided training_data list is empty.
-            TrainingFailedError: If the training subprocess fails or output is invalid.
+            TrainingFailedError: If the training subprocess fails, filesystem errors occur,
+                                 or the output is invalid.
         """
         if not training_data:
             msg = "No training data provided."
@@ -79,7 +103,7 @@ class PacemakerTrainer:
                     generation=generation,
                     num_structures=len(training_data),
                     rmse_forces=rmse_forces,
-                    rmse_energy_per_atom=rmse_energy
+                    rmse_energy_per_atom=rmse_energy,
                 )
                 return final_path, metrics
         except (OSError, shutil.Error) as e:
@@ -91,9 +115,15 @@ class PacemakerTrainer:
         """
         Create the necessary input files for the Pacemaker executable.
 
+        This involves writing the atomic structures to a file and rendering
+        the input configuration template.
+
         Args:
             training_data: List of atoms to write to disk.
             working_dir: Directory where files should be created.
+
+        Raises:
+            TrainingFailedError: If writing data or reading the template fails.
         """
         data_file_path = working_dir / "training_data.xyz"
 
@@ -140,6 +170,10 @@ class PacemakerTrainer:
 
         Returns:
             Tuple of (potential_path, rmse_forces, rmse_energy).
+
+        Raises:
+            FileNotFoundError: If the executable is not found.
+            TrainingFailedError: If the process exits with error or output parsing fails.
         """
         executable = str(self.config.pacemaker_executable)
         if not shutil.which(executable):
