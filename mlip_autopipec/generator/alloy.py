@@ -1,10 +1,10 @@
 import logging
-from typing import Dict, List, Any
 
 import numpy as np
 from ase import Atoms
 from ase.build import make_supercell
 
+from mlip_autopipec.config.schemas.common import Composition
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
 
@@ -20,7 +20,7 @@ class AlloyGenerator:
     the potential energy surface.
     """
 
-    def __init__(self, config: GeneratorConfig):
+    def __init__(self, config: GeneratorConfig) -> None:
         """
         Initialize the AlloyGenerator.
 
@@ -29,7 +29,7 @@ class AlloyGenerator:
         """
         self.config = config
 
-    def generate_sqs(self, prim_cell: Atoms, composition: Dict[str, float]) -> Atoms:
+    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
         """
         Generates a Special Quasirandom Structure (SQS) for the given composition.
 
@@ -39,18 +39,17 @@ class AlloyGenerator:
 
         Args:
             prim_cell (Atoms): The primitive unit cell to expand.
-            composition (Dict[str, float]): Target composition map, e.g., {'Fe': 0.7, 'Ni': 0.3}.
-                                            Values must sum to approximately 1.0.
+            composition (Composition): Target composition map wrapped in a Pydantic model.
+                                       Values must sum to approximately 1.0.
 
         Returns:
             Atoms: The generated SQS supercell structure.
 
         Raises:
-            GeneratorError: If the composition is invalid (does not sum to 1.0) or if generation fails.
+            GeneratorError: If generation fails.
         """
-        # Validate composition sums to 1 (approx)
-        if abs(sum(composition.values()) - 1.0) > 1e-4:
-            raise GeneratorError("Composition must sum to 1.0")
+        # Composition validation is handled by the Pydantic model on input.
+        comp_dict: dict[str, float] = composition.root
 
         try:
             # Determine supercell size from config
@@ -62,14 +61,12 @@ class AlloyGenerator:
             n_atoms = len(atoms)
 
             # Calculate target counts
-            counts = {}
-            symbols: List[str] = []
+            symbols: list[str] = []
 
-            sorted_comp = sorted(composition.items(), key=lambda x: x[1], reverse=True)
+            sorted_comp = sorted(comp_dict.items(), key=lambda x: x[1], reverse=True)
 
             for elem, frac in sorted_comp:
                 count = int(round(frac * n_atoms))
-                counts[elem] = count
                 symbols.extend([elem] * count)
 
             # Fix rounding errors
@@ -102,7 +99,8 @@ class AlloyGenerator:
         except Exception as e:
             if isinstance(e, GeneratorError):
                 raise
-            raise GeneratorError(f"Failed to generate SQS: {e}") from e
+            msg = f"Failed to generate SQS: {e}"
+            raise GeneratorError(msg) from e
 
     def apply_strain(self, atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
         """
@@ -129,7 +127,6 @@ class AlloyGenerator:
             deformation = np.eye(3) + strain_tensor
 
             # New cell vectors. ASE cell rows are vectors.
-            # new_cell = cell @ deformation
             new_cell = np.dot(cell, deformation)
 
             strained.set_cell(new_cell, scale_atoms=True)
@@ -138,7 +135,8 @@ class AlloyGenerator:
             strained.info["strain_tensor"] = strain_tensor.tolist()
             return strained
         except Exception as e:
-            raise GeneratorError(f"Failed to apply strain: {e}") from e
+            msg = f"Failed to apply strain: {e}"
+            raise GeneratorError(msg) from e
 
     def apply_rattle(self, atoms: Atoms, sigma: float) -> Atoms:
         """
@@ -167,9 +165,10 @@ class AlloyGenerator:
             rattled.info["rattle_sigma"] = sigma
             return rattled
         except Exception as e:
-            raise GeneratorError(f"Failed to apply rattle: {e}") from e
+            msg = f"Failed to apply rattle: {e}"
+            raise GeneratorError(msg) from e
 
-    def generate_batch(self, base_structure: Atoms) -> List[Atoms]:
+    def generate_batch(self, base_structure: Atoms) -> list[Atoms]:
         """
         Generates a combinatorial batch of structures from a base structure.
 
@@ -234,4 +233,5 @@ class AlloyGenerator:
         except Exception as e:
              if isinstance(e, GeneratorError):
                  raise
-             raise GeneratorError(f"Batch generation failed: {e}") from e
+             msg = f"Batch generation failed: {e}"
+             raise GeneratorError(msg) from e

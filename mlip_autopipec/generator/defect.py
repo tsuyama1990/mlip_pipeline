@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 import numpy as np
 from ase import Atoms
@@ -15,7 +14,7 @@ class DefectGenerator:
     Generator for point defects (vacancies and interstitials) in atomic structures.
     """
 
-    def __init__(self, config: GeneratorConfig):
+    def __init__(self, config: GeneratorConfig) -> None:
         """
         Initialize the DefectGenerator.
 
@@ -24,7 +23,7 @@ class DefectGenerator:
         """
         self.config = config
 
-    def create_vacancy(self, atoms: Atoms) -> List[Atoms]:
+    def create_vacancy(self, atoms: Atoms) -> list[Atoms]:
         """
         Creates vacancies by removing atoms.
 
@@ -61,9 +60,10 @@ class DefectGenerator:
 
             return results
         except Exception as e:
-            raise GeneratorError(f"Failed to create vacancies: {e}") from e
+            msg = f"Failed to create vacancies: {e}"
+            raise GeneratorError(msg) from e
 
-    def create_interstitial(self, atoms: Atoms, element: str) -> List[Atoms]:
+    def create_interstitial(self, atoms: Atoms, element: str) -> list[Atoms]:
         """
         Creates interstitials by inserting an atom at heuristic void positions.
 
@@ -103,8 +103,7 @@ class DefectGenerator:
                 min_dist = np.inf
                 for p in atoms.positions:
                     d = np.linalg.norm(p - pos)
-                    if d < min_dist:
-                        min_dist = d
+                    min_dist = min(min_dist, d)
 
                 # Minimal distance threshold (Angstroms)
                 if min_dist > 1.5:
@@ -118,4 +117,5 @@ class DefectGenerator:
 
             return results
         except Exception as e:
-            raise GeneratorError(f"Failed to create interstitials: {e}") from e
+            msg = f"Failed to create interstitials: {e}"
+            raise GeneratorError(msg) from e

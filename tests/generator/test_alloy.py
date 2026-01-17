@@ -2,20 +2,26 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
+from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
 from mlip_autopipec.generator.alloy import AlloyGenerator
 from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.config.schemas.common import Composition
 
 
 @pytest.fixture
 def alloy_generator():
-    config = GeneratorConfig()
+    config = GeneratorConfig(
+        sqs=SQSConfig(enabled=True),
+        distortion=DistortionConfig(enabled=True),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
     return AlloyGenerator(config)
 
 def test_sqs_generation_stoichiometry(alloy_generator):
     # Target: Fe50Ni50, 8 atoms
     prim = bulk('Fe', 'fcc', a=3.5)
-    composition = {"Fe": 0.5, "Ni": 0.5}
+    composition = Composition({"Fe": 0.5, "Ni": 0.5})
 
     # Generate
     # AlloyGenerator uses config.sqs.supercell_matrix
@@ -31,10 +37,13 @@ def test_sqs_generation_stoichiometry(alloy_generator):
 
 def test_sqs_generation_invalid_composition(alloy_generator):
     prim = bulk('Fe', 'fcc', a=3.5)
-    composition = {"Fe": 0.5, "Ni": 0.6} # Sum > 1
 
-    with pytest.raises(GeneratorError):
-        alloy_generator.generate_sqs(prim, composition)
+    # We must construct validation manually or expect validation error on Composition creation.
+    # However, if we pass a valid Composition but it somehow fails check inside, we test here.
+    # But Composition validates itself.
+    # Let's verify Composition raises ValueError
+    with pytest.raises(ValueError):
+        Composition({"Fe": 0.5, "Ni": 0.6})
 
 def test_apply_strain(alloy_generator):
     atoms = bulk('Cu', 'fcc', a=3.6)
@@ -74,8 +83,12 @@ def test_apply_rattle(alloy_generator):
     assert rattled_large.info['rattle_sigma'] == 0.1
 
 def test_generate_batch_disabled_distortions():
-    config = GeneratorConfig()
-    config.distortion.enabled = False
+    config = GeneratorConfig(
+        sqs=SQSConfig(enabled=True),
+        distortion=DistortionConfig(enabled=False),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
     gen = AlloyGenerator(config)
 
     base = bulk('Fe')

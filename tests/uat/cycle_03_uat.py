@@ -1,17 +1,23 @@
-import numpy as np
-import pytest
-from ase.build import bulk, molecule
-from pathlib import Path
+
 import logging
 from unittest.mock import MagicMock, patch
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.generator.alloy import AlloyGenerator
-from mlip_autopipec.generator.molecule import MoleculeGenerator
-from mlip_autopipec.generator.defect import DefectGenerator
-from mlip_autopipec.generator.builder import StructureBuilder
+import numpy as np
+import pytest
+from ase.build import bulk, molecule
+
+from mlip_autopipec.config.schemas.common import Composition, MinimalConfig
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
 from mlip_autopipec.config.schemas.system import SystemConfig, TargetSystem
-from mlip_autopipec.config.schemas.common import MinimalConfig
+from mlip_autopipec.generator.alloy import AlloyGenerator
+from mlip_autopipec.generator.builder import StructureBuilder
+from mlip_autopipec.generator.molecule import MoleculeGenerator
 
 # UAT Scenarios implementation
 # These tests verify the "User Experience" flow defined in UAT.md
@@ -21,12 +27,16 @@ def setup_uat_logging():
 
 @pytest.fixture
 def uat_alloy_generator():
-    config = GeneratorConfig()
-    config.sqs.supercell_matrix = [[2,0,0], [0,2,0], [0,0,2]] # 8 atoms
-    config.distortion.rattling_amplitude = 0.1
-    config.distortion.strain_range = (-0.1, 0.1)
-    config.distortion.n_strain_steps = 3 # -0.1, 0.0, 0.1
-
+    config = GeneratorConfig(
+        sqs=SQSConfig(supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]]),
+        distortion=DistortionConfig(
+            rattling_amplitude=0.1,
+            strain_range=(-0.1, 0.1),
+            n_strain_steps=3
+        ),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
     return AlloyGenerator(config)
 
 def test_uat_03_01_alloy_sqs_generation(uat_alloy_generator):
@@ -36,7 +46,7 @@ def test_uat_03_01_alloy_sqs_generation(uat_alloy_generator):
     for a specified binary composition (e.g., Fe-Ni 50:50) that matches the target stoichiometry exactly.
     """
     prim = bulk('Fe', 'fcc', a=3.5)
-    composition = {"Fe": 0.5, "Ni": 0.5}
+    composition = Composition({"Fe": 0.5, "Ni": 0.5})
 
     sqs = uat_alloy_generator.generate_sqs(prim, composition)
 
@@ -59,7 +69,7 @@ def test_uat_03_02_distortion_pipeline(uat_alloy_generator):
     including volumetric strain and thermal rattling.
     """
     prim = bulk('Fe', 'fcc', a=3.5)
-    composition = {"Fe": 0.5, "Ni": 0.5}
+    composition = Composition({"Fe": 0.5, "Ni": 0.5})
     sqs = uat_alloy_generator.generate_sqs(prim, composition)
 
     # Generate batch
@@ -92,7 +102,12 @@ def test_uat_03_03_molecule_nms():
     UAT-03-03: Molecule NMS
     Verify that for a molecular system (e.g., H2O), the system generates distorted geometries.
     """
-    config = GeneratorConfig()
+    config = GeneratorConfig(
+        sqs=SQSConfig(),
+        distortion=DistortionConfig(),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
     mol_gen = MoleculeGenerator(config)
     h2o = molecule('H2O')
 
@@ -114,7 +129,12 @@ def test_uat_03_04_metadata_integrity():
     UAT-03-04: Metadata Integrity
     Verify that every generated structure includes the correct metadata.
     """
-    gen_config = GeneratorConfig()
+    gen_config = GeneratorConfig(
+        sqs=SQSConfig(),
+        distortion=DistortionConfig(),
+        nms=NMSConfig(),
+        defects=DefectConfig()
+    )
     target = TargetSystem(name="Fe", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk")
     minimal = MinimalConfig(project_name="uat", target_system=target, resources={"dft_code": "quantum_espresso", "parallel_cores": 1})
 
@@ -136,4 +156,3 @@ def test_uat_03_04_metadata_integrity():
 
 if __name__ == "__main__":
     setup_uat_logging()
-    pass

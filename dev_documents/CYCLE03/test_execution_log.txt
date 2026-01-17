@@ -3,184 +3,15 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 19 items
+collected 20 items
 
 tests/unit/test_generator_schemas.py F.                                  [ 10%]
-tests/generator/test_alloy.py EEEEF                                      [ 36%]
-tests/generator/test_builder.py FF                                       [ 47%]
-tests/generator/test_defect.py EEF                                       [ 63%]
-tests/generator/test_molecule.py ...                                     [ 78%]
-tests/uat/cycle_03_uat.py EEFF                                           [100%]
+tests/generator/test_alloy.py .....                                      [ 35%]
+tests/generator/test_builder.py FF                                       [ 45%]
+tests/generator/test_defect.py ....                                      [ 65%]
+tests/generator/test_molecule.py ...                                     [ 80%]
+tests/uat/cycle_03_uat.py ...F                                           [100%]
 
-==================================== ERRORS ====================================
-_____________ ERROR at setup of test_sqs_generation_stoichiometry ______________
-
-    @pytest.fixture
-    def alloy_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_alloy.py:12: ValidationError
-__________ ERROR at setup of test_sqs_generation_invalid_composition ___________
-
-    @pytest.fixture
-    def alloy_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_alloy.py:12: ValidationError
-_____________________ ERROR at setup of test_apply_strain ______________________
-
-    @pytest.fixture
-    def alloy_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_alloy.py:12: ValidationError
-_____________________ ERROR at setup of test_apply_rattle ______________________
-
-    @pytest.fixture
-    def alloy_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_alloy.py:12: ValidationError
-____________________ ERROR at setup of test_create_vacancy _____________________
-
-    @pytest.fixture
-    def defect_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_defect.py:10: ValidationError
-__________________ ERROR at setup of test_create_interstitial __________________
-
-    @pytest.fixture
-    def defect_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_defect.py:10: ValidationError
-____________ ERROR at setup of test_uat_03_01_alloy_sqs_generation _____________
-
-    @pytest.fixture
-    def uat_alloy_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/uat/cycle_03_uat.py:24: ValidationError
-_____________ ERROR at setup of test_uat_03_02_distortion_pipeline _____________
-
-    @pytest.fixture
-    def uat_alloy_generator():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/uat/cycle_03_uat.py:24: ValidationError
 =================================== FAILURES ===================================
 ________________________ test_generator_config_defaults ________________________
 
@@ -202,135 +33,412 @@ E         Field required [type=missing, input_value={}, input_type=dict]
 E           For further information visit https://errors.pydantic.dev/2.12/v/missing
 
 tests/unit/test_generator_schemas.py:8: ValidationError
-___________________ test_generate_batch_disabled_distortions ___________________
-
-    def test_generate_batch_disabled_distortions():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-
-tests/generator/test_alloy.py:77: ValidationError
 ____________________________ test_builder_pipeline _____________________________
 
-    def test_builder_pipeline():
-        # Setup Config using updated schema hierarchy
->       gen_config = GeneratorConfig()
-                     ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e3c80eff0>
 
-tests/generator/test_builder.py:11: ValidationError
+    def build(self) -> list[Atoms]:
+        """
+        Orchestrates the generation process based on TargetSystem.
+
+        Returns:
+            List[Atoms]: A list of generated atomic structures.
+
+        Raises:
+            GeneratorError: If critical generation steps fail.
+        """
+        target = self.system_config.target_system
+        if not target:
+            logger.warning("No target_system defined. Returning empty structure list.")
+            return []
+
+        structures: list[Atoms] = []
+
+        try:
+            if target.structure_type == "bulk":
+>               self._build_bulk(structures, target)
+
+mlip_autopipec/generator/builder.py:65:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+mlip_autopipec/generator/builder.py:105: in _build_bulk
+    sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.generator.alloy.AlloyGenerator object at 0x7f6e2e900110>
+prim_cell = Atoms(symbols='Fe', pbc=True, cell=[[-1.435, 1.435, 1.435], [1.435, -1.435, 1.435], [1.435, 1.435, -1.435]], initial_magmoms=...)
+composition = {'Fe': 1.0}
+
+    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
+        """
+        Generates a Special Quasirandom Structure (SQS) for the given composition.
+
+        This method attempts to create a supercell that matches the target composition
+        as closely as possible. It currently implements a fallback strategy using
+        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
+
+        Args:
+            prim_cell (Atoms): The primitive unit cell to expand.
+            composition (Composition): Target composition map wrapped in a Pydantic model.
+                                       Values must sum to approximately 1.0.
+
+        Returns:
+            Atoms: The generated SQS supercell structure.
+
+        Raises:
+            GeneratorError: If generation fails.
+        """
+        # Composition validation is handled by the Pydantic model on input.
+>       comp_dict: dict[str, float] = composition.root
+                                      ^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'root'
+
+mlip_autopipec/generator/alloy.py:52: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+    def test_builder_pipeline():
+        # Setup Config using updated schema hierarchy with explicit initialization
+        gen_config = GeneratorConfig(
+            sqs=SQSConfig(enabled=True, supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]]),
+            distortion=DistortionConfig(enabled=True, n_strain_steps=2, n_rattle_steps=2),
+            nms=NMSConfig(enabled=True),
+            defects=DefectConfig(enabled=False)
+        )
+
+        target_system = TargetSystem(
+            name="TestSystem",
+            composition={"Fe": 1.0},
+            elements=["Fe"],
+            structure_type="bulk"
+        )
+
+        minimal_config = MinimalConfig(
+            project_name="test_proj",
+            target_system=target_system,
+            resources={"dft_code": "quantum_espresso", "parallel_cores": 4}
+        )
+
+        system_config = MagicMock(spec=SystemConfig)
+        system_config.generator_config = gen_config
+        system_config.target_system = target_system
+        system_config.minimal = minimal_config
+
+        builder = StructureBuilder(system_config)
+
+        # In StructureBuilder.__init__, it checks for self.system_config.generator_config
+        # However, since we mock SystemConfig, we must ensure the attribute access returns our gen_config.
+        # MagicMock attributes work, but pydantic access pattern in builder might vary if not using dict access.
+        # The builder code: self.generator_config = system_config.generator_config
+
+>       structures = builder.build()
+                     ^^^^^^^^^^^^^^^
+
+tests/generator/test_builder.py:49:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e3c80eff0>
+
+    def build(self) -> list[Atoms]:
+        """
+        Orchestrates the generation process based on TargetSystem.
+
+        Returns:
+            List[Atoms]: A list of generated atomic structures.
+
+        Raises:
+            GeneratorError: If critical generation steps fail.
+        """
+        target = self.system_config.target_system
+        if not target:
+            logger.warning("No target_system defined. Returning empty structure list.")
+            return []
+
+        structures: list[Atoms] = []
+
+        try:
+            if target.structure_type == "bulk":
+                self._build_bulk(structures, target)
+            elif target.structure_type == "molecule":
+                self._build_molecule(structures, target)
+            elif target.structure_type == "defect":
+                # Explicit defect generation mode if needed,
+                # though usually defects are applied to bulk.
+                # For now, treat as bulk + defects.
+                self._build_bulk(structures, target)
+            else:
+                logger.warning(f"Unknown structure_type: {target.structure_type}")
+
+        except Exception as e:
+            if isinstance(e, GeneratorError):
+                raise
+            msg = f"Structure generation failed: {e}"
+>           raise GeneratorError(msg) from e
+E           mlip_autopipec.exceptions.GeneratorError: Structure generation failed: 'dict' object has no attribute 'root'
+
+mlip_autopipec/generator/builder.py:80: GeneratorError
 __________________________ test_builder_with_defects ___________________________
 
+self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2f5d6ea0>
+
+    def build(self) -> list[Atoms]:
+        """
+        Orchestrates the generation process based on TargetSystem.
+
+        Returns:
+            List[Atoms]: A list of generated atomic structures.
+
+        Raises:
+            GeneratorError: If critical generation steps fail.
+        """
+        target = self.system_config.target_system
+        if not target:
+            logger.warning("No target_system defined. Returning empty structure list.")
+            return []
+
+        structures: list[Atoms] = []
+
+        try:
+            if target.structure_type == "bulk":
+>               self._build_bulk(structures, target)
+
+mlip_autopipec/generator/builder.py:65:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+mlip_autopipec/generator/builder.py:105: in _build_bulk
+    sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.generator.alloy.AlloyGenerator object at 0x7f6e3c876d80>
+prim_cell = Atoms(symbols='Fe', pbc=True, cell=[[-1.435, 1.435, 1.435], [1.435, -1.435, 1.435], [1.435, 1.435, -1.435]], initial_magmoms=...)
+composition = {'Fe': 1.0}
+
+    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
+        """
+        Generates a Special Quasirandom Structure (SQS) for the given composition.
+
+        This method attempts to create a supercell that matches the target composition
+        as closely as possible. It currently implements a fallback strategy using
+        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
+
+        Args:
+            prim_cell (Atoms): The primitive unit cell to expand.
+            composition (Composition): Target composition map wrapped in a Pydantic model.
+                                       Values must sum to approximately 1.0.
+
+        Returns:
+            Atoms: The generated SQS supercell structure.
+
+        Raises:
+            GeneratorError: If generation fails.
+        """
+        # Composition validation is handled by the Pydantic model on input.
+>       comp_dict: dict[str, float] = composition.root
+                                      ^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'root'
+
+mlip_autopipec/generator/alloy.py:52: AttributeError
+
+The above exception was the direct cause of the following exception:
+
     def test_builder_with_defects():
->       gen_config = GeneratorConfig()
-                     ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+        gen_config = GeneratorConfig(
+            sqs=SQSConfig(enabled=True),
+            distortion=DistortionConfig(enabled=False),
+            nms=NMSConfig(enabled=True),
+            defects=DefectConfig(enabled=True, vacancies=True, interstitials=False)
+        )
 
-tests/generator/test_builder.py:56: ValidationError
-____________________________ test_defects_disabled _____________________________
+        target_system = TargetSystem(
+            name="TestSystem",
+            composition={"Fe": 1.0},
+            elements=["Fe"],
+            structure_type="bulk"
+        )
 
-    def test_defects_disabled():
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+        # Mock SystemConfig
+        system_config = MagicMock(spec=SystemConfig)
+        system_config.generator_config = gen_config
+        system_config.target_system = target_system
 
-tests/generator/test_defect.py:44: ValidationError
-_________________________ test_uat_03_03_molecule_nms __________________________
+        builder = StructureBuilder(system_config)
+>       structures = builder.build()
+                     ^^^^^^^^^^^^^^^
 
-    def test_uat_03_03_molecule_nms():
+tests/generator/test_builder.py:77:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2f5d6ea0>
+
+    def build(self) -> list[Atoms]:
         """
-        UAT-03-03: Molecule NMS
-        Verify that for a molecular system (e.g., H2O), the system generates distorted geometries.
-        """
->       config = GeneratorConfig()
-                 ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+        Orchestrates the generation process based on TargetSystem.
 
-tests/uat/cycle_03_uat.py:95: ValidationError
+        Returns:
+            List[Atoms]: A list of generated atomic structures.
+
+        Raises:
+            GeneratorError: If critical generation steps fail.
+        """
+        target = self.system_config.target_system
+        if not target:
+            logger.warning("No target_system defined. Returning empty structure list.")
+            return []
+
+        structures: list[Atoms] = []
+
+        try:
+            if target.structure_type == "bulk":
+                self._build_bulk(structures, target)
+            elif target.structure_type == "molecule":
+                self._build_molecule(structures, target)
+            elif target.structure_type == "defect":
+                # Explicit defect generation mode if needed,
+                # though usually defects are applied to bulk.
+                # For now, treat as bulk + defects.
+                self._build_bulk(structures, target)
+            else:
+                logger.warning(f"Unknown structure_type: {target.structure_type}")
+
+        except Exception as e:
+            if isinstance(e, GeneratorError):
+                raise
+            msg = f"Structure generation failed: {e}"
+>           raise GeneratorError(msg) from e
+E           mlip_autopipec.exceptions.GeneratorError: Structure generation failed: 'dict' object has no attribute 'root'
+
+mlip_autopipec/generator/builder.py:80: GeneratorError
 ______________________ test_uat_03_04_metadata_integrity _______________________
+
+self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2d3da300>
+
+    def build(self) -> list[Atoms]:
+        """
+        Orchestrates the generation process based on TargetSystem.
+
+        Returns:
+            List[Atoms]: A list of generated atomic structures.
+
+        Raises:
+            GeneratorError: If critical generation steps fail.
+        """
+        target = self.system_config.target_system
+        if not target:
+            logger.warning("No target_system defined. Returning empty structure list.")
+            return []
+
+        structures: list[Atoms] = []
+
+        try:
+            if target.structure_type == "bulk":
+>               self._build_bulk(structures, target)
+
+mlip_autopipec/generator/builder.py:65:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+mlip_autopipec/generator/builder.py:105: in _build_bulk
+    sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.generator.alloy.AlloyGenerator object at 0x7f6e2d2a7fe0>
+prim_cell = Atoms(symbols='Fe', pbc=True, cell=[[-1.435, 1.435, 1.435], [1.435, -1.435, 1.435], [1.435, 1.435, -1.435]], initial_magmoms=...)
+composition = {'Fe': 1.0}
+
+    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
+        """
+        Generates a Special Quasirandom Structure (SQS) for the given composition.
+
+        This method attempts to create a supercell that matches the target composition
+        as closely as possible. It currently implements a fallback strategy using
+        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
+
+        Args:
+            prim_cell (Atoms): The primitive unit cell to expand.
+            composition (Composition): Target composition map wrapped in a Pydantic model.
+                                       Values must sum to approximately 1.0.
+
+        Returns:
+            Atoms: The generated SQS supercell structure.
+
+        Raises:
+            GeneratorError: If generation fails.
+        """
+        # Composition validation is handled by the Pydantic model on input.
+>       comp_dict: dict[str, float] = composition.root
+                                      ^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'root'
+
+mlip_autopipec/generator/alloy.py:52: AttributeError
+
+The above exception was the direct cause of the following exception:
 
     def test_uat_03_04_metadata_integrity():
         """
         UAT-03-04: Metadata Integrity
         Verify that every generated structure includes the correct metadata.
         """
->       gen_config = GeneratorConfig()
-                     ^^^^^^^^^^^^^^^^^
-E       pydantic_core._pydantic_core.ValidationError: 4 validation errors for GeneratorConfig
-E       sqs
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       distortion
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       nms
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
-E       defects
-E         Field required [type=missing, input_value={}, input_type=dict]
-E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+        gen_config = GeneratorConfig(
+            sqs=SQSConfig(),
+            distortion=DistortionConfig(),
+            nms=NMSConfig(),
+            defects=DefectConfig()
+        )
+        target = TargetSystem(name="Fe", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk")
+        minimal = MinimalConfig(project_name="uat", target_system=target, resources={"dft_code": "quantum_espresso", "parallel_cores": 1})
 
-tests/uat/cycle_03_uat.py:117: ValidationError
+        sys_config = MagicMock(spec=SystemConfig)
+        sys_config.generator_config = gen_config
+        sys_config.target_system = target
+        sys_config.minimal = minimal
+
+        builder = StructureBuilder(sys_config)
+
+>       structures = builder.build()
+                     ^^^^^^^^^^^^^^^
+
+tests/uat/cycle_03_uat.py:148:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2d3da300>
+
+    def build(self) -> list[Atoms]:
+        """
+        Orchestrates the generation process based on TargetSystem.
+
+        Returns:
+            List[Atoms]: A list of generated atomic structures.
+
+        Raises:
+            GeneratorError: If critical generation steps fail.
+        """
+        target = self.system_config.target_system
+        if not target:
+            logger.warning("No target_system defined. Returning empty structure list.")
+            return []
+
+        structures: list[Atoms] = []
+
+        try:
+            if target.structure_type == "bulk":
+                self._build_bulk(structures, target)
+            elif target.structure_type == "molecule":
+                self._build_molecule(structures, target)
+            elif target.structure_type == "defect":
+                # Explicit defect generation mode if needed,
+                # though usually defects are applied to bulk.
+                # For now, treat as bulk + defects.
+                self._build_bulk(structures, target)
+            else:
+                logger.warning(f"Unknown structure_type: {target.structure_type}")
+
+        except Exception as e:
+            if isinstance(e, GeneratorError):
+                raise
+            msg = f"Structure generation failed: {e}"
+>           raise GeneratorError(msg) from e
+E           mlip_autopipec.exceptions.GeneratorError: Structure generation failed: 'dict' object has no attribute 'root'
+
+mlip_autopipec/generator/builder.py:80: GeneratorError
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
@@ -341,7 +449,7 @@ mlip_autopipec/app.py                             36     36     0%   5-63
 mlip_autopipec/config/__init__.py                  0      0   100%
 mlip_autopipec/config/factory.py                  37     37     0%   1-62
 mlip_autopipec/config/models.py                    7      0   100%
-mlip_autopipec/config/schemas/common.py           44     19    57%   16-29, 41-47, 51-54
+mlip_autopipec/config/schemas/common.py           44      6    86%   26-27, 45-46, 52-53
 mlip_autopipec/config/schemas/dft.py              70     20    71%   27-32, 46-51, 68-70, 101-107
 mlip_autopipec/config/schemas/exploration.py      51      4    92%   35-39
 mlip_autopipec/config/schemas/generator.py        30      0   100%
@@ -366,10 +474,10 @@ mlip_autopipec/dft/recovery.py                    30     30     0%   1-81
 mlip_autopipec/dft/runner.py                      79     79     0%   1-170
 mlip_autopipec/exceptions.py                      15      6    60%   41-44, 47-48
 mlip_autopipec/generator/__init__.py               5      0   100%
-mlip_autopipec/generator/alloy.py                100     86    14%   30, 52-105, 124-141, 160-170, 191-237
-mlip_autopipec/generator/builder.py               80     65    19%   29-44, 56-90, 96-128, 132-145
-mlip_autopipec/generator/defect.py                52     41    21%   25, 43-64, 83-121
-mlip_autopipec/generator/molecule.py              54      6    89%   84-85, 111-114
+mlip_autopipec/generator/alloy.py                101     22    78%   57, 76-81, 88, 99-103, 137-139, 167-169, 233-237
+mlip_autopipec/generator/builder.py               80     44    45%   33-40, 58-59, 66-74, 78, 83-90, 99-101, 109-128, 132-145
+mlip_autopipec/generator/defect.py                52      8    85%   49-50, 62-64, 119-121
+mlip_autopipec/generator/molecule.py              54      7    87%   80-81, 107-111
 mlip_autopipec/modules/__init__.py                 0      0   100%
 mlip_autopipec/modules/config_generator.py        15     15     0%   3-74
 mlip_autopipec/modules/descriptors.py             31     31     0%   3-62
@@ -391,21 +499,10 @@ mlip_autopipec/utils/resilience.py                29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
 mlip_autopipec/workflow_manager.py               106    106     0%   1-191
 ----------------------------------------------------------------------------
-TOTAL                                           2039   1626    20%
+TOTAL                                           2040   1496    27%
 =========================== short test summary info ============================
 FAILED tests/unit/test_generator_schemas.py::test_generator_config_defaults
-FAILED tests/generator/test_alloy.py::test_generate_batch_disabled_distortions
-FAILED tests/generator/test_builder.py::test_builder_pipeline - pydantic_core...
-FAILED tests/generator/test_builder.py::test_builder_with_defects - pydantic_...
-FAILED tests/generator/test_defect.py::test_defects_disabled - pydantic_core....
-FAILED tests/uat/cycle_03_uat.py::test_uat_03_03_molecule_nms - pydantic_core...
-FAILED tests/uat/cycle_03_uat.py::test_uat_03_04_metadata_integrity - pydanti...
-ERROR tests/generator/test_alloy.py::test_sqs_generation_stoichiometry - pyda...
-ERROR tests/generator/test_alloy.py::test_sqs_generation_invalid_composition
-ERROR tests/generator/test_alloy.py::test_apply_strain - pydantic_core._pydan...
-ERROR tests/generator/test_alloy.py::test_apply_rattle - pydantic_core._pydan...
-ERROR tests/generator/test_defect.py::test_create_vacancy - pydantic_core._py...
-ERROR tests/generator/test_defect.py::test_create_interstitial - pydantic_cor...
-ERROR tests/uat/cycle_03_uat.py::test_uat_03_01_alloy_sqs_generation - pydant...
-ERROR tests/uat/cycle_03_uat.py::test_uat_03_02_distortion_pipeline - pydanti...
-==================== 7 failed, 4 passed, 8 errors in 4.40s =====================
+FAILED tests/generator/test_builder.py::test_builder_pipeline - mlip_autopipe...
+FAILED tests/generator/test_builder.py::test_builder_with_defects - mlip_auto...
+FAILED tests/uat/cycle_03_uat.py::test_uat_03_04_metadata_integrity - mlip_au...
+========================= 4 failed, 16 passed in 4.48s =========================

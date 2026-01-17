@@ -2,13 +2,9 @@ import logging
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Optional
 
 import numpy as np
 from ase import Atoms
-# Use try-except import for heavy dependencies or optional ones if needed,
-# but here standard imports.
-# We import Vibrations inside methods to avoid issues if not needed or testing.
 
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
@@ -21,7 +17,7 @@ class MoleculeGenerator:
     Generator for molecular structures using Normal Mode Sampling (NMS).
     """
 
-    def __init__(self, config: GeneratorConfig):
+    def __init__(self, config: GeneratorConfig) -> None:
         """
         Initialize the MoleculeGenerator.
 
@@ -30,7 +26,7 @@ class MoleculeGenerator:
         """
         self.config = config
 
-    def normal_mode_sampling(self, atoms: Atoms, temperature: int, n_samples: int = 5) -> List[Atoms]:
+    def normal_mode_sampling(self, atoms: Atoms, temperature: int, n_samples: int = 5) -> list[Atoms]:
         """
         Generates distorted structures using Normal Mode Sampling.
 
@@ -111,7 +107,8 @@ class MoleculeGenerator:
         except Exception as e:
             if isinstance(e, GeneratorError):
                 raise
-            raise GeneratorError(f"NMS calculation failed: {e}") from e
+            msg = f"NMS calculation failed: {e}"
+            raise GeneratorError(msg) from e
         finally:
             # Cleanup
             if work_dir.exists():

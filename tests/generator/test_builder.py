@@ -1,20 +1,25 @@
 from unittest.mock import MagicMock
 
 from mlip_autopipec.config.schemas.common import MinimalConfig
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
 from mlip_autopipec.config.schemas.system import SystemConfig, TargetSystem
 from mlip_autopipec.generator.builder import StructureBuilder
 
 
 def test_builder_pipeline():
-    # Setup Config using updated schema hierarchy
-    gen_config = GeneratorConfig()
-    gen_config.sqs.supercell_matrix = [[2,0,0], [0,2,0], [0,0,2]]
-    gen_config.distortion.n_strain_steps = 2
-    gen_config.distortion.n_rattle_steps = 2
-
-    # Disable defects for predictable count in basic test
-    gen_config.defects.enabled = False
+    # Setup Config using updated schema hierarchy with explicit initialization
+    gen_config = GeneratorConfig(
+        sqs=SQSConfig(enabled=True, supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]]),
+        distortion=DistortionConfig(enabled=True, n_strain_steps=2, n_rattle_steps=2),
+        nms=NMSConfig(enabled=True),
+        defects=DefectConfig(enabled=False)
+    )
 
     target_system = TargetSystem(
         name="TestSystem",
@@ -36,16 +41,12 @@ def test_builder_pipeline():
 
     builder = StructureBuilder(system_config)
 
+    # In StructureBuilder.__init__, it checks for self.system_config.generator_config
+    # However, since we mock SystemConfig, we must ensure the attribute access returns our gen_config.
+    # MagicMock attributes work, but pydantic access pattern in builder might vary if not using dict access.
+    # The builder code: self.generator_config = system_config.generator_config
+
     structures = builder.build()
-
-    # 1 SQS (base)
-    # Strains: -0.05, 0.05 (2 steps). Both non-zero. -> 2 Strained structures.
-    # Total Base + Strained = 3.
-    # Rattles: 3 * 2 = 6.
-    # Total = 3 + 6 = 9 structures.
-
-    # Wait, in AlloyGenerator.generate_batch:
-    # 2 strains: linspace(-0.05, 0.05, 2) -> [-0.05, 0.05]. Correct.
 
     assert len(structures) == 9
     for s in structures:
@@ -53,10 +54,12 @@ def test_builder_pipeline():
         assert 'config_type' in s.info
 
 def test_builder_with_defects():
-    gen_config = GeneratorConfig()
-    gen_config.distortion.enabled = False # Simplify
-    gen_config.defects.enabled = True
-    gen_config.defects.vacancies = True
+    gen_config = GeneratorConfig(
+        sqs=SQSConfig(enabled=True),
+        distortion=DistortionConfig(enabled=False),
+        nms=NMSConfig(enabled=True),
+        defects=DefectConfig(enabled=True, vacancies=True, interstitials=False)
+    )
 
     target_system = TargetSystem(
         name="TestSystem",
@@ -72,10 +75,6 @@ def test_builder_with_defects():
 
     builder = StructureBuilder(system_config)
     structures = builder.build()
-
-    # 1 SQS (Base)
-    # Vacancies: 8 atoms (2x2x2) -> 8 vacancies.
-    # Total = 9.
 
     assert len(structures) == 9
     types = [s.info.get('config_type') for s in structures]
