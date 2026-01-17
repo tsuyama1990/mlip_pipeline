@@ -23,7 +23,7 @@ def create_system_config():
     return SystemConfig(
         project_name="Integration Test Project",
         run_uuid=uuid.uuid4(),
-        workflow_config=WorkflowConfig(checkpoint_filename="checkpoint.json"),
+        workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json"),
         training_config=TrainingConfig(data_source_db=Path("mlip_database.db")),
     )
 

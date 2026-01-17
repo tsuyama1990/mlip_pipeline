@@ -34,7 +34,7 @@ def setup_project(work_dir: Path):
         system_config=SystemConfig(
             project_name="UAT Cycle 08 Project",
             run_uuid=uuid.uuid4(),
-            workflow_config=WorkflowConfig(checkpoint_filename="checkpoint.json"),
+            workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json"),
             training_config=TrainingConfig(data_source_db=Path("project.db")),
         ),
         active_learning_generation=3,
