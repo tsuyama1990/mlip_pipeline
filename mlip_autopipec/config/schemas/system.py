@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .common import TargetSystem
+from .common import Resources, SimulationGoal, TargetSystem
 from .dft import DFTConfig
 from .exploration import ExplorerConfig, ExplorerParams, GeneratorParams
 from .inference import InferenceConfig
@@ -23,9 +23,11 @@ class WorkflowConfig(BaseModel):
             raise ValueError(msg)
         return v
 
+
 class DaskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scheduler_address: str | None = Field(None)
+
 
 class SystemConfig(BaseModel):
     """
@@ -33,12 +35,15 @@ class SystemConfig(BaseModel):
     Most fields are optional to allow for incremental configuration or testing of specific modules,
     but in a full production run, the relevant sections must be present.
     """
+
     project_name: str
     run_uuid: UUID
     workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
 
     # Core System Definition (Optional primarily for component-level testing)
     target_system: TargetSystem | None = None
+    resources: Resources | None = None
+    simulation_goal: SimulationGoal | None = None
 
     # Module Configurations
     dft_config: DFTConfig | None = None
@@ -64,10 +69,12 @@ class SystemConfig(BaseModel):
     @classmethod
     def validate_db_path(cls, v: str) -> str:
         import os
+
         if ".." in v or os.path.isabs(v):
             msg = "db_path must be a relative path."
             raise ValueError(msg)
         return v
+
 
 class CheckpointState(BaseModel):
     run_uuid: UUID
@@ -80,6 +87,7 @@ class CheckpointState(BaseModel):
     job_submission_args: dict[UUID, Any] = Field(default_factory=dict)
     training_history: list[TrainingRunMetrics] = Field(default_factory=list)
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
 
 class CalculationMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")

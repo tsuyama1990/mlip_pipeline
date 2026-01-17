@@ -6,6 +6,8 @@ SystemConfig from a high-level UserInputConfig.
 from pathlib import Path
 from uuid import uuid4
 
+import yaml
+
 from mlip_autopipec.config.models import (
     CutoffConfig,
     DFTConfig,
@@ -29,6 +31,25 @@ class ConfigFactory:
     """A factory for creating application configurations."""
 
     @staticmethod
+    def from_yaml(file_path: Path | str) -> SystemConfig:
+        """
+        Reads a YAML file, validates it against UserInputConfig,
+        and returns a fully hydrated SystemConfig.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {path}")
+
+        with open(path) as f:
+            data = yaml.safe_load(f)
+
+        # Validate User Input
+        user_config = UserInputConfig(**data)
+
+        # Expand to System Config
+        return ConfigFactory.from_user_input(user_config)
+
+    @staticmethod
     def from_user_input(user_config: UserInputConfig) -> SystemConfig:
         """
         Constructs the comprehensive SystemConfig from the UserInputConfig.
@@ -50,7 +71,8 @@ class ConfigFactory:
         pseudos = {el: f"{el}_pbe_v1.uspp.F.UPF" for el in elements}
         cutoffs = CutoffConfig(wavefunction=60.0, density=240.0)
         magnetism = None
-        if "Fe" in elements or "Ni" in elements or "Co" in elements:
+        # Simple heuristic for magnetism
+        if any(el in ["Fe", "Ni", "Co"] for el in elements):
             magnetism = MagnetismConfig(
                 nspin=2,
                 starting_magnetization=StartingMagnetization(dict.fromkeys(elements, 1.0)),
@@ -68,7 +90,7 @@ class ConfigFactory:
         # Explorer Config Heuristics
         fingerprint_config = FingerprintConfig(species=elements)
         explorer_config = ExplorerConfig(
-            surrogate_model_path="path/to/mace.model",  # Placeholder
+            surrogate_model_path="mace_model.pt",  # Default placeholder
             max_force_threshold=15.0,
             fingerprint=fingerprint_config,
         )
@@ -80,7 +102,7 @@ class ConfigFactory:
 
         # Determine Database Path for SystemConfig
         # We align this with the training config source db for consistency,
-        # ensuring it's relative to the working dir (handled by logic consuming this).
+        # ensuring it's relative to the working dir.
         db_path = f"{project_name}.db"
 
         # Inference Config Heuristics
@@ -93,14 +115,14 @@ class ConfigFactory:
             uncertainty_params=UncertaintyConfig(),
         )
 
-        # We explicitly set dft_config (the new field) and NOT dft (the legacy field).
-        # The legacy field should remain None (or handled by a root validator if complex migration was needed,
-        # but here we just ensure we populate the correct new field).
         return SystemConfig(
             project_name=project_name,
             run_uuid=run_uuid,
             working_dir=work_dir,
             db_path=db_path,
+            target_system=user_config.target_system,
+            resources=user_config.resources,
+            simulation_goal=user_config.simulation_goal,
             dft_config=dft_config,
             explorer_config=explorer_config,
             training_config=training_config,

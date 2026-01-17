@@ -5,10 +5,10 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 from ase import Atoms
+from mlip_autopipec.modules.explorer import SurrogateExplorer
 
 from mlip_autopipec.config.models import ExplorerParams, FPSParams, SOAPParams, SurrogateModelParams
 from mlip_autopipec.modules.descriptors import SOAPDescriptorCalculator
-from mlip_autopipec.modules.explorer import SurrogateExplorer
 from mlip_autopipec.modules.screening import SurrogateModelScreener
 
 
