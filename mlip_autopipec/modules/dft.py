@@ -46,6 +46,9 @@ class DFTHeuristics:
     """
 
     def __init__(self, sssp_data_path: Path) -> None:
+        if not sssp_data_path.exists() or not sssp_data_path.is_file():
+            msg = f"SSSP data path '{sssp_data_path}' is not a valid file."
+            raise FileNotFoundError(msg)
         self._sssp_data = load_sssp_data(sssp_data_path)
 
     def get_heuristic_parameters(self, atoms: Atoms) -> DFTInputParameters:
@@ -157,6 +160,14 @@ class DFTRunner:
         Raises:
             DFTCalculationError: If the calculation fails after retries.
         """
+        if job is None or not isinstance(job, DFTJob):
+            msg = "A valid DFTJob object is required to run a calculation."
+            raise ValueError(msg)
+
+        if not job.params:
+            msg = "DFTJob must have initialized parameters."
+            raise ValueError(msg)
+
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 work_dir = Path(temp_dir)

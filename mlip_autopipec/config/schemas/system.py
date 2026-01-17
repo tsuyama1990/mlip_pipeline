@@ -42,7 +42,10 @@ class SystemConfig(BaseModel):
     generator: GeneratorParams | None = None
     explorer: ExplorerParams | None = None
     dask: DaskConfig | None = None
-    dft: DFTConfig | None = None # Legacy alias
+    dft: DFTConfig | None = Field(
+        None,
+        description="Legacy alias for `dft_config`. Please use `dft_config` instead. This field is deprecated and will be removed in future versions.",
+    )
 
     db_path: str = "mlip_database.db"
     working_dir: Path | None = None

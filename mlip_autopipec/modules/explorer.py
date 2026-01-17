@@ -16,7 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class SurrogateExplorer:
-    """Orchestrates the intelligent selection of structures."""
+    """
+    Orchestrates the intelligent selection of structures.
+
+    This class manages the pipeline for selecting the most diverse and
+    stable structures from a candidate pool using surrogate model screening
+    and Farthest Point Sampling (FPS).
+    """
 
     def __init__(
         self,

@@ -78,6 +78,14 @@ def retry(
                     )
                     if on_retry:
                         new_kwargs = on_retry(e, current_kwargs)
+                        # Ensure on_retry returns a dictionary or None
+                        if new_kwargs is not None and not isinstance(new_kwargs, dict):
+                            logger.warning(
+                                "on_retry callback returned a non-dict value: %s. Ignoring.",
+                                type(new_kwargs)
+                            )
+                            new_kwargs = None
+
                         if new_kwargs:
                             logger.info("Retrying with modified parameters...")
                             current_kwargs.update(new_kwargs)
