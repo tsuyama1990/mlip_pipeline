@@ -42,4 +42,3 @@ class DFTCalculationError(Exception):
 
 class MaxRetriesExceededError(Exception):
     """Raised when a function fails after the maximum number of retry attempts."""
-    pass

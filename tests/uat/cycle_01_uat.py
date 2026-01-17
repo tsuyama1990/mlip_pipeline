@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from mlip_autopipec.app import app
 
 # UAT Scenarios for Cycle 1
-# Reference: dev_documents/system_prompts/CYCLE01/UAT.md
+# Reference: dev_documents/system_prompts/CYCLE01/UAT.md  # noqa: ERA001
 
 runner = CliRunner()
 
@@ -39,22 +39,20 @@ def test_uat_01_01_valid_initialization(uat_work_dir: Path) -> None:
             "temperature_range": [300, 1000]
         }
     }
-    with open(input_yaml_path, "w") as f:
+    with input_yaml_path.open("w") as f:
         yaml.dump(input_data, f)
 
-    # WHEN the user executes the command `mlip-auto run input.yaml`
-    # (We assume `run` command behaves like initialization for now based on app.py structure
-    # or if there is an `init` command. SPEC mentions `mlip-auto init` in one place but `run` in UAT.
-    # The existing app.py has `run`. I'll use `run`.
+    # WHEN the user executes the command `mlip-auto init input.yaml`
+    # We use init command.
 
     # We need to run it in uat_work_dir
     with pytest.MonkeyPatch.context() as m:
         m.chdir(uat_work_dir)
-        result = runner.invoke(app, ["run", "input.yaml"])
+        result = runner.invoke(app, ["init", "input.yaml"])
 
     # THEN the standard output should display a success message
-    # (Checking exact message might be brittle, checking for exit code 0)
     assert result.exit_code == 0
+    assert "SUCCESS" in result.stdout
 
     # AND a directory named `AlCu_Alloy` should be created
     project_dir = uat_work_dir / "AlCu_Alloy"
@@ -65,15 +63,10 @@ def test_uat_01_01_valid_initialization(uat_work_dir: Path) -> None:
     db_path = project_dir / "AlCu_Alloy.db" # Based on heuristics in factory.py
     assert db_path.exists()
 
-    # AND a file `system.log` should exist (or whatever log name is configured)
-    # SPEC says `system.log` in UAT but factory might differ.
-    # checking factory.py... it doesn't seem to set log path explicitly in SystemConfig
-    # but SPEC says SystemConfig has log_path.
-    # Let's check generated files.
-    # Based on app.py: setup_logging(system_config.working_dir / "system.log") is not explicitly there?
-    # Wait, app.py logic needs verification.
+    # AND a file `mlip_auto.log` should exist
+    log_path = project_dir / "mlip_auto.log"
+    assert log_path.exists()
 
-    # AND the log file should contain text (if it exists)
 
 def test_uat_01_02_invalid_configuration(uat_work_dir: Path) -> None:
     """
@@ -91,13 +84,13 @@ def test_uat_01_02_invalid_configuration(uat_work_dir: Path) -> None:
         },
         "simulation_goal": {"type": "elastic"}
     }
-    with open(bad_input_path, "w") as f:
+    with bad_input_path.open("w") as f:
         yaml.dump(bad_data, f)
 
     # WHEN the user executes the command
     with pytest.MonkeyPatch.context() as m:
         m.chdir(uat_work_dir)
-        result = runner.invoke(app, ["run", "bad_input.yaml"])
+        result = runner.invoke(app, ["init", "bad_input.yaml"])
 
     # THEN the system should exit with a non-zero error code
     assert result.exit_code != 0
@@ -122,31 +115,29 @@ def test_uat_01_03_database_provenance(uat_work_dir: Path) -> None:
         },
         "simulation_goal": {"type": "elastic"}
     }
-    with open(input_yaml_path, "w") as f:
+    with input_yaml_path.open("w") as f:
         yaml.dump(input_data, f)
 
     with pytest.MonkeyPatch.context() as m:
         m.chdir(uat_work_dir)
-        runner.invoke(app, ["run", "input_prov.yaml"])
+        result = runner.invoke(app, ["init", "input_prov.yaml"])
+
+    assert result.exit_code == 0
 
     project_dir = uat_work_dir / "Prov_Test"
     db_path = project_dir / "Prov_Test.db"
 
     # WHEN a user connects to the database
-    # (We use ASE db via our wrapper or directly)
-    # Using ase.db directly as per UAT description
+    assert db_path.exists()
     import ase.db
+    conn = ase.db.connect(db_path)
+    # Force connection initialization to read metadata
+    try:
+        conn.count()
+    except Exception:
+        pass
 
-    # THEN the meta dictionary should be non-empty and contain config
-    # Note: Our current implementation of app.py might not fully save metadata to DB yet.
-    # The SPEC says "initialize() ... writes a metadata key".
-    # We need to verify if app.py does this.
-    # If not, we might need to implement it in app.py to pass this UAT.
-
-    # Let's check if db exists first
-    if db_path.exists():
-        ase.db.connect(db_path)
-        # assert meta is not None # metadata is always a dict
-        # assert "minimal_config" in meta or "target_system" in meta # Depends on implementation
-        # For now, let's just assert DB exists, as app.py implementation detail is next.
-
+    # THEN the meta dictionary should be non-empty and contain system_config
+    metadata = conn.metadata
+    assert "system_config" in metadata
+    assert metadata["system_config"]["project_name"] == "Prov_Test"
