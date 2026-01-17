@@ -23,8 +23,8 @@ def mock_atoms():
 
 @patch("subprocess.run")
 @patch("mlip_autopipec.dft.runner.InputGenerator.create_input_string")
-@patch("mlip_autopipec.dft.runner.read")
-def test_runner_success(mock_read, mock_create_input, mock_subprocess, mock_dft_config, mock_atoms):
+@patch("mlip_autopipec.dft.runner.QEOutputParser")
+def test_runner_success(mock_parser_class, mock_create_input, mock_subprocess, mock_dft_config, mock_atoms):
     # Setup mocks
     mock_create_input.return_value = "CONTROL..."
 
@@ -34,30 +34,18 @@ def test_runner_success(mock_read, mock_create_input, mock_subprocess, mock_dft_
     mock_proc.stderr = ""
     mock_subprocess.return_value = mock_proc
 
-    # Mock ASE read to return an atoms object with calculated results
-    result_atoms = mock_atoms.copy()
-
-    # Mock get_potential_energy, get_forces, get_stress
-    import numpy as np
-    from ase.calculators.singlepoint import SinglePointCalculator
-
-    calc = SinglePointCalculator(
-        result_atoms,
+    # Setup parser mock
+    mock_parser_instance = mock_parser_class.return_value
+    mock_parser_instance.parse.return_value = DFTResult(
+        uid="test-run",
         energy=-100.0,
-        forces=np.zeros((len(result_atoms), 3)),
-        stress=np.zeros(6),  # SinglePointCalculator usually takes Voigt for stress if 6-vector
+        forces=[[0.0, 0.0, 0.0]],
+        stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True,
+        wall_time=10.0,
+        parameters={},
+        final_mixing_beta=0.7,
     )
-    # Patch get_stress to return 3x3
-    # Actually SinglePointCalculator handles it if we pass 3x3?
-    # Let's try to mock get_stress method on the atoms object wrapper if needed,
-    # but QERunner calls atoms.get_stress(voigt=False).
-    # SinglePointCalculator.get_stress calls self.results.get('stress') and reshapes if needed?
-    # ASE doc says SinglePointCalculator stores what is given.
-
-    # If we give 6 components, atoms.get_stress(voigt=False) converts it to 3x3.
-    result_atoms.calc = calc
-
-    mock_read.return_value = result_atoms
 
     runner = QERunner(mock_dft_config)
     result = runner.run(mock_atoms, uid="test-run")
@@ -66,6 +54,7 @@ def test_runner_success(mock_read, mock_create_input, mock_subprocess, mock_dft_
     assert result.succeeded is True
     assert result.energy == -100.0
     assert mock_subprocess.call_count == 1
+    mock_parser_class.assert_called_once()
 
 
 @patch("subprocess.run")

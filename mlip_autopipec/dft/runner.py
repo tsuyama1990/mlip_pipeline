@@ -5,11 +5,11 @@ from pathlib import Path
 from uuid import uuid4
 
 from ase import Atoms
-from ase.io import read
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.inputs import InputGenerator
+from mlip_autopipec.dft.parsers import QEOutputParser
 from mlip_autopipec.dft.recovery import RecoveryHandler
 
 
@@ -151,31 +151,7 @@ class QERunner:
         self, output_path: Path, uid: str, wall_time: float, params: dict, atoms: Atoms
     ) -> DFTResult:
         """
-        Parses pw.out using ASE.
+        Parses pw.out using QEOutputParser.
         """
-        try:
-            # ase.io.read returns Atoms object
-            # format='espresso-out' is auto-detected usually
-            atoms_out = read(output_path, format="espresso-out")
-
-            energy = atoms_out.get_potential_energy()
-            forces = atoms_out.get_forces().tolist()
-            stress = atoms_out.get_stress(voigt=False).tolist()  # Get 3x3 tensor
-
-            # Helper to get mixing beta if available?
-            # ASE might not parse it easily. We use the one from params or default
-            final_beta = params.get("mixing_beta", 0.7)
-
-            return DFTResult(
-                uid=uid,
-                energy=energy,
-                forces=forces,
-                stress=stress,
-                succeeded=True,
-                wall_time=wall_time,
-                parameters=params,
-                final_mixing_beta=final_beta,
-            )
-        except Exception as e:
-            # If ASE fails, it means calculation didn't finish or crashed
-            raise Exception(f"Failed to parse output: {e}")
+        parser = QEOutputParser()
+        return parser.parse(output_path, uid, wall_time, params)
