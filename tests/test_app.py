@@ -37,36 +37,24 @@ def valid_config_file(tmp_path):
 
 
 def test_run_success(valid_config_file, mocker):
-    """Test the happy path: CLI calls DB and Logging."""
-    # Mock components used in app.py
-    mock_workspace = mocker.patch("mlip_autopipec.app.WorkspaceManager")
-    mock_db = mocker.patch("mlip_autopipec.app.DatabaseManager")
-    mock_setup_logging = mocker.patch("mlip_autopipec.app.setup_logging")
-    mock_config_factory = mocker.patch("mlip_autopipec.app.ConfigFactory")
-
-    # Setup mock return values
-    mock_config = mocker.MagicMock()
-    mock_config_factory.from_yaml.return_value = mock_config
-
-    mock_db_instance = mock_db.return_value
+    """Test the happy path: CLI calls PipelineController."""
+    # Mock PipelineController used in app.py
+    mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
 
     result = runner.invoke(app, ["run", str(valid_config_file)])
 
     assert result.exit_code == 0
     assert "System initialized successfully" in result.stdout
 
-    mock_config_factory.from_yaml.assert_called_once()
-    mock_workspace.assert_called_once_with(mock_config)
-    mock_db_instance.initialize.assert_called_once()
-    mock_db_instance.set_system_config.assert_called_once_with(mock_config)
+    mock_controller.execute.assert_called_once_with(valid_config_file)
 
 
 def test_run_failure(valid_config_file, mocker):
     """Test that CLI handles errors gracefully."""
-    mock_config_factory = mocker.patch("mlip_autopipec.app.ConfigFactory")
+    mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
     from mlip_autopipec.exceptions import ConfigError
-
-    mock_config_factory.from_yaml.side_effect = ConfigError("Bad Config")
+    # Simulate an error raised by PipelineController.execute
+    mock_controller.execute.side_effect = ConfigError("Bad Config")
 
     result = runner.invoke(app, ["run", str(valid_config_file)])
 

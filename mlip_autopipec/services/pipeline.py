@@ -1,50 +1,49 @@
 """
-This module contains the `PipelineController` which orchestrates the
-MLIP-AutoPipe workflow execution.
+Pipeline Service to orchestrate the initialization and execution of the MLIP pipeline.
+This layer separates business logic from the CLI (app.py).
 """
 
 import logging
 from pathlib import Path
 
 from mlip_autopipec.config.factory import ConfigFactory
-from mlip_autopipec.config.loaders.yaml_loader import ConfigLoader
-from mlip_autopipec.workflow_manager import WorkflowManager
+from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.core.logging import setup_logging
+from mlip_autopipec.core.workspace import WorkspaceManager
 
-log = logging.getLogger(__name__)
-
+logger = logging.getLogger(__name__)
 
 class PipelineController:
     """
-    Orchestrates the loading, configuration, and execution of the workflow.
+    Controller for the MLIP pipeline execution.
     """
 
     @staticmethod
-    def execute(config_file: Path) -> None:
+    def execute(input_file: Path) -> SystemConfig:
         """
-        Executes the full pipeline given a configuration file path.
+        Orchestrates the initialization of the pipeline.
 
         Args:
-            config_file: Path to the user's YAML configuration.
+            input_file: Path to the user configuration file (YAML).
 
-        Raises:
-            Exception: Propagates exceptions for CLI handling.
+        Returns:
+            The initialized SystemConfig.
         """
-        log.info(f"Starting pipeline execution with config: {config_file}")
+        # 1. Load Config
+        config = ConfigFactory.from_yaml(input_file)
 
-        # 1. Load User Config
-        user_config = ConfigLoader.load_user_config(config_file)
-        log.info(f"Loaded configuration for project: {user_config.project_name}")
+        # 2. Setup Workspace
+        workspace = WorkspaceManager(config)
+        workspace.setup_workspace()
 
-        # 2. Create System Config
-        system_config = ConfigFactory.from_user_input(user_config)
-        log.info(f"System configuration generated. Run UUID: {system_config.run_uuid}")
+        # 3. Setup Logging
+        setup_logging(config.log_path)
 
-        # 3. Initialize Workflow
-        # Using current working directory for execution context
-        work_dir = Path.cwd()
-        manager = WorkflowManager(system_config=system_config, work_dir=work_dir)
+        # 4. Initialize Database
+        db = DatabaseManager(config.db_path)
+        db.initialize()
+        db.set_system_config(config)
 
-        # 4. Run Workflow
-        log.info("Dispatching workflow execution to manager.")
-        manager.run()
-        log.info("Workflow execution completed successfully.")
+        logger.info("System initialized via PipelineController")
+        return config

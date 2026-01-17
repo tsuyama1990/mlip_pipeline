@@ -11,7 +11,11 @@ from mlip_autopipec.dft.runner import QERunner
 
 
 # Helpers for UAT (can be shared or inline)
-def create_mock_atoms(symbol="Al", positions=[[0, 0, 0]], cell=[4, 4, 4]):
+def create_mock_atoms(symbol="Al", positions=None, cell=None):
+    if positions is None:
+        positions = [[0, 0, 0]]
+    if cell is None:
+        cell = [4, 4, 4]
     return Atoms(symbol, positions=positions, cell=cell, pbc=True)
 
 
@@ -38,7 +42,7 @@ def test_uat_02_01_standard_scf():
             uid="uat-01",
             energy=-100.0,
             forces=[[0.0, 0.0, 0.0]],
-            stress=[[0.0] * 3] * 3,
+            stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
             succeeded=True,
             wall_time=10.0,
             parameters={},
@@ -82,14 +86,15 @@ def test_uat_02_02_auto_recovery():
         mock_analyze.return_value = DFTErrorType.CONVERGENCE_FAIL
         mock_strategy.return_value = {"mixing_beta": 0.3}
 
-        mock_input.return_value = "pw.in content"
+        # Capture the input params passed to generator
+        mock_input.side_effect = lambda atoms, params: f"input with {params}"
 
         # Parse output mock: 1st time fails (raises), 2nd time succeeds
         expected_result = DFTResult(
             uid="uat-02",
             energy=-100.0,
             forces=[[0, 0, 0]],
-            stress=[[0] * 3] * 3,
+            stress=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
             succeeded=True,
             wall_time=10,
             parameters={"mixing_beta": 0.3},
@@ -102,6 +107,17 @@ def test_uat_02_02_auto_recovery():
         assert result.succeeded
         assert result.final_mixing_beta == 0.3
         assert mock_run.call_count == 2
+
+        # IMPORTANT: Verify params actually changed
+        # mock_input call args: (atoms, params)
+        # Call 1: params={} (default)
+        # Call 2: params={'mixing_beta': 0.3}
+        args1 = mock_input.call_args_list[0]
+        args2 = mock_input.call_args_list[1]
+
+        assert args1[0][1] == {}
+        assert args2[0][1] == {"mixing_beta": 0.3}
+
         print("✅ UAT-02-02 Passed")
 
 
@@ -116,6 +132,7 @@ def test_uat_02_03_magnetic_handling():
 
     # Check for magnetic flags
     assert "nspin" in input_str
+    # Note: Depending on ASE version/implementation, exact string might vary, but key words must exist
     assert "starting_magnetization" in input_str
     print("✅ UAT-02-03 Passed")
 

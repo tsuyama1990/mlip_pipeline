@@ -8,11 +8,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from mlip_autopipec.config.factory import ConfigFactory
-from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.core.logging import setup_logging
-from mlip_autopipec.core.workspace import WorkspaceManager
 from mlip_autopipec.exceptions import ConfigError, DatabaseError, MLIPError, WorkspaceError
+from mlip_autopipec.services.pipeline import PipelineController
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 console = Console()
@@ -38,22 +35,8 @@ def run(
 ) -> None:
     """Execute the MLIP-AutoPipe workflow."""
     try:
-        # 1. Load Config (Pure)
-        config = ConfigFactory.from_yaml(input_file)
-
-        # 2. Setup Workspace (Side Effects)
-        workspace = WorkspaceManager(config)
-        workspace.setup_workspace()
-
-        # 3. Setup Logging
-        setup_logging(config.log_path)
-
-        # 4. Initialize Database
-        db = DatabaseManager(config.db_path)
-        db.initialize()
-        db.set_system_config(config)
-
-        log.info("System initialized")
+        # Delegate logic to PipelineController
+        PipelineController.execute(input_file)
         console.print("[bold green]System initialized successfully[/bold green]")
 
     except FileNotFoundError as e:
