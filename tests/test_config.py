@@ -1,87 +1,64 @@
+from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.models import UserInputConfig
+from mlip_autopipec.config.models import MinimalConfig, Resources, SystemConfig, TargetSystem
 
 
-def test_valid_user_config_parses_correctly():
-    """Tests that a valid user configuration is parsed without errors."""
-    valid_config = {
-        "project_name": "Test Project",
-        "target_system": {
-            "elements": ["Fe", "Ni"],
-            "composition": {"Fe": 0.5, "Ni": 0.5},
-            "crystal_structure": "fcc",
-        },
-        "simulation_goal": {
-            "type": "melt_quench",
-            "temperature_range": [300, 2000],
-        },
-    }
-    try:
-        UserInputConfig.model_validate(valid_config)
-    except ValidationError as e:
-        pytest.fail(f"Valid configuration failed to parse: {e}")
+def test_target_system_valid() -> None:
+    ts = TargetSystem(elements=["Fe", "Ni"], composition={"Fe": 0.6, "Ni": 0.4})
+    assert ts.elements == ["Fe", "Ni"]
+    assert ts.composition["Fe"] == 0.6
 
 
-def test_composition_sum_not_one_raises_error():
-    """Tests that a validation error is raised if composition fractions do not sum to 1.0."""
-    invalid_config = {
-        "project_name": "Test Project",
-        "target_system": {
-            "elements": ["Fe", "Ni"],
-            "composition": {"Fe": 0.5, "Ni": 0.4},
-            "crystal_structure": "fcc",
-        },
-        "simulation_goal": {"type": "melt_quench"},
-    }
-    # With RootModel, the error location might be slightly different in message, but validation happens
-    with pytest.raises(ValidationError, match="Composition fractions must sum to 1.0"):
-        UserInputConfig.model_validate(invalid_config)
+def test_target_system_invalid_element() -> None:
+    with pytest.raises(ValidationError) as exc:
+        TargetSystem(elements=["Fe", "Xy"], composition={"Fe": 0.6, "Xy": 0.4})
+    assert "Invalid chemical symbol: Xy" in str(exc.value)
 
 
-def test_composition_elements_mismatch_raises_error():
-    """Tests that a validation error is raised if composition keys do not match elements."""
-    invalid_config = {
-        "project_name": "Test Project",
-        "target_system": {
-            "elements": ["Fe", "Ni"],
-            "composition": {"Fe": 0.5, "Cr": 0.5},
-            "crystal_structure": "fcc",
-        },
-        "simulation_goal": {"type": "melt_quench"},
-    }
-    with pytest.raises(ValidationError, match="Composition keys must match the elements list"):
-        UserInputConfig.model_validate(invalid_config)
+def test_target_system_invalid_composition_sum() -> None:
+    with pytest.raises(ValidationError) as exc:
+        TargetSystem(elements=["Fe", "Ni"], composition={"Fe": 0.5, "Ni": 0.4})
+    assert "Composition must sum to 1.0" in str(exc.value)
 
 
-def test_invalid_element_symbol_raises_error():
-    """Tests that a validation error is raised for an invalid chemical symbol."""
-    invalid_config = {
-        "project_name": "Test Project",
-        "target_system": {
-            "elements": ["Fe", "Xy"],
-            "composition": {"Fe": 0.5, "Xy": 0.5},
-            "crystal_structure": "fcc",
-        },
-        "simulation_goal": {"type": "melt_quench"},
-    }
-    with pytest.raises(ValidationError, match="'Xy' is not a valid chemical symbol"):
-        UserInputConfig.model_validate(invalid_config)
+def test_resources_valid() -> None:
+    res = Resources(dft_code="quantum_espresso", parallel_cores=4, gpu_enabled=True)
+    assert res.dft_code == "quantum_espresso"
+    assert res.parallel_cores == 4
+    assert res.gpu_enabled is True
 
 
-def test_extra_field_raises_error():
-    """Tests that an error is raised for an unexpected field, enforcing the 'forbid' extra config."""
-    invalid_config = {
-        "project_name": "Test Project",
-        "project_version": "1.0",  # Extra field
-        "target_system": {
-            "elements": ["Fe", "Ni"],
-            "composition": {"Fe": 0.5, "Ni": 0.5},
-            "crystal_structure": "fcc",
-        },
-        "simulation_goal": {"type": "melt_quench"},
-    }
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        UserInputConfig.model_validate(invalid_config)
+def test_resources_invalid_cores() -> None:
+    with pytest.raises(ValidationError):
+        Resources(dft_code="vasp", parallel_cores=0)
+
+
+def test_minimal_config_valid() -> None:
+    conf = MinimalConfig(
+        project_name="TestProject",
+        target_system=TargetSystem(elements=["Al"], composition={"Al": 1.0}),
+        resources=Resources(dft_code="vasp", parallel_cores=1),
+    )
+    assert conf.project_name == "TestProject"
+
+
+def test_system_config_immutability(tmp_path: Path) -> None:
+    minimal = MinimalConfig(
+        project_name="Test",
+        target_system=TargetSystem(elements=["Cu"], composition={"Cu": 1.0}),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=2),
+    )
+    sys_conf = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path,
+        db_path=tmp_path / "db.sqlite",
+        log_path=tmp_path / "log.txt",
+    )
+
+    with pytest.raises(ValidationError):
+        sys_conf.working_dir = Path("/new/path")

@@ -1,27 +1,61 @@
-"""Unit tests for the ConfigFactory module."""
+from pathlib import Path
 
-from uuid import UUID
+import pytest
+import yaml
+from pydantic import ValidationError
 
 from mlip_autopipec.config.factory import ConfigFactory
-from mlip_autopipec.config.models import UserInputConfig
+from mlip_autopipec.config.models import SystemConfig
 
 
-def test_config_factory_from_user_input():
-    """Test that the ConfigFactory correctly expands a UserInputConfig."""
-    user_config_dict = {
-        "project_name": "test_project",
+def test_config_factory_valid_yaml(tmp_path: Path) -> None:
+    config_data = {
+        "project_name": "TestFactory",
         "target_system": {
-            "elements": ["Ni"],
-            "composition": {"Ni": 1.0},
-            "crystal_structure": "fcc",
+            "elements": ["Au"],
+            "composition": {"Au": 1.0}
         },
-        "simulation_goal": {"type": "melt_quench"},
+        "resources": {
+            "dft_code": "vasp",
+            "parallel_cores": 4
+        }
     }
-    user_config = UserInputConfig.model_validate(user_config_dict)
+    input_file = tmp_path / "input.yaml"
+    with input_file.open("w") as f:
+        yaml.dump(config_data, f)
 
-    system_config = ConfigFactory.from_user_input(user_config)
+    config = ConfigFactory.from_yaml(input_file)
 
-    assert system_config.project_name == "test_project"
-    assert isinstance(system_config.run_uuid, UUID)
-    assert system_config.explorer_config.fingerprint.species == ["Ni"]
-    assert system_config.dft_config.dft_input_params.magnetism is not None
+    assert isinstance(config, SystemConfig)
+    assert config.minimal.project_name == "TestFactory"
+    assert config.working_dir.exists()
+    assert config.working_dir.name == "TestFactory"
+    assert config.db_path.name == "TestFactory.db"
+    assert config.log_path.name == "system.log"
+    assert config.db_path.parent == config.working_dir
+    assert config.log_path.parent == config.working_dir
+
+
+def test_config_factory_invalid_yaml(tmp_path: Path) -> None:
+    config_data = {
+        "project_name": "BadConfig",
+        "target_system": {
+            "elements": ["Au"],
+            "composition": {"Au": 0.5} # Invalid sum
+        },
+        "resources": {
+            "dft_code": "vasp",
+            "parallel_cores": 4
+        }
+    }
+    input_file = tmp_path / "bad_input.yaml"
+    with input_file.open("w") as f:
+        yaml.dump(config_data, f)
+
+    with pytest.raises(ValidationError):
+        ConfigFactory.from_yaml(input_file)
+
+
+def test_config_factory_file_not_found() -> None:
+    with pytest.raises(FileNotFoundError):
+        ConfigFactory.from_yaml(Path("nonexistent.yaml"))

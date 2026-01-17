@@ -29,3 +29,8 @@ env/
 *.pwi
 *.err
 temp_ase_calc/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/

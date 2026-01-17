@@ -43,6 +43,8 @@ dependencies = [
 dev = [
     "pytest",
     "dask[distributed]",
+    "mypy",
+    "types-PyYAML",
 ]
 
 [tool.setuptools]
