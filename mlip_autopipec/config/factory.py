@@ -1,91 +1,60 @@
-"""
-This module provides a factory class for creating the comprehensive
-SystemConfig from a high-level UserInputConfig.
-"""
+import yaml
+from pathlib import Path
+from typing import Any
 
-from uuid import uuid4
-
-from mlip_autopipec.config.models import (
-    CutoffConfig,
-    DFTConfig,
-    DFTInputParameters,
-    ExplorerConfig,
-    FingerprintConfig,
-    InferenceConfig,
-    MagnetismConfig,
-    MDConfig,
-    Pseudopotentials,
-    SmearingConfig,
-    StartingMagnetization,
-    SystemConfig,
-    TrainingConfig,
-    UncertaintyConfig,
-    UserInputConfig,
-)
-
+from mlip_autopipec.config.schemas.common import MinimalConfig
+from mlip_autopipec.config.schemas.system import SystemConfig
 
 class ConfigFactory:
-    """A factory for creating application configurations."""
+    """
+    A factory for creating application configurations.
+    Responsible for reading User Input, validating it, and setting up the System Environment.
+    """
 
     @staticmethod
-    def from_user_input(user_config: UserInputConfig) -> SystemConfig:
+    def from_yaml(path: Path) -> SystemConfig:
         """
-        Constructs the comprehensive SystemConfig from the UserInputConfig.
-
-        This method applies heuristics and sensible defaults to expand the
-        user's high-level request into a detailed, low-level execution plan.
+        Reads a YAML file, validates it against MinimalConfig,
+        creates the project directory structure, and returns the SystemConfig.
         """
-        project_name = user_config.project_name
-        run_uuid = uuid4()
-        elements = user_config.target_system.elements
+        # Resolve input file path
+        input_path = Path(path).resolve()
+        if not input_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {input_path}")
 
-        # DFT Config Heuristics
-        pseudos = {el: f"{el}_pbe_v1.uspp.F.UPF" for el in elements}
-        cutoffs = CutoffConfig(wavefunction=60.0, density=240.0)
-        magnetism = None
-        if "Fe" in elements or "Ni" in elements or "Co" in elements:
-            magnetism = MagnetismConfig(
-                nspin=2,
-                starting_magnetization=StartingMagnetization(dict.fromkeys(elements, 1.0)),
-            )
+        # Load YAML
+        with input_path.open('r') as f:
+            try:
+                data = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                raise ValueError(f"Invalid YAML format: {e}") from e
 
-        dft_input_params = DFTInputParameters(
-            pseudopotentials=Pseudopotentials(pseudos),
-            cutoffs=cutoffs,
-            k_points=(3, 3, 3),  # Placeholder
-            smearing=SmearingConfig(),
-            magnetism=magnetism,
-        )
-        dft_config = DFTConfig(dft_input_params=dft_input_params)
+        # Validate User Input
+        try:
+            minimal = MinimalConfig.model_validate(data)
+        except Exception as e:
+            # Wrap validation error for better CLI handling if needed
+            # But usually Pydantic ValidationError is good enough
+            raise e
 
-        # Explorer Config Heuristics
-        fingerprint_config = FingerprintConfig(species=elements)
-        explorer_config = ExplorerConfig(
-            surrogate_model_path="path/to/mace.model",  # Placeholder
-            max_force_threshold=15.0,
-            fingerprint=fingerprint_config,
-        )
+        # Determine Paths
+        # Create project directory in the current working directory
+        cwd = Path.cwd()
+        working_dir = cwd / minimal.project_name
 
-        # Training Config Heuristics
-        training_config = TrainingConfig(
-            data_source_db=f"{project_name}.db",
-        )
+        # Create directory structure
+        working_dir.mkdir(parents=True, exist_ok=True)
 
-        # Inference Config Heuristics
-        temp_range = user_config.simulation_goal.temperature_range
-        md_config = MDConfig(
-            temperature=temp_range[1] if temp_range else 300.0,
-        )
-        inference_config = InferenceConfig(
-            md_params=md_config,
-            uncertainty_params=UncertaintyConfig(),
+        # Define internal paths
+        db_path = working_dir / "project.db"
+        log_path = working_dir / "system.log"
+
+        # Create SystemConfig
+        system_config = SystemConfig(
+            minimal=minimal,
+            working_dir=working_dir,
+            db_path=db_path,
+            log_path=log_path
         )
 
-        return SystemConfig(
-            project_name=project_name,
-            run_uuid=run_uuid,
-            dft_config=dft_config,
-            explorer_config=explorer_config,
-            training_config=training_config,
-            inference_config=inference_config,
-        )
+        return system_config

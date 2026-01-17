@@ -2,60 +2,59 @@
 platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
-testpaths: tests
-plugins: mock-3.15.1
-collected 46 items / 1 error
+plugins: mock-3.15.1, cov-7.0.0
+collected 19 items
 
-==================================== ERRORS ====================================
-_______________ ERROR collecting tests/modules/test_explorer.py ________________
-ImportError while importing test module '/app/tests/modules/test_explorer.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-/home/jules/.pyenv/versions/3.12.12/lib/python3.12/importlib/__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/modules/test_explorer.py:17: in <module>
-    from mlip_autopipec.modules.explorer import SurrogateExplorer
-mlip_autopipec/modules/explorer.py:11: in <module>
-    from mlip_autopipec.modules.screening import SurrogateModelScreener
-mlip_autopipec/modules/screening.py:8: in <module>
-    from mace.calculators import mace_mp
-E   ModuleNotFoundError: No module named 'mace'
-=============================== warnings summary ===============================
-tests/modules/test_dft.py:122
-  /app/tests/modules/test_dft.py:122: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
+tests/test_config.py .....                                               [ 26%]
+tests/test_config_factory.py ...                                         [ 42%]
+tests/test_database.py ...                                               [ 57%]
+tests/test_logging.py ..                                                 [ 68%]
+tests/test_app.py ...                                                    [ 84%]
+tests/uat/cycle_01_uat.py ...                                            [100%]
 
-.venv/lib/python3.12/site-packages/dscribe/core/system.py:192
-  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:192: SyntaxWarning: invalid escape sequence '\l'
-    A_{ij} = \lvert \mathbf{r}_i - \mathbf{r}_j \\rvert
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
-.venv/lib/python3.12/site-packages/dscribe/core/system.py:234
-  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:234: SyntaxWarning: invalid escape sequence '\l'
-    A_{ij} = \\frac{1}{\lvert \mathbf{r}_i - \mathbf{r}_j \\rvert }
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54: SyntaxWarning: invalid escape sequence '\e'
-    g2_params (n*2 np.ndarray): A list of pairs of :math:`\eta` and
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212: SyntaxWarning: invalid escape sequence '\l'
-    indirectly determine it through :math:`s=-\log()`:.
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130: SyntaxWarning: invalid escape sequence '\l'
-    indirectly determine it through :math:`s=-\log()`:.
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509: SyntaxWarning: invalid escape sequence '\s'
-    :math:`\sum_{k=0}^{n-1} n + k = n^2+(n-1)*n/2`. This number of
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81: SyntaxWarning: invalid escape sequence '\s'
-    * ``"gto"``: Spherical gaussian type orbitals defined as :math:`g_{nl}(r) = \sum_{n'=1}^{n_\mathrm{max}}\,\\beta_{nn'l} r^l e^{-\\alpha_{n'l}r^2}`
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-ERROR tests/modules/test_explorer.py
-!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
-========================= 8 warnings, 1 error in 7.40s =========================
+Name                                           Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------
+mlip_autopipec/__init__.py                         1      0   100%
+mlip_autopipec/app.py                             41      8    80%   61-63, 70-73, 76
+mlip_autopipec/config/__init__.py                  0      0   100%
+mlip_autopipec/config/factory.py                  27      2    93%   29-30
+mlip_autopipec/config/models.py                    7      0   100%
+mlip_autopipec/config/schemas/common.py           40      1    98%   52
+mlip_autopipec/config/schemas/dft.py              82     26    68%   22-26, 38-42, 58-60, 75-81, 98-100, 105-107
+mlip_autopipec/config/schemas/exploration.py      51      4    92%   32-35
+mlip_autopipec/config/schemas/inference.py        65     23    65%   23-25, 37-40, 57-63, 68-76
+mlip_autopipec/config/schemas/monitoring.py       12      0   100%
+mlip_autopipec/config/schemas/resources.py         7      0   100%
+mlip_autopipec/config/schemas/system.py           35      0   100%
+mlip_autopipec/config/schemas/training.py         51      4    92%   51-54
+mlip_autopipec/core/database.py                   22      1    95%   37
+mlip_autopipec/core/logging.py                    24      5    79%   9-10, 38-42
+mlip_autopipec/data/__init__.py                    0      0   100%
+mlip_autopipec/data/database.py                   23     23     0%   7-73
+mlip_autopipec/exceptions.py                       7      7     0%   13-41
+mlip_autopipec/modules/__init__.py                 0      0   100%
+mlip_autopipec/modules/config_generator.py        15     15     0%   3-74
+mlip_autopipec/modules/descriptors.py             31     31     0%   3-62
+mlip_autopipec/modules/dft.py                     67     67     0%   5-188
+mlip_autopipec/modules/exploration.py             51     51     0%   7-130
+mlip_autopipec/modules/explorer.py                46     46     0%   3-90
+mlip_autopipec/modules/generator.py               72     72     0%   3-201
+mlip_autopipec/modules/inference.py              136    136     0%   7-333
+mlip_autopipec/modules/screening.py               41     41     0%   3-68
+mlip_autopipec/modules/training.py                88     88     0%   3-194
+mlip_autopipec/monitoring/__init__.py              0      0   100%
+mlip_autopipec/monitoring/dashboard.py            63     63     0%   1-103
+mlip_autopipec/utils/__init__.py                   0      0   100%
+mlip_autopipec/utils/ase_utils.py                 42     42     0%   12-119
+mlip_autopipec/utils/config_utils.py               7      7     0%   3-38
+mlip_autopipec/utils/dask_utils.py                12     12     0%   5-42
+mlip_autopipec/utils/data_loader.py               15     15     0%   4-38
+mlip_autopipec/utils/resilience.py                29     29     0%   5-92
+mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
+mlip_autopipec/workflow_manager.py               104    104     0%   2-187
+----------------------------------------------------------------------------
+TOTAL                                           1346    955    29%
+============================== 19 passed in 3.45s ==============================

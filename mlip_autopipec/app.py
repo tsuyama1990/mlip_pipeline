@@ -10,16 +10,18 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 
-from mlip_autopipec.monitoring.dashboard import generate_dashboard
-from mlip_autopipec.services.pipeline import PipelineController
+from mlip_autopipec.config.factory import ConfigFactory
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.core.logging import setup_logging
 
-# Configure logging to use Rich
+# Configure basic logging for app startup
 logging.basicConfig(
     level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 console = Console()
+log = logging.getLogger(__name__)
 
 @app.callback()
 def main() -> None:
@@ -40,57 +42,34 @@ def run(
     """Execute the MLIP-AutoPipe workflow."""
     try:
         console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
-        PipelineController.execute(config_file)
-        console.print("[bold green]SUCCESS:[/bold green] Workflow finished.")
+
+        # 1. Config Factory: Load and Expand
+        config = ConfigFactory.from_yaml(config_file)
+
+        # 2. Setup Logging
+        setup_logging(config.log_path)
+        log.info("System logging initialized.")
+
+        # 3. Initialize Database
+        db = DatabaseManager(config.db_path)
+        db.initialize(config)
+        log.info(f"System initialized. DB: {config.db_path}")
+
+        console.print("[bold green]SUCCESS:[/bold green] System initialized successfully.")
+
     except FileNotFoundError as e:
         console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
     except ValidationError as e:
         console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
+        # The UAT says "user should not see a raw Python traceback", but e is formatted by Pydantic?
+        # Maybe we want to print str(e) which is readable.
         logging.debug("Exception traceback:", exc_info=True)
         raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
         logging.exception("Unhandled exception during workflow execution.")
-        raise typer.Exit(code=1)
-
-
-@app.command()
-def status(
-    project_dir: Path = typer.Argument(
-        ".",
-        help="Path to the project directory.",
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        resolve_path=True,
-    ),
-    open_browser: bool = typer.Option(
-        True, "--open/--no-open", help="Open the dashboard in a web browser."
-    ),
-) -> None:
-    """Generate and view the project status dashboard."""
-    console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Generating dashboard for {project_dir}")
-    try:
-        dashboard_path = generate_dashboard(project_dir)
-        console.print(f"[bold green]SUCCESS:[/bold green] Dashboard generated at {dashboard_path}")
-
-        if open_browser:
-            console.print("Opening dashboard in web browser...")
-            webbrowser.open(f"file://{dashboard_path.absolute()}")
-
-    except FileNotFoundError as e:
-        console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
-        logging.debug("Exception traceback:", exc_info=True)
-        raise typer.Exit(code=1)
-    except RuntimeError as e:
-        console.print(f"[bold red]RUNTIME ERROR:[/bold red] {e}")
-        logging.debug("Exception traceback:", exc_info=True)
-        raise typer.Exit(code=1)
-    except Exception as e:
-        console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
-        logging.exception("Unhandled exception during dashboard generation.")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
