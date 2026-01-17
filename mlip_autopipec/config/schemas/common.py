@@ -15,6 +15,9 @@ class Composition(RootModel[dict[str, float]]):
     def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:  # noqa: N805
         from ase.data import chemical_symbols
 
+        if not v:
+            raise ValueError("Composition dictionary cannot be empty.")
+
         # Check sum
         if not abs(sum(v.values()) - 1.0) < 1e-6:
             msg = "Composition fractions must sum to 1.0."

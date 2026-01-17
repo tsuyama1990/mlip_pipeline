@@ -3,14 +3,15 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 20 items
+collected 21 items
 
-tests/unit/test_generator_schemas.py F.                                  [ 10%]
-tests/generator/test_alloy.py .....                                      [ 35%]
-tests/generator/test_builder.py FF                                       [ 45%]
-tests/generator/test_defect.py ....                                      [ 65%]
-tests/generator/test_molecule.py ...                                     [ 80%]
-tests/uat/cycle_03_uat.py ...F                                           [100%]
+tests/unit/test_generator_schemas.py F.                                  [  9%]
+tests/generator/test_alloy.py .....                                      [ 33%]
+tests/generator/test_builder.py ..                                       [ 42%]
+tests/generator/test_defect.py ....                                      [ 61%]
+tests/generator/test_molecule.py ...                                     [ 76%]
+tests/uat/cycle_03_uat.py ....                                           [ 95%]
+tests/unit/test_common_schemas.py .                                      [100%]
 
 =================================== FAILURES ===================================
 ________________________ test_generator_config_defaults ________________________
@@ -33,412 +34,6 @@ E         Field required [type=missing, input_value={}, input_type=dict]
 E           For further information visit https://errors.pydantic.dev/2.12/v/missing
 
 tests/unit/test_generator_schemas.py:8: ValidationError
-____________________________ test_builder_pipeline _____________________________
-
-self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e3c80eff0>
-
-    def build(self) -> list[Atoms]:
-        """
-        Orchestrates the generation process based on TargetSystem.
-
-        Returns:
-            List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
-        """
-        target = self.system_config.target_system
-        if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
-
-        structures: list[Atoms] = []
-
-        try:
-            if target.structure_type == "bulk":
->               self._build_bulk(structures, target)
-
-mlip_autopipec/generator/builder.py:65:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-mlip_autopipec/generator/builder.py:105: in _build_bulk
-    sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <mlip_autopipec.generator.alloy.AlloyGenerator object at 0x7f6e2e900110>
-prim_cell = Atoms(symbols='Fe', pbc=True, cell=[[-1.435, 1.435, 1.435], [1.435, -1.435, 1.435], [1.435, 1.435, -1.435]], initial_magmoms=...)
-composition = {'Fe': 1.0}
-
-    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
-        """
-        Generates a Special Quasirandom Structure (SQS) for the given composition.
-
-        This method attempts to create a supercell that matches the target composition
-        as closely as possible. It currently implements a fallback strategy using
-        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
-
-        Args:
-            prim_cell (Atoms): The primitive unit cell to expand.
-            composition (Composition): Target composition map wrapped in a Pydantic model.
-                                       Values must sum to approximately 1.0.
-
-        Returns:
-            Atoms: The generated SQS supercell structure.
-
-        Raises:
-            GeneratorError: If generation fails.
-        """
-        # Composition validation is handled by the Pydantic model on input.
->       comp_dict: dict[str, float] = composition.root
-                                      ^^^^^^^^^^^^^^^^
-E       AttributeError: 'dict' object has no attribute 'root'
-
-mlip_autopipec/generator/alloy.py:52: AttributeError
-
-The above exception was the direct cause of the following exception:
-
-    def test_builder_pipeline():
-        # Setup Config using updated schema hierarchy with explicit initialization
-        gen_config = GeneratorConfig(
-            sqs=SQSConfig(enabled=True, supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]]),
-            distortion=DistortionConfig(enabled=True, n_strain_steps=2, n_rattle_steps=2),
-            nms=NMSConfig(enabled=True),
-            defects=DefectConfig(enabled=False)
-        )
-
-        target_system = TargetSystem(
-            name="TestSystem",
-            composition={"Fe": 1.0},
-            elements=["Fe"],
-            structure_type="bulk"
-        )
-
-        minimal_config = MinimalConfig(
-            project_name="test_proj",
-            target_system=target_system,
-            resources={"dft_code": "quantum_espresso", "parallel_cores": 4}
-        )
-
-        system_config = MagicMock(spec=SystemConfig)
-        system_config.generator_config = gen_config
-        system_config.target_system = target_system
-        system_config.minimal = minimal_config
-
-        builder = StructureBuilder(system_config)
-
-        # In StructureBuilder.__init__, it checks for self.system_config.generator_config
-        # However, since we mock SystemConfig, we must ensure the attribute access returns our gen_config.
-        # MagicMock attributes work, but pydantic access pattern in builder might vary if not using dict access.
-        # The builder code: self.generator_config = system_config.generator_config
-
->       structures = builder.build()
-                     ^^^^^^^^^^^^^^^
-
-tests/generator/test_builder.py:49:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e3c80eff0>
-
-    def build(self) -> list[Atoms]:
-        """
-        Orchestrates the generation process based on TargetSystem.
-
-        Returns:
-            List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
-        """
-        target = self.system_config.target_system
-        if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
-
-        structures: list[Atoms] = []
-
-        try:
-            if target.structure_type == "bulk":
-                self._build_bulk(structures, target)
-            elif target.structure_type == "molecule":
-                self._build_molecule(structures, target)
-            elif target.structure_type == "defect":
-                # Explicit defect generation mode if needed,
-                # though usually defects are applied to bulk.
-                # For now, treat as bulk + defects.
-                self._build_bulk(structures, target)
-            else:
-                logger.warning(f"Unknown structure_type: {target.structure_type}")
-
-        except Exception as e:
-            if isinstance(e, GeneratorError):
-                raise
-            msg = f"Structure generation failed: {e}"
->           raise GeneratorError(msg) from e
-E           mlip_autopipec.exceptions.GeneratorError: Structure generation failed: 'dict' object has no attribute 'root'
-
-mlip_autopipec/generator/builder.py:80: GeneratorError
-__________________________ test_builder_with_defects ___________________________
-
-self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2f5d6ea0>
-
-    def build(self) -> list[Atoms]:
-        """
-        Orchestrates the generation process based on TargetSystem.
-
-        Returns:
-            List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
-        """
-        target = self.system_config.target_system
-        if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
-
-        structures: list[Atoms] = []
-
-        try:
-            if target.structure_type == "bulk":
->               self._build_bulk(structures, target)
-
-mlip_autopipec/generator/builder.py:65:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-mlip_autopipec/generator/builder.py:105: in _build_bulk
-    sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <mlip_autopipec.generator.alloy.AlloyGenerator object at 0x7f6e3c876d80>
-prim_cell = Atoms(symbols='Fe', pbc=True, cell=[[-1.435, 1.435, 1.435], [1.435, -1.435, 1.435], [1.435, 1.435, -1.435]], initial_magmoms=...)
-composition = {'Fe': 1.0}
-
-    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
-        """
-        Generates a Special Quasirandom Structure (SQS) for the given composition.
-
-        This method attempts to create a supercell that matches the target composition
-        as closely as possible. It currently implements a fallback strategy using
-        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
-
-        Args:
-            prim_cell (Atoms): The primitive unit cell to expand.
-            composition (Composition): Target composition map wrapped in a Pydantic model.
-                                       Values must sum to approximately 1.0.
-
-        Returns:
-            Atoms: The generated SQS supercell structure.
-
-        Raises:
-            GeneratorError: If generation fails.
-        """
-        # Composition validation is handled by the Pydantic model on input.
->       comp_dict: dict[str, float] = composition.root
-                                      ^^^^^^^^^^^^^^^^
-E       AttributeError: 'dict' object has no attribute 'root'
-
-mlip_autopipec/generator/alloy.py:52: AttributeError
-
-The above exception was the direct cause of the following exception:
-
-    def test_builder_with_defects():
-        gen_config = GeneratorConfig(
-            sqs=SQSConfig(enabled=True),
-            distortion=DistortionConfig(enabled=False),
-            nms=NMSConfig(enabled=True),
-            defects=DefectConfig(enabled=True, vacancies=True, interstitials=False)
-        )
-
-        target_system = TargetSystem(
-            name="TestSystem",
-            composition={"Fe": 1.0},
-            elements=["Fe"],
-            structure_type="bulk"
-        )
-
-        # Mock SystemConfig
-        system_config = MagicMock(spec=SystemConfig)
-        system_config.generator_config = gen_config
-        system_config.target_system = target_system
-
-        builder = StructureBuilder(system_config)
->       structures = builder.build()
-                     ^^^^^^^^^^^^^^^
-
-tests/generator/test_builder.py:77:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2f5d6ea0>
-
-    def build(self) -> list[Atoms]:
-        """
-        Orchestrates the generation process based on TargetSystem.
-
-        Returns:
-            List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
-        """
-        target = self.system_config.target_system
-        if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
-
-        structures: list[Atoms] = []
-
-        try:
-            if target.structure_type == "bulk":
-                self._build_bulk(structures, target)
-            elif target.structure_type == "molecule":
-                self._build_molecule(structures, target)
-            elif target.structure_type == "defect":
-                # Explicit defect generation mode if needed,
-                # though usually defects are applied to bulk.
-                # For now, treat as bulk + defects.
-                self._build_bulk(structures, target)
-            else:
-                logger.warning(f"Unknown structure_type: {target.structure_type}")
-
-        except Exception as e:
-            if isinstance(e, GeneratorError):
-                raise
-            msg = f"Structure generation failed: {e}"
->           raise GeneratorError(msg) from e
-E           mlip_autopipec.exceptions.GeneratorError: Structure generation failed: 'dict' object has no attribute 'root'
-
-mlip_autopipec/generator/builder.py:80: GeneratorError
-______________________ test_uat_03_04_metadata_integrity _______________________
-
-self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2d3da300>
-
-    def build(self) -> list[Atoms]:
-        """
-        Orchestrates the generation process based on TargetSystem.
-
-        Returns:
-            List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
-        """
-        target = self.system_config.target_system
-        if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
-
-        structures: list[Atoms] = []
-
-        try:
-            if target.structure_type == "bulk":
->               self._build_bulk(structures, target)
-
-mlip_autopipec/generator/builder.py:65:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-mlip_autopipec/generator/builder.py:105: in _build_bulk
-    sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <mlip_autopipec.generator.alloy.AlloyGenerator object at 0x7f6e2d2a7fe0>
-prim_cell = Atoms(symbols='Fe', pbc=True, cell=[[-1.435, 1.435, 1.435], [1.435, -1.435, 1.435], [1.435, 1.435, -1.435]], initial_magmoms=...)
-composition = {'Fe': 1.0}
-
-    def generate_sqs(self, prim_cell: Atoms, composition: Composition) -> Atoms:
-        """
-        Generates a Special Quasirandom Structure (SQS) for the given composition.
-
-        This method attempts to create a supercell that matches the target composition
-        as closely as possible. It currently implements a fallback strategy using
-        random shuffling if advanced SQS generation (e.g., via `icet`) is not available.
-
-        Args:
-            prim_cell (Atoms): The primitive unit cell to expand.
-            composition (Composition): Target composition map wrapped in a Pydantic model.
-                                       Values must sum to approximately 1.0.
-
-        Returns:
-            Atoms: The generated SQS supercell structure.
-
-        Raises:
-            GeneratorError: If generation fails.
-        """
-        # Composition validation is handled by the Pydantic model on input.
->       comp_dict: dict[str, float] = composition.root
-                                      ^^^^^^^^^^^^^^^^
-E       AttributeError: 'dict' object has no attribute 'root'
-
-mlip_autopipec/generator/alloy.py:52: AttributeError
-
-The above exception was the direct cause of the following exception:
-
-    def test_uat_03_04_metadata_integrity():
-        """
-        UAT-03-04: Metadata Integrity
-        Verify that every generated structure includes the correct metadata.
-        """
-        gen_config = GeneratorConfig(
-            sqs=SQSConfig(),
-            distortion=DistortionConfig(),
-            nms=NMSConfig(),
-            defects=DefectConfig()
-        )
-        target = TargetSystem(name="Fe", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk")
-        minimal = MinimalConfig(project_name="uat", target_system=target, resources={"dft_code": "quantum_espresso", "parallel_cores": 1})
-
-        sys_config = MagicMock(spec=SystemConfig)
-        sys_config.generator_config = gen_config
-        sys_config.target_system = target
-        sys_config.minimal = minimal
-
-        builder = StructureBuilder(sys_config)
-
->       structures = builder.build()
-                     ^^^^^^^^^^^^^^^
-
-tests/uat/cycle_03_uat.py:148:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f6e2d3da300>
-
-    def build(self) -> list[Atoms]:
-        """
-        Orchestrates the generation process based on TargetSystem.
-
-        Returns:
-            List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
-        """
-        target = self.system_config.target_system
-        if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
-
-        structures: list[Atoms] = []
-
-        try:
-            if target.structure_type == "bulk":
-                self._build_bulk(structures, target)
-            elif target.structure_type == "molecule":
-                self._build_molecule(structures, target)
-            elif target.structure_type == "defect":
-                # Explicit defect generation mode if needed,
-                # though usually defects are applied to bulk.
-                # For now, treat as bulk + defects.
-                self._build_bulk(structures, target)
-            else:
-                logger.warning(f"Unknown structure_type: {target.structure_type}")
-
-        except Exception as e:
-            if isinstance(e, GeneratorError):
-                raise
-            msg = f"Structure generation failed: {e}"
->           raise GeneratorError(msg) from e
-E           mlip_autopipec.exceptions.GeneratorError: Structure generation failed: 'dict' object has no attribute 'root'
-
-mlip_autopipec/generator/builder.py:80: GeneratorError
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
@@ -449,7 +44,7 @@ mlip_autopipec/app.py                             36     36     0%   5-63
 mlip_autopipec/config/__init__.py                  0      0   100%
 mlip_autopipec/config/factory.py                  37     37     0%   1-62
 mlip_autopipec/config/models.py                    7      0   100%
-mlip_autopipec/config/schemas/common.py           44      6    86%   26-27, 45-46, 52-53
+mlip_autopipec/config/schemas/common.py           46      4    91%   48-49, 55-56
 mlip_autopipec/config/schemas/dft.py              70     20    71%   27-32, 46-51, 68-70, 101-107
 mlip_autopipec/config/schemas/exploration.py      51      4    92%   35-39
 mlip_autopipec/config/schemas/generator.py        30      0   100%
@@ -472,10 +67,10 @@ mlip_autopipec/dft/inputs.py                      57     57     0%   1-166
 mlip_autopipec/dft/parsers.py                     21     21     0%   5-83
 mlip_autopipec/dft/recovery.py                    30     30     0%   1-81
 mlip_autopipec/dft/runner.py                      79     79     0%   1-170
-mlip_autopipec/exceptions.py                      15      6    60%   41-44, 47-48
+mlip_autopipec/exceptions.py                      25      8    68%   42-47, 50-51, 64
 mlip_autopipec/generator/__init__.py               5      0   100%
 mlip_autopipec/generator/alloy.py                101     22    78%   57, 76-81, 88, 99-103, 137-139, 167-169, 233-237
-mlip_autopipec/generator/builder.py               80     44    45%   33-40, 58-59, 66-74, 78, 83-90, 99-101, 109-128, 132-145
+mlip_autopipec/generator/builder.py               93     35    62%   34-35, 58-59, 67-74, 80-84, 102-104, 117, 123-138, 159-161
 mlip_autopipec/generator/defect.py                52      8    85%   49-50, 62-64, 119-121
 mlip_autopipec/generator/molecule.py              54      7    87%   80-81, 107-111
 mlip_autopipec/modules/__init__.py                 0      0   100%
@@ -499,10 +94,7 @@ mlip_autopipec/utils/resilience.py                29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py            32     32     0%   3-53
 mlip_autopipec/workflow_manager.py               106    106     0%   1-191
 ----------------------------------------------------------------------------
-TOTAL                                           2040   1496    27%
+TOTAL                                           2065   1487    28%
 =========================== short test summary info ============================
 FAILED tests/unit/test_generator_schemas.py::test_generator_config_defaults
-FAILED tests/generator/test_builder.py::test_builder_pipeline - mlip_autopipe...
-FAILED tests/generator/test_builder.py::test_builder_with_defects - mlip_auto...
-FAILED tests/uat/cycle_03_uat.py::test_uat_03_04_metadata_integrity - mlip_au...
-========================= 4 failed, 16 passed in 4.48s =========================
+========================= 1 failed, 20 passed in 5.87s =========================

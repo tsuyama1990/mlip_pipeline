@@ -1,12 +1,13 @@
 import logging
 import uuid
+from typing import List
 
 from ase import Atoms
 from ase.build import bulk, molecule
 
+from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.system import SystemConfig
 from mlip_autopipec.exceptions import GeneratorError
-
 from .alloy import AlloyGenerator
 from .defect import DefectGenerator
 from .molecule import MoleculeGenerator
@@ -31,21 +32,20 @@ class StructureBuilder:
 
         if not self.generator_config:
             logger.info("No generator_config provided in SystemConfig, using defaults.")
-            # This should ideally be populated by ConfigFactory, but providing safe defaults here
-            # requires manual construction if the fields are mandatory.
-            # However, system_config.generator_config is Optional in SystemConfig schema.
-            # If it's missing, we cannot proceed if we strictly require it.
-            # But the user might have provided it.
-            # We raise error or mock it for now if this path is hit unexpectedly.
             raise GeneratorError("GeneratorConfig is missing in SystemConfig.")
 
         self.alloy_gen = AlloyGenerator(self.generator_config)
         self.mol_gen = MoleculeGenerator(self.generator_config)
         self.defect_gen = DefectGenerator(self.generator_config)
 
-    def build(self) -> list[Atoms]:
+    def build(self) -> List[Atoms]:
         """
         Orchestrates the generation process based on TargetSystem.
+
+        The process follows a strict pipeline:
+        1. Generate Base Structures (SQS or Molecule).
+        2. Apply Distortions (Strain, Rattle, NMS).
+        3. Apply Defects (Post-processing).
 
         Returns:
             List[Atoms]: A list of generated atomic structures.
@@ -58,41 +58,44 @@ class StructureBuilder:
             logger.warning("No target_system defined. Returning empty structure list.")
             return []
 
-        structures: list[Atoms] = []
+        base_structures: List[Atoms] = []
 
         try:
+            # 1. Base Generation Phase
             if target.structure_type == "bulk":
-                self._build_bulk(structures, target)
+                base_structures = self._generate_bulk_base(target)
             elif target.structure_type == "molecule":
-                self._build_molecule(structures, target)
+                base_structures = self._generate_molecule_base(target)
             elif target.structure_type == "defect":
-                # Explicit defect generation mode if needed,
-                # though usually defects are applied to bulk.
-                # For now, treat as bulk + defects.
-                self._build_bulk(structures, target)
+                # Treated as bulk with mandatory defects in config
+                base_structures = self._generate_bulk_base(target)
             else:
                 logger.warning(f"Unknown structure_type: {target.structure_type}")
+                return []
+
+            # 2. Defect Application Phase (Post-Processing)
+            # Apply defects to the generated base structures
+            final_structures = self._apply_defects(base_structures, target)
 
         except Exception as e:
             if isinstance(e, GeneratorError):
                 raise
             msg = f"Structure generation failed: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorError(msg, context={"target": target.name}) from e
 
-        # Post-processing: Add UUIDs and Metadata
-        final_list = []
-        for s in structures:
+        # 3. Final Metadata Tagging
+        for s in final_structures:
             if 'uuid' not in s.info:
                 s.info['uuid'] = str(uuid.uuid4())
             s.info['target_system'] = target.name
-            final_list.append(s)
 
-        return final_list
+        return final_structures
 
-    def _build_bulk(self, structures: list[Atoms], target) -> None:
-        """Helper to build bulk structures."""
+    def _generate_bulk_base(self, target) -> List[Atoms]:
+        """Generates bulk structures including SQS and Distortions."""
+        structures = []
+
         # Heuristic: Take the first element from composition and use its bulk structure.
-        # This assumes standard crystal structures. In a real scenario, user might provide CIF/POSCAR.
         primary_elem = next(iter(target.composition.root.keys()))
         try:
             prim = bulk(primary_elem)
@@ -100,35 +103,24 @@ class StructureBuilder:
             logger.warning(f"Could not build bulk for {primary_elem}: {e}. Falling back to 'Fe' bcc.")
             prim = bulk('Fe')
 
-        # 1. SQS Generation
+        # SQS & Distortions
         if self.generator_config.sqs.enabled:
-            sqs = self.alloy_gen.generate_sqs(prim, target.composition.root)
+            # Generate SQS
+            sqs = self.alloy_gen.generate_sqs(prim, target.composition)
 
-            # 2. Distortions (Strain + Rattle)
-            # generate_batch checks config.distortion.enabled
+            # Apply Distortions (Strain + Rattle)
+            # generate_batch handles the expansion logic
             batch = self.alloy_gen.generate_batch(sqs)
             structures.extend(batch)
+        else:
+            # If SQS disabled, we might still want to return the primitive?
+            pass
 
-            # 3. Defects
-            # Defects are typically applied to the relaxed base structure (SQS)
-            if self.generator_config.defects.enabled:
-                if self.generator_config.defects.vacancies:
-                    vacancies = self.defect_gen.create_vacancy(sqs)
-                    structures.extend(vacancies)
+        return structures
 
-                if self.generator_config.defects.interstitials:
-                    # Determine elements to insert. Config might specify list.
-                    elements_to_insert = self.generator_config.defects.interstitial_elements
-                    if not elements_to_insert:
-                        # Default to primary element if not specified
-                        elements_to_insert = [primary_elem]
-
-                    for el in elements_to_insert:
-                        interstitials = self.defect_gen.create_interstitial(sqs, el)
-                        structures.extend(interstitials)
-
-    def _build_molecule(self, structures: list[Atoms], target) -> None:
-        """Helper to build molecular structures."""
+    def _generate_molecule_base(self, target) -> List[Atoms]:
+        """Generates molecular structures including NMS."""
+        structures = []
         try:
             mol = molecule(target.name)
         except Exception as e:
@@ -141,5 +133,31 @@ class StructureBuilder:
                 samples = self.mol_gen.normal_mode_sampling(mol, T, n_samples=n_samples)
                 structures.extend(samples)
         else:
-            # If NMS disabled, just return the equilibrium molecule
             structures.append(mol)
+
+        return structures
+
+    def _apply_defects(self, structures: List[Atoms], target) -> List[Atoms]:
+        """Applies defects to a list of structures."""
+        if not self.generator_config.defects.enabled:
+            return structures
+
+        # We keep the original structures and append defective ones
+        extended_list = list(structures)
+
+        primary_elem = next(iter(target.composition.root.keys()))
+        elements_to_insert = self.generator_config.defects.interstitial_elements
+        if not elements_to_insert:
+            elements_to_insert = [primary_elem]
+
+        for s in structures:
+            if self.generator_config.defects.vacancies:
+                vacancies = self.defect_gen.create_vacancy(s)
+                extended_list.extend(vacancies)
+
+            if self.generator_config.defects.interstitials:
+                for el in elements_to_insert:
+                    interstitials = self.defect_gen.create_interstitial(s, el)
+                    extended_list.extend(interstitials)
+
+        return extended_list
