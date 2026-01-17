@@ -22,7 +22,8 @@ def test_database_manager_initialize_fail_permissions(tmp_path):
         with patch.object(Path, "chmod", side_effect=OSError("Permission denied")):
             manager.initialize()
 
-        mock_db.count.assert_called_once() # Should still proceed
+        mock_db.count.assert_called_once()  # Should still proceed
+
 
 def test_database_manager_initialize_fail_connect(tmp_path):
     """Test failure during connection."""
@@ -33,6 +34,7 @@ def test_database_manager_initialize_fail_connect(tmp_path):
         with pytest.raises(DatabaseError) as excinfo:
             manager.initialize()
         assert "Failed to initialize database" in str(excinfo.value)
+
 
 def test_get_system_config_invalid_metadata(tmp_path):
     """Test retrieving invalid config raises DatabaseError."""

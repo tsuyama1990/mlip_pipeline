@@ -22,6 +22,7 @@ def mock_dask_client():
         mock.return_value = client
         yield client
 
+
 @pytest.fixture
 def mock_db_manager():
     with patch("mlip_autopipec.workflow_manager.DatabaseManager") as mock_cls:
@@ -29,14 +30,13 @@ def mock_db_manager():
         instance.get_training_data.return_value = []
         yield instance
 
+
 def test_workflow_manager_initialization(tmp_path, mock_dask_client, mock_db_manager):
     """Test that WorkflowManager initializes correctly and creates a checkpoint."""
     minimal = MinimalConfig(
         project_name="Test",
-        target_system=TargetSystem(
-            elements=["Al"], composition=Composition({"Al": 1.0})
-        ),
-        resources=Resources(dft_code="quantum_espresso", parallel_cores=1)
+        target_system=TargetSystem(elements=["Al"], composition=Composition({"Al": 1.0})),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=1),
     )
     system_config = SystemConfig(
         minimal=minimal,
@@ -44,7 +44,7 @@ def test_workflow_manager_initialization(tmp_path, mock_dask_client, mock_db_man
         db_path=tmp_path / "test.db",
         log_path=tmp_path / "test.log",
         run_uuid=uuid.uuid4(),
-        workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json")
+        workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json"),
     )
 
     manager = WorkflowManager(system_config, tmp_path)
@@ -53,7 +53,8 @@ def test_workflow_manager_initialization(tmp_path, mock_dask_client, mock_db_man
     assert manager.checkpoint_path.exists()
 
     # Verify DB manager was initialized
-    mock_db_manager.initialize.assert_not_called() # It calls it lazily or config path usage
+    mock_db_manager.initialize.assert_not_called()  # It calls it lazily or config path usage
+
 
 def test_workflow_manager_load_checkpoint(tmp_path, mock_dask_client, mock_db_manager):
     """Test loading state from an existing checkpoint."""
@@ -63,21 +64,19 @@ def test_workflow_manager_load_checkpoint(tmp_path, mock_dask_client, mock_db_ma
     # Create valid checkpoint state
     minimal = MinimalConfig(
         project_name="Test",
-        target_system=TargetSystem(
-            elements=["Al"], composition=Composition({"Al": 1.0})
-        ),
-        resources=Resources(dft_code="quantum_espresso", parallel_cores=1)
+        target_system=TargetSystem(elements=["Al"], composition=Composition({"Al": 1.0})),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=1),
     )
     state = CheckpointState(
         run_uuid=run_uuid,
         system_config=SystemConfig(
-             minimal=minimal,
-             working_dir=tmp_path,
-             db_path=tmp_path/"db",
-             log_path=tmp_path/"log",
-             run_uuid=run_uuid
+            minimal=minimal,
+            working_dir=tmp_path,
+            db_path=tmp_path / "db",
+            log_path=tmp_path / "log",
+            run_uuid=run_uuid,
         ),
-        active_learning_generation=5
+        active_learning_generation=5,
     )
 
     with checkpoint_file.open("w") as f:
@@ -89,7 +88,7 @@ def test_workflow_manager_load_checkpoint(tmp_path, mock_dask_client, mock_db_ma
         db_path=tmp_path / "test.db",
         log_path=tmp_path / "test.log",
         run_uuid=run_uuid,
-        workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json")
+        workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json"),
     )
 
     manager = WorkflowManager(system_config, tmp_path)

@@ -2,6 +2,7 @@
 This module contains the `PipelineController` which orchestrates the
 MLIP-AutoPipe workflow execution.
 """
+
 import logging
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from mlip_autopipec.config.loaders.yaml_loader import ConfigLoader
 from mlip_autopipec.workflow_manager import WorkflowManager
 
 log = logging.getLogger(__name__)
+
 
 class PipelineController:
     """

@@ -28,7 +28,9 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
     sssp_path = tmp_path / "sssp.json"
-    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+    sssp_path.write_text(
+        '{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}'
+    )
 
     from ase.calculators.espresso import EspressoProfile
 
@@ -52,7 +54,7 @@ def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
 
     # Values corresponding to expected asserts
     expected_energy_ev = -16.42531639 * 13.605693122994
-    expected_forces_ev_a = np.array([[-0.034, 0, 0], [0.034, 0, 0]]) # Example values
+    expected_forces_ev_a = np.array([[-0.034, 0, 0], [0.034, 0, 0]])  # Example values
     expected_stress = np.zeros(6)
 
     # Mock the return values of the methods
@@ -89,7 +91,9 @@ def test_dft_factory_executable_not_found(h2_atoms: Atoms, tmp_path: Path) -> No
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
     sssp_path = tmp_path / "sssp.json"
-    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+    sssp_path.write_text(
+        '{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}'
+    )
 
     from ase.calculators.espresso import EspressoProfile
 
@@ -125,7 +129,9 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
     sssp_path = tmp_path / "sssp.json"
-    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+    sssp_path.write_text(
+        '{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}'
+    )
 
     from ase.calculators.espresso import EspressoProfile
 
@@ -164,6 +170,7 @@ def test_dft_runner_retry_logic(h2_atoms: Atoms, tmp_path: Path, mocker) -> None
         dft_runner.run(job)
     assert process_runner.execute.call_count == 3
 
+
 def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
     """Test that DFTRunner raises DFTCalculationError when execution fails completely."""
     # Arrange
@@ -171,7 +178,9 @@ def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) ->
     pseudo_dir.mkdir()
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
     sssp_path = tmp_path / "sssp.json"
-    sssp_path.write_text('{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}')
+    sssp_path.write_text(
+        '{"H": {"cutoff_wfc": 30, "cutoff_rho": 120, "filename": "H.pbe-rrkjus.UPF"}}'
+    )
 
     from ase.calculators.espresso import EspressoProfile
 
@@ -189,7 +198,7 @@ def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) ->
     mocker.patch.object(
         process_runner,
         "execute",
-        side_effect=subprocess.CalledProcessError(1, "pw.x", "Unknown Error", "stderr")
+        side_effect=subprocess.CalledProcessError(1, "pw.x", "Unknown Error", "stderr"),
     )
 
     dft_runner = DFTRunner(

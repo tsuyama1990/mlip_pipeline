@@ -1,6 +1,7 @@
 """
 Unit tests for the PacemakerTrainer class.
 """
+
 import subprocess
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
@@ -51,21 +52,20 @@ def test_pacemaker_trainer_perform_training(mock_training_config: TrainingConfig
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
 
-    with patch("subprocess.run") as mock_run, \
-         patch("shutil.which", return_value=True), \
-         patch("tempfile.TemporaryDirectory") as mock_tmpdir:
-
+    with (
+        patch("subprocess.run") as mock_run,
+        patch("shutil.which", return_value=True),
+        patch("tempfile.TemporaryDirectory") as mock_tmpdir,
+    ):
         mock_tmpdir.return_value.__enter__.return_value = tmp_path
         # Mock stdout to include RMSE values and potential file
         stdout_output = (
             "Start training...\n"
             "Final potential saved to: potential.yace\n"
             "RMSE forces: 0.123\n"
-            "RMSE energy: 0.045 eV/atom\n" # Assuming this format, will adjust implementation
+            "RMSE energy: 0.045 eV/atom\n"  # Assuming this format, will adjust implementation
         )
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=stdout_output, stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout=stdout_output, stderr="")
         (tmp_path / "potential.yace").touch()
 
         # Act
@@ -114,8 +114,11 @@ def test_pacemaker_trainer_training_failed(mock_training_config: TrainingConfig)
     training_data = [atoms]
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
-    with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")), \
-         patch("shutil.which", return_value=True), pytest.raises(TrainingFailedError):
+    with (
+        patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")),
+        patch("shutil.which", return_value=True),
+        pytest.raises(TrainingFailedError),
+    ):
         trainer.perform_training(training_data, generation=1)
 
 

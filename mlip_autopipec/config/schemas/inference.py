@@ -11,6 +11,7 @@ class MDConfig(BaseModel):
     run_duration: int = Field(1000, gt=0)
     model_config = ConfigDict(extra="forbid")
 
+
 class UncertaintyConfig(BaseModel):
     threshold: float = Field(5.0, gt=0)
     embedding_cutoff: float = Field(8.0, gt=0)
@@ -19,10 +20,13 @@ class UncertaintyConfig(BaseModel):
 
     @field_validator("masking_cutoff")
     @classmethod
-    def masking_must_be_less_than_embedding(cls, masking_cutoff: float, info: ValidationInfo) -> float:
+    def masking_must_be_less_than_embedding(
+        cls, masking_cutoff: float, info: ValidationInfo
+    ) -> float:
         if "embedding_cutoff" in info.data and masking_cutoff >= info.data["embedding_cutoff"]:
             raise ValueError("masking_cutoff must be smaller than embedding_cutoff.")
         return masking_cutoff
+
 
 class InferenceConfig(BaseModel):
     lammps_executable: FilePath | None = None
@@ -39,11 +43,13 @@ class InferenceConfig(BaseModel):
                 raise ValueError(f"File at {v} is not executable.")
         return v
 
+
 class UncertaintyMetadata(BaseModel):
     uncertain_timestep: int
     uncertain_atom_id: int
     uncertain_atom_index_in_original_cell: int
     model_config = ConfigDict(extra="forbid")
+
 
 class UncertainStructure(BaseModel):
     atoms: object

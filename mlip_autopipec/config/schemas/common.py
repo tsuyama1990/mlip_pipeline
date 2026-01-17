@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, m
 
 # Common / Shared Models
 
+
 class Composition(RootModel[dict[str, float]]):
     """
     Represents the chemical composition of the system.
@@ -27,6 +28,7 @@ class Composition(RootModel[dict[str, float]]):
 
         return v
 
+
 class TargetSystem(BaseModel):
     elements: list[str]
     composition: Composition
@@ -35,6 +37,7 @@ class TargetSystem(BaseModel):
     @field_validator("elements")
     def validate_elements(cls, elements: list[str]) -> list[str]:  # noqa: N805
         from ase.data import chemical_symbols
+
         for symbol in elements:
             if symbol not in chemical_symbols:
                 msg = f"'{symbol}' is not a valid chemical symbol."
@@ -48,11 +51,13 @@ class TargetSystem(BaseModel):
             raise ValueError(msg)
         return self
 
+
 class Resources(BaseModel):
     dft_code: Literal["quantum_espresso", "vasp"]
     parallel_cores: int = Field(gt=0)
     gpu_enabled: bool = False
     model_config = ConfigDict(extra="forbid")
+
 
 class MinimalConfig(BaseModel):
     project_name: str

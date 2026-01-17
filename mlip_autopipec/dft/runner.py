@@ -1,0 +1,181 @@
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from uuid import uuid4
+
+from ase import Atoms
+from ase.io import read
+
+from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.dft.inputs import InputGenerator
+from mlip_autopipec.dft.recovery import RecoveryHandler
+
+
+class DFTFatalError(Exception):
+    pass
+
+
+class QERunner:
+    """
+    Orchestrates Quantum Espresso calculations with auto-recovery.
+    """
+
+    def __init__(self, config: DFTConfig):
+        self.config = config
+
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """
+        Runs the DFT calculation for the given atoms object.
+        """
+        if uid is None:
+            uid = str(uuid4())
+
+        # Create a working directory for this run
+        # Use temp dir or configured working dir?
+        # Ideally, we should use a scratch space.
+        # For now, let's use a temporary directory to be safe and clean up later.
+
+        # We need to preserve params across retries
+        current_params = {}  # Start with defaults (empty dict means InputGenerator uses defaults)
+
+        attempt = 0
+        while attempt <= self.config.max_retries:
+            attempt += 1
+
+            with tempfile.TemporaryDirectory(prefix=f"dft_run_{uid}_") as tmpdir:
+                work_dir = Path(tmpdir)
+                input_str = InputGenerator.create_input_string(atoms, current_params)
+
+                input_path = work_dir / "pw.in"
+                output_path = work_dir / "pw.out"
+
+                input_path.write_text(input_str)
+
+                # Copy pseudos? No, InputGenerator assumes pseudo_dir is set in control or environment.
+                # The config has pseudo_dir. We should set ESPRESSO_PSEUDO environment var
+                # or ensure pw.in points to it.
+                # InputGenerator sets pseudo_dir='./'. So we should symlink pseudos or set env?
+                # Actually, InputGenerator sets 'pseudo_dir': './'. This means we must copy/symlink UPFs to work_dir.
+                # Or we can change InputGenerator to use self.config.pseudo_dir.
+
+                # Let's symlink pseudos for now as it's safer for QE
+                self._stage_pseudos(work_dir, atoms)
+
+                start_time = time.time()
+
+                # Run command
+                # We need to replace pw.x with command from config
+                # The config command might be "mpirun -np 4 pw.x"
+                # We assume input is piped via stdin or -in flag.
+                # QE typically: pw.x < pw.in > pw.out
+
+                full_command = f"{self.config.command} -in pw.in"
+
+                try:
+                    proc = subprocess.run(
+                        full_command,
+                        check=False,
+                        shell=True,  # shell=True to handle redirection if we used < > but here we used -in
+                        cwd=str(work_dir),
+                        stdout=open(output_path, "w"),
+                        stderr=subprocess.PIPE,
+                        timeout=self.config.timeout,
+                        text=True,
+                    )
+                    stdout = output_path.read_text() if output_path.exists() else ""
+                    stderr = proc.stderr
+
+                    returncode = proc.returncode
+                except subprocess.TimeoutExpired:
+                    returncode = -1
+                    stdout = output_path.read_text() if output_path.exists() else ""
+                    stderr = "Timeout Expired"
+
+                wall_time = time.time() - start_time
+
+                # Check for success
+                # Even if returncode is 0, we must verify output
+
+                try:
+                    result = self._parse_output(output_path, uid, wall_time, current_params, atoms)
+                    if result.succeeded:
+                        return result
+                    # Logic to handle failure even if parse succeeded but indicated failure?
+                    # _parse_output currently raises error if it can't parse, or returns partial result.
+                except Exception:
+                    # Parse failed, treat as error
+                    pass
+
+                # If we are here, something failed.
+                error_type = RecoveryHandler.analyze(stdout, stderr)
+
+                if not self.config.recoverable or attempt > self.config.max_retries:
+                    break  # Fatal
+
+                try:
+                    current_params = RecoveryHandler.get_strategy(error_type, current_params)
+                    # Log retry
+                    print(
+                        f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {current_params}"
+                    )
+                    continue
+                except Exception:
+                    break  # No strategy found
+
+        raise DFTFatalError(f"Job {uid} failed after {attempt} attempts.")
+
+    def _stage_pseudos(self, work_dir: Path, atoms: Atoms):
+        """
+        Symlinks required pseudopotentials to the working directory.
+        """
+        from mlip_autopipec.dft.constants import SSSP_EFFICIENCY_1_1
+
+        pseudo_src_dir = self.config.pseudo_dir
+        if not pseudo_src_dir.exists():
+            # In tests, this might not exist.
+            # We should probably warn or skip if not strict.
+            pass
+
+        unique_species = set(atoms.get_chemical_symbols())
+        for s in unique_species:
+            if s in SSSP_EFFICIENCY_1_1:
+                u_file = SSSP_EFFICIENCY_1_1[s]
+                src = pseudo_src_dir / u_file
+                dst = work_dir / u_file
+                if src.exists() and not dst.exists():
+                    dst.symlink_to(src)
+
+    def _parse_output(
+        self, output_path: Path, uid: str, wall_time: float, params: dict, atoms: Atoms
+    ) -> DFTResult:
+        """
+        Parses pw.out using ASE.
+        """
+        try:
+            # ase.io.read returns Atoms object
+            # format='espresso-out' is auto-detected usually
+            atoms_out = read(output_path, format="espresso-out")
+
+            energy = atoms_out.get_potential_energy()
+            forces = atoms_out.get_forces().tolist()
+            stress = atoms_out.get_stress(voigt=False).tolist()  # Get 3x3 tensor
+
+            # Helper to get mixing beta if available?
+            # ASE might not parse it easily. We use the one from params or default
+            final_beta = params.get("mixing_beta", 0.7)
+
+            return DFTResult(
+                uid=uid,
+                energy=energy,
+                forces=forces,
+                stress=stress,
+                succeeded=True,
+                wall_time=wall_time,
+                parameters=params,
+                final_mixing_beta=final_beta,
+            )
+        except Exception as e:
+            # If ASE fails, it means calculation didn't finish or crashed
+            raise Exception(f"Failed to parse output: {e}")

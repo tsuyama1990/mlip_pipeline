@@ -28,7 +28,7 @@ class ConfigFactory:
             # We strictly read the file content as text first
             file_content = path.read_text(encoding="utf-8")
             # Basic sanity check to avoid processing massive files
-            if len(file_content) > 10 * 1024 * 1024: # 10MB limit
+            if len(file_content) > 10 * 1024 * 1024:  # 10MB limit
                 msg = "Configuration file too large."
                 raise ConfigError(msg)
 
@@ -48,8 +48,8 @@ class ConfigFactory:
         try:
             minimal = MinimalConfig.model_validate(data)
         except Exception as e:
-             msg = f"Configuration validation failed: {e}"
-             raise ConfigError(msg) from e
+            msg = f"Configuration validation failed: {e}"
+            raise ConfigError(msg) from e
 
         # Resolve paths
         # We assume current working directory of the process.
@@ -60,8 +60,5 @@ class ConfigFactory:
         log_path = working_dir / "system.log"
 
         return SystemConfig(
-            minimal=minimal,
-            working_dir=working_dir,
-            db_path=db_path,
-            log_path=log_path
+            minimal=minimal, working_dir=working_dir, db_path=db_path, log_path=log_path
         )

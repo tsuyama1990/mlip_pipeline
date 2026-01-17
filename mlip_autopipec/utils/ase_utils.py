@@ -87,6 +87,7 @@ def check_if_exists(db_path: Path, atoms: AtomsObject) -> AtomsRow | None:
                 pass  # Placeholder for more complex comparison
     return None
 
+
 def read_training_data(db_path: Path) -> list[AtomsObject]:
     """
     Read and validate all atomic structures from the configured ASE database.

@@ -1,6 +1,7 @@
 """
 Main CLI application for MLIP-AutoPipe.
 """
+
 import logging
 from pathlib import Path
 
@@ -17,9 +18,11 @@ app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic P
 console = Console()
 log = logging.getLogger(__name__)
 
+
 @app.callback()
 def main() -> None:
     """MLIP-AutoPipe CLI Entry Point."""
+
 
 @app.command()
 def run(
@@ -71,6 +74,7 @@ def run(
     except Exception as e:
         console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
         raise typer.Exit(code=1) from e
+
 
 if __name__ == "__main__":
     app()

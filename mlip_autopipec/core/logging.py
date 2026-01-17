@@ -25,10 +25,7 @@ def setup_logging(log_path: Path, level: str = "INFO") -> None:
             level=level,
             format="%(message)s",
             datefmt="[%X]",
-            handlers=[
-                RichHandler(rich_tracebacks=True),
-                logging.FileHandler(log_path, mode="a")
-            ],
+            handlers=[RichHandler(rich_tracebacks=True), logging.FileHandler(log_path, mode="a")],
         )
 
         # Set logger levels for noisy libraries

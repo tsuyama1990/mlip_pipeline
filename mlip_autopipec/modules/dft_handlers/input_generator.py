@@ -60,9 +60,7 @@ class QEInputGenerator:
         for pseudo_filename in params.pseudopotentials.root.values():
             pseudo_path = self.pseudopotentials_path / pseudo_filename
             if not pseudo_path.is_file():
-                raise FileNotFoundError(
-                    f"Pseudopotential file not found: {pseudo_path}"
-                )
+                raise FileNotFoundError(f"Pseudopotential file not found: {pseudo_path}")
 
     def _build_input_data(self, work_dir: Path, params: DFTInputParameters) -> dict:
         """Constructs the nested dictionary for ASE's `Espresso` calculator."""
