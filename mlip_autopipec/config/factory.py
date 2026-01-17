@@ -3,6 +3,7 @@ This module provides a factory class for creating the comprehensive
 SystemConfig from a high-level UserInputConfig.
 """
 
+from pathlib import Path
 from uuid import uuid4
 
 from mlip_autopipec.config.models import (
@@ -39,6 +40,12 @@ class ConfigFactory:
         run_uuid = uuid4()
         elements = user_config.target_system.elements
 
+        # Resolve Working Directory
+        # The working directory is created relative to CWD with the project name
+        work_dir = Path.cwd() / project_name
+        if not work_dir.exists():
+            work_dir.mkdir(parents=True)
+
         # DFT Config Heuristics
         pseudos = {el: f"{el}_pbe_v1.uspp.F.UPF" for el in elements}
         cutoffs = CutoffConfig(wavefunction=60.0, density=240.0)
@@ -71,6 +78,11 @@ class ConfigFactory:
             data_source_db=f"{project_name}.db",
         )
 
+        # Determine Database Path for SystemConfig
+        # We align this with the training config source db for consistency,
+        # ensuring it's relative to the working dir (handled by logic consuming this).
+        db_path = f"{project_name}.db"
+
         # Inference Config Heuristics
         temp_range = user_config.simulation_goal.temperature_range
         md_config = MDConfig(
@@ -84,6 +96,8 @@ class ConfigFactory:
         return SystemConfig(
             project_name=project_name,
             run_uuid=run_uuid,
+            working_dir=work_dir,
+            db_path=db_path,
             dft_config=dft_config,
             explorer_config=explorer_config,
             training_config=training_config,

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from mlip_autopipec.config.factory import ConfigFactory
 from mlip_autopipec.config.loaders.yaml_loader import ConfigLoader
+from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.workflow_manager import WorkflowManager
 
 log = logging.getLogger(__name__)
@@ -37,12 +38,19 @@ class PipelineController:
         system_config = ConfigFactory.from_user_input(user_config)
         log.info(f"System configuration generated. Run UUID: {system_config.run_uuid}")
 
-        # 3. Initialize Workflow
-        # Using current working directory for execution context
-        work_dir = Path.cwd()
+        # 3. Initialize Database
+        # Using the project's working directory determined by ConfigFactory
+        work_dir = system_config.working_dir if system_config.working_dir else Path.cwd()
+        db_path = work_dir / system_config.db_path
+
+        log.info(f"Initializing database at: {db_path}")
+        db_manager = DatabaseManager(db_path)
+        db_manager.initialize(system_config)
+
+        # 4. Initialize Workflow
         manager = WorkflowManager(system_config=system_config, work_dir=work_dir)
 
-        # 4. Run Workflow
+        # 5. Run Workflow
         log.info("Dispatching workflow execution to manager.")
         manager.run()
         log.info("Workflow execution completed successfully.")

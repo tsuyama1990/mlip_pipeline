@@ -176,8 +176,9 @@ class DFTRunner:
 
         except subprocess.CalledProcessError as e:
             # Wrap low-level subprocess errors with context
+            msg = f"DFT subprocess failed for job {job.job_id}"
             raise DFTCalculationError(
-                f"DFT subprocess failed for job {job.job_id}",
+                msg,
                 stdout=getattr(e, "stdout", ""),
                 stderr=getattr(e, "stderr", ""),
             ) from e
@@ -185,4 +186,5 @@ class DFTRunner:
         except Exception as e:
             # Catch-all for unexpected runtime errors to prevent crash
             logger.exception(f"Unexpected error executing DFT job {job.job_id}")
-            raise DFTCalculationError(f"Unexpected error: {e}") from e
+            msg = f"Unexpected error: {e}"
+            raise DFTCalculationError(msg) from e

@@ -31,7 +31,8 @@ class SurrogateModelParams(BaseModel):
     def validate_model_path(cls, v: str) -> str:
         import os
         if ".." in v or os.path.isabs(v):
-            raise ValueError("model_path must be a relative path.")
+            msg = "model_path must be a relative path."
+            raise ValueError(msg)
         return v
 
 class SOAPParams(BaseModel):

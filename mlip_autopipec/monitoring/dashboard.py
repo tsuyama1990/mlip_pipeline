@@ -16,7 +16,8 @@ def _gather_data(project_dir: Path) -> DashboardData:
     """Gathers data from checkpoint and ASE database."""
     checkpoint_path = project_dir / "checkpoint.json"
     if not checkpoint_path.exists():
-        raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+        msg = f"Checkpoint file not found: {checkpoint_path}"
+        raise FileNotFoundError(msg)
 
     with checkpoint_path.open() as f:
         state_data = json.load(f)
@@ -85,7 +86,8 @@ def _render_html(data: DashboardData, plots: dict[str, str]) -> str:
         return template.render(data=data, plots=plots)
     except TemplateError as e:
         logger.exception("Failed to render dashboard template.")
-        raise RuntimeError("Dashboard generation failed due to template error.") from e
+        msg = "Dashboard generation failed due to template error."
+        raise RuntimeError(msg) from e
 
 def generate_dashboard(project_dir: Path) -> Path:
     """Main function to generate the dashboard."""

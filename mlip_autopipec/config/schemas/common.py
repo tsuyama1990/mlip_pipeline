@@ -16,17 +16,20 @@ class Composition(RootModel[dict[str, float]]):
     """
 
     @field_validator("root")
+    @classmethod
     def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:
         from ase.data import chemical_symbols
 
         # Check sum
         if not abs(sum(v.values()) - 1.0) < 1e-6:
-            raise ValueError("Composition fractions must sum to 1.0.")
+            msg = "Composition fractions must sum to 1.0."
+            raise ValueError(msg)
 
         # Check keys are valid symbols
         for symbol in v:
             if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+                msg = f"'{symbol}' is not a valid chemical symbol."
+                raise ValueError(msg)
 
         return v
 
@@ -37,17 +40,20 @@ class TargetSystem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("elements")
+    @classmethod
     def validate_elements(cls, elements: list[str]) -> list[str]:
         from ase.data import chemical_symbols
         for symbol in elements:
             if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+                msg = f"'{symbol}' is not a valid chemical symbol."
+                raise ValueError(msg)
         return elements
 
     @model_validator(mode="after")
     def check_composition_keys(self):
         if set(self.elements) != set(self.composition.root.keys()):
-            raise ValueError("Composition keys must match the elements list.")
+            msg = "Composition keys must match the elements list."
+            raise ValueError(msg)
         return self
 
 class UserInputConfig(BaseModel):

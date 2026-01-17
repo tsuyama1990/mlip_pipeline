@@ -23,7 +23,7 @@ class DFTCalculationError(Exception):
         message: str,
         stdout: str = "",
         stderr: str = "",
-    ):
+    ) -> None:
         """
         Initializes the exception with details about the failure.
 

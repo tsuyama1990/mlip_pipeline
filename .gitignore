@@ -29,3 +29,5 @@ env/
 *.pwi
 *.err
 temp_ase_calc/
+*.db
+.coverage

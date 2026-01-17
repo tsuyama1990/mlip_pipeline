@@ -54,8 +54,7 @@ class SOAPDescriptorCalculator:
 
         logger.info("Calculating SOAP descriptors for %s structures.", len(structures))
         try:
-            descriptors = self._soap_generator.create(structures, n_jobs=-1)
-            return descriptors  # type: ignore[no-any-return]
+            return self._soap_generator.create(structures, n_jobs=-1)
         except Exception as e:
             logger.exception("An unexpected error occurred during SOAP descriptor calculation.")
             msg = "Failed to calculate SOAP descriptors."
