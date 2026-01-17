@@ -27,8 +27,8 @@ def test_minimal_config_valid():
     assert config.project_name == "TestProject"
     assert config.target_system.elements == ["Al", "Cu"]
 
-def test_minimal_config_invalid_composition():
-    """Test that composition validation fails if not summing to 1.0."""
+def test_minimal_config_invalid_composition_sum_low():
+    """Test that composition validation fails if sum < 1.0."""
     with pytest.raises(ValidationError) as excinfo:
         MinimalConfig(
             project_name="TestProject",
@@ -42,6 +42,37 @@ def test_minimal_config_invalid_composition():
             )
         )
     assert "Composition fractions must sum to 1.0" in str(excinfo.value)
+
+def test_minimal_config_invalid_composition_sum_high():
+    """Test that composition validation fails if sum > 1.0."""
+    with pytest.raises(ValidationError) as excinfo:
+        MinimalConfig(
+            project_name="TestProject",
+            target_system=TargetSystem(
+                elements=["Al", "Cu"],
+                composition=Composition({"Al": 0.6, "Cu": 0.5})
+            ),
+            resources=Resources(
+                dft_code="quantum_espresso",
+                parallel_cores=4
+            )
+        )
+    assert "Composition fractions must sum to 1.0" in str(excinfo.value)
+
+def test_minimal_config_invalid_composition_type():
+    """Test that composition values must be floats."""
+    with pytest.raises(ValidationError):
+        MinimalConfig(
+            project_name="TestProject",
+            target_system=TargetSystem(
+                elements=["Al"],
+                composition=Composition({"Al": "half"}) # type: ignore
+            ),
+            resources=Resources(
+                dft_code="quantum_espresso",
+                parallel_cores=4
+            )
+        )
 
 def test_minimal_config_invalid_element():
     """Test invalid chemical symbol."""
