@@ -1,12 +1,18 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, RootModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 # Common / Shared Models
 
 class SimulationGoal(BaseModel):
     type: Literal["melt_quench", "elastic", "diffusion"]
     temperature_range: tuple[float, float] | None = None
+    model_config = ConfigDict(extra="forbid")
+
+class Resources(BaseModel):
+    dft_code: Literal["quantum_espresso", "vasp"] = "quantum_espresso"
+    parallel_cores: int = Field(gt=0, description="Number of cores for parallel execution")
+    gpu_enabled: bool = False
     model_config = ConfigDict(extra="forbid")
 
 class Composition(RootModel[dict[str, float]]):
@@ -60,4 +66,5 @@ class UserInputConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
     simulation_goal: SimulationGoal
+    resources: Resources
     model_config = ConfigDict(extra="forbid")

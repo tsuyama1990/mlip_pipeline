@@ -2,40 +2,70 @@
 platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
-testpaths: tests
 plugins: mock-3.15.1, cov-7.0.0
-collected 69 items / 1 error
+collected 15 items
 
-==================================== ERRORS ====================================
-_______________ ERROR collecting tests/modules/test_explorer.py ________________
-ImportError while importing test module '/app/tests/modules/test_explorer.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-/home/jules/.pyenv/versions/3.12.12/lib/python3.12/importlib/__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/modules/test_explorer.py:11: in <module>
-    from mlip_autopipec.modules.explorer import SurrogateExplorer
-E   ModuleNotFoundError: No module named 'mlip_autopipec.modules.explorer'
+tests/test_config.py ....                                                [ 26%]
+tests/test_database.py ..                                                [ 40%]
+tests/test_logging.py ..                                                 [ 53%]
+tests/test_config_factory.py ..                                          [ 66%]
+tests/integration/test_pipeline_init.py ..                               [ 80%]
+tests/uat/cycle_01_uat.py ...                                            [100%]
+
 =============================== warnings summary ===============================
 .venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
   /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
     _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
 
-tests/modules/test_exploration.py:128
-  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
-tests/modules/test_exploration.py:138
-  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
-tests/modules/test_inference.py:70
-  /app/tests/modules/test_inference.py:70: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-ERROR tests/modules/test_explorer.py
-!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
-======================== 4 warnings, 1 error in 26.83s =========================
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+mlip_autopipec/__init__.py                                   1      0   100%
+mlip_autopipec/app.py                                       78     37    53%   53, 88-103, 121-141, 144
+mlip_autopipec/config/__init__.py                            0      0   100%
+mlip_autopipec/config/factory.py                            37      1    97%   41
+mlip_autopipec/config/loaders/yaml_loader.py                28     19    32%   29-50
+mlip_autopipec/config/models.py                              7      0   100%
+mlip_autopipec/config/schemas/common.py                     50      4    92%   54-55, 61-62
+mlip_autopipec/config/schemas/dft.py                        95     25    74%   26-27, 44-45, 63-64, 66-67, 84-92, 109-112, 117-120
+mlip_autopipec/config/schemas/exploration.py                52      5    90%   32-36
+mlip_autopipec/config/schemas/inference.py                  71     29    59%   23-26, 38-41, 58-66, 71-82
+mlip_autopipec/config/schemas/monitoring.py                 12      0   100%
+mlip_autopipec/config/schemas/system.py                     62      6    90%   21-24, 74-75
+mlip_autopipec/config/schemas/training.py                   51      4    92%   51-54
+mlip_autopipec/core/__init__.py                              3      0   100%
+mlip_autopipec/core/database.py                              2      0   100%
+mlip_autopipec/core/logging.py                               5      0   100%
+mlip_autopipec/data/__init__.py                              0      0   100%
+mlip_autopipec/data/database.py                             39      7    82%   76, 107-122, 131-135
+mlip_autopipec/exceptions.py                                 8      4    50%   35-37, 41
+mlip_autopipec/modules/__init__.py                           5      0   100%
+mlip_autopipec/modules/config_generator.py                  15     15     0%   3-74
+mlip_autopipec/modules/descriptors.py                       30     19    37%   21-23, 27-48, 52-61
+mlip_autopipec/modules/dft.py                               84     55    35%   49-52, 64-65, 75-77, 81-86, 90-93, 97-98, 114, 120-121, 144-146, 167-216
+mlip_autopipec/modules/dft_handlers/input_generator.py      32     23    28%   32-33, 44-53, 57-65, 71-99
+mlip_autopipec/modules/dft_handlers/output_parser.py        18     10    44%   31, 48-62
+mlip_autopipec/modules/dft_handlers/process_runner.py       29     19    34%   34, 50-83
+mlip_autopipec/modules/dft_handlers/retry.py                22     17    23%   26-47
+mlip_autopipec/modules/exploration.py                       46     33    28%   34-36, 40-75, 81-96
+mlip_autopipec/modules/generator.py                         72     72     0%   3-201
+mlip_autopipec/modules/inference.py                        136    116    15%   51-90, 118, 138-185, 195-222, 228-243, 249-261, 265-289, 293-316, 325-333
+mlip_autopipec/modules/screening.py                         41     29    29%   22-23, 27-36, 40-68
+mlip_autopipec/modules/training.py                          92     74    20%   37, 58-88, 98-134, 146-198
+mlip_autopipec/monitoring/__init__.py                        0      0   100%
+mlip_autopipec/monitoring/dashboard.py                      65     51    22%   17-43, 54-78, 82-90, 94-105
+mlip_autopipec/services/pipeline.py                         24     14    42%   31-56
+mlip_autopipec/utils/__init__.py                             0      0   100%
+mlip_autopipec/utils/ase_utils.py                           43     32    26%   42-55, 74-88, 103-120
+mlip_autopipec/utils/config_utils.py                         7      7     0%   3-38
+mlip_autopipec/utils/dask_utils.py                          12      7    42%   30-42
+mlip_autopipec/utils/data_loader.py                         15      9    40%   30-38
+mlip_autopipec/utils/resilience.py                          35     22    37%   61-100
+mlip_autopipec/utils/workflow_utils.py                      32     32     0%   3-53
+mlip_autopipec/workflow_manager.py                         106     86    19%   35-44, 48-57, 61-66, 70-79, 83-99, 103-143, 153-189
+--------------------------------------------------------------------------------------
+TOTAL                                                     1562    883    43%
+======================== 15 passed, 1 warning in 19.52s ========================

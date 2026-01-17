@@ -12,35 +12,39 @@ By the end of this cycle, we will have a CLI tool that can initialize a project 
 
 ## 2. System Architecture
 
-This cycle focuses on the `src/config` and `src/core` directories, setting up the project skeleton.
+This cycle focuses on the `mlip_autopipec/config` and `mlip_autopipec/core` directories, setting up the project skeleton.
 
 ```ascii
 mlip_autopipec/
-├── src/
+├── config/
 │   ├── __init__.py
-│   ├── config/
+│   ├── schemas/
 │   │   ├── __init__.py
-│   │   ├── **models.py**       # Pydantic models for Input/System config
-│   │   └── **factory.py**      # Logic to expand minimal config -> SystemConfig
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── **database.py**     # Database interface with schema enforcement
-│   │   ├── **logging.py**      # Centralized logging setup
-│   │   └── **utils.py**        # Shared utilities (Path handling, hashing)
-│   └── **app.py**              # CLI Entry point (Typer/Argparse)
-├── tests/
-│   ├── **test_config.py**
-│   ├── **test_database.py**
-│   └── **test_logging.py**
-└── pyproject.toml
+│   │   ├── common.py       # Shared models (TargetSystem, UserInputConfig)
+│   │   └── system.py       # Full SystemConfig
+│   ├── models.py           # Exports all models
+│   └── factory.py          # Logic to expand UserInputConfig -> SystemConfig
+├── core/
+│   ├── __init__.py
+│   ├── database.py         # Database interface with schema enforcement
+│   ├── logging.py          # Centralized logging setup
+│   └── utils.py            # Shared utilities (Path handling, hashing)
+├── app.py                  # CLI Entry point (Typer/Argparse)
+└── __init__.py
+tests/
+├── test_config.py
+├── test_config_factory.py
+├── test_database.py
+└── test_logging.py
+pyproject.toml
 ```
 
 ### Key Components
 
-1.  **`src/config/models.py`**: This file defines the "Law" of the system. It contains the `MinimalConfig` (what the user provides) and `SystemConfig` (the fully hydrated internal state). It uses Pydantic validators to ensure chemical symbols are valid, compositions sum to 1.0, and resource requests are sane.
-2.  **`src/config/factory.py`**: A Factory pattern implementation. It accepts a path to a YAML file, reads it, validates it against `MinimalConfig`, resolves relative paths to absolute paths, creates necessary directories (e.g., `workspace/run_01/`), and returns a frozen `SystemConfig` object.
-3.  **`src/core/database.py`**: A wrapper class `DatabaseManager` around `ase.db`. It does not just "connect"; it manages the lifecycle of the connection, ensures thread safety (if using SQLite), and provides strict methods like `add_structure(atoms, metadata=...)` rather than generic `write()`.
-4.  **`src/core/logging.py`**: Sets up the Python logger. It configures a StreamHandler (for console output, colorful) and a FileHandler (for archival). It ensures that all modules use the same logging instance.
+1.  **`mlip_autopipec/config/models.py`**: This file defines the "Law" of the system. It exports `UserInputConfig` (what the user provides) and `SystemConfig` (the fully hydrated internal state). It uses Pydantic validators to ensure chemical symbols are valid, compositions sum to 1.0, and resource requests are sane.
+2.  **`mlip_autopipec/config/factory.py`**: A Factory pattern implementation. It accepts a path to a YAML file, reads it, validates it against `UserInputConfig`, resolves relative paths to absolute paths, creates necessary directories (e.g., `workspace/run_01/`), and returns a `SystemConfig` object.
+3.  **`mlip_autopipec/core/database.py`**: A wrapper class `DatabaseManager` around `ase.db`. It does not just "connect"; it manages the lifecycle of the connection, ensures thread safety (if using SQLite), and provides strict methods like `add_structure(atoms, metadata=...)` rather than generic `write()`.
+4.  **`mlip_autopipec/core/logging.py`**: Sets up the Python logger. It configures a StreamHandler (for console output, colorful) and a FileHandler (for archival). It ensures that all modules use the same logging instance.
 
 ## 3. Design Architecture
 
@@ -76,14 +80,14 @@ class Resources(BaseModel):
     parallel_cores: int = Field(gt=0)
     gpu_enabled: bool = False
 
-class MinimalConfig(BaseModel):
+class UserInputConfig(BaseModel):
     project_name: str
     target_system: TargetSystem
     resources: Resources
 
 class SystemConfig(BaseModel):
-    # Composition over inheritance preferred, but flat model easier for config
-    minimal: MinimalConfig
+    # Composition over inheritance preferred
+    minimal: UserInputConfig
     working_dir: Path
     db_path: Path
     log_path: Path
@@ -92,24 +96,24 @@ class SystemConfig(BaseModel):
 ```
 
 ### Constraints & Invariants
-1.  **Immutability**: The `SystemConfig` is created once at startup. It must effectively be a Singleton (though passed explicitly, not global). It should not be modified at runtime.
+1.  **Immutability**: The `SystemConfig` is created once at startup. It should not be modified at runtime.
 2.  **Path Safety**: All paths in `SystemConfig` must be absolute. The Factory is responsible for resolving `~/` or `./`.
 3.  **Schema Versioning**: The database metadata should include the version of the code and the schema version, allowing future migrations.
-4.  **Singleton Database Connection**: While SQLite allows multiple connections, `ase.db` can be tricky with locking. We enforce a single `DatabaseManager` instance per process (or managed via Dask later).
+4.  **Singleton Database Connection**: We enforce a single `DatabaseManager` instance per process.
 
 ## 4. Implementation Approach
 
 The implementation will follow a strict TDD loop.
 
-1.  **Step 1: Pydantic Models (`models.py`)**:
+1.  **Step 1: Pydantic Models (`schemas/common.py` etc.)**:
     -   Define `TargetSystem`. Add validators for elements (check against `ase.data.chemical_symbols`) and composition (sum close to 1.0).
     -   Define `Resources`. Add checks for positive cores.
-    -   Define `MinimalConfig` incorporating the above.
-    -   Define `SystemConfig`. This should have `frozen=True`. It should contain the `MinimalConfig` and added fields like `working_dir` (Path).
+    -   Define `UserInputConfig` incorporating the above.
+    -   Define `SystemConfig`. It should contain the `UserInputConfig` and added fields like `working_dir` (Path).
 2.  **Step 2: Config Factory (`factory.py`)**:
     -   Implement `ConfigFactory.from_yaml(path)`.
     -   Use `pyyaml` to load the file.
-    -   Validate using `MinimalConfig.model_validate()`.
+    -   Validate using `UserInputConfig.model_validate()`.
     -   Compute absolute paths. Use `pathlib.Path.resolve()`.
     -   Create the directory structure `mkdir(parents=True)`.
     -   Return `SystemConfig`.
@@ -133,19 +137,14 @@ The implementation will follow a strict TDD loop.
 
 ## 5. Test Strategy
 
-### Unit Testing Approach (Min 300 words)
+### Unit Testing Approach
 Unit tests will focus on the correctness of the configuration parsing and the robustness of the utility functions.
--   **Config Validation**: We will create a suite of "bad" YAML files (missing keys, wrong types, invalid chemical symbols, negative core counts) and assert that `MinimalConfig` raises specific `ValidationError` types. This ensures that users get immediate, helpful feedback. We will also test "edge cases" like compositions summing to 0.999999 (should pass) vs 0.9 (should fail).
--   **Path Resolution**: We will test `ConfigFactory` with various path inputs (absolute, relative, user-expanded). We will use `tmp_path` fixture to ensure that the factory correctly creates the directory structure on the filesystem. We will verify that it handles spaces in paths correctly.
--   **Singleton Behavior**: We will verify that the `SystemConfig` object is immutable by attempting to set an attribute after creation and asserting that it raises `ValidationError` or `TypeError`.
--   **Logging**: We will use the `caplog` fixture to verify that log messages are actually captured at the correct levels (INFO vs DEBUG) and formatted correctly. We will ensure that sensitive info (if any) is not logged.
+-   **Config Validation**: We will create a suite of "bad" YAML files (missing keys, wrong types, invalid chemical symbols, negative core counts) and assert that `UserInputConfig` raises specific `ValidationError` types.
+-   **Path Resolution**: We will test `ConfigFactory` with various path inputs (absolute, relative, user-expanded).
+-   **Logging**: We will use the `caplog` fixture to verify that log messages are actually captured.
 
-### Integration Testing Approach (Min 300 words)
+### Integration Testing Approach
 Integration tests will verify the interaction between the Configuration, Filesystem, and Database.
--   **Startup Sequence**: We will simulate a full application startup. We will provide a valid `input.yaml`. We will assert that:
-    1.  The working directory is created.
-    2.  The `project.db` file is created inside it.
-    3.  The `system.log` file is created inside it.
-    4.  The database metadata correctly reflects the content of `input.yaml`.
--   **Database Persistence**: We will instantiate the `DatabaseManager`, add some dummy metadata, close the connection, and re-instantiate it. We will verify that the metadata persists and matches. We will also test concurrent access (basic check) to ensure no lock files remain if the process crashes.
--   **CLI Invocation**: We will use `typer.testing.CliRunner` to invoke the main command-line interface. We will check the exit code (0 for success, 1 for failure) and the standard output. This ensures that the wiring between the entry point and the core logic is correct and that the user sees the expected "Success" message.
+-   **Startup Sequence**: We will simulate a full application startup.
+-   **Database Persistence**: We will instantiate the `DatabaseManager`, add some dummy metadata, close the connection, and re-instantiate it.
+-   **CLI Invocation**: We will use `typer.testing.CliRunner` to invoke the main command-line interface.

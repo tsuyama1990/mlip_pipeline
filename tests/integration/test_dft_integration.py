@@ -10,7 +10,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.exceptions import DFTCalculationError
-from mlip_autopipec.modules.dft import DFTHeuristics, DFTJobFactory, DFTRunner, DFTJob
+from mlip_autopipec.modules.dft import DFTHeuristics, DFTJob, DFTJobFactory, DFTRunner
 
 MOCK_PW_X_PATH = Path(__file__).parent.parent / "test_data" / "mock_pw.x"
 
@@ -219,6 +219,7 @@ def test_dft_runner_invalid_job(h2_atoms: Atoms, tmp_path: Path) -> None:
     (pseudo_dir / "H.pbe-rrkjus.UPF").touch()
 
     from ase.calculators.espresso import EspressoProfile
+
     from mlip_autopipec.modules.dft import QEInputGenerator, QEOutputParser, QEProcessRunner
 
     profile = EspressoProfile(command="pw.x", pseudo_dir=pseudo_dir)

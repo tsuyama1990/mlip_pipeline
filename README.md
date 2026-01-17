@@ -2,16 +2,15 @@
 
 MLIP-AutoPipe is a project designed to provide a "Zero-Human" protocol for the autonomous generation of Machine Learning Interatomic Potentials (MLIPs). This system automates the entire MLIP lifecycle, from initial data generation to active learning and large-scale production simulations.
 
-## Cycle 01: The Foundation - Automated DFT Factory
+## Cycle 01: Core Framework & Configuration System
 
-This cycle implements the cornerstone of the MLIP-AutoPipe system: a robust and autonomous DFT calculation factory. This module is responsible for taking an atomic structure and reliably returning its DFT-calculated properties, handling the complexities of the underlying quantum mechanics engine.
+This cycle lays the foundation for the MLIP-AutoPipe system, establishing the configuration management, database, and logging infrastructure.
 
 ### Key Features:
-- **Schema-Driven Design**: All data structures for DFT jobs and results are rigorously defined using Pydantic, ensuring type safety and data integrity throughout the workflow.
-- **Automated DFT Factory**: The `DFTFactory` class provides a high-level interface for running Quantum Espresso calculations. It encapsulates:
-  - **Heuristic Parameter Generation**: Automatically determines optimal DFT parameters (e.g., cutoffs, k-points) based on the input structure's elements and geometry.
-  - **Resilient Execution**: Includes an auto-recovery mechanism that can handle common DFT convergence failures by intelligently adjusting parameters and retrying the calculation.
-- **Data Persistence**: All successful DFT results are saved to an ASE-compatible database, creating a structured and queryable training set for future machine learning cycles.
+- **Strict Schema Configuration**: Implements a rigorous Pydantic V2 schema for user input (`UserInputConfig`) and internal system state (`SystemConfig`), ensuring type safety and valid inputs.
+- **Project Initialization**: A new `mlip-auto init` command to bootstrap project workspaces with valid directory structures and configuration files.
+- **Database & Logging**: A centralized `DatabaseManager` wrapper around `ase.db` for storing structure metadata, and a structured `logging` system for traceability.
+- **Unified CLI**: The `mlip-auto` CLI tool (built with Typer) serves as the entry point for all operations.
 
 ## Cycle 02: Surrogate-First Exploration
 

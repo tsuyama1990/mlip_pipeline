@@ -10,6 +10,9 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.logging import RichHandler
 
+from mlip_autopipec.config.factory import ConfigFactory
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.core.logging import setup_logging
 from mlip_autopipec.monitoring.dashboard import generate_dashboard
 from mlip_autopipec.services.pipeline import PipelineController
 
@@ -24,6 +27,50 @@ console = Console()
 @app.callback()
 def main() -> None:
     """MLIP-AutoPipe CLI Entry Point."""
+
+@app.command()
+def init(
+    input_file: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        help="Path to the input.yaml configuration file.",
+    ),
+) -> None:
+    """Initialize the project workspace."""
+    try:
+        console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Initializing from {input_file.name}")
+
+        # 1. Expand Config
+        config = ConfigFactory.from_yaml(input_file)
+
+        # 2. Setup Logging (inside workspace)
+        # Ensure working directory exists (ConfigFactory does it, but double check)
+        if not config.working_dir.exists():
+             config.working_dir.mkdir(parents=True, exist_ok=True)
+
+        log_path = config.working_dir / "system.log"
+        setup_logging(log_path)
+
+        logger = logging.getLogger("mlip_autopipec")
+        logger.info(f"Initializing project: {config.project_name}")
+        logger.info(f"Workspace: {config.working_dir}")
+
+        # 3. Initialize Database
+        db_full_path = config.working_dir / config.db_path
+        db = DatabaseManager(db_full_path)
+        db.initialize(config)
+
+        logger.info("System initialized")
+        console.print("[bold green]SUCCESS:[/bold green] System initialized")
+
+    except Exception as e:
+        console.print(f"[bold red]FAILURE:[/bold red] {e}")
+        # logging.exception("Initialization failed") # Logger might not be setup if error happens early
+        raise typer.Exit(code=1)
 
 @app.command()
 def run(
