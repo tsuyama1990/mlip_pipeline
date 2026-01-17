@@ -1,29 +1,26 @@
 """
 Main CLI application for MLIP-AutoPipe.
 """
+
 import logging
-import webbrowser
 from pathlib import Path
 
 import typer
 from pydantic import ValidationError
 from rich.console import Console
-from rich.logging import RichHandler
 
-from mlip_autopipec.monitoring.dashboard import generate_dashboard
-from mlip_autopipec.services.pipeline import PipelineController
-
-# Configure logging to use Rich
-logging.basicConfig(
-    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
-)
+from mlip_autopipec.config.factory import ConfigFactory
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.core.logging import setup_logging
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 console = Console()
 
+
 @app.callback()
 def main() -> None:
     """MLIP-AutoPipe CLI Entry Point."""
+
 
 @app.command()
 def run(
@@ -37,61 +34,50 @@ def run(
         help="Path to the input.yaml configuration file.",
     ),
 ) -> None:
-    """Execute the MLIP-AutoPipe workflow."""
+    """
+    Execute the MLIP-AutoPipe initialization (Cycle 01).
+    Future cycles will extend this to run the full workflow.
+    """
     try:
-        console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Launching run for {config_file.name}")
-        PipelineController.execute(config_file)
-        console.print("[bold green]SUCCESS:[/bold green] Workflow finished.")
+        console.print(
+            f"[bold blue]MLIP-AutoPipe[/bold blue]: Initializing project from {config_file.name}"
+        )
+
+        # 1. Expand Config
+        # Expand Config
+        config = ConfigFactory.from_yaml(config_file)
+
+        # 2. Setup Logging
+        # Setup Logging
+        setup_logging(config.log_path)
+        log = logging.getLogger("mlip_autopipec")
+        log.info(f"Logging initialized at {config.log_path}")
+
+        # 3. Initialize Database
+        # Initialize Database
+        db_manager = DatabaseManager(config.db_path)
+        db_manager.initialize(config)
+        log.info(f"Database initialized at {config.db_path}")
+
+        console.print(
+            f"[bold green]SUCCESS:[/bold green] System initialized successfully. Working directory: {config.working_dir}"
+        )
+        log.info("System initialized successfully")
+
     except FileNotFoundError as e:
         console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
-        logging.debug("Exception traceback:", exc_info=True)
-        raise typer.Exit(code=1)
+        # logging might not be set up yet, so we use rich console
+        raise typer.Exit(code=1) from e
     except ValidationError as e:
         console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
-        logging.debug("Exception traceback:", exc_info=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
-        logging.exception("Unhandled exception during workflow execution.")
-        raise typer.Exit(code=1)
+        # If logging is setup, log it
+        if logging.getLogger().handlers:
+            logging.exception("Unhandled exception during execution.")
+        raise typer.Exit(code=1) from e
 
-
-@app.command()
-def status(
-    project_dir: Path = typer.Argument(
-        ".",
-        help="Path to the project directory.",
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        resolve_path=True,
-    ),
-    open_browser: bool = typer.Option(
-        True, "--open/--no-open", help="Open the dashboard in a web browser."
-    ),
-) -> None:
-    """Generate and view the project status dashboard."""
-    console.print(f"[bold blue]MLIP-AutoPipe[/bold blue]: Generating dashboard for {project_dir}")
-    try:
-        dashboard_path = generate_dashboard(project_dir)
-        console.print(f"[bold green]SUCCESS:[/bold green] Dashboard generated at {dashboard_path}")
-
-        if open_browser:
-            console.print("Opening dashboard in web browser...")
-            webbrowser.open(f"file://{dashboard_path.absolute()}")
-
-    except FileNotFoundError as e:
-        console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
-        logging.debug("Exception traceback:", exc_info=True)
-        raise typer.Exit(code=1)
-    except RuntimeError as e:
-        console.print(f"[bold red]RUNTIME ERROR:[/bold red] {e}")
-        logging.debug("Exception traceback:", exc_info=True)
-        raise typer.Exit(code=1)
-    except Exception as e:
-        console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
-        logging.exception("Unhandled exception during dashboard generation.")
-        raise typer.Exit(code=1)
 
 if __name__ == "__main__":
     app()

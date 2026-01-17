@@ -2,60 +2,29 @@
 platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
-testpaths: tests
-plugins: mock-3.15.1
-collected 46 items / 1 error
+plugins: mock-3.15.1, cov-7.0.0
+collected 22 items
 
-==================================== ERRORS ====================================
-_______________ ERROR collecting tests/modules/test_explorer.py ________________
-ImportError while importing test module '/app/tests/modules/test_explorer.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-/home/jules/.pyenv/versions/3.12.12/lib/python3.12/importlib/__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/modules/test_explorer.py:17: in <module>
-    from mlip_autopipec.modules.explorer import SurrogateExplorer
-mlip_autopipec/modules/explorer.py:11: in <module>
-    from mlip_autopipec.modules.screening import SurrogateModelScreener
-mlip_autopipec/modules/screening.py:8: in <module>
-    from mace.calculators import mace_mp
-E   ModuleNotFoundError: No module named 'mace'
-=============================== warnings summary ===============================
-tests/modules/test_dft.py:122
-  /app/tests/modules/test_dft.py:122: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
+tests/test_config.py .......                                             [ 31%]
+tests/test_config_factory.py ...                                         [ 45%]
+tests/test_database.py ...                                               [ 59%]
+tests/test_logging.py ..                                                 [ 68%]
+tests/test_app.py ...                                                    [ 81%]
+tests/uat/cycle_01_uat.py ....
+WARNING: Failed to generate report: No data to report.
 
-.venv/lib/python3.12/site-packages/dscribe/core/system.py:192
-  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:192: SyntaxWarning: invalid escape sequence '\l'
-    A_{ij} = \lvert \mathbf{r}_i - \mathbf{r}_j \\rvert
+                                                                         [100%]
 
-.venv/lib/python3.12/site-packages/dscribe/core/system.py:234
-  /app/.venv/lib/python3.12/site-packages/dscribe/core/system.py:234: SyntaxWarning: invalid escape sequence '\l'
-    A_{ij} = \\frac{1}{\lvert \mathbf{r}_i - \mathbf{r}_j \\rvert }
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
-.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/acsf.py:54: SyntaxWarning: invalid escape sequence '\e'
-    g2_params (n*2 np.ndarray): A list of pairs of :math:`\eta` and
+============================== 22 passed in 3.75s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/app/.venv/lib/python3.12/site-packages/coverage/control.py:958: CoverageWarning: No data was collected. (no-data-collected); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-no-data-collected
+  self._warn("No data was collected.", slug="no-data-collected")
+/app/.venv/lib/python3.12/site-packages/pytest_cov/plugin.py:363: CovReportWarning: Failed to generate report: No data to report.
 
-.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/mbtr.py:212: SyntaxWarning: invalid escape sequence '\l'
-    indirectly determine it through :math:`s=-\log()`:.
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:130: SyntaxWarning: invalid escape sequence '\l'
-    indirectly determine it through :math:`s=-\log()`:.
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/lmbtr.py:509: SyntaxWarning: invalid escape sequence '\s'
-    :math:`\sum_{k=0}^{n-1} n + k = n^2+(n-1)*n/2`. This number of
-
-.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81
-  /app/.venv/lib/python3.12/site-packages/dscribe/descriptors/soap.py:81: SyntaxWarning: invalid escape sequence '\s'
-    * ``"gto"``: Spherical gaussian type orbitals defined as :math:`g_{nl}(r) = \sum_{n'=1}^{n_\mathrm{max}}\,\\beta_{nn'l} r^l e^{-\\alpha_{n'l}r^2}`
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-ERROR tests/modules/test_explorer.py
-!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
-========================= 8 warnings, 1 error in 7.40s =========================
+  warnings.warn(CovReportWarning(message), stacklevel=1)
