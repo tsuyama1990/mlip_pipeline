@@ -4,13 +4,23 @@ This ensures type safety and validation at boundaries where raw objects (like as
 are passed between modules.
 """
 
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator
 
 if TYPE_CHECKING:
     from ase import Atoms
 
+def check_3d_vector(v: list[float]) -> list[float]:
+    if len(v) != 3:
+        raise ValueError("Vector must be size 3.")
+    return v
+
+# Type alias for a 3D vector.
+# Using Annotated allows reuse across models.
+# While Pydantic V2 allows 'conlist', manual validation via BeforeValidator or AfterValidator
+# is often preferred for complex checks. Here we enforce length=3.
+Vector3D = Annotated[list[float], Field(min_length=3, max_length=3)]
 
 class TrainingBatch(BaseModel):
     """
@@ -19,7 +29,7 @@ class TrainingBatch(BaseModel):
     """
 
     # Use TYPE_CHECKING string forward reference for Atoms
-    atoms_list: List["Atoms"] = Field(..., description="List of ase.Atoms objects.")
+    atoms_list: list["Atoms"] = Field(..., description="List of ase.Atoms objects.")
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     @field_validator("atoms_list")
@@ -41,3 +51,18 @@ class TrainingBatch(BaseModel):
                 raise TypeError(msg)
 
         return v
+
+
+class TrainingData(BaseModel):
+    """
+    Data model representing a single training point (Structure + Labels).
+    This is what we write to disk (e.g. extxyz) or send to Pacemaker.
+    """
+    structure_uid: str
+    energy: float | None = None
+    # Use nested annotation for list of 3D vectors
+    forces: list[Vector3D] | None = None
+    virial: list[Vector3D] | None = None
+    stress: list[Vector3D] | None = None
+
+    model_config = ConfigDict(extra="forbid")
