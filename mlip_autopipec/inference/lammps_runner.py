@@ -61,6 +61,8 @@ class LammpsRunner:
             ]
 
             logger.info(f"Starting LAMMPS execution: {' '.join(cmd)}")
+            # Security: check=False is intentional, we handle returncode.
+            # shell=False (default) prevents command injection from arguments.
             result = subprocess.run(
                 cmd, check=False, capture_output=True, text=True, cwd=self.work_dir
             )
@@ -74,14 +76,10 @@ class LammpsRunner:
                 logger.info("LAMMPS execution completed successfully.")
                 success = True
 
-        except (subprocess.SubprocessError, OSError):
+        except Exception: # Catch-all for unexpected errors (e.g. permission denied, etc.)
             logger.exception("An error occurred during LAMMPS execution setup or run.")
             success = False
             # Ensure variables are defined if exception occurs before assignment
-            # Though writer.write_inputs usually succeeds or raises.
-            # If writer fails, we might not have file paths.
-            # We can't return paths if they weren't defined.
-            # Initialize defaults
             data_file = self.work_dir / "data.lammps"
             dump_file = self.work_dir / "dump.gamma"
 
