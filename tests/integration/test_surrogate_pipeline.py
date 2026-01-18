@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from ase import Atoms
 import numpy as np
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult, RejectionInfo
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def test_surrogate_pipeline_run(mock_mace_client, mock_descriptor_calc, mock_sam
 
     # Mock MaceClient
     client_instance = mock_mace_client.return_value
-    client_instance.filter_unphysical.return_value = (kept_candidates, [{"index": 1}])
+    client_instance.filter_unphysical.return_value = (kept_candidates, [RejectionInfo(index=1, max_force=100.0, reason="test")])
 
     # Mock DescriptorCalculator
     calc_instance = mock_descriptor_calc.return_value
@@ -82,10 +82,22 @@ def test_surrogate_pipeline_all_filtered(mock_mace_client):
     pipeline = SurrogatePipeline(config)
 
     client_instance = mock_mace_client.return_value
-    client_instance.filter_unphysical.return_value = ([], [{'index': 0}])
+    client_instance.filter_unphysical.return_value = ([], [RejectionInfo(index=0, max_force=100.0, reason="test")])
 
     candidates = [Atoms('H')]
     selected, result = pipeline.run(candidates)
 
     assert selected == []
     assert result.selected_indices == []
+
+def test_surrogate_pipeline_failure(mock_mace_client):
+    config = SurrogateConfig()
+    pipeline = SurrogatePipeline(config)
+
+    client_instance = mock_mace_client.return_value
+    client_instance.filter_unphysical.side_effect = RuntimeError("Prediction failed")
+
+    candidates = [Atoms('H')]
+    with pytest.raises(RuntimeError) as excinfo:
+        pipeline.run(candidates)
+    assert "Surrogate pipeline execution failed" in str(excinfo.value)

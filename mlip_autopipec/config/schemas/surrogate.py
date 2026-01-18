@@ -15,3 +15,10 @@ class SelectionResult(BaseModel):
 
     selected_indices: List[int] = Field(description="Indices of selected structures")
     scores: List[float] = Field(description="Distance scores for selected structures")
+
+class RejectionInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    index: int = Field(..., description="Index of the rejected structure")
+    max_force: float = Field(..., description="Maximum force encountered in the structure")
+    reason: str = Field(..., description="Reason for rejection")
