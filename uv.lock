@@ -954,6 +954,8 @@ dependencies = [
     { name = "pytest-mock" },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "typer" },
 ]
 
@@ -987,6 +989,8 @@ requires-dist = [
     { name = "pytest-mock" },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "scipy", specifier = ">=1.17.0" },
     { name = "typer" },
 ]
 provides-extras = ["dev"]
