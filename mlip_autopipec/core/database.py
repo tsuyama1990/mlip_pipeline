@@ -8,7 +8,11 @@ import numpy as np
 from ase.db.core import Database
 from pydantic import ValidationError
 
-from mlip_autopipec.config.models import DFTResult, SystemConfig, TrainingData
+# Import Data Models directly from their source, not via config facade
+from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.config.schemas.system import SystemConfig
+from mlip_autopipec.config.schemas.training import TrainingData
+
 from mlip_autopipec.exceptions import DatabaseError
 
 

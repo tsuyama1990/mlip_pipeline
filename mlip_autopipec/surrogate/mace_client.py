@@ -1,9 +1,12 @@
+import logging
 import os
 
 import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.surrogate import RejectionInfo, SurrogateConfig
+
+logger = logging.getLogger(__name__)
 
 
 class MaceClient:
@@ -41,9 +44,6 @@ class MaceClient:
                 # Resolve absolute path
                 abs_path = os.path.abspath(model_path)
                 # Check if it tries to go up levels inappropriately or access sensitive dirs.
-                # A simple heuristic: ensure it doesn't contain '..' segments that resolve outside
-                # expected areas. But 'medium' is not a path.
-                # For this implementation, we just ensure no '..' traversal if it's a path.
                 if ".." in model_path:
                      raise ValueError("Path traversal attempt detected in model_path.")
 
@@ -53,15 +53,10 @@ class MaceClient:
                 self.model = mace_mp(model=model_path, device=self.device, default_dtype="float32")
 
             except (ImportError, Exception) as e:
-                # We log this in a real system. For now, we print or let it be None.
-                # If loading fails, predict_forces will raise RuntimeError.
-                # This allow running tests without mace installed if mocked.
-                # IMPORTANT: If ValueError was raised above (security check), it is caught here
-                # as Exception. We must re-raise it if it is a security violation.
                 if isinstance(e, ValueError) and "Path traversal" in str(e):
                     raise e
 
-                print(f"Warning: Failed to load MACE model: {e}")
+                logger.warning(f"Failed to load MACE model: {e}")
                 self.model = None
 
     def predict_forces(self, atoms_list: list[Atoms]) -> list[np.ndarray]:
@@ -95,13 +90,11 @@ class MaceClient:
                 forces = atoms.get_forces()
                 forces_list.append(forces)
             except Exception as e:
-                # Refine Exception handling
-                # We catch specific errors if known, but ASE calc often raises generic Exception or Calculator-specific ones.
-                # We log the specific structure failure context.
+                # Log full exception
+                logger.exception(f"Force calculation failed for structure {atoms}")
                 raise RuntimeError(f"Force calculation failed for structure {atoms}: {e}") from e
             finally:
-                # Restore original calculator? Or leave it?
-                # Usually we don't want to side-effect the input too much.
+                # Restore original calculator
                 atoms.calc = original_calc
 
         return forces_list
@@ -129,16 +122,14 @@ class MaceClient:
             forces_list = self.predict_forces(atoms_list)
         except Exception as e:
             # Re-raise with context
+            logger.exception("Pre-screening prediction failed")
             raise RuntimeError(f"Pre-screening prediction failed: {e}") from e
 
         for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
             # Robustness check: Ensure forces array is valid
             if forces is None:
-                # Should not happen if predict_forces works, but defensive coding
-                max_force = float('inf') # Treat as error/high force
+                max_force = float('inf')
             elif forces.size == 0:
-                # Handle empty structure or calculation error returning empty
-                # Usually get_forces returns (N, 3), if N=0 max raises error.
                 max_force = 0.0
             else:
                 force_norms = np.linalg.norm(forces, axis=1)

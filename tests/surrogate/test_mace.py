@@ -14,44 +14,35 @@ def mock_mace_model():
         yield mock_load
 
 def test_mace_client_initialization():
+    """Test that MaceClient initializes with config."""
     config = SurrogateConfig(device="cpu", model_path="medium")
     # We don't want to actually load the model in tests
     with patch('mlip_autopipec.surrogate.mace_client.MaceClient._load_model'):
         client = MaceClient(config)
         assert client.config == config
+        assert client.model is None # Initially None
+
+def test_mace_client_load_model_success():
+    """Test successful model loading (mocked)."""
+    config = SurrogateConfig(device="cpu")
+    client = MaceClient(config)
+
+    with patch('mace.calculators.mace_mp') as mock_mace:
+        mock_mace.return_value = "MockedModel"
+        client._load_model()
+        assert client.model == "MockedModel"
 
 def test_mace_client_path_traversal():
     # Test path traversal prevention
     config = SurrogateConfig(model_path="../etc/passwd")
     client = MaceClient(config)
 
-    # We expect _load_model to print warning and set model to None because it catches the ValueError.
-    # The current implementation:
-    # if ".." in model_path: raise ValueError
-    # except Exception: print warning
-
-    # Let's verify it behaves safely (no model loaded)
-    # Actually, in the last write_file, I used "if '..' in model_path: raise ValueError"
-    # And then "except (ImportError, Exception) as e:"
-    # However, Exception might not be catching ValueError correctly if it propagates up or if
-    # the security check logic was updated to raise directly.
-    # The traceback showed:
-    # E ValueError: Path traversal attempt detected in model_path.
-
-    # This means the exception was NOT caught inside _load_model, or my previous analysis was wrong.
-    # Code in `_load_model`:
-    # if ".." in model_path: raise ValueError(...)
-    # try: ... except ...
-
-    # The `if` check is OUTSIDE the `try...except` block in `mace_client.py`.
-    # Therefore it raises.
-
     with pytest.raises(ValueError, match="Path traversal"):
         client._load_model()
     assert client.model is None
 
 def test_predict_forces_explicit():
-    """Explicitly test predict_forces method as requested by audit."""
+    """Explicitly test predict_forces method."""
     config = SurrogateConfig(device="cpu")
     atoms_list = [Atoms('H'), Atoms('H')]
     expected_forces = [np.array([[0.0, 0.0, 0.1]]), np.array([[0.0, 0.0, 0.2]])]
@@ -59,14 +50,15 @@ def test_predict_forces_explicit():
     client = MaceClient(config)
     # Mock model
     client.model = MagicMock()
-    # Mock atoms.get_forces() side effect on the calculator call?
-    # Actually client.predict_forces calls atoms.get_forces().
-    # atoms.get_forces() calls self.calc.get_forces(self).
+    # When atoms.get_forces() is called, ASE delegates to client.model.get_forces(atoms) usually
+    # But here we are swapping calculator.
+    # The simplest way to mock this is to mock atoms.get_forces, but atoms is created inside test.
+    # Actually, we can just assume ASE works and mock what the model returns.
 
-    # Let's mock the atoms list to return specific forces when get_forces is called
-    # Or mock the model's get_forces method if ASE delegates to it.
-    # ASE's atoms.get_forces() -> calc.get_forces(atoms)
+    # We need to ensure that when we attach client.model to atoms, atoms.get_forces() returns what we want.
+    # atoms.get_forces() calls self.calc.get_forces(self) -> self.calc.calculate(...) -> results['forces']
 
+    # Let's mock get_forces on the model directly.
     client.model.get_forces.side_effect = expected_forces
 
     # We also need to mock _load_model so it doesn't overwrite our mock model

@@ -3,14 +3,21 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 23 items
+collected 29 items
 
-tests/training/test_config_gen.py ..                                     [  8%]
-tests/training/test_dataset.py .....                                     [ 30%]
-tests/training/test_pacemaker.py ....                                    [ 47%]
-tests/training/test_physics.py ....                                      [ 65%]
-tests/unit/test_training_schemas.py ........                             [100%]
+tests/training/test_config_gen.py ..                                     [  6%]
+tests/training/test_dataset.py .....                                     [ 24%]
+tests/training/test_pacemaker.py ....                                    [ 37%]
+tests/training/test_physics.py ....                                      [ 51%]
+tests/unit/test_training_schemas.py ........                             [ 79%]
+tests/surrogate/test_mace.py ......                                      [100%]
 
+=============================== warnings summary ===============================
+tests/surrogate/test_mace.py::test_mace_client_load_model_success
+  /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+    _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
@@ -31,14 +38,14 @@ mlip_autopipec/config/schemas/surrogate.py         37      6    84%   48-53
 mlip_autopipec/config/schemas/system.py            65     15    77%   62, 67-82
 mlip_autopipec/config/schemas/training.py          75      5    93%   56-59, 93
 mlip_autopipec/core/__init__.py                     0      0   100%
-mlip_autopipec/core/database.py                   104     85    18%   22-23, 30-48, 55-71, 77-84, 96-103, 115-128, 138-167, 175-200
+mlip_autopipec/core/database.py                   106     85    20%   26-27, 34-52, 59-75, 81-88, 100-107, 119-132, 142-171, 179-204
 mlip_autopipec/core/logging.py                     18     18     0%   5-47
 mlip_autopipec/core/workspace.py                   13     13     0%   1-25
 mlip_autopipec/data/__init__.py                     0      0   100%
 mlip_autopipec/data/database.py                    23     23     0%   7-73
 mlip_autopipec/data_models/__init__.py              1      0   100%
 mlip_autopipec/data_models/dft_models.py           35      8    77%   33-35, 41-45
-mlip_autopipec/data_models/training_data.py        21      5    76%   26-28, 31-32
+mlip_autopipec/data_models/training_data.py        21      5    76%   34-36, 39-40
 mlip_autopipec/dft/__init__.py                      0      0   100%
 mlip_autopipec/dft/constants.py                     3      3     0%   1-91
 mlip_autopipec/dft/inputs.py                       57     57     0%   1-166
@@ -66,7 +73,7 @@ mlip_autopipec/monitoring/dashboard.py             63     63     0%   1-115
 mlip_autopipec/surrogate/__init__.py                0      0   100%
 mlip_autopipec/surrogate/candidate_manager.py      14     14     0%   2-36
 mlip_autopipec/surrogate/descriptors.py            30     30     0%   1-83
-mlip_autopipec/surrogate/mace_client.py            58     58     0%   1-156
+mlip_autopipec/surrogate/mace_client.py            62     11    82%   55-60, 77, 92-95, 131, 133
 mlip_autopipec/surrogate/pipeline.py               54     54     0%   1-116
 mlip_autopipec/surrogate/sampling.py               28     28     0%   1-76
 mlip_autopipec/training/__init__.py                 4      0   100%
@@ -83,5 +90,5 @@ mlip_autopipec/utils/resilience.py                 29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py             32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                106    106     0%   1-191
 -----------------------------------------------------------------------------
-TOTAL                                            2562   1904    26%
-============================== 23 passed in 3.90s ==============================
+TOTAL                                            2568   1857    28%
+======================== 29 passed, 1 warning in 14.07s ========================
