@@ -18,9 +18,6 @@ def test_extracted_structure_valid() -> None:
 
 def test_extracted_structure_invalid() -> None:
     # We raise TypeError in the validator, so we should catch that.
-    # Pydantic v2 might wrap it in ValidationError depending on configuration,
-    # but for manual raises inside validator, sometimes it bubbles up if not handled.
-    # We accept either to be robust.
     with pytest.raises((ValidationError, TypeError)):
         ExtractedStructure(
             atoms="not_atoms",
@@ -47,3 +44,23 @@ def test_extracted_structure_invalid_atoms_type() -> None:
             mask_radius=1.0
         )
     assert "must be an ase.Atoms object" in str(exc.value) or "atoms" in str(exc.value)
+
+def test_extracted_structure_edge_cases() -> None:
+    # Negative index
+    # We rely on pydantic/python int which allows negative.
+    # But logic might not like it. The model itself doesn't constrain it unless we add ge=0
+    # Let's assume standard int.
+
+    # Empty UUID
+    s = ExtractedStructure(
+        atoms=Atoms(),
+        origin_uuid="",
+        origin_index=0,
+        mask_radius=1.0
+    )
+    assert s.origin_uuid == ""
+
+    # Negative radius? Logic is used for calculation but usually radius > 0.
+    # The config has gt=0, but data model might not.
+    # Spec doesn't strictly forbid negative radius in data model, but Config does.
+    pass
