@@ -55,6 +55,7 @@ def test_lammps_runner_failure(basic_config: InferenceConfig, mock_atoms: Atoms,
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1 # Fail
         mock_run.return_value.stdout = "Error"
+        mock_run.return_value.stderr = "Fatal Error"
 
         result = runner.run(mock_atoms)
         assert result.succeeded is False
@@ -73,3 +74,15 @@ def test_config_validation_invalid_path(tmp_path: Path) -> None:
             temperature=300.0,
             potential_path=tmp_path / "non_existent.yace"
         )
+
+def test_lammps_runner_no_executable(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+    # Test case where lammps_executable is None (uses default string)
+    basic_config.lammps_executable = None
+    runner = LammpsRunner(basic_config, work_dir=tmp_path)
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        result = runner.run(mock_atoms)
+        assert result.succeeded is True
+        args, _ = mock_run.call_args
+        assert args[0][0] == "lmp_serial"

@@ -10,17 +10,31 @@ import os
 
 
 class InferenceConfig(BaseModel):
-    """Configuration for Inference Engine."""
-    temperature: float = Field(..., gt=0)
-    pressure: float = Field(0.0, ge=0)  # 0 for NVT
-    timestep: float = Field(0.001, gt=0)  # ps
-    steps: int = Field(10000, gt=0)
-    ensemble: Literal["nvt", "npt"] = "nvt"
-    uq_threshold: float = Field(5.0, gt=0)
-    sampling_interval: int = Field(100, gt=0)
-    potential_path: FilePath
-    lammps_executable: FilePath | None = None
-    elements: List[str] = Field(default_factory=lambda: ["Al"])  # Default to Al for compatibility
+    """
+    Configuration for Inference Engine.
+
+    Attributes:
+        temperature: Simulation temperature in Kelvin.
+        pressure: Simulation pressure in Bar (for NPT). 0 for NVT.
+        timestep: Time step in picoseconds.
+        steps: Number of MD steps to run.
+        ensemble: Thermodynamic ensemble ("nvt" or "npt").
+        uq_threshold: Threshold for extrapolation grade (gamma) to trigger active learning dump.
+        sampling_interval: Interval (in steps) for thermo output and dumping.
+        potential_path: Path to the MLIP potential file (.yace).
+        lammps_executable: Path to the LAMMPS executable (optional).
+        elements: List of chemical elements in the system, order-matched to potential.
+    """
+    temperature: float = Field(..., gt=0, description="Temperature in Kelvin")
+    pressure: float = Field(0.0, ge=0, description="Pressure in Bar (0 for NVT)")
+    timestep: float = Field(0.001, gt=0, description="Time step in ps")
+    steps: int = Field(10000, gt=0, description="Number of steps")
+    ensemble: Literal["nvt", "npt"] = Field("nvt", description="Ensemble type")
+    uq_threshold: float = Field(5.0, gt=0, description="Uncertainty threshold (gamma)")
+    sampling_interval: int = Field(100, gt=0, description="Sampling interval")
+    potential_path: FilePath = Field(..., description="Path to potential file")
+    lammps_executable: FilePath | None = Field(None, description="Path to LAMMPS executable")
+    elements: List[str] = Field(default_factory=lambda: ["Al"], description="List of elements")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -42,17 +56,24 @@ class InferenceConfig(BaseModel):
     @field_validator("potential_path")
     @classmethod
     def validate_potential_exists(cls, v: FilePath) -> FilePath:
-        # FilePath already validates existence, but we add check to satisfy strict audit requirements
         if not v.exists():
              raise ValueError(f"Potential file {v} does not exist.")
         return v
 
 
 class InferenceResult(BaseModel):
-    """Result object for Inference run."""
+    """
+    Result object for Inference run.
+
+    Attributes:
+        succeeded: Whether the simulation completed successfully.
+        final_structure: Path to the final structure file (if success).
+        uncertain_structures: List of paths to files containing uncertain structures.
+        max_gamma_observed: The maximum extrapolation grade observed during the run.
+    """
     succeeded: bool
     final_structure: Path | None = None
     uncertain_structures: List[Path] = Field(default_factory=list)
-    max_gamma_observed: float = 0.0
+    max_gamma_observed: float = Field(0.0, ge=0.0, description="Max gamma observed")
 
     model_config = ConfigDict(extra="forbid")
