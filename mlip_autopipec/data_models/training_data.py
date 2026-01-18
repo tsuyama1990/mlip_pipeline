@@ -16,8 +16,11 @@ def check_3d_vector(v: list[float]) -> list[float]:
         raise ValueError("Vector must be size 3.")
     return v
 
-# Type alias for a 3D vector
-Vector3D = Annotated[list[float], BeforeValidator(check_3d_vector)]
+# Type alias for a 3D vector.
+# Using Annotated allows reuse across models.
+# While Pydantic V2 allows 'conlist', manual validation via BeforeValidator or AfterValidator
+# is often preferred for complex checks. Here we enforce length=3.
+Vector3D = Annotated[list[float], Field(min_length=3, max_length=3)]
 
 class TrainingBatch(BaseModel):
     """
@@ -59,12 +62,7 @@ class TrainingData(BaseModel):
     energy: float | None = None
     # Use nested annotation for list of 3D vectors
     forces: list[Vector3D] | None = None
-    virial: list[Vector3D] | None = None # Virial typically 3x3? But sometimes contracted. Spec says list[list[float]].
-    # Wait, stress is 3x3. Virial is also tensor.
-    # The previous code assumed list[list[float]].
-    # Let's keep it consistent.
+    virial: list[Vector3D] | None = None
     stress: list[Vector3D] | None = None
 
     model_config = ConfigDict(extra="forbid")
-
-    # We replaced the explicit validator with the Type Annotation 'Vector3D'

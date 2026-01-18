@@ -19,8 +19,9 @@ def test_training_data_invalid_forces_shape() -> None:
             structure_uid="uid-2",
             forces=[[0.0, 0.0]] # 2D vector, invalid
         )
-    # The error message from Annotated validator inside Pydantic
-    assert "Vector must be size 3" in str(exc.value)
+    # The error message from Pydantic when using min_length in Field/Annotated
+    # usually mentions "List should have at least 3 items"
+    assert "List should have at least 3 items" in str(exc.value)
 
 def test_training_data_forces_none_allowed() -> None:
     data = TrainingData(structure_uid="uid-3")
