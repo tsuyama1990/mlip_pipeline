@@ -1,7 +1,10 @@
-import pytest
 from pathlib import Path
-from mlip_autopipec.inference.inputs import ScriptGenerator
+
+import pytest
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.inference.inputs import ScriptGenerator
+
 
 @pytest.fixture
 def basic_config(tmp_path: Path) -> InferenceConfig:
@@ -31,7 +34,7 @@ def test_generate_script_nvt(basic_config: InferenceConfig, tmp_path: Path) -> N
     assert "atom_style atomic" in script
     # Implementation resolves path, so check for resolved path
     assert f"read_data {Path('data.lammps').resolve()}" in script
-    assert f"pair_style pace" in script
+    assert "pair_style pace" in script
     assert f"pair_coeff * * {basic_config.potential_path.resolve()} Al" in script
     assert "fix 1 all nvt temp 1000.0 1000.0 0.2" in script
     assert "timestep 0.002" in script

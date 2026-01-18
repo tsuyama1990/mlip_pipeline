@@ -1,8 +1,16 @@
+"""
+Script Generator Module.
+
+This module provides the ScriptGenerator class for creating LAMMPS input scripts.
+"""
+
 from pathlib import Path
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 
+
 class ScriptGenerator:
-    def __init__(self, config: InferenceConfig):
+    def __init__(self, config: InferenceConfig) -> None:
         self.config = config
 
     def generate(self, atoms_file: Path, potential_path: Path, dump_file: Path) -> str:
@@ -15,7 +23,8 @@ class ScriptGenerator:
             pdamp = self.config.timestep * 1000
             fix_cmd = f"fix 1 all npt temp {self.config.temperature} {self.config.temperature} {tdamp} iso {self.config.pressure} {self.config.pressure} {pdamp}"
         else:
-            raise ValueError(f"Unsupported ensemble: {self.config.ensemble}")
+            msg = f"Unsupported ensemble: {self.config.ensemble}"
+            raise ValueError(msg)
 
         # Construct pair_coeff string dynamically
         # pair_coeff * * potential_path Element1 Element2 ...

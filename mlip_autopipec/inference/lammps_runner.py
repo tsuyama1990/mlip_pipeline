@@ -1,14 +1,15 @@
-import shutil
 import subprocess
 from pathlib import Path
+
 from ase.atoms import Atoms
 from ase.io import write
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig, InferenceResult
 from mlip_autopipec.inference.inputs import ScriptGenerator
-from mlip_autopipec.inference.analysis import AnalysisUtils
+
 
 class LammpsRunner:
-    def __init__(self, config: InferenceConfig, work_dir: Path):
+    def __init__(self, config: InferenceConfig, work_dir: Path) -> None:
         self.config = config
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -44,7 +45,7 @@ class LammpsRunner:
         try:
             result = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=self.work_dir)
             success = (result.returncode == 0)
-        except Exception:
+        except (subprocess.SubprocessError, OSError):
             success = False
 
         # 4. Process Results
