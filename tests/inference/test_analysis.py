@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from mlip_autopipec.inference.analysis import AnalysisUtils
 
 
@@ -20,3 +22,9 @@ Loop time of 1.0
     assert stats["temperature_mean"] == 300.0
     assert stats["pressure_mean"] == 0.0
     assert stats["steps"] == 3
+
+def test_analysis_utils_missing_file(tmp_path: Path) -> None:
+    log_file = tmp_path / "missing.log"
+    analysis = AnalysisUtils(log_file)
+    with pytest.raises(FileNotFoundError):
+        analysis.get_thermo_stats()

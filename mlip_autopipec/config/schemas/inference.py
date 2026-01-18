@@ -1,7 +1,13 @@
-from pathlib import Path
-from typing import Literal, List
+"""
+This module contains the schemas for the Inference Engine configuration.
+"""
+
+from typing import List, Literal
+from pathlib import Path  # Add missing import
+
 from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
 import os
+
 
 class InferenceConfig(BaseModel):
     temperature: float = Field(..., gt=0)
@@ -13,7 +19,7 @@ class InferenceConfig(BaseModel):
     sampling_interval: int = Field(100, gt=0)
     potential_path: FilePath
     lammps_executable: FilePath | None = None
-    elements: List[str] = Field(default_factory=lambda: ["Al"]) # Default to Al for compatibility
+    elements: List[str] = Field(default_factory=lambda: ["Al"])  # Default to Al for compatibility
 
     model_config = ConfigDict(extra="forbid")
 
@@ -21,7 +27,7 @@ class InferenceConfig(BaseModel):
     @classmethod
     def validate_pressure_for_npt(cls, v: float, info) -> float:
         if info.data.get("ensemble") == "npt" and v <= 0 and info.data.get("pressure", 0) == 0:
-             pass
+            pass
         return v
 
     @field_validator("lammps_executable")
@@ -32,10 +38,11 @@ class InferenceConfig(BaseModel):
                 raise ValueError(f"File at {v} is not executable.")
         return v
 
+
 class InferenceResult(BaseModel):
     succeeded: bool
-    final_structure: Path
-    uncertain_structures: List[Path]  # Paths to extracted frames
-    max_gamma_observed: float
+    final_structure: Path | None = None
+    uncertain_structures: List[Path] = Field(default_factory=list)
+    max_gamma_observed: float = 0.0
 
     model_config = ConfigDict(extra="forbid")

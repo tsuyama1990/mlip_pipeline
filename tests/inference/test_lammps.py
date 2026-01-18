@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 from ase.atoms import Atoms
+from pydantic import ValidationError
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.inference.lammps_runner import LammpsRunner
@@ -34,6 +35,7 @@ def test_lammps_runner_execution_success(basic_config: InferenceConfig, mock_ato
         result = runner.run(mock_atoms)
 
         assert result.succeeded is True
+        assert result.final_structure is not None
         assert (tmp_path / "in.lammps").exists()
         assert (tmp_path / "data.lammps").exists()
 
@@ -53,6 +55,15 @@ def test_lammps_runner_failure(basic_config: InferenceConfig, mock_atoms: Atoms,
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1 # Fail
         mock_run.return_value.stdout = "Error"
+        mock_run.return_value.stderr = "Fatal Error"
 
         result = runner.run(mock_atoms)
         assert result.succeeded is False
+        assert result.final_structure is None
+
+def test_config_validation_invalid_path(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError):
+        InferenceConfig(
+            temperature=300.0,
+            potential_path=tmp_path / "non_existent.yace"
+        )
