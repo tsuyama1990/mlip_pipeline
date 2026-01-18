@@ -1,3 +1,12 @@
+"""
+User Acceptance Test (UAT) for Cycle 05: Active Learning & Training.
+
+This script validates the key requirements:
+1. Dataset export from database with correct ZBL baseline subtraction.
+2. Respect for force masking (weights) in training data.
+3. Correct generation of Pacemaker configuration files (input.yaml).
+4. End-to-end execution of the Pacemaker training wrapper (mocked subprocess).
+"""
 
 import gzip
 import pickle
@@ -17,7 +26,7 @@ from mlip_autopipec.training.config_gen import TrainConfigGenerator
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
-# ANSI Colors
+# ANSI Colors for Output
 GREEN = "\033[92m"
 RED = "\033[91m"
 RESET = "\033[0m"
@@ -30,17 +39,18 @@ def run_uat():
     work_dir.mkdir()
 
     try:
-        # --- UAT-05-01: Dataset Export & Delta Learning ---
+        # ---------------------------------------------------------------------
+        # Scenario 1: Dataset Export & Delta Learning
+        # Goal: Verify that ZBL energy is correctly subtracted from DFT energy.
+        # ---------------------------------------------------------------------
         print("\n--- UAT-05-01: Dataset Export & Delta Learning ---")
 
-        # Setup mock DB with synthetic data
-        # H-H at 0.5A (repulsive). ZBL should be high.
+        # Setup mock DB with synthetic data: H-H at 0.5A (repulsive).
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.5]])
-        # DFT Energy = 200.0 eV
+        # Set a high DFT Energy = 200.0 eV
         atoms.calc = SinglePointCalculator(atoms, energy=200.0, forces=np.zeros((2, 3)))
 
         mock_db = Mock(spec=DatabaseManager)
-        # Fix: Mock get_atoms instead of select, as we updated the implementation
         mock_db.get_atoms.return_value = [atoms]
 
         dataset_builder = DatasetBuilder(mock_db)
@@ -52,10 +62,8 @@ def run_uat():
             atoms_list = pickle.load(f)
 
         at = atoms_list[0]
-        # ZBL for H-H at 0.5A is roughly ~28 eV * phi(2.13).
-        # Let's just check that energy in file != 200.0 (subtracted)
-        # And specifically, it should be significantly lower because ZBL is positive.
 
+        # Verify ZBL Subtraction: New E = DFT E - ZBL E
         delta_e = at.info["energy"]
         zbl_e = at.info["zbl_energy"]
 
@@ -69,9 +77,12 @@ def run_uat():
              print(f"{RED}❌ Delta Learning Failed.{RESET}")
              sys.exit(1)
 
-        # --- UAT-05-04: Masking Respect ---
+        # ---------------------------------------------------------------------
+        # Scenario 2: Masking Respect
+        # Goal: Verify that atoms with `force_mask` array get a corresponding `weights` array.
+        # ---------------------------------------------------------------------
         print("\n--- UAT-05-04: Masking Respect ---")
-        # Reuse DB but modify atoms
+
         at_masked = atoms.copy()
         at_masked.set_array("force_mask", np.array([1, 0]))
         at_masked.calc = SinglePointCalculator(at_masked, energy=200.0, forces=np.zeros((2, 3)))
@@ -91,10 +102,12 @@ def run_uat():
              print(f"Weights: {at.arrays.get('weights')}")
              sys.exit(1)
 
-        # --- UAT-05-02: Pacemaker Configuration ---
+        # ---------------------------------------------------------------------
+        # Scenario 3: Pacemaker Configuration
+        # Goal: Verify that Jinja2 templates render the correct values from TrainConfig.
+        # ---------------------------------------------------------------------
         print("\n--- UAT-05-02: Pacemaker Configuration ---")
 
-        # Setup template
         template_dir = work_dir / "templates"
         template_dir.mkdir(exist_ok=True)
         template_path = template_dir / "input.yaml.j2"
@@ -111,7 +124,6 @@ loss:
         config_gen = TrainConfigGenerator(template_path)
         config = TrainConfig(cutoff=5.5, loss_weights={"energy": 1.0, "forces": 50.0, "stress": 10.0})
 
-        # Need dummy data path
         dummy_data = work_dir / "train.pckl.gzip"
         output_pot = work_dir / "output.yace"
 
@@ -127,12 +139,15 @@ loss:
              print(yaml_content)
              sys.exit(1)
 
-        # --- UAT-05-03: Training Execution & Monitoring ---
+        # ---------------------------------------------------------------------
+        # Scenario 4: Training Execution & Monitoring
+        # Goal: Verify the PacemakerWrapper runs the full flow and parses logs correctly.
+        # ---------------------------------------------------------------------
         print("\n--- UAT-05-03: Training Execution & Monitoring ---")
 
         wrapper = PacemakerWrapper(executable="pacemaker")
 
-        # We must mock subprocess because we don't have pacemaker installed
+        # Mock the subprocess call since Pacemaker is not installed
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.stdout = """
             ...
@@ -142,7 +157,7 @@ loss:
             """
             mock_run.return_value.returncode = 0
 
-            # Create dummy output yace
+            # Create dummy output file to simulate successful training
             output_pot.touch()
 
             result = wrapper.train(config, dataset_builder, config_gen, work_dir, generation=1)

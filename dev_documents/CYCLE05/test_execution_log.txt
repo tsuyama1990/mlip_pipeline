@@ -66,12 +66,12 @@ mlip_autopipec/monitoring/dashboard.py             63     63     0%   1-115
 mlip_autopipec/surrogate/__init__.py                0      0   100%
 mlip_autopipec/surrogate/candidate_manager.py      14     14     0%   2-36
 mlip_autopipec/surrogate/descriptors.py            30     30     0%   1-83
-mlip_autopipec/surrogate/mace_client.py            56     56     0%   1-152
+mlip_autopipec/surrogate/mace_client.py            58     58     0%   1-156
 mlip_autopipec/surrogate/pipeline.py               54     54     0%   1-116
 mlip_autopipec/surrogate/sampling.py               28     28     0%   1-76
 mlip_autopipec/training/__init__.py                 4      0   100%
 mlip_autopipec/training/config_gen.py              16      0   100%
-mlip_autopipec/training/dataset.py                 83     11    87%   114-115, 118-119, 130-132, 151, 173, 176-177
+mlip_autopipec/training/dataset.py                 96     12    88%   91-92, 95-96, 109-111, 130, 146-147, 196-197
 mlip_autopipec/training/pacemaker.py               92     20    78%   93-95, 100-102, 124-126, 151-153, 178-179, 189-197
 mlip_autopipec/training/physics.py                 39      0   100%
 mlip_autopipec/utils/__init__.py                    0      0   100%
@@ -83,5 +83,5 @@ mlip_autopipec/utils/resilience.py                 29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py             32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                106    106     0%   1-191
 -----------------------------------------------------------------------------
-TOTAL                                            2547   1901    25%
-============================== 23 passed in 2.87s ==============================
+TOTAL                                            2562   1904    26%
+============================== 23 passed in 3.90s ==============================

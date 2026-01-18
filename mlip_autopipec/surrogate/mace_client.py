@@ -132,8 +132,12 @@ class MaceClient:
             raise RuntimeError(f"Pre-screening prediction failed: {e}") from e
 
         for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
-            if forces.size == 0:
-                # Handle empty structure or calculation error
+            # Robustness check: Ensure forces array is valid
+            if forces is None:
+                # Should not happen if predict_forces works, but defensive coding
+                max_force = float('inf') # Treat as error/high force
+            elif forces.size == 0:
+                # Handle empty structure or calculation error returning empty
                 # Usually get_forces returns (N, 3), if N=0 max raises error.
                 max_force = 0.0
             else:
