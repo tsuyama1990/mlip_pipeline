@@ -1,14 +1,16 @@
 import logging
-from typing import List, Tuple, Optional
-from ase import Atoms
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult, RejectionInfo
-from mlip_autopipec.surrogate.mace_client import MaceClient
-from mlip_autopipec.surrogate.descriptors import DescriptorCalculator
-from mlip_autopipec.surrogate.sampling import FPSSampler
-from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+
 import numpy as np
+from ase import Atoms
+
+from mlip_autopipec.config.schemas.surrogate import SelectionResult, SurrogateConfig
+from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+from mlip_autopipec.surrogate.descriptors import DescriptorCalculator
+from mlip_autopipec.surrogate.mace_client import MaceClient
+from mlip_autopipec.surrogate.sampling import FPSSampler
 
 logger = logging.getLogger(__name__)
+
 
 class SurrogatePipeline:
     """
@@ -30,7 +32,7 @@ class SurrogatePipeline:
         self.descriptor_calc = DescriptorCalculator(config.descriptor_config)
         self.sampler = FPSSampler()
 
-    def run(self, candidates: List[Atoms]) -> Tuple[List[Atoms], SelectionResult]:
+    def run(self, candidates: list[Atoms]) -> tuple[list[Atoms], SelectionResult]:
         """
         Executes the surrogate pipeline on a list of candidate structures.
 
@@ -69,10 +71,7 @@ class SurrogatePipeline:
                 kept_atoms, selected_indices_local
             )
 
-            result = SelectionResult(
-                selected_indices=original_indices,
-                scores=scores
-            )
+            result = SelectionResult(selected_indices=original_indices, scores=scores)
 
             return selected_structures, result
 
@@ -80,7 +79,7 @@ class SurrogatePipeline:
             logger.error(f"Surrogate pipeline execution failed: {e}", exc_info=True)
             raise RuntimeError(f"Surrogate pipeline execution failed: {e}") from e
 
-    def _execute_prescreening(self, candidates: List[Atoms]) -> List[Atoms]:
+    def _execute_prescreening(self, candidates: list[Atoms]) -> list[Atoms]:
         """Runs MACE pre-screening."""
         logger.debug("Running MACE pre-screening...")
         kept_atoms, rejected_info = self.mace_client.filter_unphysical(candidates)
@@ -88,14 +87,16 @@ class SurrogatePipeline:
         logger.info(f"Pre-screening complete. Kept {len(kept_atoms)}/{len(candidates)} structures.")
 
         if rejected_info:
-             logger.info(f"Rejected {len(rejected_info)} structures. Sample reason: {rejected_info[0].reason}")
+            logger.info(
+                f"Rejected {len(rejected_info)} structures. Sample reason: {rejected_info[0].reason}"
+            )
 
         if len(kept_atoms) == 0:
             logger.warning("No candidates passed pre-screening.")
 
         return kept_atoms
 
-    def _execute_featurization(self, kept_atoms: List[Atoms]) -> np.ndarray:
+    def _execute_featurization(self, kept_atoms: list[Atoms]) -> np.ndarray:
         """Computes descriptors."""
         logger.debug("Calculating descriptors...")
         try:
@@ -104,12 +105,14 @@ class SurrogatePipeline:
         except Exception as e:
             raise RuntimeError(f"Descriptor calculation failed: {e}") from e
 
-    def _execute_selection(self, descriptors: np.ndarray, pool_size: int) -> Tuple[List[int], List[float]]:
+    def _execute_selection(
+        self, descriptors: np.ndarray, pool_size: int
+    ) -> tuple[list[int], list[float]]:
         """Runs FPS selection."""
         n_samples = min(self.config.fps_n_samples, pool_size)
         logger.info(f"Selecting {n_samples} structures via FPS...")
 
         if n_samples == 0:
-             return [], []
+            return [], []
 
         return self.sampler.select_with_scores(descriptors, n_samples)

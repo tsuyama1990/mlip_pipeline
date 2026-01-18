@@ -1,11 +1,12 @@
+from unittest.mock import patch
 
-import pytest
-from ase import Atoms
 import numpy as np
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult, RejectionInfo
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+from ase import Atoms
+
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.surrogate.descriptors import DescriptorResult
-from unittest.mock import patch, MagicMock
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+
 
 # UAT-04-01: MACE Pre-screening
 def test_uat_04_01_mace_prescreening():
@@ -17,9 +18,9 @@ def test_uat_04_01_mace_prescreening():
     pipeline = SurrogatePipeline(config)
 
     # GIVEN a batch of 10 candidate structures, where one structure has two atoms overlapping
-    candidates = [Atoms('H2', positions=[[0, 0, 0], [0, 0, 2.0]]) for _ in range(9)]
+    candidates = [Atoms("H2", positions=[[0, 0, 0], [0, 0, 2.0]]) for _ in range(9)]
     # Add a bad structure
-    bad_structure = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.1]]) # Overlap
+    bad_structure = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.1]])  # Overlap
     candidates.append(bad_structure)
 
     # Mock MACE behavior
@@ -35,12 +36,17 @@ def test_uat_04_01_mace_prescreening():
             forces.append(f)
         return forces
 
-    with patch.object(pipeline.mace_client, 'predict_forces', side_effect=mock_predict_forces):
-        with patch.object(pipeline.mace_client, '_load_model'): # Prevent loading
+    with patch.object(pipeline.mace_client, "predict_forces", side_effect=mock_predict_forces):
+        with patch.object(pipeline.mace_client, "_load_model"):  # Prevent loading
             # Mock descriptor and sampler
-            with patch.object(pipeline.descriptor_calc, 'compute_soap', return_value=DescriptorResult(features=np.zeros((9, 10)))):
-                with patch.object(pipeline.sampler, 'select_with_scores', return_value=(list(range(9)), [0.0]*9)):
-
+            with patch.object(
+                pipeline.descriptor_calc,
+                "compute_soap",
+                return_value=DescriptorResult(features=np.zeros((9, 10))),
+            ):
+                with patch.object(
+                    pipeline.sampler, "select_with_scores", return_value=(list(range(9)), [0.0] * 9)
+                ):
                     # WHEN passed to the pipeline
                     selected, result = pipeline.run(candidates)
 
@@ -55,6 +61,7 @@ def test_uat_04_01_mace_prescreening():
                     # Verify detailed output if we were calling filter_unphysical directly
                     # Here we verify run() output implicitly
 
+
 # UAT-04-02: Diversity Sampling (FPS)
 def test_uat_04_02_diversity_sampling():
     """
@@ -64,27 +71,32 @@ def test_uat_04_02_diversity_sampling():
     config = SurrogateConfig(fps_n_samples=5)
     pipeline = SurrogatePipeline(config)
 
-    candidates = [Atoms('H') for _ in range(100)]
+    candidates = [Atoms("H") for _ in range(100)]
 
     descriptors = np.zeros((100, 3))
     for i in range(90, 100):
         descriptors[i] = [float(i), float(i), float(i)]
 
-    with patch.object(pipeline.mace_client, 'filter_unphysical', return_value=(candidates, [])):
-        with patch.object(pipeline.descriptor_calc, 'compute_soap', return_value=DescriptorResult(features=descriptors)):
-             # Use real sampler
+    with patch.object(pipeline.mace_client, "filter_unphysical", return_value=(candidates, [])):
+        with patch.object(
+            pipeline.descriptor_calc,
+            "compute_soap",
+            return_value=DescriptorResult(features=descriptors),
+        ):
+            # Use real sampler
 
-             # WHEN pipeline runs
-             selected, result = pipeline.run(candidates)
+            # WHEN pipeline runs
+            selected, result = pipeline.run(candidates)
 
-             # THEN the algorithm should preferentially pick from Cluster B
-             selected_indices = result.selected_indices
+            # THEN the algorithm should preferentially pick from Cluster B
+            selected_indices = result.selected_indices
 
-             count_cluster_b = sum(1 for idx in selected_indices if idx >= 90)
+            count_cluster_b = sum(1 for idx in selected_indices if idx >= 90)
 
-             # We expect at least 4 from cluster B
-             assert count_cluster_b >= 4
-             assert len(set(selected_indices)) == 5
+            # We expect at least 4 from cluster B
+            assert count_cluster_b >= 4
+            assert len(set(selected_indices)) == 5
+
 
 # UAT-04-03: Descriptor Calculation
 def test_uat_04_03_descriptor_calculation():
@@ -95,8 +107,8 @@ def test_uat_04_03_descriptor_calculation():
     pipeline = SurrogatePipeline(config)
 
     # GIVEN a structure A and a structure B which is A rotated by 90 degrees
-    a = Atoms('H2', positions=[[0, 0, 0], [0, 0, 1.0]])
-    b = Atoms('H2', positions=[[0, 0, 0], [1.0, 0, 0]]) # Rotated
+    a = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0]])
+    b = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])  # Rotated
 
     candidates = [a, b]
 

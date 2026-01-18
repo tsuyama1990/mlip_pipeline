@@ -42,8 +42,8 @@ class DefectGenerator:
             for i in range(n_atoms):
                 new_atoms = atoms.copy()
                 del new_atoms[i]
-                new_atoms.info['config_type'] = 'vacancy'
-                new_atoms.info['defect_index'] = i
+                new_atoms.info["config_type"] = "vacancy"
+                new_atoms.info["defect_index"] = i
                 results.append(new_atoms)
 
             return results
@@ -76,7 +76,7 @@ class DefectGenerator:
                 [0.75, 0.75, 0.75],
                 [0.5, 0.0, 0.0],
                 [0.0, 0.5, 0.0],
-                [0.0, 0.0, 0.5]
+                [0.0, 0.0, 0.5],
             ]
 
             cell = atoms.get_cell()
@@ -96,8 +96,8 @@ class DefectGenerator:
                     new_atoms.append(element)
                     # Set position of the newly added atom (last index)
                     new_atoms.positions[-1] = pos
-                    new_atoms.info['config_type'] = 'interstitial'
-                    new_atoms.info['interstitial_element'] = element
+                    new_atoms.info["config_type"] = "interstitial"
+                    new_atoms.info["interstitial_element"] = element
                     results.append(new_atoms)
 
             return results
@@ -122,7 +122,7 @@ class DefectApplicator:
             config (GeneratorConfig): The generator configuration.
         """
         self.config = config
-        self.generator = DefectGenerator() # Stateless generator now
+        self.generator = DefectGenerator()  # Stateless generator now
 
     def apply(self, structures: list[Atoms], primary_element: str) -> list[Atoms]:
         """

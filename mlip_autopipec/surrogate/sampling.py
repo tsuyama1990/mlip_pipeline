@@ -1,6 +1,6 @@
-from typing import List, Tuple, Optional
 import numpy as np
 from scipy.spatial.distance import cdist
+
 
 class FPSSampler:
     """
@@ -10,7 +10,7 @@ class FPSSampler:
     def __init__(self):
         pass
 
-    def select(self, features: np.ndarray, n_samples: int) -> List[int]:
+    def select(self, features: np.ndarray, n_samples: int) -> list[int]:
         """
         Selects n_samples from features using FPS.
         Returns indices of selected samples.
@@ -18,14 +18,16 @@ class FPSSampler:
         indices, _ = self.select_with_scores(features, n_samples)
         return indices
 
-    def select_with_scores(self, features: np.ndarray, n_samples: int) -> Tuple[List[int], List[float]]:
+    def select_with_scores(
+        self, features: np.ndarray, n_samples: int
+    ) -> tuple[list[int], list[float]]:
         """
         Selects n_samples from features using FPS.
         Returns (indices, scores), where score is the distance to the selected set at selection time.
         """
         n_total = features.shape[0]
         if n_samples > n_total:
-             raise ValueError(f"Requested {n_samples} samples but only {n_total} available.")
+            raise ValueError(f"Requested {n_samples} samples but only {n_total} available.")
 
         if n_samples <= 0:
             raise ValueError("n_samples must be > 0")
@@ -54,13 +56,15 @@ class FPSSampler:
         # current_idx = np.random.randint(0, n_total)
 
         selected_indices.append(current_idx)
-        scores.append(0.0) # Distance to itself is 0, or technically undefined for the first point
+        scores.append(0.0)  # Distance to itself is 0, or technically undefined for the first point
 
         for _ in range(n_samples - 1):
             # Update min_dists
             # Compute distance from current_idx to all other points
             # shape (1, N) -> (N,)
-            new_dists = cdist(features[current_idx:current_idx+1], features, metric='euclidean').flatten()
+            new_dists = cdist(
+                features[current_idx : current_idx + 1], features, metric="euclidean"
+            ).flatten()
 
             # Update the minimum distance for each point
             min_dists = np.minimum(min_dists, new_dists)

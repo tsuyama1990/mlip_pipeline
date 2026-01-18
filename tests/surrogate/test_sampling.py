@@ -1,10 +1,13 @@
 import numpy as np
 import pytest
+
 from mlip_autopipec.surrogate.sampling import FPSSampler
+
 
 def test_fps_sampler_initialization():
     sampler = FPSSampler()
     assert sampler is not None
+
 
 def test_fps_selection_simple_1d():
     # Points on a line: 0, 1, 2, ..., 10
@@ -24,6 +27,7 @@ def test_fps_selection_simple_1d():
     assert 10 in indices
     assert 5 in indices
 
+
 def test_fps_selection_random():
     # Random points in 3D
     np.random.seed(42)
@@ -32,7 +36,8 @@ def test_fps_selection_random():
 
     indices = sampler.select(features, n_samples=10)
     assert len(indices) == 10
-    assert len(set(indices)) == 10 # All unique
+    assert len(set(indices)) == 10  # All unique
+
 
 def test_fps_selection_scores():
     features = np.array([[0.0], [10.0], [5.0]])
@@ -49,6 +54,7 @@ def test_fps_selection_scores():
     indices, scores = sampler.select_with_scores(features, n_samples=3)
     assert len(indices) == 3
     assert len(scores) == 3
+
 
 def test_fps_more_samples_than_data():
     features = np.array([[0.0], [1.0]])

@@ -14,6 +14,7 @@ def test_setup_logging_permission_error():
             setup_logging(path)
         assert "Failed to create log file" in str(excinfo.value)
 
+
 def test_setup_logging_unexpected_error():
     path = Path("/tmp/test.log")
     with patch("logging.basicConfig", side_effect=Exception("Random error")):

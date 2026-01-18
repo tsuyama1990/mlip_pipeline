@@ -7,8 +7,13 @@ from mlip_autopipec.services.pipeline import PipelineController
 def test_pipeline_execute():
     input_file = Path("input.yaml")
 
-    with patch("mlip_autopipec.services.pipeline.ConfigFactory.from_yaml") as mock_config_factory,          patch("mlip_autopipec.services.pipeline.WorkspaceManager") as mock_workspace_cls,          patch("mlip_autopipec.services.pipeline.setup_logging") as mock_setup_logging,          patch("mlip_autopipec.services.pipeline.DatabaseManager") as mock_db_cls,          patch("mlip_autopipec.services.pipeline.WorkflowManager") as mock_workflow_manager_cls:
-
+    with (
+        patch("mlip_autopipec.services.pipeline.ConfigFactory.from_yaml") as mock_config_factory,
+        patch("mlip_autopipec.services.pipeline.WorkspaceManager") as mock_workspace_cls,
+        patch("mlip_autopipec.services.pipeline.setup_logging") as mock_setup_logging,
+        patch("mlip_autopipec.services.pipeline.DatabaseManager") as mock_db_cls,
+        patch("mlip_autopipec.services.pipeline.WorkflowManager") as mock_workflow_manager_cls,
+    ):
         mock_config = MagicMock()
         mock_config.log_path = Path("/tmp/log")
         mock_config.db_path = Path("/tmp/db")

@@ -18,13 +18,18 @@ def test_runner_executable_missing():
             runner.run(atoms)
         assert "Executable 'non_existent_executable' not found" in str(excinfo.value)
 
+
 def test_runner_executable_found():
     config = DFTConfig(command="pw.x", pseudo_dir=Path("/tmp"))
     runner = QERunner(config)
     atoms = Atoms("H")
 
-    with patch("shutil.which", return_value="/usr/bin/pw.x"),          patch("subprocess.run") as mock_run,          patch("mlip_autopipec.dft.inputs.InputGenerator.create_input_string", return_value=""),          patch("mlip_autopipec.dft.runner.QERunner._parse_output") as mock_parse:
-
+    with (
+        patch("shutil.which", return_value="/usr/bin/pw.x"),
+        patch("subprocess.run") as mock_run,
+        patch("mlip_autopipec.dft.inputs.InputGenerator.create_input_string", return_value=""),
+        patch("mlip_autopipec.dft.runner.QERunner._parse_output") as mock_parse,
+    ):
         mock_proc = MagicMock()
         mock_proc.returncode = 0
         mock_run.return_value = mock_proc

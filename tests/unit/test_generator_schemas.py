@@ -1,21 +1,24 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
 
 
 def test_generator_config_defaults():
     # Now we must provide arguments because defaults were removed from schema
     config = GeneratorConfig(
-        sqs=SQSConfig(),
-        distortion=DistortionConfig(),
-        nms=NMSConfig(),
-        defects=DefectConfig()
+        sqs=SQSConfig(), distortion=DistortionConfig(), nms=NMSConfig(), defects=DefectConfig()
     )
 
     # SQS
     assert config.sqs.enabled is True
-    assert config.sqs.supercell_matrix == [[2,0,0], [0,2,0], [0,0,2]]
+    assert config.sqs.supercell_matrix == [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
 
     # Distortion
     assert config.distortion.enabled is True
@@ -29,8 +32,9 @@ def test_generator_config_defaults():
     assert config.nms.temperatures == [300, 600, 1000]
 
     # Defects
-    assert config.defects.enabled is False # Default is false
+    assert config.defects.enabled is False  # Default is false
     assert config.defects.vacancies is True
+
 
 def test_generator_config_validation():
     # rattling_amplitude must be > 0
@@ -39,7 +43,7 @@ def test_generator_config_validation():
             sqs=SQSConfig(),
             distortion=DistortionConfig(rattling_amplitude=0.0),
             nms=NMSConfig(),
-            defects=DefectConfig()
+            defects=DefectConfig(),
         )
 
     # n_strain_steps must be >= 1
@@ -48,7 +52,7 @@ def test_generator_config_validation():
             sqs=SQSConfig(),
             distortion=DistortionConfig(n_strain_steps=0),
             nms=NMSConfig(),
-            defects=DefectConfig()
+            defects=DefectConfig(),
         )
 
     # Extra fields not allowed
@@ -58,5 +62,5 @@ def test_generator_config_validation():
             distortion=DistortionConfig(),
             nms=NMSConfig(),
             defects=DefectConfig(),
-            extra_field="invalid"
+            extra_field="invalid",
         )

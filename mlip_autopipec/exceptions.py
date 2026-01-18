@@ -4,7 +4,8 @@ This module defines custom exceptions for the MLIP-AutoPipe application.
 Using custom exceptions allows for more specific and expressive error
 handling throughout the workflow.
 """
-from typing import Any, Dict, Optional
+
+from typing import Any
 
 
 class MLIPError(Exception):
@@ -54,7 +55,7 @@ class DFTCalculationError(MLIPError):
 class GeneratorError(MLIPError):
     """Raised when structure generation fails."""
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, context: dict[str, Any] | None = None):
         super().__init__(message)
         self.context = context or {}
 

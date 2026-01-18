@@ -1,8 +1,13 @@
-from typing import List, Tuple, Dict, Any, Optional
+import logging
+import os
+
 import numpy as np
 from ase import Atoms
-import os
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, RejectionInfo
+
+from mlip_autopipec.config.schemas.surrogate import RejectionInfo, SurrogateConfig
+
+logger = logging.getLogger(__name__)
+
 
 class MaceClient:
     """
@@ -39,30 +44,23 @@ class MaceClient:
                 # Resolve absolute path
                 abs_path = os.path.abspath(model_path)
                 # Check if it tries to go up levels inappropriately or access sensitive dirs.
-                # A simple heuristic: ensure it doesn't contain '..' segments that resolve outside
-                # expected areas. But 'medium' is not a path.
-                # For this implementation, we just ensure no '..' traversal if it's a path.
                 if ".." in model_path:
-                     raise ValueError("Path traversal attempt detected in model_path.")
+                    raise ValueError("Path traversal attempt detected in model_path.")
 
             try:
                 from mace.calculators import mace_mp
+
                 # default_dtype="float32" is used to save memory/speed as per standard MACE usage
                 self.model = mace_mp(model=model_path, device=self.device, default_dtype="float32")
 
             except (ImportError, Exception) as e:
-                # We log this in a real system. For now, we print or let it be None.
-                # If loading fails, predict_forces will raise RuntimeError.
-                # This allow running tests without mace installed if mocked.
-                # IMPORTANT: If ValueError was raised above (security check), it is caught here
-                # as Exception. We must re-raise it if it is a security violation.
                 if isinstance(e, ValueError) and "Path traversal" in str(e):
                     raise e
 
-                print(f"Warning: Failed to load MACE model: {e}")
+                logger.warning(f"Failed to load MACE model: {e}")
                 self.model = None
 
-    def predict_forces(self, atoms_list: List[Atoms]) -> List[np.ndarray]:
+    def predict_forces(self, atoms_list: list[Atoms]) -> list[np.ndarray]:
         """
         Predicts forces for a batch of atomic structures.
 
@@ -77,9 +75,9 @@ class MaceClient:
         """
         self._load_model()
         if self.model is None:
-             raise RuntimeError("MACE model could not be loaded.")
+            raise RuntimeError("MACE model could not be loaded.")
 
-        forces_list: List[np.ndarray] = []
+        forces_list: list[np.ndarray] = []
 
         # Note: In a production environment with MACE, we would use batch processing
         # features of the model if available for performance.
@@ -93,18 +91,16 @@ class MaceClient:
                 forces = atoms.get_forces()
                 forces_list.append(forces)
             except Exception as e:
-                # Refine Exception handling
-                # We catch specific errors if known, but ASE calc often raises generic Exception or Calculator-specific ones.
-                # We log the specific structure failure context.
+                # Log full exception
+                logger.exception(f"Force calculation failed for structure {atoms}")
                 raise RuntimeError(f"Force calculation failed for structure {atoms}: {e}") from e
             finally:
-                # Restore original calculator? Or leave it?
-                # Usually we don't want to side-effect the input too much.
+                # Restore original calculator
                 atoms.calc = original_calc
 
         return forces_list
 
-    def filter_unphysical(self, atoms_list: List[Atoms]) -> Tuple[List[Atoms], List[RejectionInfo]]:
+    def filter_unphysical(self, atoms_list: list[Atoms]) -> tuple[list[Atoms], list[RejectionInfo]]:
         """
         Filters out structures that exhibit unphysical forces (exceeding the configured threshold).
 
@@ -120,30 +116,30 @@ class MaceClient:
             RuntimeError: If force prediction fails.
         """
         threshold = self.config.force_threshold
-        kept: List[Atoms] = []
-        rejected: List[RejectionInfo] = []
+        kept: list[Atoms] = []
+        rejected: list[RejectionInfo] = []
 
         try:
             forces_list = self.predict_forces(atoms_list)
         except Exception as e:
             # Re-raise with context
+            logger.exception("Pre-screening prediction failed")
             raise RuntimeError(f"Pre-screening prediction failed: {e}") from e
 
         for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
-            if forces.size == 0:
-                # Handle empty structure or calculation error
-                # Usually get_forces returns (N, 3), if N=0 max raises error.
+            # Robustness check: Ensure forces array is valid
+            if forces is None:
+                max_force = float("inf")
+            elif forces.size == 0:
                 max_force = 0.0
             else:
                 force_norms = np.linalg.norm(forces, axis=1)
                 max_force = float(np.max(force_norms))
 
             if max_force > threshold:
-                rejected.append(RejectionInfo(
-                    index=i,
-                    max_force=max_force,
-                    reason="force_threshold_exceeded"
-                ))
+                rejected.append(
+                    RejectionInfo(index=i, max_force=max_force, reason="force_threshold_exceeded")
+                )
             else:
                 kept.append(atoms)
 

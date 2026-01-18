@@ -34,7 +34,9 @@ class Composition(RootModel[dict[str, float]]):
 
 class TargetSystem(BaseModel):
     name: str = Field("System", description="Name of the system, e.g., 'Fe-Ni' or 'H2O'")
-    structure_type: Literal["bulk", "molecule", "defect"] = Field("bulk", description="Type of structure to generate")
+    structure_type: Literal["bulk", "molecule", "defect"] = Field(
+        "bulk", description="Type of structure to generate"
+    )
     elements: list[str]
     composition: Composition
     model_config = ConfigDict(extra="forbid")

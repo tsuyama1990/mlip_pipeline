@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult
+
+from mlip_autopipec.config.schemas.surrogate import SelectionResult, SurrogateConfig
+
 
 def test_surrogate_config_defaults():
     config = SurrogateConfig()
@@ -9,6 +11,7 @@ def test_surrogate_config_defaults():
     assert config.fps_n_samples == 100
     assert config.force_threshold == 50.0
     assert config.descriptor_type == "soap"
+
 
 def test_surrogate_config_validation():
     # Test invalid device
@@ -26,6 +29,7 @@ def test_surrogate_config_validation():
     # Test extra fields
     with pytest.raises(ValidationError):
         SurrogateConfig(extra_field="invalid")
+
 
 def test_selection_result_validation():
     # Test valid result

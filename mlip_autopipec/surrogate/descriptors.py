@@ -1,11 +1,13 @@
 import logging
-from typing import List, Optional
+
 import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
+
 from mlip_autopipec.config.schemas.surrogate import DescriptorConfig, DescriptorResult
 
 logger = logging.getLogger(__name__)
+
 
 class DescriptorCalculator:
     """
@@ -23,9 +25,9 @@ class DescriptorCalculator:
             config: A DescriptorConfig object containing parameters like r_cut, n_max, etc.
         """
         self.config = config
-        self._soap: Optional[SOAP] = None
+        self._soap: SOAP | None = None
 
-    def compute_soap(self, atoms_list: List[Atoms]) -> DescriptorResult:
+    def compute_soap(self, atoms_list: list[Atoms]) -> DescriptorResult:
         """
         Computes the average SOAP descriptor for a list of structures.
 
@@ -52,7 +54,7 @@ class DescriptorCalculator:
 
         # Check periodicity from the first atom
         is_periodic = False
-        if atoms_list and hasattr(atoms_list[0], 'pbc'):
+        if atoms_list and hasattr(atoms_list[0], "pbc"):
             is_periodic = np.any(atoms_list[0].pbc)
 
         try:
@@ -63,8 +65,8 @@ class DescriptorCalculator:
                 n_max=self.config.n_max,
                 l_max=self.config.l_max,
                 sigma=self.config.sigma,
-                average="inner", # Average over atoms to get global descriptor
-                sparse=False
+                average="inner",  # Average over atoms to get global descriptor
+                sparse=False,
             )
 
             # dscribe create method

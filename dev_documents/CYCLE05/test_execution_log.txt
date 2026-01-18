@@ -2,75 +2,94 @@
 platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
-testpaths: tests
-plugins: mock-3.15.1
-collected 64 items
+plugins: mock-3.15.1, cov-7.0.0
+collected 32 items
 
-tests/integration/test_dft_integration.py x..                            [  4%]
-tests/modules/test_config_generator.py .                                 [  6%]
-tests/modules/test_dft.py ........                                       [ 18%]
-tests/modules/test_exploration.py .....ss                                [ 29%]
-tests/modules/test_explorer.py .....                                     [ 37%]
-tests/modules/test_generator.py ....                                     [ 43%]
-tests/modules/test_inference.py ..F                                      [ 48%]
-tests/modules/test_training.py .....                                     [ 56%]
-tests/test_app.py x                                                      [ 57%]
-tests/test_config.py .....                                               [ 65%]
-tests/test_config_factory.py .                                           [ 67%]
-tests/test_config_schemas.py ....................                        [ 98%]
-tests/test_workflow_manager.py .                                         [100%]
+tests/training/test_config_gen.py ..                                     [  6%]
+tests/training/test_dataset.py .....                                     [ 21%]
+tests/training/test_pacemaker.py ....                                    [ 34%]
+tests/training/test_physics.py ....                                      [ 46%]
+tests/unit/test_training_schemas.py ........                             [ 71%]
+tests/surrogate/test_mace.py ......                                      [ 90%]
+tests/core/test_database_manager.py ...                                  [100%]
 
-=================================== FAILURES ===================================
-____________________ test_end_to_end_uncertainty_detection _____________________
-
-mock_inference_config = InferenceConfig(lammps_executable=PosixPath('/tmp/pytest-of-jules/pytest-45/test_end_to_end_uncertainty_de0/lmp'), pot...1.0, run_duration=1000), uncertainty_params=UncertaintyConfig(threshold=0.5, embedding_cutoff=8.0, masking_cutoff=4.0))
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-45/test_end_to_end_uncertainty_de0')
-
-    @pytest.mark.integration
-    def test_end_to_end_uncertainty_detection(mock_inference_config, tmp_path):
-        """
-        Test the full LAMMPS run and uncertainty detection workflow by mocking
-        the subprocess and the LAMMPS output files.
-        """
-        from unittest.mock import patch, MagicMock
-
-        runner = LammpsRunner(inference_config=mock_inference_config)
-        atoms = bulk("Si", "diamond", a=5.43)
-
-        # Create mock LAMMPS output files
-        dump_content = "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS id type x y z\n1 1 0.0 0.0 0.0\n2 1 1.35 1.35 1.35\n"
-        uncertainty_content = (
-            "ITEM: TIMESTEP\n10\nITEM: NUMBER OF ATOMS\n2\nITEM: ATOMS c_uncert[1]\n0.1\n0.8\n"
-        )
-        (tmp_path / "dump.custom").write_text(dump_content)
-        (tmp_path / "uncertainty.dump").write_text(uncertainty_content)
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            result = runner.run(atoms)
-
->       assert result is not None
-E       assert None is not None
-
-tests/modules/test_inference.py:91: AssertionError
 =============================== warnings summary ===============================
-.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10
+tests/surrogate/test_mace.py::test_mace_client_load_model_success
   /app/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
     _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
 
-tests/modules/test_exploration.py:128
-  /app/tests/modules/test_exploration.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
-tests/modules/test_exploration.py:138
-  /app/tests/modules/test_exploration.py:138: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
-tests/modules/test_inference.py:68
-  /app/tests/modules/test_inference.py:68: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
-    @pytest.mark.integration
-
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-FAILED tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
-======== 1 failed, 59 passed, 2 skipped, 2 xfailed, 4 warnings in 8.44s ========
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+mlip_autopipec/__init__.py                          1      0   100%
+mlip_autopipec/app.py                              36     36     0%   5-63
+mlip_autopipec/config/__init__.py                   0      0   100%
+mlip_autopipec/config/factory.py                   37     37     0%   1-62
+mlip_autopipec/config/models.py                     9      0   100%
+mlip_autopipec/config/schemas/common.py            46     21    54%   16-32, 46-52, 56-59
+mlip_autopipec/config/schemas/dft.py               70     20    71%   27-32, 46-51, 68-70, 101-107
+mlip_autopipec/config/schemas/exploration.py       51      4    92%   35-39
+mlip_autopipec/config/schemas/generator.py         37      6    84%   14-19
+mlip_autopipec/config/schemas/inference.py         65     23    65%   26-28, 41-44, 63-69, 74-82
+mlip_autopipec/config/schemas/monitoring.py        12      0   100%
+mlip_autopipec/config/schemas/surrogate.py         37      6    84%   59-65
+mlip_autopipec/config/schemas/system.py            65     15    77%   62, 67-82
+mlip_autopipec/config/schemas/training.py          75      5    93%   56-59, 91
+mlip_autopipec/core/__init__.py                     0      0   100%
+mlip_autopipec/core/database.py                   105     54    49%   49-51, 58-74, 80-87, 100-109, 121-134, 148, 151-152, 168-173, 184, 187-188, 206-208
+mlip_autopipec/core/logging.py                     18     18     0%   5-47
+mlip_autopipec/core/workspace.py                   13     13     0%   1-25
+mlip_autopipec/data/__init__.py                     0      0   100%
+mlip_autopipec/data/database.py                    23     23     0%   7-73
+mlip_autopipec/data_models/__init__.py              1      0   100%
+mlip_autopipec/data_models/dft_models.py           35      3    91%   34, 42, 44
+mlip_autopipec/data_models/training_data.py        21      5    76%   34-36, 39-40
+mlip_autopipec/dft/__init__.py                      0      0   100%
+mlip_autopipec/dft/constants.py                     3      3     0%   1-91
+mlip_autopipec/dft/inputs.py                       57     57     0%   1-166
+mlip_autopipec/dft/parsers.py                      21     21     0%   5-83
+mlip_autopipec/dft/recovery.py                     30     30     0%   1-81
+mlip_autopipec/dft/runner.py                       79     79     0%   1-170
+mlip_autopipec/exceptions.py                       25     13    48%   43-48, 51-52, 59-60, 63-66
+mlip_autopipec/generator/__init__.py                5      5     0%   2-7
+mlip_autopipec/generator/alloy.py                 101    101     0%   1-237
+mlip_autopipec/generator/builder.py                75     75     0%   1-140
+mlip_autopipec/generator/defect.py                 66     66     0%   1-157
+mlip_autopipec/generator/molecule.py               54     54     0%   1-120
+mlip_autopipec/modules/__init__.py                  0      0   100%
+mlip_autopipec/modules/config_generator.py         15     15     0%   3-74
+mlip_autopipec/modules/descriptors.py              31     31     0%   3-62
+mlip_autopipec/modules/dft.py                      67     67     0%   6-189
+mlip_autopipec/modules/exploration.py              51     51     0%   7-130
+mlip_autopipec/modules/explorer.py                 46     46     0%   3-90
+mlip_autopipec/modules/generator.py                72     72     0%   3-203
+mlip_autopipec/modules/inference.py               136    136     0%   7-333
+mlip_autopipec/modules/screening.py                41     41     0%   3-68
+mlip_autopipec/modules/training.py                 94     94     0%   9-234
+mlip_autopipec/monitoring/__init__.py               0      0   100%
+mlip_autopipec/monitoring/dashboard.py             63     63     0%   1-115
+mlip_autopipec/surrogate/__init__.py                0      0   100%
+mlip_autopipec/surrogate/candidate_manager.py      14     14     0%   1-37
+mlip_autopipec/surrogate/descriptors.py            30     30     0%   1-84
+mlip_autopipec/surrogate/mace_client.py            62     11    82%   56-61, 78, 93-96, 132, 134
+mlip_autopipec/surrogate/pipeline.py               54     54     0%   1-118
+mlip_autopipec/surrogate/sampling.py               28     28     0%   1-80
+mlip_autopipec/training/__init__.py                 4      0   100%
+mlip_autopipec/training/config_gen.py              16      0   100%
+mlip_autopipec/training/dataset.py                104     15    86%   92-93, 96-97, 110-112, 132-134, 142, 160-161, 212-213
+mlip_autopipec/training/pacemaker.py               92     20    78%   87-89, 94-96, 118-120, 141-143, 168-169, 177-185
+mlip_autopipec/training/physics.py                 39      0   100%
+mlip_autopipec/utils/__init__.py                    0      0   100%
+mlip_autopipec/utils/ase_utils.py                  42     42     0%   12-120
+mlip_autopipec/utils/config_utils.py                7      7     0%   3-38
+mlip_autopipec/utils/dask_utils.py                 12     12     0%   6-43
+mlip_autopipec/utils/data_loader.py                15     15     0%   5-39
+mlip_autopipec/utils/resilience.py                 29     29     0%   6-93
+mlip_autopipec/utils/workflow_utils.py             32     32     0%   3-53
+mlip_autopipec/workflow_manager.py                106    106     0%   1-191
+-----------------------------------------------------------------------------
+TOTAL                                            2575   1824    29%
+======================== 32 passed, 1 warning in 24.89s ========================
