@@ -1,3 +1,8 @@
+"""
+Module for physics-based calculations.
+Currently implements the ZBL (Ziegler-Biersack-Littmark) potential for short-range repulsion.
+"""
+
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
@@ -10,8 +15,7 @@ class ZBLCalculator(Calculator):
     This acts as a screened Coulomb potential for short-range repulsion.
     V(r) = (Z1*Z2*e^2/r) * phi(r/a)
 
-    We use a simplified implementation or wrap an existing one if available.
-    For this cycle, we implement the analytical form.
+    The universal screening function phi(x) is approximated by a sum of 4 exponentials.
     """
 
     implemented_properties = ["energy", "forces"]
@@ -21,15 +25,22 @@ class ZBLCalculator(Calculator):
     _EXPONENTS = [3.2, 0.9423, 0.4029, 0.2016]
 
     def calculate(self, atoms: Atoms, properties=None, system_changes=all_changes):
+        """
+        Performs the ZBL calculation.
+
+        Args:
+            atoms: ASE Atoms object.
+            properties: List of properties to calculate (default: energy, forces).
+            system_changes: List of changes (positions, numbers, cell, pbc).
+        """
         super().calculate(atoms, properties, system_changes)
 
         energy = 0.0
         forces = np.zeros((len(atoms), 3))
 
         # Simple N^2 loop for pairwise interactions
-        # Note: In production, this should be optimized (neighbor list)
-        # But for ZBL, cutoff is usually short, or we rely on the fact that
-        # it decays very fast.
+        # Note: In production, this should be optimized (neighbor list).
+        # However, ZBL is short-ranged and typically only significant for very close pairs.
 
         positions = atoms.get_positions()
         numbers = atoms.get_atomic_numbers()
@@ -43,7 +54,7 @@ class ZBLCalculator(Calculator):
                 dist_vec = positions[i] - positions[j]
                 r = np.linalg.norm(dist_vec)
 
-                if r < 1e-4: # Avoid singularity
+                if r < 1e-4:  # Avoid singularity
                     continue
 
                 z1 = numbers[i]
@@ -55,8 +66,13 @@ class ZBLCalculator(Calculator):
                 a = (0.8854 * 0.529) / (z1**0.23 + z2**0.23)
 
                 x = r / a
-                phi = sum(c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS))
-                dphi_dx = sum(-c * d * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS))
+                phi = sum(
+                    c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS)
+                )
+                dphi_dx = sum(
+                    -c * d * np.exp(-d * x)
+                    for c, d in zip(self._COEFFS, self._EXPONENTS)
+                )
 
                 # V = (Z1 Z2 e^2 / r) * phi
                 coulomb = (z1 * z2 * KE2) / r
@@ -68,21 +84,13 @@ class ZBLCalculator(Calculator):
                 # F = -dV/dr
                 # V = K/r * phi(r/a)
                 # dV/dr = -K/r^2 * phi + K/r * (1/a) * dphi/dx
+                #       = - (V/r) + (K/r) * (1/a) * dphi_dx
 
                 dv_dr = -v_pair / r + (coulomb / a) * dphi_dx
 
-                f_vec = (dv_dr * dist_vec) / r # Force on i due to j (repulsive -> positive dv_dr means attraction? Wait.)
-                # Repulsive potential: V decreases as r increases -> dV/dr < 0.
-                # Here v_pair is positive.
-                # Term 1: -v_pair/r is negative.
-                # Term 2: dphi_dx is negative. So term 2 is negative.
-                # So dv_dr is negative.
-                # Force on i = -grad_i V = - (dV/dr * dr/dRi) = - dV/dr * (Ri - Rj)/r
-                # F_i = -dv_dr * (Ri - Rj) / r
-
-                # Let's check sign.
-                # Repulsion: Force on i should be along (Ri - Rj).
-                # If dv_dr is negative, -dv_dr is positive. So F_i is along (Ri - Rj). Correct.
+                # Force on i = -grad_i V = - (dV/dr * dr/dRi)
+                # dr/dRi = (Ri - Rj) / r = dist_vec / r
+                # F_i = -dv_dr * (dist_vec / r)
 
                 force_on_i = -dv_dr * (dist_vec / r)
 

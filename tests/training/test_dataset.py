@@ -27,11 +27,22 @@ def mock_db():
     db.get_atoms.return_value = atoms_list
     return db
 
-def test_dataset_fetch(mock_db):
+def test_dataset_fetch_valid(mock_db):
+    """Test fetching valid data."""
     builder = DatasetBuilder(mock_db)
     data = builder.fetch_data()
     assert len(data) == 10
     assert isinstance(data[0], Atoms)
+
+def test_dataset_fetch_invalid_type(mock_db):
+    """Test validation when DB returns non-Atoms objects."""
+    # This should fail pydantic validation in TrainingBatch
+    mock_db.get_atoms.return_value = ["not_an_atom_object"]
+    builder = DatasetBuilder(mock_db)
+
+    # We expect pydantic TypeError or Validation Error wrapped
+    with pytest.raises((TypeError, ValueError)):
+         builder.fetch_data()
 
 def test_dataset_export_delta_learning(mock_db, tmp_path):
     builder = DatasetBuilder(mock_db)
