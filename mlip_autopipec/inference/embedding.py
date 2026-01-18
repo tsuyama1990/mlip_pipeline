@@ -1,10 +1,8 @@
 import numpy as np
 from ase import Atoms
 from ase.neighborlist import NeighborList
-
 from mlip_autopipec.config.schemas.inference import EmbeddingConfig
 from mlip_autopipec.data_models.inference_models import ExtractedStructure
-
 
 class EmbeddingExtractor:
     """
@@ -23,69 +21,87 @@ class EmbeddingExtractor:
 
         Returns:
             ExtractedStructure containing the cluster in a small periodic box.
+
+        Raises:
+            ValueError: If inputs are invalid.
+            IndexError: If center_idx is out of bounds.
+            RuntimeError: If extraction fails.
         """
-        # 1. Identify neighbors within core + buffer
-        cutoff = self.config.core_radius + self.config.buffer_width
+        try:
+            if not isinstance(large_atoms, Atoms):
+                raise TypeError("Input must be an ase.Atoms object.")
 
-        # Use ASE NeighborList to find all atoms within cutoff
-        # We set cutoffs to cutoff/2 so that interaction range is cutoff.
-        # self_interaction=True to include the center atom itself.
-        nl = NeighborList(
-            [cutoff / 2.0] * len(large_atoms),
-            self_interaction=True,
-            bothways=True,
-            skin=0.0
-        )
-        nl.update(large_atoms)
+            if len(large_atoms) == 0:
+                raise ValueError("Input structure is empty.")
 
-        indices, offsets = nl.get_neighbors(center_idx)
+            if center_idx < 0 or center_idx >= len(large_atoms):
+                raise IndexError(f"Center index {center_idx} out of bounds (0-{len(large_atoms)-1}).")
 
-        # 2. Collect atoms and unwrap positions relative to center
-        center_pos = large_atoms.positions[center_idx]
-        cell = large_atoms.get_cell()
+            # 1. Identify neighbors within core + buffer
+            cutoff = self.config.core_radius + self.config.buffer_width
 
-        cluster_positions = []
-        cluster_symbols = []
-        cluster_indices = []
+            # Use ASE NeighborList to find all atoms within cutoff
+            nl = NeighborList(
+                [cutoff / 2.0] * len(large_atoms),
+                self_interaction=True,
+                bothways=True,
+                skin=0.0
+            )
+            nl.update(large_atoms)
 
-        for i, offset in zip(indices, offsets):
-            # Original position
-            pos = large_atoms.positions[i]
-            # Unwrap: position + offset @ cell
-            shifted_pos = pos + np.dot(offset, cell)
-            # Relative to center
-            rel_pos = shifted_pos - center_pos
+            indices, offsets = nl.get_neighbors(center_idx)
 
-            cluster_positions.append(rel_pos)
-            cluster_symbols.append(large_atoms.symbols[i])
-            cluster_indices.append(i)
+            # 2. Collect atoms and unwrap positions relative to center
+            center_pos = large_atoms.positions[center_idx]
+            cell = large_atoms.get_cell()
 
-        # 3. Create new Atoms object in new box
-        L = self.config.box_size
-        box_center = np.array([L/2.0, L/2.0, L/2.0])
+            cluster_positions = []
+            cluster_symbols = []
+            cluster_indices = []
 
-        # Shift atoms so center is at box_center
-        final_positions = np.array(cluster_positions) + box_center
+            for i, offset in zip(indices, offsets):
+                # Original position
+                pos = large_atoms.positions[i]
+                # Unwrap: position + offset @ cell
+                shifted_pos = pos + np.dot(offset, cell)
+                # Relative to center
+                rel_pos = shifted_pos - center_pos
 
-        cluster = Atoms(
-            symbols=cluster_symbols,
-            positions=final_positions,
-            cell=[L, L, L],
-            pbc=True
-        )
+                cluster_positions.append(rel_pos)
+                cluster_symbols.append(large_atoms.symbols[i])
+                cluster_indices.append(i)
 
-        # Store original indices
-        cluster.new_array("original_index", np.array(cluster_indices))
+            # 3. Create new Atoms object in new box
+            L = self.config.box_size
+            box_center = np.array([L/2.0, L/2.0, L/2.0])
 
-        # 4. Create ExtractedStructure
-        # Get UUID safely
-        origin_uuid = "unknown"
-        if large_atoms.info and "uuid" in large_atoms.info:
-            origin_uuid = str(large_atoms.info["uuid"])
+            # Shift atoms so center is at box_center
+            final_positions = np.array(cluster_positions) + box_center
 
-        return ExtractedStructure(
-            atoms=cluster,
-            origin_uuid=origin_uuid,
-            origin_index=center_idx,
-            mask_radius=self.config.core_radius
-        )
+            cluster = Atoms(
+                symbols=cluster_symbols,
+                positions=final_positions,
+                cell=[L, L, L],
+                pbc=True
+            )
+
+            # Store original indices
+            cluster.new_array("original_index", np.array(cluster_indices))
+
+            # 4. Create ExtractedStructure
+            # Get UUID safely
+            origin_uuid = "unknown"
+            if large_atoms.info and "uuid" in large_atoms.info:
+                origin_uuid = str(large_atoms.info["uuid"])
+
+            return ExtractedStructure(
+                atoms=cluster,
+                origin_uuid=origin_uuid,
+                origin_index=center_idx,
+                mask_radius=self.config.core_radius
+            )
+
+        except (IndexError, TypeError, ValueError):
+            raise
+        except Exception as e:
+            raise RuntimeError(f"Extraction failed for index {center_idx}: {str(e)}") from e

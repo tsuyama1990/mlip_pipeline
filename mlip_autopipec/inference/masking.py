@@ -15,35 +15,34 @@ class ForceMasker:
             center: The center position [x, y, z].
             radius: The core radius. Atoms within this radius get mask=1.0.
         """
+        if len(atoms) == 0:
+            return
+
         positions = atoms.get_positions()
         cell = atoms.get_cell()
+        pbc = atoms.pbc
 
-        # Calculate distances from center using MIC
-        # We assume the box is orthogonal (cubic) as per Embedding logic,
-        # but robust MIC handles general cells.
-        # For simplicity and speed in this specific pipeline (cubic box), we assume orthogonal.
-        # But let's check if we can use ASE's geometry functions?
-        # ase.geometry.find_mic is available but works on vectors.
-
-        # Let's assume orthogonal box for now as per spec "cubic box".
-        # L = box dimensions
-        L = np.diag(cell)
-        if not np.allclose(cell, np.diag(L)):
-             # Fallback or warning?
-             # For now, proceed assuming it works for our extracted clusters.
-             pass
-
+        # Safe MIC calculation
         diff = positions - center
 
-        # MIC for orthogonal box
-        # diff -= np.round(diff / L) * L
-        # Handle cases where L might be 0 (if non-periodic directions exist?)
-        # Embedding always sets pbc=True and finite box.
+        # Only apply MIC if PBC is enabled and cell is valid
+        if np.any(pbc):
+            # Check for orthogonal cell for fast path
+            # L = box dimensions
+            L = np.diag(cell)
+            is_orthogonal = np.allclose(cell, np.diag(L))
 
-        # We must iterate or use broadcasting
-        # diff is (N, 3), L is (3,)
-
-        diff = diff - np.round(diff / L) * L
+            if is_orthogonal:
+                # Avoid division by zero if some dimension is 0 (should imply pbc=False for that dim, but be safe)
+                # We only wrap dimensions where pbc is True and L > 0
+                for i in range(3):
+                    if pbc[i] and L[i] > 1e-6:
+                        diff[:, i] = diff[:, i] - np.round(diff[:, i] / L[i]) * L[i]
+            else:
+                 # Fallback to ASE's find_mic for non-orthogonal cells
+                 from ase.geometry import find_mic
+                 # find_mic expects (N, 3) vectors and cell
+                 diff, _ = find_mic(diff, cell, pbc)
 
         dists = np.linalg.norm(diff, axis=1)
 

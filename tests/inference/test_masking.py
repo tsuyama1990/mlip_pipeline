@@ -1,8 +1,7 @@
+import pytest
 import numpy as np
 from ase import Atoms
-
 from mlip_autopipec.inference.masking import ForceMasker
-
 
 def test_force_masker_apply():
     # Create a cluster with atoms at specific distances
@@ -50,3 +49,22 @@ def test_force_masker_boundary():
     assert mask[0] == 1.0 # Inside
     assert mask[1] == 1.0 # On boundary (implementation is <=)
     assert mask[2] == 0.0 # Outside
+
+def test_force_masker_singular_cell():
+    # Test handling of singular/collapsed cell (e.g. L=0)
+    # This should not raise ZeroDivisionError
+    center = np.array([0.0, 0.0, 0.0])
+    atoms = Atoms("H1", positions=[[1.0, 0.0, 0.0]], cell=[0.0, 0.0, 0.0], pbc=False)
+
+    masker = ForceMasker()
+    # Should run without error, using non-PBC logic (dist=1.0)
+    masker.apply(atoms, center, radius=2.0)
+
+    assert atoms.arrays["force_mask"][0] == 1.0
+
+def test_force_masker_empty():
+    atoms = Atoms()
+    masker = ForceMasker()
+    masker.apply(atoms, np.array([0,0,0]), 3.0)
+    # Should just return without error
+    assert len(atoms) == 0
