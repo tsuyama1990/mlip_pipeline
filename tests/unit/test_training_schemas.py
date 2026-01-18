@@ -1,8 +1,6 @@
 import pytest
 from pydantic import ValidationError
-
 from mlip_autopipec.data_models.training_data import TrainingData
-
 
 def test_training_data_valid() -> None:
     data = TrainingData(
@@ -21,7 +19,8 @@ def test_training_data_invalid_forces_shape() -> None:
             structure_uid="uid-2",
             forces=[[0.0, 0.0]] # 2D vector, invalid
         )
-    assert "Force vector at index 0 must be size 3" in str(exc.value)
+    # The error message from Annotated validator inside Pydantic
+    assert "Vector must be size 3" in str(exc.value)
 
 def test_training_data_forces_none_allowed() -> None:
     data = TrainingData(structure_uid="uid-3")

@@ -46,11 +46,6 @@ def test_extracted_structure_invalid_atoms_type() -> None:
     assert "must be an ase.Atoms object" in str(exc.value) or "atoms" in str(exc.value)
 
 def test_extracted_structure_edge_cases() -> None:
-    # Negative index
-    # We rely on pydantic/python int which allows negative.
-    # But logic might not like it. The model itself doesn't constrain it unless we add ge=0
-    # Let's assume standard int.
-
     # Empty UUID
     s = ExtractedStructure(
         atoms=Atoms(),
@@ -60,7 +55,12 @@ def test_extracted_structure_edge_cases() -> None:
     )
     assert s.origin_uuid == ""
 
-    # Negative radius? Logic is used for calculation but usually radius > 0.
-    # The config has gt=0, but data model might not.
-    # Spec doesn't strictly forbid negative radius in data model, but Config does.
-    pass
+    # Check extra fields forbidden
+    with pytest.raises(ValidationError):
+        ExtractedStructure(
+            atoms=Atoms(),
+            origin_uuid="uuid",
+            origin_index=0,
+            mask_radius=1.0,
+            extra_field="should fail"
+        )

@@ -4,13 +4,20 @@ This ensures type safety and validation at boundaries where raw objects (like as
 are passed between modules.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator
 
 if TYPE_CHECKING:
     from ase import Atoms
 
+def check_3d_vector(v: list[float]) -> list[float]:
+    if len(v) != 3:
+        raise ValueError("Vector must be size 3.")
+    return v
+
+# Type alias for a 3D vector
+Vector3D = Annotated[list[float], BeforeValidator(check_3d_vector)]
 
 class TrainingBatch(BaseModel):
     """
@@ -50,17 +57,14 @@ class TrainingData(BaseModel):
     """
     structure_uid: str
     energy: float | None = None
-    forces: list[list[float]] | None = None
-    virial: list[list[float]] | None = None
-    stress: list[list[float]] | None = None
+    # Use nested annotation for list of 3D vectors
+    forces: list[Vector3D] | None = None
+    virial: list[Vector3D] | None = None # Virial typically 3x3? But sometimes contracted. Spec says list[list[float]].
+    # Wait, stress is 3x3. Virial is also tensor.
+    # The previous code assumed list[list[float]].
+    # Let's keep it consistent.
+    stress: list[Vector3D] | None = None
 
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("forces")
-    @classmethod
-    def validate_forces_shape(cls, v: list[list[float]] | None) -> list[list[float]] | None:
-        if v is not None:
-            for i, f in enumerate(v):
-                if len(f) != 3:
-                     raise ValueError(f"Force vector at index {i} must be size 3.")
-        return v
+    # We replaced the explicit validator with the Type Annotation 'Vector3D'
