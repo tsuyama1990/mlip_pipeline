@@ -3,10 +3,12 @@ Module for physics-based calculations.
 Currently implements the ZBL (Ziegler-Biersack-Littmark) potential for short-range repulsion.
 """
 
+import logging
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
+logger = logging.getLogger(__name__)
 
 class ZBLCalculator(Calculator):
     """
@@ -23,6 +25,9 @@ class ZBLCalculator(Calculator):
     # Universal screening function coefficients (phi)
     _COEFFS = [0.1818, 0.5099, 0.2802, 0.02817]
     _EXPONENTS = [3.2, 0.9423, 0.4029, 0.2016]
+
+    # Cutoff distance to avoid singularity (Angstroms)
+    _R_MIN = 1e-4
 
     def calculate(self, atoms: Atoms, properties=None, system_changes=all_changes):
         """
@@ -54,7 +59,11 @@ class ZBLCalculator(Calculator):
                 dist_vec = positions[i] - positions[j]
                 r = np.linalg.norm(dist_vec)
 
-                if r < 1e-4:  # Avoid singularity
+                if r < self._R_MIN:
+                    logger.warning(
+                        f"Atoms {i} (Z={numbers[i]}) and {j} (Z={numbers[j]}) are too close (r={r:.2e} A). "
+                        "Skipping ZBL interaction to avoid singularity."
+                    )
                     continue
 
                 z1 = numbers[i]

@@ -1,13 +1,13 @@
-import gzip
-import pickle
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-from ase import Atoms
-
 from mlip_autopipec.config.schemas.training import TrainConfig
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
+from ase import Atoms
+import pickle
+import gzip
+import subprocess
 
 
 @pytest.fixture
@@ -76,9 +76,6 @@ def test_pacemaker_train_failure(mock_dataset_builder, mock_config_gen, tmp_path
         with pytest.raises(RuntimeError, match="Pacemaker training failed"):
             wrapper.train(config, mock_dataset_builder, mock_config_gen, tmp_path)
 
-import subprocess
-
-
 def test_pacemaker_executable_not_found(mock_dataset_builder, mock_config_gen, tmp_path):
     # Setup dummy data file
     data_file = tmp_path / "dummy_data.pckl.gzip"
@@ -94,4 +91,25 @@ def test_pacemaker_executable_not_found(mock_dataset_builder, mock_config_gen, t
         mock_run.side_effect = FileNotFoundError
 
         with pytest.raises(RuntimeError, match="not found"):
+            wrapper.train(config, mock_dataset_builder, mock_config_gen, tmp_path)
+
+def test_pacemaker_parsing_failure(mock_dataset_builder, mock_config_gen, tmp_path):
+    """Test when regex fails to find RMSE metrics."""
+    data_file = tmp_path / "dummy_data.pckl.gzip"
+    atoms = [Atoms("Al")]
+    with gzip.open(data_file, "wb") as f:
+        pickle.dump(atoms, f)
+    mock_dataset_builder.export.return_value = data_file
+
+    wrapper = PacemakerWrapper()
+    config = TrainConfig()
+
+    with patch("subprocess.run") as mock_run:
+        # Mock output without RMSE patterns
+        mock_run.return_value.stdout = "Training crashed without standard error code?"
+        mock_run.return_value.returncode = 0
+
+        (tmp_path / "potential_gen0.yace").touch()
+
+        with pytest.raises(RuntimeError, match="parsing failed"):
             wrapper.train(config, mock_dataset_builder, mock_config_gen, tmp_path)

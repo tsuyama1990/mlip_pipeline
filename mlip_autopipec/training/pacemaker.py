@@ -59,6 +59,8 @@ class PacemakerWrapper:
         Raises:
             RuntimeError: If training fails or executable is missing.
         """
+        # Ensure work_dir is absolute
+        work_dir = work_dir.resolve()
         logger.info(f"Starting training (Generation {generation}) in {work_dir}")
         work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -127,6 +129,7 @@ class PacemakerWrapper:
         """Runs the Pacemaker executable and captures output."""
         logger.info(f"Running pacemaker with config: {input_yaml}")
         start_time = time.time()
+        # Use filename relative to work_dir if possible, or absolute path
         cmd = [self.executable, str(input_yaml.name)]
 
         try:
@@ -164,16 +167,19 @@ class PacemakerWrapper:
         generation: int,
     ) -> TrainingResult:
         """Parses stdout for metrics and verifies output file."""
-        rmse_energy = 0.0
-        rmse_forces = 0.0
-
         re_energy = re.search(r"RMSE\s*\(energy\)\s*:\s*([\d\.eE\-\+]+)", stdout)
-        if re_energy:
-            rmse_energy = float(re_energy.group(1))
-
         re_forces = re.search(r"RMSE\s*\(forces\)\s*:\s*([\d\.eE\-\+]+)", stdout)
-        if re_forces:
-            rmse_forces = float(re_forces.group(1))
+
+        if not re_energy:
+             logger.error("Could not parse RMSE Energy from Pacemaker output.")
+             raise RuntimeError("Pacemaker output parsing failed: missing RMSE Energy.")
+
+        if not re_forces:
+             logger.error("Could not parse RMSE Forces from Pacemaker output.")
+             raise RuntimeError("Pacemaker output parsing failed: missing RMSE Forces.")
+
+        rmse_energy = float(re_energy.group(1))
+        rmse_forces = float(re_forces.group(1))
 
         logger.info(
             f"Final Metrics - RMSE Energy: {rmse_energy}, RMSE Forces: {rmse_forces}"

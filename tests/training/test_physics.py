@@ -1,8 +1,8 @@
-import numpy as np
 from ase import Atoms
-
+import pytest
+import numpy as np
+import logging
 from mlip_autopipec.training.physics import ZBLCalculator
-
 
 def test_zbl_calculator_energy():
     calc = ZBLCalculator()
@@ -13,13 +13,6 @@ def test_zbl_calculator_energy():
 
     # Check it is positive (repulsive) and large
     assert energy > 0
-    # Approximate check:
-    # Z=1. a = 0.468 / (1+1) approx 0.23? No.
-    # a = 0.8854*0.529 / (1^0.23 + 1^0.23) = 0.468 / 2 = 0.234
-    # r/a = 0.5 / 0.234 = 2.13
-    # phi(2.13) will be small but non-zero.
-    # Coulomb = 14.4 / 0.5 = 28.8 eV
-    # V = 28.8 * phi
     assert energy > 1.0 # Should be significant
 
 def test_zbl_calculator_forces():
@@ -45,3 +38,17 @@ def test_zbl_calculator_cutoff_behavior():
 
     # Should be effectively zero
     assert energy < 1e-3
+
+def test_zbl_singularity(caplog):
+    calc = ZBLCalculator()
+    # Very close atoms
+    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1e-5]])
+    atoms.calc = calc
+
+    with caplog.at_level(logging.WARNING):
+        e = atoms.get_potential_energy()
+
+    # Expect zero energy contribution from singularity pair (skipped)
+    # Since only 1 pair, total energy 0.
+    assert e == 0.0
+    assert "too close" in caplog.text

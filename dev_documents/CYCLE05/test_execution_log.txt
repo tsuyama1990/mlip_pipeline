@@ -3,12 +3,12 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 21 items
+collected 23 items
 
-tests/training/test_config_gen.py ..                                     [  9%]
-tests/training/test_dataset.py .....                                     [ 33%]
-tests/training/test_pacemaker.py ...                                     [ 47%]
-tests/training/test_physics.py ...                                       [ 61%]
+tests/training/test_config_gen.py ..                                     [  8%]
+tests/training/test_dataset.py .....                                     [ 30%]
+tests/training/test_pacemaker.py ....                                    [ 47%]
+tests/training/test_physics.py ....                                      [ 65%]
 tests/unit/test_training_schemas.py ........                             [100%]
 
 ================================ tests coverage ================================
@@ -72,8 +72,8 @@ mlip_autopipec/surrogate/sampling.py               28     28     0%   1-76
 mlip_autopipec/training/__init__.py                 4      0   100%
 mlip_autopipec/training/config_gen.py              16      0   100%
 mlip_autopipec/training/dataset.py                 83     11    87%   114-115, 118-119, 130-132, 151, 173, 176-177
-mlip_autopipec/training/pacemaker.py               89     18    80%   91-93, 98-100, 122-124, 148-150, 183-191
-mlip_autopipec/training/physics.py                 35      1    97%   58
+mlip_autopipec/training/pacemaker.py               92     20    78%   93-95, 100-102, 124-126, 151-153, 178-179, 189-197
+mlip_autopipec/training/physics.py                 39      0   100%
 mlip_autopipec/utils/__init__.py                    0      0   100%
 mlip_autopipec/utils/ase_utils.py                  42     42     0%   12-120
 mlip_autopipec/utils/config_utils.py                7      7     0%   3-38
@@ -83,5 +83,5 @@ mlip_autopipec/utils/resilience.py                 29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py             32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                106    106     0%   1-191
 -----------------------------------------------------------------------------
-TOTAL                                            2540   1900    25%
-============================== 21 passed in 2.61s ==============================
+TOTAL                                            2547   1901    25%
+============================== 23 passed in 2.87s ==============================
