@@ -12,12 +12,13 @@ from pathlib import Path
 from ase.atoms import Atoms
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig, InferenceResult
+from mlip_autopipec.inference.interfaces import MDRunner
 from mlip_autopipec.inference.writer import LammpsInputWriter
 
 logger = logging.getLogger(__name__)
 
 
-class LammpsRunner:
+class LammpsRunner(MDRunner):
     """
     Orchestrates LAMMPS simulations.
     Responsible for execution and result collection.
