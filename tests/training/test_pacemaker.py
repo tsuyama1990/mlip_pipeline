@@ -1,13 +1,14 @@
+import gzip
+import pickle
+import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from ase import Atoms
+
 from mlip_autopipec.config.schemas.training import TrainConfig
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
-from ase import Atoms
-import pickle
-import gzip
-import subprocess
 
 
 @pytest.fixture

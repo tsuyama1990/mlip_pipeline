@@ -1,7 +1,6 @@
 import gzip
 import pickle
-from pathlib import Path
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 import numpy as np
 import pytest

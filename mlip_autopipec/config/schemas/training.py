@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import math
 
 from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
 
@@ -91,6 +92,11 @@ class TrainingData(BaseModel):
             return v
         if not all(len(row) == 3 for row in v):
             raise ValueError("Each force vector must have 3 components (x, y, z).")
+        # Check for NaN or Infinity
+        for row in v:
+            for val in row:
+                if not math.isfinite(val):
+                    raise ValueError(f"Force value {val} is not finite.")
         return v
 
 

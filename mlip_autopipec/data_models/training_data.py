@@ -4,7 +4,7 @@ This ensures type safety and validation at boundaries where raw objects (like as
 are passed between modules.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -18,12 +18,8 @@ class TrainingBatch(BaseModel):
     Wraps a list of ase.Atoms objects to ensure they are valid.
     """
 
-    # Use Any because ase.Atoms is not a Pydantic model.
-    # Ideally we would use list[Atoms] but that requires arbitrary types allowed
-    # and might cause runtime issues if imports are circular or missing.
-    # However, strict validation is done via validator.
-    # We hint as list[Any] to satisfy Pydantic V2 without errors, but logical type is list[Atoms].
-    atoms_list: list[Any] = Field(..., description="List of ase.Atoms objects.")
+    # Use TYPE_CHECKING string forward reference for Atoms
+    atoms_list: List["Atoms"] = Field(..., description="List of ase.Atoms objects.")
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     @field_validator("atoms_list")
