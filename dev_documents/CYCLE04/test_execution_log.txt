@@ -4,7 +4,7 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: mock-3.15.1, cov-7.0.0
-collected 146 items
+collected 148 items
 
 tests/config/test_system_config.py .                                     [  0%]
 tests/core/test_logging_robustness.py ..                                 [  2%]
@@ -14,7 +14,7 @@ tests/dft/test_inputs.py ...                                             [  6%]
 tests/dft/test_parsers.py ..                                             [  7%]
 tests/dft/test_recovery.py ....                                          [ 10%]
 tests/dft/test_runner.py FF                                              [ 11%]
-tests/dft/test_runner_executable_check.py ..                             [ 13%]
+tests/dft/test_runner_executable_check.py ..                             [ 12%]
 tests/dft/test_runner_integration.py F.                                  [ 14%]
 tests/generator/test_alloy.py ......                                     [ 18%]
 tests/generator/test_builder.py ..                                       [ 19%]
@@ -25,20 +25,21 @@ tests/integration/test_monitoring_integration.py EEF                     [ 29%]
 tests/integration/test_surrogate_pipeline.py .....                       [ 32%]
 tests/modules/test_config_generator.py E                                 [ 33%]
 tests/modules/test_dft.py ......                                         [ 37%]
-tests/modules/test_dft_heuristics.py .......                             [ 42%]
-tests/modules/test_exploration.py .....ss                                [ 47%]
-tests/modules/test_explorer.py ....                                      [ 50%]
+tests/modules/test_dft_heuristics.py .......                             [ 41%]
+tests/modules/test_exploration.py .....ss                                [ 46%]
+tests/modules/test_explorer.py ....                                      [ 49%]
 tests/modules/test_generator.py ....                                     [ 52%]
 tests/modules/test_inference.py .EE                                      [ 54%]
-tests/modules/test_training.py ....                                      [ 57%]
-tests/services/test_pipeline.py .                                        [ 58%]
-tests/surrogate/test_descriptors.py ....                                 [ 60%]
+tests/modules/test_training.py ....                                      [ 56%]
+tests/services/test_pipeline.py .                                        [ 57%]
+tests/surrogate/test_candidate_manager.py ..                             [ 58%]
+tests/surrogate/test_descriptors.py ....                                 [ 61%]
 tests/surrogate/test_mace.py .....                                       [ 64%]
-tests/surrogate/test_sampling.py .....                                   [ 67%]
-tests/test_app.py ...                                                    [ 69%]
+tests/surrogate/test_sampling.py .....                                   [ 68%]
+tests/test_app.py ...                                                    [ 70%]
 tests/test_config.py ........                                            [ 75%]
 tests/test_config_factory.py ...                                         [ 77%]
-tests/test_database_manager.py ..                                        [ 78%]
+tests/test_database_manager.py ..                                        [ 79%]
 tests/test_logging.py ..                                                 [ 80%]
 tests/test_monitoring.py EE.                                             [ 82%]
 tests/test_workflow_manager.py ..                                        [ 83%]
@@ -53,7 +54,7 @@ tests/utils/test_resilience.py ......                                    [100%]
 ==================================== ERRORS ====================================
 ____________________ ERROR at setup of test_status_command _____________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_status_command0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_status_command0')
 
     @pytest.fixture
     def populated_project(tmp_path):
@@ -98,7 +99,7 @@ E           For further information visit https://errors.pydantic.dev/2.12/v/mis
 tests/integration/test_monitoring_integration.py:23: ValidationError
 ________________ ERROR at setup of test_status_command_no_open _________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_status_command_no_open0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_status_command_no_open0')
 
     @pytest.fixture
     def populated_project(tmp_path):
@@ -143,7 +144,7 @@ E           For further information visit https://errors.pydantic.dev/2.12/v/mis
 tests/integration/test_monitoring_integration.py:23: ValidationError
 _______________ ERROR at setup of test_generate_pacemaker_config _______________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_generate_pacemaker_config0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_generate_pacemaker_config0')
 
     @pytest.fixture
     def test_system_config(tmp_path: Path) -> SystemConfig:
@@ -164,7 +165,7 @@ E       ImportError: cannot import name 'UserInputConfig' from 'mlip_autopipec.c
 tests/modules/test_config_generator.py:25: ImportError
 _______________ ERROR at setup of test_lammps_script_generation ________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_lammps_script_generation0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_lammps_script_generation0')
 
     @pytest.fixture
     def mock_inference_config(tmp_path):
@@ -181,13 +182,13 @@ tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_lammps_script_generatio
         )
 E       pydantic_core._pydantic_core.ValidationError: 1 validation error for InferenceConfig
 E       lammps_executable
-E         Value error, File at /tmp/pytest-of-jules/pytest-7/test_lammps_script_generation0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...script_generation0/lmp'), input_type=PosixPath]
+E         Value error, File at /tmp/pytest-of-jules/pytest-8/test_lammps_script_generation0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...script_generation0/lmp'), input_type=PosixPath]
 E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
 
 tests/modules/test_inference.py:20: ValidationError
 ___________ ERROR at setup of test_end_to_end_uncertainty_detection ____________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_end_to_end_uncertainty_de0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_end_to_end_uncertainty_de0')
 
     @pytest.fixture
     def mock_inference_config(tmp_path):
@@ -204,13 +205,13 @@ tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_end_to_end_uncertainty_
         )
 E       pydantic_core._pydantic_core.ValidationError: 1 validation error for InferenceConfig
 E       lammps_executable
-E         Value error, File at /tmp/pytest-of-jules/pytest-7/test_end_to_end_uncertainty_de0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...nd_uncertainty_de0/lmp'), input_type=PosixPath]
+E         Value error, File at /tmp/pytest-of-jules/pytest-8/test_end_to_end_uncertainty_de0/lmp is not executable. [type=value_error, input_value=PosixPath('/tmp/pytest-of...nd_uncertainty_de0/lmp'), input_type=PosixPath]
 E           For further information visit https://errors.pydantic.dev/2.12/v/value_error
 
 tests/modules/test_inference.py:20: ValidationError
 ______________________ ERROR at setup of test_gather_data ______________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_gather_data0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_gather_data0')
 
     @pytest.fixture
     def mock_checkpoint_data(tmp_path):
@@ -258,7 +259,7 @@ E           For further information visit https://errors.pydantic.dev/2.12/v/mis
 tests/test_monitoring.py:20: ValidationError
 ___________________ ERROR at setup of test_gather_data_no_db ___________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_gather_data_no_db0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_gather_data_no_db0')
 
     @pytest.fixture
     def mock_checkpoint_data(tmp_path):
@@ -307,9 +308,9 @@ tests/test_monitoring.py:20: ValidationError
 =================================== FAILURES ===================================
 _____________________________ test_runner_success ______________________________
 
-mock_parser_class = <MagicMock name='QEOutputParser' id='139664965381360'>
-mock_create_input = <MagicMock name='create_input_string' id='139664965385152'>
-mock_subprocess = <MagicMock name='run' id='139664965470928'>
+mock_parser_class = <MagicMock name='QEOutputParser' id='140522724897856'>
+mock_create_input = <MagicMock name='create_input_string' id='140522725032736'>
+mock_subprocess = <MagicMock name='run' id='140522725036528'>
 mock_dft_config = DFTConfig(command='pw.x', pseudo_dir=PosixPath('/tmp/pseudos'), timeout=10, recoverable=True, max_retries=2, dft_input_params=None)
 mock_atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
 
@@ -346,7 +347,7 @@ mock_atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
 tests/dft/test_runner.py:51:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.dft.runner.QERunner object at 0x7f0648a7b560>
+self = <mlip_autopipec.dft.runner.QERunner object at 0x7fcdff1bfc20>
 atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0]), uid = 'test-run'
 
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
@@ -384,10 +385,10 @@ E               mlip_autopipec.dft.runner.DFTFatalError: Executable 'pw.x' not f
 mlip_autopipec/dft/runner.py:58: DFTFatalError
 ______________________________ test_runner_retry _______________________________
 
-mock_get_strategy = <MagicMock name='get_strategy' id='139664965484320'>
-mock_analyze = <MagicMock name='analyze' id='139664965553280'>
-mock_create_input = <MagicMock name='create_input_string' id='139664965557120'>
-mock_subprocess = <MagicMock name='run' id='139664965561152'>
+mock_get_strategy = <MagicMock name='get_strategy' id='140522725098368'>
+mock_analyze = <MagicMock name='analyze' id='140522725102640'>
+mock_create_input = <MagicMock name='create_input_string' id='140522725106576'>
+mock_subprocess = <MagicMock name='run' id='140522725110512'>
 mock_dft_config = DFTConfig(command='pw.x', pseudo_dir=PosixPath('/tmp/pseudos'), timeout=10, recoverable=True, max_retries=2, dft_input_params=None)
 mock_atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
 
@@ -466,7 +467,7 @@ mock_atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
 tests/dft/test_runner.py:129:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.dft.runner.QERunner object at 0x7f0648a7bec0>
+self = <mlip_autopipec.dft.runner.QERunner object at 0x7fcdff1cecf0>
 atoms = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0]), uid = 'test-run'
 
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
@@ -524,8 +525,8 @@ E            +    where DFTFatalError("Executable 'pw.x' not found in PATH.") = 
 tests/dft/test_runner_integration.py:24: AssertionError
 _________________________ test_dft_factory_integration _________________________
 
-self = <mlip_autopipec.modules.dft.DFTRunner object at 0x7f078bbe2db0>
-job = DFTJob(atoms=Atoms(symbols='H2', pbc=False), params=DFTInputParameters(calculation_type='scf', pseudopotentials=Pseudo...=0.02), magnetism=None, mixing_beta=0.7, diagonalization='david'), job_id=UUID('6bca29b1-ca4a-4d9c-9cba-f53732c45d1b'))
+self = <mlip_autopipec.modules.dft.DFTRunner object at 0x7fcdff00e8d0>
+job = DFTJob(atoms=Atoms(symbols='H2', pbc=False), params=DFTInputParameters(calculation_type='scf', pseudopotentials=Pseudo...=0.02), magnetism=None, mixing_beta=0.7, diagonalization='david'), job_id=UUID('53e42bfe-27c1-40ad-a56f-23a11a2a50a1'))
 
     @retry(
         attempts=3,
@@ -560,9 +561,9 @@ job = DFTJob(atoms=Atoms(symbols='H2', pbc=False), params=DFTInputParameters(cal
 mlip_autopipec/modules/dft.py:169:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.modules.dft_handlers.output_parser.QEOutputParser object at 0x7f0648a11820>
-output_path = PosixPath('/tmp/tmpy0y28vov/espresso.pwo')
-job_id = UUID('6bca29b1-ca4a-4d9c-9cba-f53732c45d1b')
+self = <mlip_autopipec.modules.dft_handlers.output_parser.QEOutputParser object at 0x7fcdff083560>
+output_path = PosixPath('/tmp/tmpvr5z3h9x/espresso.pwo')
+job_id = UUID('53e42bfe-27c1-40ad-a56f-23a11a2a50a1')
 
     def parse(self, output_path: Path, job_id: Any) -> DFTResult:
         """
@@ -628,7 +629,7 @@ mlip_autopipec/modules/dft_handlers/output_parser.py:62: ValidationError
 The above exception was the direct cause of the following exception:
 
 h2_atoms = Atoms(symbols='H2', pbc=False)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_dft_factory_integration0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_dft_factory_integration0')
 
     def test_dft_factory_integration(h2_atoms: Atoms, tmp_path: Path) -> None:
         """Test the full DFT calculation pipeline using a mock executable."""
@@ -695,8 +696,8 @@ mlip_autopipec/utils/resilience.py:63: in wrapper
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.modules.dft.DFTRunner object at 0x7f078bbe2db0>
-job = DFTJob(atoms=Atoms(symbols='H2', pbc=False), params=DFTInputParameters(calculation_type='scf', pseudopotentials=Pseudo...=0.02), magnetism=None, mixing_beta=0.7, diagonalization='david'), job_id=UUID('6bca29b1-ca4a-4d9c-9cba-f53732c45d1b'))
+self = <mlip_autopipec.modules.dft.DFTRunner object at 0x7fcdff00e8d0>
+job = DFTJob(atoms=Atoms(symbols='H2', pbc=False), params=DFTInputParameters(calculation_type='scf', pseudopotentials=Pseudo...=0.02), magnetism=None, mixing_beta=0.7, diagonalization='david'), job_id=UUID('53e42bfe-27c1-40ad-a56f-23a11a2a50a1'))
 
     @retry(
         attempts=3,
@@ -771,7 +772,7 @@ E           --- STDERR ---
 
 mlip_autopipec/modules/dft.py:189: DFTCalculationError
 ------------------------------ Captured log call -------------------------------
-ERROR    mlip_autopipec.modules.dft:dft.py:188 Unexpected error executing DFT job 6bca29b1-ca4a-4d9c-9cba-f53732c45d1b
+ERROR    mlip_autopipec.modules.dft:dft.py:188 Unexpected error executing DFT job 53e42bfe-27c1-40ad-a56f-23a11a2a50a1
 Traceback (most recent call last):
   File "/app/mlip_autopipec/modules/dft.py", line 169, in run
     result = self.output_parser.parse(output_path, job.job_id)
@@ -802,7 +803,7 @@ stress.5
   Input should be a valid list [type=list_type, input_value=0.0, input_type=float]
     For further information visit https://errors.pydantic.dev/2.12/v/list_type
 WARNING  mlip_autopipec.utils.resilience:resilience.py:73 Attempt 1/3 for run failed with DFTCalculationError.
-ERROR    mlip_autopipec.modules.dft:dft.py:188 Unexpected error executing DFT job 6bca29b1-ca4a-4d9c-9cba-f53732c45d1b
+ERROR    mlip_autopipec.modules.dft:dft.py:188 Unexpected error executing DFT job 53e42bfe-27c1-40ad-a56f-23a11a2a50a1
 Traceback (most recent call last):
   File "/app/mlip_autopipec/modules/dft.py", line 169, in run
     result = self.output_parser.parse(output_path, job.job_id)
@@ -833,7 +834,7 @@ stress.5
   Input should be a valid list [type=list_type, input_value=0.0, input_type=float]
     For further information visit https://errors.pydantic.dev/2.12/v/list_type
 WARNING  mlip_autopipec.utils.resilience:resilience.py:73 Attempt 2/3 for run failed with DFTCalculationError.
-ERROR    mlip_autopipec.modules.dft:dft.py:188 Unexpected error executing DFT job 6bca29b1-ca4a-4d9c-9cba-f53732c45d1b
+ERROR    mlip_autopipec.modules.dft:dft.py:188 Unexpected error executing DFT job 53e42bfe-27c1-40ad-a56f-23a11a2a50a1
 Traceback (most recent call last):
   File "/app/mlip_autopipec/modules/dft.py", line 169, in run
     result = self.output_parser.parse(output_path, job.job_id)
@@ -927,8 +928,8 @@ stress.5
 _______________________ test_dft_runner_failure_handling _______________________
 
 h2_atoms = Atoms(symbols='H2', pbc=False)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_dft_runner_failure_handli0')
-mocker = <pytest_mock.plugin.MockerFixture object at 0x7f0648951a00>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_dft_runner_failure_handli0')
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fcdff098080>
 
     def test_dft_runner_failure_handling(h2_atoms: Atoms, tmp_path: Path, mocker) -> None:
         """Test that DFTRunner raises DFTCalculationError when execution fails completely."""
@@ -971,9 +972,9 @@ mocker = <pytest_mock.plugin.MockerFixture object at 0x7f0648951a00>
             dft_runner.run(job)
 
 >       assert "DFT calculation failed" in str(excinfo.value)
-E       AssertionError: assert 'DFT calculation failed' in 'DFT subprocess failed for job e41af5eb-0db5-4adb-9b2c-d854214d4304\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr'
-E        +  where 'DFT subprocess failed for job e41af5eb-0db5-4adb-9b2c-d854214d4304\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr' = str(DFTCalculationError('DFT subprocess failed for job e41af5eb-0db5-4adb-9b2c-d854214d4304'))
-E        +    where DFTCalculationError('DFT subprocess failed for job e41af5eb-0db5-4adb-9b2c-d854214d4304') = <ExceptionInfo DFTCalculationError('DFT subprocess failed for job e41af5eb-0db5-4adb-9b2c-d854214d4304') tblen=3>.value
+E       AssertionError: assert 'DFT calculation failed' in 'DFT subprocess failed for job 3848f2ad-9e51-4a8a-b473-f4f9f32701a3\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr'
+E        +  where 'DFT subprocess failed for job 3848f2ad-9e51-4a8a-b473-f4f9f32701a3\n--- STDOUT ---\nUnknown Error\n--- STDERR ---\nstderr' = str(DFTCalculationError('DFT subprocess failed for job 3848f2ad-9e51-4a8a-b473-f4f9f32701a3'))
+E        +    where DFTCalculationError('DFT subprocess failed for job 3848f2ad-9e51-4a8a-b473-f4f9f32701a3') = <ExceptionInfo DFTCalculationError('DFT subprocess failed for job 3848f2ad-9e51-4a8a-b473-f4f9f32701a3') tblen=3>.value
 
 tests/integration/test_dft_integration.py:214: AssertionError
 ------------------------------ Captured log call -------------------------------
@@ -1021,14 +1022,14 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/app/mlip_autopipec/modules/dft.py", line 180, in run
     raise DFTCalculationError(
-mlip_autopipec.exceptions.DFTCalculationError: DFT subprocess failed for job e41af5eb-0db5-4adb-9b2c-d854214d4304
+mlip_autopipec.exceptions.DFTCalculationError: DFT subprocess failed for job 3848f2ad-9e51-4a8a-b473-f4f9f32701a3
 --- STDOUT ---
 Unknown Error
 --- STDERR ---
 stderr
 _________________________ test_status_command_failure __________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-7/test_status_command_failure0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-8/test_status_command_failure0')
 
     def test_status_command_failure(tmp_path):
         """Test status command failure when checkpoint is missing."""
@@ -1118,9 +1119,10 @@ mlip_autopipec/monitoring/__init__.py                        0      0   100%
 mlip_autopipec/monitoring/dashboard.py                      63     40    37%   18-43, 55-87, 92-99
 mlip_autopipec/services/pipeline.py                         23      0   100%
 mlip_autopipec/surrogate/__init__.py                         0      0   100%
+mlip_autopipec/surrogate/candidate_manager.py               15      1    93%   17
 mlip_autopipec/surrogate/descriptors.py                     27      3    89%   41, 70-72
 mlip_autopipec/surrogate/mace_client.py                     55     11    80%   48-63, 80, 95-96
-mlip_autopipec/surrogate/pipeline.py                        54      4    93%   70-71, 78, 105
+mlip_autopipec/surrogate/pipeline.py                        45      3    93%   71-72, 79
 mlip_autopipec/surrogate/sampling.py                        29      1    97%   31
 mlip_autopipec/utils/__init__.py                             0      0   100%
 mlip_autopipec/utils/ase_utils.py                           42     42     0%   12-120
@@ -1131,7 +1133,7 @@ mlip_autopipec/utils/resilience.py                          29      0   100%
 mlip_autopipec/utils/workflow_utils.py                      32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                         106     57    46%   81-84, 91-104, 108-144, 154-191
 --------------------------------------------------------------------------------------
-TOTAL                                                     2373    673    72%
+TOTAL                                                     2379    673    72%
 =========================== short test summary info ============================
 FAILED tests/dft/test_runner.py::test_runner_success - mlip_autopipec.dft.run...
 FAILED tests/dft/test_runner.py::test_runner_retry - mlip_autopipec.dft.runne...
@@ -1146,4 +1148,4 @@ ERROR tests/modules/test_inference.py::test_lammps_script_generation - pydant...
 ERROR tests/modules/test_inference.py::test_end_to_end_uncertainty_detection
 ERROR tests/test_monitoring.py::test_gather_data - pydantic_core._pydantic_co...
 ERROR tests/test_monitoring.py::test_gather_data_no_db - pydantic_core._pydan...
-== 6 failed, 131 passed, 2 skipped, 4 warnings, 7 errors in 73.23s (0:01:13) ===
+== 6 failed, 133 passed, 2 skipped, 4 warnings, 7 errors in 81.60s (0:01:21) ===
