@@ -1,43 +1,46 @@
-from typing import List, Tuple, Dict, Any, Optional
+import logging
+from typing import List, Optional
 import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
+from mlip_autopipec.config.schemas.surrogate import DescriptorConfig
+
+logger = logging.getLogger(__name__)
 
 class DescriptorCalculator:
     """
     Calculates structural descriptors (fingerprints) for atoms using DScribe.
+
+    This class wraps DScribe functionalities (currently SOAP) to provide a
+    standardized interface for featurizing atomic structures.
     """
 
-    def __init__(self, r_cut: float = 6.0, n_max: int = 8, l_max: int = 6, sigma: float = 0.5):
+    def __init__(self, config: DescriptorConfig):
         """
         Initialize the DescriptorCalculator.
 
         Args:
-            r_cut: Cutoff radius in Angstroms.
-            n_max: Number of radial basis functions.
-            l_max: Maximum degree of spherical harmonics.
-            sigma: Standard deviation of the gaussians.
+            config: A DescriptorConfig object containing parameters like r_cut, n_max, etc.
         """
-        self.r_cut = r_cut
-        self.n_max = n_max
-        self.l_max = l_max
-        self.sigma = sigma
-        self._soap = None
+        self.config = config
+        self._soap: Optional[SOAP] = None
 
     def compute_soap(self, atoms_list: List[Atoms]) -> np.ndarray:
         """
         Computes the average SOAP descriptor for a list of structures.
 
         Args:
-            atoms_list: List of ASE Atoms objects.
+            atoms_list: List of ASE Atoms objects to featurize.
 
         Returns:
             np.ndarray: Array of shape (N_structures, N_features).
 
         Raises:
-            ValueError: If SOAP calculation fails.
+            ValueError: If the atoms list is invalid or empty when processing logic requires valid input.
+            RuntimeError: If the internal descriptor calculation fails.
         """
         if not atoms_list:
+            logger.warning("Empty atoms list provided to compute_soap.")
             return np.array([])
 
         # Determine species from the batch
@@ -47,28 +50,27 @@ class DescriptorCalculator:
         species = sorted(list(species))
 
         # Check periodicity from the first atom
-        # We assume homogeneity in batch for periodicity (all bulk or all molecules)
-        # If mixed, we might need to handle differently, but usually it's one cycle type.
         is_periodic = False
         if atoms_list and hasattr(atoms_list[0], 'pbc'):
             is_periodic = np.any(atoms_list[0].pbc)
 
-        self._soap = SOAP(
-            species=species,
-            periodic=is_periodic,
-            r_cut=self.r_cut,
-            n_max=self.n_max,
-            l_max=self.l_max,
-            sigma=self.sigma,
-            average="inner", # Average over atoms to get global descriptor
-            sparse=False
-        )
-
         try:
-            # dscribe creates features
+            self._soap = SOAP(
+                species=species,
+                periodic=is_periodic,
+                r_cut=self.config.r_cut,
+                n_max=self.config.n_max,
+                l_max=self.config.l_max,
+                sigma=self.config.sigma,
+                average="inner", # Average over atoms to get global descriptor
+                sparse=False
+            )
+
+            # dscribe create method
             features = self._soap.create(atoms_list, n_jobs=1)
+
         except Exception as e:
-            # Catch dscribe errors
-            raise ValueError(f"Failed to compute SOAP descriptors: {e}")
+            logger.error(f"SOAP calculation failed: {e}")
+            raise RuntimeError(f"Failed to compute SOAP descriptors: {e}") from e
 
         return features

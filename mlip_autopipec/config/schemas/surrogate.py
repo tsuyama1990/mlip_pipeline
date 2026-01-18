@@ -1,6 +1,15 @@
 from typing import Literal, List
 from pydantic import BaseModel, ConfigDict, Field
 
+class DescriptorConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    r_cut: float = Field(default=6.0, gt=0.0, description="Cutoff radius in Angstroms")
+    n_max: int = Field(default=8, ge=1, description="Number of radial basis functions")
+    l_max: int = Field(default=6, ge=0, description="Maximum degree of spherical harmonics")
+    sigma: float = Field(default=0.5, gt=0.0, description="Standard deviation of the gaussians")
+    descriptor_type: Literal["soap", "ace"] = Field(default="soap", description="Type of descriptor")
+
 class SurrogateConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -8,7 +17,7 @@ class SurrogateConfig(BaseModel):
     device: Literal["cpu", "cuda"] = Field(default="cuda", description="Device to run inference on")
     fps_n_samples: int = Field(default=100, ge=1, description="Number of samples to select via FPS")
     force_threshold: float = Field(default=50.0, gt=0.0, description="Force threshold in eV/A for filtering")
-    descriptor_type: Literal["soap", "ace", "mace_latent"] = Field(default="soap", description="Type of descriptor to use")
+    descriptor_config: DescriptorConfig = Field(default_factory=DescriptorConfig, description="Descriptor configuration")
 
 class SelectionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
