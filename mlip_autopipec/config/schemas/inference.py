@@ -14,16 +14,16 @@ class InferenceConfig(BaseModel):
     Configuration for Inference Engine.
 
     Attributes:
-        temperature: Simulation temperature in Kelvin.
-        pressure: Simulation pressure in Bar (for NPT). 0 for NVT.
-        timestep: Time step in picoseconds.
-        steps: Number of MD steps to run.
-        ensemble: Thermodynamic ensemble ("nvt" or "npt").
-        uq_threshold: Threshold for extrapolation grade (gamma) to trigger active learning dump.
-        sampling_interval: Interval (in steps) for thermo output and dumping.
-        potential_path: Path to the MLIP potential file (.yace).
-        lammps_executable: Path to the LAMMPS executable (optional).
-        elements: List of chemical elements in the system, order-matched to potential.
+        temperature (float): Simulation temperature in Kelvin.
+        pressure (float): Simulation pressure in Bar (for NPT). 0 for NVT.
+        timestep (float): Time step in picoseconds.
+        steps (int): Number of MD steps to run.
+        ensemble (str): Thermodynamic ensemble ("nvt" or "npt").
+        uq_threshold (float): Threshold for extrapolation grade (gamma) to trigger active learning dump.
+        sampling_interval (int): Interval (in steps) for thermo output and dumping.
+        potential_path (FilePath): Path to the MLIP potential file (.yace).
+        lammps_executable (FilePath | None): Path to the LAMMPS executable (optional).
+        elements (list[str]): List of chemical elements in the system, order-matched to potential.
     """
     temperature: float = Field(..., gt=0, description="Temperature in Kelvin")
     pressure: float = Field(0.0, ge=0, description="Pressure in Bar (0 for NVT)")
@@ -69,10 +69,10 @@ class InferenceResult(BaseModel):
     Result object for Inference run.
 
     Attributes:
-        succeeded: Whether the simulation completed successfully.
-        final_structure: Path to the final structure file (if success).
-        uncertain_structures: List of paths to files containing uncertain structures.
-        max_gamma_observed: The maximum extrapolation grade observed during the run.
+        succeeded (bool): Whether the simulation completed successfully.
+        final_structure (Path | None): Path to the final structure file (if success).
+        uncertain_structures (list[Path]): List of paths to files containing uncertain structures.
+        max_gamma_observed (float): The maximum extrapolation grade observed during the run.
     """
     succeeded: bool
     final_structure: Path | None = None
@@ -87,8 +87,8 @@ class EmbeddingConfig(BaseModel):
     Configuration for Local Environment Extraction (Embedding).
 
     Attributes:
-        core_radius: Radius of the trusted core region (Angstroms).
-        buffer_width: Width of the buffer region (Angstroms).
+        core_radius (float): Radius of the trusted core region (Angstroms).
+        buffer_width (float): Width of the buffer region (Angstroms).
     """
     core_radius: float = Field(4.0, gt=0, description="Radius of the trusted core region (Angstroms)")
     buffer_width: float = Field(2.0, gt=0, description="Width of the buffer region (Angstroms)")

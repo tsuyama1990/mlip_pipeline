@@ -50,17 +50,26 @@ def test_force_masker_boundary():
     assert mask[1] == 1.0 # On boundary (implementation is <=)
     assert mask[2] == 0.0 # Outside
 
-def test_force_masker_singular_cell():
-    # Test handling of singular/collapsed cell (e.g. L=0)
-    # This should not raise ZeroDivisionError
+def test_force_masker_singular_cell_no_pbc():
+    # Test handling of singular/collapsed cell (e.g. L=0) with NO PBC
+    # This should work fine as MIC is skipped
     center = np.array([0.0, 0.0, 0.0])
     atoms = Atoms("H1", positions=[[1.0, 0.0, 0.0]], cell=[0.0, 0.0, 0.0], pbc=False)
 
     masker = ForceMasker()
-    # Should run without error, using non-PBC logic (dist=1.0)
     masker.apply(atoms, center, radius=2.0)
 
     assert atoms.arrays["force_mask"][0] == 1.0
+
+def test_force_masker_singular_cell_with_pbc():
+    # Test handling of singular/collapsed cell (e.g. L=0) WITH PBC
+    # This should raise ValueError
+    center = np.array([0.0, 0.0, 0.0])
+    atoms = Atoms("H1", positions=[[1.0, 0.0, 0.0]], cell=[0.0, 0.0, 0.0], pbc=True)
+
+    masker = ForceMasker()
+    with pytest.raises(ValueError, match="zero or near-zero cell volume"):
+        masker.apply(atoms, center, radius=2.0)
 
 def test_force_masker_empty():
     atoms = Atoms()

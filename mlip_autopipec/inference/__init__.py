@@ -11,5 +11,16 @@ from .interfaces import MDRunner
 from .lammps_runner import LammpsRunner
 from .uq import UncertaintyChecker
 from .writer import LammpsInputWriter
+from .embedding import EmbeddingExtractor
+from .masking import ForceMasker
 
-__all__ = ["AnalysisUtils", "LammpsInputWriter", "LammpsRunner", "MDRunner", "ScriptGenerator", "UncertaintyChecker"]
+__all__ = [
+    "AnalysisUtils",
+    "LammpsInputWriter",
+    "LammpsRunner",
+    "MDRunner",
+    "ScriptGenerator",
+    "UncertaintyChecker",
+    "EmbeddingExtractor",
+    "ForceMasker"
+]

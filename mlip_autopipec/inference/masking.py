@@ -14,6 +14,9 @@ class ForceMasker:
             atoms: The Atoms object to mask (modified in place).
             center: The center position [x, y, z].
             radius: The core radius. Atoms within this radius get mask=1.0.
+
+        Raises:
+            ValueError: If atoms object has invalid cell (e.g., zero volume) when PBC is enabled.
         """
         if len(atoms) == 0:
             return
@@ -27,6 +30,10 @@ class ForceMasker:
 
         # Only apply MIC if PBC is enabled and cell is valid
         if np.any(pbc):
+            # Explicit check for cell volume to ensure it's a valid periodic box
+            if abs(cell.volume) < 1e-6:
+                raise ValueError("Atoms object has zero or near-zero cell volume with PBC enabled.")
+
             # Check for orthogonal cell for fast path
             # L = box dimensions
             L = np.diag(cell)
