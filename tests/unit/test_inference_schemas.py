@@ -1,7 +1,14 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
-from pathlib import Path
-from mlip_autopipec.config.schemas.inference import InferenceConfig, InferenceResult
+
+from mlip_autopipec.config.schemas.inference import (
+    EmbeddingConfig,
+    InferenceConfig,
+    InferenceResult,
+)
+
 
 def test_inference_config_valid(tmp_path: Path) -> None:
     potential_file = tmp_path / "model.yace"
@@ -49,3 +56,19 @@ def test_inference_result_negative_gamma() -> None:
             succeeded=True,
             max_gamma_observed=-1.0
         )
+
+def test_embedding_config_valid() -> None:
+    config = EmbeddingConfig(core_radius=3.0, buffer_width=1.5)
+    assert config.core_radius == 3.0
+    assert config.buffer_width == 1.5
+    assert config.box_size == 9.0  # 2 * (3.0 + 1.5)
+
+def test_embedding_config_defaults() -> None:
+    config = EmbeddingConfig()
+    assert config.core_radius == 4.0
+    assert config.buffer_width == 2.0
+    assert config.box_size == 12.0
+
+def test_embedding_config_invalid() -> None:
+    with pytest.raises(ValidationError):
+        EmbeddingConfig(core_radius=-1.0)

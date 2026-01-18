@@ -56,9 +56,18 @@ This cycle implements the first part of the **Scalable Inference Engine**, enabl
 - **Uncertainty Quantification (UQ)**: An `UncertaintyChecker` module that parses MD dump files to extract and flag high-uncertainty structures for re-training.
 - **Thermodynamic Analysis**: Basic analysis utilities to extract properties (Temperature, Pressure) from LAMMPS logs.
 
+## Cycle 07: Scalable Inference Engine (Part 2)
+
+This cycle completes the Scalable Inference Engine by implementing the **Periodic Embedding & Force Masking** strategy. This allows the system to efficiently correct local errors in large MD simulations without re-calculating the entire supercell.
+
+### Key Features:
+- **Local Environment Extraction**: An `EmbeddingExtractor` that excises a local cluster around a high-uncertainty atom and embeds it into a small periodic box, handling boundary conditions (PBC) and Minimum Image Convention.
+- **Force Masking**: A `ForceMasker` that applies a mask to the extracted cluster. Atoms in the "core" region are weighted (1.0) for training, while atoms in the "buffer" region are masked (0.0) to ignore surface artifacts.
+- **Data Models**: New `EmbeddingConfig` and `ExtractedStructure` models to standardize the extraction workflow.
+
 ## Development Status
 
-Cycle 01 through Cycle 06 features are implemented.
+Cycle 01 through Cycle 07 features are implemented.
 
 ## Getting Started
 

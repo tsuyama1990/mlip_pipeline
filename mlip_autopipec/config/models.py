@@ -6,7 +6,7 @@ from .schemas.monitoring import *
 from .schemas.surrogate import *
 from .schemas.system import *
 from .schemas.training import *
-# TrainingData is defined in schemas.training as well, but core/database expects it.
-# Wait, schemas/training.py defines TrainingData.
-# Let's check schemas/training.py content.
-# If schemas/training.py defines TrainingData, then `from .schemas.training import *` should export it.
+
+# Export Data Models that are widely used
+from ..data_models.dft_models import DFTResult, DFTErrorType
+from ..data_models.inference_models import ExtractedStructure

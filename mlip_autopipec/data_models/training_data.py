@@ -4,7 +4,7 @@ This ensures type safety and validation at boundaries where raw objects (like as
 are passed between modules.
 """
 
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -19,7 +19,7 @@ class TrainingBatch(BaseModel):
     """
 
     # Use TYPE_CHECKING string forward reference for Atoms
-    atoms_list: List["Atoms"] = Field(..., description="List of ase.Atoms objects.")
+    atoms_list: list["Atoms"] = Field(..., description="List of ase.Atoms objects.")
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     @field_validator("atoms_list")

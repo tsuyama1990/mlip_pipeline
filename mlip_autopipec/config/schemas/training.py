@@ -1,6 +1,6 @@
+import math
 import os
 from pathlib import Path
-import math
 
 from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
 

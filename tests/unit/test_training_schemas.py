@@ -1,6 +1,8 @@
-from mlip_autopipec.config.schemas.training import TrainingData
+
 import pytest
-import math
+
+from mlip_autopipec.config.schemas.training import TrainingData
+
 
 def test_training_data_validation() -> None:
     # Valid

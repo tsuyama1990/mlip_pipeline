@@ -2,11 +2,11 @@
 This module contains the schemas for the Inference Engine configuration.
 """
 
-from typing import List, Literal
+import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
-import os
 
 
 class InferenceConfig(BaseModel):
@@ -34,7 +34,7 @@ class InferenceConfig(BaseModel):
     sampling_interval: int = Field(100, gt=0, description="Sampling interval")
     potential_path: FilePath = Field(..., description="Path to potential file")
     lammps_executable: FilePath | None = Field(None, description="Path to LAMMPS executable")
-    elements: List[str] = Field(default_factory=lambda: ["Al"], description="List of elements")
+    elements: list[str] = Field(default_factory=lambda: ["Al"], description="List of elements")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -73,7 +73,26 @@ class InferenceResult(BaseModel):
     """
     succeeded: bool
     final_structure: Path | None = None
-    uncertain_structures: List[Path] = Field(default_factory=list)
+    uncertain_structures: list[Path] = Field(default_factory=list)
     max_gamma_observed: float = Field(0.0, ge=0.0, description="Max gamma observed")
 
     model_config = ConfigDict(extra="forbid")
+
+
+class EmbeddingConfig(BaseModel):
+    """
+    Configuration for Local Environment Extraction (Embedding).
+
+    Attributes:
+        core_radius: Radius of the trusted core region (Angstroms).
+        buffer_width: Width of the buffer region (Angstroms).
+    """
+    core_radius: float = Field(4.0, gt=0, description="Radius of the trusted core region (Angstroms)")
+    buffer_width: float = Field(2.0, gt=0, description="Width of the buffer region (Angstroms)")
+
+    model_config = ConfigDict(extra="forbid")
+
+    @property
+    def box_size(self) -> float:
+        """Derived box size ~ 2 * (core + buffer)"""
+        return 2.0 * (self.core_radius + self.buffer_width)
