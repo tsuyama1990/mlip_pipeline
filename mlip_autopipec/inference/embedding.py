@@ -1,8 +1,10 @@
 import numpy as np
 from ase import Atoms
 from ase.neighborlist import NeighborList
+
 from mlip_autopipec.config.schemas.inference import EmbeddingConfig
 from mlip_autopipec.data_models.inference_models import ExtractedStructure
+
 
 class EmbeddingExtractor:
     """
@@ -104,4 +106,4 @@ class EmbeddingExtractor:
         except (IndexError, TypeError, ValueError):
             raise
         except Exception as e:
-            raise RuntimeError(f"Extraction failed for index {center_idx}: {str(e)}") from e
+            raise RuntimeError(f"Extraction failed for index {center_idx}: {e!s}") from e

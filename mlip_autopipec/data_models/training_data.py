@@ -4,9 +4,9 @@ This ensures type safety and validation at boundaries where raw objects (like as
 are passed between modules.
 """
 
-from typing import TYPE_CHECKING, Any, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 if TYPE_CHECKING:
     from ase import Atoms

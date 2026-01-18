@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.data_models.training_data import TrainingData
+
 
 def test_training_data_valid() -> None:
     data = TrainingData(

@@ -206,3 +206,26 @@ class DatabaseManager:
         except Exception as e:
             msg = f"Failed to save DFT result: {e}"
             raise DatabaseError(msg) from e
+
+    def count(self, selection: str | None = None) -> int:
+        """
+        Count rows in the database.
+
+        Args:
+            selection: ASE DB selection string.
+
+        Returns:
+            Number of rows matching selection.
+        """
+        if self._connection is None:
+            self.initialize()
+
+        if self._connection is None:
+            msg = "Database connection is None."
+            raise DatabaseError(msg)
+
+        try:
+            return int(self._connection.count(selection=selection))
+        except Exception as e:
+            msg = f"Failed to count rows: {e}"
+            raise DatabaseError(msg) from e

@@ -1,7 +1,9 @@
-import pytest
 import numpy as np
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.inference.masking import ForceMasker
+
 
 def test_force_masker_apply():
     # Create a cluster with atoms at specific distances

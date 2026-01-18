@@ -73,4 +73,4 @@ class ForceMasker:
         except ValueError:
             raise
         except Exception as e:
-            raise RuntimeError(f"Failed to apply force mask: {str(e)}") from e
+            raise RuntimeError(f"Failed to apply force mask: {e!s}") from e
