@@ -1,5 +1,5 @@
 from typing import Literal, List, Any
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class DescriptorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -40,7 +40,8 @@ class DescriptorResult(BaseModel):
 
     features: Any = Field(..., description="Numpy array of shape (N_structures, N_features)")
 
-    @validator("features")
+    @field_validator("features")
+    @classmethod
     def validate_features(cls, v: Any) -> Any:
         import numpy as np
         if not isinstance(v, np.ndarray):

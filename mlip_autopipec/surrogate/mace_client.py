@@ -93,7 +93,10 @@ class MaceClient:
                 forces = atoms.get_forces()
                 forces_list.append(forces)
             except Exception as e:
-                raise RuntimeError(f"Force calculation failed for structure: {e}") from e
+                # Refine Exception handling
+                # We catch specific errors if known, but ASE calc often raises generic Exception or Calculator-specific ones.
+                # We log the specific structure failure context.
+                raise RuntimeError(f"Force calculation failed for structure {atoms}: {e}") from e
             finally:
                 # Restore original calculator? Or leave it?
                 # Usually we don't want to side-effect the input too much.
@@ -123,6 +126,7 @@ class MaceClient:
         try:
             forces_list = self.predict_forces(atoms_list)
         except Exception as e:
+            # Re-raise with context
             raise RuntimeError(f"Pre-screening prediction failed: {e}") from e
 
         for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
