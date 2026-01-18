@@ -22,9 +22,23 @@ This cycle implements the **Automated DFT Factory**, the "engine room" of the pi
 - **Physics-Informed Input Generation**: The `InputGenerator` automatically selects appropriate pseudopotentials (SSSP) and K-point grids based on cell density and material composition (e.g., handling magnetism for Fe, Co, Ni).
 - **Data Standardization**: All results are encapsulated in a strictly typed `DFTResult` object, ensuring consistency across the pipeline.
 
+## Cycle 03: Structure Generator
+
+This cycle implements the **Structure Generator**, a system for creating diverse atomic structures for training data. It includes tools for generating SQS (Special Quasirandom Structures), applying random distortions (strain, rattle), creating defects (vacancies, interstitials), and generating Normal Mode Sampling (NMS) structures for molecules.
+
+## Cycle 04: Surrogate Explorer
+
+This cycle implements the **Surrogate Explorer**, a mechanism to intelligently select the most valuable structures for DFT calculation from a large pool of candidates.
+
+### Key Features:
+- **MACE Foundation Model**: Uses a pre-trained MACE-MP model as a "scout" to predict forces and filter out physically catastrophic structures (e.g., exploding atoms).
+- **Diversity Sampling (FPS)**: Implements Farthest Point Sampling (FPS) using SOAP descriptors to select a geometrically diverse subset of structures, maximizing information gain for MLIP training.
+- **Descriptor Calculation**: robust calculation of SOAP and ACE descriptors for both bulk and molecular systems.
+- **Efficient Pipeline**: A `SurrogatePipeline` orchestrates the flow: Generation -> Pre-screening (MACE) -> Featurization (SOAP) -> Selection (FPS).
+
 ## Development Status
 
-Cycle 01 and Cycle 02 features are implemented.
+Cycle 01, Cycle 02, Cycle 03, and Cycle 04 features are implemented.
 
 ## Getting Started
 
