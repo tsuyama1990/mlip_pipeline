@@ -3,13 +3,13 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 18 items
+collected 21 items
 
-tests/training/test_config_gen.py ..                                     [ 11%]
-tests/training/test_dataset.py .....                                     [ 38%]
-tests/training/test_pacemaker.py ...                                     [ 55%]
-tests/training/test_physics.py ...                                       [ 72%]
-tests/unit/test_training_schemas.py .....                                [100%]
+tests/training/test_config_gen.py ..                                     [  9%]
+tests/training/test_dataset.py .....                                     [ 33%]
+tests/training/test_pacemaker.py ...                                     [ 47%]
+tests/training/test_physics.py ...                                       [ 61%]
+tests/unit/test_training_schemas.py ........                             [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
@@ -29,7 +29,7 @@ mlip_autopipec/config/schemas/inference.py         65     23    65%   26-28, 41-
 mlip_autopipec/config/schemas/monitoring.py        12      0   100%
 mlip_autopipec/config/schemas/surrogate.py         37      6    84%   48-53
 mlip_autopipec/config/schemas/system.py            65     15    77%   62, 67-82
-mlip_autopipec/config/schemas/training.py          67      4    94%   56-59
+mlip_autopipec/config/schemas/training.py          75      5    93%   56-59, 93
 mlip_autopipec/core/__init__.py                     0      0   100%
 mlip_autopipec/core/database.py                   104     85    18%   22-23, 30-48, 55-71, 77-84, 96-103, 115-128, 138-167, 175-200
 mlip_autopipec/core/logging.py                     18     18     0%   5-47
@@ -72,7 +72,7 @@ mlip_autopipec/surrogate/sampling.py               28     28     0%   1-76
 mlip_autopipec/training/__init__.py                 4      0   100%
 mlip_autopipec/training/config_gen.py              16      0   100%
 mlip_autopipec/training/dataset.py                 83     11    87%   114-115, 118-119, 130-132, 151, 173, 176-177
-mlip_autopipec/training/pacemaker.py               75     15    80%   72-74, 84-86, 102-104, 153-161
+mlip_autopipec/training/pacemaker.py               89     18    80%   91-93, 98-100, 122-124, 148-150, 183-191
 mlip_autopipec/training/physics.py                 35      1    97%   58
 mlip_autopipec/utils/__init__.py                    0      0   100%
 mlip_autopipec/utils/ase_utils.py                  42     42     0%   12-120
@@ -83,5 +83,5 @@ mlip_autopipec/utils/resilience.py                 29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py             32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                106    106     0%   1-191
 -----------------------------------------------------------------------------
-TOTAL                                            2518   1896    25%
-============================== 18 passed in 2.43s ==============================
+TOTAL                                            2540   1900    25%
+============================== 21 passed in 2.61s ==============================

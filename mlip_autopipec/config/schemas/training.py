@@ -86,6 +86,15 @@ class TrainingData(BaseModel):
     forces: list[list[float]]
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("forces")
+    @classmethod
+    def check_forces_shape(cls, v: list[list[float]]) -> list[list[float]]:
+        if not v:
+            return v
+        if not all(len(row) == 3 for row in v):
+            raise ValueError("Each force vector must have 3 components (x, y, z).")
+        return v
+
 
 class TrainingRunMetrics(BaseModel):
     generation: int

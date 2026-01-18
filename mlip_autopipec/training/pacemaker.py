@@ -3,7 +3,9 @@ Module for wrapping the Pacemaker training executable.
 Manages configuration generation, execution, and output parsing.
 """
 
+import gzip
 import logging
+import pickle
 import re
 import subprocess
 import time
@@ -44,12 +46,6 @@ class PacemakerWrapper:
         """
         Executes the training loop.
 
-        Steps:
-        1. Export dataset.
-        2. Generate config (input.yaml).
-        3. Run pacemaker.
-        4. Parse logs and result.
-
         Args:
             config: Training configuration.
             dataset_builder: Instance of DatasetBuilder.
@@ -66,17 +62,35 @@ class PacemakerWrapper:
         logger.info(f"Starting training (Generation {generation}) in {work_dir}")
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Export Data
+        # 1. Export Dataset and Identify Elements
+        data_path, elements = self._export_and_analyze_dataset(
+            config, dataset_builder, work_dir
+        )
+
+        # 2. Generate Configuration
+        potential_name = f"potential_gen{generation}.yace"
+        output_path = work_dir / potential_name
+        input_yaml = self._generate_config(
+            config_gen, config, data_path, output_path, elements
+        )
+
+        # 3. Execute Pacemaker
+        stdout, training_time = self._execute_pacemaker(work_dir, input_yaml)
+
+        # 4. Parse Results
+        return self._parse_results(
+            stdout, work_dir, output_path, training_time, generation
+        )
+
+    def _export_and_analyze_dataset(
+        self, config: TrainConfig, dataset_builder: DatasetBuilder, work_dir: Path
+    ) -> tuple[Path, list[str]]:
+        """Exports dataset and extracts unique chemical elements."""
         try:
             data_path = dataset_builder.export(config, work_dir)
         except Exception as e:
             logger.error(f"Failed to export dataset: {e}")
             raise RuntimeError("Dataset export failed") from e
-
-        # Get elements from the dataset for config generation
-        # We read the pickle file back. This is efficient enough for typical dataset sizes.
-        import gzip
-        import pickle
 
         try:
             with gzip.open(data_path, "rb") as f:
@@ -91,22 +105,28 @@ class PacemakerWrapper:
         sorted_elements = sorted(list(elements))
         logger.info(f"Identified elements in training set: {sorted_elements}")
 
-        # 2. Generate Config
-        potential_name = f"potential_gen{generation}.yace"
-        output_path = work_dir / potential_name
+        return data_path, sorted_elements
 
+    def _generate_config(
+        self,
+        config_gen: TrainConfigGenerator,
+        config: TrainConfig,
+        data_path: Path,
+        output_path: Path,
+        elements: list[str],
+    ) -> Path:
+        """Generates the input.yaml configuration file."""
         try:
-            input_yaml = config_gen.generate(
-                config, data_path, output_path, sorted_elements
-            )
+            input_yaml = config_gen.generate(config, data_path, output_path, elements)
+            return input_yaml
         except Exception as e:
             logger.error(f"Failed to generate configuration: {e}")
             raise RuntimeError("Configuration generation failed") from e
 
-        # 3. Run Pacemaker
+    def _execute_pacemaker(self, work_dir: Path, input_yaml: Path) -> tuple[str, float]:
+        """Runs the Pacemaker executable and captures output."""
         logger.info(f"Running pacemaker with config: {input_yaml}")
         start_time = time.time()
-
         cmd = [self.executable, str(input_yaml.name)]
 
         try:
@@ -118,7 +138,6 @@ class PacemakerWrapper:
         except subprocess.CalledProcessError as e:
             logger.error(f"Pacemaker training failed with return code {e.returncode}.")
             logger.error(f"STDERR:\n{e.stderr}")
-            # Log stdout as well for debugging
             logger.error(f"STDOUT:\n{e.stdout}")
             raise RuntimeError(f"Pacemaker training failed: {e.stderr}") from e
         except FileNotFoundError as e:
@@ -126,17 +145,28 @@ class PacemakerWrapper:
             raise RuntimeError(
                 f"Pacemaker executable '{self.executable}' not found."
             ) from e
+        except OSError as e:
+            logger.error(f"OS Error executing pacemaker: {e}")
+            raise RuntimeError(f"OS Error executing pacemaker: {e}") from e
 
         end_time = time.time()
         training_time = end_time - start_time
         logger.info(f"Training completed in {training_time:.2f} seconds.")
 
-        # 4. Parse Logs
+        return stdout, training_time
+
+    def _parse_results(
+        self,
+        stdout: str,
+        work_dir: Path,
+        output_path: Path,
+        training_time: float,
+        generation: int,
+    ) -> TrainingResult:
+        """Parses stdout for metrics and verifies output file."""
         rmse_energy = 0.0
         rmse_forces = 0.0
 
-        # Regex parsing for RMSE
-        # Adjust patterns as needed for actual Pacemaker version
         re_energy = re.search(r"RMSE\s*\(energy\)\s*:\s*([\d\.eE\-\+]+)", stdout)
         if re_energy:
             rmse_energy = float(re_energy.group(1))
@@ -145,11 +175,11 @@ class PacemakerWrapper:
         if re_forces:
             rmse_forces = float(re_forces.group(1))
 
-        logger.info(f"Final Metrics - RMSE Energy: {rmse_energy}, RMSE Forces: {rmse_forces}")
+        logger.info(
+            f"Final Metrics - RMSE Energy: {rmse_energy}, RMSE Forces: {rmse_forces}"
+        )
 
-        # Verify output file exists
         if not output_path.exists():
-            # Fallback check for any .yace file
             yace_files = list(work_dir.glob("*.yace"))
             if yace_files:
                 logger.warning(

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.training import TrainConfig, TrainingResult
+from mlip_autopipec.config.schemas.training import TrainConfig, TrainingResult, TrainingData
 
 
 def test_train_config_valid():
@@ -78,4 +78,29 @@ def test_training_result_invalid(tmp_path: Path):
             rmse_forces=0.1,
             training_time=10,
             generation=1,
+        )
+
+def test_training_data_valid():
+    """Test valid TrainingData."""
+    data = TrainingData(
+        energy=-100.5,
+        forces=[[0.0, 0.0, 0.1], [0.0, 0.0, -0.1]]
+    )
+    assert data.energy == -100.5
+    assert len(data.forces) == 2
+
+def test_training_data_invalid_forces():
+    """Test invalid forces shape."""
+    with pytest.raises(ValidationError):
+        TrainingData(
+            energy=-100.5,
+            forces=[[0.0, 0.0], [0.0, 0.0, -0.1]] # 2D vector
+        )
+
+def test_training_data_type_validation():
+    """Test type validation."""
+    with pytest.raises(ValidationError):
+        TrainingData(
+            energy="not a float",
+            forces=[[0.0, 0.0, 0.1]]
         )
