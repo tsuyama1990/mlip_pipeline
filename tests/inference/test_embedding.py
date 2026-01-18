@@ -1,9 +1,10 @@
-import pytest
 import numpy as np
 from ase import Atoms
 from ase.build import bulk
+
 from mlip_autopipec.config.schemas.inference import EmbeddingConfig
 from mlip_autopipec.inference.embedding import EmbeddingExtractor
+
 
 def test_embedding_extractor_fcc():
     # Create a 5x5x5 Al supercell
@@ -65,7 +66,6 @@ def test_embedding_extractor_fcc():
 
     # Let's just verify that atoms within cut+buffer are included.
     # And distances are preserved.
-    pass
 
 def test_embedding_pbc_crossing():
     # Test extraction across boundary

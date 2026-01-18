@@ -2,7 +2,7 @@
 This module contains the schemas for the Inference Engine configuration.
 """
 
-import os
+import stat
 from pathlib import Path
 from typing import Literal
 
@@ -49,8 +49,11 @@ class InferenceConfig(BaseModel):
     @classmethod
     def validate_executable(cls, v: FilePath | None) -> FilePath | None:
         if v is not None:
-            if not os.access(v, os.X_OK):
-                raise ValueError(f"File at {v} is not executable.")
+            # Check executable permission using stat to avoid os.access (TOCTOU)
+            # We check if User Execute bit is set.
+            st_mode = v.stat().st_mode
+            if not (st_mode & stat.S_IXUSR):
+                 raise ValueError(f"File at {v} is not executable.")
         return v
 
     @field_validator("potential_path")

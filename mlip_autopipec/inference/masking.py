@@ -1,6 +1,7 @@
 import numpy as np
 from ase import Atoms
 
+
 class ForceMasker:
     """
     Applies force masking to an atomic structure based on distance from a center.

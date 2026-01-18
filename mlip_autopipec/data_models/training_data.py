@@ -41,3 +41,26 @@ class TrainingBatch(BaseModel):
                 raise TypeError(msg)
 
         return v
+
+
+class TrainingData(BaseModel):
+    """
+    Data model representing a single training point (Structure + Labels).
+    This is what we write to disk (e.g. extxyz) or send to Pacemaker.
+    """
+    structure_uid: str
+    energy: float | None = None
+    forces: list[list[float]] | None = None
+    virial: list[list[float]] | None = None
+    stress: list[list[float]] | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("forces")
+    @classmethod
+    def validate_forces_shape(cls, v: list[list[float]] | None) -> list[list[float]] | None:
+        if v is not None:
+            for i, f in enumerate(v):
+                if len(f) != 3:
+                     raise ValueError(f"Force vector at index {i} must be size 3.")
+        return v

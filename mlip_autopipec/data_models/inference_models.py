@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ExtractedStructure(BaseModel):
@@ -18,4 +18,16 @@ class ExtractedStructure(BaseModel):
     origin_index: int = Field(..., description="Index of the focal atom in original frame")
     mask_radius: float = Field(..., description="Radius used for force masking")
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("atoms")
+    @classmethod
+    def validate_atoms(cls, v: Any) -> Any:
+        try:
+            from ase import Atoms
+        except ImportError:
+            raise ValueError("ASE not installed.")
+
+        if not isinstance(v, Atoms):
+            raise TypeError("Field 'atoms' must be an ase.Atoms object.")
+        return v

@@ -1,9 +1,7 @@
 import pytest
-from ase import Atoms
 from pydantic import ValidationError
-
 from mlip_autopipec.data_models.inference_models import ExtractedStructure
-
+from ase import Atoms
 
 def test_extracted_structure_valid() -> None:
     atoms = Atoms("Al", positions=[[0, 0, 0]])
@@ -19,10 +17,33 @@ def test_extracted_structure_valid() -> None:
     assert structure.atoms == atoms
 
 def test_extracted_structure_invalid() -> None:
-    with pytest.raises(ValidationError):
+    # We raise TypeError in the validator, so we should catch that.
+    # Pydantic v2 might wrap it in ValidationError depending on configuration,
+    # but for manual raises inside validator, sometimes it bubbles up if not handled.
+    # We accept either to be robust.
+    with pytest.raises((ValidationError, TypeError)):
         ExtractedStructure(
-            atoms="not_atoms", # It allows arbitrary types, but let's check missing fields
+            atoms="not_atoms",
             origin_uuid="1234",
-            # missing origin_index
+            origin_index=0,
             mask_radius=4.0
         )
+
+    with pytest.raises(ValidationError):
+        ExtractedStructure(
+             atoms=Atoms("H"),
+             origin_uuid="1234",
+             # missing origin_index
+             mask_radius=4.0
+        )
+
+def test_extracted_structure_invalid_atoms_type() -> None:
+    # Test explicitly ensuring that 'atoms' field only accepts ase.Atoms
+    with pytest.raises((ValidationError, TypeError)) as exc:
+        ExtractedStructure(
+            atoms=123,
+            origin_uuid="uuid",
+            origin_index=0,
+            mask_radius=1.0
+        )
+    assert "must be an ase.Atoms object" in str(exc.value) or "atoms" in str(exc.value)

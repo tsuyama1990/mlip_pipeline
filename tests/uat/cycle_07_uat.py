@@ -1,7 +1,9 @@
 import sys
+
 import numpy as np
 from ase import Atoms
 from ase.build import bulk
+
 from mlip_autopipec.config.schemas.inference import EmbeddingConfig
 from mlip_autopipec.inference.embedding import EmbeddingExtractor
 from mlip_autopipec.inference.masking import ForceMasker
