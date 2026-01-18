@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+
 from mlip_autopipec.surrogate.sampling import FPSSampler
+
 
 def test_fps_sampler_initialization():
     sampler = FPSSampler()

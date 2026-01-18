@@ -1,7 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
 
 
 def test_generator_config_defaults():

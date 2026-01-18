@@ -1,7 +1,13 @@
 from unittest.mock import MagicMock, patch
 
 from mlip_autopipec.config.schemas.common import MinimalConfig
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
 from mlip_autopipec.config.schemas.system import SystemConfig, TargetSystem
 from mlip_autopipec.generator.builder import StructureBuilder
 

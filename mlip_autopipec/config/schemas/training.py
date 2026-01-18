@@ -59,6 +59,28 @@ class TrainingConfig(BaseModel):
         return v
 
 
+class TrainConfig(BaseModel):
+    cutoff: float = Field(6.0, gt=0)  # Angstroms
+    loss_weights: dict[str, float] = Field(
+        default={"energy": 1.0, "forces": 100.0, "stress": 10.0}
+    )
+    test_fraction: float = Field(0.1, ge=0.0, lt=1.0)
+    max_generations: int = Field(10, ge=1)
+    enable_delta_learning: bool = True
+    batch_size: int = Field(100, gt=0)
+    ace_basis_size: str = Field("medium", pattern="^(small|medium|large)$")
+    model_config = ConfigDict(extra="forbid")
+
+
+class TrainingResult(BaseModel):
+    potential_path: Path
+    rmse_energy: float = Field(..., ge=0)
+    rmse_forces: float = Field(..., ge=0)
+    training_time: float = Field(..., ge=0)
+    generation: int = Field(..., ge=0)
+    model_config = ConfigDict(extra="forbid")
+
+
 class TrainingData(BaseModel):
     energy: float
     forces: list[list[float]]

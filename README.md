@@ -36,9 +36,19 @@ This cycle implements the **Surrogate Explorer**, a mechanism to intelligently s
 - **Descriptor Calculation**: robust calculation of SOAP and ACE descriptors for both bulk and molecular systems.
 - **Efficient Pipeline**: A `SurrogatePipeline` orchestrates the flow: Generation -> Pre-screening (MACE) -> Featurization (SOAP) -> Selection (FPS).
 
+## Cycle 05: Active Learning & Training
+
+This cycle implements the **Active Learning & Training** module, automating the creation of Machine Learning Potentials using Pacemaker.
+
+### Key Features:
+- **Dataset Preparation**: Automated export of training data from ASE-db, ensuring proper formatting and disjoint train/test splitting.
+- **Delta Learning**: Implementation of ZBL (Ziegler-Biersack-Littmark) baseline subtraction to enforce correct short-range repulsion physics.
+- **Pacemaker Integration**: A `PacemakerWrapper` that autonomously manages the training lifecycle, including dynamic configuration generation via Jinja2 templates and output monitoring.
+- **Force Masking**: Support for masking forces on specific atoms (e.g., buffer regions) during training to prevent learning artifacts.
+
 ## Development Status
 
-Cycle 01, Cycle 02, Cycle 03, and Cycle 04 features are implemented.
+Cycle 01, Cycle 02, Cycle 03, Cycle 04, and Cycle 05 features are implemented.
 
 ## Getting Started
 

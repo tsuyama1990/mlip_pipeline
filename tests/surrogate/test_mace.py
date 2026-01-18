@@ -1,9 +1,12 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
 from ase import Atoms
+
+from mlip_autopipec.config.schemas.surrogate import RejectionInfo, SurrogateConfig
 from mlip_autopipec.surrogate.mace_client import MaceClient
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, RejectionInfo
+
 
 @pytest.fixture
 def mock_mace_model():

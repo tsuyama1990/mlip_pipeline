@@ -1,8 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 from ase import Atoms
-from mlip_autopipec.surrogate.descriptors import DescriptorCalculator
+
 from mlip_autopipec.config.schemas.surrogate import DescriptorConfig
+from mlip_autopipec.surrogate.descriptors import DescriptorCalculator
+
 
 @pytest.fixture
 def default_config():

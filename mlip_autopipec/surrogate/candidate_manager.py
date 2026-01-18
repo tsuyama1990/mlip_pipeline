@@ -1,5 +1,6 @@
-from typing import List, Tuple
+
 from ase import Atoms
+
 
 class CandidateManager:
     """
@@ -7,7 +8,7 @@ class CandidateManager:
     """
 
     @staticmethod
-    def tag_candidates(candidates: List[Atoms]) -> List[Atoms]:
+    def tag_candidates(candidates: list[Atoms]) -> list[Atoms]:
         """
         Tags each atom with its original index in the list.
         This modifies the atoms in-place (or returns the modified list).
@@ -19,7 +20,7 @@ class CandidateManager:
         return candidates
 
     @staticmethod
-    def resolve_selection(pool: List[Atoms], local_indices: List[int]) -> Tuple[List[Atoms], List[int]]:
+    def resolve_selection(pool: list[Atoms], local_indices: list[int]) -> tuple[list[Atoms], list[int]]:
         """
         Resolves the selected subset and maps back to original indices.
 

@@ -1,8 +1,9 @@
 import logging
-from typing import List, Optional
+
 import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
+
 from mlip_autopipec.config.schemas.surrogate import DescriptorConfig, DescriptorResult
 
 logger = logging.getLogger(__name__)
@@ -23,9 +24,9 @@ class DescriptorCalculator:
             config: A DescriptorConfig object containing parameters like r_cut, n_max, etc.
         """
         self.config = config
-        self._soap: Optional[SOAP] = None
+        self._soap: SOAP | None = None
 
-    def compute_soap(self, atoms_list: List[Atoms]) -> DescriptorResult:
+    def compute_soap(self, atoms_list: list[Atoms]) -> DescriptorResult:
         """
         Computes the average SOAP descriptor for a list of structures.
 

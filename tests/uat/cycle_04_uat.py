@@ -1,11 +1,13 @@
 
-import pytest
-from ase import Atoms
+from unittest.mock import patch
+
 import numpy as np
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult, RejectionInfo
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+from ase import Atoms
+
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.surrogate.descriptors import DescriptorResult
-from unittest.mock import patch, MagicMock
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+
 
 # UAT-04-01: MACE Pre-screening
 def test_uat_04_01_mace_prescreening():

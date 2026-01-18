@@ -1,8 +1,10 @@
-from typing import List, Tuple, Dict, Any, Optional
+import os
+
 import numpy as np
 from ase import Atoms
-import os
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, RejectionInfo
+
+from mlip_autopipec.config.schemas.surrogate import RejectionInfo, SurrogateConfig
+
 
 class MaceClient:
     """
@@ -62,7 +64,7 @@ class MaceClient:
                 print(f"Warning: Failed to load MACE model: {e}")
                 self.model = None
 
-    def predict_forces(self, atoms_list: List[Atoms]) -> List[np.ndarray]:
+    def predict_forces(self, atoms_list: list[Atoms]) -> list[np.ndarray]:
         """
         Predicts forces for a batch of atomic structures.
 
@@ -79,7 +81,7 @@ class MaceClient:
         if self.model is None:
              raise RuntimeError("MACE model could not be loaded.")
 
-        forces_list: List[np.ndarray] = []
+        forces_list: list[np.ndarray] = []
 
         # Note: In a production environment with MACE, we would use batch processing
         # features of the model if available for performance.
@@ -104,7 +106,7 @@ class MaceClient:
 
         return forces_list
 
-    def filter_unphysical(self, atoms_list: List[Atoms]) -> Tuple[List[Atoms], List[RejectionInfo]]:
+    def filter_unphysical(self, atoms_list: list[Atoms]) -> tuple[list[Atoms], list[RejectionInfo]]:
         """
         Filters out structures that exhibit unphysical forces (exceeding the configured threshold).
 
@@ -120,8 +122,8 @@ class MaceClient:
             RuntimeError: If force prediction fails.
         """
         threshold = self.config.force_threshold
-        kept: List[Atoms] = []
-        rejected: List[RejectionInfo] = []
+        kept: list[Atoms] = []
+        rejected: list[RejectionInfo] = []
 
         try:
             forces_list = self.predict_forces(atoms_list)

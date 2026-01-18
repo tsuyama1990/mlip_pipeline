@@ -1,6 +1,7 @@
-import pytest
 from ase import Atoms
+
 from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+
 
 def test_tag_candidates():
     atoms1 = Atoms('H')

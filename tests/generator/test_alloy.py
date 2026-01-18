@@ -2,10 +2,15 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig, NMSConfig, DefectConfig
-from mlip_autopipec.generator.alloy import AlloyGenerator
-from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.config.schemas.common import Composition
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    NMSConfig,
+    SQSConfig,
+)
+from mlip_autopipec.generator.alloy import AlloyGenerator
 
 
 @pytest.fixture

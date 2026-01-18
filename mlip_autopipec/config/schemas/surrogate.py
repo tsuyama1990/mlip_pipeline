@@ -1,5 +1,7 @@
-from typing import Literal, List, Any
+from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class DescriptorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -22,8 +24,8 @@ class SurrogateConfig(BaseModel):
 class SelectionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    selected_indices: List[int] = Field(description="Indices of selected structures")
-    scores: List[float] = Field(description="Distance scores for selected structures")
+    selected_indices: list[int] = Field(description="Indices of selected structures")
+    scores: list[float] = Field(description="Distance scores for selected structures")
 
 class RejectionInfo(BaseModel):
     model_config = ConfigDict(extra="forbid")

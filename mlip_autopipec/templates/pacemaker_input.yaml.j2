@@ -1,0 +1,41 @@
+cutoff: {{ config.cutoff }}
+seed: 42
+
+data:
+    filename: {{ data_path }}
+    energy_key: energy
+    forces_key: forces
+    stress_key: stress
+
+potential:
+    deltaSpline:
+        filename: {{ output_path.with_suffix(".yace").name }}
+        elements: [{{ elements | join(", ") }}]
+        embedding:
+            fs_parameters: [1, 1, 1, 0.5]
+            ndensity: 2
+            nupdown: 10
+        bonds:
+            rcut: {{ config.cutoff }}
+            dcut: 0.01
+            radial_basis: {{ config.ace_basis_size }}
+
+loss:
+    kappa: {{ config.loss_weights.energy }}
+    kappa_f: {{ config.loss_weights.forces }}
+    kappa_s: {{ config.loss_weights.stress }}
+    w_e: 1.0
+    w_f: 1.0
+    w_s: 1.0
+
+fit:
+    loss: { kappa: {{ config.loss_weights.energy }}, kappa_f: {{ config.loss_weights.forces }}, kappa_s: {{ config.loss_weights.stress }} }
+    optimizer: BFGS
+    maxiter: 1000
+    repulsion:
+        auto: false
+    ladder_step: [0.02, 0.02, 0.02]
+    ladder_type: body_order
+
+backend:
+    evaluator: tensorpot

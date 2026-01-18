@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult
+
+from mlip_autopipec.config.schemas.surrogate import SelectionResult, SurrogateConfig
+
 
 def test_surrogate_config_defaults():
     config = SurrogateConfig()

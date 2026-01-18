@@ -1,6 +1,6 @@
-from typing import List, Tuple, Optional
 import numpy as np
 from scipy.spatial.distance import cdist
+
 
 class FPSSampler:
     """
@@ -10,7 +10,7 @@ class FPSSampler:
     def __init__(self):
         pass
 
-    def select(self, features: np.ndarray, n_samples: int) -> List[int]:
+    def select(self, features: np.ndarray, n_samples: int) -> list[int]:
         """
         Selects n_samples from features using FPS.
         Returns indices of selected samples.
@@ -18,7 +18,7 @@ class FPSSampler:
         indices, _ = self.select_with_scores(features, n_samples)
         return indices
 
-    def select_with_scores(self, features: np.ndarray, n_samples: int) -> Tuple[List[int], List[float]]:
+    def select_with_scores(self, features: np.ndarray, n_samples: int) -> tuple[list[int], list[float]]:
         """
         Selects n_samples from features using FPS.
         Returns (indices, scores), where score is the distance to the selected set at selection time.

@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.config.schemas.common import Composition
+
 
 def test_composition_validation():
     # Valid composition
