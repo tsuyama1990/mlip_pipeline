@@ -126,8 +126,13 @@ class MaceClient:
             raise RuntimeError(f"Pre-screening prediction failed: {e}") from e
 
         for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
-            force_norms = np.linalg.norm(forces, axis=1)
-            max_force = float(np.max(force_norms))
+            if forces.size == 0:
+                # Handle empty structure or calculation error
+                # Usually get_forces returns (N, 3), if N=0 max raises error.
+                max_force = 0.0
+            else:
+                force_norms = np.linalg.norm(forces, axis=1)
+                max_force = float(np.max(force_norms))
 
             if max_force > threshold:
                 rejected.append(RejectionInfo(

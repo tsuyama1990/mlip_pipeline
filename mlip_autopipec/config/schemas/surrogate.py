@@ -1,5 +1,5 @@
-from typing import Literal, List
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal, List, Any
+from pydantic import BaseModel, ConfigDict, Field, validator
 
 class DescriptorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -31,3 +31,20 @@ class RejectionInfo(BaseModel):
     index: int = Field(..., description="Index of the rejected structure")
     max_force: float = Field(..., description="Maximum force encountered in the structure")
     reason: str = Field(..., description="Reason for rejection")
+
+class DescriptorResult(BaseModel):
+    """
+    Wraps the output of descriptor calculation to ensure data integrity.
+    """
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    features: Any = Field(..., description="Numpy array of shape (N_structures, N_features)")
+
+    @validator("features")
+    def validate_features(cls, v: Any) -> Any:
+        import numpy as np
+        if not isinstance(v, np.ndarray):
+            raise TypeError("Features must be a numpy array.")
+        if v.ndim != 2:
+            raise ValueError(f"Features must be 2D array, got {v.ndim}D.")
+        return v

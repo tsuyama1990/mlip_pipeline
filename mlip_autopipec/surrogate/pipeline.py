@@ -99,8 +99,8 @@ class SurrogatePipeline:
         """Computes descriptors."""
         logger.debug("Calculating descriptors...")
         try:
-            descriptors = self.descriptor_calc.compute_soap(kept_atoms)
-            return descriptors
+            descriptor_result = self.descriptor_calc.compute_soap(kept_atoms)
+            return descriptor_result.features
         except Exception as e:
             raise RuntimeError(f"Descriptor calculation failed: {e}") from e
 

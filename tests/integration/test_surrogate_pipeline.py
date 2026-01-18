@@ -4,6 +4,7 @@ from ase import Atoms
 import numpy as np
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, SelectionResult, RejectionInfo
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+from mlip_autopipec.surrogate.descriptors import DescriptorResult
 
 @pytest.fixture
 def mock_mace_client():
@@ -43,7 +44,7 @@ def test_surrogate_pipeline_run(mock_mace_client, mock_descriptor_calc, mock_sam
     # Mock DescriptorCalculator
     calc_instance = mock_descriptor_calc.return_value
     # 2 descriptors for 2 kept atoms
-    calc_instance.compute_soap.return_value = np.zeros((2, 10))
+    calc_instance.compute_soap.return_value = DescriptorResult(features=np.zeros((2, 10)))
 
     # Mock FPSSampler
     sampler_instance = mock_sampler.return_value
@@ -58,10 +59,8 @@ def test_surrogate_pipeline_run(mock_mace_client, mock_descriptor_calc, mock_sam
     assert selected[0] == candidates[0]
     assert selected[1] == candidates[2]
 
-    # Check indices.
-    # kept[0] is candidates[0] (original index 0)
-    # kept[1] is candidates[2] (original index 2)
-    # FPS selected 0 and 1 from kept, which map to 0 and 2.
+    # Check contents of SelectionResult
+    assert isinstance(result, SelectionResult)
     assert result.selected_indices == [0, 2]
     assert result.scores == [0.0, 1.0]
 

@@ -3,7 +3,7 @@ from typing import List, Optional
 import numpy as np
 from ase import Atoms
 from dscribe.descriptors import SOAP
-from mlip_autopipec.config.schemas.surrogate import DescriptorConfig
+from mlip_autopipec.config.schemas.surrogate import DescriptorConfig, DescriptorResult
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class DescriptorCalculator:
         self.config = config
         self._soap: Optional[SOAP] = None
 
-    def compute_soap(self, atoms_list: List[Atoms]) -> np.ndarray:
+    def compute_soap(self, atoms_list: List[Atoms]) -> DescriptorResult:
         """
         Computes the average SOAP descriptor for a list of structures.
 
@@ -33,7 +33,7 @@ class DescriptorCalculator:
             atoms_list: List of ASE Atoms objects to featurize.
 
         Returns:
-            np.ndarray: Array of shape (N_structures, N_features).
+            DescriptorResult: Object containing the features array.
 
         Raises:
             ValueError: If the atoms list is invalid or empty when processing logic requires valid input.
@@ -41,7 +41,8 @@ class DescriptorCalculator:
         """
         if not atoms_list:
             logger.warning("Empty atoms list provided to compute_soap.")
-            return np.array([])
+            # Return empty 2D array
+            return DescriptorResult(features=np.empty((0, 0)))
 
         # Determine species from the batch
         species = set()
@@ -69,8 +70,13 @@ class DescriptorCalculator:
             # dscribe create method
             features = self._soap.create(atoms_list, n_jobs=1)
 
+            # Ensure it's 2D (dscribe might return 1D if single sample and flat output, though usually it respects batch)
+            # If features is 1D, reshape to (1, -1)
+            if features.ndim == 1:
+                features = features.reshape(1, -1)
+
+            return DescriptorResult(features=features)
+
         except Exception as e:
             logger.error(f"SOAP calculation failed: {e}")
             raise RuntimeError(f"Failed to compute SOAP descriptors: {e}") from e
-
-        return features
