@@ -4,6 +4,7 @@ Currently implements the ZBL (Ziegler-Biersack-Littmark) potential for short-ran
 """
 
 import logging
+
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes

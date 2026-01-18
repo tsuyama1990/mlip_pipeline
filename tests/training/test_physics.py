@@ -1,7 +1,8 @@
-from ase import Atoms
-import pytest
-import numpy as np
 import logging
+
+import numpy as np
+from ase import Atoms
+
 from mlip_autopipec.training.physics import ZBLCalculator
 
 

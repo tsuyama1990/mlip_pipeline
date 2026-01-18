@@ -85,18 +85,21 @@ def test_filter_unphysical():
         np.array([[5.0, 0.0, 0.0]]),  # Norm = 5
     ]
 
-    with patch(
-        "mlip_autopipec.surrogate.mace_client.MaceClient.predict_forces", side_effect=[mock_forces]
+    with (
+        patch(
+            "mlip_autopipec.surrogate.mace_client.MaceClient.predict_forces",
+            side_effect=[mock_forces],
+        ),
+        patch("mlip_autopipec.surrogate.mace_client.MaceClient._load_model"),
     ):
-        with patch("mlip_autopipec.surrogate.mace_client.MaceClient._load_model"):
-            client = MaceClient(config)
-            good_atoms, rejected = client.filter_unphysical(atoms_list)
+        client = MaceClient(config)
+        good_atoms, rejected = client.filter_unphysical(atoms_list)
 
-            assert len(good_atoms) == 2
-            assert len(rejected) == 1
-            assert isinstance(rejected[0], RejectionInfo)
-            assert rejected[0].index == 0
-            assert rejected[0].max_force == 100.0
+        assert len(good_atoms) == 2
+        assert len(rejected) == 1
+        assert isinstance(rejected[0], RejectionInfo)
+        assert rejected[0].index == 0
+        assert rejected[0].max_force == 100.0
 
 
 def test_mace_predict_failure():

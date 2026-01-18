@@ -46,9 +46,19 @@ This cycle implements the **Active Learning & Training** module, automating the 
 - **Pacemaker Integration**: A `PacemakerWrapper` that autonomously manages the training lifecycle, including dynamic configuration generation via Jinja2 templates and output monitoring.
 - **Force Masking**: Support for masking forces on specific atoms (e.g., buffer regions) during training to prevent learning artifacts.
 
+## Cycle 06: Scalable Inference Engine (Part 1)
+
+This cycle initiates the **Scalable Inference Engine**, designed to run Molecular Dynamics simulations for "stress-testing" the trained potential.
+
+### Key Features:
+- **LAMMPS Wrapper**: A `LammpsRunner` that orchestrates MD simulations using the trained ACE potential.
+- **Uncertainty Quantification (UQ)**: Real-time monitoring of the Extrapolation Grade ($\gamma$). If the simulation enters an unknown region of the potential energy surface (high $\gamma$), it is automatically flagged.
+- **Active Learning Trigger**: The system automatically extracts "uncertain" configurations from MD trajectories, preparing them for DFT validation and subsequent re-training.
+- **Property Extraction**: Basic analysis utilities to parse thermodynamic properties (Temperature, Pressure, Energy) from simulation logs.
+
 ## Development Status
 
-Cycle 01, Cycle 02, Cycle 03, Cycle 04, and Cycle 05 features are implemented.
+Cycle 01, Cycle 02, Cycle 03, Cycle 04, Cycle 05, and Cycle 06 features are implemented.
 
 ## Getting Started
 
