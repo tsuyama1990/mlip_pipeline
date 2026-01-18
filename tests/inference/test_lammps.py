@@ -55,11 +55,17 @@ def test_lammps_runner_failure(basic_config: InferenceConfig, mock_atoms: Atoms,
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1 # Fail
         mock_run.return_value.stdout = "Error"
-        mock_run.return_value.stderr = "Fatal Error"
 
         result = runner.run(mock_atoms)
         assert result.succeeded is False
         assert result.final_structure is None
+
+def test_lammps_runner_exception(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+    runner = LammpsRunner(basic_config, work_dir=tmp_path)
+
+    with patch("subprocess.run", side_effect=OSError("Exec format error")):
+        result = runner.run(mock_atoms)
+        assert result.succeeded is False
 
 def test_config_validation_invalid_path(tmp_path: Path) -> None:
     with pytest.raises(ValidationError):

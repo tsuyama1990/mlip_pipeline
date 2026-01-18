@@ -9,5 +9,6 @@ from .analysis import AnalysisUtils
 from .inputs import ScriptGenerator
 from .lammps_runner import LammpsRunner
 from .uq import UncertaintyChecker
+from .writer import LammpsInputWriter
 
-__all__ = ["AnalysisUtils", "LammpsRunner", "ScriptGenerator", "UncertaintyChecker"]
+__all__ = ["AnalysisUtils", "LammpsInputWriter", "LammpsRunner", "ScriptGenerator", "UncertaintyChecker"]

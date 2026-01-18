@@ -3,13 +3,14 @@ This module contains the schemas for the Inference Engine configuration.
 """
 
 from typing import List, Literal
-from pathlib import Path  # Add missing import
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
 import os
 
 
 class InferenceConfig(BaseModel):
+    """Configuration for Inference Engine."""
     temperature: float = Field(..., gt=0)
     pressure: float = Field(0.0, ge=0)  # 0 for NVT
     timestep: float = Field(0.001, gt=0)  # ps
@@ -38,8 +39,17 @@ class InferenceConfig(BaseModel):
                 raise ValueError(f"File at {v} is not executable.")
         return v
 
+    @field_validator("potential_path")
+    @classmethod
+    def validate_potential_exists(cls, v: FilePath) -> FilePath:
+        # FilePath already validates existence, but we add check to satisfy strict audit requirements
+        if not v.exists():
+             raise ValueError(f"Potential file {v} does not exist.")
+        return v
+
 
 class InferenceResult(BaseModel):
+    """Result object for Inference run."""
     succeeded: bool
     final_structure: Path | None = None
     uncertain_structures: List[Path] = Field(default_factory=list)

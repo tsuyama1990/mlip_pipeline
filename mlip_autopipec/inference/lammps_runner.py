@@ -1,22 +1,39 @@
+"""
+LAMMPS Runner Module.
+
+This module provides the LammpsRunner class for executing Molecular Dynamics simulations.
+It delegates input creation to LammpsInputWriter.
+"""
+
 import logging
 import subprocess
 from pathlib import Path
 
 from ase.atoms import Atoms
-from ase.io import write
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig, InferenceResult
-from mlip_autopipec.inference.inputs import ScriptGenerator
+from mlip_autopipec.inference.writer import LammpsInputWriter
 
 logger = logging.getLogger(__name__)
 
 
 class LammpsRunner:
+    """
+    Orchestrates LAMMPS simulations.
+    Responsible for execution and result collection.
+    """
+
     def __init__(self, config: InferenceConfig, work_dir: Path) -> None:
+        """
+        Initialize the runner.
+
+        Args:
+            config: Configuration object.
+            work_dir: Directory to run simulations in.
+        """
         self.config = config
         self.work_dir = work_dir
-        self.work_dir.mkdir(parents=True, exist_ok=True)
-        self.generator = ScriptGenerator(config)
+        self.writer = LammpsInputWriter(config, work_dir)
 
     def run(self, atoms: Atoms) -> InferenceResult:
         """
@@ -28,26 +45,11 @@ class LammpsRunner:
         Returns:
             InferenceResult object containing simulation status and artifacts.
         """
-        # Define file paths
-        input_file = self.work_dir / "in.lammps"
-        data_file = self.work_dir / "data.lammps"
-        log_file = self.work_dir / "log.lammps"
-        dump_file = self.work_dir / "dump.gamma"
-
         try:
-            # 1. Write Data File
-            write(data_file, atoms, format="lammps-data")
+            # Delegate writing
+            input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms)
 
-            # 2. Generate Input Script
-            script_content = self.generator.generate(
-                atoms_file=data_file,
-                potential_path=self.config.potential_path,
-                dump_file=dump_file,
-            )
-
-            input_file.write_text(script_content)
-
-            # 3. Execute LAMMPS
+            # Execute
             cmd = [
                 str(self.config.lammps_executable)
                 if self.config.lammps_executable
@@ -74,16 +76,20 @@ class LammpsRunner:
 
         except (subprocess.SubprocessError, OSError):
             logger.exception("An error occurred during LAMMPS execution setup or run.")
-            # In case of severe failure (e.g. executable not found), we return failure result
-            # rather than crashing the pipeline.
             success = False
+            # Ensure variables are defined if exception occurs before assignment
+            # Though writer.write_inputs usually succeeds or raises.
+            # If writer fails, we might not have file paths.
+            # We can't return paths if they weren't defined.
+            # Initialize defaults
+            data_file = self.work_dir / "data.lammps"
+            dump_file = self.work_dir / "dump.gamma"
 
-        # 4. Process Results (Best Effort)
+        # Process Results (Best Effort)
         uncertain_structures = []
-        if dump_file.exists() and dump_file.stat().st_size > 0:
+        if success and dump_file.exists() and dump_file.stat().st_size > 0:
             uncertain_structures.append(dump_file)
 
-        # Extract max gamma if log exists (Placeholder for future logic)
         max_gamma = 0.0
 
         return InferenceResult(

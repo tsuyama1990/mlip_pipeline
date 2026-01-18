@@ -18,9 +18,8 @@ class TrainingBatch(BaseModel):
     Wraps a list of ase.Atoms objects to ensure they are valid.
     """
 
-    # Using Any with validator because ase.Atoms is not easily validatable by Pydantic directly
-    # without ArbitraryTypesAllowed.
-    atoms_list: List[Any] = Field(..., description="List of ase.Atoms objects.")
+    # Use TYPE_CHECKING string forward reference for Atoms
+    atoms_list: List["Atoms"] = Field(..., description="List of ase.Atoms objects.")
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     @field_validator("atoms_list")
