@@ -45,10 +45,11 @@ class MaceClient:
                 abs_path = os.path.abspath(model_path)
                 # Check if it tries to go up levels inappropriately or access sensitive dirs.
                 if ".." in model_path:
-                     raise ValueError("Path traversal attempt detected in model_path.")
+                    raise ValueError("Path traversal attempt detected in model_path.")
 
             try:
                 from mace.calculators import mace_mp
+
                 # default_dtype="float32" is used to save memory/speed as per standard MACE usage
                 self.model = mace_mp(model=model_path, device=self.device, default_dtype="float32")
 
@@ -74,7 +75,7 @@ class MaceClient:
         """
         self._load_model()
         if self.model is None:
-             raise RuntimeError("MACE model could not be loaded.")
+            raise RuntimeError("MACE model could not be loaded.")
 
         forces_list: list[np.ndarray] = []
 
@@ -128,7 +129,7 @@ class MaceClient:
         for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
             # Robustness check: Ensure forces array is valid
             if forces is None:
-                max_force = float('inf')
+                max_force = float("inf")
             elif forces.size == 0:
                 max_force = 0.0
             else:
@@ -136,11 +137,9 @@ class MaceClient:
                 max_force = float(np.max(force_norms))
 
             if max_force > threshold:
-                rejected.append(RejectionInfo(
-                    index=i,
-                    max_force=max_force,
-                    reason="force_threshold_exceeded"
-                ))
+                rejected.append(
+                    RejectionInfo(index=i, max_force=max_force, reason="force_threshold_exceeded")
+                )
             else:
                 kept.append(atoms)
 

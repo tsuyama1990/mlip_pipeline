@@ -19,13 +19,14 @@ def mock_db():
 
     atoms_list = []
     for i in range(10):
-        at = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0 + i*0.1]])
+        at = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0 + i * 0.1]])
         at.calc = SinglePointCalculator(at, energy=-10.0, forces=np.zeros((2, 3)))
-        at.info = {} # Ensure info dict exists
+        at.info = {}  # Ensure info dict exists
         atoms_list.append(at)
 
     db.get_atoms.return_value = atoms_list
     return db
+
 
 def test_dataset_fetch_valid(mock_db):
     """Test fetching valid data."""
@@ -33,6 +34,7 @@ def test_dataset_fetch_valid(mock_db):
     data = builder.fetch_data()
     assert len(data) == 10
     assert isinstance(data[0], Atoms)
+
 
 def test_dataset_fetch_invalid_type(mock_db):
     """Test validation when DB returns non-Atoms objects."""
@@ -42,7 +44,8 @@ def test_dataset_fetch_invalid_type(mock_db):
 
     # We expect pydantic TypeError or Validation Error wrapped
     with pytest.raises((TypeError, ValueError)):
-         builder.fetch_data()
+        builder.fetch_data()
+
 
 def test_dataset_export_delta_learning(mock_db, tmp_path):
     builder = DatasetBuilder(mock_db)
@@ -57,13 +60,14 @@ def test_dataset_export_delta_learning(mock_db, tmp_path):
     with gzip.open(output_path, "rb") as f:
         atoms_train = pickle.load(f)
 
-    assert len(atoms_train) == 8 # 10 * (1 - 0.2)
+    assert len(atoms_train) == 8  # 10 * (1 - 0.2)
 
     # Check if delta learning was applied
     # Original E = -10.0. ZBL E > 0.
     # New E should be -10.0 - ZBL. So it should be < -10.0.
     assert atoms_train[0].info["energy"] < -10.0
     assert "zbl_energy" in atoms_train[0].info
+
 
 def test_dataset_export_no_delta(mock_db, tmp_path):
     builder = DatasetBuilder(mock_db)
@@ -77,6 +81,7 @@ def test_dataset_export_no_delta(mock_db, tmp_path):
     assert len(atoms_train) == 10
     assert atoms_train[0].info["energy"] == -10.0
     assert "zbl_energy" not in atoms_train[0].info
+
 
 def test_force_masking(mock_db, tmp_path):
     # Modify one atom to have force_mask

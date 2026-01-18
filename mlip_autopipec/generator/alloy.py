@@ -231,7 +231,7 @@ class AlloyGenerator:
 
             return results
         except Exception as e:
-             if isinstance(e, GeneratorError):
-                 raise
-             msg = f"Batch generation failed: {e}"
-             raise GeneratorError(msg) from e
+            if isinstance(e, GeneratorError):
+                raise
+            msg = f"Batch generation failed: {e}"
+            raise GeneratorError(msg) from e

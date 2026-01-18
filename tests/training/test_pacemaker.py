@@ -16,11 +16,13 @@ def mock_dataset_builder():
     builder.export.return_value = Path("dummy_data.pckl.gzip")
     return builder
 
+
 @pytest.fixture
 def mock_config_gen():
     gen = Mock()
     gen.generate.return_value = Path("input.yaml")
     return gen
+
 
 def test_pacemaker_train_success(mock_dataset_builder, mock_config_gen, tmp_path):
     # Setup dummy data file because wrapper reads it to get elements
@@ -46,7 +48,9 @@ def test_pacemaker_train_success(mock_dataset_builder, mock_config_gen, tmp_path
         # Create dummy output file
         (tmp_path / "potential_gen0.yace").touch()
 
-        result = wrapper.train(config, mock_dataset_builder, mock_config_gen, tmp_path, generation=0)
+        result = wrapper.train(
+            config, mock_dataset_builder, mock_config_gen, tmp_path, generation=0
+        )
 
         assert result.rmse_energy == 0.005
         assert result.rmse_forces == 0.123
@@ -58,6 +62,7 @@ def test_pacemaker_train_success(mock_dataset_builder, mock_config_gen, tmp_path
         args = mock_run.call_args[0][0]
         assert args[0] == "pacemaker"
         assert args[1] == "input.yaml"
+
 
 def test_pacemaker_train_failure(mock_dataset_builder, mock_config_gen, tmp_path):
     # Setup dummy data file
@@ -71,10 +76,13 @@ def test_pacemaker_train_failure(mock_dataset_builder, mock_config_gen, tmp_path
     config = TrainConfig()
 
     with patch("subprocess.run") as mock_run:
-        mock_run.side_effect = subprocess.CalledProcessError(1, ["pacemaker"], stderr="Error details")
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, ["pacemaker"], stderr="Error details"
+        )
 
         with pytest.raises(RuntimeError, match="Pacemaker training failed"):
             wrapper.train(config, mock_dataset_builder, mock_config_gen, tmp_path)
+
 
 def test_pacemaker_executable_not_found(mock_dataset_builder, mock_config_gen, tmp_path):
     # Setup dummy data file
@@ -92,6 +100,7 @@ def test_pacemaker_executable_not_found(mock_dataset_builder, mock_config_gen, t
 
         with pytest.raises(RuntimeError, match="not found"):
             wrapper.train(config, mock_dataset_builder, mock_config_gen, tmp_path)
+
 
 def test_pacemaker_parsing_failure(mock_dataset_builder, mock_config_gen, tmp_path):
     """Test when regex fails to find RMSE metrics."""

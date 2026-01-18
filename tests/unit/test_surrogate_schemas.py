@@ -12,6 +12,7 @@ def test_surrogate_config_defaults():
     assert config.force_threshold == 50.0
     assert config.descriptor_type == "soap"
 
+
 def test_surrogate_config_validation():
     # Test invalid device
     with pytest.raises(ValidationError):
@@ -28,6 +29,7 @@ def test_surrogate_config_validation():
     # Test extra fields
     with pytest.raises(ValidationError):
         SurrogateConfig(extra_field="invalid")
+
 
 def test_selection_result_validation():
     # Test valid result

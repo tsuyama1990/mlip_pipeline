@@ -23,6 +23,7 @@ def test_parse_success():
     assert result.energy == -100.0
     assert result.uid == "test-id"
 
+
 def test_parse_failure():
     mock_reader = MagicMock()
     mock_reader.side_effect = Exception("Read Error")

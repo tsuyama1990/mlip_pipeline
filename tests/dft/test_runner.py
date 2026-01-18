@@ -24,7 +24,9 @@ def mock_atoms():
 @patch("subprocess.run")
 @patch("mlip_autopipec.dft.runner.InputGenerator.create_input_string")
 @patch("mlip_autopipec.dft.runner.QEOutputParser")
-def test_runner_success(mock_parser_class, mock_create_input, mock_subprocess, mock_dft_config, mock_atoms):
+def test_runner_success(
+    mock_parser_class, mock_create_input, mock_subprocess, mock_dft_config, mock_atoms
+):
     # Setup mocks
     mock_create_input.return_value = "CONTROL..."
 

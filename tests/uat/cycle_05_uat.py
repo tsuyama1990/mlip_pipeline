@@ -31,6 +31,7 @@ GREEN = "\033[92m"
 RED = "\033[91m"
 RESET = "\033[0m"
 
+
 def run_uat():
     print("Starting UAT for Cycle 05: Active Learning & Training")
     work_dir = Path("uat_cycle_05_workspace")
@@ -72,10 +73,10 @@ def run_uat():
         print(f"Stored Delta Energy: {delta_e:.2f} eV")
 
         if abs(delta_e - (200.0 - zbl_e)) < 1e-5:
-             print(f"{GREEN}✅ Delta Learning Correctness Verified.{RESET}")
+            print(f"{GREEN}✅ Delta Learning Correctness Verified.{RESET}")
         else:
-             print(f"{RED}❌ Delta Learning Failed.{RESET}")
-             sys.exit(1)
+            print(f"{RED}❌ Delta Learning Failed.{RESET}")
+            sys.exit(1)
 
         # ---------------------------------------------------------------------
         # Scenario 2: Masking Respect
@@ -98,9 +99,9 @@ def run_uat():
         if "weights" in at.arrays and np.array_equal(at.arrays["weights"], np.array([1.0, 0.0])):
             print(f"{GREEN}✅ Force Masking Verified.{RESET}")
         else:
-             print(f"{RED}❌ Force Masking Failed.{RESET}")
-             print(f"Weights: {at.arrays.get('weights')}")
-             sys.exit(1)
+            print(f"{RED}❌ Force Masking Failed.{RESET}")
+            print(f"Weights: {at.arrays.get('weights')}")
+            sys.exit(1)
 
         # ---------------------------------------------------------------------
         # Scenario 3: Pacemaker Configuration
@@ -122,7 +123,9 @@ loss:
             f.write(template_content)
 
         config_gen = TrainConfigGenerator(template_path)
-        config = TrainConfig(cutoff=5.5, loss_weights={"energy": 1.0, "forces": 50.0, "stress": 10.0})
+        config = TrainConfig(
+            cutoff=5.5, loss_weights={"energy": 1.0, "forces": 50.0, "stress": 10.0}
+        )
 
         dummy_data = work_dir / "train.pckl.gzip"
         output_pot = work_dir / "output.yace"
@@ -133,11 +136,11 @@ loss:
             yaml_content = yaml.safe_load(f)
 
         if yaml_content["cutoff"] == 5.5 and yaml_content["loss"]["kappa_f"] == 50.0:
-             print(f"{GREEN}✅ Configuration Generation Verified.{RESET}")
+            print(f"{GREEN}✅ Configuration Generation Verified.{RESET}")
         else:
-             print(f"{RED}❌ Configuration Generation Failed.{RESET}")
-             print(yaml_content)
-             sys.exit(1)
+            print(f"{RED}❌ Configuration Generation Failed.{RESET}")
+            print(yaml_content)
+            sys.exit(1)
 
         # ---------------------------------------------------------------------
         # Scenario 4: Training Execution & Monitoring
@@ -162,7 +165,11 @@ loss:
 
             result = wrapper.train(config, dataset_builder, config_gen, work_dir, generation=1)
 
-            if result.rmse_energy == 0.005 and result.rmse_forces == 0.123 and result.generation == 1:
+            if (
+                result.rmse_energy == 0.005
+                and result.rmse_forces == 0.123
+                and result.generation == 1
+            ):
                 print(f"{GREEN}✅ Training Execution & Monitoring Verified.{RESET}")
             else:
                 print(f"{RED}❌ Training Execution Failed.{RESET}")
@@ -172,12 +179,14 @@ loss:
     except Exception as e:
         print(f"{RED}An unexpected error occurred during UAT:{RESET} {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     finally:
         # Cleanup
         if work_dir.exists():
             shutil.rmtree(work_dir)
+
 
 if __name__ == "__main__":
     run_uat()

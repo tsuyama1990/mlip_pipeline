@@ -85,9 +85,9 @@ class StructureBuilder:
 
         # 3. Final Metadata Tagging
         for s in final_structures:
-            if 'uuid' not in s.info:
-                s.info['uuid'] = str(uuid.uuid4())
-            s.info['target_system'] = target.name
+            if "uuid" not in s.info:
+                s.info["uuid"] = str(uuid.uuid4())
+            s.info["target_system"] = target.name
 
         return final_structures
 
@@ -100,8 +100,10 @@ class StructureBuilder:
         try:
             prim = bulk(primary_elem)
         except Exception as e:
-            logger.warning(f"Could not build bulk for {primary_elem}: {e}. Falling back to 'Fe' bcc.")
-            prim = bulk('Fe')
+            logger.warning(
+                f"Could not build bulk for {primary_elem}: {e}. Falling back to 'Fe' bcc."
+            )
+            prim = bulk("Fe")
 
         # SQS & Distortions
         if self.generator_config.sqs.enabled:
@@ -124,8 +126,8 @@ class StructureBuilder:
         try:
             mol = molecule(target.name)
         except Exception as e:
-             msg = f"Could not build molecule '{target.name}': {e}"
-             raise GeneratorError(msg) from e
+            msg = f"Could not build molecule '{target.name}': {e}"
+            raise GeneratorError(msg) from e
 
         if self.generator_config.nms.enabled:
             n_samples = self.generator_config.nms.n_samples

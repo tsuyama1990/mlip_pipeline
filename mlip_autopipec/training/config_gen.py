@@ -13,7 +13,9 @@ class TrainConfigGenerator:
         if not self.template_path.exists():
             raise FileNotFoundError(f"Template not found at {self.template_path}")
 
-    def generate(self, config: TrainConfig, data_path: Path, output_path: Path, elements: list[str]) -> Path:
+    def generate(
+        self, config: TrainConfig, data_path: Path, output_path: Path, elements: list[str]
+    ) -> Path:
         """
         Generates input.yaml for Pacemaker.
 
@@ -34,7 +36,7 @@ class TrainConfigGenerator:
             config=config,
             data_path=str(data_path.absolute()),
             output_path=output_path,
-            elements=elements
+            elements=elements,
         )
 
         output_yaml = output_path.parent / "input.yaml"

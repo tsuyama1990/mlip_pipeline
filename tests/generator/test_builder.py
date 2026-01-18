@@ -15,23 +15,20 @@ from mlip_autopipec.generator.builder import StructureBuilder
 def test_builder_pipeline():
     # Setup Config using updated schema hierarchy with explicit initialization
     gen_config = GeneratorConfig(
-        sqs=SQSConfig(enabled=True, supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]]),
+        sqs=SQSConfig(enabled=True, supercell_matrix=[[2, 0, 0], [0, 2, 0], [0, 0, 2]]),
         distortion=DistortionConfig(enabled=True, n_strain_steps=2, n_rattle_steps=2),
         nms=NMSConfig(enabled=True),
-        defects=DefectConfig(enabled=False)
+        defects=DefectConfig(enabled=False),
     )
 
     target_system = TargetSystem(
-        name="TestSystem",
-        composition={"Fe": 1.0},
-        elements=["Fe"],
-        structure_type="bulk"
+        name="TestSystem", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk"
     )
 
     minimal_config = MinimalConfig(
         project_name="test_proj",
         target_system=target_system,
-        resources={"dft_code": "quantum_espresso", "parallel_cores": 4}
+        resources={"dft_code": "quantum_espresso", "parallel_cores": 4},
     )
 
     system_config = MagicMock(spec=SystemConfig)
@@ -51,22 +48,20 @@ def test_builder_pipeline():
 
     assert len(structures) == 9
     for s in structures:
-        assert isinstance(s.info.get('uuid'), str)
-        assert 'config_type' in s.info
+        assert isinstance(s.info.get("uuid"), str)
+        assert "config_type" in s.info
+
 
 def test_builder_with_defects():
     gen_config = GeneratorConfig(
         sqs=SQSConfig(enabled=True),
         distortion=DistortionConfig(enabled=False),
         nms=NMSConfig(enabled=True),
-        defects=DefectConfig(enabled=True, vacancies=True, interstitials=False)
+        defects=DefectConfig(enabled=True, vacancies=True, interstitials=False),
     )
 
     target_system = TargetSystem(
-        name="TestSystem",
-        composition={"Fe": 1.0},
-        elements=["Fe"],
-        structure_type="bulk"
+        name="TestSystem", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk"
     )
 
     # Mock SystemConfig
@@ -75,11 +70,12 @@ def test_builder_with_defects():
     system_config.target_system = target_system
 
     # We can mock DefectApplicator to ensure separation
-    with patch('mlip_autopipec.generator.builder.DefectApplicator') as MockApplicator:
+    with patch("mlip_autopipec.generator.builder.DefectApplicator") as MockApplicator:
         instance = MockApplicator.return_value
         # Mock apply to return 1 structure (dummy)
         from ase import Atoms
-        instance.apply.return_value = [Atoms('Fe')]
+
+        instance.apply.return_value = [Atoms("Fe")]
 
         builder = StructureBuilder(system_config)
         structures = builder.build()

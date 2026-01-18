@@ -26,7 +26,9 @@ class MoleculeGenerator:
         """
         self.config = config
 
-    def normal_mode_sampling(self, atoms: Atoms, temperature: int, n_samples: int = 5) -> list[Atoms]:
+    def normal_mode_sampling(
+        self, atoms: Atoms, temperature: int, n_samples: int = 5
+    ) -> list[Atoms]:
         """
         Generates distorted structures using Normal Mode Sampling.
 
@@ -65,7 +67,7 @@ class MoleculeGenerator:
         try:
             # We must change directory or set name to path because Vibrations writes to files
             # in the current directory or 'name' path.
-            vib_name = str(work_dir / 'vib')
+            vib_name = str(work_dir / "vib")
             vib = Vibrations(atoms, name=vib_name, delta=0.01)
             vib.run()
 
@@ -74,7 +76,9 @@ class MoleculeGenerator:
 
             # Filter imaginary modes (negative energies squared)
             # vib.get_energies() returns real energies for stable modes, imaginary (complex) for unstable.
-            real_indices = [i for i, e in enumerate(vib_energies) if isinstance(e, float) and e > 1e-3]
+            real_indices = [
+                i for i, e in enumerate(vib_energies) if isinstance(e, float) and e > 1e-3
+            ]
 
             if not real_indices:
                 logger.warning("No stable vibrational modes found.")
@@ -90,7 +94,7 @@ class MoleculeGenerator:
                     # Heuristic: Random displacement along mode scaled by T.
                     # Typical bond vibration ~ 0.1 Angstrom at room temp.
                     # We use a simplified model as per Spec/heuristic.
-                    scale = 0.05 * (temperature / 300)**0.5
+                    scale = 0.05 * (temperature / 300) ** 0.5
 
                     # Random coefficient
                     c = np.random.normal(0, scale)
@@ -98,8 +102,8 @@ class MoleculeGenerator:
 
                 new_atoms = atoms.copy()
                 new_atoms.positions += disp
-                new_atoms.info['config_type'] = 'nms'
-                new_atoms.info['temperature'] = temperature
+                new_atoms.info["config_type"] = "nms"
+                new_atoms.info["temperature"] = temperature
                 results.append(new_atoms)
 
             return results

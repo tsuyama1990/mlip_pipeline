@@ -11,6 +11,7 @@ from mlip_autopipec.surrogate.sampling import FPSSampler
 
 logger = logging.getLogger(__name__)
 
+
 class SurrogatePipeline:
     """
     Orchestrates the Surrogate Explorer module workflow.
@@ -70,10 +71,7 @@ class SurrogatePipeline:
                 kept_atoms, selected_indices_local
             )
 
-            result = SelectionResult(
-                selected_indices=original_indices,
-                scores=scores
-            )
+            result = SelectionResult(selected_indices=original_indices, scores=scores)
 
             return selected_structures, result
 
@@ -89,7 +87,9 @@ class SurrogatePipeline:
         logger.info(f"Pre-screening complete. Kept {len(kept_atoms)}/{len(candidates)} structures.")
 
         if rejected_info:
-             logger.info(f"Rejected {len(rejected_info)} structures. Sample reason: {rejected_info[0].reason}")
+            logger.info(
+                f"Rejected {len(rejected_info)} structures. Sample reason: {rejected_info[0].reason}"
+            )
 
         if len(kept_atoms) == 0:
             logger.warning("No candidates passed pre-screening.")
@@ -105,12 +105,14 @@ class SurrogatePipeline:
         except Exception as e:
             raise RuntimeError(f"Descriptor calculation failed: {e}") from e
 
-    def _execute_selection(self, descriptors: np.ndarray, pool_size: int) -> tuple[list[int], list[float]]:
+    def _execute_selection(
+        self, descriptors: np.ndarray, pool_size: int
+    ) -> tuple[list[int], list[float]]:
         """Runs FPS selection."""
         n_samples = min(self.config.fps_n_samples, pool_size)
         logger.info(f"Selecting {n_samples} structures via FPS...")
 
         if n_samples == 0:
-             return [], []
+            return [], []
 
         return self.sampler.select_with_scores(descriptors, n_samples)

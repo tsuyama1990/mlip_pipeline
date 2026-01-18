@@ -1,4 +1,3 @@
-
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -22,22 +21,23 @@ from mlip_autopipec.generator.molecule import MoleculeGenerator
 # UAT Scenarios implementation
 # These tests verify the "User Experience" flow defined in UAT.md
 
+
 def setup_uat_logging():
     logging.basicConfig(level=logging.INFO)
+
 
 @pytest.fixture
 def uat_alloy_generator():
     config = GeneratorConfig(
-        sqs=SQSConfig(supercell_matrix=[[2,0,0], [0,2,0], [0,0,2]]),
+        sqs=SQSConfig(supercell_matrix=[[2, 0, 0], [0, 2, 0], [0, 0, 2]]),
         distortion=DistortionConfig(
-            rattling_amplitude=0.1,
-            strain_range=(-0.1, 0.1),
-            n_strain_steps=3
+            rattling_amplitude=0.1, strain_range=(-0.1, 0.1), n_strain_steps=3
         ),
         nms=NMSConfig(),
-        defects=DefectConfig()
+        defects=DefectConfig(),
     )
     return AlloyGenerator(config)
+
 
 def test_uat_03_01_alloy_sqs_generation(uat_alloy_generator):
     """
@@ -45,7 +45,7 @@ def test_uat_03_01_alloy_sqs_generation(uat_alloy_generator):
     Verify that the system can generate a Special Quasirandom Structure (SQS)
     for a specified binary composition (e.g., Fe-Ni 50:50) that matches the target stoichiometry exactly.
     """
-    prim = bulk('Fe', 'fcc', a=3.5)
+    prim = bulk("Fe", "fcc", a=3.5)
     composition = Composition({"Fe": 0.5, "Ni": 0.5})
 
     sqs = uat_alloy_generator.generate_sqs(prim, composition)
@@ -55,12 +55,13 @@ def test_uat_03_01_alloy_sqs_generation(uat_alloy_generator):
 
     # Stoichiometry check
     symbols = sqs.get_chemical_symbols()
-    assert symbols.count('Fe') == 4
-    assert symbols.count('Ni') == 4
+    assert symbols.count("Fe") == 4
+    assert symbols.count("Ni") == 4
 
     # Metadata check
-    assert sqs.info['config_type'] == 'sqs'
+    assert sqs.info["config_type"] == "sqs"
     assert sqs.pbc.all()
+
 
 def test_uat_03_02_distortion_pipeline(uat_alloy_generator):
     """
@@ -68,7 +69,7 @@ def test_uat_03_02_distortion_pipeline(uat_alloy_generator):
     Verify that the system can take a base structure and generate a "family" of distorted structures
     including volumetric strain and thermal rattling.
     """
-    prim = bulk('Fe', 'fcc', a=3.5)
+    prim = bulk("Fe", "fcc", a=3.5)
     composition = Composition({"Fe": 0.5, "Ni": 0.5})
     sqs = uat_alloy_generator.generate_sqs(prim, composition)
 
@@ -84,18 +85,19 @@ def test_uat_03_02_distortion_pipeline(uat_alloy_generator):
 
     assert len(batch) == 1 + 2 + 9
 
-    types = [s.info.get('config_type') for s in batch]
-    assert 'sqs' in types # Or 'base' if reassigned, but SQS has type 'sqs' initially
-    assert 'strain' in types
-    assert 'rattle' in types
+    types = [s.info.get("config_type") for s in batch]
+    assert "sqs" in types  # Or 'base' if reassigned, but SQS has type 'sqs' initially
+    assert "strain" in types
+    assert "rattle" in types
 
     # Verify Volume Change for strain
     # Strain 0.1 means Volume ~ 1.33x
-    strained_structs = [s for s in batch if s.info.get('config_type') == 'strain']
+    strained_structs = [s for s in batch if s.info.get("config_type") == "strain"]
     base_vol = sqs.get_volume()
     # Check max volume
     max_vol = max(s.get_volume() for s in strained_structs)
     assert max_vol > base_vol
+
 
 def test_uat_03_03_molecule_nms():
     """
@@ -103,26 +105,24 @@ def test_uat_03_03_molecule_nms():
     Verify that for a molecular system (e.g., H2O), the system generates distorted geometries.
     """
     config = GeneratorConfig(
-        sqs=SQSConfig(),
-        distortion=DistortionConfig(),
-        nms=NMSConfig(),
-        defects=DefectConfig()
+        sqs=SQSConfig(), distortion=DistortionConfig(), nms=NMSConfig(), defects=DefectConfig()
     )
     mol_gen = MoleculeGenerator(config)
-    h2o = molecule('H2O')
+    h2o = molecule("H2O")
 
     # Patch ase.vibrations.Vibrations
-    with patch('ase.vibrations.Vibrations') as MockVib:
+    with patch("ase.vibrations.Vibrations") as MockVib:
         instance = MockVib.return_value
-        instance.get_energies.return_value = [0.0]*6 + [0.1, 0.2, 0.3]
-        modes = [np.zeros((3,3)) for _ in range(9)]
+        instance.get_energies.return_value = [0.0] * 6 + [0.1, 0.2, 0.3]
+        modes = [np.zeros((3, 3)) for _ in range(9)]
         instance.get_mode.side_effect = lambda i: modes[i]
 
         h2o.calc = MagicMock()
 
         samples = mol_gen.normal_mode_sampling(h2o, 300, n_samples=2)
         assert len(samples) == 2
-        assert samples[0].info['config_type'] == 'nms'
+        assert samples[0].info["config_type"] == "nms"
+
 
 def test_uat_03_04_metadata_integrity():
     """
@@ -130,13 +130,16 @@ def test_uat_03_04_metadata_integrity():
     Verify that every generated structure includes the correct metadata.
     """
     gen_config = GeneratorConfig(
-        sqs=SQSConfig(),
-        distortion=DistortionConfig(),
-        nms=NMSConfig(),
-        defects=DefectConfig()
+        sqs=SQSConfig(), distortion=DistortionConfig(), nms=NMSConfig(), defects=DefectConfig()
     )
-    target = TargetSystem(name="Fe", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk")
-    minimal = MinimalConfig(project_name="uat", target_system=target, resources={"dft_code": "quantum_espresso", "parallel_cores": 1})
+    target = TargetSystem(
+        name="Fe", composition={"Fe": 1.0}, elements=["Fe"], structure_type="bulk"
+    )
+    minimal = MinimalConfig(
+        project_name="uat",
+        target_system=target,
+        resources={"dft_code": "quantum_espresso", "parallel_cores": 1},
+    )
 
     sys_config = MagicMock(spec=SystemConfig)
     sys_config.generator_config = gen_config
@@ -149,10 +152,11 @@ def test_uat_03_04_metadata_integrity():
 
     assert len(structures) > 0
     for s in structures:
-        assert 'uuid' in s.info
-        assert 'target_system' in s.info
-        assert s.info['target_system'] == "Fe"
-        assert 'config_type' in s.info
+        assert "uuid" in s.info
+        assert "target_system" in s.info
+        assert s.info["target_system"] == "Fe"
+        assert "config_type" in s.info
+
 
 if __name__ == "__main__":
     setup_uat_logging()

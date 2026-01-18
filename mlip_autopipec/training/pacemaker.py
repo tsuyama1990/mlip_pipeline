@@ -65,24 +65,18 @@ class PacemakerWrapper:
         work_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Export Dataset and Identify Elements
-        data_path, elements = self._export_and_analyze_dataset(
-            config, dataset_builder, work_dir
-        )
+        data_path, elements = self._export_and_analyze_dataset(config, dataset_builder, work_dir)
 
         # 2. Generate Configuration
         potential_name = f"potential_gen{generation}.yace"
         output_path = work_dir / potential_name
-        input_yaml = self._generate_config(
-            config_gen, config, data_path, output_path, elements
-        )
+        input_yaml = self._generate_config(config_gen, config, data_path, output_path, elements)
 
         # 3. Execute Pacemaker
         stdout, training_time = self._execute_pacemaker(work_dir, input_yaml)
 
         # 4. Parse Results
-        return self._parse_results(
-            stdout, work_dir, output_path, training_time, generation
-        )
+        return self._parse_results(stdout, work_dir, output_path, training_time, generation)
 
     def _export_and_analyze_dataset(
         self, config: TrainConfig, dataset_builder: DatasetBuilder, work_dir: Path
@@ -133,9 +127,7 @@ class PacemakerWrapper:
         cmd = [self.executable, str(input_yaml.name)]
 
         try:
-            result = subprocess.run(
-                cmd, cwd=work_dir, capture_output=True, text=True, check=True
-            )
+            result = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True, check=True)
             stdout = result.stdout
             logger.debug(f"Pacemaker STDOUT:\n{stdout}")
         except subprocess.CalledProcessError as e:
@@ -145,9 +137,7 @@ class PacemakerWrapper:
             raise RuntimeError(f"Pacemaker training failed: {e.stderr}") from e
         except FileNotFoundError as e:
             logger.error(f"Pacemaker executable '{self.executable}' not found.")
-            raise RuntimeError(
-                f"Pacemaker executable '{self.executable}' not found."
-            ) from e
+            raise RuntimeError(f"Pacemaker executable '{self.executable}' not found.") from e
         except OSError as e:
             logger.error(f"OS Error executing pacemaker: {e}")
             raise RuntimeError(f"OS Error executing pacemaker: {e}") from e
@@ -171,19 +161,17 @@ class PacemakerWrapper:
         re_forces = re.search(r"RMSE\s*\(forces\)\s*:\s*([\d\.eE\-\+]+)", stdout)
 
         if not re_energy:
-             logger.error("Could not parse RMSE Energy from Pacemaker output.")
-             raise RuntimeError("Pacemaker output parsing failed: missing RMSE Energy.")
+            logger.error("Could not parse RMSE Energy from Pacemaker output.")
+            raise RuntimeError("Pacemaker output parsing failed: missing RMSE Energy.")
 
         if not re_forces:
-             logger.error("Could not parse RMSE Forces from Pacemaker output.")
-             raise RuntimeError("Pacemaker output parsing failed: missing RMSE Forces.")
+            logger.error("Could not parse RMSE Forces from Pacemaker output.")
+            raise RuntimeError("Pacemaker output parsing failed: missing RMSE Forces.")
 
         rmse_energy = float(re_energy.group(1))
         rmse_forces = float(re_forces.group(1))
 
-        logger.info(
-            f"Final Metrics - RMSE Energy: {rmse_energy}, RMSE Forces: {rmse_forces}"
-        )
+        logger.info(f"Final Metrics - RMSE Energy: {rmse_energy}, RMSE Forces: {rmse_forces}")
 
         if not output_path.exists():
             yace_files = list(work_dir.glob("*.yace"))

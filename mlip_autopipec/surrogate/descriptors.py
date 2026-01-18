@@ -8,6 +8,7 @@ from mlip_autopipec.config.schemas.surrogate import DescriptorConfig, Descriptor
 
 logger = logging.getLogger(__name__)
 
+
 class DescriptorCalculator:
     """
     Calculates structural descriptors (fingerprints) for atoms using DScribe.
@@ -53,7 +54,7 @@ class DescriptorCalculator:
 
         # Check periodicity from the first atom
         is_periodic = False
-        if atoms_list and hasattr(atoms_list[0], 'pbc'):
+        if atoms_list and hasattr(atoms_list[0], "pbc"):
             is_periodic = np.any(atoms_list[0].pbc)
 
         try:
@@ -64,8 +65,8 @@ class DescriptorCalculator:
                 n_max=self.config.n_max,
                 l_max=self.config.l_max,
                 sigma=self.config.sigma,
-                average="inner", # Average over atoms to get global descriptor
-                sparse=False
+                average="inner",  # Average over atoms to get global descriptor
+                sparse=False,
             )
 
             # dscribe create method

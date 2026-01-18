@@ -4,6 +4,7 @@ import numpy as np
 import logging
 from mlip_autopipec.training.physics import ZBLCalculator
 
+
 def test_zbl_calculator_energy():
     calc = ZBLCalculator()
     # H-H at 0.5 Angstrom
@@ -13,7 +14,8 @@ def test_zbl_calculator_energy():
 
     # Check it is positive (repulsive) and large
     assert energy > 0
-    assert energy > 1.0 # Should be significant
+    assert energy > 1.0  # Should be significant
+
 
 def test_zbl_calculator_forces():
     calc = ZBLCalculator()
@@ -29,6 +31,7 @@ def test_zbl_calculator_forces():
     assert forces[0][2] < 0
     assert np.allclose(forces[0], -forces[1])
 
+
 def test_zbl_calculator_cutoff_behavior():
     calc = ZBLCalculator()
     # H-H at large distance
@@ -38,6 +41,7 @@ def test_zbl_calculator_cutoff_behavior():
 
     # Should be effectively zero
     assert energy < 1e-3
+
 
 def test_zbl_singularity(caplog):
     calc = ZBLCalculator()

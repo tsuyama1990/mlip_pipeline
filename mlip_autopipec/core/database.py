@@ -1,6 +1,6 @@
 import contextlib
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from typing import Any as AtomsObject
 
 import ase.db
@@ -8,12 +8,11 @@ import numpy as np
 from ase.db.core import Database
 from pydantic import ValidationError
 
-# Import Data Models directly from their source, not via config facade
-from mlip_autopipec.data_models.dft_models import DFTResult
-from mlip_autopipec.config.schemas.system import SystemConfig
-from mlip_autopipec.config.schemas.training import TrainingData
-
 from mlip_autopipec.exceptions import DatabaseError
+
+if TYPE_CHECKING:
+    from mlip_autopipec.config.schemas.system import SystemConfig
+    from mlip_autopipec.data_models.dft_models import DFTResult
 
 
 class DatabaseManager:
@@ -51,7 +50,7 @@ class DatabaseManager:
             msg = f"Failed to initialize database at {self.db_path}: {e}"
             raise DatabaseError(msg) from e
 
-    def set_system_config(self, config: SystemConfig) -> None:
+    def set_system_config(self, config: "SystemConfig") -> None:
         """
         Stores the system configuration in the database metadata.
         This must be called during initialization or setup.
@@ -87,7 +86,7 @@ class DatabaseManager:
 
         return self._connection.metadata  # type: ignore
 
-    def get_system_config(self) -> SystemConfig:
+    def get_system_config(self) -> "SystemConfig":
         """
         Retrieves and validates the SystemConfig stored in the database metadata.
 
@@ -97,6 +96,9 @@ class DatabaseManager:
         Raises:
             DatabaseError: If metadata is missing or invalid.
         """
+        # Delayed import to avoid circular dependency/tight coupling at module level
+        from mlip_autopipec.config.schemas.system import SystemConfig
+
         metadata = self.get_metadata()
         try:
             # We assume the config is stored at the top level or under specific keys.
@@ -139,6 +141,9 @@ class DatabaseManager:
         Returns:
              List of ASE Atoms objects with info['energy'] and arrays['forces'] populated.
         """
+        # Import here to avoid coupling
+        from mlip_autopipec.config.schemas.training import TrainingData
+
         if self._connection is None:
             self.initialize()
 
@@ -162,7 +167,6 @@ class DatabaseManager:
                     atoms_list.append(atoms)
                 except ValidationError:
                     # Skip rows that don't match training data schema (maybe failed jobs or different types)
-                    # Alternatively, we could log a warning.
                     continue
         except Exception as e:
             msg = f"Failed to read training data: {e}"
@@ -171,7 +175,7 @@ class DatabaseManager:
         return atoms_list
 
     def save_dft_result(
-        self, atoms: AtomsObject, result: DFTResult, metadata: dict[str, Any]
+        self, atoms: AtomsObject, result: "DFTResult", metadata: dict[str, Any]
     ) -> None:
         """
         Saves a DFT calculation result and its metadata.

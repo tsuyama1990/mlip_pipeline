@@ -53,6 +53,7 @@ def test_run_failure(valid_config_file, mocker):
     """Test that CLI handles errors gracefully."""
     mock_controller = mocker.patch("mlip_autopipec.app.PipelineController")
     from mlip_autopipec.exceptions import ConfigError
+
     # Simulate an error raised by PipelineController.execute
     mock_controller.execute.side_effect = ConfigError("Bad Config")
 

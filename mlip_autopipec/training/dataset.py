@@ -11,8 +11,9 @@ from pathlib import Path
 
 import numpy as np
 from ase import Atoms
+from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.training import TrainConfig
+from mlip_autopipec.config.schemas.training import TrainConfig, TrainingData
 from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.data_models.training_data import TrainingBatch
 from mlip_autopipec.training.physics import ZBLCalculator
@@ -113,13 +114,24 @@ class DatasetBuilder:
         # Delta Learning
         if config.enable_delta_learning:
             e_zbl, f_zbl = self.compute_baseline(at)
-            at.info["energy"] = e_dft - e_zbl
-            at.arrays["forces"] = f_dft - f_zbl
+            new_energy = e_dft - e_zbl
+            new_forces = f_dft - f_zbl
+            at.info["energy"] = new_energy
+            at.arrays["forces"] = new_forces
             at.info["zbl_energy"] = e_zbl
             at.arrays["zbl_forces"] = f_zbl
         else:
             at.info["energy"] = e_dft
             at.arrays["forces"] = f_dft
+
+        # Validate Processed Data using TrainingData Schema
+        try:
+            # Pydantic validation of the final values to be trained on
+            # Need to convert numpy array to list for Pydantic
+            TrainingData(energy=float(at.info["energy"]), forces=at.arrays["forces"].tolist())
+        except (ValidationError, ValueError) as e:
+            logger.error(f"Skipping atom due to validation failure: {e}")
+            return None
 
         # Handle Force Masking
         if "force_mask" in at.arrays:
@@ -133,7 +145,9 @@ class DatasetBuilder:
 
         return at
 
-    def _split_dataset(self, processed_atoms: list[Atoms], config: TrainConfig) -> tuple[list[Atoms], list[Atoms]]:
+    def _split_dataset(
+        self, processed_atoms: list[Atoms], config: TrainConfig
+    ) -> tuple[list[Atoms], list[Atoms]]:
         """Splits the dataset into training and testing sets."""
         random.seed(42)
         random.shuffle(processed_atoms)
@@ -143,12 +157,14 @@ class DatasetBuilder:
         train_set = processed_atoms[n_test:]
 
         if not train_set:
-             logger.error("Training set is empty after splitting.")
-             raise ValueError("Training set is empty.")
+            logger.error("Training set is empty after splitting.")
+            raise ValueError("Training set is empty.")
 
         return train_set, test_set
 
-    def _write_dataset(self, train_set: list[Atoms], test_set: list[Atoms], output_dir: Path) -> Path:
+    def _write_dataset(
+        self, train_set: list[Atoms], test_set: list[Atoms], output_dir: Path
+    ) -> Path:
         """Writes the training and testing sets to gzip-pickled files."""
         output_file = output_dir / "train.pckl.gzip"
         logger.info(f"Writing {len(train_set)} structures to {output_file}")
@@ -193,8 +209,8 @@ class DatasetBuilder:
         logger.info(f"Processed {len(processed_atoms)} valid atoms.")
 
         if not processed_atoms:
-             logger.error("No valid atoms remaining after processing.")
-             raise ValueError("No valid atoms found after processing.")
+            logger.error("No valid atoms remaining after processing.")
+            raise ValueError("No valid atoms found after processing.")
 
         # 3. Split Train/Test
         train_set, test_set = self._split_dataset(processed_atoms, config)

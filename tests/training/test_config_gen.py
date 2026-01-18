@@ -29,6 +29,7 @@ def test_config_generation(tmp_path):
     assert content["cutoff"] == 4.5
     assert content["data_path"] == str(data_path.absolute())
 
+
 def test_template_not_found():
     with pytest.raises(FileNotFoundError):
         TrainConfigGenerator(Path("non_existent_template.j2"))

@@ -61,9 +61,7 @@ class TrainingConfig(BaseModel):
 
 class TrainConfig(BaseModel):
     cutoff: float = Field(6.0, gt=0)  # Angstroms
-    loss_weights: dict[str, float] = Field(
-        default={"energy": 1.0, "forces": 100.0, "stress": 10.0}
-    )
+    loss_weights: dict[str, float] = Field(default={"energy": 1.0, "forces": 100.0, "stress": 10.0})
     test_fraction: float = Field(0.1, ge=0.0, lt=1.0)
     max_generations: int = Field(10, ge=1)
     enable_delta_learning: bool = True

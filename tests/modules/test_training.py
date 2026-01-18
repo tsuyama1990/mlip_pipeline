@@ -50,6 +50,7 @@ def test_pacemaker_trainer_perform_training(mock_training_config: TrainingConfig
 
     # Wrap in TrainingBatch
     from mlip_autopipec.data_models.training_data import TrainingBatch
+
     training_data = TrainingBatch(atoms_list=[atoms1, atoms2])
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
@@ -101,6 +102,7 @@ def test_pacemaker_trainer_executable_not_found(mock_training_config: TrainingCo
     atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
     # Wrap in TrainingBatch
     from mlip_autopipec.data_models.training_data import TrainingBatch
+
     training_data = TrainingBatch(atoms_list=[atoms])
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
@@ -117,6 +119,7 @@ def test_pacemaker_trainer_training_failed(mock_training_config: TrainingConfig)
     atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
     # Wrap in TrainingBatch
     from mlip_autopipec.data_models.training_data import TrainingBatch
+
     training_data = TrainingBatch(atoms_list=[atoms])
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
@@ -134,10 +137,10 @@ def test_pacemaker_trainer_no_data(mock_training_config: TrainingConfig):
     """
     trainer = PacemakerTrainer(training_config=mock_training_config)
 
-        # FIX: Provide a valid TrainingBatch object, but with empty atoms_list if allowed by logic,
-        # or use None if that triggers it.
-        # The exception NoTrainingDataError is raised if training_data.atoms_list is empty.
-        # But TrainingBatch validation might fail if list is empty? NO, list can be empty.
+    # FIX: Provide a valid TrainingBatch object, but with empty atoms_list if allowed by logic,
+    # or use None if that triggers it.
+    # The exception NoTrainingDataError is raised if training_data.atoms_list is empty.
+    # But TrainingBatch validation might fail if list is empty? NO, list can be empty.
 
     from mlip_autopipec.data_models.training_data import TrainingBatch
 
