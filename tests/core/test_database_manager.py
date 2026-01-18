@@ -1,12 +1,11 @@
 from unittest.mock import Mock, patch
-from pathlib import Path
+
+import numpy as np
 import pytest
 from ase import Atoms
-import numpy as np
 
 from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.data_models.dft_models import DFTResult
-from mlip_autopipec.config.schemas.training import TrainingData
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.training import TrainConfig, TrainingResult, TrainingData
+from mlip_autopipec.config.schemas.training import TrainConfig, TrainingData, TrainingResult
 
 
 def test_train_config_valid():
