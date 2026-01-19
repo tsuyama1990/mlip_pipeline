@@ -18,7 +18,7 @@ class Dashboard:
     This class is responsible for visualizing the progress of the active learning loop,
     including RMSE metrics and database statistics.
     """
-    def __init__(self, output_dir: Path, db_manager: DatabaseManager):
+    def __init__(self, output_dir: Path, db_manager: DatabaseManager) -> None:
         """
         Initialize the Dashboard.
 
@@ -103,9 +103,9 @@ class Dashboard:
         Returns:
             String containing the full HTML report.
         """
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-        html = f"""
+        return f"""
         <!DOCTYPE html>
         <html>
         <head>
@@ -123,7 +123,7 @@ class Dashboard:
         <body>
             <div class="container">
                 <h1>MLIP-AutoPipe Status</h1>
-                <p>Last Updated: {timestamp}</p>
+                <p>Last Updated: {timestamp} UTC</p>
 
                 <div class="status-box status-{data.status.lower()}">
                     <h2>Current Status: {data.status}</h2>
@@ -140,4 +140,3 @@ class Dashboard:
         </body>
         </html>
         """
-        return html

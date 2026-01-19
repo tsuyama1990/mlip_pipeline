@@ -24,7 +24,7 @@ class WorkflowManager:
     The main orchestrator for the MLIP-AutoPipe workflow.
     Manages the state machine and transitions between phases.
     """
-    def __init__(self, config: SystemConfig, orchestrator_config: OrchestratorConfig):
+    def __init__(self, config: SystemConfig, orchestrator_config: OrchestratorConfig) -> None:
         """
         Initialize the WorkflowManager.
 
@@ -57,8 +57,8 @@ class WorkflowManager:
             try:
                 data = json.loads(self.state_file.read_text())
                 return WorkflowState(**data)
-            except Exception as e:
-                logger.error(f"Failed to load state file: {e}. Starting fresh.")
+            except Exception:
+                logger.exception("Failed to load state file. Starting fresh.")
                 return WorkflowState(current_generation=0, status="idle")
         else:
             logger.info("No existing state found. Starting fresh.")
@@ -123,21 +123,12 @@ class WorkflowManager:
                 selected = candidates
                 logger.info("Surrogate skipped (no config). Using all candidates.")
 
-            # 3. Add to DB/Pending
-            # In a real impl, we'd write to DB with a 'pending' flag.
-            # Here we just mark status.
-            # Ideally we write them to DB as "dataset=generation_X_candidates"
-            # For simplicity in this cycle, we assume they are ready for DFT.
-            # We must persist them somewhere. Let's assume we put them in self.state.pending_tasks
-            # But pending_tasks is List[str].
-            # We'll save them to DB and store IDs? Or simpler: Just rely on DB state.
-
             # Write candidates to DB
             for atoms in selected:
-                self.db_manager.save_dft_result(atoms, None, {"status": "pending", "generation": self.state.current_generation}) # type: ignore # Handle saving atoms without result
+                self.db_manager.save_candidate(atoms, {"status": "pending", "generation": self.state.current_generation})
 
-        except Exception as e:
-            logger.error(f"Exploration phase failed: {e}")
+        except Exception:
+            logger.exception("Exploration phase failed")
             # In production, we might retry or halt. For now, we proceed to try DFT (which might be empty)
             # or maybe we should raise? Let's log and continue to avoid crash loop if transient.
 
@@ -152,28 +143,37 @@ class WorkflowManager:
 
         try:
             # 1. Retrieve pending candidates
-            # atoms_list = self.db_manager.get_atoms("status=pending")
-            # For now, let's create dummy atoms if none exist, to satisfy the flow in testing
-            # In real life, we query DB.
-            # atoms_list = []
+            atoms_list = self.db_manager.get_atoms("status=pending")
+            if not atoms_list:
+                logger.warning("No pending atoms found for DFT.")
+            else:
+                logger.info(f"Found {len(atoms_list)} pending atoms for DFT.")
 
-            if self.config.dft_config:
-                runner = QERunner(self.config.dft_config)
+                if self.config.dft_config:
+                    runner = QERunner(self.config.dft_config)
 
-            # 2. Submit to TaskQueue
-            # We would map runner.run over atoms_list
-            # futures = self.task_queue.submit_dft_batch(runner.run, atoms_list)
-            # results = self.task_queue.wait_for_completion(futures)
+                    # 2. Submit to TaskQueue
+                    futures = self.task_queue.submit_dft_batch(runner.run, atoms_list)
+                    results = self.task_queue.wait_for_completion(futures)
 
-            # 3. Ingest results to DB
-            # for res in results:
-            #     if res:
-            #         self.db_manager.save_dft_result(..., res, ...)
+                    # 3. Ingest results to DB
+                    success_count = 0
+                    for atoms, res in zip(atoms_list, results, strict=True):
+                        if res:
+                            # Update metadata to mark as training data
+                            self.db_manager.save_dft_result(
+                                atoms,
+                                res,
+                                {"status": "training", "generation": self.state.current_generation}
+                            )
+                            success_count += 1
+                        else:
+                            logger.warning("DFT failed for an atom.")
 
-            # Placeholder for actual execution logic to avoid calling real QE in CI
+                    logger.info(f"DFT Phase complete. Success: {success_count}/{len(atoms_list)}")
 
-        except Exception as e:
-            logger.error(f"DFT phase failed: {e}")
+        except Exception:
+            logger.exception("DFT phase failed")
 
         self.state.status = "training"
         self._save_state()
@@ -185,29 +185,28 @@ class WorkflowManager:
         logger.info("Phase C: Training")
 
         try:
-            # 1. Setup components
-            dataset_builder = DatasetBuilder(self.db_manager)
-            # Assuming template is optional or handled inside generator if not provided,
-            # but TrainConfigGenerator requires a path. We use a placeholder for now as per "Mock" strategy.
-            # In production, this path comes from config.
-            config_gen = TrainConfigGenerator(template_path=Path("input_template.yaml"))
-            # Need executable path from config or default
-            wrapper = PacemakerWrapper()
+            if not self.config.training_config:
+                logger.warning("No Training Config. Skipping training.")
+            else:
+                # 1. Setup components
+                dataset_builder = DatasetBuilder(self.db_manager)
+                # Assuming template is provided in config or we use default
+                template_path = self.config.training_config.template_file or Path("input.yaml")
+                config_gen = TrainConfigGenerator(template_path=template_path)
+                wrapper = PacemakerWrapper()
 
-            # 2. Train
-            # result = wrapper.train(
-            #     self.config.training_config,
-            #     dataset_builder,
-            #     config_gen,
-            #     self.work_dir,
-            #     self.state.current_generation
-            # )
+                # 2. Train
+                result = wrapper.train(
+                    self.config.training_config,
+                    dataset_builder,
+                    config_gen,
+                    self.work_dir,
+                    self.state.current_generation
+                )
+                logger.info(f"Training complete. Potential at: {result.potential_path}")
 
-            # 3. Validate/Store potential path
-            # self.current_potential = result.potential_path
-
-        except Exception as e:
-            logger.error(f"Training phase failed: {e}")
+        except Exception:
+            logger.exception("Training phase failed")
 
         self.state.status = "inference"
         self._save_state()
@@ -219,18 +218,21 @@ class WorkflowManager:
         logger.info("Phase D: Inference")
 
         try:
-            # 1. Setup Runner
-            # runner = LammpsRunner(self.config.inference_config, self.work_dir)
+            if not self.config.inference_config:
+                 logger.warning("No Inference Config. Skipping inference.")
+            else:
+                # 1. Setup Runner
+                # runner = LammpsRunner(self.config.inference_config, self.work_dir)
 
-            # 2. Run Simulations
-            # We need structures to run inference on. Typically validation set or held-out.
-            # Or just random structures.
+                # 2. Run Simulations
+                # For now, just logging as this cycle focuses on orchestration loop.
+                # In Cycle 06/07 we implemented the runner.
+                # Logic would look like:
+                # runner.run(structures)
+                pass
 
-            # 3. Check Uncertainty
-
-            pass
-        except Exception as e:
-            logger.error(f"Inference phase failed: {e}")
+        except Exception:
+            logger.exception("Inference phase failed")
 
         self.state.current_generation += 1
         self.state.status = "idle" # Loop back

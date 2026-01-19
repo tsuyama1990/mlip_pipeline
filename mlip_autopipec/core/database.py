@@ -79,10 +79,9 @@ class DatabaseManager:
         """
         if self._connection is None:
             self.initialize()
-
-        if self._connection is None:
-            msg = "Database connection is None after initialization."
-            raise DatabaseError(msg)
+            if self._connection is None:
+                msg = "Database connection is None after initialization."
+                raise DatabaseError(msg)
 
         return self._connection.metadata  # type: ignore
 
@@ -205,6 +204,25 @@ class DatabaseManager:
             # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
         except Exception as e:
             msg = f"Failed to save DFT result: {e}"
+            raise DatabaseError(msg) from e
+
+    def save_candidate(self, atoms: AtomsObject, metadata: dict[str, Any]) -> None:
+        """
+        Saves a candidate structure (without DFT results) to the database.
+        """
+        if self._connection is None:
+            self.initialize()
+
+        if self._connection is None:
+            msg = "Database connection is None."
+            raise DatabaseError(msg)
+
+        try:
+            # Update atoms info with metadata
+            atoms.info.update(metadata)
+            self._connection.write(atoms)
+        except Exception as e:
+            msg = f"Failed to save candidate: {e}"
             raise DatabaseError(msg) from e
 
     def count(self, selection: str | None = None) -> int:

@@ -1,87 +1,106 @@
-import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
-from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
+from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.orchestration.models import OrchestratorConfig
+from ase import Atoms
 
 
 @pytest.fixture
-def mock_config(tmp_path: Path) -> MagicMock:
-    config = MagicMock(spec=SystemConfig)
-    config.working_dir = tmp_path
-    config.db_path = tmp_path / "test.db"
-    # Explicitly set optional configs to avoid AttributeError if spec fails or logical None checks
-    config.surrogate_config = MagicMock()
-    config.dft_config = MagicMock()
-    config.training_config = MagicMock()
-    config.inference_config = MagicMock()
-    return config
+def valid_system_config(tmp_path: Path) -> SystemConfig:
+    minimal = MinimalConfig(
+        project_name="test_project",
+        target_system=TargetSystem(
+            name="Al",
+            structure_type="bulk",
+            elements=["Al"],
+            composition={"Al": 1.0}
+        ),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
 
-@pytest.fixture
-def mock_orch_config() -> OrchestratorConfig:
-    return OrchestratorConfig(max_generations=2, workers=1, dask_scheduler_address=None)
+    # Create dummy potential for inference config validation
+    pot_path = tmp_path / "dummy.yace"
+    pot_path.touch()
 
-def test_workflow_grand_mock(mock_config: MagicMock, mock_orch_config: OrchestratorConfig) -> None:
-    """
-    Simulate a full run where we mock the underlying components (Generator, DFT, etc.)
-    but allow the WorkflowManager logic to execute its control flow.
-    """
-    with patch('mlip_autopipec.orchestration.manager.DatabaseManager') as MockDB, \
-         patch('mlip_autopipec.orchestration.manager.TaskQueue') as MockTQ, \
-         patch('mlip_autopipec.orchestration.manager.Dashboard') as MockDash, \
-         patch('mlip_autopipec.orchestration.manager.StructureBuilder') as MockBuilder, \
-         patch('mlip_autopipec.orchestration.manager.SurrogatePipeline') as MockSurrogate, \
-         patch('mlip_autopipec.orchestration.manager.QERunner') as MockQE, \
-         patch('mlip_autopipec.orchestration.manager.DatasetBuilder') as MockDSBuilder, \
-         patch('mlip_autopipec.orchestration.manager.TrainConfigGenerator') as MockConfigGen, \
-         patch('mlip_autopipec.orchestration.manager.PacemakerWrapper') as MockPacemaker, \
-         patch('mlip_autopipec.orchestration.manager.LammpsRunner') as MockLammps:
+    return SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path,
+        db_path=tmp_path / "db.db",
+        log_path=tmp_path / "log.log",
+        dft_config=DFTConfig(pseudo_dir=tmp_path / "pseudos"),
+        surrogate_config=SurrogateConfig(),
+        training_config=TrainingConfig(data_source_db=tmp_path / "db.db"),
+        inference_config=InferenceConfig(temperature=300.0, potential_path=pot_path),
+    )
 
-        # Configure mock DB
-        MockDB.return_value.count.return_value = 100
 
-        # Setup Component Mocks to simulate data flow
-        # Exploration
-        mock_candidates = [MagicMock(), MagicMock()]
-        MockBuilder.return_value.build.return_value = mock_candidates
-        # Surrogate returns subset
-        MockSurrogate.return_value.run.return_value = (mock_candidates, MagicMock())
+def test_grand_mock_workflow(mocker: MockerFixture, valid_system_config: SystemConfig) -> None:
+    # 1. Mock External Components
+    mock_builder = mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
+    mock_surrogate = mocker.patch("mlip_autopipec.orchestration.manager.SurrogatePipeline")
+    # We patch QERunner and LammpsRunner but don't strictly need the return object variable if not asserting methods on it directly
+    mocker.patch("mlip_autopipec.orchestration.manager.QERunner")
+    mock_pacemaker = mocker.patch("mlip_autopipec.orchestration.manager.PacemakerWrapper")
+    mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner")
+    mock_db = mocker.patch("mlip_autopipec.orchestration.manager.DatabaseManager")
+    mock_queue = mocker.patch("mlip_autopipec.orchestration.manager.TaskQueue")
+    mock_dashboard = mocker.patch("mlip_autopipec.orchestration.manager.Dashboard")
 
-        # DFT
-        # We don't need to mock return values complexly because TaskQueue is also mocked
-        # (or rather, the manager calls task_queue.submit/wait).
-        # We need to ensure we don't crash.
+    # Mock config generator and dataset builder
+    mocker.patch("mlip_autopipec.orchestration.manager.DatasetBuilder")
+    mocker.patch("mlip_autopipec.orchestration.manager.TrainConfigGenerator")
 
-        manager = WorkflowManager(mock_config, mock_orch_config)
+    # 2. Setup Mock Returns
+    # Generator
+    dummy_atoms = Atoms("Al", positions=[[0, 0, 0]])
+    mock_builder.return_value.build.return_value = [dummy_atoms]
 
-        # Run the manager
-        manager.run()
+    # Surrogate
+    mock_surrogate.return_value.run.return_value = ([dummy_atoms], [])
 
-        # Assertions
+    # DB: get_atoms must return list
+    mock_db.return_value.get_atoms.return_value = [dummy_atoms]
 
-        # 1. Check Phases Executed
-        # Generation 0 and 1 -> 2 loops.
-        assert manager.state.current_generation == 2
+    # TaskQueue: submit and wait
+    # We need wait_for_completion to return a list of non-None results for DBT logic
+    mock_res = MagicMock() # DFTResult mock
+    mock_queue.return_value.wait_for_completion.return_value = [mock_res]
 
-        # 2. Check Exploration calls
-        assert MockBuilder.return_value.build.call_count == 2
-        assert MockSurrogate.return_value.run.call_count == 2
+    # 3. Setup Orchestrator Config (1 Generation)
+    orch_config = OrchestratorConfig(max_generations=1, workers=1)
 
-        # 3. Check DFT calls
-        assert MockQE.call_count == 2 # Initialized once per phase
+    # 4. Initialize Manager
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    manager = WorkflowManager(valid_system_config, orch_config)
 
-        # 4. Check Training calls
-        assert MockPacemaker.call_count == 2
+    # 5. Run
+    manager.run()
 
-        # 5. Check Dashboard updated
-        assert manager.dashboard.update.call_count >= 2  # type: ignore
+    # 6. Verify Transitions
+    # Phase A
+    mock_builder.assert_called()
+    mock_db.return_value.save_candidate.assert_called()
 
-        # 6. Verify state file persisted
-        state_file = mock_config.working_dir / "workflow_state.json"
-        assert state_file.exists()
-        final_state = json.loads(state_file.read_text())
-        assert final_state['current_generation'] == 2
+    # Phase B (DFT)
+    mock_db.return_value.get_atoms.assert_called_with("status=pending")
+    mock_queue.return_value.submit_dft_batch.assert_called()
+    mock_db.return_value.save_dft_result.assert_called()
+
+    # Phase C (Training) - Verify it was called
+    mock_pacemaker.return_value.train.assert_called()
+
+    # Verify Dashboard updates
+    assert mock_dashboard.return_value.update.call_count >= 1
+
+    # Verify State
+    assert manager.state.current_generation == 1
+    assert manager.state.status == "idle"

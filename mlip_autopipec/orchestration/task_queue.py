@@ -14,7 +14,7 @@ class TaskQueue:
     as mandated by the system architecture for high-throughput
     parallelism on both local machines and HPC clusters (via dask-jobqueue).
     """
-    def __init__(self, scheduler_address: str | None = None, workers: int = 4):
+    def __init__(self, scheduler_address: str | None = None, workers: int = 4) -> None:
         """
         Initialize the TaskQueue.
 
@@ -47,8 +47,7 @@ class TaskQueue:
             List of Dask Futures representing the submitted tasks.
         """
         logger.info(f"Submitting {len(items)} tasks to Dask.")
-        futures = self.client.map(func, items, **kwargs)
-        return futures
+        return self.client.map(func, items, **kwargs)
 
     def wait_for_completion(self, futures: list[Future[Any]], timeout: float | None = None) -> list[Any]:
         """
@@ -78,8 +77,8 @@ class TaskQueue:
                 # For now, let's try to get exception if failed
                 try:
                     results.append(f.result())
-                except Exception as e:
-                    logger.error(f"Task failed with error: {e}")
+                except Exception:
+                    logger.exception("Task failed")
                     results.append(None)
 
         return results
