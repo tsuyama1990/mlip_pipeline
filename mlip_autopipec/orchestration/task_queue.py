@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Any
 
 from dask.distributed import Client, Future, LocalCluster, wait  # type: ignore
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +74,29 @@ class TaskQueue:
                 results.append(f.result())
             else:
                 logger.warning(f"Task {f} did not finish successfully (status: {f.status}).")
-                # Depending on requirement, we might want to capture exception or return None
-                # For now, let's try to get exception if failed
+                # Attempt to get result to trigger exception (for logging or if retry logic was wrapped elsewhere)
                 try:
                     results.append(f.result())
                 except Exception:
-                    logger.exception("Task failed")
+                    logger.exception("Task failed execution")
                     results.append(None)
 
         return results
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
+    def robust_submit(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Future[Any]:
+        """
+        Submits a single task with retry logic for submission failures (not execution failures).
+
+        Args:
+            func: Function to execute.
+            args: Arguments.
+            kwargs: Keyword arguments.
+
+        Returns:
+            Dask Future.
+        """
+        return self.client.submit(func, *args, **kwargs)
 
     def shutdown(self) -> None:
         """

@@ -9,13 +9,13 @@ from mlip_autopipec.dft.runner import QERunner
 # Component Imports
 from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.orchestration.dashboard import Dashboard
+from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 from mlip_autopipec.orchestration.models import DashboardData, OrchestratorConfig, WorkflowState
 from mlip_autopipec.orchestration.task_queue import TaskQueue
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.training.config_gen import TrainConfigGenerator
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
-from mlip_autopipec.inference.lammps_runner import LammpsRunner
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,11 @@ class WorkflowManager:
 
         # Load or Initialize State
         self.state = self._load_state()
+
+        # Dependencies (DIP) - Can be injected in a fuller implementation,
+        # but for now we instantiate them, but type hint with Protocols
+        self.builder: BuilderProtocol | None = None
+        self.surrogate: SurrogateProtocol | None = None
 
     def _load_state(self) -> WorkflowState:
         """
@@ -110,14 +115,19 @@ class WorkflowManager:
         logger.info("Phase A: Exploration")
         try:
             # 1. Generate
-            builder = StructureBuilder(self.config)
-            candidates = builder.build()
+            # Instantiate on demand if not injected (Lazy Init pattern)
+            if not self.builder:
+                self.builder = StructureBuilder(self.config)
+
+            candidates = self.builder.build()
             logger.info(f"Generated {len(candidates)} raw candidates.")
 
             # 2. Surrogate Selection
             if self.config.surrogate_config:
-                pipeline = SurrogatePipeline(self.config.surrogate_config)
-                selected, _ = pipeline.run(candidates)
+                if not self.surrogate:
+                     self.surrogate = SurrogatePipeline(self.config.surrogate_config)
+
+                selected, _ = self.surrogate.run(candidates)
                 logger.info(f"Selected {len(selected)} candidates via Surrogate.")
             else:
                 selected = candidates

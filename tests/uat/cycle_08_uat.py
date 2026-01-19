@@ -1,18 +1,16 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 from pytest_mock import MockerFixture
-from ase import Atoms
 
-from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
+from mlip_autopipec.config.models import MinimalConfig, Resources, SystemConfig, TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
-from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.orchestration.models import OrchestratorConfig
+
 
 def test_uat_08_01_end_to_end_autonomous_run(mocker: MockerFixture, tmp_path: Path) -> None:
     """

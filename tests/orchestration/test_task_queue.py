@@ -70,10 +70,27 @@ def test_wait_for_completion(mocker: MockerFixture, mock_dask: tuple[MagicMock, 
     mock_wait.assert_called_once_with(futures, timeout=None)
     assert results == ['result1', 'result2']
 
+def test_wait_for_completion_failure(mocker: MockerFixture, mock_dask: tuple[MagicMock, MagicMock]) -> None:
+    mock_wait = mocker.patch("mlip_autopipec.orchestration.task_queue.wait")
+    queue = TaskQueue()
+
+    # Mock futures
+    f1 = MagicMock()
+    f1.status = 'finished'
+    f1.result.return_value = 'result1'
+
+    f2 = MagicMock()
+    f2.status = 'error'
+    f2.result.side_effect = RuntimeError("Failed")
+
+    futures = [f1, f2]
+
+    # Should catch exception and append None
+    results = queue.wait_for_completion(futures)
+
+    assert results == ['result1', None]
 
 def test_shutdown(mock_dask: tuple[MagicMock, MagicMock]) -> None:
     queue = TaskQueue()
     queue.shutdown()
     queue.client.close.assert_called_once()
-    # Cluster is None in mock_dask init unless we enforce it,
-    # but let's verify logic does not crash

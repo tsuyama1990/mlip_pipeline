@@ -2,16 +2,16 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from ase import Atoms
 from pytest_mock import MockerFixture
 
-from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
+from mlip_autopipec.config.models import MinimalConfig, Resources, SystemConfig, TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
-from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.orchestration.models import OrchestratorConfig
-from ase import Atoms
 
 
 @pytest.fixture

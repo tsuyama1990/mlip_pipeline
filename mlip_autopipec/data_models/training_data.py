@@ -1,79 +1,81 @@
-"""
-This module defines data models for encapsulating domain objects like atomic structures.
-This ensures type safety and validation at boundaries where raw objects (like ase.Atoms)
-are passed between modules.
-"""
+# This module defines the schemas for Training Data.
+import math
+from typing import List, Union, Any
 
-from typing import TYPE_CHECKING, Annotated, Any
+import numpy as np
+from ase import Atoms
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-
-if TYPE_CHECKING:
-    from ase import Atoms
-
-def check_3d_vector(v: list[float]) -> list[float]:
-    if len(v) != 3:
-        raise ValueError("Vector must be size 3.")
-    return v
-
-# Type alias for a 3D vector.
-Vector3D = Annotated[list[float], Field(min_length=3, max_length=3)]
-
-# Type alias for a 3x3 matrix (list of 3 Vector3D).
-Matrix3x3 = Annotated[list[Vector3D], Field(min_length=3, max_length=3)]
-
-class TrainingBatch(BaseModel):
-    """
-    A container for a batch of atomic structures to be used for training.
-    Wraps a list of ase.Atoms objects to ensure they are valid.
-    """
-
-    # Use TYPE_CHECKING string forward reference for Atoms
-    atoms_list: list["Atoms"] = Field(..., description="List of ase.Atoms objects.")
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    @field_validator("atoms_list")
-    @classmethod
-    def validate_atoms_list(cls, v: list[Any]) -> list[Any]:
-        try:
-            from ase import Atoms
-        except ImportError as e:
-            msg = "ASE is required for validation."
-            raise ImportError(msg) from e
-
-        if not isinstance(v, list):
-            msg = "atoms_list must be a list."
-            raise TypeError(msg)
-
-        for i, atom in enumerate(v):
-            if not isinstance(atom, Atoms):
-                msg = f"Item at index {i} is not an ase.Atoms object."
-                raise TypeError(msg)
-
-        return v
+# Type alias for Matrix3x3 (List of 3 Lists of 3 floats)
+Vector3D = List[float]
+Matrix3x3 = List[Vector3D]
 
 
 class TrainingData(BaseModel):
     """
-    Data model representing a single training point (Structure + Labels).
-    This is what we write to disk (e.g. extxyz) or send to Pacemaker.
+    Schema for validated training data.
+    Enforces shape and finite values for energy and forces.
     """
-    structure_uid: str
-    energy: float | None = None
-    # Forces are per-atom, so list of Vector3D with variable length
-    forces: list[Vector3D] | None = None
-    # Virial and Stress are global 3x3 matrices
-    virial: Matrix3x3 | None = None
-    stress: Matrix3x3 | None = None
+
+    energy: float
+    forces: List[Vector3D]
+    stress: Union[Matrix3x3, Vector3D, None] = None
+    virial: Union[Matrix3x3, Vector3D, None] = None
 
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("energy")
     @classmethod
-    def create_safe(cls, **kwargs: Any) -> "TrainingData":
-        """
-        Factory method to create TrainingData with exception handling.
-        """
-        try:
-            return cls(**kwargs)
-        except ValidationError as e:
-            raise ValueError(f"Invalid data for TrainingData: {e}") from e
+    def check_energy_finite(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"Energy value {v} is not finite.")
+        return v
+
+    @field_validator("forces")
+    @classmethod
+    def check_forces_shape(cls, v: List[Vector3D]) -> List[Vector3D]:
+        if not v:
+            return v
+        if not all(len(row) == 3 for row in v):
+            raise ValueError("Each force vector must have 3 components (x, y, z).")
+        # Check for NaN or Infinity
+        for row in v:
+            for val in row:
+                if not math.isfinite(val):
+                    raise ValueError(f"Force value {val} is not finite.")
+        return v
+
+    @field_validator("stress", "virial")
+    @classmethod
+    def check_matrix_shape(cls, v: Union[Matrix3x3, Vector3D, None]) -> Union[Matrix3x3, Vector3D, None]:
+        if v is None:
+            return v
+
+        # 3x3 Matrix
+        if len(v) == 3:
+             if not all(len(row) == 3 for row in v): # type: ignore
+                 raise ValueError("Stress/Virial matrix must be 3x3.")
+        # Voigt notation (6 components) or flattened (9)
+        elif len(v) not in [6, 9]:
+             raise ValueError("Stress/Virial must be 3x3 matrix or 6-component vector.")
+
+        return v
+
+
+class TrainingBatch(BaseModel):
+    """
+    Schema for a batch of training data exported to Pacemaker.
+    """
+
+    atoms_list: List["Atoms"]  # Forward reference to ASE Atoms
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    @field_validator("atoms_list")
+    @classmethod
+    def validate_atoms_list(cls, v: List[Any]) -> List[Any]:
+        if not v:
+            return v
+        # Basic check
+        if not hasattr(v[0], "get_positions"):
+             raise ValueError("Items in atoms_list do not appear to be ASE Atoms objects.")
+        return v

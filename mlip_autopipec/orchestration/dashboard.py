@@ -103,7 +103,7 @@ class Dashboard:
         Returns:
             String containing the full HTML report.
         """
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
 
         return f"""
         <!DOCTYPE html>

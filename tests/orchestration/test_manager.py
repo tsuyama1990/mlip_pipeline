@@ -1,11 +1,10 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
 
-from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
+from mlip_autopipec.config.models import MinimalConfig, Resources, SystemConfig, TargetSystem
 from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.orchestration.models import OrchestratorConfig, WorkflowState
 
@@ -85,3 +84,13 @@ def test_manager_resume_state(mock_dependencies: None, valid_system_config: Syst
 
     assert manager.state.current_generation == 3
     assert manager.state.status == "inference"
+
+def test_manager_run_max_generations(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    orch_config = OrchestratorConfig(max_generations=0) # Should stop immediately
+
+    manager = WorkflowManager(valid_system_config, orch_config)
+    manager.run()
+
+    # TaskQueue shutdown should be called
+    manager.task_queue.shutdown.assert_called_once()
