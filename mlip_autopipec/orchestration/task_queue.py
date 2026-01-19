@@ -71,15 +71,20 @@ class TaskQueue:
         results = []
         for f in futures:
             if f.status == 'finished':
-                results.append(f.result())
-            else:
-                logger.warning(f"Task {f} did not finish successfully (status: {f.status}).")
-                # Attempt to get result to trigger exception (for logging or if retry logic was wrapped elsewhere)
                 try:
                     results.append(f.result())
                 except Exception:
-                    logger.exception("Task failed execution")
+                    logger.exception("Task finished but result() raised exception")
                     results.append(None)
+            elif f.status == 'error':
+                logger.error(f"Task failed with error status: {f.exception()}")
+                results.append(None)
+            elif f.status == 'cancelled':
+                logger.warning("Task was cancelled.")
+                results.append(None)
+            else:
+                logger.warning(f"Task did not finish successfully (status: {f.status}).")
+                results.append(None)
 
         return results
 

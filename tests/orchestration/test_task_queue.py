@@ -51,7 +51,7 @@ def test_submit_dft_batch(mock_dask: tuple[MagicMock, MagicMock]) -> None:
     assert args[1] == inputs
 
 
-def test_wait_for_completion(mocker: MockerFixture, mock_dask: tuple[MagicMock, MagicMock]) -> None:
+def test_wait_for_completion_success(mocker: MockerFixture, mock_dask: tuple[MagicMock, MagicMock]) -> None:
     mock_wait = mocker.patch("mlip_autopipec.orchestration.task_queue.wait")
     queue = TaskQueue()
 
@@ -71,25 +71,34 @@ def test_wait_for_completion(mocker: MockerFixture, mock_dask: tuple[MagicMock, 
     mock_wait.assert_called_once_with(futures, timeout=None)
     assert results == ['result1', 'result2']
 
-def test_wait_for_completion_failure(mocker: MockerFixture, mock_dask: tuple[MagicMock, MagicMock]) -> None:
+def test_wait_for_completion_various_failures(mocker: MockerFixture, mock_dask: tuple[MagicMock, MagicMock]) -> None:
     mocker.patch("mlip_autopipec.orchestration.task_queue.wait")
     queue = TaskQueue()
 
-    # Mock futures
+    # 1. Finished but result raises exception
     f1 = MagicMock()
     f1.status = 'finished'
-    f1.result.return_value = 'result1'
+    f1.result.side_effect = RuntimeError("Result retrieval failed")
 
+    # 2. Error status
     f2 = MagicMock()
     f2.status = 'error'
-    f2.result.side_effect = RuntimeError("Failed")
+    f2.exception.return_value = RuntimeError("Task execution failed")
 
-    futures = [f1, f2]
+    # 3. Cancelled
+    f3 = MagicMock()
+    f3.status = 'cancelled'
 
-    # Should catch exception and append None
+    # 4. Unknown status
+    f4 = MagicMock()
+    f4.status = 'pending' # Should not happen after wait, but logic handles 'else'
+
+    futures = [f1, f2, f3, f4]
+
     results = queue.wait_for_completion(futures)
 
-    assert results == ['result1', None]
+    # All should return None
+    assert results == [None, None, None, None]
 
 def test_shutdown(mock_dask: tuple[MagicMock, MagicMock]) -> None:
     queue = TaskQueue()
@@ -102,17 +111,6 @@ def test_robust_submit_retries(mock_dask: tuple[MagicMock, MagicMock]) -> None:
     """
     mock_client, _ = mock_dask
     queue = TaskQueue()
-
-    # Configure mock to raise exception first 2 times, then succeed
-    mock_client.return_value.submit.side_effect = [RuntimeError("Fail 1"), RuntimeError("Fail 2"), "Success"]
-
-    # We need to speed up the retry wait for test speed
-    # We can patch tenacity wait, or just accept the exponential wait might take a second or two.
-    # Given min=2 in implementation, it might be slow.
-    # It's better to verify it *can* fail and raise RetryError if exhausted,
-    # or rely on tenacity testing utilities.
-    # Or overwrite the `retry` attribute on the instance method? Hard with decorators.
-    # We'll rely on the fact that if we set side_effect to ALWAYS fail, it raises RetryError.
 
     mock_client.return_value.submit.side_effect = RuntimeError("Always Fail")
 

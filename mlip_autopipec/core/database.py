@@ -69,8 +69,8 @@ class DatabaseManager:
             config_dict = config.model_dump(mode="json")
 
             # Update metadata
-            if self._connection is None: # Redundant check for type checker
-                 raise DatabaseError("Connection lost")
+            if self._connection is None:  # Redundant check for type checker
+                raise DatabaseError("Connection lost")
 
             current_metadata = self._connection.metadata.copy()
             current_metadata.update(config_dict)
@@ -199,14 +199,24 @@ class DatabaseManager:
     def save_candidate(self, atoms: AtomsObject, metadata: dict[str, Any]) -> None:
         """
         Saves a candidate structure (without DFT results) to the database.
+
+        Validates metadata against CandidateData schema before saving.
         """
+        from mlip_autopipec.data_models.candidate import CandidateData
+
         self._ensure_connection()
 
         try:
+            # Validate metadata
+            CandidateData(**metadata)
+
             # Update atoms info with metadata
             atoms.info.update(metadata)
             if self._connection:
                 self._connection.write(atoms)
+        except ValidationError as e:
+            msg = f"Invalid candidate metadata: {e}"
+            raise DatabaseError(msg) from e
         except Exception as e:
             msg = f"Failed to save candidate: {e}"
             raise DatabaseError(msg) from e

@@ -44,8 +44,6 @@ def valid_system_config(temp_workspace: Path) -> SystemConfig:
 
 def test_manager_init(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
     orch_config = OrchestratorConfig()
-
-    # Ensure working dir exists (SystemConfig assumes factory creates it, but here we mock)
     valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
 
     manager = WorkflowManager(valid_system_config, orch_config)
@@ -62,7 +60,7 @@ def test_manager_save_state(mock_dependencies: None, valid_system_config: System
 
     manager.state.current_generation = 2
     manager.state.status = "training"
-    manager._save_state()  # Accessing protected method for test
+    manager._save_state()
 
     assert manager.state_file.exists()
     with manager.state_file.open("r") as f:
@@ -72,7 +70,6 @@ def test_manager_save_state(mock_dependencies: None, valid_system_config: System
 
 
 def test_manager_resume_state(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
-    # Pre-create state file
     valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
     state_file = valid_system_config.working_dir / "workflow_state.json"
     initial_state = WorkflowState(current_generation=3, status="inference")
@@ -80,7 +77,6 @@ def test_manager_resume_state(mock_dependencies: None, valid_system_config: Syst
         f.write(initial_state.model_dump_json())
 
     orch_config = OrchestratorConfig()
-
     manager = WorkflowManager(valid_system_config, orch_config)
 
     assert manager.state.current_generation == 3
@@ -88,40 +84,45 @@ def test_manager_resume_state(mock_dependencies: None, valid_system_config: Syst
 
 def test_manager_run_max_generations(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
     valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
-    orch_config = OrchestratorConfig(max_generations=0) # Should stop immediately
+    orch_config = OrchestratorConfig(max_generations=0)
 
     manager = WorkflowManager(valid_system_config, orch_config)
     manager.run()
 
-    # TaskQueue shutdown should be called
     manager.task_queue.shutdown.assert_called_once()
 
-def test_manager_phase_failure_resilience(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
-    """
-    Ensure the manager continues to the next phase/saves state even if a phase fails
-    (simulated by exception in sub-method).
-    """
+def test_manager_phase_transition_logic(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    """Test dispatch logic."""
     valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
     orch_config = OrchestratorConfig(max_generations=1)
 
     manager = WorkflowManager(valid_system_config, orch_config)
 
-    # Mock _run_exploration_phase to raise Exception
-    # We patch the instance method
-    manager._run_exploration_phase = MagicMock(side_effect=RuntimeError("Exploration Boom")) # type: ignore
+    # Mock executor
+    manager.executor = MagicMock()
 
-    # Run
-    manager.run()
+    # Test Idle -> DFT
+    manager.state.status = "idle"
+    manager._dispatch_phase()
+    manager.executor.execute_exploration.assert_called_once()
+    assert manager.state.status == "dft"
 
-    # Manager catches exception, logs it, and continues loop (or saves state)
-    # Since we didn't implement sophisticated transition logic on failure (it just logs),
-    # the state likely remains 'idle' or transitions if the failure was late.
-    # In current implementation, `_run_exploration_phase` itself has the try/except block.
-    # So if we mock it to raise, we are mocking the *inside* logic, but `run` calls the method.
-    # Wait, `run` calls `self._run_exploration_phase()`.
-    # If `_run_exploration_phase` implementation has the try/except, raising inside it works.
-    # But here we mocked the WHOLE method. So `run` catches it?
-    # `run` has a try/except around the whole loop. So if a phase raises, `run` catches and loops/exits.
+    # Test DFT -> Training
+    manager.state.status = "dft"
+    manager._dispatch_phase()
+    manager.executor.execute_dft.assert_called_once()
+    assert manager.state.status == "training"
 
-    # Let's verify `run` caught it and called shutdown.
-    manager.task_queue.shutdown.assert_called_once()
+    # Test Training -> Inference
+    manager.state.status = "training"
+    manager._dispatch_phase()
+    manager.executor.execute_training.assert_called_once()
+    assert manager.state.status == "inference"
+
+    # Test Inference -> Idle (Next Gen)
+    manager.state.status = "inference"
+    manager.state.current_generation = 0
+    manager._dispatch_phase()
+    manager.executor.execute_inference.assert_called_once()
+    assert manager.state.status == "idle"
+    assert manager.state.current_generation == 1

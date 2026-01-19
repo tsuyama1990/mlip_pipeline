@@ -18,29 +18,25 @@ valid_system_config = SystemConfig(minimal=MinimalConfig(project_name='test_proj
 
     def test_manager_run_max_generations(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
         valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
->       orch_config = OrchestratorConfig(max_generations=0) # Should stop immediately
+>       orch_config = OrchestratorConfig(max_generations=0)
                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 E       pydantic_core._pydantic_core.ValidationError: 1 validation error for OrchestratorConfig
 E       max_generations
 E         Input should be greater than or equal to 1 [type=greater_than_equal, input_value=0, input_type=int]
 E           For further information visit https://errors.pydantic.dev/2.12/v/greater_than_equal
 
-tests/orchestration/test_manager.py:91: ValidationError
+tests/orchestration/test_manager.py:87: ValidationError
 ___________________________ test_grand_mock_workflow ___________________________
 
-mocker = <pytest_mock.plugin.MockerFixture object at 0x7f06ac95a600>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fecb6b97d40>
 valid_system_config = SystemConfig(minimal=MinimalConfig(project_name='test_project', target_system=TargetSystem(name='Al', structure_type='...), lammps_executable=None, elements=['Al']), generator_config=None, generator=None, explorer=None, dask=None, dft=None)
 
     def test_grand_mock_workflow(mocker: MockerFixture, valid_system_config: SystemConfig) -> None:
         # 1. Mock External Components
-        mock_builder = mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
-        mock_surrogate = mocker.patch("mlip_autopipec.orchestration.manager.SurrogatePipeline")
-        # We patch QERunner and LammpsRunner but don't strictly need the return object variable if not asserting methods on it directly
-        mocker.patch("mlip_autopipec.orchestration.manager.QERunner")
-        mock_pacemaker = mocker.patch("mlip_autopipec.orchestration.manager.PacemakerWrapper")
->       mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner")
+>       mock_builder = mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_orchestration_integration.py:53:
+tests/integration/test_orchestration_integration.py:48:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 .venv/lib/python3.12/site-packages/pytest_mock/plugin.py:448: in __call__
     return self._start_patch(
@@ -55,7 +51,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7f06ac960530>
+self = <unittest.mock._patch object at 0x7fecb6b97d10>
 
     def get_original(self):
         target = self.getter()
@@ -78,28 +74,22 @@ self = <unittest.mock._patch object at 0x7f06ac960530>
 >           raise AttributeError(
                 "%s does not have the attribute %r" % (target, name)
             )
-E           AttributeError: <module 'mlip_autopipec.orchestration.manager' from '/app/mlip_autopipec/orchestration/manager.py'> does not have the attribute 'LammpsRunner'
+E           AttributeError: <module 'mlip_autopipec.orchestration.manager' from '/app/mlip_autopipec/orchestration/manager.py'> does not have the attribute 'StructureBuilder'
 
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1437: AttributeError
 ___________________ test_uat_08_01_end_to_end_autonomous_run ___________________
 
-mocker = <pytest_mock.plugin.MockerFixture object at 0x7f06ac94eff0>
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_uat_08_01_end_to_end_auto0')
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fecb6b97590>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-14/test_uat_08_01_end_to_end_auto0')
 
     def test_uat_08_01_end_to_end_autonomous_run(mocker: MockerFixture, tmp_path: Path) -> None:
         """
         UAT-08-01: Verify that the system can perform a complete "Zero-Human" run.
         """
         # Mock Physics Engines
-        mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
-        mocker.patch("mlip_autopipec.orchestration.manager.SurrogatePipeline")
-        mocker.patch("mlip_autopipec.orchestration.manager.QERunner")
-        mocker.patch("mlip_autopipec.orchestration.manager.PacemakerWrapper")
-        # mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner") # Not imported in current manager refactor?
-        # Let's check imports in manager.py. It imports LammpsRunner.
->       mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner")
+>       mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
 
-tests/uat/cycle_08_uat.py:28:
+tests/uat/cycle_08_uat.py:22:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 .venv/lib/python3.12/site-packages/pytest_mock/plugin.py:448: in __call__
     return self._start_patch(
@@ -114,7 +104,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7f06ac9443b0>
+self = <unittest.mock._patch object at 0x7fecb6b975c0>
 
     def get_original(self):
         target = self.getter()
@@ -137,26 +127,22 @@ self = <unittest.mock._patch object at 0x7f06ac9443b0>
 >           raise AttributeError(
                 "%s does not have the attribute %r" % (target, name)
             )
-E           AttributeError: <module 'mlip_autopipec.orchestration.manager' from '/app/mlip_autopipec/orchestration/manager.py'> does not have the attribute 'LammpsRunner'
+E           AttributeError: <module 'mlip_autopipec.orchestration.manager' from '/app/mlip_autopipec/orchestration/manager.py'> does not have the attribute 'StructureBuilder'
 
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1437: AttributeError
 _______________________ test_uat_08_02_checkpoint_resume _______________________
 
-mocker = <pytest_mock.plugin.MockerFixture object at 0x7f06ac960f20>
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_uat_08_02_checkpoint_resu0')
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7fecb6b95d90>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-14/test_uat_08_02_checkpoint_resu0')
 
     def test_uat_08_02_checkpoint_resume(mocker: MockerFixture, tmp_path: Path) -> None:
         """
         UAT-08-02: Verify Checkpoint & Resume.
         """
         # Mocks
-        mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
-        mocker.patch("mlip_autopipec.orchestration.manager.SurrogatePipeline")
-        mocker.patch("mlip_autopipec.orchestration.manager.QERunner")
-        mocker.patch("mlip_autopipec.orchestration.manager.PacemakerWrapper")
->       mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner")
+>       mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
 
-tests/uat/cycle_08_uat.py:107:
+tests/uat/cycle_08_uat.py:103:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 .venv/lib/python3.12/site-packages/pytest_mock/plugin.py:448: in __call__
     return self._start_patch(
@@ -171,7 +157,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7f06ac95a390>
+self = <unittest.mock._patch object at 0x7fecb6b96150>
 
     def get_original(self):
         target = self.getter()
@@ -194,7 +180,7 @@ self = <unittest.mock._patch object at 0x7f06ac95a390>
 >           raise AttributeError(
                 "%s does not have the attribute %r" % (target, name)
             )
-E           AttributeError: <module 'mlip_autopipec.orchestration.manager' from '/app/mlip_autopipec/orchestration/manager.py'> does not have the attribute 'LammpsRunner'
+E           AttributeError: <module 'mlip_autopipec.orchestration.manager' from '/app/mlip_autopipec/orchestration/manager.py'> does not have the attribute 'StructureBuilder'
 
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1437: AttributeError
 ================================ tests coverage ================================
@@ -217,12 +203,13 @@ mlip_autopipec/config/schemas/surrogate.py          37      6    84%   59-65
 mlip_autopipec/config/schemas/system.py             66      4    94%   73-76
 mlip_autopipec/config/schemas/training.py           80     13    84%   57-60, 91-100
 mlip_autopipec/core/__init__.py                      0      0   100%
-mlip_autopipec/core/database.py                    115     94    18%   25-26, 33-51, 55-59, 66-80, 86-87, 100-109, 121-131, 142-168, 176-197, 203-212, 224-232
+mlip_autopipec/core/database.py                    120     99    18%   25-26, 33-51, 55-59, 66-80, 86-87, 100-109, 121-131, 142-168, 176-197, 205-222, 234-242
 mlip_autopipec/core/logging.py                      18     18     0%   5-47
 mlip_autopipec/core/workspace.py                    13     13     0%   1-25
 mlip_autopipec/data/__init__.py                      0      0   100%
 mlip_autopipec/data/database.py                     23     23     0%   7-73
 mlip_autopipec/data_models/__init__.py               4      0   100%
+mlip_autopipec/data_models/candidate.py              6      6     0%   1-11
 mlip_autopipec/data_models/dft_models.py            35      8    77%   33-35, 41-45
 mlip_autopipec/data_models/inference_models.py      18      7    61%   26-33
 mlip_autopipec/data_models/training_data.py         53     25    53%   30-32, 40-49, 54-65, 79-84
@@ -262,9 +249,10 @@ mlip_autopipec/monitoring/dashboard.py              63     63     0%   1-115
 mlip_autopipec/orchestration/__init__.py             5      0   100%
 mlip_autopipec/orchestration/dashboard.py           47     33    30%   31-34, 45-55, 67-95, 108-110
 mlip_autopipec/orchestration/interfaces.py           9      0   100%
-mlip_autopipec/orchestration/manager.py            137     82    40%   78-80, 110-125, 139-169, 179-216, 226-253, 263-281, 288-307
+mlip_autopipec/orchestration/manager.py             66     19    71%   70-71, 82-95, 118-128
 mlip_autopipec/orchestration/models.py              18      0   100%
-mlip_autopipec/orchestration/task_queue.py          41      0   100%
+mlip_autopipec/orchestration/phase_executor.py      80     57    29%   34-56, 60-88, 92-113, 117-125
+mlip_autopipec/orchestration/task_queue.py          47      0   100%
 mlip_autopipec/surrogate/__init__.py                 0      0   100%
 mlip_autopipec/surrogate/candidate_manager.py       14      8    43%   15-19, 35-37
 mlip_autopipec/surrogate/descriptors.py             30     21    30%   27-28, 44-84
@@ -285,10 +273,10 @@ mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
-TOTAL                                             3119   2271    27%
+TOTAL                                             3145   2276    28%
 =========================== short test summary info ============================
 FAILED tests/orchestration/test_manager.py::test_manager_run_max_generations
 FAILED tests/integration/test_orchestration_integration.py::test_grand_mock_workflow
 FAILED tests/uat/cycle_08_uat.py::test_uat_08_01_end_to_end_autonomous_run - ...
 FAILED tests/uat/cycle_08_uat.py::test_uat_08_02_checkpoint_resume - Attribut...
-======================== 4 failed, 11 passed in 26.84s =========================
+======================== 4 failed, 11 passed in 28.68s =========================
