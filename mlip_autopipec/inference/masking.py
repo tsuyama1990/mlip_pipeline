@@ -22,6 +22,8 @@ class ForceMasker:
         try:
             # Edge case: Empty atoms
             if len(atoms) == 0:
+                # Initialize empty array to ensure consistency
+                atoms.new_array("force_mask", np.zeros(0, dtype=float))
                 return
 
             positions = atoms.get_positions()

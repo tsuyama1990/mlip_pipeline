@@ -17,10 +17,10 @@ def check_3d_vector(v: list[float]) -> list[float]:
     return v
 
 # Type alias for a 3D vector.
-# Using Annotated allows reuse across models.
-# While Pydantic V2 allows 'conlist', manual validation via BeforeValidator or AfterValidator
-# is often preferred for complex checks. Here we enforce length=3.
 Vector3D = Annotated[list[float], Field(min_length=3, max_length=3)]
+
+# Type alias for a 3x3 matrix (list of 3 Vector3D).
+Matrix3x3 = Annotated[list[Vector3D], Field(min_length=3, max_length=3)]
 
 class TrainingBatch(BaseModel):
     """
@@ -60,10 +60,11 @@ class TrainingData(BaseModel):
     """
     structure_uid: str
     energy: float | None = None
-    # Use nested annotation for list of 3D vectors
+    # Forces are per-atom, so list of Vector3D with variable length
     forces: list[Vector3D] | None = None
-    virial: list[Vector3D] | None = None
-    stress: list[Vector3D] | None = None
+    # Virial and Stress are global 3x3 matrices
+    virial: Matrix3x3 | None = None
+    stress: Matrix3x3 | None = None
 
     model_config = ConfigDict(extra="forbid")
 
