@@ -1,26 +1,31 @@
 """
-MLIP-AutoPipeC: Autonomous Pipeline for MLIP Generation.
+MLIP-AutoPipe: Machine Learning Interatomic Potential Automated Pipeline.
 
-This package implements the "Zero-Human" protocol for generating Machine Learning
-Interatomic Potentials. It is structured into distinct modules for configuration,
-structure generation, surrogate pre-screening, DFT calculation, training, and inference.
+Architecture Overview:
+----------------------
+The system is designed as a modular, event-driven pipeline for active learning of MLIPs.
 
-## Package Architecture
+Core Modules:
+- **Config**: Pydantic schemas for strict validation (`mlip_autopipec.config`).
+- **Data**: Database abstraction layer using ASE DB (`mlip_autopipec.core.database`).
+- **Generator**: Structure generation (SQS, NMS, Defects) (`mlip_autopipec.generator`).
+- **Surrogate**: Pre-screening using MACE and FPS (`mlip_autopipec.surrogate`).
+- **DFT**: Quantum Espresso execution and recovery (`mlip_autopipec.dft`).
+- **Training**: ACE potential training via Pacemaker (`mlip_autopipec.training`).
+- **Inference**: MD simulations (LAMMPS) and uncertainty quantification (`mlip_autopipec.inference`).
+- **Orchestration**: Workflow management and distributed execution (`mlip_autopipec.orchestration`).
 
-*   **`config`**: Defines the data contracts (Pydantic schemas) for system configuration.
-    These schemas (`SystemConfig`, `InferenceConfig`) act as the single source of truth.
-*   **`data_models`**: Defines the domain objects exchanged between pipeline stages
-    (e.g., `DFTResult`, `TrainingData`, `ExtractedStructure`).
-*   **`inference`**: Contains the inference engine logic, including MD simulation (`LammpsRunner`),
-    uncertainty quantification (`UncertaintyChecker`), and active learning extraction
-    (`EmbeddingExtractor`, `ForceMasker`).
-*   **`core`**: Provides low-level utilities like `DatabaseManager` and logging.
-*   **`dft`**: Manages First-Principles calculations (Quantum Espresso).
-*   **`training`**: Orchestrates ML potential training (Pacemaker).
-*   **`generator`**: Creates initial atomic structures (SQS, NMS).
-*   **`surrogate`**: Filters and selects structures using foundation models (MACE).
+Data Flow:
+----------
+1. **Exploration**: Generator -> Candidates -> Surrogate -> Selected Structures -> DB.
+2. **Labeling**: DB (pending) -> Orchestrator -> TaskQueue -> DFT -> DB (labeled).
+3. **Training**: DB (labeled) -> DatasetBuilder -> Pacemaker -> Potential (.yace).
+4. **Inference**: Potential -> LAMMPS -> Uncertainty Check -> DB (new candidates).
 
-For detailed architecture design, see `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md`.
+Dependencies:
+-------------
+- ASE (Atomic Simulation Environment)
+- Pydantic (Data Validation)
+- Dask (Distributed Computing)
+- Matplotlib (Visualization)
 """
-
-__version__ = "0.1.0"

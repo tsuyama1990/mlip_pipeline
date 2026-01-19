@@ -2,83 +2,66 @@
 
 MLIP-AutoPipe is a project designed to provide a "Zero-Human" protocol for the autonomous generation of Machine Learning Interatomic Potentials (MLIPs). This system automates the entire MLIP lifecycle, from initial data generation to active learning and large-scale production simulations.
 
-## Cycle 01: Core Framework & User Interface
+## System Architecture
 
-This cycle lays the bedrock for the entire MLIP-AutoPipe ecosystem. Before any physics can be simulated or any potentials trained, we must establish a robust, type-safe, and verifiable infrastructure. The primary objective of this cycle is to implement the **Configuration Management System** and the **Core Utilities** (Database and Logging) that will serve as the nervous system of the application.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed diagram and module description.
 
-### Key Features:
-- **Strict Schema**: A rigorous Pydantic V2 schema defines the `MinimalConfig` (user input) and `SystemConfig` (internal state), ensuring type safety and validity before any computation begins.
-- **Data Persistence**: A `DatabaseManager` wrapper around `ase.db` ensures that no data is saved without its provenance metadata, enforcing traceability.
-- **Centralized Logging**: A unified logging system provides structured, machine-parsable logs, essential for debugging autonomous workflows.
-- **CLI Initialization**: The `mlip-auto run input.yaml` command initializes a project workspace, validates the configuration, and establishes the database connection.
+## Dependencies
 
-## Cycle 02: Automated DFT Factory
+The project requires Python >= 3.11. Key dependencies include:
+- `ase`
+- `numpy`
+- `pydantic`
+- `dask`
+- `matplotlib`
+- `mace-torch`
+- `dscribe`
 
-This cycle implements the **Automated DFT Factory**, the "engine room" of the pipeline. It autonomously manages Quantum Espresso calculations, ensuring robust data generation for MLIP training.
+See `pyproject.toml` for the full list and version constraints.
 
-### Key Features:
-- **Autonomous Execution**: The `QERunner` manages the entire lifecycle of a DFT calculation, from input generation to output parsing.
-- **Auto-Recovery**: A state-machine-based `RecoveryHandler` automatically detects and fixes common DFT errors (convergence failure, diagonalization errors) by adjusting parameters like mixing beta and temperature.
-- **Physics-Informed Input Generation**: The `InputGenerator` automatically selects appropriate pseudopotentials (SSSP) and K-point grids based on cell density and material composition (e.g., handling magnetism for Fe, Co, Ni).
-- **Data Standardization**: All results are encapsulated in a strictly typed `DFTResult` object, ensuring consistency across the pipeline.
+## Cycles
 
-## Cycle 03: Structure Generator
+### Cycle 01: Core Framework & User Interface
+- **Strict Schema**: `MinimalConfig` & `SystemConfig`.
+- **Data Persistence**: `DatabaseManager` (ASE-db).
+- **CLI Initialization**.
 
-This cycle implements the **Structure Generator**, a system for creating diverse atomic structures for training data. It includes tools for generating SQS (Special Quasirandom Structures), applying random distortions (strain, rattle), creating defects (vacancies, interstitials), and generating Normal Mode Sampling (NMS) structures for molecules.
+### Cycle 02: Automated DFT Factory
+- **Autonomous Execution**: `QERunner`.
+- **Auto-Recovery**: `RecoveryHandler`.
 
-## Cycle 04: Surrogate Explorer
+### Cycle 03: Structure Generator
+- **Generators**: SQS, NMS, Defects.
 
-This cycle implements the **Surrogate Explorer**, a mechanism to intelligently select the most valuable structures for DFT calculation from a large pool of candidates.
+### Cycle 04: Surrogate Explorer
+- **Pre-screening**: MACE foundation model.
+- **Selection**: FPS on SOAP descriptors.
 
-### Key Features:
-- **MACE Foundation Model**: Uses a pre-trained MACE-MP model as a "scout" to predict forces and filter out physically catastrophic structures (e.g., exploding atoms).
-- **Diversity Sampling (FPS)**: Implements Farthest Point Sampling (FPS) using SOAP descriptors to select a geometrically diverse subset of structures, maximizing information gain for MLIP training.
-- **Descriptor Calculation**: robust calculation of SOAP and ACE descriptors for both bulk and molecular systems.
-- **Efficient Pipeline**: A `SurrogatePipeline` orchestrates the flow: Generation -> Pre-screening (MACE) -> Featurization (SOAP) -> Selection (FPS).
+### Cycle 05: Active Learning & Training
+- **Training**: Pacemaker integration.
+- **Physics**: ZBL baseline subtraction.
 
-## Cycle 05: Active Learning & Training
+### Cycle 06: Scalable Inference Engine (Part 1)
+- **MD**: LAMMPS integration.
+- **UQ**: Uncertainty monitoring.
 
-This cycle implements the **Active Learning & Training** module, automating the creation of Machine Learning Potentials using Pacemaker.
+### Cycle 07: Scalable Inference Engine (Part 2)
+- **Extraction**: Periodic embedding of local clusters.
+- **Masking**: Force masking for training.
 
-### Key Features:
-- **Dataset Preparation**: Automated export of training data from ASE-db, ensuring proper formatting and disjoint train/test splitting.
-- **Delta Learning**: Implementation of ZBL (Ziegler-Biersack-Littmark) baseline subtraction to enforce correct short-range repulsion physics.
-- **Pacemaker Integration**: A `PacemakerWrapper` that autonomously manages the training lifecycle, including dynamic configuration generation via Jinja2 templates and output monitoring.
-- **Force Masking**: Support for masking forces on specific atoms (e.g., buffer regions) during training to prevent learning artifacts.
-
-## Cycle 06: Scalable Inference Engine (Part 1)
-
-This cycle implements the first part of the **Scalable Inference Engine**, enabling the system to run Molecular Dynamics simulations for "stress-testing" the trained potential.
-
-### Key Features:
-- **LAMMPS Wrapper**: A robust `LammpsRunner` that orchestrates MD simulations, handling input generation (script & data) and execution.
-- **Active Learning Mining**: Logic to monitor the "Extrapolation Grade" ($\gamma$) in real-time. If the simulation wanders into uncertain regions ($\gamma > 5.0$), it automatically dumps the problematic configurations.
-- **Uncertainty Quantification (UQ)**: An `UncertaintyChecker` module that parses MD dump files to extract and flag high-uncertainty structures for re-training.
-- **Thermodynamic Analysis**: Basic analysis utilities to extract properties (Temperature, Pressure) from LAMMPS logs.
-
-## Cycle 07: Scalable Inference Engine (Part 2)
-
-This cycle completes the Scalable Inference Engine by implementing the **Periodic Embedding & Force Masking** strategy. This allows the system to efficiently correct local errors in large MD simulations without re-calculating the entire supercell.
-
-### Key Features:
-- **Local Environment Extraction**: An `EmbeddingExtractor` that excises a local cluster around a high-uncertainty atom and embeds it into a small periodic box, handling boundary conditions (PBC) and Minimum Image Convention.
-- **Force Masking**: A `ForceMasker` that applies a mask to the extracted cluster. Atoms in the "core" region are weighted (1.0) for training, while atoms in the "buffer" region are masked (0.0) to ignore surface artifacts.
-- **Data Models**: New `EmbeddingConfig` and `ExtractedStructure` models to standardize the extraction workflow.
-
-## Development Status
-
-Cycle 01 through Cycle 07 features are implemented.
+### Cycle 08: Orchestration
+- **WorkflowManager**: State machine for autonomous operation.
+- **TaskQueue**: Distributed execution via Dask.
+- **Dashboard**: HTML monitoring interface.
 
 ## Getting Started
 
-To get started with the project, create a virtual environment and install the dependencies:
-
+Create environment:
 ```bash
 uv sync --extra dev
 ```
 
-Run the initialization:
-
+Run:
 ```bash
 mlip-auto run input.yaml
 ```

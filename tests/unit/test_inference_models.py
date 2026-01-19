@@ -1,7 +1,9 @@
 import pytest
-from pydantic import ValidationError
-from mlip_autopipec.data_models.inference_models import ExtractedStructure
 from ase import Atoms
+from pydantic import ValidationError
+
+from mlip_autopipec.data_models.inference_models import ExtractedStructure
+
 
 def test_extracted_structure_valid() -> None:
     atoms = Atoms("Al", positions=[[0, 0, 0]])
