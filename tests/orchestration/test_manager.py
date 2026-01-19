@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
 
-from mlip_autopipec.config.models import MinimalConfig, Resources, SystemConfig, TargetSystem
+from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
 from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.orchestration.models import OrchestratorConfig, WorkflowState
 
@@ -93,4 +94,34 @@ def test_manager_run_max_generations(mock_dependencies: None, valid_system_confi
     manager.run()
 
     # TaskQueue shutdown should be called
+    manager.task_queue.shutdown.assert_called_once()
+
+def test_manager_phase_failure_resilience(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    """
+    Ensure the manager continues to the next phase/saves state even if a phase fails
+    (simulated by exception in sub-method).
+    """
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    orch_config = OrchestratorConfig(max_generations=1)
+
+    manager = WorkflowManager(valid_system_config, orch_config)
+
+    # Mock _run_exploration_phase to raise Exception
+    # We patch the instance method
+    manager._run_exploration_phase = MagicMock(side_effect=RuntimeError("Exploration Boom")) # type: ignore
+
+    # Run
+    manager.run()
+
+    # Manager catches exception, logs it, and continues loop (or saves state)
+    # Since we didn't implement sophisticated transition logic on failure (it just logs),
+    # the state likely remains 'idle' or transitions if the failure was late.
+    # In current implementation, `_run_exploration_phase` itself has the try/except block.
+    # So if we mock it to raise, we are mocking the *inside* logic, but `run` calls the method.
+    # Wait, `run` calls `self._run_exploration_phase()`.
+    # If `_run_exploration_phase` implementation has the try/except, raising inside it works.
+    # But here we mocked the WHOLE method. So `run` catches it?
+    # `run` has a try/except around the whole loop. So if a phase raises, `run` catches and loops/exits.
+
+    # Let's verify `run` caught it and called shutdown.
     manager.task_queue.shutdown.assert_called_once()

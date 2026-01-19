@@ -1,15 +1,16 @@
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.dft.runner import QERunner
+from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 
 # Component Imports
 from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.orchestration.dashboard import Dashboard
-from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 from mlip_autopipec.orchestration.models import DashboardData, OrchestratorConfig, WorkflowState
 from mlip_autopipec.orchestration.task_queue import TaskQueue
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
@@ -18,7 +19,6 @@ from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
 logger = logging.getLogger(__name__)
-
 
 class WorkflowManager:
     """
@@ -30,14 +30,21 @@ class WorkflowManager:
     - Coordinate execution between Modules (A-E) via the TaskQueue.
     - Update the Dashboard with progress.
     """
-
-    def __init__(self, config: SystemConfig, orchestrator_config: OrchestratorConfig) -> None:
+    def __init__(
+        self,
+        config: SystemConfig,
+        orchestrator_config: OrchestratorConfig,
+        builder: Optional[BuilderProtocol] = None,
+        surrogate: Optional[SurrogateProtocol] = None
+    ) -> None:
         """
         Initialize the WorkflowManager.
 
         Args:
             config: The full SystemConfig containing module configurations.
             orchestrator_config: Configuration for the orchestrator behavior (e.g. max_generations).
+            builder: Optional injected BuilderProtocol dependency.
+            surrogate: Optional injected SurrogateProtocol dependency.
         """
         self.config = config
         self.orch_config = orchestrator_config
@@ -48,16 +55,16 @@ class WorkflowManager:
         self.db_manager = DatabaseManager(self.config.db_path)
         self.task_queue = TaskQueue(
             scheduler_address=self.orch_config.dask_scheduler_address,
-            workers=self.orch_config.workers,
+            workers=self.orch_config.workers
         )
         self.dashboard = Dashboard(self.work_dir, self.db_manager)
 
         # Load or Initialize State
         self.state = self._load_state()
 
-        # Dependencies (DIP) - Instantiated lazily or injected
-        self.builder: BuilderProtocol | None = None
-        self.surrogate: SurrogateProtocol | None = None
+        # Dependencies (DIP) - Injected or Lazy Initialized
+        self.builder = builder
+        self.surrogate = surrogate
 
     def _load_state(self) -> WorkflowState:
         """
@@ -97,7 +104,7 @@ class WorkflowManager:
 
                 # Phase A: Exploration / Generation
                 if self.state.status == "idle":
-                    self._run_exploration_phase()
+                     self._run_exploration_phase()
 
                 # Phase B: DFT Labeling
                 if self.state.status == "dft":
@@ -141,7 +148,7 @@ class WorkflowManager:
             # 2. Surrogate Selection
             if self.config.surrogate_config:
                 if not self.surrogate:
-                    self.surrogate = SurrogatePipeline(self.config.surrogate_config)
+                     self.surrogate = SurrogatePipeline(self.config.surrogate_config)
 
                 selected, _ = self.surrogate.run(candidates)
                 logger.info(f"Selected {len(selected)} candidates via Surrogate.")
@@ -151,9 +158,7 @@ class WorkflowManager:
 
             # Write candidates to DB
             for atoms in selected:
-                self.db_manager.save_candidate(
-                    atoms, {"status": "pending", "generation": self.state.current_generation}
-                )
+                self.db_manager.save_candidate(atoms, {"status": "pending", "generation": self.state.current_generation})
 
         except Exception:
             logger.exception("Exploration phase failed")
@@ -196,7 +201,7 @@ class WorkflowManager:
                             self.db_manager.save_dft_result(
                                 atoms,
                                 res,
-                                {"status": "training", "generation": self.state.current_generation},
+                                {"status": "training", "generation": self.state.current_generation}
                             )
                             success_count += 1
                         else:
@@ -237,7 +242,7 @@ class WorkflowManager:
                     dataset_builder,
                     config_gen,
                     self.work_dir,
-                    self.state.current_generation,
+                    self.state.current_generation
                 )
                 logger.info(f"Training complete. Potential at: {result.potential_path}")
 
@@ -259,7 +264,7 @@ class WorkflowManager:
 
         try:
             if not self.config.inference_config:
-                logger.warning("No Inference Config. Skipping inference.")
+                 logger.warning("No Inference Config. Skipping inference.")
             else:
                 # 1. Setup Runner
                 # runner = LammpsRunner(self.config.inference_config, self.work_dir)
@@ -272,7 +277,7 @@ class WorkflowManager:
             logger.exception("Inference phase failed")
 
         self.state.current_generation += 1
-        self.state.status = "idle"  # Loop back
+        self.state.status = "idle" # Loop back
         self._save_state()
 
     def _update_dashboard(self) -> None:
@@ -297,6 +302,6 @@ class WorkflowManager:
             generations=[self.state.current_generation],
             rmse_values=[0.0],  # Placeholder until we track metrics
             structure_counts=[total_structures],
-            status=self.state.status,
+            status=self.state.status
         )
         self.dashboard.update(data)

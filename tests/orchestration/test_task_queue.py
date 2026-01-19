@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
+from tenacity import RetryError
 
 from mlip_autopipec.orchestration.task_queue import TaskQueue
 
@@ -71,7 +72,7 @@ def test_wait_for_completion(mocker: MockerFixture, mock_dask: tuple[MagicMock, 
     assert results == ['result1', 'result2']
 
 def test_wait_for_completion_failure(mocker: MockerFixture, mock_dask: tuple[MagicMock, MagicMock]) -> None:
-    mock_wait = mocker.patch("mlip_autopipec.orchestration.task_queue.wait")
+    mocker.patch("mlip_autopipec.orchestration.task_queue.wait")
     queue = TaskQueue()
 
     # Mock futures
@@ -94,3 +95,28 @@ def test_shutdown(mock_dask: tuple[MagicMock, MagicMock]) -> None:
     queue = TaskQueue()
     queue.shutdown()
     queue.client.close.assert_called_once()
+
+def test_robust_submit_retries(mock_dask: tuple[MagicMock, MagicMock]) -> None:
+    """
+    Verify robust_submit retries on failure.
+    """
+    mock_client, _ = mock_dask
+    queue = TaskQueue()
+
+    # Configure mock to raise exception first 2 times, then succeed
+    mock_client.return_value.submit.side_effect = [RuntimeError("Fail 1"), RuntimeError("Fail 2"), "Success"]
+
+    # We need to speed up the retry wait for test speed
+    # We can patch tenacity wait, or just accept the exponential wait might take a second or two.
+    # Given min=2 in implementation, it might be slow.
+    # It's better to verify it *can* fail and raise RetryError if exhausted,
+    # or rely on tenacity testing utilities.
+    # Or overwrite the `retry` attribute on the instance method? Hard with decorators.
+    # We'll rely on the fact that if we set side_effect to ALWAYS fail, it raises RetryError.
+
+    mock_client.return_value.submit.side_effect = RuntimeError("Always Fail")
+
+    with pytest.raises(RetryError):
+        queue.robust_submit(_dummy_func, 1)
+
+    assert mock_client.return_value.submit.call_count >= 5 # 5 attempts configured
