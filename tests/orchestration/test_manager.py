@@ -1,100 +1,128 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
-from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
 from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.orchestration.models import OrchestratorConfig, WorkflowState
 
 
 @pytest.fixture
-def mock_config(tmp_path: Path) -> MagicMock:
-    config = MagicMock(spec=SystemConfig)
-    config.working_dir = tmp_path
-    config.db_path = tmp_path / "test.db"
-    # Ensure config properties return None or Mocks to allow instantiation
-    config.surrogate_config = None
-    config.dft_config = None
-    config.training_config = None
-    config.inference_config = None
-    return config
+def mock_dependencies(mocker: MockerFixture) -> None:
+    mocker.patch("mlip_autopipec.orchestration.manager.TaskQueue")
+    mocker.patch("mlip_autopipec.orchestration.manager.DatabaseManager")
+    mocker.patch("mlip_autopipec.orchestration.manager.Dashboard")
+
 
 @pytest.fixture
-def mock_orch_config() -> OrchestratorConfig:
-    return OrchestratorConfig(max_generations=2, workers=1, dask_scheduler_address=None)
+def temp_workspace(tmp_path: Path) -> Path:
+    return tmp_path / "workspace"
+
 
 @pytest.fixture
-def manager(mock_config: MagicMock, mock_orch_config: OrchestratorConfig) -> WorkflowManager:
-    with patch('mlip_autopipec.orchestration.manager.DatabaseManager'), \
-         patch('mlip_autopipec.orchestration.manager.TaskQueue'), \
-         patch('mlip_autopipec.orchestration.manager.Dashboard'):
-        return WorkflowManager(mock_config, mock_orch_config)
+def valid_system_config(temp_workspace: Path) -> SystemConfig:
+    minimal = MinimalConfig(
+        project_name="test_project",
+        target_system=TargetSystem(
+            name="Al",
+            structure_type="bulk",
+            elements=["Al"],
+            composition={"Al": 1.0}
+        ),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
+    return SystemConfig(
+        minimal=minimal,
+        working_dir=temp_workspace,
+        db_path=temp_workspace / "db.db",
+        log_path=temp_workspace / "log.log"
+    )
 
-def test_manager_init(manager: WorkflowManager) -> None:
+
+def test_manager_init(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    orch_config = OrchestratorConfig()
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+
+    manager = WorkflowManager(valid_system_config, orch_config)
+
     assert manager.state.current_generation == 0
     assert manager.state.status == "idle"
+    assert manager.state_file == valid_system_config.working_dir / "workflow_state.json"
 
-def test_load_state_existing(mock_config: MagicMock, mock_orch_config: OrchestratorConfig) -> None:
-    state_file = mock_config.working_dir / "workflow_state.json"
-    saved_state = WorkflowState(current_generation=1, status="training")
-    state_file.write_text(saved_state.model_dump_json())
 
-    with patch('mlip_autopipec.orchestration.manager.DatabaseManager'), \
-         patch('mlip_autopipec.orchestration.manager.TaskQueue'), \
-         patch('mlip_autopipec.orchestration.manager.Dashboard'):
-        mgr = WorkflowManager(mock_config, mock_orch_config)
-        assert mgr.state.current_generation == 1
-        assert mgr.state.status == "training"
+def test_manager_save_state(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    orch_config = OrchestratorConfig()
+    manager = WorkflowManager(valid_system_config, orch_config)
 
-def test_save_state(manager: WorkflowManager) -> None:
-    manager.state.current_generation = 1
+    manager.state.current_generation = 2
+    manager.state.status = "training"
     manager._save_state()
 
-    state_file = manager.work_dir / "workflow_state.json"
-    assert state_file.exists()
-    loaded = json.loads(state_file.read_text())
-    assert loaded['current_generation'] == 1
+    assert manager.state_file.exists()
+    with manager.state_file.open("r") as f:
+        data = json.load(f)
+        assert data["current_generation"] == 2
+        assert data["status"] == "training"
 
-def test_run_loop_transitions(manager: WorkflowManager) -> None:
-    # We mock the phases to just verify the loop logic
-    manager._run_exploration_phase = MagicMock(side_effect=lambda: setattr(manager.state, 'status', 'dft'))  # type: ignore
-    manager._run_dft_phase = MagicMock(side_effect=lambda: setattr(manager.state, 'status', 'training'))  # type: ignore
-    manager._run_training_phase = MagicMock(side_effect=lambda: setattr(manager.state, 'status', 'inference'))  # type: ignore
 
-    def inference_side_effect() -> None:
-        manager.state.status = 'idle'
-        manager.state.current_generation += 1
+def test_manager_resume_state(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    state_file = valid_system_config.working_dir / "workflow_state.json"
+    initial_state = WorkflowState(current_generation=3, status="inference")
+    with state_file.open("w") as f:
+        f.write(initial_state.model_dump_json())
 
-    manager._run_inference_phase = MagicMock(side_effect=inference_side_effect)  # type: ignore
+    orch_config = OrchestratorConfig()
+    manager = WorkflowManager(valid_system_config, orch_config)
 
+    assert manager.state.current_generation == 3
+    assert manager.state.status == "inference"
+
+def test_manager_run_max_generations(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    orch_config = OrchestratorConfig(max_generations=0)
+
+    manager = WorkflowManager(valid_system_config, orch_config)
     manager.run()
 
-    assert manager.state.current_generation == 2
-    assert manager.task_queue.shutdown.called  # type: ignore
+    manager.task_queue.shutdown.assert_called_once()
 
-def test_resilience_bad_state_file(mock_config: MagicMock, mock_orch_config: OrchestratorConfig) -> None:
-    state_file = mock_config.working_dir / "workflow_state.json"
-    state_file.write_text("{invalid_json")
+def test_manager_phase_transition_logic(mock_dependencies: None, valid_system_config: SystemConfig) -> None:
+    """Test dispatch logic."""
+    valid_system_config.working_dir.mkdir(parents=True, exist_ok=True)
+    orch_config = OrchestratorConfig(max_generations=1)
 
-    with patch('mlip_autopipec.orchestration.manager.DatabaseManager'), \
-         patch('mlip_autopipec.orchestration.manager.TaskQueue'), \
-         patch('mlip_autopipec.orchestration.manager.Dashboard'):
-        mgr = WorkflowManager(mock_config, mock_orch_config)
-        # Should fall back to defaults
-        assert mgr.state.current_generation == 0
+    manager = WorkflowManager(valid_system_config, orch_config)
 
-def test_phase_execution_error_handling(manager: WorkflowManager) -> None:
-    """Test that exceptions in phases are caught and logged, preventing crash."""
-    # We mock StructureBuilder to raise an exception
-    with patch('mlip_autopipec.orchestration.manager.StructureBuilder') as MockBuilder:
-        MockBuilder.side_effect = Exception("Generation Failed")
+    # Mock executor
+    manager.executor = MagicMock()
 
-        # Run exploration phase
-        manager._run_exploration_phase()
+    # Test Idle -> DFT
+    manager.state.status = "idle"
+    manager._dispatch_phase()
+    manager.executor.execute_exploration.assert_called_once()
+    assert manager.state.status == "dft"
 
-        # Should still transition (as per current robust logic) or handle it
-        # Current implementation logs and proceeds to save state
-        assert manager.state.status == "dft"
-        # (This asserts resilience; logic continues even if step fails, which is what we implemented)
+    # Test DFT -> Training
+    manager.state.status = "dft"
+    manager._dispatch_phase()
+    manager.executor.execute_dft.assert_called_once()
+    assert manager.state.status == "training"
+
+    # Test Training -> Inference
+    manager.state.status = "training"
+    manager._dispatch_phase()
+    manager.executor.execute_training.assert_called_once()
+    assert manager.state.status == "inference"
+
+    # Test Inference -> Idle (Next Gen)
+    manager.state.status = "inference"
+    manager.state.current_generation = 0
+    manager._dispatch_phase()
+    manager.executor.execute_inference.assert_called_once()
+    assert manager.state.status == "idle"
+    assert manager.state.current_generation == 1

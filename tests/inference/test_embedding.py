@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
 from ase import Atoms
-from mlip_autopipec.inference.embedding import EmbeddingExtractor
+
 from mlip_autopipec.config.schemas.inference import EmbeddingConfig
+from mlip_autopipec.inference.embedding import EmbeddingExtractor
+
 
 @pytest.fixture
 def extractor():

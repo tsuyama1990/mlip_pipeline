@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Any
 
 from dask.distributed import Client, Future, LocalCluster, wait  # type: ignore
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ class TaskQueue:
     as mandated by the system architecture for high-throughput
     parallelism on both local machines and HPC clusters (via dask-jobqueue).
     """
-    def __init__(self, scheduler_address: str | None = None, workers: int = 4):
+    def __init__(self, scheduler_address: str | None = None, workers: int = 4) -> None:
         """
         Initialize the TaskQueue.
 
@@ -47,8 +48,7 @@ class TaskQueue:
             List of Dask Futures representing the submitted tasks.
         """
         logger.info(f"Submitting {len(items)} tasks to Dask.")
-        futures = self.client.map(func, items, **kwargs)
-        return futures
+        return self.client.map(func, items, **kwargs)
 
     def wait_for_completion(self, futures: list[Future[Any]], timeout: float | None = None) -> list[Any]:
         """
@@ -71,18 +71,38 @@ class TaskQueue:
         results = []
         for f in futures:
             if f.status == 'finished':
-                results.append(f.result())
-            else:
-                logger.warning(f"Task {f} did not finish successfully (status: {f.status}).")
-                # Depending on requirement, we might want to capture exception or return None
-                # For now, let's try to get exception if failed
                 try:
                     results.append(f.result())
-                except Exception as e:
-                    logger.error(f"Task failed with error: {e}")
+                except Exception:
+                    logger.exception("Task finished but result() raised exception")
                     results.append(None)
+            elif f.status == 'error':
+                logger.error(f"Task failed with error status: {f.exception()}")
+                results.append(None)
+            elif f.status == 'cancelled':
+                logger.warning("Task was cancelled.")
+                results.append(None)
+            else:
+                logger.warning(f"Task did not finish successfully (status: {f.status}).")
+                results.append(None)
 
         return results
+
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def robust_submit(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Future[Any]:
+        """
+        Submits a single task with retry logic for submission failures (not execution failures).
+        Uses exponential backoff for transient errors.
+
+        Args:
+            func: Function to execute.
+            args: Arguments.
+            kwargs: Keyword arguments.
+
+        Returns:
+            Dask Future.
+        """
+        return self.client.submit(func, *args, **kwargs)
 
     def shutdown(self) -> None:
         """
