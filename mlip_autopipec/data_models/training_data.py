@@ -6,7 +6,7 @@ are passed between modules.
 
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationError
 
 if TYPE_CHECKING:
     from ase import Atoms
@@ -66,3 +66,13 @@ class TrainingData(BaseModel):
     stress: list[Vector3D] | None = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @classmethod
+    def create_safe(cls, **kwargs: Any) -> "TrainingData":
+        """
+        Factory method to create TrainingData with exception handling.
+        """
+        try:
+            return cls(**kwargs)
+        except ValidationError as e:
+            raise ValueError(f"Invalid data for TrainingData: {e}") from e

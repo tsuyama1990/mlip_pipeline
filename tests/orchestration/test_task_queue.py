@@ -67,3 +67,17 @@ def test_shutdown(mock_dask_client) -> None:
 
     mock_client.return_value.close.assert_called_once()
     mock_cluster.return_value.close.assert_called_once()
+
+def test_wait_for_completion_empty(mock_dask_client) -> None:
+    with patch('mlip_autopipec.orchestration.task_queue.wait') as mock_wait:
+        tq = TaskQueue()
+        results = tq.wait_for_completion([])
+        mock_wait.assert_called_once_with([], timeout=None)
+        assert results == []
+
+def test_wait_for_completion_timeout(mock_dask_client) -> None:
+    with patch('mlip_autopipec.orchestration.task_queue.wait') as mock_wait:
+        tq = TaskQueue()
+        f1 = MagicMock()
+        tq.wait_for_completion([f1], timeout=1.0)
+        mock_wait.assert_called_once_with([f1], timeout=1.0)

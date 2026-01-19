@@ -14,6 +14,11 @@ def mock_config(tmp_path: Path) -> MagicMock:
     config = MagicMock(spec=SystemConfig)
     config.working_dir = tmp_path
     config.db_path = tmp_path / "test.db"
+    # Ensure config properties return None or Mocks to allow instantiation
+    config.surrogate_config = None
+    config.dft_config = None
+    config.training_config = None
+    config.inference_config = None
     return config
 
 @pytest.fixture
@@ -79,3 +84,17 @@ def test_resilience_bad_state_file(mock_config: MagicMock, mock_orch_config: Orc
         mgr = WorkflowManager(mock_config, mock_orch_config)
         # Should fall back to defaults
         assert mgr.state.current_generation == 0
+
+def test_phase_execution_error_handling(manager: WorkflowManager) -> None:
+    """Test that exceptions in phases are caught and logged, preventing crash."""
+    # We mock StructureBuilder to raise an exception
+    with patch('mlip_autopipec.orchestration.manager.StructureBuilder') as MockBuilder:
+        MockBuilder.side_effect = Exception("Generation Failed")
+
+        # Run exploration phase
+        manager._run_exploration_phase()
+
+        # Should still transition (as per current robust logic) or handle it
+        # Current implementation logs and proceeds to save state
+        assert manager.state.status == "dft"
+        # (This asserts resilience; logic continues even if step fails, which is what we implemented)

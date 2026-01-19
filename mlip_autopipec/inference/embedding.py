@@ -11,6 +11,12 @@ class EmbeddingExtractor:
     Extracts a local cluster around a focal atom and embeds it in a periodic box.
     """
     def __init__(self, config: EmbeddingConfig):
+        """
+        Initialize the extractor.
+
+        Args:
+            config: Configuration defining cutoff radii and box size.
+        """
         self.config = config
 
     def extract(self, large_atoms: Atoms, center_idx: int) -> ExtractedStructure:
@@ -25,9 +31,10 @@ class EmbeddingExtractor:
             ExtractedStructure containing the cluster in a small periodic box.
 
         Raises:
-            ValueError: If inputs are invalid.
+            ValueError: If inputs are invalid or empty.
             IndexError: If center_idx is out of bounds.
-            RuntimeError: If extraction fails.
+            TypeError: If large_atoms is not an ase.Atoms object.
+            RuntimeError: If extraction logic fails unexpectedly.
         """
         try:
             if not isinstance(large_atoms, Atoms):
@@ -43,6 +50,7 @@ class EmbeddingExtractor:
             cutoff = self.config.core_radius + self.config.buffer_width
 
             # Use ASE NeighborList to find all atoms within cutoff
+            # We divide cutoff by 2 because NeighborList sums the cutoffs of two atoms.
             nl = NeighborList(
                 [cutoff / 2.0] * len(large_atoms),
                 self_interaction=True,

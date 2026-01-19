@@ -34,15 +34,8 @@ class ForceMasker:
             # Only apply MIC if PBC is enabled and cell is valid
             if np.any(pbc):
                 # Explicit check for cell volume to ensure it's a valid periodic box
-                # We check this even if only one dimension is periodic, because
-                # standard ASE behavior for get_volume might be zero for 1D/2D cells unless specialized.
-                # However, for 3D PBC, volume must be > 0.
                 vol = abs(cell.volume)
                 if vol < 1e-6:
-                    # Double check: if it's 2D or 1D, volume might be 0 mathematically in 3D sense?
-                    # ASE's cell.volume usually returns determinant.
-                    # If any pbc=True, we expect defined cell vectors for those directions.
-                    # For safety in this pipeline (usually 3D bulk), we enforce volume.
                     raise ValueError(f"Atoms object has zero or near-zero cell volume ({vol}) with PBC enabled: {pbc}")
 
                 # Check for orthogonal cell for fast path
@@ -51,15 +44,16 @@ class ForceMasker:
                 is_orthogonal = np.allclose(cell, np.diag(L))
 
                 if is_orthogonal:
-                    # Avoid division by zero if some dimension is 0 (should imply pbc=False for that dim, but be safe)
-                    # We only wrap dimensions where pbc is True and L > 0
+                    # Avoid division by zero if some dimension is 0
                     for i in range(3):
-                        if pbc[i] and L[i] > 1e-6:
+                        if pbc[i]:
+                            # Robustness: Check for zero division
+                            if abs(L[i]) < 1e-9:
+                                raise ValueError(f"Cell dimension {i} is zero but PBC is enabled.")
                             diff[:, i] = diff[:, i] - np.round(diff[:, i] / L[i]) * L[i]
                 else:
                      # Fallback to ASE's find_mic for non-orthogonal cells
                      from ase.geometry import find_mic
-                     # find_mic expects (N, 3) vectors and cell
                      diff, _ = find_mic(diff, cell, pbc)
 
             dists = np.linalg.norm(diff, axis=1)
