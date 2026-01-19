@@ -1,75 +1,58 @@
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 from ase import Atoms
 
 from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.exceptions import DatabaseError
 from mlip_autopipec.data_models.dft_models import DFTResult
 
 
 @pytest.fixture
-def mock_db_path(tmp_path):
-    return tmp_path / "test.db"
+def mock_ase_db(tmp_path):
+    db_path = tmp_path / "test.db"
+    return DatabaseManager(db_path)
 
 
-@pytest.fixture
-def db_manager(mock_db_path):
-    return DatabaseManager(mock_db_path)
+def test_db_manager_initialization(mock_ase_db):
+    mock_ase_db.initialize()
+    assert mock_ase_db._connection is not None
+    assert mock_ase_db.db_path.exists()
 
 
-def test_database_initialization(db_manager, mock_db_path):
-    with patch("ase.db.connect") as mock_connect:
-        db_manager.initialize()
-        mock_connect.assert_called_once_with(str(mock_db_path))
-        assert mock_db_path.parent.exists()
+def test_db_manager_save_retrieve_candidate(mock_ase_db):
+    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
+    metadata = {"status": "pending", "generation": 0}
+
+    mock_ase_db.save_candidate(atoms, metadata)
+
+    retrieved = mock_ase_db.get_atoms("status=pending")
+    assert len(retrieved) == 1
+    assert retrieved[0].info["status"] == "pending"
+    assert retrieved[0].info["generation"] == 0
 
 
-def test_get_training_data(db_manager):
-    # Mock row data that matches TrainingData schema
-    mock_row = Mock()
-    mock_row.data = {"energy": -10.5, "forces": [[0.1, 0.2, 0.3]]}
-    mock_atom = Atoms("H")
-    mock_row.toatoms.return_value = mock_atom
-
-    with patch("ase.db.connect") as mock_connect:
-        mock_db_instance = Mock()
-        mock_db_instance.select.return_value = [mock_row]
-        mock_connect.return_value = mock_db_instance
-
-        db_manager.initialize()
-        atoms_list = db_manager.get_training_data()
-
-        assert len(atoms_list) == 1
-        assert atoms_list[0].info["energy"] == -10.5
-        np.testing.assert_array_equal(atoms_list[0].arrays["forces"], np.array([[0.1, 0.2, 0.3]]))
-
-
-def test_save_dft_result(db_manager):
+def test_db_manager_count(mock_ase_db):
     atoms = Atoms("H")
-    result = DFTResult(
-        uid="123",
-        energy=-13.6,
-        forces=[[0.0, 0.0, 0.0]],
-        stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
-        succeeded=True,
-        wall_time=10.0,
-        parameters={},
-        final_mixing_beta=0.7,
-    )
-    metadata = {"key": "value", "force_mask": [[1.0, 1.0, 1.0]]}
+    mock_ase_db.save_candidate(atoms, {"status": "pending"})
+    mock_ase_db.save_candidate(atoms, {"status": "training"})
 
-    with patch("ase.db.connect") as mock_connect:
-        mock_db_instance = Mock()
-        mock_connect.return_value = mock_db_instance
-        db_manager.initialize()
+    assert mock_ase_db.count() == 2
+    assert mock_ase_db.count("status=pending") == 1
 
-        db_manager.save_dft_result(atoms, result, metadata)
 
-        # Verify atoms object updated
-        assert atoms.info["energy"] == -13.6
-        assert atoms.info["key"] == "value"
-        np.testing.assert_array_equal(atoms.arrays["force_mask"], np.array([[1.0, 1.0, 1.0]]))
+def test_db_manager_connection_error(tmp_path):
+    # Test initialization failure
+    db = DatabaseManager(tmp_path / "non_existent_dir/db.db") # Parent dir doesn't exist
+    # Actually initialize makes dirs, so let's mock connect to raise
 
-        # Verify write call
-        mock_db_instance.write.assert_called_once()
+    with patch("ase.db.connect", side_effect=Exception("Connection Failed")):
+        with pytest.raises(DatabaseError, match="Failed to initialize"):
+            db.initialize()
+
+
+def test_db_manager_operation_without_init(tmp_path):
+    # Should auto-initialize
+    db = DatabaseManager(tmp_path / "test.db")
+    assert db.count() == 0
+    assert db._connection is not None

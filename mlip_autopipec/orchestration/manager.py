@@ -19,18 +19,25 @@ from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
 logger = logging.getLogger(__name__)
 
+
 class WorkflowManager:
     """
     The main orchestrator for the MLIP-AutoPipe workflow.
-    Manages the state machine and transitions between phases.
+
+    Responsibilities:
+    - Manage the high-level state machine (Generations and Phases).
+    - Persist state to disk for resumption.
+    - Coordinate execution between Modules (A-E) via the TaskQueue.
+    - Update the Dashboard with progress.
     """
+
     def __init__(self, config: SystemConfig, orchestrator_config: OrchestratorConfig) -> None:
         """
         Initialize the WorkflowManager.
 
         Args:
-            config: The full SystemConfig.
-            orchestrator_config: Configuration for the orchestrator.
+            config: The full SystemConfig containing module configurations.
+            orchestrator_config: Configuration for the orchestrator behavior (e.g. max_generations).
         """
         self.config = config
         self.orch_config = orchestrator_config
@@ -41,21 +48,20 @@ class WorkflowManager:
         self.db_manager = DatabaseManager(self.config.db_path)
         self.task_queue = TaskQueue(
             scheduler_address=self.orch_config.dask_scheduler_address,
-            workers=self.orch_config.workers
+            workers=self.orch_config.workers,
         )
         self.dashboard = Dashboard(self.work_dir, self.db_manager)
 
         # Load or Initialize State
         self.state = self._load_state()
 
-        # Dependencies (DIP) - Can be injected in a fuller implementation,
-        # but for now we instantiate them, but type hint with Protocols
+        # Dependencies (DIP) - Instantiated lazily or injected
         self.builder: BuilderProtocol | None = None
         self.surrogate: SurrogateProtocol | None = None
 
     def _load_state(self) -> WorkflowState:
         """
-        Load state from disk or create a new one.
+        Load state from disk or create a new one if missing or corrupted.
         """
         if self.state_file.exists():
             logger.info(f"Loading existing workflow state from {self.state_file}")
@@ -78,44 +84,54 @@ class WorkflowManager:
 
     def run(self) -> None:
         """
-        Execute the main workflow loop.
+        Execute the main active learning loop.
+
+        Iterates through generations until `max_generations` is reached.
+        Delegates phase execution to specific methods.
         """
         logger.info("Starting Workflow Manager...")
 
-        while self.state.current_generation < self.orch_config.max_generations:
-            logger.info(f"--- Generation {self.state.current_generation} ---")
+        try:
+            while self.state.current_generation < self.orch_config.max_generations:
+                logger.info(f"--- Generation {self.state.current_generation} ---")
 
-            # Phase A: Exploration / Generation
-            if self.state.status == "idle":
-                 self._run_exploration_phase()
+                # Phase A: Exploration / Generation
+                if self.state.status == "idle":
+                    self._run_exploration_phase()
 
-            # Phase B: DFT Labeling
-            if self.state.status == "dft":
-                self._run_dft_phase()
+                # Phase B: DFT Labeling
+                if self.state.status == "dft":
+                    self._run_dft_phase()
 
-            # Phase C: Training
-            if self.state.status == "training":
-                self._run_training_phase()
+                # Phase C: Training
+                if self.state.status == "training":
+                    self._run_training_phase()
 
-            # Phase D: Inference / Exploitation
-            if self.state.status == "inference":
-                self._run_inference_phase()
+                # Phase D: Inference / Exploitation
+                if self.state.status == "inference":
+                    self._run_inference_phase()
 
-            # End of loop updates
-            self._update_dashboard()
-            self._save_state()
+                # End of loop updates
+                self._update_dashboard()
+                self._save_state()
 
-        logger.info("Max generations reached. Workflow completed.")
-        self.task_queue.shutdown()
+            logger.info("Max generations reached. Workflow completed.")
+        except Exception:
+            logger.exception("Critical failure in WorkflowManager run loop.")
+        finally:
+            self.task_queue.shutdown()
 
     def _run_exploration_phase(self) -> None:
         """
         Phase A: Generate structures (SQS, NMS) and Pre-screen with Surrogate.
+
+        1. Calls StructureBuilder to generate candidates.
+        2. Calls SurrogatePipeline (if configured) to filter/select candidates.
+        3. Persists candidates to DB with 'pending' status.
         """
         logger.info("Phase A: Exploration")
         try:
             # 1. Generate
-            # Instantiate on demand if not injected (Lazy Init pattern)
             if not self.builder:
                 self.builder = StructureBuilder(self.config)
 
@@ -125,7 +141,7 @@ class WorkflowManager:
             # 2. Surrogate Selection
             if self.config.surrogate_config:
                 if not self.surrogate:
-                     self.surrogate = SurrogatePipeline(self.config.surrogate_config)
+                    self.surrogate = SurrogatePipeline(self.config.surrogate_config)
 
                 selected, _ = self.surrogate.run(candidates)
                 logger.info(f"Selected {len(selected)} candidates via Surrogate.")
@@ -135,12 +151,14 @@ class WorkflowManager:
 
             # Write candidates to DB
             for atoms in selected:
-                self.db_manager.save_candidate(atoms, {"status": "pending", "generation": self.state.current_generation})
+                self.db_manager.save_candidate(
+                    atoms, {"status": "pending", "generation": self.state.current_generation}
+                )
 
         except Exception:
             logger.exception("Exploration phase failed")
-            # In production, we might retry or halt. For now, we proceed to try DFT (which might be empty)
-            # or maybe we should raise? Let's log and continue to avoid crash loop if transient.
+            # We continue state transition even on failure to avoid infinite retry loops in this naive impl.
+            # Real system might halt here.
 
         self.state.status = "dft"
         self._save_state()
@@ -148,6 +166,10 @@ class WorkflowManager:
     def _run_dft_phase(self) -> None:
         """
         Phase B: Run DFT on pending structures.
+
+        1. Queries DB for 'pending' structures.
+        2. Submits batch to TaskQueue (Dask).
+        3. Collects results and saves to DB as 'training' data.
         """
         logger.info("Phase B: DFT Labeling")
 
@@ -174,7 +196,7 @@ class WorkflowManager:
                             self.db_manager.save_dft_result(
                                 atoms,
                                 res,
-                                {"status": "training", "generation": self.state.current_generation}
+                                {"status": "training", "generation": self.state.current_generation},
                             )
                             success_count += 1
                         else:
@@ -191,6 +213,10 @@ class WorkflowManager:
     def _run_training_phase(self) -> None:
         """
         Phase C: Train the potential.
+
+        1. Builds dataset from DB ('training' status).
+        2. Generates Pacemaker configuration.
+        3. Executes Pacemaker training.
         """
         logger.info("Phase C: Training")
 
@@ -211,7 +237,7 @@ class WorkflowManager:
                     dataset_builder,
                     config_gen,
                     self.work_dir,
-                    self.state.current_generation
+                    self.state.current_generation,
                 )
                 logger.info(f"Training complete. Potential at: {result.potential_path}")
 
@@ -224,33 +250,34 @@ class WorkflowManager:
     def _run_inference_phase(self) -> None:
         """
         Phase D: Run MD and Active Learning.
+
+        1. Setup MD Runner.
+        2. Run MD simulations.
+        3. Identify uncertain structures (Gamma > threshold).
         """
         logger.info("Phase D: Inference")
 
         try:
             if not self.config.inference_config:
-                 logger.warning("No Inference Config. Skipping inference.")
+                logger.warning("No Inference Config. Skipping inference.")
             else:
                 # 1. Setup Runner
                 # runner = LammpsRunner(self.config.inference_config, self.work_dir)
 
                 # 2. Run Simulations
                 # For now, just logging as this cycle focuses on orchestration loop.
-                # In Cycle 06/07 we implemented the runner.
-                # Logic would look like:
-                # runner.run(structures)
                 pass
 
         except Exception:
             logger.exception("Inference phase failed")
 
         self.state.current_generation += 1
-        self.state.status = "idle" # Loop back
+        self.state.status = "idle"  # Loop back
         self._save_state()
 
     def _update_dashboard(self) -> None:
         """
-        Collect stats and update dashboard.
+        Collect stats from DB and update the Dashboard HTML.
         """
         # Get real counts from DB
         try:
@@ -270,6 +297,6 @@ class WorkflowManager:
             generations=[self.state.current_generation],
             rmse_values=[0.0],  # Placeholder until we track metrics
             structure_counts=[total_structures],
-            status=self.state.status
+            status=self.state.status,
         )
         self.dashboard.update(data)

@@ -50,21 +50,27 @@ class DatabaseManager:
             msg = f"Failed to initialize database at {self.db_path}: {e}"
             raise DatabaseError(msg) from e
 
+    def _ensure_connection(self) -> None:
+        """Helper to ensure connection exists or raise error."""
+        if self._connection is None:
+            self.initialize()
+            if self._connection is None:
+                msg = "Database connection is None after initialization."
+                raise DatabaseError(msg)
+
     def set_system_config(self, config: "SystemConfig") -> None:
         """
         Stores the system configuration in the database metadata.
         This must be called during initialization or setup.
         """
-        if self._connection is None:
-            self.initialize()
+        self._ensure_connection()
 
         try:
             config_dict = config.model_dump(mode="json")
 
             # Update metadata
-            if self._connection is None:
-                msg = "Database connection is None after initialization."
-                raise DatabaseError(msg)
+            if self._connection is None: # Redundant check for type checker
+                 raise DatabaseError("Connection lost")
 
             current_metadata = self._connection.metadata.copy()
             current_metadata.update(config_dict)
@@ -77,12 +83,7 @@ class DatabaseManager:
         """
         Retrieves the metadata from the database.
         """
-        if self._connection is None:
-            self.initialize()
-            if self._connection is None:
-                msg = "Database connection is None after initialization."
-                raise DatabaseError(msg)
-
+        self._ensure_connection()
         return self._connection.metadata  # type: ignore
 
     def get_system_config(self) -> "SystemConfig":
@@ -117,17 +118,14 @@ class DatabaseManager:
         Returns:
             List of ASE Atoms objects.
         """
-        if self._connection is None:
-            self.initialize()
-
-        if self._connection is None:
-            msg = "Database connection is None."
-            raise DatabaseError(msg)
+        self._ensure_connection()
 
         try:
             # ase.db.select returns an iterator
-            rows = self._connection.select(selection=selection)
-            return [row.toatoms() for row in rows]
+            if self._connection:
+                rows = self._connection.select(selection=selection)
+                return [row.toatoms() for row in rows]
+            return []
         except Exception as e:
             msg = f"Failed to retrieve atoms from database: {e}"
             raise DatabaseError(msg) from e
@@ -143,30 +141,26 @@ class DatabaseManager:
         # Import here to avoid coupling
         from mlip_autopipec.config.schemas.training import TrainingData
 
-        if self._connection is None:
-            self.initialize()
-
-        if self._connection is None:
-            msg = "Database connection is None."
-            raise DatabaseError(msg)
+        self._ensure_connection()
 
         atoms_list = []
         try:
-            for row in self._connection.select():
-                # Validate that the row has the required data fields
-                # We use the TrainingData Pydantic model for validation
-                try:
-                    # row.data contains the dictionary of key-value pairs stored with the atoms
-                    validated_data = TrainingData(**row.data)
+            if self._connection:
+                for row in self._connection.select():
+                    # Validate that the row has the required data fields
+                    # We use the TrainingData Pydantic model for validation
+                    try:
+                        # row.data contains the dictionary of key-value pairs stored with the atoms
+                        validated_data = TrainingData(**row.data)
 
-                    atoms = row.toatoms()
-                    # Map validated data to atoms attributes expected by Pacemaker/ASE
-                    atoms.info["energy"] = validated_data.energy
-                    atoms.arrays["forces"] = np.array(validated_data.forces)
-                    atoms_list.append(atoms)
-                except ValidationError:
-                    # Skip rows that don't match training data schema (maybe failed jobs or different types)
-                    continue
+                        atoms = row.toatoms()
+                        # Map validated data to atoms attributes expected by Pacemaker/ASE
+                        atoms.info["energy"] = validated_data.energy
+                        atoms.arrays["forces"] = np.array(validated_data.forces)
+                        atoms_list.append(atoms)
+                    except ValidationError:
+                        # Skip rows that don't match training data schema (maybe failed jobs or different types)
+                        continue
         except Exception as e:
             msg = f"Failed to read training data: {e}"
             raise DatabaseError(msg) from e
@@ -179,12 +173,7 @@ class DatabaseManager:
         """
         Saves a DFT calculation result and its metadata.
         """
-        if self._connection is None:
-            self.initialize()
-
-        if self._connection is None:
-            msg = "Database connection is None."
-            raise DatabaseError(msg)
+        self._ensure_connection()
 
         try:
             # Separate metadata for info dict and arrays
@@ -200,7 +189,8 @@ class DatabaseManager:
                 atoms.arrays["force_mask"] = np.array(force_mask)
 
             # Check if exists logic could go here, but for now we write
-            self._connection.write(atoms, data=result.model_dump())
+            if self._connection:
+                self._connection.write(atoms, data=result.model_dump())
             # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
         except Exception as e:
             msg = f"Failed to save DFT result: {e}"
@@ -210,17 +200,13 @@ class DatabaseManager:
         """
         Saves a candidate structure (without DFT results) to the database.
         """
-        if self._connection is None:
-            self.initialize()
-
-        if self._connection is None:
-            msg = "Database connection is None."
-            raise DatabaseError(msg)
+        self._ensure_connection()
 
         try:
             # Update atoms info with metadata
             atoms.info.update(metadata)
-            self._connection.write(atoms)
+            if self._connection:
+                self._connection.write(atoms)
         except Exception as e:
             msg = f"Failed to save candidate: {e}"
             raise DatabaseError(msg) from e
@@ -235,15 +221,12 @@ class DatabaseManager:
         Returns:
             Number of rows matching selection.
         """
-        if self._connection is None:
-            self.initialize()
-
-        if self._connection is None:
-            msg = "Database connection is None."
-            raise DatabaseError(msg)
+        self._ensure_connection()
 
         try:
-            return int(self._connection.count(selection=selection))
+            if self._connection:
+                return int(self._connection.count(selection=selection))
+            return 0
         except Exception as e:
             msg = f"Failed to count rows: {e}"
             raise DatabaseError(msg) from e

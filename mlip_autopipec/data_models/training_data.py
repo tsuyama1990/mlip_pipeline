@@ -34,6 +34,9 @@ class TrainingData(BaseModel):
     @field_validator("forces")
     @classmethod
     def check_forces_shape(cls, v: List[Vector3D]) -> List[Vector3D]:
+        """
+        Validates that the forces array is a list of 3-component vectors.
+        """
         if not v:
             return v
         if not all(len(row) == 3 for row in v):
