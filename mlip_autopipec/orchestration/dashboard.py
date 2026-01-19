@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 class Dashboard:
     """
     Generates a simple HTML dashboard for monitoring the workflow.
+
+    This class is responsible for visualizing the progress of the active learning loop,
+    including RMSE metrics and database statistics.
     """
     def __init__(self, output_dir: Path, db_manager: DatabaseManager):
         """
@@ -31,6 +34,8 @@ class Dashboard:
     def update(self, data: DashboardData) -> None:
         """
         Update the dashboard with new data.
+
+        This method generates plots using Matplotlib and embeds them into an HTML report.
 
         Args:
             data: The DashboardData object containing current stats.
@@ -50,6 +55,12 @@ class Dashboard:
     def _generate_plot(self, data: DashboardData) -> str:
         """
         Generate a learning curve plot and return as base64 string.
+
+        Args:
+            data: Dashboard data containing metrics history.
+
+        Returns:
+            Base64 encoded PNG image string.
         """
         if not data.generations:
              return ""
@@ -84,6 +95,13 @@ class Dashboard:
     def _generate_html(self, data: DashboardData, plot_img: str) -> str:
         """
         Generate the HTML content.
+
+        Args:
+            data: Dashboard data for status display.
+            plot_img: Base64 string of the generated plot.
+
+        Returns:
+            String containing the full HTML report.
         """
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

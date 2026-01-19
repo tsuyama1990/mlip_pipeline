@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 class TaskQueue:
     """
     Manages Dask distributed tasks for the orchestration workflow.
+
+    This implementation uses Dask (distributed) as the task engine,
+    as mandated by the system architecture for high-throughput
+    parallelism on both local machines and HPC clusters (via dask-jobqueue).
     """
     def __init__(self, scheduler_address: str | None = None, workers: int = 4):
         """
@@ -16,6 +20,7 @@ class TaskQueue:
 
         Args:
             scheduler_address: Address of an existing Dask scheduler.
+                               If None, a LocalCluster is started.
             workers: Number of workers to spawn if starting a LocalCluster.
         """
         self.cluster = None
@@ -39,7 +44,7 @@ class TaskQueue:
             kwargs: Additional arguments to pass to the function.
 
         Returns:
-            List of Dask Futures.
+            List of Dask Futures representing the submitted tasks.
         """
         logger.info(f"Submitting {len(items)} tasks to Dask.")
         futures = self.client.map(func, items, **kwargs)
@@ -49,12 +54,16 @@ class TaskQueue:
         """
         Wait for a list of futures to complete and return their results.
 
+        Handles exceptions gracefully by logging failures and returning None
+        for failed tasks to prevent pipeline crashes.
+
         Args:
             futures: List of futures to wait for.
             timeout: Optional timeout in seconds.
 
         Returns:
-            List of results.
+            List of results corresponding to the input futures.
+            Failed tasks result in None.
         """
         logger.info(f"Waiting for {len(futures)} tasks to complete...")
         wait(futures, timeout=timeout)

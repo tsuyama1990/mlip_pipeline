@@ -42,6 +42,7 @@ class SystemConfig(BaseModel):
     target_system: TargetSystem | None = None  # Duplicate of minimal.target_system
     dft_config: DFTConfig | None = None
     explorer_config: ExplorerConfig | None = None
+    surrogate_config: Any | None = None # For compatibility with orchestration
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
     generator_config: GeneratorConfig | None = None

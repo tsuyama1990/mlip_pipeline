@@ -14,6 +14,11 @@ def mock_config(tmp_path: Path) -> MagicMock:
     config = MagicMock(spec=SystemConfig)
     config.working_dir = tmp_path
     config.db_path = tmp_path / "test.db"
+    # Explicitly set optional configs to avoid AttributeError if spec fails or logical None checks
+    config.surrogate_config = MagicMock()
+    config.dft_config = MagicMock()
+    config.training_config = MagicMock()
+    config.inference_config = MagicMock()
     return config
 
 @pytest.fixture
@@ -22,55 +27,60 @@ def mock_orch_config() -> OrchestratorConfig:
 
 def test_workflow_grand_mock(mock_config: MagicMock, mock_orch_config: OrchestratorConfig) -> None:
     """
-    Simulate a full run where each phase updates the state as expected.
+    Simulate a full run where we mock the underlying components (Generator, DFT, etc.)
+    but allow the WorkflowManager logic to execute its control flow.
     """
     with patch('mlip_autopipec.orchestration.manager.DatabaseManager') as MockDB, \
          patch('mlip_autopipec.orchestration.manager.TaskQueue') as MockTQ, \
-         patch('mlip_autopipec.orchestration.manager.Dashboard') as MockDash:
+         patch('mlip_autopipec.orchestration.manager.Dashboard') as MockDash, \
+         patch('mlip_autopipec.orchestration.manager.StructureBuilder') as MockBuilder, \
+         patch('mlip_autopipec.orchestration.manager.SurrogatePipeline') as MockSurrogate, \
+         patch('mlip_autopipec.orchestration.manager.QERunner') as MockQE, \
+         patch('mlip_autopipec.orchestration.manager.DatasetBuilder') as MockDSBuilder, \
+         patch('mlip_autopipec.orchestration.manager.TrainConfigGenerator') as MockConfigGen, \
+         patch('mlip_autopipec.orchestration.manager.PacemakerWrapper') as MockPacemaker, \
+         patch('mlip_autopipec.orchestration.manager.LammpsRunner') as MockLammps:
 
-        # Configure mock DB to return an integer for count()
+        # Configure mock DB
         MockDB.return_value.count.return_value = 100
+
+        # Setup Component Mocks to simulate data flow
+        # Exploration
+        mock_candidates = [MagicMock(), MagicMock()]
+        MockBuilder.return_value.build.return_value = mock_candidates
+        # Surrogate returns subset
+        MockSurrogate.return_value.run.return_value = (mock_candidates, MagicMock())
+
+        # DFT
+        # We don't need to mock return values complexly because TaskQueue is also mocked
+        # (or rather, the manager calls task_queue.submit/wait).
+        # We need to ensure we don't crash.
 
         manager = WorkflowManager(mock_config, mock_orch_config)
 
-        # Mock Phase Methods to simulate work and state transitions
-
-        def exploration_side_effect() -> None:
-            # Simulate generating candidates
-            manager.state.status = "dft"
-
-        def dft_side_effect() -> None:
-            # Simulate DFT calculations
-            manager.state.status = "training"
-
-        def training_side_effect() -> None:
-            # Simulate Training
-            manager.state.status = "inference"
-
-        def inference_side_effect() -> None:
-            # Simulate Inference and decision to continue
-            manager.state.status = "idle"
-            manager.state.current_generation += 1
-
-        manager._run_exploration_phase = MagicMock(side_effect=exploration_side_effect) # type: ignore
-        manager._run_dft_phase = MagicMock(side_effect=dft_side_effect) # type: ignore
-        manager._run_training_phase = MagicMock(side_effect=training_side_effect) # type: ignore
-        manager._run_inference_phase = MagicMock(side_effect=inference_side_effect) # type: ignore
-
-        # Run
+        # Run the manager
         manager.run()
 
         # Assertions
-        assert manager.state.current_generation == 2
-        assert manager._run_exploration_phase.call_count == 2
-        assert manager._run_dft_phase.call_count == 2
-        assert manager._run_training_phase.call_count == 2
-        assert manager._run_inference_phase.call_count == 2
 
-        # Verify dashboard was updated
+        # 1. Check Phases Executed
+        # Generation 0 and 1 -> 2 loops.
+        assert manager.state.current_generation == 2
+
+        # 2. Check Exploration calls
+        assert MockBuilder.return_value.build.call_count == 2
+        assert MockSurrogate.return_value.run.call_count == 2
+
+        # 3. Check DFT calls
+        assert MockQE.call_count == 2 # Initialized once per phase
+
+        # 4. Check Training calls
+        assert MockPacemaker.call_count == 2
+
+        # 5. Check Dashboard updated
         assert manager.dashboard.update.call_count >= 2  # type: ignore
 
-        # Verify state file persisted
+        # 6. Verify state file persisted
         state_file = mock_config.working_dir / "workflow_state.json"
         assert state_file.exists()
         final_state = json.loads(state_file.read_text())
