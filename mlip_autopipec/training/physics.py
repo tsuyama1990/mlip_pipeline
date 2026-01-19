@@ -77,9 +77,12 @@ class ZBLCalculator(Calculator):
                 a = (0.8854 * 0.529) / (z1**0.23 + z2**0.23)
 
                 x = r / a
-                phi = sum(c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS))
+                phi = sum(
+                    c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False)
+                )
                 dphi_dx = sum(
-                    -c * d * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS)
+                    -c * d * np.exp(-d * x)
+                    for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False)
                 )
 
                 # V = (Z1 Z2 e^2 / r) * phi

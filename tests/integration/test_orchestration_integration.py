@@ -21,26 +21,29 @@ def mock_config(tmp_path: Path) -> MagicMock:
     config.inference_config = MagicMock()
     return config
 
+
 @pytest.fixture
 def mock_orch_config() -> OrchestratorConfig:
     return OrchestratorConfig(max_generations=2, workers=1, dask_scheduler_address=None)
+
 
 def test_workflow_grand_mock(mock_config: MagicMock, mock_orch_config: OrchestratorConfig) -> None:
     """
     Simulate a full run where we mock the underlying components (Generator, DFT, etc.)
     but allow the WorkflowManager logic to execute its control flow.
     """
-    with patch('mlip_autopipec.orchestration.manager.DatabaseManager') as MockDB, \
-         patch('mlip_autopipec.orchestration.manager.TaskQueue') as MockTQ, \
-         patch('mlip_autopipec.orchestration.manager.Dashboard') as MockDash, \
-         patch('mlip_autopipec.orchestration.manager.StructureBuilder') as MockBuilder, \
-         patch('mlip_autopipec.orchestration.manager.SurrogatePipeline') as MockSurrogate, \
-         patch('mlip_autopipec.orchestration.manager.QERunner') as MockQE, \
-         patch('mlip_autopipec.orchestration.manager.DatasetBuilder') as MockDSBuilder, \
-         patch('mlip_autopipec.orchestration.manager.TrainConfigGenerator') as MockConfigGen, \
-         patch('mlip_autopipec.orchestration.manager.PacemakerWrapper') as MockPacemaker, \
-         patch('mlip_autopipec.orchestration.manager.LammpsRunner') as MockLammps:
-
+    with (
+        patch("mlip_autopipec.orchestration.manager.DatabaseManager") as MockDB,
+        patch("mlip_autopipec.orchestration.manager.TaskQueue"),
+        patch("mlip_autopipec.orchestration.manager.Dashboard"),
+        patch("mlip_autopipec.orchestration.manager.StructureBuilder") as MockBuilder,
+        patch("mlip_autopipec.orchestration.manager.SurrogatePipeline") as MockSurrogate,
+        patch("mlip_autopipec.orchestration.manager.QERunner") as MockQE,
+        patch("mlip_autopipec.orchestration.manager.DatasetBuilder"),
+        patch("mlip_autopipec.orchestration.manager.TrainConfigGenerator"),
+        patch("mlip_autopipec.orchestration.manager.PacemakerWrapper") as MockPacemaker,
+        patch("mlip_autopipec.orchestration.manager.LammpsRunner"),
+    ):
         # Configure mock DB
         MockDB.return_value.count.return_value = 100
 
@@ -72,7 +75,7 @@ def test_workflow_grand_mock(mock_config: MagicMock, mock_orch_config: Orchestra
         assert MockSurrogate.return_value.run.call_count == 2
 
         # 3. Check DFT calls
-        assert MockQE.call_count == 2 # Initialized once per phase
+        assert MockQE.call_count == 2  # Initialized once per phase
 
         # 4. Check Training calls
         assert MockPacemaker.call_count == 2
@@ -84,4 +87,4 @@ def test_workflow_grand_mock(mock_config: MagicMock, mock_orch_config: Orchestra
         state_file = mock_config.working_dir / "workflow_state.json"
         assert state_file.exists()
         final_state = json.loads(state_file.read_text())
-        assert final_state['current_generation'] == 2
+        assert final_state["current_generation"] == 2

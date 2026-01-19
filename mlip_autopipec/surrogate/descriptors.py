@@ -17,7 +17,7 @@ class DescriptorCalculator:
     standardized interface for featurizing atomic structures.
     """
 
-    def __init__(self, config: DescriptorConfig):
+    def __init__(self, config: DescriptorConfig) -> None:
         """
         Initialize the DescriptorCalculator.
 
@@ -50,7 +50,7 @@ class DescriptorCalculator:
         species = set()
         for atoms in atoms_list:
             species.update(atoms.get_chemical_symbols())
-        species = sorted(list(species))
+        species = sorted(species)
 
         # Check periodicity from the first atom
         is_periodic = False
@@ -80,5 +80,6 @@ class DescriptorCalculator:
             return DescriptorResult(features=features)
 
         except Exception as e:
-            logger.error(f"SOAP calculation failed: {e}")
-            raise RuntimeError(f"Failed to compute SOAP descriptors: {e}") from e
+            logger.exception(f"SOAP calculation failed: {e}")
+            msg = f"Failed to compute SOAP descriptors: {e}"
+            raise RuntimeError(msg) from e

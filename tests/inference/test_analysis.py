@@ -23,6 +23,7 @@ Loop time of 1.0
     assert stats["pressure_mean"] == 0.0
     assert stats["steps"] == 3
 
+
 def test_analysis_utils_missing_file(tmp_path: Path) -> None:
     log_file = tmp_path / "missing.log"
     analysis = AnalysisUtils(log_file)

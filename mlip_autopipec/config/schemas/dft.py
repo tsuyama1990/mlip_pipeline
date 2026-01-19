@@ -23,12 +23,14 @@ class SmearingConfig(BaseModel):
 
 class StartingMagnetization(RootModel[dict[str, float]]):
     @field_validator("root")
-    def validate_symbols(cls, mag_values: dict[str, str]) -> dict[str, str]:
+    @classmethod
+    def validate_symbols(cls, mag_values: dict[str, float]) -> dict[str, float]:
         from ase.data import chemical_symbols
 
         for symbol in mag_values:
             if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+                msg = f"'{symbol}' is not a valid chemical symbol."
+                raise ValueError(msg)
         return mag_values
 
 
@@ -42,12 +44,14 @@ class MagnetismConfig(BaseModel):
 
 class Pseudopotentials(RootModel[dict[str, str]]):
     @field_validator("root")
+    @classmethod
     def validate_symbols(cls, pseudo_values: dict[str, str]) -> dict[str, str]:
         from ase.data import chemical_symbols
 
         for symbol in pseudo_values:
             if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+                msg = f"'{symbol}' is not a valid chemical symbol."
+                raise ValueError(msg)
         return pseudo_values
 
 
@@ -66,7 +70,8 @@ class DFTInputParameters(BaseModel):
     @classmethod
     def k_points_must_be_positive(cls, k_points: tuple[int, int, int]) -> tuple[int, int, int]:
         if not all(k > 0 for k in k_points):
-            raise ValueError("All k-point dimensions must be positive integers.")
+            msg = "All k-point dimensions must be positive integers."
+            raise ValueError(msg)
         return k_points
 
 
@@ -97,11 +102,14 @@ class DFTJob(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     @field_validator("atoms")
+    @classmethod
     def validate_atoms_type(cls, atoms_obj: Any) -> Any:
         try:
             from ase import Atoms
         except ImportError as e:
-            raise ImportError("ASE is not installed.") from e
+            msg = "ASE is not installed."
+            raise ImportError(msg) from e
         if not isinstance(atoms_obj, Atoms):
-            raise TypeError("The 'atoms' field must be an instance of ase.Atoms.")
+            msg = "The 'atoms' field must be an instance of ase.Atoms."
+            raise TypeError(msg)
         return atoms_obj

@@ -6,6 +6,7 @@ from dask.distributed import Client, Future, LocalCluster, wait  # type: ignore
 
 logger = logging.getLogger(__name__)
 
+
 class TaskQueue:
     """
     Manages Dask distributed tasks for the orchestration workflow.
@@ -14,7 +15,8 @@ class TaskQueue:
     as mandated by the system architecture for high-throughput
     parallelism on both local machines and HPC clusters (via dask-jobqueue).
     """
-    def __init__(self, scheduler_address: str | None = None, workers: int = 4):
+
+    def __init__(self, scheduler_address: str | None = None, workers: int = 4) -> None:
         """
         Initialize the TaskQueue.
 
@@ -34,7 +36,9 @@ class TaskQueue:
 
         logger.info(f"Dask Client initialized: {self.client}")
 
-    def submit_dft_batch(self, func: Callable[..., Any], items: list[Any], **kwargs: Any) -> list[Future[Any]]:
+    def submit_dft_batch(
+        self, func: Callable[..., Any], items: list[Any], **kwargs: Any
+    ) -> list[Future[Any]]:
         """
         Submit a batch of DFT tasks to the cluster.
 
@@ -47,10 +51,11 @@ class TaskQueue:
             List of Dask Futures representing the submitted tasks.
         """
         logger.info(f"Submitting {len(items)} tasks to Dask.")
-        futures = self.client.map(func, items, **kwargs)
-        return futures
+        return self.client.map(func, items, **kwargs)
 
-    def wait_for_completion(self, futures: list[Future[Any]], timeout: float | None = None) -> list[Any]:
+    def wait_for_completion(
+        self, futures: list[Future[Any]], timeout: float | None = None
+    ) -> list[Any]:
         """
         Wait for a list of futures to complete and return their results.
 
@@ -70,7 +75,7 @@ class TaskQueue:
 
         results = []
         for f in futures:
-            if f.status == 'finished':
+            if f.status == "finished":
                 results.append(f.result())
             else:
                 logger.warning(f"Task {f} did not finish successfully (status: {f.status}).")
@@ -79,7 +84,7 @@ class TaskQueue:
                 try:
                     results.append(f.result())
                 except Exception as e:
-                    logger.error(f"Task failed with error: {e}")
+                    logger.exception(f"Task failed with error: {e}")
                     results.append(None)
 
         return results

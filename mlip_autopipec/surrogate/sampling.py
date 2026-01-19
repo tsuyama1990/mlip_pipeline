@@ -7,7 +7,7 @@ class FPSSampler:
     Farthest Point Sampling algorithm.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def select(self, features: np.ndarray, n_samples: int) -> list[int]:
@@ -27,10 +27,12 @@ class FPSSampler:
         """
         n_total = features.shape[0]
         if n_samples > n_total:
-            raise ValueError(f"Requested {n_samples} samples but only {n_total} available.")
+            msg = f"Requested {n_samples} samples but only {n_total} available."
+            raise ValueError(msg)
 
         if n_samples <= 0:
-            raise ValueError("n_samples must be > 0")
+            msg = "n_samples must be > 0"
+            raise ValueError(msg)
 
         selected_indices = []
         scores = []

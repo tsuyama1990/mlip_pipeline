@@ -17,7 +17,7 @@ def test_tag_candidates():
 
 def test_resolve_selection():
     atoms1 = Atoms("H", info={"_original_index": 0})
-    atoms2 = Atoms("He", info={"_original_index": 1})
+    Atoms("He", info={"_original_index": 1})
     atoms3 = Atoms("Li", info={"_original_index": 2})
 
     pool = [atoms1, atoms3]  # index 1 filtered out

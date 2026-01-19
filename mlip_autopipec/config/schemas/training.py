@@ -54,9 +54,9 @@ class TrainingConfig(BaseModel):
     @field_validator("pacemaker_executable")
     @classmethod
     def validate_executable(cls, v: FilePath | None) -> FilePath | None:
-        if v is not None:
-            if not os.access(v, os.X_OK):
-                raise ValueError(f"File at {v} is not executable.")
+        if v is not None and not os.access(v, os.X_OK):
+            msg = f"File at {v} is not executable."
+            raise ValueError(msg)
         return v
 
 
@@ -91,12 +91,14 @@ class TrainingData(BaseModel):
         if not v:
             return v
         if not all(len(row) == 3 for row in v):
-            raise ValueError("Each force vector must have 3 components (x, y, z).")
+            msg = "Each force vector must have 3 components (x, y, z)."
+            raise ValueError(msg)
         # Check for NaN or Infinity
         for row in v:
             for val in row:
                 if not math.isfinite(val):
-                    raise ValueError(f"Force value {val} is not finite.")
+                    msg = f"Force value {val} is not finite."
+                    raise ValueError(msg)
         return v
 
 

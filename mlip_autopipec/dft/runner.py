@@ -23,7 +23,7 @@ class QERunner:
     Orchestrates Quantum Espresso calculations with auto-recovery.
     """
 
-    def __init__(self, config: DFTConfig):
+    def __init__(self, config: DFTConfig) -> None:
         self.config = config
 
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
@@ -55,7 +55,8 @@ class QERunner:
             # If "pw.x" is used, it gives "pw.x".
             # We should check if the executable exists.
             if not shutil.which(executable_candidate):
-                raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+                msg = f"Executable '{executable_candidate}' not found in PATH."
+                raise DFTFatalError(msg)
 
         # We need to preserve params across retries
         current_params = {}  # Start with defaults (empty dict means InputGenerator uses defaults)
@@ -100,9 +101,7 @@ class QERunner:
                     stdout = output_path.read_text() if output_path.exists() else ""
                     stderr = proc.stderr
 
-                    returncode = proc.returncode
                 except subprocess.TimeoutExpired:
-                    returncode = -1
                     stdout = output_path.read_text() if output_path.exists() else ""
                     stderr = "Timeout Expired"
 
@@ -130,14 +129,12 @@ class QERunner:
                 try:
                     current_params = RecoveryHandler.get_strategy(error_type, current_params)
                     # Log retry
-                    print(
-                        f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {current_params}"
-                    )
                     continue
                 except Exception:
                     break  # No strategy found
 
-        raise DFTFatalError(f"Job {uid} failed after {attempt} attempts.")
+        msg = f"Job {uid} failed after {attempt} attempts."
+        raise DFTFatalError(msg)
 
     def _stage_pseudos(self, work_dir: Path, atoms: Atoms):
         """

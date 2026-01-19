@@ -55,12 +55,14 @@ class QEInputGenerator:
     def _validate_pseudopotentials(self, params: DFTInputParameters) -> None:
         """Checks if all required pseudopotential files exist."""
         if not self.pseudopotentials_path:
-            raise FileNotFoundError("Pseudopotential directory not specified.")
+            msg = "Pseudopotential directory not specified."
+            raise FileNotFoundError(msg)
 
         for pseudo_filename in params.pseudopotentials.root.values():
             pseudo_path = self.pseudopotentials_path / pseudo_filename
             if not pseudo_path.is_file():
-                raise FileNotFoundError(f"Pseudopotential file not found: {pseudo_path}")
+                msg = f"Pseudopotential file not found: {pseudo_path}"
+                raise FileNotFoundError(msg)
 
     def _build_input_data(self, work_dir: Path, params: DFTInputParameters) -> dict:
         """Constructs the nested dictionary for ASE's `Espresso` calculator."""

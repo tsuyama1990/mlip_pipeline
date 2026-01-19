@@ -19,15 +19,16 @@ def basic_config(tmp_path: Path) -> InferenceConfig:
         uq_threshold=4.5,
         sampling_interval=50,
         potential_path=p,
-        elements=["Al"] # Default in model, but explicit here
+        elements=["Al"],  # Default in model, but explicit here
     )
+
 
 def test_generate_script_nvt(basic_config: InferenceConfig, tmp_path: Path) -> None:
     gen = ScriptGenerator(basic_config)
     script = gen.generate(
         atoms_file=Path("data.lammps"),
         potential_path=basic_config.potential_path,
-        dump_file=Path("dump.gamma")
+        dump_file=Path("dump.gamma"),
     )
 
     assert "units metal" in script
@@ -42,15 +43,17 @@ def test_generate_script_nvt(basic_config: InferenceConfig, tmp_path: Path) -> N
     assert "dump_modify my_dump thresh c_max_gamma > 4.5" in script
     assert "run 5000" in script
 
+
 def test_generate_script_multi_element(basic_config: InferenceConfig, tmp_path: Path) -> None:
     basic_config.elements = ["Al", "Cu"]
     gen = ScriptGenerator(basic_config)
     script = gen.generate(
         atoms_file=Path("data.lammps"),
         potential_path=basic_config.potential_path,
-        dump_file=Path("dump.gamma")
+        dump_file=Path("dump.gamma"),
     )
     assert f"pair_coeff * * {basic_config.potential_path.resolve()} Al Cu" in script
+
 
 def test_generate_script_npt(basic_config: InferenceConfig, tmp_path: Path) -> None:
     basic_config.ensemble = "npt"
@@ -60,7 +63,7 @@ def test_generate_script_npt(basic_config: InferenceConfig, tmp_path: Path) -> N
     script = gen.generate(
         atoms_file=Path("data.lammps"),
         potential_path=basic_config.potential_path,
-        dump_file=Path("dump.gamma")
+        dump_file=Path("dump.gamma"),
     )
 
     assert "fix 1 all npt temp 1000.0 1000.0 0.2 iso 100.0 100.0 2.0" in script

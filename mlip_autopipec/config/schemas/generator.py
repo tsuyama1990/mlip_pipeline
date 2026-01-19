@@ -12,10 +12,12 @@ class SQSConfig(BaseModel):
     @field_validator("supercell_matrix")
     def validate_matrix_shape(cls, v: list[list[int]]) -> list[list[int]]:  # noqa: N805
         if len(v) != 3:
-            raise ValueError("Supercell matrix must have 3 rows.")
+            msg = "Supercell matrix must have 3 rows."
+            raise ValueError(msg)
         for row in v:
             if len(row) != 3:
-                raise ValueError("Supercell matrix rows must have 3 elements.")
+                msg = "Supercell matrix rows must have 3 elements."
+                raise ValueError(msg)
         return v
 
 

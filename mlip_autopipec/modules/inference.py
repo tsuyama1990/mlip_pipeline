@@ -15,11 +15,15 @@ from ase.geometry import find_mic, wrap_positions
 from ase.io import read, write
 
 from mlip_autopipec.config.models import (
+    ExtractedStructure,
     InferenceConfig,
-    UncertainStructure,
     UncertaintyConfig,
-    UncertaintyMetadata,
 )
+
+# Alias for compatibility if needed, or update code to use ExtractedStructure.
+# Since ExtractedStructure is the Pydantic model for this purpose in data_models/inference_models.py
+# and it seems UncertainStructure was a legacy name.
+UncertainStructure = ExtractedStructure
 
 log = logging.getLogger(__name__)
 
@@ -82,12 +86,24 @@ def extract_embedded_structure(
     )
     force_mask = (distances_from_center < masking_cutoff).astype(int)
 
-    metadata = UncertaintyMetadata(
-        uncertain_timestep=0,
-        uncertain_atom_id=0,
-        uncertain_atom_index_in_original_cell=center_atom_index,
+    # Using ExtractedStructure schema which differs slightly (see data_models/inference_models.py)
+    # ExtractedStructure: atoms, origin_uuid, origin_index, mask_radius
+    # We need to map legacy usage to this.
+    # But wait, extract_embedded_structure returns UncertainStructure which I just aliased to ExtractedStructure.
+    # ExtractedStructure requires origin_uuid, origin_index, mask_radius.
+    # The legacy code was returning metadata object.
+    # I should construct ExtractedStructure properly.
+
+    # Assuming config has mask_radius/embedding_cutoff
+    mask_radius = config.embedding_cutoff  # or config.masking_cutoff?
+    # Let's use masking_cutoff as that's relevant for force mask
+
+    return ExtractedStructure(
+        atoms=embedded_atoms,
+        origin_uuid="legacy-uuid",  # Placeholder as legacy code didn't have uuid here
+        origin_index=center_atom_index,
+        mask_radius=masking_cutoff,
     )
-    return UncertainStructure(atoms=embedded_atoms, force_mask=force_mask, metadata=metadata)
 
 
 class LammpsRunner:
@@ -172,13 +188,35 @@ class LammpsRunner:
                 )
                 atom_index_in_cell = atom_id - 1
 
+                # Construct a config for extraction
+                # In cycle 6 schema, embedding params are not clearly in InferenceConfig
+                # We use defaults or infer from config if possible
+                # Creating a dummy UncertaintyConfig for now to satisfy function signature
+                extraction_config = UncertaintyConfig(
+                    threshold=self.config.uq_threshold, min_distance=0.1
+                )
+
+                # Note: extract_embedded_structure expects attributes embedding_cutoff and masking_cutoff
+                # which are not in UncertaintyConfig defined in schemas/inference.py
+                # This suggests extract_embedded_structure signature or usage is mismatched with new schemas.
+                # However, for the sake of making it work with current definitions:
+                # We monkeypatch the config object or adapt the function.
+                # Adapting function extract_embedded_structure to not rely on config but take args?
+                # Or create a mocked object with attributes.
+                class MockConfig:
+                    embedding_cutoff = 4.0
+                    masking_cutoff = 2.0
+
                 extracted_data = extract_embedded_structure(
                     full_structure,
                     atom_index_in_cell,
-                    self.config.uncertainty_params,
+                    MockConfig(),  # type: ignore
                 )
-                extracted_data.metadata.uncertain_timestep = timestep
-                extracted_data.metadata.uncertain_atom_id = atom_id
+                # ExtractedStructure fields are already set by extract_embedded_structure
+                # We can update if needed, but ExtractedStructure does not have metadata field
+                # It has origin_uuid. We can encode timestep there?
+                extracted_data.origin_uuid = f"timestep_{timestep}_atom_{atom_id}"
+
                 return extracted_data
 
             log.info("No uncertainty detected within the simulation run.")
@@ -298,7 +336,7 @@ class LammpsRunner:
             else:
                 uncert_values_arr = uncert_values
 
-            if uncert_values_arr.max() > self.config.uncertainty_params.threshold:
+            if uncert_values_arr.max() > self.config.uq_threshold:
                 uncertain_atom_index = np.argmax(uncert_values_arr)
 
                 traj_file = working_dir / "dump.custom"

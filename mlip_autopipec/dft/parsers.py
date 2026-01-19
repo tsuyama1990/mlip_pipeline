@@ -80,4 +80,5 @@ class QEOutputParser:
             )
         except Exception as e:
             # If ASE fails, it means calculation didn't finish or crashed
-            raise Exception(f"Failed to parse output: {e}") from e
+            msg = f"Failed to parse output: {e}"
+            raise Exception(msg) from e

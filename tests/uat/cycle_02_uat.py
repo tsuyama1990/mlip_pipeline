@@ -21,7 +21,6 @@ def create_mock_atoms(symbol="Al", positions=None, cell=None):
 
 # UAT-02-01: Standard SCF Calculation
 def test_uat_02_01_standard_scf():
-    print("\n--- UAT-02-01: Standard SCF Calculation ---")
     config = DFTConfig(command="pw.x", pseudo_dir=Path("/tmp"), timeout=100)
     runner = QERunner(config)
     atoms = create_mock_atoms()
@@ -54,12 +53,10 @@ def test_uat_02_01_standard_scf():
 
         assert result.succeeded
         assert result.energy == -100.0
-        print("✅ UAT-02-01 Passed")
 
 
 # UAT-02-02: Convergence Auto-Recovery
 def test_uat_02_02_auto_recovery():
-    print("\n--- UAT-02-02: Convergence Auto-Recovery ---")
     config = DFTConfig(command="pw.x", pseudo_dir=Path("/tmp"), recoverable=True)
     runner = QERunner(config)
     atoms = create_mock_atoms()
@@ -118,12 +115,9 @@ def test_uat_02_02_auto_recovery():
         assert args1[0][1] == {}
         assert args2[0][1] == {"mixing_beta": 0.3}
 
-        print("✅ UAT-02-02 Passed")
-
 
 # UAT-02-03: Magnetic System Handling
 def test_uat_02_03_magnetic_handling():
-    print("\n--- UAT-02-03: Magnetic System Handling ---")
     # Using real InputGenerator logic here, no mock for create_input_string
     from mlip_autopipec.dft.inputs import InputGenerator
 
@@ -134,7 +128,6 @@ def test_uat_02_03_magnetic_handling():
     assert "nspin" in input_str
     # Note: Depending on ASE version/implementation, exact string might vary, but key words must exist
     assert "starting_magnetization" in input_str
-    print("✅ UAT-02-03 Passed")
 
 
 if __name__ == "__main__":
@@ -143,7 +136,5 @@ if __name__ == "__main__":
         test_uat_02_01_standard_scf()
         test_uat_02_02_auto_recovery()
         test_uat_02_03_magnetic_handling()
-        print("\n🎉 ALL UAT Passed!")
-    except Exception as e:
-        print(f"\n❌ UAT Failed: {e}")
+    except Exception:
         sys.exit(1)
