@@ -116,5 +116,6 @@ def read_training_data(db_path: Path) -> list[AtomsObject]:
                 atoms.arrays["forces"] = np.array(validated_data.forces)
                 atoms_list.append(atoms)
             except ValidationError as e:
-                raise ValueError(f"Invalid data in database at row {row.id}: {e}") from e
+                msg = f"Invalid data in database at row {row.id}: {e}"
+                raise ValueError(msg) from e
     return atoms_list

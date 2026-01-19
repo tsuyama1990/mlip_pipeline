@@ -28,7 +28,7 @@ def test_descriptor_shape(default_config):
     assert descriptors.shape[0] == 5
     assert descriptors.shape[1] > 0
     # verify dtypes
-    assert descriptors.dtype == np.float64 or descriptors.dtype == np.float32
+    assert descriptors.dtype in (np.float64, np.float32)
 
 
 def test_descriptor_rotational_invariance(default_config):

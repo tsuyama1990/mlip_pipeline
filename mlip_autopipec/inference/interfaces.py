@@ -13,6 +13,7 @@ class MDRunner(Protocol):
     """
     Protocol for Molecular Dynamics Runner.
     """
+
     def run(self, atoms: Atoms) -> InferenceResult:
         """
         Executes a simulation.

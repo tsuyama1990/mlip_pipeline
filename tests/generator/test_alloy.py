@@ -43,7 +43,7 @@ def test_sqs_generation_stoichiometry(alloy_generator):
 
 
 def test_sqs_generation_invalid_composition(alloy_generator):
-    prim = bulk("Fe", "fcc", a=3.5)
+    bulk("Fe", "fcc", a=3.5)
 
     # We must construct validation manually or expect validation error on Composition creation.
     # However, if we pass a valid Composition but it somehow fails check inside, we test here.
@@ -74,7 +74,7 @@ def test_apply_rattle(alloy_generator):
     rattled = alloy_generator.apply_rattle(atoms, sigma=0.1)
 
     positions_new = rattled.get_positions()
-    displacements = positions_new - positions_orig
+    positions_new - positions_orig
 
     # Check that positions changed
     assert not np.allclose(positions_orig, positions_new)

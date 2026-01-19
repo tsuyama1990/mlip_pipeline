@@ -26,7 +26,7 @@ class PacemakerWrapper:
         executable: Path or name of the pacemaker executable.
     """
 
-    def __init__(self, executable: str = "pacemaker"):
+    def __init__(self, executable: str = "pacemaker") -> None:
         """
         Initialize the PacemakerWrapper.
 
@@ -85,20 +85,22 @@ class PacemakerWrapper:
         try:
             data_path = dataset_builder.export(config, work_dir)
         except Exception as e:
-            logger.error(f"Failed to export dataset: {e}")
-            raise RuntimeError("Dataset export failed") from e
+            logger.exception(f"Failed to export dataset: {e}")
+            msg = "Dataset export failed"
+            raise RuntimeError(msg) from e
 
         try:
             with gzip.open(data_path, "rb") as f:
                 atoms_list = pickle.load(f)
         except (OSError, pickle.PickleError) as e:
-            logger.error(f"Failed to read exported dataset at {data_path}: {e}")
-            raise RuntimeError("Could not read exported dataset") from e
+            logger.exception(f"Failed to read exported dataset at {data_path}: {e}")
+            msg = "Could not read exported dataset"
+            raise RuntimeError(msg) from e
 
         elements = set()
         for at in atoms_list:
             elements.update(at.get_chemical_symbols())
-        sorted_elements = sorted(list(elements))
+        sorted_elements = sorted(elements)
         logger.info(f"Identified elements in training set: {sorted_elements}")
 
         return data_path, sorted_elements
@@ -113,11 +115,11 @@ class PacemakerWrapper:
     ) -> Path:
         """Generates the input.yaml configuration file."""
         try:
-            input_yaml = config_gen.generate(config, data_path, output_path, elements)
-            return input_yaml
+            return config_gen.generate(config, data_path, output_path, elements)
         except Exception as e:
-            logger.error(f"Failed to generate configuration: {e}")
-            raise RuntimeError("Configuration generation failed") from e
+            logger.exception(f"Failed to generate configuration: {e}")
+            msg = "Configuration generation failed"
+            raise RuntimeError(msg) from e
 
     def _execute_pacemaker(self, work_dir: Path, input_yaml: Path) -> tuple[str, float]:
         """Runs the Pacemaker executable and captures output."""
@@ -131,16 +133,19 @@ class PacemakerWrapper:
             stdout = result.stdout
             logger.debug(f"Pacemaker STDOUT:\n{stdout}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Pacemaker training failed with return code {e.returncode}.")
-            logger.error(f"STDERR:\n{e.stderr}")
-            logger.error(f"STDOUT:\n{e.stdout}")
-            raise RuntimeError(f"Pacemaker training failed: {e.stderr}") from e
+            logger.exception(f"Pacemaker training failed with return code {e.returncode}.")
+            logger.exception(f"STDERR:\n{e.stderr}")
+            logger.exception(f"STDOUT:\n{e.stdout}")
+            msg = f"Pacemaker training failed: {e.stderr}"
+            raise RuntimeError(msg) from e
         except FileNotFoundError as e:
-            logger.error(f"Pacemaker executable '{self.executable}' not found.")
-            raise RuntimeError(f"Pacemaker executable '{self.executable}' not found.") from e
+            logger.exception(f"Pacemaker executable '{self.executable}' not found.")
+            msg = f"Pacemaker executable '{self.executable}' not found."
+            raise RuntimeError(msg) from e
         except OSError as e:
-            logger.error(f"OS Error executing pacemaker: {e}")
-            raise RuntimeError(f"OS Error executing pacemaker: {e}") from e
+            logger.exception(f"OS Error executing pacemaker: {e}")
+            msg = f"OS Error executing pacemaker: {e}"
+            raise RuntimeError(msg) from e
 
         end_time = time.time()
         training_time = end_time - start_time
@@ -162,11 +167,13 @@ class PacemakerWrapper:
 
         if not re_energy:
             logger.error("Could not parse RMSE Energy from Pacemaker output.")
-            raise RuntimeError("Pacemaker output parsing failed: missing RMSE Energy.")
+            msg = "Pacemaker output parsing failed: missing RMSE Energy."
+            raise RuntimeError(msg)
 
         if not re_forces:
             logger.error("Could not parse RMSE Forces from Pacemaker output.")
-            raise RuntimeError("Pacemaker output parsing failed: missing RMSE Forces.")
+            msg = "Pacemaker output parsing failed: missing RMSE Forces."
+            raise RuntimeError(msg)
 
         rmse_energy = float(re_energy.group(1))
         rmse_forces = float(re_forces.group(1))
@@ -182,7 +189,8 @@ class PacemakerWrapper:
                 output_path = yace_files[0]
             else:
                 logger.error(f"Output potential file {output_path} not found.")
-                raise FileNotFoundError(f"Output potential file {output_path} not found.")
+                msg = f"Output potential file {output_path} not found."
+                raise FileNotFoundError(msg)
 
         return TrainingResult(
             potential_path=output_path,

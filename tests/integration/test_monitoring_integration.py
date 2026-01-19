@@ -65,7 +65,7 @@ def test_status_command(populated_project):
             pytest.fail("Command 'status' not found in app.")
 
         if result.exit_code != 0:
-            print(result.stdout)
+            pass
 
         assert result.exit_code == 0
         assert "Dashboard generated at" in result.stdout

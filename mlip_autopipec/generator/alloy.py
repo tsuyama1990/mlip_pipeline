@@ -66,7 +66,7 @@ class AlloyGenerator:
             sorted_comp = sorted(comp_dict.items(), key=lambda x: x[1], reverse=True)
 
             for elem, frac in sorted_comp:
-                count = int(round(frac * n_atoms))
+                count = round(frac * n_atoms)
                 symbols.extend([elem] * count)
 
             # Fix rounding errors
@@ -216,7 +216,7 @@ class AlloyGenerator:
 
             # 3. Rattles
             # Apply rattles to Base AND Strained structures
-            structures_to_rattle = [base_structure] + strained_structures
+            structures_to_rattle = [base_structure, *strained_structures]
             n_rattles = self.config.distortion.n_rattle_steps
             amp = self.config.distortion.rattling_amplitude
 

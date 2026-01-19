@@ -58,7 +58,8 @@ class MoleculeGenerator:
                 atoms.calc = EMT()
             except Exception as e:
                 logger.warning("No calculator attached and EMT not available. Cannot perform NMS.")
-                raise GeneratorError("NMS requires a calculator (or EMT availability).") from e
+                msg = "NMS requires a calculator (or EMT availability)."
+                raise GeneratorError(msg) from e
 
         # Run Vibrations
         # We need a temporary directory for displacement files

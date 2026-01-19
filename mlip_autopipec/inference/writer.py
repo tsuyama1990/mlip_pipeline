@@ -50,9 +50,7 @@ class LammpsInputWriter:
 
         # Generate Input Script
         script_content = self.generator.generate(
-            atoms_file=data_file,
-            potential_path=self.config.potential_path,
-            dump_file=dump_file
+            atoms_file=data_file, potential_path=self.config.potential_path, dump_file=dump_file
         )
 
         input_file.write_text(script_content)

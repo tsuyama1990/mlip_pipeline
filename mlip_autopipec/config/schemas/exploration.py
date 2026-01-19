@@ -35,7 +35,8 @@ class SurrogateModelParams(BaseModel):
         import os
 
         if ".." in v or os.path.isabs(v):
-            raise ValueError("model_path must be a relative path.")
+            msg = "model_path must be a relative path."
+            raise ValueError(msg)
         return v
 
 

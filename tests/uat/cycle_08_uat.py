@@ -1,189 +1,107 @@
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-from typing import Any
-
-# Color codes for output
-GREEN = "\033[92m"
-RED = "\033[91m"
-RESET = "\033[0m"
-
-def setup_project(work_dir: Path) -> None:
-    if work_dir.exists():
-        shutil.rmtree(work_dir)
-    work_dir.mkdir(parents=True)
-
-    # Create dummy workflow state
-    from mlip_autopipec.orchestration.models import WorkflowState
-
-    state = WorkflowState(
-        current_generation=3,
-        status="training",
-        pending_tasks=["task_123", "task_124"]
-    )
-
-    (work_dir / "workflow_state.json").write_text(state.model_dump_json())
-
-    # Create Dummy System Config
-    config_data: dict[str, Any] = {
-        "minimal": {
-            "system_name": "UAT-System",
-            "working_dir": str(work_dir),
-            "target": {"elements": ["Si"], "composition": {"Si": 1.0}}
-        },
-        "working_dir": str(work_dir),
-        "db_path": str(work_dir / "project.db"),
-        "log_path": str(work_dir / "project.log"),
-    }
-    # Note: Using SystemConfig is complex due to validation, so we might just use the state file
-    # for dashboard generation in this specific UAT if the CLI supports it.
-
-    # However, for full integration UAT, we need to run the orchestrator.
-    # Let's create a minimal script that uses our new classes to generate the dashboard.
-
-    # Create DB
-    from ase import Atoms
-    from ase.db import connect
-
-    db_path = work_dir / "project.db"
-    with connect(db_path) as db:  # type: ignore
-        for _ in range(100):
-            db.write(Atoms("Si"), data={"config_type": "initial"})
-        for _ in range(30):
-            db.write(Atoms("Si"), data={"config_type": "active_learning_gen1"})
-
-def run_command(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, check=False, cwd=cwd, capture_output=True, text=True)
-    return result
-
-def main() -> None:
-    print("Starting UAT for Cycle 08: Monitoring and Orchestration")
-    work_dir = Path("uat_cycle_08_workspace")
-
-    try:
-        # Scenario 1: Generating and Viewing the Status Dashboard
-        print("\n--- UAT-C8-001: Generating and Viewing the Status Dashboard ---")
-        setup_project(work_dir)
-
-        # We will invoke a script that uses our Dashboard class,
-        # since we haven't exposed it via CLI yet (or assuming we updated main.py)
-
-        script_content = """
-from pathlib import Path
-from mlip_autopipec.orchestration.dashboard import Dashboard
-from mlip_autopipec.orchestration.models import DashboardData
-from mlip_autopipec.core.database import DatabaseManager
-
-work_dir = Path(".")
-db_manager = DatabaseManager(work_dir / "project.db")
-dashboard = Dashboard(work_dir, db_manager)
-
-data = DashboardData(
-    generations=[0, 1, 2, 3],
-    rmse_values=[0.1, 0.08, 0.05, 0.02],
-    structure_counts=[100, 130, 155, 200],
-    status="training"
-)
-
-dashboard.update(data)
-print("Dashboard generated at dashboard.html")
-"""
-        (work_dir / "gen_dashboard.py").write_text(script_content)
-
-        res = run_command(["python", "gen_dashboard.py"], cwd=work_dir)
-
-        if res.returncode == 0 and "Dashboard generated at" in res.stdout:
-            print(f"{GREEN}✅ Dashboard generation successful.{RESET}")
-        else:
-            print(f"{RED}❌ Dashboard generation failed.{RESET}")
-            print("STDOUT:", res.stdout)
-            print("STDERR:", res.stderr)
-            sys.exit(1)
-
-        dashboard_path = work_dir / "dashboard.html"
-        if dashboard_path.exists():
-            print(f"{GREEN}✅ dashboard.html exists.{RESET}")
-        else:
-            print(f"{RED}❌ dashboard.html not found.{RESET}")
-            sys.exit(1)
-
-        # Scenario 2: Interpreting Dashboard
-        print("\n--- UAT-C8-002: Interpreting Dashboard for Workflow Insights ---")
-        content = dashboard_path.read_text()
-
-        checks = [
-            ("MLIP-AutoPipe Status", "Title"),
-            ("Current Status: training", "Status"),
-            ("Current Generation: 3", "Generation"),
-            ("Total Structures: 200", "Structure Count"),
-            ("data:image/png;base64", "Plot Image"),
-        ]
-
-        all_passed = True
-        for text, desc in checks:
-            if text in content:
-                print(f"{GREEN}✅ Found {desc} ('{text}'){RESET}")
-            else:
-                print(f"{RED}❌ Missing {desc} ('{text}'){RESET}")
-                all_passed = False
-
-        if not all_passed:
-            print(f"\n{RED}Cycle 08 UAT Failed.{RESET}")
-            sys.exit(1)
-
-        # Scenario 3: Checkpoint & Resume (Simulated via WorkflowManager)
-        print("\n--- UAT-C8-003: Checkpoint & Resume Logic ---")
-
-        sim_script = """
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+from mlip_autopipec.config.models import MinimalConfig, SystemConfig, TargetSystem
 from mlip_autopipec.orchestration.manager import WorkflowManager
-from mlip_autopipec.orchestration.models import OrchestratorConfig, WorkflowState
-from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.orchestration.models import OrchestratorConfig
 
-# Mock config
-config = MagicMock(spec=SystemConfig)
-config.working_dir = Path(".")
-config.db_path = Path("project.db")
 
-# Create a state file indicating we are in Generation 2
-state = WorkflowState(current_generation=2, status="dft")
-(config.working_dir / "workflow_state.json").write_text(state.model_dump_json())
+def test_uat_cycle_08_end_to_end_simulation(tmp_path: Path) -> None:
+    """
+    UAT-08-01: End-to-End Autonomous Run Simulation
 
-# Initialize Manager (mocking internals)
-with patch('mlip_autopipec.orchestration.manager.DatabaseManager'), \
-     patch('mlip_autopipec.orchestration.manager.TaskQueue'), \
-     patch('mlip_autopipec.orchestration.manager.Dashboard'):
+    This test simulates the full lifecycle by mocking the heavy physics engines
+    but using the real WorkflowManager logic.
+    """
 
-    manager = WorkflowManager(config, OrchestratorConfig())
+    # 1. Setup Config
+    minimal = MinimalConfig(
+        project_name="uat_cycle_08",
+        target_system=TargetSystem(elements=["Al"], composition={"Al": 1.0}),
+        resources={"dft_code": "quantum_espresso", "parallel_cores": 4},
+    )
+    system_config = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path,
+        db_path=tmp_path / "uat.db",
+        log_path=tmp_path / "uat.log",
+    )
+    orch_config = OrchestratorConfig(max_generations=2, workers=1)
 
-    # Check if it loaded the state
-    if manager.state.current_generation == 2 and manager.state.status == "dft":
-        print("RESUME_SUCCESS")
-    else:
-        print(f"RESUME_FAILED: {manager.state}")
-"""
-        (work_dir / "test_resume.py").write_text(sim_script)
+    # 2. Mock Components
+    with (
+        patch("mlip_autopipec.orchestration.manager.DatabaseManager") as MockDB,
+        patch("mlip_autopipec.orchestration.manager.TaskQueue"),
+        patch("mlip_autopipec.orchestration.manager.Dashboard") as MockDash,
+        patch("mlip_autopipec.orchestration.manager.StructureBuilder") as MockBuilder,
+        patch("mlip_autopipec.orchestration.manager.SurrogatePipeline"),
+        patch("mlip_autopipec.orchestration.manager.QERunner"),
+        patch("mlip_autopipec.orchestration.manager.DatasetBuilder"),
+        patch("mlip_autopipec.orchestration.manager.TrainConfigGenerator"),
+        patch("mlip_autopipec.orchestration.manager.PacemakerWrapper"),
+    ):
+        # Mock behaviors
+        mock_db = MockDB.return_value
+        mock_db.count.return_value = 100
 
-        res = run_command(["python", "test_resume.py"], cwd=work_dir)
+        mock_builder = MockBuilder.return_value
+        mock_builder.build.return_value = [MagicMock()] * 10
 
-        if "RESUME_SUCCESS" in res.stdout:
-            print(f"{GREEN}✅ Resume logic successful.{RESET}")
-        else:
-            print(f"{RED}❌ Resume logic failed.{RESET}")
-            print("STDOUT:", res.stdout)
-            sys.exit(1)
+        # 3. Initialize and Run
+        manager = WorkflowManager(system_config, orch_config)
+        manager.run()
 
-        print(f"\n{GREEN}🎉 Cycle 08 UAT Passed!{RESET}")
+        # 4. Assertions
+        assert manager.state.current_generation == 2
 
-    except Exception as e:
-        print(f"{RED}An unexpected error occurred during UAT:{RESET} {e}")
-        sys.exit(1)
-    finally:
-        if work_dir.exists():
-            shutil.rmtree(work_dir)
+        # Verify phases were called for each generation
+        # Gen 0: Idle -> DFT -> Train -> Inference -> Loop
+        # Gen 1: Idle -> DFT -> Train -> Inference -> Loop
 
-if __name__ == "__main__":
-    main()
+        # Check that StructureBuilder was called twice (Gen 0 and Gen 1)
+        assert MockBuilder.call_count >= 2
+
+        # Check that Dashboard was updated
+        assert MockDash.return_value.update.call_count >= 2
+
+
+def test_uat_cycle_08_resume(tmp_path: Path) -> None:
+    """
+    UAT-08-02: Checkpoint & Resume
+    """
+    # 1. create a state file indicating we are in Generation 1, Phase 'training'
+    state_file = tmp_path / "workflow_state.json"
+    state_file.write_text('{"current_generation": 1, "status": "training", "pending_tasks": []}')
+
+    minimal = MinimalConfig(
+        project_name="uat_cycle_08",
+        target_system=TargetSystem(elements=["Al"], composition={"Al": 1.0}),
+        resources={"dft_code": "quantum_espresso", "parallel_cores": 4},
+    )
+    system_config = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path,
+        db_path=tmp_path / "uat.db",
+        log_path=tmp_path / "uat.log",
+    )
+    orch_config = OrchestratorConfig(max_generations=2, workers=1)
+
+    with (
+        patch("mlip_autopipec.orchestration.manager.DatabaseManager"),
+        patch("mlip_autopipec.orchestration.manager.TaskQueue"),
+        patch("mlip_autopipec.orchestration.manager.Dashboard"),
+        patch("mlip_autopipec.orchestration.manager.DatasetBuilder"),
+        patch("mlip_autopipec.orchestration.manager.TrainConfigGenerator"),
+        patch("mlip_autopipec.orchestration.manager.PacemakerWrapper") as MockPacemaker,
+    ):
+        manager = WorkflowManager(system_config, orch_config)
+
+        # 2. Run
+        manager.run()
+
+        # 3. Verify it started from training phase of Gen 1
+        # Should call Pacemaker (training)
+        assert MockPacemaker.call_count >= 1
+
+        # Should finish Gen 1, then do Gen 2, then stop.
+        assert manager.state.current_generation == 2

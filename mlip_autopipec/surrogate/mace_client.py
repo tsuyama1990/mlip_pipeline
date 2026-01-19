@@ -17,7 +17,7 @@ class MaceClient:
     It provides functionality to filter structures based on physical plausibility (force thresholds).
     """
 
-    def __init__(self, config: SurrogateConfig):
+    def __init__(self, config: SurrogateConfig) -> None:
         """
         Initializes the MaceClient.
 
@@ -42,10 +42,11 @@ class MaceClient:
             # If model_path looks like a file path (contains separator), validate it.
             if os.path.sep in model_path or (os.path.altsep and os.path.altsep in model_path):
                 # Resolve absolute path
-                abs_path = os.path.abspath(model_path)
+                os.path.abspath(model_path)
                 # Check if it tries to go up levels inappropriately or access sensitive dirs.
                 if ".." in model_path:
-                    raise ValueError("Path traversal attempt detected in model_path.")
+                    msg = "Path traversal attempt detected in model_path."
+                    raise ValueError(msg)
 
             try:
                 from mace.calculators import mace_mp
@@ -55,7 +56,7 @@ class MaceClient:
 
             except (ImportError, Exception) as e:
                 if isinstance(e, ValueError) and "Path traversal" in str(e):
-                    raise e
+                    raise
 
                 logger.warning(f"Failed to load MACE model: {e}")
                 self.model = None
@@ -75,7 +76,8 @@ class MaceClient:
         """
         self._load_model()
         if self.model is None:
-            raise RuntimeError("MACE model could not be loaded.")
+            msg = "MACE model could not be loaded."
+            raise RuntimeError(msg)
 
         forces_list: list[np.ndarray] = []
 
@@ -93,7 +95,8 @@ class MaceClient:
             except Exception as e:
                 # Log full exception
                 logger.exception(f"Force calculation failed for structure {atoms}")
-                raise RuntimeError(f"Force calculation failed for structure {atoms}: {e}") from e
+                msg = f"Force calculation failed for structure {atoms}: {e}"
+                raise RuntimeError(msg) from e
             finally:
                 # Restore original calculator
                 atoms.calc = original_calc
@@ -124,9 +127,10 @@ class MaceClient:
         except Exception as e:
             # Re-raise with context
             logger.exception("Pre-screening prediction failed")
-            raise RuntimeError(f"Pre-screening prediction failed: {e}") from e
+            msg = f"Pre-screening prediction failed: {e}"
+            raise RuntimeError(msg) from e
 
-        for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list)):
+        for i, (atoms, forces) in enumerate(zip(atoms_list, forces_list, strict=False)):
             # Robustness check: Ensure forces array is valid
             if forces is None:
                 max_force = float("inf")

@@ -31,7 +31,8 @@ class DFTResult(BaseModel):
     @classmethod
     def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
         if not all(len(row) == 3 for row in forces):
-            raise ValueError("Forces must have a shape of (N_atoms, 3).")
+            msg = "Forces must have a shape of (N_atoms, 3)."
+            raise ValueError(msg)
         return forces
 
     @field_validator("stress")
@@ -39,7 +40,9 @@ class DFTResult(BaseModel):
     def check_stress_shape(cls, stress: list[list[float]]) -> list[list[float]]:
         # SPEC says 3x3 array for DFTResult in Data Models section.
         if len(stress) != 3:
-            raise ValueError("Stress tensor must be 3x3.")
+            msg = "Stress tensor must be 3x3."
+            raise ValueError(msg)
         if not all(len(row) == 3 for row in stress):
-            raise ValueError("Stress tensor must be 3x3.")
+            msg = "Stress tensor must be 3x3."
+            raise ValueError(msg)
         return stress

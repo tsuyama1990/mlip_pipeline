@@ -31,7 +31,8 @@ class StructureBuilder:
 
         if not self.generator_config:
             logger.info("No generator_config provided in SystemConfig, using defaults.")
-            raise GeneratorError("GeneratorConfig is missing in SystemConfig.")
+            msg = "GeneratorConfig is missing in SystemConfig."
+            raise GeneratorError(msg)
 
         self.alloy_gen = AlloyGenerator(self.generator_config)
         self.mol_gen = MoleculeGenerator(self.generator_config)

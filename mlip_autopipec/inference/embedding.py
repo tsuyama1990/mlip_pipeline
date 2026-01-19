@@ -10,7 +10,8 @@ class EmbeddingExtractor:
     """
     Extracts a local cluster around a focal atom and embeds it in a periodic box.
     """
-    def __init__(self, config: EmbeddingConfig):
+
+    def __init__(self, config: EmbeddingConfig) -> None:
         """
         Initialize the extractor.
 
@@ -38,13 +39,16 @@ class EmbeddingExtractor:
         """
         try:
             if not isinstance(large_atoms, Atoms):
-                raise TypeError("Input must be an ase.Atoms object.")
+                msg = "Input must be an ase.Atoms object."
+                raise TypeError(msg)
 
             if len(large_atoms) == 0:
-                raise ValueError("Input structure is empty.")
+                msg = "Input structure is empty."
+                raise ValueError(msg)
 
             if center_idx < 0 or center_idx >= len(large_atoms):
-                raise IndexError(f"Center index {center_idx} out of bounds (0-{len(large_atoms)-1}).")
+                msg = f"Center index {center_idx} out of bounds (0-{len(large_atoms) - 1})."
+                raise IndexError(msg)
 
             # 1. Identify neighbors within core + buffer
             cutoff = self.config.core_radius + self.config.buffer_width
@@ -52,10 +56,7 @@ class EmbeddingExtractor:
             # Use ASE NeighborList to find all atoms within cutoff
             # We divide cutoff by 2 because NeighborList sums the cutoffs of two atoms.
             nl = NeighborList(
-                [cutoff / 2.0] * len(large_atoms),
-                self_interaction=True,
-                bothways=True,
-                skin=0.0
+                [cutoff / 2.0] * len(large_atoms), self_interaction=True, bothways=True, skin=0.0
             )
             nl.update(large_atoms)
 
@@ -69,7 +70,7 @@ class EmbeddingExtractor:
             cluster_symbols = []
             cluster_indices = []
 
-            for i, offset in zip(indices, offsets):
+            for i, offset in zip(indices, offsets, strict=False):
                 # Original position
                 pos = large_atoms.positions[i]
                 # Unwrap: position + offset @ cell
@@ -83,16 +84,13 @@ class EmbeddingExtractor:
 
             # 3. Create new Atoms object in new box
             L = self.config.box_size
-            box_center = np.array([L/2.0, L/2.0, L/2.0])
+            box_center = np.array([L / 2.0, L / 2.0, L / 2.0])
 
             # Shift atoms so center is at box_center
             final_positions = np.array(cluster_positions) + box_center
 
             cluster = Atoms(
-                symbols=cluster_symbols,
-                positions=final_positions,
-                cell=[L, L, L],
-                pbc=True
+                symbols=cluster_symbols, positions=final_positions, cell=[L, L, L], pbc=True
             )
 
             # Store original indices
@@ -108,10 +106,11 @@ class EmbeddingExtractor:
                 atoms=cluster,
                 origin_uuid=origin_uuid,
                 origin_index=center_idx,
-                mask_radius=self.config.core_radius
+                mask_radius=self.config.core_radius,
             )
 
         except (IndexError, TypeError, ValueError):
             raise
         except Exception as e:
-            raise RuntimeError(f"Extraction failed for index {center_idx}: {e!s}") from e
+            msg = f"Extraction failed for index {center_idx}: {e!s}"
+            raise RuntimeError(msg) from e

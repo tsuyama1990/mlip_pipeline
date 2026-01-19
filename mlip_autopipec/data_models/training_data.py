@@ -6,21 +6,25 @@ are passed between modules.
 
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 if TYPE_CHECKING:
     from ase import Atoms
 
+
 def check_3d_vector(v: list[float]) -> list[float]:
     if len(v) != 3:
-        raise ValueError("Vector must be size 3.")
+        msg = "Vector must be size 3."
+        raise ValueError(msg)
     return v
+
 
 # Type alias for a 3D vector.
 Vector3D = Annotated[list[float], Field(min_length=3, max_length=3)]
 
 # Type alias for a 3x3 matrix (list of 3 Vector3D).
 Matrix3x3 = Annotated[list[Vector3D], Field(min_length=3, max_length=3)]
+
 
 class TrainingBatch(BaseModel):
     """
@@ -58,6 +62,7 @@ class TrainingData(BaseModel):
     Data model representing a single training point (Structure + Labels).
     This is what we write to disk (e.g. extxyz) or send to Pacemaker.
     """
+
     structure_uid: str
     energy: float | None = None
     # Forces are per-atom, so list of Vector3D with variable length
@@ -76,4 +81,5 @@ class TrainingData(BaseModel):
         try:
             return cls(**kwargs)
         except ValidationError as e:
-            raise ValueError(f"Invalid data for TrainingData: {e}") from e
+            msg = f"Invalid data for TrainingData: {e}"
+            raise ValueError(msg) from e

@@ -11,7 +11,8 @@ from mlip_autopipec.inference.lammps_runner import LammpsRunner
 
 @pytest.fixture
 def mock_atoms() -> Atoms:
-    return Atoms("Al4", pbc=True, cell=[4,4,4])
+    return Atoms("Al4", pbc=True, cell=[4, 4, 4])
+
 
 @pytest.fixture
 def basic_config(tmp_path: Path) -> InferenceConfig:
@@ -19,13 +20,12 @@ def basic_config(tmp_path: Path) -> InferenceConfig:
     p.touch()
     l = tmp_path / "lmp_serial"
     l.touch(mode=0o755)
-    return InferenceConfig(
-        temperature=300.0,
-        potential_path=p,
-        lammps_executable=l
-    )
+    return InferenceConfig(temperature=300.0, potential_path=p, lammps_executable=l)
 
-def test_lammps_runner_execution_success(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+
+def test_lammps_runner_execution_success(
+    basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path
+) -> None:
     runner = LammpsRunner(basic_config, work_dir=tmp_path)
 
     with patch("subprocess.run") as mock_run:
@@ -49,11 +49,14 @@ def test_lammps_runner_execution_success(basic_config: InferenceConfig, mock_ato
         assert "-in" in cmd
         assert str(tmp_path / "in.lammps") in cmd
 
-def test_lammps_runner_failure(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+
+def test_lammps_runner_failure(
+    basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path
+) -> None:
     runner = LammpsRunner(basic_config, work_dir=tmp_path)
 
     with patch("subprocess.run") as mock_run:
-        mock_run.return_value.returncode = 1 # Fail
+        mock_run.return_value.returncode = 1  # Fail
         mock_run.return_value.stdout = "Error"
         mock_run.return_value.stderr = "Fatal Error"
 
@@ -61,21 +64,25 @@ def test_lammps_runner_failure(basic_config: InferenceConfig, mock_atoms: Atoms,
         assert result.succeeded is False
         assert result.final_structure is None
 
-def test_lammps_runner_exception(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+
+def test_lammps_runner_exception(
+    basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path
+) -> None:
     runner = LammpsRunner(basic_config, work_dir=tmp_path)
 
     with patch("subprocess.run", side_effect=OSError("Exec format error")):
         result = runner.run(mock_atoms)
         assert result.succeeded is False
 
+
 def test_config_validation_invalid_path(tmp_path: Path) -> None:
     with pytest.raises(ValidationError):
-        InferenceConfig(
-            temperature=300.0,
-            potential_path=tmp_path / "non_existent.yace"
-        )
+        InferenceConfig(temperature=300.0, potential_path=tmp_path / "non_existent.yace")
 
-def test_lammps_runner_no_executable(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+
+def test_lammps_runner_no_executable(
+    basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path
+) -> None:
     # Test case where lammps_executable is None (uses default string)
     basic_config.lammps_executable = None
     runner = LammpsRunner(basic_config, work_dir=tmp_path)

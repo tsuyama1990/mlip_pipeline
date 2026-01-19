@@ -10,7 +10,8 @@ from mlip_autopipec.inference.lammps_runner import LammpsRunner
 
 @pytest.fixture
 def mock_atoms() -> Atoms:
-    return Atoms("Al4", pbc=True, cell=[4,4,4])
+    return Atoms("Al4", pbc=True, cell=[4, 4, 4])
+
 
 @pytest.fixture
 def basic_config(tmp_path: Path) -> InferenceConfig:
@@ -18,13 +19,12 @@ def basic_config(tmp_path: Path) -> InferenceConfig:
     p.touch()
     l = tmp_path / "lmp_serial"
     l.touch(mode=0o755)
-    return InferenceConfig(
-        temperature=300.0,
-        potential_path=p,
-        lammps_executable=l
-    )
+    return InferenceConfig(temperature=300.0, potential_path=p, lammps_executable=l)
 
-def test_lammps_runner_security(basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path) -> None:
+
+def test_lammps_runner_security(
+    basic_config: InferenceConfig, mock_atoms: Atoms, tmp_path: Path
+) -> None:
     runner = LammpsRunner(basic_config, work_dir=tmp_path)
 
     with patch("subprocess.run") as mock_run:

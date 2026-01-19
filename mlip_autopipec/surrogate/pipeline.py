@@ -21,7 +21,7 @@ class SurrogatePipeline:
     It delegates data management to CandidateManager.
     """
 
-    def __init__(self, config: SurrogateConfig):
+    def __init__(self, config: SurrogateConfig) -> None:
         """
         Args:
             config: Configuration for the surrogate pipeline.
@@ -77,7 +77,8 @@ class SurrogatePipeline:
 
         except Exception as e:
             logger.error(f"Surrogate pipeline execution failed: {e}", exc_info=True)
-            raise RuntimeError(f"Surrogate pipeline execution failed: {e}") from e
+            msg = f"Surrogate pipeline execution failed: {e}"
+            raise RuntimeError(msg) from e
 
     def _execute_prescreening(self, candidates: list[Atoms]) -> list[Atoms]:
         """Runs MACE pre-screening."""
@@ -103,7 +104,8 @@ class SurrogatePipeline:
             descriptor_result = self.descriptor_calc.compute_soap(kept_atoms)
             return descriptor_result.features
         except Exception as e:
-            raise RuntimeError(f"Descriptor calculation failed: {e}") from e
+            msg = f"Descriptor calculation failed: {e}"
+            raise RuntimeError(msg) from e
 
     def _execute_selection(
         self, descriptors: np.ndarray, pool_size: int

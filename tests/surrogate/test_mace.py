@@ -85,9 +85,13 @@ def test_filter_unphysical():
         np.array([[5.0, 0.0, 0.0]]),  # Norm = 5
     ]
 
-    with patch(
-        "mlip_autopipec.surrogate.mace_client.MaceClient.predict_forces", side_effect=[mock_forces]
-    ), patch("mlip_autopipec.surrogate.mace_client.MaceClient._load_model"):
+    with (
+        patch(
+            "mlip_autopipec.surrogate.mace_client.MaceClient.predict_forces",
+            side_effect=[mock_forces],
+        ),
+        patch("mlip_autopipec.surrogate.mace_client.MaceClient._load_model"),
+    ):
         client = MaceClient(config)
         good_atoms, rejected = client.filter_unphysical(atoms_list)
 

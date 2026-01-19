@@ -175,10 +175,14 @@ class DatabaseManager:
         return atoms_list
 
     def save_dft_result(
-        self, atoms: AtomsObject, result: "DFTResult", metadata: dict[str, Any]
+        self,
+        atoms: AtomsObject,
+        result: "DFTResult | None",
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Saves a DFT calculation result and its metadata.
+        If result is None, saves only the atoms and metadata (e.g. for candidates).
         """
         if self._connection is None:
             self.initialize()
@@ -189,19 +193,23 @@ class DatabaseManager:
 
         try:
             # Separate metadata for info dict and arrays
-            info_metadata = metadata.copy()
+            info_metadata = metadata.copy() if metadata else {}
             force_mask = info_metadata.pop("force_mask", None)
 
-            atoms.info["energy"] = result.energy
-            atoms.info["forces"] = result.forces
-            atoms.info["stress"] = result.stress
+            if result:
+                atoms.info["energy"] = result.energy
+                atoms.info["forces"] = result.forces
+                atoms.info["stress"] = result.stress
+
             atoms.info.update(info_metadata)
 
             if force_mask is not None:
                 atoms.arrays["force_mask"] = np.array(force_mask)
 
+            data = result.model_dump() if result else {}
+
             # Check if exists logic could go here, but for now we write
-            self._connection.write(atoms, data=result.model_dump())
+            self._connection.write(atoms, data=data)
             # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
         except Exception as e:
             msg = f"Failed to save DFT result: {e}"

@@ -11,6 +11,7 @@ from mlip_autopipec.orchestration.models import DashboardData
 
 logger = logging.getLogger(__name__)
 
+
 class Dashboard:
     """
     Generates a simple HTML dashboard for monitoring the workflow.
@@ -18,7 +19,8 @@ class Dashboard:
     This class is responsible for visualizing the progress of the active learning loop,
     including RMSE metrics and database statistics.
     """
-    def __init__(self, output_dir: Path, db_manager: DatabaseManager):
+
+    def __init__(self, output_dir: Path, db_manager: DatabaseManager) -> None:
         """
         Initialize the Dashboard.
 
@@ -63,33 +65,33 @@ class Dashboard:
             Base64 encoded PNG image string.
         """
         if not data.generations:
-             return ""
+            return ""
 
         plt.figure(figsize=(10, 6))
 
         # RMSE Plot
         plt.subplot(2, 1, 1)
-        plt.plot(data.generations, data.rmse_values, 'b-o', label='RMSE')
-        plt.ylabel('RMSE (eV/A)')
-        plt.title('Learning Curve')
+        plt.plot(data.generations, data.rmse_values, "b-o", label="RMSE")
+        plt.ylabel("RMSE (eV/A)")
+        plt.title("Learning Curve")
         plt.grid(True)
         plt.legend()
 
         # Structure Count Plot
         plt.subplot(2, 1, 2)
-        plt.plot(data.generations, data.structure_counts, 'g-s', label='Structures')
-        plt.xlabel('Generation')
-        plt.ylabel('Count')
+        plt.plot(data.generations, data.structure_counts, "g-s", label="Structures")
+        plt.xlabel("Generation")
+        plt.ylabel("Count")
         plt.grid(True)
         plt.legend()
 
         plt.tight_layout()
 
         buf = io.BytesIO()
-        plt.savefig(buf, format='png')
+        plt.savefig(buf, format="png")
         plt.close()
         buf.seek(0)
-        img_str = base64.b64encode(buf.read()).decode('utf-8')
+        img_str = base64.b64encode(buf.read()).decode("utf-8")
         return f"data:image/png;base64,{img_str}"
 
     def _generate_html(self, data: DashboardData, plot_img: str) -> str:
@@ -105,7 +107,7 @@ class Dashboard:
         """
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        html = f"""
+        return f"""
         <!DOCTYPE html>
         <html>
         <head>
@@ -130,14 +132,13 @@ class Dashboard:
                     <ul>
                         <li>Current Generation: {data.generations[-1] if data.generations else 0}</li>
                         <li>Total Structures: {data.structure_counts[-1] if data.structure_counts else 0}</li>
-                        <li>Latest RMSE: {data.rmse_values[-1] if data.rmse_values else 'N/A'}</li>
+                        <li>Latest RMSE: {data.rmse_values[-1] if data.rmse_values else "N/A"}</li>
                     </ul>
                 </div>
 
                 <h2>Learning Progress</h2>
-                {f'<img src="{plot_img}" alt="Learning Curve" style="width:100%">' if plot_img else '<p>No data yet.</p>'}
+                {f'<img src="{plot_img}" alt="Learning Curve" style="width:100%">' if plot_img else "<p>No data yet.</p>"}
             </div>
         </body>
         </html>
         """
-        return html

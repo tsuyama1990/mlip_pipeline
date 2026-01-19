@@ -33,7 +33,6 @@ RESET = "\033[0m"
 
 
 def run_uat():
-    print("Starting UAT for Cycle 05: Active Learning & Training")
     work_dir = Path("uat_cycle_05_workspace")
     if work_dir.exists():
         shutil.rmtree(work_dir)
@@ -44,7 +43,6 @@ def run_uat():
         # Scenario 1: Dataset Export & Delta Learning
         # Goal: Verify that ZBL energy is correctly subtracted from DFT energy.
         # ---------------------------------------------------------------------
-        print("\n--- UAT-05-01: Dataset Export & Delta Learning ---")
 
         # Setup mock DB with synthetic data: H-H at 0.5A (repulsive).
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.5]])
@@ -68,21 +66,15 @@ def run_uat():
         delta_e = at.info["energy"]
         zbl_e = at.info["zbl_energy"]
 
-        print("Original DFT Energy: 200.0 eV")
-        print(f"Calculated ZBL Energy: {zbl_e:.2f} eV")
-        print(f"Stored Delta Energy: {delta_e:.2f} eV")
-
         if abs(delta_e - (200.0 - zbl_e)) < 1e-5:
-            print(f"{GREEN}✅ Delta Learning Correctness Verified.{RESET}")
+            pass
         else:
-            print(f"{RED}❌ Delta Learning Failed.{RESET}")
             sys.exit(1)
 
         # ---------------------------------------------------------------------
         # Scenario 2: Masking Respect
         # Goal: Verify that atoms with `force_mask` array get a corresponding `weights` array.
         # ---------------------------------------------------------------------
-        print("\n--- UAT-05-04: Masking Respect ---")
 
         at_masked = atoms.copy()
         at_masked.set_array("force_mask", np.array([1, 0]))
@@ -97,17 +89,14 @@ def run_uat():
 
         at = atoms_list[0]
         if "weights" in at.arrays and np.array_equal(at.arrays["weights"], np.array([1.0, 0.0])):
-            print(f"{GREEN}✅ Force Masking Verified.{RESET}")
+            pass
         else:
-            print(f"{RED}❌ Force Masking Failed.{RESET}")
-            print(f"Weights: {at.arrays.get('weights')}")
             sys.exit(1)
 
         # ---------------------------------------------------------------------
         # Scenario 3: Pacemaker Configuration
         # Goal: Verify that Jinja2 templates render the correct values from TrainConfig.
         # ---------------------------------------------------------------------
-        print("\n--- UAT-05-02: Pacemaker Configuration ---")
 
         template_dir = work_dir / "templates"
         template_dir.mkdir(exist_ok=True)
@@ -136,17 +125,14 @@ loss:
             yaml_content = yaml.safe_load(f)
 
         if yaml_content["cutoff"] == 5.5 and yaml_content["loss"]["kappa_f"] == 50.0:
-            print(f"{GREEN}✅ Configuration Generation Verified.{RESET}")
+            pass
         else:
-            print(f"{RED}❌ Configuration Generation Failed.{RESET}")
-            print(yaml_content)
             sys.exit(1)
 
         # ---------------------------------------------------------------------
         # Scenario 4: Training Execution & Monitoring
         # Goal: Verify the PacemakerWrapper runs the full flow and parses logs correctly.
         # ---------------------------------------------------------------------
-        print("\n--- UAT-05-03: Training Execution & Monitoring ---")
 
         wrapper = PacemakerWrapper(executable="pacemaker")
 
@@ -170,14 +156,11 @@ loss:
                 and result.rmse_forces == 0.123
                 and result.generation == 1
             ):
-                print(f"{GREEN}✅ Training Execution & Monitoring Verified.{RESET}")
+                pass
             else:
-                print(f"{RED}❌ Training Execution Failed.{RESET}")
-                print(result)
                 sys.exit(1)
 
-    except Exception as e:
-        print(f"{RED}An unexpected error occurred during UAT:{RESET} {e}")
+    except Exception:
         import traceback
 
         traceback.print_exc()

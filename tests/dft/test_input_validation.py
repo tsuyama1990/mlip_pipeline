@@ -7,7 +7,7 @@ def test_input_generator_missing_cell_raises_error():
     # If atoms object has no cell (or trivial cell), density calculation might fail or produce infinity
     # InputGenerator should handle or raise informative error?
     # Currently it might just produce invalid K-points or crash.
-    atoms = Atoms("H")  # No cell
+    Atoms("H")  # No cell
 
     # Let's verify what happens. It produced RuntimeWarning divide by zero in previous test.
     # We should probably catch that in code, but for now we verify behavior.

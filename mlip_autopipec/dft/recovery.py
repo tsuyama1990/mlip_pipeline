@@ -52,10 +52,8 @@ class RecoveryHandler:
             # Strategy: Reduce mixing beta -> Local-TF -> Increase Temp
 
             current_beta = new_params.get("mixing_beta", 0.7)
-            current_mode = (
-                new_params.get("input_data", {}).get("electrons", {}).get("mixing_mode", "plain")
-            )
-            current_degauss = new_params.get("degauss", 0.02)
+            (new_params.get("input_data", {}).get("electrons", {}).get("mixing_mode", "plain"))
+            new_params.get("degauss", 0.02)
 
             if current_beta > 0.35:
                 # Step 1: Reduce beta
@@ -78,6 +76,5 @@ class RecoveryHandler:
             return new_params
 
         # If no strategy found or fatal error
-        raise Exception(
-            f"No recovery strategy available for {error_type} with params {current_params}"
-        )
+        msg = f"No recovery strategy available for {error_type} with params {current_params}"
+        raise Exception(msg)

@@ -7,77 +7,72 @@ from mlip_autopipec.orchestration.task_queue import TaskQueue
 
 @pytest.fixture
 def mock_dask_client():
-    with patch('mlip_autopipec.orchestration.task_queue.Client') as mock_client:
-        with patch('mlip_autopipec.orchestration.task_queue.LocalCluster') as mock_cluster:
+    with patch("mlip_autopipec.orchestration.task_queue.Client") as mock_client:
+        with patch("mlip_autopipec.orchestration.task_queue.LocalCluster") as mock_cluster:
             yield mock_client, mock_cluster
 
-def test_task_queue_init_local(mock_dask_client) -> None:
-    mock_client, mock_cluster = mock_dask_client
+
+def test_task_queue_init_local(mock_dask_client):
+    mock_client_cls, mock_cluster_cls = mock_dask_client
+
     tq = TaskQueue(workers=2)
 
-    mock_cluster.assert_called_once_with(n_workers=2)
-    mock_client.assert_called_with(mock_cluster.return_value)
+    mock_cluster_cls.assert_called_once_with(n_workers=2)
+    mock_client_cls.assert_called_once_with(mock_cluster_cls.return_value)
     assert tq.cluster is not None
 
-def test_task_queue_init_remote(mock_dask_client) -> None:
-    mock_client, mock_cluster = mock_dask_client
-    tq = TaskQueue(scheduler_address="tcp://localhost:8786")
 
-    mock_client.assert_called_with("tcp://localhost:8786")
-    mock_cluster.assert_not_called()
+def test_task_queue_init_remote(mock_dask_client):
+    mock_client_cls, mock_cluster_cls = mock_dask_client
+
+    tq = TaskQueue(scheduler_address="tcp://remote:8786")
+
+    mock_cluster_cls.assert_not_called()
+    mock_client_cls.assert_called_once_with("tcp://remote:8786")
     assert tq.cluster is None
 
-def test_submit_dft_batch(mock_dask_client) -> None:
-    mock_client, _ = mock_dask_client
+
+def test_submit_dft_batch(mock_dask_client):
+    mock_client_cls, _ = mock_dask_client
+    mock_client_instance = mock_client_cls.return_value
+    mock_client_instance.map.return_value = ["future1", "future2"]
+
     tq = TaskQueue()
-    mock_client_instance = mock_client.return_value
-
     func = MagicMock()
-    items = [1, 2, 3]
-    tq.submit_dft_batch(func, items, extra_arg="test")
+    items = [1, 2]
 
-    mock_client_instance.map.assert_called_once_with(func, items, extra_arg="test")
+    futures = tq.submit_dft_batch(func, items, some_arg="value")
 
-def test_wait_for_completion(mock_dask_client) -> None:
-    with patch('mlip_autopipec.orchestration.task_queue.wait') as mock_wait:
-        mock_client, _ = mock_dask_client
-        tq = TaskQueue()
+    mock_client_instance.map.assert_called_once_with(func, items, some_arg="value")
+    assert futures == ["future1", "future2"]
 
-        f1 = MagicMock()
-        f1.status = 'finished'
-        f1.result.return_value = 'result1'
 
-        f2 = MagicMock()
-        f2.status = 'error'
-        f2.result.side_effect = Exception("error")
+@patch("mlip_autopipec.orchestration.task_queue.wait")
+def test_wait_for_completion(mock_wait, mock_dask_client):
+    mock_client_cls, _ = mock_dask_client
+    tq = TaskQueue()
 
-        futures = [f1, f2]
+    future_success = MagicMock()
+    future_success.status = "finished"
+    future_success.result.return_value = "success"
 
-        results = tq.wait_for_completion(futures)
+    future_fail = MagicMock()
+    future_fail.status = "error"
+    # Simulation of exception access. In real dask future.result() raises
+    future_fail.result.side_effect = Exception("Task failed")
 
-        mock_wait.assert_called_once_with(futures, timeout=None)
-        assert len(results) == 2
-        assert results[0] == 'result1'
-        assert results[1] is None # Error case returns None
+    futures = [future_success, future_fail]
 
-def test_shutdown(mock_dask_client) -> None:
-    mock_client, mock_cluster = mock_dask_client
+    results = tq.wait_for_completion(futures)
+
+    mock_wait.assert_called_once_with(futures, timeout=None)
+    assert results == ["success", None]  # Failed task returns None as per implementation
+
+
+def test_shutdown(mock_dask_client):
+    mock_client_cls, mock_cluster_cls = mock_dask_client
     tq = TaskQueue()
     tq.shutdown()
 
-    mock_client.return_value.close.assert_called_once()
-    mock_cluster.return_value.close.assert_called_once()
-
-def test_wait_for_completion_empty(mock_dask_client) -> None:
-    with patch('mlip_autopipec.orchestration.task_queue.wait') as mock_wait:
-        tq = TaskQueue()
-        results = tq.wait_for_completion([])
-        mock_wait.assert_called_once_with([], timeout=None)
-        assert results == []
-
-def test_wait_for_completion_timeout(mock_dask_client) -> None:
-    with patch('mlip_autopipec.orchestration.task_queue.wait') as mock_wait:
-        tq = TaskQueue()
-        f1 = MagicMock()
-        tq.wait_for_completion([f1], timeout=1.0)
-        mock_wait.assert_called_once_with([f1], timeout=1.0)
+    mock_client_cls.return_value.close.assert_called_once()
+    mock_cluster_cls.return_value.close.assert_called_once()

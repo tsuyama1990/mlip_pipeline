@@ -30,7 +30,7 @@ class DatasetBuilder:
         zbl_calc: Calculator for ZBL baseline energy/forces.
     """
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(self, db_manager: DatabaseManager) -> None:
         """
         Initialize the DatasetBuilder.
 
@@ -94,7 +94,8 @@ class DatasetBuilder:
 
         if not all_atoms:
             logger.error("No training data found in database.")
-            raise ValueError("No training data found in database.")
+            msg = "No training data found in database."
+            raise ValueError(msg)
 
         return all_atoms
 
@@ -130,7 +131,7 @@ class DatasetBuilder:
             # Need to convert numpy array to list for Pydantic
             TrainingData(energy=float(at.info["energy"]), forces=at.arrays["forces"].tolist())
         except (ValidationError, ValueError) as e:
-            logger.error(f"Skipping atom due to validation failure: {e}")
+            logger.exception(f"Skipping atom due to validation failure: {e}")
             return None
 
         # Handle Force Masking
@@ -158,7 +159,8 @@ class DatasetBuilder:
 
         if not train_set:
             logger.error("Training set is empty after splitting.")
-            raise ValueError("Training set is empty.")
+            msg = "Training set is empty."
+            raise ValueError(msg)
 
         return train_set, test_set
 
@@ -210,7 +212,8 @@ class DatasetBuilder:
 
         if not processed_atoms:
             logger.error("No valid atoms remaining after processing.")
-            raise ValueError("No valid atoms found after processing.")
+            msg = "No valid atoms found after processing."
+            raise ValueError(msg)
 
         # 3. Split Train/Test
         train_set, test_set = self._split_dataset(processed_atoms, config)

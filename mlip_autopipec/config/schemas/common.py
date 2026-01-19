@@ -16,7 +16,8 @@ class Composition(RootModel[dict[str, float]]):
         from ase.data import chemical_symbols
 
         if not v:
-            raise ValueError("Composition dictionary cannot be empty.")
+            msg = "Composition dictionary cannot be empty."
+            raise ValueError(msg)
 
         # Check sum
         if not abs(sum(v.values()) - 1.0) < 1e-6:

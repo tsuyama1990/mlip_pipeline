@@ -8,10 +8,11 @@ from mlip_autopipec.config.schemas.training import TrainConfig
 class TrainConfigGenerator:
     """Generates Pacemaker configuration files."""
 
-    def __init__(self, template_path: Path):
+    def __init__(self, template_path: Path) -> None:
         self.template_path = template_path
         if not self.template_path.exists():
-            raise FileNotFoundError(f"Template not found at {self.template_path}")
+            msg = f"Template not found at {self.template_path}"
+            raise FileNotFoundError(msg)
 
     def generate(
         self, config: TrainConfig, data_path: Path, output_path: Path, elements: list[str]

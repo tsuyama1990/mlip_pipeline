@@ -35,7 +35,7 @@ class SurrogateExplorer:
                 thresholds, and fingerprint settings.
     """
 
-    def __init__(self, config: ExplorerConfig):
+    def __init__(self, config: ExplorerConfig) -> None:
         self.config = config
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.mace_model = mace_mp(model=self.config.surrogate_model_path, device=self.device)
@@ -55,7 +55,8 @@ class SurrogateExplorer:
                 average="inner",
             )
         # This can be extended to support other fingerprint types
-        raise NotImplementedError(f"Fingerprint type '{fp_config.type}' not supported.")
+        msg = f"Fingerprint type '{fp_config.type}' not supported."
+        raise NotImplementedError(msg)
 
     def select(self, structures: list[Atoms], num_to_select: int) -> list[Atoms]:
         """
@@ -77,8 +78,7 @@ class SurrogateExplorer:
         fingerprints = self._calculate_fingerprints(screened_structures)
         selected_indices = self._farthest_point_sampling(fingerprints, num_to_select)
 
-        final_selection = [screened_structures[i] for i in selected_indices]
-        return final_selection
+        return [screened_structures[i] for i in selected_indices]
 
     def _pre_screen_structures(self, structures: list[Atoms]) -> list[Atoms]:
         """

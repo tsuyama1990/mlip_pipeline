@@ -59,7 +59,9 @@ class DescriptorResult(BaseModel):
         import numpy as np
 
         if not isinstance(v, np.ndarray):
-            raise TypeError("Features must be a numpy array.")
+            msg = "Features must be a numpy array."
+            raise TypeError(msg)
         if v.ndim != 2:
-            raise ValueError(f"Features must be 2D array, got {v.ndim}D.")
+            msg = f"Features must be 2D array, got {v.ndim}D."
+            raise ValueError(msg)
         return v
