@@ -21,14 +21,11 @@ See `pyproject.toml` for the full list and version constraints.
 
 ## Cycles
 
-### Cycle 01: Core Framework & User Interface
-- **Strict Schema**: `MinimalConfig` & `SystemConfig`.
-- **Data Persistence**: `DatabaseManager` (ASE-db).
-- **CLI Initialization**.
-
-### Cycle 02: Automated DFT Factory
-- **Autonomous Execution**: `QERunner`.
-- **Auto-Recovery**: `RecoveryHandler`.
+### Cycle 01: Core Framework & DFT Factory
+- **Strict Schema**: `DFTConfig` & `GlobalConfig` using Pydantic.
+- **Data Persistence**: `DatabaseManager` (ASE-db) with schema validation.
+- **DFT Factory**: `QERunner` for robust Quantum Espresso execution.
+- **Parsers**: `QEOutputParser` for strictly validating output data.
 
 ### Cycle 03: Structure Generator
 - **Generators**: SQS, NMS, Defects.

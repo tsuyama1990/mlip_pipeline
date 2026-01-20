@@ -5,9 +5,66 @@ Module for parsing Quantum Espresso output files.
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from ase.io import read as ase_read
 
 from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.exceptions import DFTError
+
+
+def parse_pw_output(
+    output_path: Path,
+    uid: str,
+    wall_time: float,
+    parameters: dict[str, Any],
+) -> DFTResult:
+    """
+    Parses the `espresso.pwo` output file of a successful QE run.
+    """
+    if not output_path.exists():
+        msg = f"Output file {output_path} does not exist."
+        raise DFTError(msg)
+
+    content = output_path.read_text()
+    if "JOB DONE" not in content:
+        msg = "DFT calculation did not complete successfully (JOB DONE not found)."
+        raise DFTError(msg)
+
+    try:
+        atoms_out = ase_read(output_path, format="espresso-out")
+    except Exception as e:
+        msg = f"Failed to parse output: {e}"
+        raise DFTError(msg) from e
+
+    energy = atoms_out.get_potential_energy()
+    forces = atoms_out.get_forces()
+
+    # stress in ASE can be Voigt (6 elements) or 3x3
+    # Spec wants 3x3.
+    stress = atoms_out.get_stress(voigt=False)
+
+    # Sanity check
+    if np.isnan(forces).any() or np.isinf(forces).any():
+        msg = "Forces contain NaN or Inf."
+        raise DFTError(msg)
+
+    if hasattr(forces, "tolist"):
+        forces = forces.tolist()
+    if hasattr(stress, "tolist"):
+        stress = stress.tolist()
+
+    final_beta = parameters.get("mixing_beta", 0.7)
+
+    return DFTResult(
+        uid=uid,
+        energy=energy,
+        forces=forces,
+        stress=stress,
+        succeeded=True,
+        wall_time=wall_time,
+        parameters=parameters,
+        final_mixing_beta=final_beta,
+    )
 
 
 class QEOutputParser:

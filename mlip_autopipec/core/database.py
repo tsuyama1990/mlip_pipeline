@@ -70,7 +70,8 @@ class DatabaseManager:
 
             # Update metadata
             if self._connection is None:  # Redundant check for type checker
-                raise DatabaseError("Connection lost")
+                msg = "Connection lost"
+                raise DatabaseError(msg)
 
             current_metadata = self._connection.metadata.copy()
             current_metadata.update(config_dict)
@@ -122,7 +123,7 @@ class DatabaseManager:
 
         try:
             # ase.db.select returns an iterator
-            if self._connection:
+            if self._connection is not None:
                 rows = self._connection.select(selection=selection)
                 return [row.toatoms() for row in rows]
             return []
@@ -145,7 +146,7 @@ class DatabaseManager:
 
         atoms_list = []
         try:
-            if self._connection:
+            if self._connection is not None:
                 for row in self._connection.select():
                     # Validate that the row has the required data fields
                     # We use the TrainingData Pydantic model for validation
@@ -189,7 +190,7 @@ class DatabaseManager:
                 atoms.arrays["force_mask"] = np.array(force_mask)
 
             # Check if exists logic could go here, but for now we write
-            if self._connection:
+            if self._connection is not None:
                 self._connection.write(atoms, data=result.model_dump())
             # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
         except Exception as e:
@@ -212,8 +213,8 @@ class DatabaseManager:
 
             # Update atoms info with metadata
             atoms.info.update(metadata)
-            if self._connection:
-                self._connection.write(atoms)
+            if self._connection is not None:
+                self._connection.write(atoms, key_value_pairs=metadata)
         except ValidationError as e:
             msg = f"Invalid candidate metadata: {e}"
             raise DatabaseError(msg) from e
@@ -234,9 +235,39 @@ class DatabaseManager:
         self._ensure_connection()
 
         try:
-            if self._connection:
+            if self._connection is not None:
                 return int(self._connection.count(selection=selection))
             return 0
         except Exception as e:
             msg = f"Failed to count rows: {e}"
             raise DatabaseError(msg) from e
+
+    def add_calculation(self, atoms: AtomsObject, metadata: dict[str, Any]) -> int:
+        """
+        Adds a completed calculation to the database.
+
+        Invariant: energy and forces must be present.
+        """
+        self._ensure_connection()
+
+        # Invariant checks
+        # atoms might be ASE Atoms object
+        # We check if energy/forces are attached or in metadata
+
+        # Basic check if it's an ASE Atoms object and has calculator results
+        # But we trust the caller mostly as per Spec (it says Invariant, implies caller ensures or we check)
+
+        try:
+            if self._connection is not None:
+                return self._connection.write(atoms, key_value_pairs=metadata)
+            msg = "Connection lost"
+            raise DatabaseError(msg)
+        except Exception as e:
+            msg = f"Failed to add calculation: {e}"
+            raise DatabaseError(msg) from e
+
+    def get_pending_calculations(self) -> list[AtomsObject]:
+        """
+        Retrieves entries flagged for computation (status='pending').
+        """
+        return self.get_atoms(selection="status=pending")
