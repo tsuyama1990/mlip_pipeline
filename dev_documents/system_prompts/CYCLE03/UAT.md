@@ -1,105 +1,56 @@
-# CYCLE03: The Training Engine (UAT.md)
+# Cycle 03 UAT: Physics-Informed Generator
 
 ## 1. Test Scenarios
 
-User Acceptance Testing (UAT) for Cycle 3 focuses on verifying that the Training Engine can successfully take a dataset of DFT calculations and produce a valid, usable Machine Learning Interatomic Potential (MLIP). The key user experience is one of confidence and verification: seeing the system transform raw data into a tangible, functional model. The UAT will be conducted within a Jupyter Notebook, which allows for clear, step-by-step execution and provides opportunities to inspect the inputs and outputs, thereby demystifying the training process.
+| ID | Priority | Name | Description |
+| :--- | :--- | :--- | :--- |
+| **UAT-03-01** | High | **Alloy SQS Generation** | Verify that the system can generate a Special Quasirandom Structure (SQS) for a specified binary composition (e.g., Fe-Ni 70:30) that matches the target stoichiometry exactly. The structure should be periodic and space-filling. |
+| **UAT-03-02** | Medium | **Distortion Pipeline** | Verify that the system can take a base structure and generate a "family" of distorted structures including volumetric strain, shear strain, and thermal rattling. The volume changes should match the inputs. |
+| **UAT-03-03** | Low | **Molecule NMS** | Verify that for a molecular system (e.g., H2O), the system generates distorted geometries corresponding to bending and stretching modes at specified temperatures. |
+| **UAT-03-04** | High | **Metadata Integrity** | Verify that every generated structure includes the correct metadata (config_type, parents, distortion parameters) which is crucial for the learning process. |
 
-| Scenario ID   | Test Scenario                                             | Priority |
-|---------------|-----------------------------------------------------------|----------|
-| UAT-C3-001    | **Successful End-to-End Training Run**                    | **High**     |
-| UAT-C3-002    | **Verification of a Trained Potential**                   | **High**     |
-| UAT-C3-003    | **Handling of Training Process Failure**                  | **Medium**   |
-
----
-
-### **Scenario UAT-C3-001: Successful End-to-End Training Run**
-
-**(Min 300 words)**
-
-**Description:**
-This is the primary "happy path" scenario for the training module. Its goal is to provide the user with a clear, observable demonstration of the entire training process from start to finish. The user will see the system gather data from a database, prepare the necessary files for the Pacemaker training code, execute the training, and finally report the location of the newly created potential file. This scenario is crucial for building trust in the automation, showing that the system can correctly orchestrate all the necessary steps without any manual intervention.
-
-**UAT Steps in Jupyter Notebook:**
-1.  **Setup:** The notebook will import the `PacemakerTrainer` class and other utilities. It will define paths for a temporary working directory and a test ASE database.
-2.  **Prepare the Dataset:** The notebook will programmatically create a small but valid ASE database. It will add 20-30 `ase.Atoms` objects with pre-calculated energy and forces. This ensures the UAT is self-contained and reproducible. The notebook will display a message confirming the dataset's creation, for instance: "Created a test database with 25 Silicon structures."
-3.  **Configure the Trainer:** An instance of the `TrainingConfig` Pydantic model will be created. The notebook will display this configuration object, making the settings for the run (like paths and learning flags) transparent to the user.
-4.  **Instantiate and Run:** A `PacemakerTrainer` object will be instantiated with the configuration. The notebook will then call the `trainer.train()` method in a new cell.
-5.  **Live Log Streaming (User Amazement):** To make the process engaging, the notebook will be configured to stream the `stdout` from the Pacemaker subprocess in real-time. The user will see the training log appear directly in the notebook output, showing the optimisation steps, the decreasing loss function (RMSE), and the final confirmation message from the training code. This provides a powerful visual confirmation that a complex process is running successfully.
-6.  **Report the Outcome:** Upon successful completion, the `train` method will return the path to the potential file. The notebook will print a clear, congratulatory message: "✅ Training completed successfully! The new potential is located at: `/path/to/temporary/dir/potential.yace`". This tangible output is the key deliverable for the user.
-
----
-
-### **Scenario UAT-C3-002: Verification of a Trained Potential**
-
-**(Min 300 words)**
-
-**Description:**
-Simply creating a potential file is not enough; the user needs confidence that the potential is actually functional and has learned from the training data. This UAT scenario goes one step further than the previous one. After successfully training a potential, it will immediately load that potential and use it to predict the energy and forces for a structure from the original training set. By comparing the MLIP's prediction to the original DFT "ground truth," the user can directly verify that the model has learned correctly. This provides a powerful and intuitive measure of the model's quality and closes the loop on the training process.
-
-**UAT Steps in Jupyter Notebook:**
-1.  **Prerequisite:** This scenario runs immediately after UAT-C3-001 in the same notebook, using the `.yace` file that was just created.
-2.  **Select a Test Structure:** The notebook will connect to the same test ASE database used for training and select one structure that was part of the training set. It will store the original DFT energy and forces from this structure as the "ground truth."
-3.  **Load the New Potential:** The notebook will use a suitable library (like `pyace` or an ASE calculator interface for the `.yace` format) to load the potential from the file path returned by the trainer.
-4.  **Perform Prediction:** An ASE calculator object will be created using the loaded MLIP. This calculator will be attached to the test structure, and the notebook will call `atoms.get_potential_energy()` and `atoms.get_forces()` to get the MLIP's predictions.
-5.  **Compare and Visualise:** The core of this UAT is the comparison. The notebook will display a clean, formatted table:
-    | Property | DFT Ground Truth | MLIP Prediction | Difference |
-    |----------|------------------|-----------------|------------|
-    | Energy   | -100.5 eV        | -100.4 eV       | 0.1 eV     |
-    The notebook will also generate a scatter plot comparing the DFT forces to the MLIP forces for that structure. The points should lie very close to the y=x line, providing immediate visual confirmation of the model's accuracy.
-6.  **Explanation:** A markdown cell will conclude: "The comparison above shows that the energy predicted by our newly trained potential is very close to the original DFT value. The force plot demonstrates that the potential has successfully learned to reproduce the atomic forces from the training data. The model is now ready for use in simulations."
-
----
+### Recommended Demo
+Create `demo_03_generator.ipynb`.
+1.  **Block 1**: Configure `GeneratorConfig` for "Fe70Ni30" with 32 atoms.
+2.  **Block 2**: Run `AlloyGenerator`.
+3.  **Block 3**: Visualize the resulting SQS using `ase.visualize` (or a static 2D plot of atomic positions).
+4.  **Block 4**: Print the chemical formula (should be Fe22Ni10 or similar).
+5.  **Block 5**: Apply 5% strain and 0.1A rattling. Plot the Radial Distribution Function (RDF) of the original vs. distorted structure to show the broadening of peaks.
+6.  **Block 6**: Show the `atoms.info` dictionary for a generated structure.
 
 ## 2. Behavior Definitions
 
-This section defines the expected behaviors of the system in the Gherkin-style Given/When/Then format.
+### Scenario: SQS Generation
+**GIVEN** a target composition of Fe 50%, Ni 50%.
+**AND** a supercell size of 32 atoms.
+**WHEN** the generator is executed.
+**THEN** it should produce an `Atoms` object.
+**AND** `atoms.get_chemical_symbols().count('Fe')` should be 16.
+**AND** `atoms.get_chemical_symbols().count('Ni')` should be 16.
+**AND** the structure should possess periodic boundary conditions.
+**AND** the `config_type` should be `sqs`.
 
-### **UAT-C3-001: Successful End-to-End Training Run**
+### Scenario: Strain and Rattling
+**GIVEN** a cubic unit cell with side length 10.0 (Volume 1000.0).
+**WHEN** `apply_strain` is called with a strain tensor corresponding to +10% hydrostatic expansion.
+**THEN** the returned atom's cell volume should be approximately 1100.0.
+**WHEN** `apply_rattle` is called with `sigma=0.1`.
+**THEN** the atomic positions should differ from the original positions.
+**AND** the cell vectors should remain unchanged.
+**AND** the RMS displacement should be approximately 0.17 (sqrt(3)*0.1).
 
-```gherkin
-Feature: MLIP Model Training
-  As a materials scientist,
-  I want to train an MLIP from a dataset of DFT calculations,
-  So that I can create a fast and accurate potential for simulations.
+### Scenario: Metadata Tagging
+**GIVEN** a generation pipeline.
+**WHEN** a rattled structure is produced.
+**THEN** `atoms.info` dictionary should contain:
+    -   `config_type`: "rattled"
+    -   `parent_id`: (ID of the SQS)
+    -   `sigma`: 0.1
+**THIS** allows us to filter the database later (e.g., "Select only undistorted structures").
 
-  Scenario: A valid dataset is used to successfully train a potential
-    Given a database containing at least 20 valid DFT-calculated structures with energies and forces
-    And a correctly configured Training Engine pointing to the database and a valid Pacemaker executable
-    When I execute the training process
-    Then the process should complete successfully without errors
-    And the system should report the file path of a newly created potential file
-    And the potential file should have a `.yace` extension.
-```
-
-### **UAT-C3-002: Verification of a Trained Potential**
-
-```gherkin
-Feature: Trained Potential Validation
-  As a researcher,
-  I want to verify that a trained potential is accurate,
-  So that I can trust it for further scientific simulations.
-
-  Scenario: Use a trained potential to predict forces and compare to ground truth
-    Given a potential file that was successfully trained on a specific dataset
-    And one atomic structure from that original dataset with its known DFT forces
-    When I load the potential and use it to calculate the forces for that structure
-    Then the calculated forces from the potential should closely match the known DFT forces
-    And the Root Mean Squared Error (RMSE) between the potential's forces and the DFT forces should be below a small threshold (e.g., 0.1 eV/Angstrom).
-```
-
-### **UAT-C3-003: Handling of Training Process Failure**
-
-```gherkin
-Feature: Robustness in the Training Process
-  As a user of an automated system,
-  I want the system to handle failures gracefully and provide clear feedback,
-  So that I can diagnose problems effectively.
-
-  Scenario: The external training executable fails with an error
-    Given a dataset that is intentionally corrupted (e.g., missing forces on some structures) which is known to cause the Pacemaker code to fail
-    And a correctly configured Training Engine
-    When I execute the training process
-    Then the training process should fail
-    And the system should not crash, but should instead raise a specific, informative Python exception (e.g., `TrainingError`)
-    And the exception message should contain the captured error log from the failed external process, allowing for diagnosis.
-```
+### Scenario: Vacancy Generation
+**GIVEN** a perfect 2x2x2 supercell of Silicon (8 atoms).
+**WHEN** `create_vacancy` is requested.
+**THEN** the result should be a list containing at least one structure.
+**AND** the structure should contain 7 atoms.
+**AND** the cell dimensions should match the input.

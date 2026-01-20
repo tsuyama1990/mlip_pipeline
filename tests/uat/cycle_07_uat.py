@@ -1,121 +1,182 @@
+import sys
 
-import subprocess
-from pathlib import Path
+import numpy as np
+from ase import Atoms
+from ase.build import bulk
 
-# ANSI colors for output
+from mlip_autopipec.config.schemas.inference import EmbeddingConfig
+from mlip_autopipec.inference.embedding import EmbeddingExtractor
+from mlip_autopipec.inference.masking import ForceMasker
+
+# Colors
 GREEN = "\033[92m"
 RED = "\033[91m"
 RESET = "\033[0m"
 
-def run_command(command, description):
-    print(f"\n--- {description} ---")
-    print(f"Running: {' '.join(command)}")
+def run_uat():
+    print("Starting UAT for Cycle 07: Scalable Inference Engine (Part 2)")
+
+    # ---------------------------------------------------------
+    # UAT-07-01: Local Environment Extraction
+    # ---------------------------------------------------------
+    print("\n--- UAT-07-01: Local Environment Extraction ---")
     try:
-        result = subprocess.run(
-            command, capture_output=True, text=True, check=False
-        )
-        print(f"Exit Code: {result.returncode}")
-        if result.stdout:
-            print(f"STDOUT:\n{result.stdout.strip()}")
-        if result.stderr:
-            print(f"STDERR:\n{result.stderr.strip()}")
-        return result
+        # Create supercell
+        atoms = bulk("Al", "fcc", a=4.05, cubic=True) * (5, 5, 5) # 125 atoms
+        center_idx = 62
+
+        config = EmbeddingConfig(core_radius=4.0, buffer_width=2.0)
+        extractor = EmbeddingExtractor(config)
+
+        extracted = extractor.extract(atoms, center_idx)
+        cluster = extracted.atoms
+
+        print(f"Original atoms: {len(atoms)}")
+        print(f"Cluster atoms: {len(cluster)}")
+
+        # Verify size (approximate)
+        # Expected: 4.05 neighbor dist ~ 2.86
+        # Radius 6.0 covers ~4 shells.
+        # Just check it's small but not empty
+        if 10 < len(cluster) < 100:
+             print(f"{GREEN}✅ Extraction size reasonable ({len(cluster)}){RESET}")
+        else:
+             print(f"{RED}❌ Extraction size suspicious ({len(cluster)}){RESET}")
+             sys.exit(1)
+
+        # Verify box
+        L = config.box_size
+        cell = cluster.get_cell()
+        expected_cell = np.diag([L, L, L])
+
+        if np.allclose(cell, expected_cell):
+             print(f"{GREEN}✅ Box size correct ({L}){RESET}")
+        else:
+             print(f"{RED}❌ Box size incorrect{RESET}")
+             print(f"Got:\n{cell}")
+             print(f"Expected:\n{expected_cell}")
+             sys.exit(1)
+
     except Exception as e:
-        print(f"{RED}Execution failed: {e}{RESET}")
-        return None
+        print(f"{RED}❌ Extraction failed: {e}{RESET}")
+        sys.exit(1)
 
-def main():
-    print("Starting UAT for Cycle 07: CLI User Interface")
-
-    # Setup
-    work_dir = Path("uat_cycle_07")
-    work_dir.mkdir(exist_ok=True)
-
-    # Scenario UAT-C7-001: "Happy Path" Workflow Execution
-    # Note: This will fail if external dependencies (QE, etc.) are not mocked or available.
-    # However, UAT usually runs against the deployed app.
-    # Since we can't easily mock internal calls of the subprocess without complex tricks,
-    # we expect this to fail at the "Workflow Initialization" or "Execution" stage
-    # if dependencies are missing, but the CLI parsing should SUCCEED.
-    # We will interpret "success" here as the CLI correctly accepting the file and starting.
-
-    happy_path_yaml = work_dir / "happy_path.yaml"
-    with open(happy_path_yaml, "w") as f:
-        f.write("""
-project_name: "UAT Happy Path Test"
-target_system:
-  elements: ["Si"]
-  composition: { "Si": 1.0 }
-  crystal_structure: "diamond"
-simulation_goal:
-  type: "elastic"
-""")
-
-    # We expect this to likely fail deep in the workflow (e.g. creating directories, finding executables),
-    # but we want to verify the CLI *started* it.
-    # Actually, ConfigFactory creates objects. WorkflowManager init creates checkpoint.
-    # This might actually work up to a point!
-    res = run_command(["mlip-auto", "run", str(happy_path_yaml)], "UAT-C7-001: Happy Path")
-
-    if res.returncode == 0:
-        print(f"{GREEN}✅ Happy Path Success (Fully completed){RESET}")
-    elif "Starting Workflow" in res.stdout:
-        print(f"{GREEN}✅ Happy Path Success (CLI started workflow, failure downstream expected in dev env){RESET}")
-    else:
-        # It might fail earlier if ConfigFactory fails
-        print(f"{RED}❌ Happy Path Failed to start workflow{RESET}")
-
-
-    # Scenario UAT-C7-002: Helpful Messages for Command-Line Errors
-
-    # Case 1: Missing Argument
-    res = run_command(["mlip-auto", "run"], "UAT-C7-002: Missing Argument")
-    if res.returncode != 0 and "Missing argument 'CONFIG_FILE'" in res.stderr:
-        print(f"{GREEN}✅ Verified missing argument error{RESET}")
-    else:
-        print(f"{RED}❌ Failed to verify missing argument error{RESET}")
-
-    # Case 2: File Not Found
-    res = run_command(["mlip-auto", "run", "no_such_file.yaml"], "UAT-C7-002: File Not Found")
-    if res.returncode != 0 and "does not exist" in (res.stderr + res.stdout): # Typer output varies
-        print(f"{GREEN}✅ Verified file not found error{RESET}")
-    else:
-        print(f"{RED}❌ Failed to verify file not found error{RESET}")
-
-    # Case 3: Help Command
-    res = run_command(["mlip-auto", "run", "--help"], "UAT-C7-002: Help Command")
-    if res.returncode == 0 and "Usage" in res.stdout:
-        print(f"{GREEN}✅ Verified help command{RESET}")
-    else:
-        print(f"{RED}❌ Failed to verify help command{RESET}")
-
-
-    # Scenario UAT-C7-003: Graceful Handling of Invalid Configuration Files
-
-    invalid_yaml = work_dir / "invalid.yaml"
-    with open(invalid_yaml, "w") as f:
-        f.write("""
-project_name: "UAT Invalid Test"
-target_system:
-  elements: ["Si"]
-  composition: { "Si": 0.5 } # Invalid sum
-  crystal_structure: "diamond"
-simulation_goal:
-  type: "elastic"
-""")
-
-    res = run_command(["mlip-auto", "run", str(invalid_yaml)], "UAT-C7-003: Invalid Configuration")
-    if res.returncode != 0 and "Configuration validation failed" in res.stdout:
-        print(f"{GREEN}✅ Verified invalid configuration handling{RESET}")
-    else:
-        print(f"{RED}❌ Failed to verify invalid configuration handling{RESET}")
-
-    # Cleanup
-    import shutil
+    # ---------------------------------------------------------
+    # UAT-07-02: Force Mask Generation
+    # ---------------------------------------------------------
+    print("\n--- UAT-07-02: Force Mask Generation ---")
     try:
-        shutil.rmtree(work_dir)
-    except:
-        pass
+        masker = ForceMasker()
+        # Box center
+        L = config.box_size
+        center = np.array([L/2.0, L/2.0, L/2.0])
+
+        masker.apply(cluster, center, config.core_radius)
+
+        if "force_mask" in cluster.arrays:
+            mask = cluster.arrays["force_mask"]
+            print(f"{GREEN}✅ force_mask array created{RESET}")
+        else:
+            print(f"{RED}❌ force_mask missing{RESET}")
+            sys.exit(1)
+
+        # Verify values
+        # Check an atom known to be in core (the center one ideally)
+        # We need to find the atom at center
+        positions = cluster.get_positions()
+        dists = np.linalg.norm(positions - center, axis=1)
+
+        # There should be at least one atom very close to center (the focal atom)
+        if np.min(dists) < 0.1:
+            print(f"{GREEN}✅ Focal atom found at center{RESET}")
+        else:
+            print(f"{RED}❌ Focal atom not at center (min dist {np.min(dists)}){RESET}")
+
+        # Check correlation
+        # Mask should be 1 if dist <= core, 0 otherwise
+        valid_mask = True
+        for d, m in zip(dists, mask):
+            expected = 1.0 if d <= config.core_radius else 0.0
+            if m != expected:
+                valid_mask = False
+                print(f"Mismatch: dist={d}, mask={m}, expected={expected}")
+                break
+
+        if valid_mask:
+            print(f"{GREEN}✅ Mask logic correct{RESET}")
+        else:
+            print(f"{RED}❌ Mask logic incorrect{RESET}")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"{RED}❌ Masking failed: {e}{RESET}")
+        sys.exit(1)
+
+    # ---------------------------------------------------------
+    # UAT-07-03: Periodic Box Wrapping
+    # ---------------------------------------------------------
+    print("\n--- UAT-07-03: Periodic Box Wrapping ---")
+    try:
+        # Create small system to force wrapping
+        # 10x10x10 box
+        # Atom at 0.1, neighbor at 9.9
+        test_atoms = Atoms("H2", positions=[[0.1, 0.1, 0.1], [9.9, 0.1, 0.1]], cell=[10, 10, 10], pbc=True)
+        # Distance is 0.2
+
+        # Extract around 0.1
+        # Config large enough to capture neighbor
+        cfg = EmbeddingConfig(core_radius=2.0, buffer_width=1.0) # Total 3.0
+
+        ext = EmbeddingExtractor(cfg)
+        res = ext.extract(test_atoms, 0)
+
+        # Should have 2 atoms
+        if len(res.atoms) == 2:
+             print(f"{GREEN}✅ Neighbor across boundary captured{RESET}")
+        else:
+             print(f"{RED}❌ Neighbor missing (count {len(res.atoms)}){RESET}")
+             sys.exit(1)
+
+        # Check distance in new cluster
+        d = res.atoms.get_distance(0, 1, mic=True)
+        if abs(d - 0.2) < 1e-4:
+             print(f"{GREEN}✅ Distance preserved ({d}){RESET}")
+        else:
+             print(f"{RED}❌ Distance distorted ({d}){RESET}")
+             sys.exit(1)
+
+    except Exception as e:
+         print(f"{RED}❌ PBC test failed: {e}{RESET}")
+         sys.exit(1)
+
+    # ---------------------------------------------------------
+    # UAT-07-04: Metadata Tracing
+    # ---------------------------------------------------------
+    print("\n--- UAT-07-04: Metadata Tracing ---")
+    try:
+        # In step 1 we used `atoms` which didn't have uuid.
+        # Let's add uuid to atoms and retry
+        atoms.info["uuid"] = "test-uuid-123"
+
+        extracted = extractor.extract(atoms, center_idx)
+
+        if extracted.origin_uuid == "test-uuid-123":
+             print(f"{GREEN}✅ UUID preserved{RESET}")
+        else:
+             print(f"{RED}❌ UUID mismatch ({extracted.origin_uuid}){RESET}")
+             sys.exit(1)
+
+        if extracted.origin_index == center_idx:
+             print(f"{GREEN}✅ Origin index preserved{RESET}")
+        else:
+             print(f"{RED}❌ Origin index mismatch{RESET}")
+             sys.exit(1)
+
+    except Exception as e:
+         print(f"{RED}❌ Metadata test failed: {e}{RESET}")
+         sys.exit(1)
+
+    print(f"\n{GREEN}🎉 Cycle 07 UAT Passed!{RESET}")
 
 if __name__ == "__main__":
-    main()
+    run_uat()

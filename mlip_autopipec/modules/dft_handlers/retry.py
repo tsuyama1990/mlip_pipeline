@@ -1,6 +1,7 @@
 """
 Retry handler for DFT calculations.
 """
+
 import logging
 from typing import Any
 

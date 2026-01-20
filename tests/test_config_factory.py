@@ -1,27 +1,31 @@
-"""Unit tests for the ConfigFactory module."""
-
-from uuid import UUID
+import pytest
+import yaml
 
 from mlip_autopipec.config.factory import ConfigFactory
-from mlip_autopipec.config.models import UserInputConfig
+from mlip_autopipec.exceptions import ConfigError
 
 
-def test_config_factory_from_user_input():
-    """Test that the ConfigFactory correctly expands a UserInputConfig."""
-    user_config_dict = {
-        "project_name": "test_project",
-        "target_system": {
-            "elements": ["Ni"],
-            "composition": {"Ni": 1.0},
-            "crystal_structure": "fcc",
-        },
-        "simulation_goal": {"type": "melt_quench"},
-    }
-    user_config = UserInputConfig.model_validate(user_config_dict)
+def test_config_factory_file_not_found(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        ConfigFactory.from_yaml(tmp_path / "nonexistent.yaml")
 
-    system_config = ConfigFactory.from_user_input(user_config)
 
-    assert system_config.project_name == "test_project"
-    assert isinstance(system_config.run_uuid, UUID)
-    assert system_config.explorer_config.fingerprint.species == ["Ni"]
-    assert system_config.dft_config.dft_input_params.magnetism is not None
+def test_config_factory_invalid_yaml(tmp_path):
+    p = tmp_path / "invalid.yaml"
+    # Create definitely invalid YAML
+    p.write_text("key: value\n\tinvalid tab")
+
+    with pytest.raises(ConfigError) as excinfo:
+        ConfigFactory.from_yaml(p)
+    assert "Failed to parse YAML" in str(excinfo.value)
+
+
+def test_config_factory_invalid_schema(tmp_path):
+    p = tmp_path / "bad_schema.yaml"
+    data = {"project_name": "Test"}  # Missing other required fields
+    with p.open("w") as f:
+        yaml.dump(data, f)
+
+    with pytest.raises(ConfigError) as excinfo:
+        ConfigFactory.from_yaml(p)
+    assert "Configuration validation failed" in str(excinfo.value)

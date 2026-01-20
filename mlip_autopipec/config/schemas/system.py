@@ -2,59 +2,86 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .common import TargetSystem
+from .common import MinimalConfig, TargetSystem
 from .dft import DFTConfig
 from .exploration import ExplorerConfig, ExplorerParams, GeneratorParams
+from .generator import GeneratorConfig
 from .inference import InferenceConfig
 from .training import TrainingConfig, TrainingRunMetrics
 
 
 class WorkflowConfig(BaseModel):
-    checkpoint_filename: str = "checkpoint.json"
+    checkpoint_file_path: str = "checkpoint.json"
     model_config = ConfigDict(extra="forbid")
+
 
 class DaskConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scheduler_address: str | None = Field(None)
 
+
 class SystemConfig(BaseModel):
     """
     Comprehensive configuration for the MLIP-AutoPipe system.
-    Most fields are optional to allow for incremental configuration or testing of specific modules,
-    but in a full production run, the relevant sections must be present.
+    Cycle 01 strict schema + Optional future fields for compatibility.
     """
-    project_name: str
-    run_uuid: UUID
-    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
 
-    # Core System Definition (Optional primarily for component-level testing)
-    target_system: TargetSystem | None = None
+    minimal: MinimalConfig
+    working_dir: Path
+    db_path: Path
+    log_path: Path
 
-    # Module Configurations
+    # Optional Fields for future Cycles
+    project_name: str | None = None  # Duplicate of minimal.project_name but kept for compatibility
+    run_uuid: UUID | None = None
+    workflow_config: WorkflowConfig | None = None
+
+    # Optional Module Configurations
+    target_system: TargetSystem | None = None  # Duplicate of minimal.target_system
     dft_config: DFTConfig | None = None
     explorer_config: ExplorerConfig | None = None
+    surrogate_config: Any | None = None # For compatibility with orchestration
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
+    generator_config: GeneratorConfig | None = None
 
     # Legacy / Transition Fields (Deprecated)
     generator: GeneratorParams | None = None
     explorer: ExplorerParams | None = None
     dask: DaskConfig | None = None
-    dft: DFTConfig | None = None # Legacy alias
+    dft: DFTConfig | None = None  # Legacy alias
 
-    db_path: str = "mlip_database.db"
-
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     @field_validator("db_path")
     @classmethod
-    def validate_db_path(cls, v: str) -> str:
-        import os
-        if ".." in v or os.path.isabs(v):
-            raise ValueError("db_path must be a relative path.")
+    def validate_db_path(cls, v: Path) -> Path:
+        # Check if absolute path or safe relative path logic if needed
+        # Cycle 01 spec ensures paths are absolute from factory.
         return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_fields_from_minimal(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            minimal = data.get("minimal")
+            if minimal:
+                # If minimal is a dict
+                if isinstance(minimal, dict):
+                    if data.get("target_system") is None:
+                        data["target_system"] = minimal.get("target_system")
+                    if data.get("project_name") is None:
+                        data["project_name"] = minimal.get("project_name")
+                # If minimal is an object (MinimalConfig)
+                elif hasattr(minimal, "target_system"):
+                    if data.get("target_system") is None:
+                        data["target_system"] = minimal.target_system
+                    if data.get("project_name") is None:
+                        data["project_name"] = minimal.project_name
+        return data
+
 
 class CheckpointState(BaseModel):
     run_uuid: UUID
@@ -67,9 +94,3 @@ class CheckpointState(BaseModel):
     job_submission_args: dict[UUID, Any] = Field(default_factory=dict)
     training_history: list[TrainingRunMetrics] = Field(default_factory=list)
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-class CalculationMetadata(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    stage: str
-    uuid: str
-    force_mask: list[list[float]] | None = None

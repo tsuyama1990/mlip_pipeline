@@ -72,9 +72,7 @@ def test_dft_runner_run_successful(
     assert result.energy == -100.0
 
 
-def test_dft_runner_retry_and_succeed(
-    dft_runner, mock_process_runner, mock_output_parser
-):
+def test_dft_runner_retry_and_succeed(dft_runner, mock_process_runner, mock_output_parser):
     """Test the retry mechanism where a run fails once, then succeeds."""
     atoms = bulk("Si")
     error = subprocess.CalledProcessError(1, "pw.x")
@@ -102,7 +100,9 @@ def test_dft_runner_retry_and_succeed(
     assert job.params.mixing_beta == 0.35
 
 
-@patch("mlip_autopipec.modules.dft.retry", lambda attempts, delay, exceptions, on_retry: lambda f: f)
+@patch(
+    "mlip_autopipec.modules.dft.retry", lambda attempts, delay, exceptions, on_retry: lambda f: f
+)
 def test_dft_runner_raises_dft_calculation_error(
     dft_runner,
     mock_process_runner,

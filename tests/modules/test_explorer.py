@@ -17,7 +17,10 @@ def mock_config():
     """Create a mock configuration."""
     return ExplorerParams(
         surrogate_model=SurrogateModelParams(model_path="dummy.model"),
-        fps=FPSParams(num_structures_to_select=2, soap_params=SOAPParams(n_max=2, l_max=2, r_cut=3.0, atomic_sigma=0.5))
+        fps=FPSParams(
+            num_structures_to_select=2,
+            soap_params=SOAPParams(n_max=2, l_max=2, r_cut=3.0, atomic_sigma=0.5),
+        ),
     )
 
 

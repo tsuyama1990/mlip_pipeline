@@ -50,10 +50,10 @@ class PhysicsInformedGenerator:
         # Access elements via new schema
         # target_system has elements list
         if self.config.target_system:
-             num_elements = len(self.config.target_system.elements)
+            num_elements = len(self.config.target_system.elements)
         else:
-             # Fallback to dft params if target_system is not set (should not happen in valid config)
-             num_elements = len(self.config.dft_config.dft_input_params.pseudopotentials.root)
+            # Fallback to dft params if target_system is not set (should not happen in valid config)
+            num_elements = len(self.config.dft_config.dft_input_params.pseudopotentials.root)
 
         if num_elements > 1:
             logger.info("Detected multiple elements, running MOCK alloy generation workflow.")
@@ -170,9 +170,11 @@ class PhysicsInformedGenerator:
         final_structures = []
         # Access elements via new schema
         if self.config.target_system:
-             element = self.config.target_system.elements[0]
+            element = self.config.target_system.elements[0]
         else:
-             element = next(iter(self.config.dft_config.dft_input_params.pseudopotentials.root.keys()))
+            element = next(
+                iter(self.config.dft_config.dft_input_params.pseudopotentials.root.keys())
+            )
 
         pristine_supercell: Atoms = bulk(element, "fcc", a=4.0, cubic=True).repeat((3, 3, 3))
 

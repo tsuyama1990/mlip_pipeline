@@ -11,11 +11,13 @@ class FingerprintConfig(BaseModel):
     species: list[str] = Field(..., min_length=1)
     model_config = ConfigDict(extra="forbid")
 
+
 class ExplorerConfig(BaseModel):
     surrogate_model_path: str
     max_force_threshold: float = Field(10.0, gt=0)
     fingerprint: FingerprintConfig
     model_config = ConfigDict(extra="forbid")
+
 
 class SurrogateModelParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -26,13 +28,16 @@ class SurrogateModelParams(BaseModel):
             "Energy per atom threshold in eV. Structures with higher energy will be discarded."
         ),
     )
+
     @field_validator("model_path")
     @classmethod
     def validate_model_path(cls, v: str) -> str:
         import os
+
         if ".." in v or os.path.isabs(v):
             raise ValueError("model_path must be a relative path.")
         return v
+
 
 class SOAPParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -41,15 +46,18 @@ class SOAPParams(BaseModel):
     r_cut: float = Field(5.0)
     atomic_sigma: float = Field(0.5)
 
+
 class FPSParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     num_structures_to_select: int = Field(200, ge=1)
     soap_params: SOAPParams = Field(default_factory=SOAPParams)
 
+
 class ExplorerParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     surrogate_model: SurrogateModelParams
     fps: FPSParams = Field(default_factory=FPSParams)
+
 
 # Generator Models
 class AlloyParams(BaseModel):
@@ -58,9 +66,11 @@ class AlloyParams(BaseModel):
     strain_magnitudes: list[float] = Field(default=[0.95, 1.0, 1.05])
     rattle_std_devs: list[float] = Field(default=[0.05, 0.1])
 
+
 class CrystalParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     defect_types: list[Literal["vacancy", "interstitial"]] = Field(default=["vacancy"])
+
 
 class GeneratorParams(BaseModel):
     model_config = ConfigDict(extra="forbid")

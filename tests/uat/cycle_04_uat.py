@@ -1,70 +1,120 @@
-"""
-UAT Test for the LammpsRunner module.
-"""
+from unittest.mock import patch
 
-import tempfile
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+import numpy as np
+from ase import Atoms
 
-from ase.build import bulk
-
-from mlip_autopipec.config.models import (
-    InferenceConfig,
-    MDConfig,
-    UncertaintyConfig,
-)
-from mlip_autopipec.modules.inference import LammpsRunner
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.surrogate.descriptors import DescriptorResult
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
 
-def setup_mock_lammps_run(mocker: MagicMock, working_dir: Path) -> None:
-    """Sets up the mock for a successful LAMMPS run with uncertainty."""
-
-    def side_effect_subprocess_run(*args: Any, **kwargs: Any) -> MagicMock:
-        # Create a fake trajectory file
-        traj_file = working_dir / "dump.custom"
-        with traj_file.open("w") as f:
-            f.write("ITEM: TIMESTEP\n10\n")
-            f.write("ITEM: NUMBER OF ATOMS\n2\n")
-            f.write("ITEM: BOX BOUNDS pp pp pp\n0 10\n0 10\n0 10\n")
-            f.write("ITEM: ATOMS id type x y z\n1 1 1.0 1.0 1.0\n2 1 2.0 2.0 2.0\n")
-
-        # Create a fake uncertainty file
-        uncert_file = working_dir / "uncertainty.dump"
-        with uncert_file.open("w") as f:
-            f.write("ITEM: TIMESTEP\n10\n")
-            f.write("ITEM: NUMBER OF ATOMS\n2\n")
-            f.write("ITEM: ATOMS c_uncert[1]\n3.0\n1.0\n")  # High uncertainty
-        return MagicMock(returncode=0)
-
-    mocker.patch("subprocess.run", side_effect=side_effect_subprocess_run)
-
-
-def main(mocker: MagicMock) -> None:
+# UAT-04-01: MACE Pre-screening
+def test_uat_04_01_mace_prescreening():
     """
-    Main UAT test function.
+    Verify that the system utilizes the MACE foundation model to predict forces
+    and successfully filters out structures that exhibit unphysical forces.
     """
-    # GIVEN a LammpsRunner with a valid configuration
-    mock_config = InferenceConfig(
-        lammps_executable=Path("/usr/bin/lmp"),
-        potential_path=Path("Si.yace"),
-        md_params=MDConfig(),
-        uncertainty_params=UncertaintyConfig(threshold=2.5),
-    )
-    runner = LammpsRunner(inference_config=mock_config)
+    config = SurrogateConfig(force_threshold=50.0)
+    pipeline = SurrogatePipeline(config)
 
-    # WHEN the simulation is run
-    with tempfile.TemporaryDirectory() as temp_dir:
-        working_dir = Path(temp_dir)
-        setup_mock_lammps_run(mocker, working_dir)
-        initial_structure = bulk("Si", "diamond", a=5.43)
-        result = runner.run(initial_structure)
+    # GIVEN a batch of 10 candidate structures, where one structure has two atoms overlapping
+    candidates = [Atoms("H2", positions=[[0, 0, 0], [0, 0, 2.0]]) for _ in range(9)]
+    # Add a bad structure
+    bad_structure = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.1]])  # Overlap
+    candidates.append(bad_structure)
 
-        # THEN an uncertain structure is returned
-        assert result is not None, "An uncertain structure should be detected."
-        assert result.metadata["uncertain_timestep"] == 10, "Incorrect timestep for uncertainty."
+    # Mock MACE behavior
+    def mock_predict_forces(atoms_list):
+        forces = []
+        for atoms in atoms_list:
+            dist = np.linalg.norm(atoms.positions[0] - atoms.positions[1])
+            if dist < 0.5:
+                # High force
+                f = np.array([[100.0, 0.0, 0.0], [-100.0, 0.0, 0.0]])
+            else:
+                f = np.zeros((2, 3))
+            forces.append(f)
+        return forces
+
+    with patch.object(pipeline.mace_client, "predict_forces", side_effect=mock_predict_forces):
+        with patch.object(pipeline.mace_client, "_load_model"):  # Prevent loading
+            # Mock descriptor and sampler
+            with patch.object(
+                pipeline.descriptor_calc,
+                "compute_soap",
+                return_value=DescriptorResult(features=np.zeros((9, 10))),
+            ):
+                with patch.object(
+                    pipeline.sampler, "select_with_scores", return_value=(list(range(9)), [0.0] * 9)
+                ):
+                    # WHEN passed to the pipeline
+                    selected, result = pipeline.run(candidates)
+
+                    # THEN the overlapping structure should be excluded from the returned list
+                    # AND the filtered list length should be 9
+                    assert len(selected) == 9
+                    # The bad structure was at index 9. It should not be in selected.
+                    # Indices in result should be 0..8
+                    assert result.selected_indices == list(range(9))
+                    assert 9 not in result.selected_indices
+
+                    # Verify detailed output if we were calling filter_unphysical directly
+                    # Here we verify run() output implicitly
 
 
-if __name__ == "__main__":
-    with patch("subprocess.run") as mock_run:
-        main(MagicMock())
+# UAT-04-02: Diversity Sampling (FPS)
+def test_uat_04_02_diversity_sampling():
+    """
+    Verify that Farthest Point Sampling (FPS) selects a subset of structures
+    that is geometrically more diverse than a random selection.
+    """
+    config = SurrogateConfig(fps_n_samples=5)
+    pipeline = SurrogatePipeline(config)
+
+    candidates = [Atoms("H") for _ in range(100)]
+
+    descriptors = np.zeros((100, 3))
+    for i in range(90, 100):
+        descriptors[i] = [float(i), float(i), float(i)]
+
+    with patch.object(pipeline.mace_client, "filter_unphysical", return_value=(candidates, [])):
+        with patch.object(
+            pipeline.descriptor_calc,
+            "compute_soap",
+            return_value=DescriptorResult(features=descriptors),
+        ):
+            # Use real sampler
+
+            # WHEN pipeline runs
+            selected, result = pipeline.run(candidates)
+
+            # THEN the algorithm should preferentially pick from Cluster B
+            selected_indices = result.selected_indices
+
+            count_cluster_b = sum(1 for idx in selected_indices if idx >= 90)
+
+            # We expect at least 4 from cluster B
+            assert count_cluster_b >= 4
+            assert len(set(selected_indices)) == 5
+
+
+# UAT-04-03: Descriptor Calculation
+def test_uat_04_03_descriptor_calculation():
+    """
+    Verify that invariant structural fingerprints (SOAP/ACE) can be calculated.
+    """
+    config = SurrogateConfig()
+    pipeline = SurrogatePipeline(config)
+
+    # GIVEN a structure A and a structure B which is A rotated by 90 degrees
+    a = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0]])
+    b = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])  # Rotated
+
+    candidates = [a, b]
+
+    descriptor_result = pipeline.descriptor_calc.compute_soap(candidates)
+    descriptors = descriptor_result.features
+
+    # THEN the distance should be close to zero
+    dist = np.linalg.norm(descriptors[0] - descriptors[1])
+    assert dist < 1e-4

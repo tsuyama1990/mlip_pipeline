@@ -1,21 +1,36 @@
-# FIXME: The above comment is a temporary workaround for a ruff bug.
-# It should be removed once the bug is fixed.
-# For more information, see: https://github.com/astral-sh/ruff/issues/10515
 """
 This module defines custom exceptions for the MLIP-AutoPipe application.
 
 Using custom exceptions allows for more specific and expressive error
-handling throughout the workflow, making it easier to catch and manage
-different types of failures.
+handling throughout the workflow.
 """
 
+from typing import Any
 
-class DFTCalculationError(Exception):
+
+class MLIPError(Exception):
+    """Base exception for all MLIP-AutoPipe errors."""
+
+
+class ConfigError(MLIPError):
+    """Raised when configuration loading or validation fails."""
+
+
+class DatabaseError(MLIPError):
+    """Raised when database operations fail."""
+
+
+class WorkspaceError(MLIPError):
+    """Raised when workspace setup or filesystem operations fail."""
+
+
+class LoggingError(MLIPError):
+    """Raised when logging setup fails."""
+
+
+class DFTCalculationError(MLIPError):
     """
     Raised when a DFT calculation fails and cannot be recovered automatically.
-
-    This exception is raised by the DFTFactory after all retry attempts
-    have been exhausted, indicating a fatal error in the calculation.
     """
 
     def __init__(
@@ -23,19 +38,29 @@ class DFTCalculationError(Exception):
         message: str,
         stdout: str = "",
         stderr: str = "",
-    ):
-        """
-        Initializes the exception with details about the failure.
-
-        Args:
-            message: A summary of the error.
-            stdout: The standard output from the failed DFT process.
-            stderr: The standard error from the failed DFT process.
-        """
+        is_timeout: bool = False,
+    ) -> None:
         super().__init__(message)
-        self.stdout = stdout
-        self.stderr = stderr
+        # Truncate stdout/stderr if too long
+        max_len = 5000
+        self.stdout = stdout if len(stdout) <= max_len else stdout[:max_len] + "... [TRUNCATED]"
+        self.stderr = stderr if len(stderr) <= max_len else stderr[:max_len] + "... [TRUNCATED]"
+        self.is_timeout = is_timeout
 
     def __str__(self) -> str:
-        """Returns a detailed string representation of the error."""
-        return f"{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+        timeout_msg = "[TIMEOUT] " if self.is_timeout else ""
+        return f"{timeout_msg}{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
+
+
+class GeneratorError(MLIPError):
+    """Raised when structure generation fails."""
+
+    def __init__(self, message: str, context: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.context = context or {}
+
+    def __str__(self) -> str:
+        base_msg = super().__str__()
+        if self.context:
+            return f"{base_msg} | Context: {self.context}"
+        return base_msg
