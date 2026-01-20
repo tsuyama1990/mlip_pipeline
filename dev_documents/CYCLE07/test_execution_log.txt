@@ -1,4 +1,0 @@
-ImportError while loading conftest '/app/tests/conftest.py'.
-tests/conftest.py:5: in <module>
-    from ase import Atoms
-E   ModuleNotFoundError: No module named 'ase'
