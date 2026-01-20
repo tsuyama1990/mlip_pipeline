@@ -1,83 +1,90 @@
 """
-Module for parsing Quantum Espresso output files.
+Parsers for Quantum Espresso output.
 """
-
 from pathlib import Path
-from typing import Any
 
-from ase.io import read as ase_read
+import numpy as np
+from ase.io import read
 
-from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.core.exceptions import DFTConvergenceError, DFTRuntimeError
+from mlip_autopipec.core.models import DFTResult
 
 
-class QEOutputParser:
+def parse_pw_output(output_path: Path) -> DFTResult:
     """
-    Parses a Quantum Espresso output file into a `DFTResult` object.
+    Parses the Quantum Espresso output file.
+
+    Args:
+        output_path: Path to the output file (e.g., pw.out).
+
+    Returns:
+        DFTResult: The parsed results.
+
+    Raises:
+        DFTRuntimeError: If the job failed or crashed.
+        DFTConvergenceError: If convergence was not reached (checked via logic).
+        FileNotFoundError: If file is missing.
     """
+    if not output_path.exists():
+        msg = f"Output file not found: {output_path}"
+        raise FileNotFoundError(msg)
 
-    def __init__(self, reader: Any = ase_read) -> None:
-        """
-        Initializes the QEOutputParser.
+    # Check for "JOB DONE"
+    try:
+        content = output_path.read_text()
+    except Exception as e:
+        msg = f"Could not read output file: {e}"
+        raise DFTRuntimeError(msg) from e
 
-        Args:
-            reader: A callable (like `ase.io.read`) that can parse QE output
-                    files. This is dependency-injected for testability.
-        """
-        self.reader = reader
+    if "JOB DONE" not in content:
+        # It could be a crash or just didn't finish
+        if "convergence not achieved" in content:
+             msg = "DFT convergence not achieved."
+             raise DFTConvergenceError(msg)
+        msg = "DFT job did not complete successfully (JOB DONE not found)."
+        raise DFTRuntimeError(msg)
 
-    def parse(
-        self,
-        output_path: Path,
-        uid: str,
-        wall_time: float,
-        params: dict[str, Any],
-    ) -> DFTResult:
-        """
-        Parses the `espresso.pwo` output file of a successful QE run.
+    # Use ASE to parse properties
+    try:
+        # index=-1 gets the last step
+        atoms = read(output_path, format="espresso-out")
+    except Exception as e:
+        msg = f"ASE failed to parse output: {e}"
+        raise DFTRuntimeError(msg) from e
 
-        Args:
-            output_path: The path to the QE output file.
-            uid: The unique identifier for the DFT job.
-            wall_time: Execution time in seconds.
-            params: Parameters used for the calculation.
-
-        Returns:
-            A `DFTResult` object containing the parsed energy, forces, and
-            stress.
-
-        Raises:
-            Exception: If the output file cannot be parsed.
-        """
+    # Validation of properties
+    # DFTResult expects energy, forces, stress
+    try:
+        energy = atoms.get_potential_energy()
+        forces = atoms.get_forces()
+        # Stress is optional in ASE if not calculated, but we requested tstress=True.
+        # ASE might return None or zeros if not found?
+        # atoms.get_stress() returns array of 6 elements (Voigt) or 3x3.
+        # DFTResult model expects it.
         try:
-            # ase.io.read returns Atoms object
-            # format='espresso-out' is auto-detected usually
-            atoms_out = self.reader(output_path, format="espresso-out")
+             stress = atoms.get_stress(voigt=False)
+        except Exception: # Not found
+             # If stress missing but requested, is it an error?
+             # Spec says "result should contain valid 'energy', 'forces', and 'stress'"
+             # We can default to zeros or fail. I'll fail to be strict.
+             msg = "Stress not found in output."
+             raise DFTRuntimeError(msg) from None
 
-            energy = atoms_out.get_potential_energy()
+    except Exception as e:
+         msg = f"Failed to extract properties: {e}"
+         raise DFTRuntimeError(msg) from e
 
-            # Helper to safely convert numpy arrays to lists if needed
-            forces = atoms_out.get_forces()
-            if hasattr(forces, "tolist"):
-                forces = forces.tolist()
+    # Check for NaN/Inf
+    if np.isnan(energy) or np.isinf(energy):
+         msg = "Energy is NaN or Inf."
+         raise DFTRuntimeError(msg)
+    if np.any(np.isnan(forces)) or np.any(np.isinf(forces)):
+         msg = "Forces contain NaN or Inf."
+         raise DFTRuntimeError(msg)
 
-            stress = atoms_out.get_stress(voigt=False)  # Get 3x3 tensor
-            if hasattr(stress, "tolist"):
-                stress = stress.tolist()
-
-            # Helper to get mixing beta if available?
-            # ASE might not parse it easily. We use the one from params or default
-            final_beta = params.get("mixing_beta", 0.7)
-
-            return DFTResult(
-                uid=uid,
-                energy=energy,
-                forces=forces,
-                stress=stress,
-                succeeded=True,
-                wall_time=wall_time,
-                parameters=params,
-                final_mixing_beta=final_beta,
-            )
-        except Exception as e:
-            # If ASE fails, it means calculation didn't finish or crashed
-            raise Exception(f"Failed to parse output: {e}") from e
+    return DFTResult(
+        atoms=atoms,
+        energy=float(energy),
+        forces=forces,
+        stress=stress
+    )

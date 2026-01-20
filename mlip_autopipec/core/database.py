@@ -167,6 +167,52 @@ class DatabaseManager:
 
         return atoms_list
 
+    def add_calculation(self, atoms: AtomsObject, metadata: dict[str, Any]) -> int:
+        """
+        Adds a calculation result to the database.
+
+        Args:
+            atoms: The Atoms object with attached results.
+            metadata: Additional metadata to store.
+
+        Returns:
+            int: The row ID of the inserted calculation.
+
+        Raises:
+            DFTError: If energy or forces are missing.
+        """
+        from mlip_autopipec.core.exceptions import DFTError
+
+        self._ensure_connection()
+
+        # Invariant check: energy and forces must be present
+        try:
+            energy = atoms.get_potential_energy()
+            forces = atoms.get_forces()
+        except RuntimeError as e:
+            msg = "Atoms object missing energy or forces."
+            raise DFTError(msg) from e
+        except Exception as e:
+            msg = f"Error retrieving properties from atoms: {e}"
+            raise DFTError(msg) from e
+
+        # Check for NaN/Inf
+        if np.isnan(energy) or np.isinf(energy):
+             msg = "Energy is NaN or Inf."
+             raise DFTError(msg)
+        if np.any(np.isnan(forces)) or np.any(np.isinf(forces)):
+             msg = "Forces contain NaN or Inf."
+             raise DFTError(msg)
+
+        try:
+            if self._connection is not None:
+                row_id = self._connection.write(atoms, **metadata)
+                return int(row_id)
+            return 0
+        except Exception as e:
+            msg = f"Failed to add calculation: {e}"
+            raise DFTError(msg) from e
+
     def save_dft_result(
         self, atoms: AtomsObject, result: "DFTResult", metadata: dict[str, Any]
     ) -> None:
@@ -221,21 +267,19 @@ class DatabaseManager:
             msg = f"Failed to save candidate: {e}"
             raise DatabaseError(msg) from e
 
-    def count(self, selection: str | None = None) -> int:
+    def count(self, **kwargs: Any) -> int:
         """
-        Count rows in the database.
+        Returns the number of rows matching the query.
 
         Args:
-            selection: ASE DB selection string.
-
-        Returns:
-            Number of rows matching selection.
+            **kwargs: Query parameters (e.g., calculation_type="scf").
         """
         self._ensure_connection()
 
         try:
             if self._connection:
-                return int(self._connection.count(selection=selection))
+                # db.count accepts kwargs for query
+                return int(self._connection.count(**kwargs))
             return 0
         except Exception as e:
             msg = f"Failed to count rows: {e}"
