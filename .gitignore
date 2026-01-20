@@ -31,6 +31,7 @@ env/
 temp_ase_calc/
 .ac_cdd/
 
+
 # AC-CDD Configuration
 .ac_cdd/.env
 dev_documents/project_state.json

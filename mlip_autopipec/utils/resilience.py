@@ -2,6 +2,7 @@
 This module provides generic, reusable patterns for building robust functions,
 such as retry decorators.
 """
+
 import logging
 import time
 from collections.abc import Callable

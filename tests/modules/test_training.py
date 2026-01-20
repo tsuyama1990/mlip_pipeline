@@ -1,6 +1,7 @@
 """
 Unit tests for the PacemakerTrainer class.
 """
+
 import subprocess
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
@@ -47,25 +48,27 @@ def test_pacemaker_trainer_perform_training(mock_training_config: TrainingConfig
     atoms2.info["energy"] = -10.1
     atoms2.arrays["forces"] = np.array([[0.05, 0.05, 0.05]] * len(atoms2))
 
-    training_data = [atoms1, atoms2]
+    # Wrap in TrainingBatch
+    from mlip_autopipec.data_models.training_data import TrainingBatch
+
+    training_data = TrainingBatch(atoms_list=[atoms1, atoms2])
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
 
-    with patch("subprocess.run") as mock_run, \
-         patch("shutil.which", return_value=True), \
-         patch("tempfile.TemporaryDirectory") as mock_tmpdir:
-
+    with (
+        patch("subprocess.run") as mock_run,
+        patch("shutil.which", return_value=True),
+        patch("tempfile.TemporaryDirectory") as mock_tmpdir,
+    ):
         mock_tmpdir.return_value.__enter__.return_value = tmp_path
         # Mock stdout to include RMSE values and potential file
         stdout_output = (
             "Start training...\n"
             "Final potential saved to: potential.yace\n"
             "RMSE forces: 0.123\n"
-            "RMSE energy: 0.045 eV/atom\n" # Assuming this format, will adjust implementation
+            "RMSE energy: 0.045 eV/atom\n"  # Assuming this format, will adjust implementation
         )
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=stdout_output, stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout=stdout_output, stderr="")
         (tmp_path / "potential.yace").touch()
 
         # Act
@@ -97,7 +100,10 @@ def test_pacemaker_trainer_executable_not_found(mock_training_config: TrainingCo
     atoms = bulk("Si")
     atoms.info["energy"] = -10.0
     atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
-    training_data = [atoms]
+    # Wrap in TrainingBatch
+    from mlip_autopipec.data_models.training_data import TrainingBatch
+
+    training_data = TrainingBatch(atoms_list=[atoms])
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
     with patch("shutil.which", return_value=False), pytest.raises(TrainingFailedError):
@@ -111,11 +117,17 @@ def test_pacemaker_trainer_training_failed(mock_training_config: TrainingConfig)
     atoms = bulk("Si")
     atoms.info["energy"] = -10.0
     atoms.arrays["forces"] = np.array([[0.1, 0.1, 0.1]] * len(atoms))
-    training_data = [atoms]
+    # Wrap in TrainingBatch
+    from mlip_autopipec.data_models.training_data import TrainingBatch
+
+    training_data = TrainingBatch(atoms_list=[atoms])
 
     trainer = PacemakerTrainer(training_config=mock_training_config)
-    with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")), \
-         patch("shutil.which", return_value=True), pytest.raises(TrainingFailedError):
+    with (
+        patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "cmd")),
+        patch("shutil.which", return_value=True),
+        pytest.raises(TrainingFailedError),
+    ):
         trainer.perform_training(training_data, generation=1)
 
 
@@ -124,5 +136,15 @@ def test_pacemaker_trainer_no_data(mock_training_config: TrainingConfig):
     Tests that a NoTrainingDataError is raised if the input data is empty.
     """
     trainer = PacemakerTrainer(training_config=mock_training_config)
+
+    # FIX: Provide a valid TrainingBatch object, but with empty atoms_list if allowed by logic,
+    # or use None if that triggers it.
+    # The exception NoTrainingDataError is raised if training_data.atoms_list is empty.
+    # But TrainingBatch validation might fail if list is empty? NO, list can be empty.
+
+    from mlip_autopipec.data_models.training_data import TrainingBatch
+
+    batch = TrainingBatch(atoms_list=[])
+
     with pytest.raises(NoTrainingDataError):
-        trainer.perform_training([], generation=1)
+        trainer.perform_training(batch, generation=1)

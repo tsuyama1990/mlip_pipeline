@@ -12,6 +12,7 @@ from mlip_autopipec.config.models import CheckpointState, DashboardData
 
 logger = logging.getLogger(__name__)
 
+
 def _gather_data(project_dir: Path) -> DashboardData:
     """Gathers data from checkpoint and ASE database."""
     checkpoint_path = project_dir / "checkpoint.json"
@@ -48,6 +49,7 @@ def _gather_data(project_dir: Path) -> DashboardData:
         dataset_composition=dict(dataset_composition),
     )
 
+
 def _create_plots(data: DashboardData) -> dict[str, str]:
     """Generates Plotly plots as HTML strings."""
     plots = {}
@@ -55,7 +57,9 @@ def _create_plots(data: DashboardData) -> dict[str, str]:
     # Composition Pie Chart
     # Access via .root because it's a RootModel
     if data.dataset_composition.root:
-        df_comp = pd.DataFrame(list(data.dataset_composition.root.items()), columns=["Type", "Count"])
+        df_comp = pd.DataFrame(
+            list(data.dataset_composition.root.items()), columns=["Type", "Count"]
+        )
         fig_comp = px.pie(df_comp, values="Count", names="Type", title="Dataset Composition")
         plots["composition_plot"] = fig_comp.to_html(full_html=False, include_plotlyjs="cdn")
     else:
@@ -64,17 +68,24 @@ def _create_plots(data: DashboardData) -> dict[str, str]:
     # RMSE Plot
     if data.training_history:
         history_data = [
-            {"Generation": m.generation, "Force RMSE": m.rmse_forces, "Energy RMSE": m.rmse_energy_per_atom}
+            {
+                "Generation": m.generation,
+                "Force RMSE": m.rmse_forces,
+                "Energy RMSE": m.rmse_energy_per_atom,
+            }
             for m in data.training_history
         ]
         df_hist = pd.DataFrame(history_data)
 
-        fig_rmse = px.line(df_hist, x="Generation", y="Force RMSE", title="Force RMSE vs. Generation", markers=True)
+        fig_rmse = px.line(
+            df_hist, x="Generation", y="Force RMSE", title="Force RMSE vs. Generation", markers=True
+        )
         plots["rmse_plot"] = fig_rmse.to_html(full_html=False, include_plotlyjs=False)
     else:
         plots["rmse_plot"] = "<p>No training history available</p>"
 
     return plots
+
 
 def _render_html(data: DashboardData, plots: dict[str, str]) -> str:
     """Renders the Jinja2 template."""
@@ -86,6 +97,7 @@ def _render_html(data: DashboardData, plots: dict[str, str]) -> str:
     except TemplateError as e:
         logger.exception("Failed to render dashboard template.")
         raise RuntimeError("Dashboard generation failed due to template error.") from e
+
 
 def generate_dashboard(project_dir: Path) -> Path:
     """Main function to generate the dashboard."""

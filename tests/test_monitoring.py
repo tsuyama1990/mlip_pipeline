@@ -20,9 +20,10 @@ def create_system_config():
     return SystemConfig(
         project_name="Test Project",
         run_uuid=uuid.uuid4(),
-        workflow_config=WorkflowConfig(checkpoint_filename="checkpoint.json"),
+        workflow_config=WorkflowConfig(checkpoint_file_path="checkpoint.json"),
         training_config=TrainingConfig(data_source_db=Path("mlip_database.db")),
     )
+
 
 @pytest.fixture
 def mock_checkpoint_data(tmp_path):
@@ -44,6 +45,7 @@ def mock_checkpoint_data(tmp_path):
     checkpoint_path = tmp_path / "checkpoint.json"
     checkpoint_path.write_text(state.model_dump_json())
     return state
+
 
 @patch("mlip_autopipec.monitoring.dashboard.ase_db_connect")
 def test_gather_data(mock_connect, mock_checkpoint_data, tmp_path):
@@ -83,6 +85,7 @@ def test_gather_data(mock_connect, mock_checkpoint_data, tmp_path):
     # Check completed calcs
     assert data.completed_calcs == 3
 
+
 def test_gather_data_no_db(mock_checkpoint_data, tmp_path):
     """Test gathering data when database file is missing."""
     # Ensure no DB file exists (tmp_path is clean usually, but let's be sure)
@@ -94,6 +97,7 @@ def test_gather_data_no_db(mock_checkpoint_data, tmp_path):
 
     assert data.completed_calcs == 0
     assert data.dataset_composition.root == {}
+
 
 @patch("mlip_autopipec.monitoring.dashboard._gather_data")
 @patch("mlip_autopipec.monitoring.dashboard._create_plots")

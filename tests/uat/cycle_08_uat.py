@@ -1,130 +1,155 @@
-import shutil
-import subprocess
-import sys
-import uuid
+import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
-# Color codes for output
-GREEN = "\033[92m"
-RED = "\033[91m"
-RESET = "\033[0m"
+import pytest
+from pytest_mock import MockerFixture
+from ase import Atoms
 
-def setup_project(work_dir: Path):
-    if work_dir.exists():
-        shutil.rmtree(work_dir)
-    work_dir.mkdir(parents=True)
+from mlip_autopipec.config.models import SystemConfig, MinimalConfig, TargetSystem, Resources
+from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.orchestration.models import OrchestratorConfig
 
-    # Create checkpoint
-    from mlip_autopipec.config.models import (
-        CheckpointState,
-        SystemConfig,
-        TrainingConfig,
-        TrainingRunMetrics,
-        WorkflowConfig,
-    )
+def test_uat_08_01_end_to_end_autonomous_run(mocker: MockerFixture, tmp_path: Path) -> None:
+    """
+    UAT-08-01: Verify that the system can perform a complete "Zero-Human" run.
+    """
+    # Mock Physics Engines
+    mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
+    mocker.patch("mlip_autopipec.orchestration.manager.SurrogatePipeline")
+    mocker.patch("mlip_autopipec.orchestration.manager.QERunner")
+    mocker.patch("mlip_autopipec.orchestration.manager.PacemakerWrapper")
+    # mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner") # Not imported in current manager refactor?
+    # Let's check imports in manager.py. It imports LammpsRunner.
+    mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner")
 
-    metrics = [
-        TrainingRunMetrics(generation=1, num_structures=100, rmse_forces=0.1, rmse_energy_per_atom=0.01),
-        TrainingRunMetrics(generation=2, num_structures=130, rmse_forces=0.08, rmse_energy_per_atom=0.008),
-        TrainingRunMetrics(generation=3, num_structures=155, rmse_forces=0.05, rmse_energy_per_atom=0.005),
-    ]
+    # We shouldn't mock DatabaseManager entirely if we want to verify output state in DB
+    # But TaskQueue needs mocking to avoid Dask overhead in UAT
+    mocker.patch("mlip_autopipec.orchestration.manager.TaskQueue")
+    mocker.patch("mlip_autopipec.orchestration.manager.Dashboard")
+    mocker.patch("mlip_autopipec.orchestration.manager.DatasetBuilder")
+    mocker.patch("mlip_autopipec.orchestration.manager.TrainConfigGenerator")
 
-    state = CheckpointState(
-        run_uuid=uuid.uuid4(),
-        system_config=SystemConfig(
-            project_name="UAT Cycle 08 Project",
-            run_uuid=uuid.uuid4(),
-            workflow_config=WorkflowConfig(checkpoint_filename="checkpoint.json"),
-            training_config=TrainingConfig(data_source_db=Path("project.db")),
+    # Create dummy potential for inference config
+    pot_path = tmp_path / "dummy.yace"
+    pot_path.touch()
+
+    # Configs
+    minimal = MinimalConfig(
+        project_name="uat_project",
+        target_system=TargetSystem(
+            name="Cu",
+            structure_type="bulk",
+            elements=["Cu"],
+            composition={"Cu": 1.0}
         ),
-        active_learning_generation=3,
-        training_history=metrics,
-        pending_job_ids=[uuid.uuid4() for _ in range(15)]
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
     )
+    system_config = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path,
+        db_path=tmp_path / "uat.db",
+        log_path=tmp_path / "uat.log",
+        dft_config=DFTConfig(pseudo_dir=tmp_path / "pseudos"),
+        surrogate_config=SurrogateConfig(),
+        training_config=TrainingConfig(data_source_db=tmp_path / "uat.db"),
+        inference_config=InferenceConfig(temperature=300.0, potential_path=pot_path),
+    )
+    orch_config = OrchestratorConfig(max_generations=2, workers=1)
 
-    (work_dir / "checkpoint.json").write_text(state.model_dump_json())
+    tmp_path.mkdir(parents=True, exist_ok=True)
 
-    # Create DB
-    from ase import Atoms
-    from ase.db import connect
-    db_path = work_dir / "project.db"
-    with connect(db_path) as db:
-        for _ in range(100):
-            db.write(Atoms('Si'), data={'config_type': 'initial'})
-        for _ in range(30):
-            db.write(Atoms('Si'), data={'config_type': 'active_learning_gen1'})
-        for _ in range(25):
-            db.write(Atoms('Si'), data={'config_type': 'active_learning_gen2'})
+    # Run
+    manager = WorkflowManager(system_config, orch_config)
 
-def run_command(cmd, cwd):
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, check=False, cwd=cwd, capture_output=True, text=True)
-    return result
+    # Inject Mock Builder behavior to produce atoms so the loop has data
+    dummy_atoms = Atoms("Cu", positions=[[0, 0, 0]])
+    manager.builder = MagicMock()
+    manager.builder.build.return_value = [dummy_atoms]
 
-def main():
-    print("Starting UAT for Cycle 08: Monitoring and Usability")
-    work_dir = Path("uat_cycle_08_workspace")
+    # Inject Mock TaskQueue behavior
+    # wait_for_completion must return a result for the DFT job
+    res_mock = MagicMock()
+    # DFTResult requires validation? Let's use a real DFTResult object or a mock that passes pydantic if used
+    from mlip_autopipec.data_models.dft_models import DFTResult
+    dft_res = DFTResult(energy=-1.0, forces=[[0.0, 0.0, 0.0]], stress=[0.0]*6)
+    manager.task_queue.wait_for_completion.return_value = [dft_res]
 
-    try:
-        # Scenario 1: Generating and Viewing the Status Dashboard
-        print("\n--- UAT-C8-001: Generating and Viewing the Status Dashboard ---")
-        setup_project(work_dir)
+    manager.run()
 
-        # We need to mock webbrowser open so it doesn't fail in headless environment,
-        # but since we run subprocess, we can't easily mock it unless we set an env var or argument.
-        # The command has --no-open.
+    # Verify completion
+    assert manager.state.current_generation == 2
+    assert (tmp_path / "workflow_state.json").exists()
 
-        # We will test generation first.
-        res = run_command(["mlip-auto", "status", ".", "--no-open"], cwd=work_dir)
+    # Verify Output in DB (Real DB used by manager)
+    # Check if we have entries with status 'training'
+    count = manager.db_manager.count("status=training")
+    # 2 generations * 1 atom per gen = 2?
+    # Gen 0: Idle -> DFT (1 atom) -> Training -> Inference -> Gen 1
+    # Gen 1: Idle (Exploration runs again) -> DFT (1 atom) -> ...
+    # So we expect roughly 2 labeled atoms.
+    assert count >= 1
 
-        if res.returncode == 0 and "Dashboard generated at" in res.stdout:
-            print(f"{GREEN}✅ Dashboard generation successful.{RESET}")
-        else:
-            print(f"{RED}❌ Dashboard generation failed.{RESET}")
-            print("STDOUT:", res.stdout)
-            print("STDERR:", res.stderr)
-            sys.exit(1)
 
-        dashboard_path = work_dir / "dashboard.html"
-        if dashboard_path.exists():
-             print(f"{GREEN}✅ dashboard.html exists.{RESET}")
-        else:
-             print(f"{RED}❌ dashboard.html not found.{RESET}")
-             sys.exit(1)
+def test_uat_08_02_checkpoint_resume(mocker: MockerFixture, tmp_path: Path) -> None:
+    """
+    UAT-08-02: Verify Checkpoint & Resume.
+    """
+    # Mocks
+    mocker.patch("mlip_autopipec.orchestration.manager.StructureBuilder")
+    mocker.patch("mlip_autopipec.orchestration.manager.SurrogatePipeline")
+    mocker.patch("mlip_autopipec.orchestration.manager.QERunner")
+    mocker.patch("mlip_autopipec.orchestration.manager.PacemakerWrapper")
+    mocker.patch("mlip_autopipec.orchestration.manager.LammpsRunner")
+    mocker.patch("mlip_autopipec.orchestration.manager.DatabaseManager") # Mocking DB here since we focus on state loading
+    mocker.patch("mlip_autopipec.orchestration.manager.TaskQueue")
+    mocker.patch("mlip_autopipec.orchestration.manager.Dashboard")
+    mocker.patch("mlip_autopipec.orchestration.manager.DatasetBuilder")
+    mocker.patch("mlip_autopipec.orchestration.manager.TrainConfigGenerator")
 
-        # Scenario 2: Interpreting Dashboard for Workflow Insights
-        print("\n--- UAT-C8-002: Interpreting Dashboard for Workflow Insights ---")
-        content = dashboard_path.read_text()
+    # Create valid state file for Gen 1, Status 'training'
+    state_file = tmp_path / "workflow_state.json"
+    state_data = {
+        "current_generation": 1,
+        "status": "training",
+        "pending_tasks": []
+    }
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    with state_file.open("w") as f:
+        json.dump(state_data, f)
 
-        checks = [
-            ("UAT Cycle 08 Project", "Project Name"),
-            ("Current Generation", "Generation Label"),
-            ("3", "Generation Value"),
-            ("Force RMSE vs. Generation", "RMSE Plot"),
-            ("Dataset Composition", "Composition Plot"),
-            ("155", "Completed Calculations"), # 100+30+25
-        ]
+    # Configs
+    minimal = MinimalConfig(
+        project_name="uat_resume",
+        target_system=TargetSystem(
+            name="Cu",
+            structure_type="bulk",
+            elements=["Cu"],
+            composition={"Cu": 1.0}
+        ),
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4)
+    )
+    system_config = SystemConfig(
+        minimal=minimal,
+        working_dir=tmp_path,
+        db_path=tmp_path / "uat.db",
+        log_path=tmp_path / "uat.log"
+    )
+    orch_config = OrchestratorConfig(max_generations=3)
 
-        all_passed = True
-        for text, desc in checks:
-            if text in content:
-                print(f"{GREEN}✅ Found {desc} ('{text}'){RESET}")
-            else:
-                print(f"{RED}❌ Missing {desc} ('{text}'){RESET}")
-                all_passed = False
+    # Initialize
+    manager = WorkflowManager(system_config, orch_config)
 
-        if all_passed:
-            print(f"\n{GREEN}🎉 Cycle 08 UAT Passed!{RESET}")
-        else:
-            print(f"\n{RED}Cycle 08 UAT Failed.{RESET}")
-            sys.exit(1)
+    # Check loaded state
+    assert manager.state.current_generation == 1
+    assert manager.state.status == "training"
 
-    except Exception as e:
-        print(f"{RED}An unexpected error occurred during UAT:{RESET} {e}")
-        sys.exit(1)
-    finally:
-        if work_dir.exists():
-            shutil.rmtree(work_dir)
+    # Run
+    manager.run()
 
-if __name__ == "__main__":
-    main()
+    # Should finish at max_generations
+    assert manager.state.current_generation == 3

@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,7 +13,9 @@ from mlip_autopipec.config.models import (
     DFTConfig,
     DFTInputParameters,
     GeneratorParams,
+    MinimalConfig,
     Pseudopotentials,
+    Resources,
     SystemConfig,
     TargetSystem,
 )
@@ -25,53 +28,69 @@ def mock_system_config() -> SystemConfig:
     target_system = TargetSystem(
         elements=["Cu", "Au"],
         composition=Composition({"Cu": 0.5, "Au": 0.5}),
-        crystal_structure="fcc"
+        # crystal_structure="fcc", # Removed as not in schema
     )
 
     dft_params = DFTInputParameters(
         pseudopotentials=Pseudopotentials({"Cu": "Cu.upf", "Au": "Au.upf"}),
         cutoffs=CutoffConfig(wavefunction=30, density=120),
-        k_points=(2, 2, 2)
+        k_points=(2, 2, 2),
+    )
+
+    minimal_config = MinimalConfig(
+        project_name="TestAlloy",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4),
     )
 
     return SystemConfig(
+        minimal=minimal_config,
+        working_dir=Path("/tmp/work_dir"),
+        db_path=Path("/tmp/work_dir/test.db"),
+        log_path=Path("/tmp/work_dir/test.log"),
         project_name="TestAlloy",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
-        dft_config=DFTConfig(dft_input_params=dft_params),
+        dft_config=DFTConfig(dft_input_params=dft_params, pseudo_dir=Path("/tmp")),
         generator=GeneratorParams(
             alloy_params=AlloyParams(strain_magnitudes=[0.95, 1.05], rattle_std_devs=[0.1])
         ),
         inference_config=None,
         training_config=None,
-        explorer_config=None
+        explorer_config=None,
     )
 
 
 @pytest.fixture
 def mock_crystal_config() -> SystemConfig:
     """Provide a mock SystemConfig for a Si crystal."""
-    target_system = TargetSystem(
-        elements=["Si"],
-        composition=Composition({"Si": 1.0}),
-        crystal_structure="diamond"
-    )
+    target_system = TargetSystem(elements=["Si"], composition=Composition({"Si": 1.0}))
 
     dft_params = DFTInputParameters(
         pseudopotentials=Pseudopotentials({"Si": "Si.upf"}),
         cutoffs=CutoffConfig(wavefunction=30, density=120),
-        k_points=(2, 2, 2)
+        k_points=(2, 2, 2),
+    )
+
+    minimal_config = MinimalConfig(
+        project_name="TestCrystal",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4),
     )
 
     return SystemConfig(
+        minimal=minimal_config,
+        working_dir=Path("/tmp/work_dir"),
+        db_path=Path("/tmp/work_dir/test.db"),
+        log_path=Path("/tmp/work_dir/test.log"),
         project_name="TestCrystal",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
-        dft_config=DFTConfig(dft_input_params=dft_params),
+        dft_config=DFTConfig(dft_input_params=dft_params, pseudo_dir=Path("/tmp")),
         generator=GeneratorParams(crystal_params=CrystalParams(defect_types=["vacancy"])),
         inference_config=None,
         training_config=None,
-        explorer_config=None
+        explorer_config=None,
     )
 
 
@@ -110,27 +129,33 @@ def test_generate_crystal_workflow(mock_crystal_config: SystemConfig) -> None:
 def test_apply_strains() -> None:
     """Unit test for the _apply_strains method."""
     atoms = bulk("Ni", "fcc", a=3.5)
-    target_system = TargetSystem(
-        elements=["Ni"],
-        composition=Composition({"Ni": 1.0}),
-        crystal_structure="fcc"
-    )
+    target_system = TargetSystem(elements=["Ni"], composition=Composition({"Ni": 1.0}))
 
     dft_params = DFTInputParameters(
         pseudopotentials=Pseudopotentials({"Ni": "Ni.upf"}),
         cutoffs=CutoffConfig(wavefunction=30, density=120),
-        k_points=(2, 2, 2)
+        k_points=(2, 2, 2),
+    )
+
+    minimal_config = MinimalConfig(
+        project_name="TestStrain",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4),
     )
 
     config = SystemConfig(
+        minimal=minimal_config,
+        working_dir=Path("/tmp/work_dir"),
+        db_path=Path("/tmp/work_dir/test.db"),
+        log_path=Path("/tmp/work_dir/test.log"),
         project_name="TestStrain",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
-        dft_config=DFTConfig(dft_input_params=dft_params),
+        dft_config=DFTConfig(dft_input_params=dft_params, pseudo_dir=Path("/tmp")),
         generator=GeneratorParams(alloy_params=AlloyParams(strain_magnitudes=[0.9, 1.1])),
         inference_config=None,
         training_config=None,
-        explorer_config=None
+        explorer_config=None,
     )
     generator = PhysicsInformedGenerator(config)
 
@@ -147,27 +172,33 @@ def test_apply_strains() -> None:
 def test_apply_rattling() -> None:
     """Unit test for the _apply_rattling method."""
     atoms = bulk("Ni", "fcc", a=3.5).repeat((2, 2, 2))
-    target_system = TargetSystem(
-        elements=["Ni"],
-        composition=Composition({"Ni": 1.0}),
-        crystal_structure="fcc"
-    )
+    target_system = TargetSystem(elements=["Ni"], composition=Composition({"Ni": 1.0}))
 
     dft_params = DFTInputParameters(
         pseudopotentials=Pseudopotentials({"Ni": "Ni.upf"}),
         cutoffs=CutoffConfig(wavefunction=30, density=120),
-        k_points=(2, 2, 2)
+        k_points=(2, 2, 2),
+    )
+
+    minimal_config = MinimalConfig(
+        project_name="TestRattle",
+        target_system=target_system,
+        resources=Resources(dft_code="quantum_espresso", parallel_cores=4),
     )
 
     config = SystemConfig(
+        minimal=minimal_config,
+        working_dir=Path("/tmp/work_dir"),
+        db_path=Path("/tmp/work_dir/test.db"),
+        log_path=Path("/tmp/work_dir/test.log"),
         project_name="TestRattle",
         run_uuid=uuid.uuid4(),
         target_system=target_system,
-        dft_config=DFTConfig(dft_input_params=dft_params),
+        dft_config=DFTConfig(dft_input_params=dft_params, pseudo_dir=Path("/tmp")),
         generator=GeneratorParams(alloy_params=AlloyParams(rattle_std_devs=[0.1])),
         inference_config=None,
         training_config=None,
-        explorer_config=None
+        explorer_config=None,
     )
     generator = PhysicsInformedGenerator(config)
 

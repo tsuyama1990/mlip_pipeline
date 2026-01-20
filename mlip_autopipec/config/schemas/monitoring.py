@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, ConfigDict, RootModel
 
 from .training import TrainingRunMetrics
@@ -7,6 +6,7 @@ from .training import TrainingRunMetrics
 class DatasetComposition(RootModel[dict[str, int]]):
     # RootModel does not support extra="forbid"
     pass
+
 
 class DashboardData(BaseModel):
     project_name: str

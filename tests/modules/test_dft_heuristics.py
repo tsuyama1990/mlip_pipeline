@@ -1,6 +1,7 @@
 """
 Unit tests for the DFTHeuristics class.
 """
+
 import json
 from pathlib import Path
 

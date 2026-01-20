@@ -8,6 +8,7 @@ from mlip_autopipec.config.models import UserInputConfig
 
 log = logging.getLogger(__name__)
 
+
 class ConfigLoader:
     """Loads and validates user configuration."""
 
@@ -30,7 +31,7 @@ class ConfigLoader:
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
         try:
-            with config_path.open('r') as f:
+            with config_path.open("r") as f:
                 raw_data = yaml.safe_load(f)
         except yaml.YAMLError as e:
             log.error(f"Failed to parse YAML file: {config_path}")
