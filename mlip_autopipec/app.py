@@ -8,7 +8,10 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from mlip_autopipec.exceptions import ConfigError, DatabaseError, MLIPError, WorkspaceError
+from mlip_autopipec.core.config import load_config
+from mlip_autopipec.core.logging import setup_logging
+from mlip_autopipec.core.exceptions import ConfigError
+from mlip_autopipec.exceptions import DatabaseError, MLIPError, WorkspaceError
 from mlip_autopipec.services.pipeline import PipelineController
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
@@ -20,6 +23,30 @@ log = logging.getLogger(__name__)
 def main() -> None:
     """MLIP-AutoPipe CLI Entry Point."""
 
+
+@app.command("check-config")
+def check_config(
+    config_path: Path = typer.Argument(  # noqa: B008
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        help="Path to the config.yaml file.",
+    ),
+) -> None:
+    """Validate the configuration file."""
+    try:
+        setup_logging()
+        load_config(config_path)
+        console.print("[bold green]OK[/bold green]")
+    except ConfigError as e:
+        console.print(f"[bold red]Configuration Invalid:[/bold red] {e}")
+        raise typer.Exit(code=1) from e
+    except Exception as e:
+        console.print(f"[bold red]Unexpected Error:[/bold red] {e}")
+        raise typer.Exit(code=1) from e
 
 @app.command()
 def run(
