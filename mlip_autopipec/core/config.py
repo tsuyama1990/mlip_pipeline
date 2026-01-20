@@ -89,32 +89,34 @@ def load_config(path: Path) -> AppConfig:
     try:
         with path.open("r") as f:
             data = yaml.safe_load(f)
-
-        if not data:
-            msg = "Configuration file is empty"
-            raise ConfigError(msg) # noqa: TRY301
-
-        config = AppConfig(**data)
-
-    except ValidationError as e:
-        msg = f"Configuration validation failed: {e}"
-        raise ConfigError(msg) from e
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML file: {e}"
         raise ConfigError(msg) from e
-    except Exception as e:
-        if isinstance(e, ConfigError):
-            raise
-        msg = f"Unexpected error loading config: {e}"
+    except OSError as e:
+        msg = f"Error reading configuration file: {e}"
+        raise ConfigError(msg) from e
+
+    if not data:
+        msg = "Configuration file is empty"
+        raise ConfigError(msg)
+
+    try:
+        config = AppConfig(**data)
+    except ValidationError as e:
+        msg = f"Configuration validation failed: {e}"
         raise ConfigError(msg) from e
 
     # Additional validation logic if needed (e.g., check paths exist)
     if not config.dft_config.pseudopotential_dir.is_dir():
             msg = f"Pseudopotential directory does not exist: {config.dft_config.pseudopotential_dir}"
-            raise ConfigError(msg) # noqa: TRY301
+            raise ConfigError(msg)
 
     # Create parent dir for database if it doesn't exist
-    if not config.global_config.database_path.parent.exists():
-        config.global_config.database_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if not config.global_config.database_path.parent.exists():
+            config.global_config.database_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        msg = f"Failed to create database directory: {e}"
+        raise ConfigError(msg) from e
 
     return config

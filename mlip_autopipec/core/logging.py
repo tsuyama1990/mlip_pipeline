@@ -2,7 +2,9 @@
 Centralized logging configuration for MLIP-AutoPipe.
 """
 import logging
+
 from rich.logging import RichHandler
+
 
 def setup_logging(level: str = "INFO") -> None:
     """

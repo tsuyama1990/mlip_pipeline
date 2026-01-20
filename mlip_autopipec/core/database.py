@@ -70,7 +70,8 @@ class DatabaseManager:
 
             # Update metadata
             if self._connection is None:  # Redundant check for type checker
-                raise DatabaseError("Connection lost")
+                msg = "Connection lost"
+                raise DatabaseError(msg)
 
             current_metadata = self._connection.metadata.copy()
             current_metadata.update(config_dict)
@@ -122,10 +123,11 @@ class DatabaseManager:
 
         try:
             # ase.db.select returns an iterator
-            if self._connection:
+            if self._connection is not None:
                 rows = self._connection.select(selection=selection)
                 return [row.toatoms() for row in rows]
-            return []
+            else:
+                return []
         except Exception as e:
             msg = f"Failed to retrieve atoms from database: {e}"
             raise DatabaseError(msg) from e
@@ -145,7 +147,7 @@ class DatabaseManager:
 
         atoms_list = []
         try:
-            if self._connection:
+            if self._connection is not None:
                 for row in self._connection.select():
                     # Validate that the row has the required data fields
                     # We use the TrainingData Pydantic model for validation
@@ -208,7 +210,8 @@ class DatabaseManager:
             if self._connection is not None:
                 row_id = self._connection.write(atoms, **metadata)
                 return int(row_id)
-            return 0
+            else:
+                return 0
         except Exception as e:
             msg = f"Failed to add calculation: {e}"
             raise DFTError(msg) from e
@@ -235,7 +238,7 @@ class DatabaseManager:
                 atoms.arrays["force_mask"] = np.array(force_mask)
 
             # Check if exists logic could go here, but for now we write
-            if self._connection:
+            if self._connection is not None:
                 self._connection.write(atoms, data=result.model_dump())
             # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
         except Exception as e:
@@ -258,7 +261,7 @@ class DatabaseManager:
 
             # Update atoms info with metadata
             atoms.info.update(metadata)
-            if self._connection:
+            if self._connection is not None:
                 self._connection.write(atoms)
         except ValidationError as e:
             msg = f"Invalid candidate metadata: {e}"
@@ -277,10 +280,11 @@ class DatabaseManager:
         self._ensure_connection()
 
         try:
-            if self._connection:
+            if self._connection is not None:
                 # db.count accepts kwargs for query
                 return int(self._connection.count(**kwargs))
-            return 0
+            else:
+                return 0
         except Exception as e:
             msg = f"Failed to count rows: {e}"
             raise DatabaseError(msg) from e

@@ -1,13 +1,12 @@
 """
 Utility functions for DFT calculations.
 """
-from typing import Dict, List
 
 import numpy as np
 from ase import Atoms
 
 
-def get_kpoints(atoms: Atoms, density: float) -> List[int]:
+def get_kpoints(atoms: Atoms, density: float) -> list[int]:
     """
     Calculates the Monkhorst-Pack grid based on K-point density.
 
@@ -45,7 +44,7 @@ def is_magnetic(atoms: Atoms) -> bool:
     return not symbols.isdisjoint(magnetic_elements)
 
 
-def get_sssp_pseudopotentials(elements: List[str]) -> Dict[str, str]:
+def get_sssp_pseudopotentials(elements: list[str]) -> dict[str, str]:
     """
     Maps elements to their SSSP pseudopotential filenames.
 

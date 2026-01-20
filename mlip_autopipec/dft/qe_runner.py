@@ -1,6 +1,7 @@
 """
 Quantum Espresso Runner.
 """
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -78,11 +79,6 @@ class QERunner:
             parameters["system"]["starting_magnetization"] = {
                 el: 0.1 for el in elements if el in ["Fe", "Ni", "Co"]
             }
-            # Also set initial moments on atoms for consistency?
-            # input_gen uses ase.io.write.
-            # If we set parameters['system']['starting_magnetization'], ASE writes it to input.
-            # But ASE might also look at atoms.get_initial_magnetic_moments().
-            # I will set it in parameters to be safe as per Spec "Input Writing".
 
         # 2. Generate Input
         input_file = run_dir / "pw.in"
@@ -100,7 +96,8 @@ class QERunner:
         # Command construction
         try:
             with output_file.open("w") as f_out:
-                cmd_parts = [*self.config.command.split(), "-in", "pw.in"]
+                # Use shlex to safely split the command string
+                cmd_parts = [*shlex.split(self.config.command), "-in", "pw.in"]
 
                 subprocess.run( # noqa: S603
                     cmd_parts,
@@ -125,11 +122,6 @@ class QERunner:
 
         # 5. Clean
         # Remove bulky files
-        # .wfc, .hub, .mix usually in prefix.save or just in dir?
-        # By default prefix='ase' or similar.
-        # ASE writes `prefix='calc'`? No, usually 'pwscf' default.
-        # We didn't specify prefix in parameters.
-        # Let's clean everything except .in and .out
         for p in run_dir.iterdir():
             if p.name not in ["pw.in", "pw.out"]:
                 if p.is_dir():

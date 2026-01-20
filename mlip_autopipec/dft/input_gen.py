@@ -2,7 +2,7 @@
 Input generation for Quantum Espresso.
 """
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any
 
 from ase import Atoms
 from ase.io import write
@@ -10,10 +10,10 @@ from ase.io import write
 
 def write_pw_input(
     atoms: Atoms,
-    parameters: Dict[str, Any],
-    pseudopotentials: Dict[str, str],
+    parameters: dict[str, Any],
+    pseudopotentials: dict[str, str],
     kpts: Any,
-    output_path: Union[str, Path],
+    output_path: str | Path,
 ) -> None:
     """
     Writes the Quantum Espresso input file.

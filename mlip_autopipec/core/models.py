@@ -12,12 +12,21 @@ class DFTResult(BaseModel):
     """
     Standardized result from a DFT calculation.
     """
-    atoms: Atoms = Field(..., description="The final atomic structure.")
+    atoms: Any = Field(..., description="The final atomic structure (ase.Atoms).")
     energy: float = Field(..., description="The total energy in eV.")
     forces: Any = Field(..., description="The Hellmann-Feynman forces (Nx3 array).")
     stress: Any = Field(..., description="The virial stress tensor.")
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    model_config = ConfigDict(extra="forbid") # arbitrary_types_allowed=False by default
+
+    @field_validator("atoms")
+    @classmethod
+    def validate_atoms_type(cls, v: Any) -> Any:
+        """Ensures atoms is an ase.Atoms object."""
+        if not isinstance(v, Atoms):
+            msg = f"Expected ase.Atoms object, got {type(v)}"
+            raise TypeError(msg)
+        return v
 
     @field_validator("forces")
     @classmethod
