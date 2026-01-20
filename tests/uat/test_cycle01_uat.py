@@ -55,12 +55,14 @@ def test_uat_1_2_static_calculation_flow(tmp_path, mocker):
     atoms = Atoms("Si", cell=[5,5,5], pbc=True)
 
     # Mock subprocess and parser to simulate successful run
-    mocker.patch("subprocess.run")
+    mock_run = mocker.patch("subprocess.run")
     mock_parser = mocker.patch("mlip_autopipec.dft.qe_runner.parse_pw_output")
+
+    from decimal import Decimal
 
     from mlip_autopipec.data_models.dft_models import DFTResult
     mock_result = DFTResult(
-        uid="uat_test", energy=-21.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0]*3]*3,
+        uid="uat_test", energy=Decimal("-21.0"), forces=[[0.0, 0.0, 0.0]], stress=[[0.0]*3]*3,
         succeeded=True, wall_time=10.0, parameters={"k_points": [1,1,1]}, final_mixing_beta=0.7
     )
     mock_parser.return_value = mock_result
@@ -68,11 +70,21 @@ def test_uat_1_2_static_calculation_flow(tmp_path, mocker):
     # Execute
     result = runner.run_static_calculation(atoms, tmp_path / "run")
 
+    # Verification of Generated Input (Audit Request)
+    input_file = tmp_path / "run" / "pw.in"
+    assert input_file.exists()
+    content = input_file.read_text()
+    assert "calculation" in content
+    assert "'scf'" in content
+    assert "ATOMIC_POSITIONS" in content
+    assert "Si" in content
+    assert "CELL_PARAMETERS" in content
+
     # Store
     # Attach results to atoms for storage
     atoms.calc = SinglePointCalculator(
         atoms,
-        energy=result.energy,
+        energy=float(result.energy), # ASE expects float
         forces=result.forces,
         stress=result.stress
     )

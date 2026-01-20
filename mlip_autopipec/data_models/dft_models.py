@@ -1,3 +1,4 @@
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
@@ -15,7 +16,7 @@ class DFTExceptionType(str, Enum):
 
 class DFTResult(BaseModel):
     uid: str
-    energy: float
+    energy: Decimal
     forces: list[list[float]] = Field(..., description="Nx3 array")
     stress: list[list[float]] = Field(..., description="3x3 array")
     succeeded: bool

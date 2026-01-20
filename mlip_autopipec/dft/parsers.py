@@ -2,6 +2,7 @@
 Module for parsing Quantum Espresso output files.
 """
 
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +37,8 @@ def parse_pw_output(
         msg = f"Failed to parse output: {e}"
         raise DFTException(msg) from e
 
-    energy = atoms_out.get_potential_energy()
+    # Convert energy to Decimal for precision
+    energy = Decimal(str(atoms_out.get_potential_energy()))
     forces = atoms_out.get_forces()
 
     # stress in ASE can be Voigt (6 elements) or 3x3
@@ -110,7 +112,8 @@ class QEOutputParser:
             # format='espresso-out' is auto-detected usually
             atoms_out = self.reader(output_path, format="espresso-out")
 
-            energy = atoms_out.get_potential_energy()
+            # Convert energy to Decimal for precision
+            energy = Decimal(str(atoms_out.get_potential_energy()))
 
             # Helper to safely convert numpy arrays to lists if needed
             forces = atoms_out.get_forces()

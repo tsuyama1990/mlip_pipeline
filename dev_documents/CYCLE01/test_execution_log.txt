@@ -32,14 +32,14 @@ mlip_autopipec/data/__init__.py                      0      0   100%
 mlip_autopipec/data/database.py                     23     23     0%   7-73
 mlip_autopipec/data_models/__init__.py               4      0   100%
 mlip_autopipec/data_models/candidate.py              5      0   100%
-mlip_autopipec/data_models/dft_models.py            35      3    91%   34, 42, 44
+mlip_autopipec/data_models/dft_models.py            36      3    92%   35, 43, 45
 mlip_autopipec/data_models/inference_models.py      18      7    61%   26-33
 mlip_autopipec/data_models/training_data.py         52     25    52%   29-31, 39-48, 53-64, 78-83
 mlip_autopipec/dft/__init__.py                       0      0   100%
 mlip_autopipec/dft/constants.py                      3      3     0%   1-91
 mlip_autopipec/dft/input_gen.py                     18      1    94%   43
 mlip_autopipec/dft/inputs.py                        57     57     0%   1-166
-mlip_autopipec/dft/parsers.py                       48     38    21%   24-58, 83, 108-140
+mlip_autopipec/dft/parsers.py                       49     38    22%   25-60, 85, 110-143
 mlip_autopipec/dft/qe_runner.py                     74     12    84%   65-66, 92-94, 99-101, 112-118
 mlip_autopipec/dft/recovery.py                      30     30     0%   1-81
 mlip_autopipec/dft/runner.py                        79     79     0%   1-170
@@ -98,5 +98,5 @@ mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
-TOTAL                                             2896   2579    11%
-============================== 20 passed in 4.26s ==============================
+TOTAL                                             2898   2579    11%
+============================== 20 passed in 4.30s ==============================
