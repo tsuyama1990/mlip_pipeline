@@ -12,7 +12,16 @@ def write_pw_input(
     kpts: tuple[int, int, int]
 ) -> str:
     """
-    Generates QE input string.
+    Generates a Quantum Espresso (pw.x) input string for the given atomic structure.
+
+    Args:
+        atoms: The ASE Atoms object representing the structure.
+        parameters: A dictionary of DFT parameters (e.g., {'control': {'calculation': 'scf'}}).
+        pseudopotentials: A dictionary mapping element symbols to UPF filenames.
+        kpts: A tuple (nx, ny, nz) representing the Monkhorst-Pack K-point grid.
+
+    Returns:
+        A string containing the formatted input file content.
     """
     input_data = parameters.copy()
 

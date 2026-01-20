@@ -2,7 +2,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.dft.utils import get_kpoints, get_sssp_pseudopotentials, is_magnetic
-from mlip_autopipec.exceptions import DFTError
+from mlip_autopipec.exceptions import DFTException
 
 
 def test_get_kpoints_large_cell():
@@ -42,5 +42,5 @@ def test_get_sssp(tmp_path):
     assert pseudos["Fe"] == "Fe.upf"
     assert pseudos["O"] == "O.pbe.upf"
 
-    with pytest.raises(DFTError):
+    with pytest.raises(DFTException):
         get_sssp_pseudopotentials(Atoms("H"), tmp_path)

@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class DFTErrorType(str, Enum):
+class DFTExceptionType(str, Enum):
     CONVERGENCE_FAIL = "CONVERGENCE_FAIL"
     DIAGONALIZATION_ERROR = "DIAGONALIZATION_ERROR"
     MAX_CPU_TIME = "MAX_CPU_TIME"

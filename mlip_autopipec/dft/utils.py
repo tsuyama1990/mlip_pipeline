@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from ase import Atoms
 
-from mlip_autopipec.exceptions import DFTError
+from mlip_autopipec.exceptions import DFTException
 
 
 def get_kpoints(atoms: Atoms, density: float) -> list[int]:
@@ -49,7 +49,7 @@ def get_sssp_pseudopotentials(atoms: Atoms, pseudo_dir: Path) -> dict[str, str]:
 
         if not candidates:
             msg = f"No pseudopotential found for {sym} in {pseudo_dir}"
-            raise DFTError(msg)
+            raise DFTException(msg)
 
         # Pick the first one (usually sorted alphabetically)
         candidates.sort()

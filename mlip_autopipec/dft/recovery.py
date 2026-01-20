@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from mlip_autopipec.data_models.dft_models import DFTErrorType
+from mlip_autopipec.data_models.dft_models import DFTExceptionType
 
 
 class RecoveryHandler:
@@ -10,23 +10,23 @@ class RecoveryHandler:
     """
 
     PATTERNS = {
-        DFTErrorType.CONVERGENCE_FAIL: [
+        DFTExceptionType.CONVERGENCE_FAIL: [
             re.compile(r"convergence NOT achieved", re.IGNORECASE),
             re.compile(r"c_bands:.*eigenvalues not converged", re.IGNORECASE),
         ],
-        DFTErrorType.DIAGONALIZATION_ERROR: [
+        DFTExceptionType.DIAGONALIZATION_ERROR: [
             re.compile(r"error in diagonalization", re.IGNORECASE),
             re.compile(r"cholesky decomposition failed", re.IGNORECASE),
         ],
-        DFTErrorType.MAX_CPU_TIME: [re.compile(r"maximum CPU time exceeded", re.IGNORECASE)],
-        DFTErrorType.OOM_KILL: [
+        DFTExceptionType.MAX_CPU_TIME: [re.compile(r"maximum CPU time exceeded", re.IGNORECASE)],
+        DFTExceptionType.OOM_KILL: [
             re.compile(r"oom-kill", re.IGNORECASE),
             re.compile(r"out of memory", re.IGNORECASE),
         ],
     }
 
     @staticmethod
-    def analyze(stdout: str, stderr: str) -> DFTErrorType:
+    def analyze(stdout: str, stderr: str) -> DFTExceptionType:
         """
         Scans stdout/stderr for known error patterns.
         """
@@ -37,10 +37,10 @@ class RecoveryHandler:
                 if pattern.search(combined):
                     return error_type
 
-        return DFTErrorType.NONE
+        return DFTExceptionType.NONE
 
     @staticmethod
-    def get_strategy(error_type: DFTErrorType, current_params: dict[str, Any]) -> dict[str, Any]:
+    def get_strategy(error_type: DFTExceptionType, current_params: dict[str, Any]) -> dict[str, Any]:
         """
         Returns updated parameters based on the error type and current state.
         This implements the 'Recovery Tree'.
@@ -48,7 +48,7 @@ class RecoveryHandler:
         # Deep copy to avoid mutating original if needed, but dict copy is enough for top level
         new_params = current_params.copy()
 
-        if error_type == DFTErrorType.CONVERGENCE_FAIL:
+        if error_type == DFTExceptionType.CONVERGENCE_FAIL:
             # Strategy: Reduce mixing beta -> Local-TF -> Increase Temp
 
             current_beta = new_params.get("mixing_beta", 0.7)
@@ -73,7 +73,7 @@ class RecoveryHandler:
                 # new_params["mixing_beta"] = 0.1 # even lower?
                 return new_params
 
-        elif error_type == DFTErrorType.DIAGONALIZATION_ERROR:
+        elif error_type == DFTExceptionType.DIAGONALIZATION_ERROR:
             new_params["diagonalization"] = "cg"
             return new_params
 

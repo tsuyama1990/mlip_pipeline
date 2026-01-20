@@ -8,7 +8,7 @@ from typing import Any
 from ase.io import read as ase_read
 
 from mlip_autopipec.config.models import DFTResult
-from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.exceptions import DFTCalculationException
 
 
 class QEOutputParser:
@@ -43,7 +43,7 @@ class QEOutputParser:
             stress.
 
         Raises:
-            DFTCalculationError: If the output file cannot be parsed.
+            DFTCalculationException: If the output file cannot be parsed.
         """
         try:
             result_atoms = self.reader(output_path, format="espresso-out")
@@ -71,4 +71,4 @@ class QEOutputParser:
             )
         except (OSError, IndexError) as e:
             msg = f"Failed to parse QE output file: {output_path}"
-            raise DFTCalculationError(msg) from e
+            raise DFTCalculationException(msg) from e

@@ -6,7 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
-from mlip_autopipec.exceptions import LoggingError
+from mlip_autopipec.exceptions import LoggingException
 
 
 def setup_logging(log_file: Path, level: int = logging.INFO) -> None:
@@ -18,7 +18,7 @@ def setup_logging(log_file: Path, level: int = logging.INFO) -> None:
         level: Logging level (default: INFO).
 
     Raises:
-        LoggingError: If logging configuration fails.
+        LoggingException: If logging configuration fails.
     """
     try:
         # Create log directory if it doesn't exist
@@ -41,7 +41,7 @@ def setup_logging(log_file: Path, level: int = logging.INFO) -> None:
 
     except OSError as e:
         msg = f"Failed to create log file or directory: {log_file}"
-        raise LoggingError(msg) from e
+        raise LoggingException(msg) from e
     except Exception as e:
         msg = f"Unexpected error during logging setup: {e}"
-        raise LoggingError(msg) from e
+        raise LoggingException(msg) from e

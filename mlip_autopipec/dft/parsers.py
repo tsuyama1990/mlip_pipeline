@@ -9,7 +9,7 @@ import numpy as np
 from ase.io import read as ase_read
 
 from mlip_autopipec.data_models.dft_models import DFTResult
-from mlip_autopipec.exceptions import DFTError
+from mlip_autopipec.exceptions import DFTException
 
 
 def parse_pw_output(
@@ -23,18 +23,18 @@ def parse_pw_output(
     """
     if not output_path.exists():
         msg = f"Output file {output_path} does not exist."
-        raise DFTError(msg)
+        raise DFTException(msg)
 
     content = output_path.read_text()
     if "JOB DONE" not in content:
         msg = "DFT calculation did not complete successfully (JOB DONE not found)."
-        raise DFTError(msg)
+        raise DFTException(msg)
 
     try:
         atoms_out = ase_read(output_path, format="espresso-out")
     except Exception as e:
         msg = f"Failed to parse output: {e}"
-        raise DFTError(msg) from e
+        raise DFTException(msg) from e
 
     energy = atoms_out.get_potential_energy()
     forces = atoms_out.get_forces()
@@ -46,7 +46,7 @@ def parse_pw_output(
     # Sanity check
     if np.isnan(forces).any() or np.isinf(forces).any():
         msg = "Forces contain NaN or Inf."
-        raise DFTError(msg)
+        raise DFTException(msg)
 
     if hasattr(forces, "tolist"):
         forces = forces.tolist()

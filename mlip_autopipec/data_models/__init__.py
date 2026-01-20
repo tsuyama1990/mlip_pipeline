@@ -6,12 +6,12 @@ between pipeline stages (e.g. DFT results, Training data, Extracted structures).
 These models are distinct from configuration schemas.
 """
 
-from .dft_models import DFTErrorType, DFTResult
+from .dft_models import DFTExceptionType, DFTResult
 from .inference_models import ExtractedStructure
 from .training_data import TrainingBatch, TrainingData
 
 __all__ = [
-    "DFTErrorType",
+    "DFTExceptionType",
     "DFTResult",
     "ExtractedStructure",
     "TrainingBatch",

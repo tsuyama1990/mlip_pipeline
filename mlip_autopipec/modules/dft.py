@@ -19,7 +19,7 @@ from mlip_autopipec.config.models import (
     Pseudopotentials,
     SmearingConfig,
 )
-from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.exceptions import DFTCalculationException
 from mlip_autopipec.utils.data_loader import load_sssp_data
 from mlip_autopipec.utils.resilience import retry
 
@@ -142,7 +142,7 @@ class DFTRunner:
     @retry(
         attempts=3,
         delay=5.0,
-        exceptions=(DFTCalculationError, subprocess.CalledProcessError),
+        exceptions=(DFTCalculationException, subprocess.CalledProcessError),
         on_retry=dft_retry_handler,
     )
     def run(self, job: DFTJob) -> DFTResult:
@@ -156,7 +156,7 @@ class DFTRunner:
             DFTResult: The parsed results of the calculation.
 
         Raises:
-            DFTCalculationError: If the calculation fails after retries.
+            DFTCalculationException: If the calculation fails after retries.
         """
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -171,13 +171,13 @@ class DFTRunner:
                 logger.info(f"DFT job {job.job_id} succeeded.")
                 return result
 
-        except DFTCalculationError:
+        except DFTCalculationException:
             # Let domain-specific errors propagate directly
             raise
 
         except subprocess.CalledProcessError as e:
             # Wrap low-level subprocess errors with context
-            raise DFTCalculationError(
+            raise DFTCalculationException(
                 f"DFT subprocess failed for job {job.job_id}",
                 stdout=getattr(e, "stdout", ""),
                 stderr=getattr(e, "stderr", ""),
@@ -186,4 +186,4 @@ class DFTRunner:
         except Exception as e:
             # Catch-all for unexpected runtime errors to prevent crash
             logger.exception(f"Unexpected error executing DFT job {job.job_id}")
-            raise DFTCalculationError(f"Unexpected error: {e}") from e
+            raise DFTCalculationException(f"Unexpected error: {e}") from e

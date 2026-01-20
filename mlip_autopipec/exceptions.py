@@ -8,31 +8,31 @@ handling throughout the workflow.
 from typing import Any
 
 
-class MLIPError(Exception):
+class MLIPException(Exception):
     """Base exception for all MLIP-AutoPipe errors."""
 
 
-class ConfigError(MLIPError):
+class ConfigException(MLIPException):
     """Raised when configuration loading or validation fails."""
 
 
-class DatabaseError(MLIPError):
+class DatabaseException(MLIPException):
     """Raised when database operations fail."""
 
 
-class WorkspaceError(MLIPError):
+class WorkspaceException(MLIPException):
     """Raised when workspace setup or filesystem operations fail."""
 
 
-class LoggingError(MLIPError):
+class LoggingException(MLIPException):
     """Raised when logging setup fails."""
 
 
-class DFTError(MLIPError):
+class DFTException(MLIPException):
     """Base exception for DFT operations."""
 
 
-class DFTCalculationError(DFTError):
+class DFTCalculationException(DFTException):
     """
     Raised when a DFT calculation fails and cannot be recovered automatically.
     """
@@ -56,7 +56,7 @@ class DFTCalculationError(DFTError):
         return f"{timeout_msg}{super().__str__()}\n--- STDOUT ---\n{self.stdout}\n--- STDERR ---\n{self.stderr}"
 
 
-class GeneratorError(MLIPError):
+class GeneratorException(MLIPException):
     """Raised when structure generation fails."""
 
     def __init__(self, message: str, context: dict[str, Any] | None = None):

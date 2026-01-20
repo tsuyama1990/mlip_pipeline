@@ -6,7 +6,7 @@ from ase.build import make_supercell
 
 from mlip_autopipec.config.schemas.common import Composition
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.exceptions import GeneratorException
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class AlloyGenerator:
             Atoms: The generated SQS supercell structure.
 
         Raises:
-            GeneratorError: If generation fails.
+            GeneratorException: If generation fails.
         """
         # Composition validation is handled by the Pydantic model on input.
         comp_dict: dict[str, float] = composition.root
@@ -97,10 +97,10 @@ class AlloyGenerator:
 
             return atoms
         except Exception as e:
-            if isinstance(e, GeneratorError):
+            if isinstance(e, GeneratorException):
                 raise
             msg = f"Failed to generate SQS: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
 
     def apply_strain(self, atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
         """
@@ -117,7 +117,7 @@ class AlloyGenerator:
             Atoms: The new strained structure with updated cell dimensions.
 
         Raises:
-            GeneratorError: If matrix operations fail.
+            GeneratorException: If matrix operations fail.
         """
         try:
             strained = atoms.copy()
@@ -136,7 +136,7 @@ class AlloyGenerator:
             return strained
         except Exception as e:
             msg = f"Failed to apply strain: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
 
     def apply_rattle(self, atoms: Atoms, sigma: float) -> Atoms:
         """
@@ -153,7 +153,7 @@ class AlloyGenerator:
             Atoms: The rattled structure.
 
         Raises:
-            GeneratorError: If the operation fails.
+            GeneratorException: If the operation fails.
         """
         try:
             rattled = atoms.copy()
@@ -166,7 +166,7 @@ class AlloyGenerator:
             return rattled
         except Exception as e:
             msg = f"Failed to apply rattle: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
 
     def generate_batch(self, base_structure: Atoms) -> list[Atoms]:
         """
@@ -185,7 +185,7 @@ class AlloyGenerator:
                          If distortions are disabled, returns only the base structure.
 
         Raises:
-            GeneratorError: If batch generation fails.
+            GeneratorException: If batch generation fails.
         """
         results = []
 
@@ -231,7 +231,7 @@ class AlloyGenerator:
 
             return results
         except Exception as e:
-            if isinstance(e, GeneratorError):
+            if isinstance(e, GeneratorException):
                 raise
             msg = f"Batch generation failed: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e

@@ -5,7 +5,7 @@ from ase import Atoms
 from ase.build import bulk, molecule
 
 from mlip_autopipec.config.schemas.system import SystemConfig
-from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.exceptions import GeneratorException
 
 from .alloy import AlloyGenerator
 from .defect import DefectApplicator
@@ -31,7 +31,7 @@ class StructureBuilder:
 
         if not self.generator_config:
             logger.info("No generator_config provided in SystemConfig, using defaults.")
-            raise GeneratorError("GeneratorConfig is missing in SystemConfig.")
+            raise GeneratorException("GeneratorConfig is missing in SystemConfig.")
 
         self.alloy_gen = AlloyGenerator(self.generator_config)
         self.mol_gen = MoleculeGenerator(self.generator_config)
@@ -50,7 +50,7 @@ class StructureBuilder:
             List[Atoms]: A list of generated atomic structures.
 
         Raises:
-            GeneratorError: If critical generation steps fail.
+            GeneratorException: If critical generation steps fail.
         """
         target = self.system_config.target_system
         if not target:
@@ -78,10 +78,10 @@ class StructureBuilder:
             final_structures = self.defect_applicator.apply(base_structures, primary_elem)
 
         except Exception as e:
-            if isinstance(e, GeneratorError):
+            if isinstance(e, GeneratorException):
                 raise
             msg = f"Structure generation failed: {e}"
-            raise GeneratorError(msg, context={"target": target.name}) from e
+            raise GeneratorException(msg, context={"target": target.name}) from e
 
         # 3. Final Metadata Tagging
         for s in final_structures:
@@ -127,7 +127,7 @@ class StructureBuilder:
             mol = molecule(target.name)
         except Exception as e:
             msg = f"Could not build molecule '{target.name}': {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
 
         if self.generator_config.nms.enabled:
             n_samples = self.generator_config.nms.n_samples

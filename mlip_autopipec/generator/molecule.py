@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.exceptions import GeneratorException
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class MoleculeGenerator:
             List[Atoms]: A list of distorted structures.
 
         Raises:
-            GeneratorError: If NMS calculation fails.
+            GeneratorException: If NMS calculation fails.
         """
         if not self.config.nms.enabled:
             return []
@@ -58,7 +58,7 @@ class MoleculeGenerator:
                 atoms.calc = EMT()
             except Exception as e:
                 logger.warning("No calculator attached and EMT not available. Cannot perform NMS.")
-                raise GeneratorError("NMS requires a calculator (or EMT availability).") from e
+                raise GeneratorException("NMS requires a calculator (or EMT availability).") from e
 
         # Run Vibrations
         # We need a temporary directory for displacement files
@@ -109,10 +109,10 @@ class MoleculeGenerator:
             return results
 
         except Exception as e:
-            if isinstance(e, GeneratorError):
+            if isinstance(e, GeneratorException):
                 raise
             msg = f"NMS calculation failed: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
         finally:
             # Cleanup
             if work_dir.exists():

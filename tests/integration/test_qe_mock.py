@@ -5,7 +5,7 @@ from ase import Atoms
 
 from mlip_autopipec.core.config import DFTConfig
 from mlip_autopipec.dft.qe_runner import QERunner
-from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.exceptions import DFTCalculationException
 
 
 @pytest.fixture
@@ -53,5 +53,5 @@ def test_run_static_calculation_failure(mock_dft_config, tmp_path, mocker):
     mock_run = mocker.patch("subprocess.run")
     mock_run.side_effect = subprocess.CalledProcessError(1, "cmd", stderr=b"Error!")
 
-    with pytest.raises(DFTCalculationError):
+    with pytest.raises(DFTCalculationException):
         runner.run_static_calculation(atoms, tmp_path / "run_fail")

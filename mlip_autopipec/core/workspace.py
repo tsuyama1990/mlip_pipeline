@@ -1,5 +1,5 @@
 from mlip_autopipec.config.models import SystemConfig
-from mlip_autopipec.exceptions import WorkspaceError
+from mlip_autopipec.exceptions import WorkspaceException
 
 
 class WorkspaceManager:
@@ -22,4 +22,4 @@ class WorkspaceManager:
             self.config.log_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             msg = f"Failed to create workspace directories: {e}"
-            raise WorkspaceError(msg) from e
+            raise WorkspaceException(msg) from e

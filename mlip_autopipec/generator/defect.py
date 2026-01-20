@@ -4,7 +4,7 @@ import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.exceptions import GeneratorException
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class DefectGenerator:
             List[Atoms]: A list of structures with one vacancy each.
 
         Raises:
-            GeneratorError: If vacancy generation fails.
+            GeneratorException: If vacancy generation fails.
         """
         results = []
         n_atoms = len(atoms)
@@ -49,7 +49,7 @@ class DefectGenerator:
             return results
         except Exception as e:
             msg = f"Failed to create vacancies: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
 
     def create_interstitial(self, atoms: Atoms, element: str) -> list[Atoms]:
         """
@@ -66,7 +66,7 @@ class DefectGenerator:
             List[Atoms]: A list of structures with one interstitial inserted.
 
         Raises:
-            GeneratorError: If interstitial generation fails.
+            GeneratorException: If interstitial generation fails.
         """
         results = []
         try:
@@ -103,7 +103,7 @@ class DefectGenerator:
             return results
         except Exception as e:
             msg = f"Failed to create interstitials: {e}"
-            raise GeneratorError(msg) from e
+            raise GeneratorException(msg) from e
 
 
 class DefectApplicator:

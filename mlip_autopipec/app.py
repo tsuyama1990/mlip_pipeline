@@ -8,7 +8,12 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from mlip_autopipec.exceptions import ConfigError, DatabaseError, MLIPError, WorkspaceError
+from mlip_autopipec.exceptions import (
+    ConfigException,
+    DatabaseException,
+    MLIPException,
+    WorkspaceException,
+)
 from mlip_autopipec.services.pipeline import PipelineController
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
@@ -42,16 +47,16 @@ def run(
     except FileNotFoundError as e:
         console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
         raise typer.Exit(code=1) from e
-    except ConfigError as e:
+    except ConfigException as e:
         console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
         raise typer.Exit(code=1) from e
-    except WorkspaceError as e:
+    except WorkspaceException as e:
         console.print(f"[bold red]WORKSPACE ERROR:[/bold red] {e}")
         raise typer.Exit(code=1) from e
-    except DatabaseError as e:
+    except DatabaseException as e:
         console.print(f"[bold red]DATABASE ERROR:[/bold red] {e}")
         raise typer.Exit(code=1) from e
-    except MLIPError as e:
+    except MLIPException as e:
         console.print(f"[bold red]ERROR:[/bold red] {e}")
         raise typer.Exit(code=1) from e
     except Exception as e:

@@ -4,7 +4,7 @@ import yaml
 from yaml.error import YAMLError
 
 from mlip_autopipec.config.models import MinimalConfig, SystemConfig
-from mlip_autopipec.exceptions import ConfigError
+from mlip_autopipec.exceptions import ConfigException
 
 
 class ConfigFactory:
@@ -30,26 +30,26 @@ class ConfigFactory:
             # Basic sanity check to avoid processing massive files
             if len(file_content) > 10 * 1024 * 1024:  # 10MB limit
                 msg = "Configuration file too large."
-                raise ConfigError(msg)
+                raise ConfigException(msg)
 
             data = yaml.safe_load(file_content)
 
             if not isinstance(data, dict):
                 msg = "Configuration file must contain a YAML dictionary."
-                raise ConfigError(msg)
+                raise ConfigException(msg)
 
         except YAMLError as e:
             msg = f"Failed to parse YAML configuration: {e}"
-            raise ConfigError(msg) from e
+            raise ConfigException(msg) from e
         except OSError as e:
             msg = f"Failed to read configuration file: {e}"
-            raise ConfigError(msg) from e
+            raise ConfigException(msg) from e
 
         try:
             minimal = MinimalConfig.model_validate(data)
         except Exception as e:
             msg = f"Configuration validation failed: {e}"
-            raise ConfigError(msg) from e
+            raise ConfigException(msg) from e
 
         # Resolve paths
         # We assume current working directory of the process.

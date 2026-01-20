@@ -8,22 +8,93 @@ import numpy as np
 from ase.db.core import Database
 from pydantic import ValidationError
 
-from mlip_autopipec.exceptions import DatabaseError
+from mlip_autopipec.exceptions import DatabaseException
 
 if TYPE_CHECKING:
     from mlip_autopipec.config.schemas.system import SystemConfig
     from mlip_autopipec.data_models.dft_models import DFTResult
 
 
+class _DatabaseReader:
+    """
+    Handles read operations for the database.
+    """
+
+    def __init__(self, connection: Database | None):
+        self._connection = connection
+
+    def _ensure_connection(self) -> Database:
+        if self._connection is None:
+            msg = "Database connection is lost."
+            raise DatabaseException(msg)
+        return self._connection
+
+    def get_metadata(self) -> dict[str, Any]:
+        conn = self._ensure_connection()
+        return conn.metadata  # type: ignore
+
+    def get_atoms(self, selection: str | None = None) -> list[AtomsObject]:
+        conn = self._ensure_connection()
+        try:
+            rows = conn.select(selection=selection)
+            return [row.toatoms() for row in rows]
+        except Exception as e:
+            msg = f"Failed to retrieve atoms from database: {e}"
+            raise DatabaseException(msg) from e
+
+    def count(self, selection: str | None = None) -> int:
+        conn = self._ensure_connection()
+        try:
+            return int(conn.count(selection=selection))
+        except Exception as e:
+            msg = f"Failed to count rows: {e}"
+            raise DatabaseException(msg) from e
+
+
+class _DatabaseWriter:
+    """
+    Handles write operations for the database.
+    """
+
+    def __init__(self, connection: Database | None):
+        self._connection = connection
+
+    def _ensure_connection(self) -> Database:
+        if self._connection is None:
+            msg = "Database connection is lost."
+            raise DatabaseException(msg)
+        return self._connection
+
+    def update_metadata(self, metadata: dict[str, Any]) -> None:
+        conn = self._ensure_connection()
+        try:
+            current_metadata = conn.metadata.copy()
+            current_metadata.update(metadata)
+            conn.metadata = current_metadata
+        except Exception as e:
+            msg = "Failed to update database metadata."
+            raise DatabaseException(msg) from e
+
+    def write_atoms(self, atoms: AtomsObject, key_value_pairs: dict[str, Any] | None = None, data: dict[str, Any] | None = None) -> int:
+        conn = self._ensure_connection()
+        try:
+            return conn.write(atoms, key_value_pairs=key_value_pairs, data=data)
+        except Exception as e:
+            msg = f"Failed to write atoms: {e}"
+            raise DatabaseException(msg) from e
+
+
 class DatabaseManager:
     """
     Wrapper around ase.db to enforce schema and metadata requirements.
-    Acts as the single source of truth for all database interactions.
+    Acts as the facade for all database interactions, delegating to Reader/Writer.
     """
 
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self._connection: Database | None = None
+        self._reader: _DatabaseReader | None = None
+        self._writer: _DatabaseWriter | None = None
 
     def initialize(self) -> None:
         """
@@ -31,243 +102,141 @@ class DatabaseManager:
         If the database does not exist, it is created.
         """
         try:
-            # Ensure parent directory exists (though WorkspaceManager handles this, redundancy is safe)
+            # Ensure parent directory exists
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Connect (or create)
             self._connection = ase.db.connect(str(self.db_path))
 
             # Secure the database file
-            # Might fail on Windows or some filesystems, log warning but don't crash
-            # Since logger is not imported here to keep it simple, we just pass
-            # or could import logging if strictly required.
             with contextlib.suppress(OSError):
                 self.db_path.chmod(0o600)
 
             # Force initialization
             self._connection.count()
+
+            # Initialize components
+            self._reader = _DatabaseReader(self._connection)
+            self._writer = _DatabaseWriter(self._connection)
+
         except Exception as e:
             msg = f"Failed to initialize database at {self.db_path}: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseException(msg) from e
 
-    def _ensure_connection(self) -> None:
-        """Helper to ensure connection exists or raise error."""
-        if self._connection is None:
+    def _ensure_initialized(self) -> None:
+        if self._connection is None or self._reader is None or self._writer is None:
             self.initialize()
             if self._connection is None:
                 msg = "Database connection is None after initialization."
-                raise DatabaseError(msg)
+                raise DatabaseException(msg)
+
+    # --- Configuration Methods ---
 
     def set_system_config(self, config: "SystemConfig") -> None:
-        """
-        Stores the system configuration in the database metadata.
-        This must be called during initialization or setup.
-        """
-        self._ensure_connection()
-
-        try:
-            config_dict = config.model_dump(mode="json")
-
-            # Update metadata
-            if self._connection is None:  # Redundant check for type checker
-                msg = "Connection lost"
-                raise DatabaseError(msg)
-
-            current_metadata = self._connection.metadata.copy()
-            current_metadata.update(config_dict)
-            self._connection.metadata = current_metadata
-        except Exception as e:
-            msg = "Failed to write system configuration to database metadata."
-            raise DatabaseError(msg) from e
+        self._ensure_initialized()
+        assert self._writer is not None # for mypy
+        config_dict = config.model_dump(mode="json")
+        self._writer.update_metadata(config_dict)
 
     def get_metadata(self) -> dict[str, Any]:
-        """
-        Retrieves the metadata from the database.
-        """
-        self._ensure_connection()
-        return self._connection.metadata  # type: ignore
+        self._ensure_initialized()
+        assert self._reader is not None
+        return self._reader.get_metadata()
 
     def get_system_config(self) -> "SystemConfig":
-        """
-        Retrieves and validates the SystemConfig stored in the database metadata.
-
-        Returns:
-            A validated SystemConfig object.
-
-        Raises:
-            DatabaseError: If metadata is missing or invalid.
-        """
-        # Delayed import to avoid circular dependency/tight coupling at module level
         from mlip_autopipec.config.schemas.system import SystemConfig
 
         metadata = self.get_metadata()
         try:
-            # We assume the config is stored at the top level or under specific keys.
-            # set_system_config dumps the whole model into metadata.
             return SystemConfig.model_validate(metadata)
         except ValidationError as e:
             msg = f"Database metadata does not contain a valid SystemConfig: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseException(msg) from e
+
+    # --- Data Access Methods ---
 
     def get_atoms(self, selection: str | None = None) -> list[AtomsObject]:
-        """
-        Retrieves atoms objects from the database.
+        self._ensure_initialized()
+        assert self._reader is not None
+        return self._reader.get_atoms(selection)
 
-        Args:
-            selection: ASE DB selection string (e.g. 'energy<0').
-
-        Returns:
-            List of ASE Atoms objects.
-        """
-        self._ensure_connection()
-
-        try:
-            # ase.db.select returns an iterator
-            if self._connection is not None:
-                rows = self._connection.select(selection=selection)
-                return [row.toatoms() for row in rows]
-            return []
-        except Exception as e:
-            msg = f"Failed to retrieve atoms from database: {e}"
-            raise DatabaseError(msg) from e
+    def count(self, selection: str | None = None) -> int:
+        self._ensure_initialized()
+        assert self._reader is not None
+        return self._reader.count(selection)
 
     def get_training_data(self) -> list[AtomsObject]:
-        """
-        Retrieves atoms specifically formatted and validated for training.
-        Use this instead of raw get_atoms when preparing for Pacemaker.
-
-        Returns:
-             List of ASE Atoms objects with info['energy'] and arrays['forces'] populated.
-        """
-        # Import here to avoid coupling
         from mlip_autopipec.config.schemas.training import TrainingData
 
-        self._ensure_connection()
+        self._ensure_initialized()
+        # Direct access needed for iteration, or expose iterator in Reader
+        # For simplicity, implementing here using underlying connection or adding method to Reader
+        # Let's add specialized method to Reader? Or keep high level logic here?
+        # Keeping high level logic here but using reader/writer primitives is safer?
+        # Actually, get_training_data involves validation logic.
+
+        # We can use the connection directly or use select from Reader if we modify Reader.
+        # Let's trust _ensure_initialized.
+        assert self._connection is not None
 
         atoms_list = []
         try:
-            if self._connection is not None:
-                for row in self._connection.select():
-                    # Validate that the row has the required data fields
-                    # We use the TrainingData Pydantic model for validation
-                    try:
-                        # row.data contains the dictionary of key-value pairs stored with the atoms
-                        validated_data = TrainingData(**row.data)
-
-                        atoms = row.toatoms()
-                        # Map validated data to atoms attributes expected by Pacemaker/ASE
-                        atoms.info["energy"] = validated_data.energy
-                        atoms.arrays["forces"] = np.array(validated_data.forces)
-                        atoms_list.append(atoms)
-                    except ValidationError:
-                        # Skip rows that don't match training data schema (maybe failed jobs or different types)
-                        continue
+            for row in self._connection.select():
+                try:
+                    validated_data = TrainingData(**row.data)
+                    atoms = row.toatoms()
+                    atoms.info["energy"] = validated_data.energy
+                    atoms.arrays["forces"] = np.array(validated_data.forces)
+                    atoms_list.append(atoms)
+                except ValidationError:
+                    continue
         except Exception as e:
             msg = f"Failed to read training data: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseException(msg) from e
 
         return atoms_list
+
+    # --- Write Methods ---
 
     def save_dft_result(
         self, atoms: AtomsObject, result: "DFTResult", metadata: dict[str, Any]
     ) -> None:
-        """
-        Saves a DFT calculation result and its metadata.
-        """
-        self._ensure_connection()
+        self._ensure_initialized()
+        assert self._writer is not None
 
-        try:
-            # Separate metadata for info dict and arrays
-            info_metadata = metadata.copy()
-            force_mask = info_metadata.pop("force_mask", None)
+        info_metadata = metadata.copy()
+        force_mask = info_metadata.pop("force_mask", None)
 
-            atoms.info["energy"] = result.energy
-            atoms.info["forces"] = result.forces
-            atoms.info["stress"] = result.stress
-            atoms.info.update(info_metadata)
+        atoms.info["energy"] = result.energy
+        atoms.info["forces"] = result.forces
+        atoms.info["stress"] = result.stress
+        atoms.info.update(info_metadata)
 
-            if force_mask is not None:
-                atoms.arrays["force_mask"] = np.array(force_mask)
+        if force_mask is not None:
+            atoms.arrays["force_mask"] = np.array(force_mask)
 
-            # Check if exists logic could go here, but for now we write
-            if self._connection is not None:
-                self._connection.write(atoms, data=result.model_dump())
-            # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
-        except Exception as e:
-            msg = f"Failed to save DFT result: {e}"
-            raise DatabaseError(msg) from e
+        self._writer.write_atoms(atoms, data=result.model_dump())
 
     def save_candidate(self, atoms: AtomsObject, metadata: dict[str, Any]) -> None:
-        """
-        Saves a candidate structure (without DFT results) to the database.
-
-        Validates metadata against CandidateData schema before saving.
-        """
         from mlip_autopipec.data_models.candidate import CandidateData
 
-        self._ensure_connection()
+        self._ensure_initialized()
+        assert self._writer is not None
 
         try:
-            # Validate metadata
             CandidateData(**metadata)
-
-            # Update atoms info with metadata
             atoms.info.update(metadata)
-            if self._connection is not None:
-                self._connection.write(atoms, key_value_pairs=metadata)
+            # Use key_value_pairs for searchable metadata (like status)
+            self._writer.write_atoms(atoms, key_value_pairs=metadata)
         except ValidationError as e:
             msg = f"Invalid candidate metadata: {e}"
-            raise DatabaseError(msg) from e
-        except Exception as e:
-            msg = f"Failed to save candidate: {e}"
-            raise DatabaseError(msg) from e
-
-    def count(self, selection: str | None = None) -> int:
-        """
-        Count rows in the database.
-
-        Args:
-            selection: ASE DB selection string.
-
-        Returns:
-            Number of rows matching selection.
-        """
-        self._ensure_connection()
-
-        try:
-            if self._connection is not None:
-                return int(self._connection.count(selection=selection))
-            return 0
-        except Exception as e:
-            msg = f"Failed to count rows: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseException(msg) from e
 
     def add_calculation(self, atoms: AtomsObject, metadata: dict[str, Any]) -> int:
-        """
-        Adds a completed calculation to the database.
-
-        Invariant: energy and forces must be present.
-        """
-        self._ensure_connection()
-
-        # Invariant checks
-        # atoms might be ASE Atoms object
-        # We check if energy/forces are attached or in metadata
-
-        # Basic check if it's an ASE Atoms object and has calculator results
-        # But we trust the caller mostly as per Spec (it says Invariant, implies caller ensures or we check)
-
-        try:
-            if self._connection is not None:
-                return self._connection.write(atoms, key_value_pairs=metadata)
-            msg = "Connection lost"
-            raise DatabaseError(msg)
-        except Exception as e:
-            msg = f"Failed to add calculation: {e}"
-            raise DatabaseError(msg) from e
+        self._ensure_initialized()
+        assert self._writer is not None
+        # metadata usually goes to key_value_pairs for search
+        return self._writer.write_atoms(atoms, key_value_pairs=metadata)
 
     def get_pending_calculations(self) -> list[AtomsObject]:
-        """
-        Retrieves entries flagged for computation (status='pending').
-        """
         return self.get_atoms(selection="status=pending")

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ase.calculators.espresso import EspressoProfile
 
-from mlip_autopipec.exceptions import DFTCalculationError
+from mlip_autopipec.exceptions import DFTCalculationException
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class QEProcessRunner:
             raise
         except subprocess.CalledProcessError as e:
             logger.exception("QE subprocess failed with a non-zero exit code.")
-            raise DFTCalculationError(
+            raise DFTCalculationException(
                 "The DFT calculation failed.",
                 stdout=e.stdout,
                 stderr=e.stderr,
