@@ -28,7 +28,11 @@ class LoggingError(MLIPError):
     """Raised when logging setup fails."""
 
 
-class DFTCalculationError(MLIPError):
+class DFTError(MLIPError):
+    """Base exception for DFT operations."""
+
+
+class DFTCalculationError(DFTError):
     """
     Raised when a DFT calculation fails and cannot be recovered automatically.
     """
