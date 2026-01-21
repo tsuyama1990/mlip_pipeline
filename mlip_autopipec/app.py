@@ -1,63 +1,46 @@
-"""
-Main CLI application for MLIP-AutoPipe.
-"""
-
-import logging
-from pathlib import Path
-
 import typer
+from typing import Annotated
+from pathlib import Path
+from pydantic import ValidationError
 from rich.console import Console
+from mlip_autopipec.core.config import load_config
 
-from mlip_autopipec.exceptions import ConfigError, DatabaseError, MLIPError, WorkspaceError
-from mlip_autopipec.services.pipeline import PipelineController
-
-app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
+app = typer.Typer(no_args_is_help=True)
 console = Console()
-log = logging.getLogger(__name__)
 
-
-@app.callback()
-def main() -> None:
-    """MLIP-AutoPipe CLI Entry Point."""
-
+def validate_config_file(config_path: Path) -> None:
+    """
+    Validates the configuration file at the given path.
+    """
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file {config_path} not found.")
+    load_config(config_path)
 
 @app.command()
-def run(
-    input_file: Path = typer.Argument(  # noqa: B008
-        ...,
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        resolve_path=True,
-        help="Path to the input.yaml configuration file.",
-    ),
-) -> None:
-    """Execute the MLIP-AutoPipe workflow."""
+def check_config(config_path: str) -> None:
+    """
+    Validates the configuration file.
+    """
+    path = Path(config_path)
     try:
-        # Delegate logic to PipelineController
-        PipelineController.execute(input_file)
-        console.print("[bold green]System initialized successfully[/bold green]")
-
+        validate_config_file(path)
+        console.print("[green]OK[/green]")
     except FileNotFoundError as e:
-        console.print(f"[bold red]FILE ERROR:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-    except ConfigError as e:
-        console.print(f"[bold red]CONFIGURATION ERROR:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-    except WorkspaceError as e:
-        console.print(f"[bold red]WORKSPACE ERROR:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-    except DatabaseError as e:
-        console.print(f"[bold red]DATABASE ERROR:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-    except MLIPError as e:
-        console.print(f"[bold red]ERROR:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-    except Exception as e:
-        console.print(f"[bold red]FAILURE:[/bold red] An unexpected error occurred: {e}")
-        raise typer.Exit(code=1) from e
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except ValidationError as e:
+        console.print(f"[red]Validation Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    # Removed generic Exception catch as per feedback, or make it specific if needed.
+    # But for a CLI, a fallback might be good. I'll stick to specific ones first.
+    except Exception as e: # Catch-all for unexpected errors in CLI is standard practice to show nice error instead of traceback
+         console.print(f"[red]Unexpected Error:[/red] {e}")
+         raise typer.Exit(code=1) from None
 
+@app.command()
+def version() -> None:
+    """Show version."""
+    console.print("0.1.0")
 
 if __name__ == "__main__":
     app()

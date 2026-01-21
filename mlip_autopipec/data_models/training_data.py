@@ -1,84 +1,14 @@
-# This module defines the schemas for Training Data.
-import math
-from typing import List, Union, Any
-
-import numpy as np
+from typing import List
+from pydantic import BaseModel, ConfigDict, Field
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-# Type alias for Matrix3x3 (List of 3 Lists of 3 floats)
-Vector3D = List[float]
-Matrix3x3 = List[Vector3D]
-
-
-class TrainingData(BaseModel):
-    """
-    Schema for validated training data.
-    Enforces shape and finite values for energy and forces.
-    """
-
-    energy: float
-    forces: List[Vector3D]
-    stress: Union[Matrix3x3, Vector3D, None] = None
-    virial: Union[Matrix3x3, Vector3D, None] = None
-
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator("energy")
-    @classmethod
-    def check_energy_finite(cls, v: float) -> float:
-        if not math.isfinite(v):
-            raise ValueError(f"Energy value {v} is not finite.")
-        return v
-
-    @field_validator("forces")
-    @classmethod
-    def check_forces_shape(cls, v: List[Vector3D]) -> List[Vector3D]:
-        """
-        Validates that the forces array is a list of 3-component vectors.
-        """
-        if not v:
-            return v
-        if not all(len(row) == 3 for row in v):
-            raise ValueError("Each force vector must have 3 components (x, y, z).")
-        # Check for NaN or Infinity
-        for row in v:
-            for val in row:
-                if not math.isfinite(val):
-                    raise ValueError(f"Force value {val} is not finite.")
-        return v
-
-    @field_validator("stress", "virial")
-    @classmethod
-    def check_matrix_shape(cls, v: Union[Matrix3x3, Vector3D, None]) -> Union[Matrix3x3, Vector3D, None]:
-        if v is None:
-            return v
-
-        # 3x3 Matrix
-        if len(v) == 3:
-             if not all(len(row) == 3 for row in v): # type: ignore
-                 raise ValueError("Stress/Virial matrix must be 3x3.")
-        # Voigt notation (6 components) or flattened (9)
-        elif len(v) not in [6, 9]:
-             raise ValueError("Stress/Virial must be 3x3 matrix or 6-component vector.")
-
-        return v
-
+import numpy as np
+from numpy.typing import NDArray
 
 class TrainingBatch(BaseModel):
     """
-    Schema for a batch of training data exported to Pacemaker.
+    A collection of structures ready for training.
     """
-
-    atoms_list: List["Atoms"]  # Forward reference to ASE Atoms
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    @field_validator("atoms_list")
-    @classmethod
-    def validate_atoms_list(cls, v: List[Any]) -> List[Any]:
-        if not v:
-            return v
-        # Basic check
-        if not hasattr(v[0], "get_positions"):
-             raise ValueError("Items in atoms_list do not appear to be ASE Atoms objects.")
-        return v
+    structures: List[Atoms] = Field(..., description="List of atomic structures")
+    force_masks: List[NDArray[np.float64]] = Field(..., description="Weights for each atom (0 or 1)")
