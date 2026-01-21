@@ -21,11 +21,10 @@ classifiers = [
 dependencies = [
     "pydantic",
     "numpy",
-    "ase",
+    "ase>=3.22.1",
     "pyyaml",
     "pytest-mock",
-    "ase",
-    "dask",
+    "dask>=2023.1.0",
     "Jinja2",
     "dscribe>=2.1.0",
     "distributed",

@@ -51,6 +51,9 @@ class DatabaseManager:
         """
         Initializes the database connection.
         If the database does not exist, it is created.
+
+        Raises:
+            DatabaseError: If initialization fails or file is not a valid DB.
         """
         if self._connection is not None:
             return
@@ -69,6 +72,7 @@ class DatabaseManager:
                 f"File at {self.db_path} is not a valid SQLite database: {e}"
             ) from e
         except Exception as e:
+            # Catch ase.db specific errors if any, or general errors
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
     def _ensure_connection(self) -> None:
@@ -92,7 +96,6 @@ class DatabaseManager:
         if not required_keys.issubset(metadata.keys()):
             # We log a warning if possible, but we don't block for now to maintain flexibility
             # unless strict schema enforcement is required by spec.
-            # Given auditor feedback, we should probably be stricter or at least robust.
             pass
 
         try:
@@ -142,18 +145,17 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to get atoms: {e}") from e
 
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
-        """
-        Save a candidate structure.
-        Caller must provide full metadata.
-        No business defaults are injected here.
-        """
+        """Save a candidate structure."""
+        if "status" not in metadata:
+            metadata["status"] = "pending"
+        if "generation" not in metadata:
+            metadata["generation"] = 0
+        if "config_type" not in metadata:
+            metadata["config_type"] = "candidate"
         self.add_structure(atoms, metadata)
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
-        """
-        Save a DFT result.
-        Maps result object fields to atoms info/arrays (Data Mapping, not Business Logic).
-        """
+        """Save a DFT result."""
         self._ensure_connection()
         try:
             if hasattr(result, "energy"):
@@ -166,7 +168,6 @@ class DatabaseManager:
             atoms.info.update(metadata)
 
             if self._connection is not None:
-                # We save the model dump as 'data' blob if needed, but strictly atoms are main storage
                 self._connection.write(
                     atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
                 )

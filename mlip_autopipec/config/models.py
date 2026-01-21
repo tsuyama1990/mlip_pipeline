@@ -7,6 +7,7 @@ from mlip_autopipec.config.schemas.common import TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.config.schemas.orchestration import WorkflowConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
 
@@ -49,8 +50,8 @@ class SystemConfig(BaseModel):
     log_path: Path = Path("mlip.log")
 
     # Strict types
-    workflow_config: Any | None = None # Keeping Any for workflow for now as it's not in schema list provided but I should probably make one.
-    explorer_config: Any | None = None
+    workflow_config: WorkflowConfig | None = None
+    explorer_config: Any | None = None # Still Any as no schema provided for Explorer yet
     surrogate_config: SurrogateConfig | None = None
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
@@ -72,6 +73,7 @@ class SystemConfig(BaseModel):
 
 
 class CheckpointState(BaseModel):
+    # Placeholder for workflow state
     run_uuid: Any = None
     system_config: SystemConfig
     active_learning_generation: int = 0

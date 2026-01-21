@@ -67,15 +67,9 @@ class LammpsRunner(MDRunner):
 
             # Verify executable exists and is executable
             if not shutil.which(executable):
-                logger.error(
-                    f"LAMMPS executable '{executable}' not found in PATH or is not executable."
-                )
-                return InferenceResult(
-                    succeeded=False,
-                    final_structure=None,
-                    uncertain_structures=[],
-                    max_gamma_observed=0.0,
-                )
+                msg = f"LAMMPS executable '{executable}' not found in PATH or is not executable."
+                logger.error(msg)
+                raise RuntimeError(msg)
 
             # Execute
             cmd = [

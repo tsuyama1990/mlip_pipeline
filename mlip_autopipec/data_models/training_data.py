@@ -26,6 +26,8 @@ class TrainingData(BaseModel):
     @field_validator("energy")
     @classmethod
     def check_energy_finite(cls, v: float) -> float:
+        if not isinstance(v, float):
+             raise ValueError(f"Energy must be a float, got {type(v)}")
         if not math.isfinite(v):
             raise ValueError(f"Energy value {v} is not finite.")
         return v
