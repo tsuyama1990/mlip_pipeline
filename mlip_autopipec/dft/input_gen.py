@@ -49,5 +49,5 @@ def write_pw_input(
             pseudopotentials=pseudopotentials,
             kpts=kpts,
             kspacing=kspacing,
-            koffset=koffset
+            koffset=koffset,
         )

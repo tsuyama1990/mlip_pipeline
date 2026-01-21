@@ -15,15 +15,11 @@ def test_qe_runner_mock(tmp_path: Path, mocker: MagicMock) -> None:
     pseudo_dir.mkdir()
     (pseudo_dir / "Si.upf").write_text("<UPF>Fake</UPF>")
 
-    config = DFTConfig(
-        command="pw.x",
-        pseudopotential_dir=pseudo_dir,
-        ecutwfc=30
-    )
+    config = DFTConfig(command="pw.x", pseudopotential_dir=pseudo_dir, ecutwfc=30)
     runner = QERunner(config)
 
     run_dir = tmp_path / "run"
-    atoms = Atoms("Si", cell=[5,5,5], pbc=True)
+    atoms = Atoms("Si", cell=[5, 5, 5], pbc=True)
 
     # Mock subprocess.run
     mock_run = mocker.patch("subprocess.run")
@@ -43,8 +39,8 @@ def test_qe_runner_mock(tmp_path: Path, mocker: MagicMock) -> None:
     # This avoids needing to write valid QE output for ASE to parse
     expected_result = DFTResult(
         energy=-100.0,
-        forces=np.zeros((1,3)),
-        stress=np.zeros((3,3)) # Voigt (6) or Matrix (3x3)? ASE stress is 6 (Voigt) or 3x3.
+        forces=np.zeros((1, 3)),
+        stress=np.zeros((3, 3)),  # Voigt (6) or Matrix (3x3)? ASE stress is 6 (Voigt) or 3x3.
         # DFTResult model expects Array.
         # ase.get_stress() returns array of 6 elements (Voigt form) by default.
         # But let's check DFTResult model again. "stress: Optional[NDArray]".

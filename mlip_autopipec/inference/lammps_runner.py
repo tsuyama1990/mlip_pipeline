@@ -77,7 +77,7 @@ class LammpsRunner(MDRunner):
                 logger.info("LAMMPS execution completed successfully.")
                 success = True
 
-        except Exception: # Catch-all for unexpected errors (e.g. permission denied, etc.)
+        except Exception:  # Catch-all for unexpected errors (e.g. permission denied, etc.)
             logger.exception("An error occurred during LAMMPS execution setup or run.")
             success = False
             # Ensure variables are defined if exception occurs before assignment

@@ -15,10 +15,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class PhaseExecutor:
     """
     Handles the execution of individual workflow phases to decouple logic from WorkflowManager.
     """
+
     def __init__(self, manager: "WorkflowManager") -> None:
         self.manager = manager
         self.config = manager.config
@@ -41,7 +43,7 @@ class PhaseExecutor:
 
             if self.config.surrogate_config:
                 if not self._surrogate:
-                     self._surrogate = SurrogatePipeline(self.config.surrogate_config)
+                    self._surrogate = SurrogatePipeline(self.config.surrogate_config)
 
                 selected, _ = self._surrogate.run(candidates)
                 logger.info(f"Selected {len(selected)} candidates via Surrogate.")
@@ -50,7 +52,10 @@ class PhaseExecutor:
                 logger.info("Surrogate skipped (no config). Using all candidates.")
 
             for atoms in selected:
-                self.db.save_candidate(atoms, {"status": "pending", "generation": self.manager.state.current_generation})
+                self.db.save_candidate(
+                    atoms,
+                    {"status": "pending", "generation": self.manager.state.current_generation},
+                )
 
         except Exception:
             logger.exception("Exploration phase failed")
@@ -76,7 +81,10 @@ class PhaseExecutor:
                         self.db.save_dft_result(
                             atoms,
                             res,
-                            {"status": "training", "generation": self.manager.state.current_generation}
+                            {
+                                "status": "training",
+                                "generation": self.manager.state.current_generation,
+                            },
                         )
                         success_count += 1
                     else:
@@ -105,7 +113,7 @@ class PhaseExecutor:
                 dataset_builder,
                 config_gen,
                 self.manager.work_dir,
-                self.manager.state.current_generation
+                self.manager.state.current_generation,
             )
             logger.info(f"Training complete. Potential at: {result.potential_path}")
 
@@ -117,7 +125,7 @@ class PhaseExecutor:
         logger.info("Phase D: Inference")
         try:
             if not self.config.inference_config:
-                 logger.warning("No Inference Config. Skipping inference.")
+                logger.warning("No Inference Config. Skipping inference.")
             else:
                 # Logic for inference execution (placeholder as per instruction)
                 pass

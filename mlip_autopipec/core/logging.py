@@ -9,5 +9,5 @@ def setup_logging(level: str = "INFO") -> None:
         level=level,
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True)]
+        handlers=[RichHandler(rich_tracebacks=True)],
     )

@@ -16,13 +16,9 @@ def test_qe_runner_timeout(tmp_path: Path, mocker: MagicMock) -> None:
     pseudo_dir.mkdir()
     (pseudo_dir / "Si.upf").write_text("<UPF>Fake</UPF>")
 
-    config = DFTConfig(
-        command="pw.x",
-        pseudopotential_dir=pseudo_dir,
-        ecutwfc=30
-    )
+    config = DFTConfig(command="pw.x", pseudopotential_dir=pseudo_dir, ecutwfc=30)
     runner = QERunner(config)
-    atoms = Atoms("Si", cell=[5,5,5], pbc=True)
+    atoms = Atoms("Si", cell=[5, 5, 5], pbc=True)
     run_dir = tmp_path / "run"
 
     # Mock subprocess.run to raise TimeoutExpired

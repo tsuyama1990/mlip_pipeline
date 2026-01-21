@@ -22,5 +22,5 @@ __all__ = [
     "LammpsRunner",
     "MDRunner",
     "ScriptGenerator",
-    "UncertaintyChecker"
+    "UncertaintyChecker",
 ]
