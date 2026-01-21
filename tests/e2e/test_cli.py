@@ -7,6 +7,7 @@ from mlip_autopipec.app import app
 
 runner = CliRunner()
 
+
 def test_cli_init(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         result = runner.invoke(app, ["init"])
@@ -18,6 +19,7 @@ def test_cli_init(tmp_path):
             content = f.read()
             assert "target_system:" in content
 
+
 def test_cli_check_config_success(tmp_path):
     # Create dummy UPF dir
     pseudo_dir = tmp_path / "pseudos"
@@ -27,16 +29,10 @@ def test_cli_check_config_success(tmp_path):
         "target_system": {
             "elements": ["Al"],
             "composition": {"Al": 1.0},
-            "crystal_structure": "fcc"
+            "crystal_structure": "fcc",
         },
-        "dft": {
-            "pseudopotential_dir": str(pseudo_dir),
-            "ecutwfc": 30.0,
-            "kspacing": 0.15
-        },
-        "runtime": {
-            "work_dir": str(tmp_path / "work")
-        }
+        "dft": {"pseudopotential_dir": str(pseudo_dir), "ecutwfc": 30.0, "kspacing": 0.15},
+        "runtime": {"work_dir": str(tmp_path / "work")},
     }
 
     config_file = tmp_path / "valid.yaml"
@@ -47,10 +43,11 @@ def test_cli_check_config_success(tmp_path):
     assert result.exit_code == 0
     assert "Validation Successful" in result.stdout
 
+
 def test_cli_check_config_failure(tmp_path):
     config_data = {
         "target_system": {
-             # Missing elements
+            # Missing elements
             "composition": {"Al": 1.0}
         }
     }
@@ -62,25 +59,37 @@ def test_cli_check_config_failure(tmp_path):
     assert result.exit_code == 1
     assert "Validation Error" in result.stdout
 
+
 def test_cli_db_init_absolute_path(tmp_path):
     # Create dummy UPF dir
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
 
+    # Use a clearly absolute path
+    abs_db_path = str(tmp_path.resolve() / "absolute_test.db")
+
     config_data = {
         "target_system": {"elements": ["Al"], "composition": {"Al": 1.0}},
         "dft": {"pseudopotential_dir": str(pseudo_dir), "ecutwfc": 30.0, "kspacing": 0.15},
-        "runtime": {"database_path": str(tmp_path / "test.db")}
+        "runtime": {"database_path": abs_db_path},
     }
 
-    with runner.isolated_filesystem(temp_dir=tmp_path):
+    # Run in a different CWD to ensure absolute path is respected
+    cwd_dir = tmp_path / "cwd"
+    cwd_dir.mkdir()
+
+    with runner.isolated_filesystem(temp_dir=cwd_dir):
+        # Write config in cwd (or passed via path)
         with open("input.yaml", "w") as f:
             yaml.dump(config_data, f)
 
         result = runner.invoke(app, ["db", "init"])
         assert result.exit_code == 0
-        # The config specified an absolute path, so we check that path
-        assert (tmp_path / "test.db").exists()
+        # Check that db is NOT in cwd
+        assert not Path("absolute_test.db").exists()
+        # Check that db IS at absolute path
+        assert Path(abs_db_path).exists()
+
 
 def test_cli_db_init_relative_path(tmp_path):
     # Create dummy UPF dir
@@ -91,7 +100,7 @@ def test_cli_db_init_relative_path(tmp_path):
     config_data = {
         "target_system": {"elements": ["Al"], "composition": {"Al": 1.0}},
         "dft": {"pseudopotential_dir": str(pseudo_dir), "ecutwfc": 30.0, "kspacing": 0.15},
-        "runtime": {"database_path": "local.db"}
+        "runtime": {"database_path": "local.db"},
     }
 
     with runner.isolated_filesystem(temp_dir=tmp_path):

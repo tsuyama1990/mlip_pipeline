@@ -42,7 +42,6 @@ class TaskQueue:
 
         except Exception as e:
             logger.error(f"Failed to initialize Dask client/cluster: {e}")
-            # Clean up if partially initialized
             if self.cluster:
                 try:
                     self.cluster.close()
@@ -50,14 +49,14 @@ class TaskQueue:
                     pass
             self.cluster = None
             self.client = None
-            # Re-raise to alert caller
             raise RuntimeError(f"TaskQueue initialization failed: {e}") from e
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def submit_dft_batch(
         self, func: Callable[..., Any], items: list[Any], **kwargs: Any
     ) -> list[Future[Any]]:
         """
-        Submit a batch of DFT tasks to the cluster.
+        Submit a batch of DFT tasks to the cluster with retry logic.
 
         Args:
             func: The function to execute (e.g., QERunner.run).
@@ -68,10 +67,14 @@ class TaskQueue:
             List of Dask Futures representing the submitted tasks.
         """
         if not self.client:
-             raise RuntimeError("Dask Client is not initialized.")
+            raise RuntimeError("Dask Client is not initialized.")
 
-        logger.info(f"Submitting {len(items)} tasks to Dask.")
-        return self.client.map(func, items, **kwargs)
+        try:
+            logger.info(f"Submitting {len(items)} tasks to Dask.")
+            return self.client.map(func, items, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to submit batch: {e}")
+            raise
 
     def wait_for_completion(
         self, futures: list[Future[Any]], timeout: float | None = None
@@ -91,7 +94,7 @@ class TaskQueue:
             Failed tasks result in None.
         """
         if not self.client:
-             raise RuntimeError("Dask Client is not initialized.")
+            raise RuntimeError("Dask Client is not initialized.")
 
         logger.info(f"Waiting for {len(futures)} tasks to complete...")
         wait(futures, timeout=timeout)
@@ -119,8 +122,7 @@ class TaskQueue:
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
     def robust_submit(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Future[Any]:
         """
-        Submits a single task with retry logic for submission failures (not execution failures).
-        Uses exponential backoff for transient errors.
+        Submits a single task with retry logic for submission failures.
 
         Args:
             func: Function to execute.
@@ -131,7 +133,7 @@ class TaskQueue:
             Dask Future.
         """
         if not self.client:
-             raise RuntimeError("Dask Client is not initialized.")
+            raise RuntimeError("Dask Client is not initialized.")
         return self.client.submit(func, *args, **kwargs)
 
     def shutdown(self) -> None:

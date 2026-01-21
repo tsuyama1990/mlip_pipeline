@@ -42,15 +42,17 @@ class TrainingData(BaseModel):
         # Check shape of each vector
         for i, row in enumerate(v):
             if not isinstance(row, list):
-                 raise ValueError(f"Force vector at index {i} must be a list.")
+                raise ValueError(f"Force vector at index {i} must be a list.")
             if len(row) != 3:
-                raise ValueError(f"Force vector at index {i} must have exactly 3 components (got {len(row)}).")
+                raise ValueError(
+                    f"Force vector at index {i} must have exactly 3 components (got {len(row)})."
+                )
 
         # Check for NaN or Infinity
         for i, row in enumerate(v):
             for j, val in enumerate(row):
                 if not isinstance(val, (int, float)):
-                     raise ValueError(f"Force value at [{i}, {j}] must be a number.")
+                    raise ValueError(f"Force value at [{i}, {j}] must be a number.")
                 if not math.isfinite(val):
                     raise ValueError(f"Force value {val} at [{i}, {j}] is not finite.")
         return v

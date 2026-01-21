@@ -10,29 +10,44 @@ from mlip_autopipec.config.schemas.dft import DFTConfig
 try:
     from mlip_autopipec.config.schemas.training import TrainingConfig as TrainConfig
 except ImportError:
-    class TrainConfig(BaseModel): pass # type: ignore
+
+    class TrainConfig(BaseModel):
+        pass  # type: ignore
+
 
 try:
     from mlip_autopipec.config.schemas.inference import InferenceConfig
 except ImportError:
-    class InferenceConfig(BaseModel): pass # type: ignore
+
+    class InferenceConfig(BaseModel):
+        pass  # type: ignore
+
 
 try:
     from mlip_autopipec.config.schemas.generator import GeneratorConfig
 except ImportError:
-    class GeneratorConfig(BaseModel): pass # type: ignore
+
+    class GeneratorConfig(BaseModel):
+        pass  # type: ignore
+
 
 try:
     from mlip_autopipec.config.schemas.surrogate import EmbeddingConfig, SurrogateConfig
 except ImportError:
-    class SurrogateConfig(BaseModel): pass # type: ignore
-    class EmbeddingConfig(BaseModel): pass # type: ignore
+
+    class SurrogateConfig(BaseModel):
+        pass  # type: ignore
+
+    class EmbeddingConfig(BaseModel):
+        pass  # type: ignore
+
 
 class RuntimeConfig(BaseModel):
     database_path: Path = Field(Path("mlip.db"), description="Path to SQLite database")
     work_dir: Path = Field(Path("_work"), description="Scratch directory for calculations")
 
     model_config = ConfigDict(extra="forbid")
+
 
 class MLIPConfig(BaseModel):
     target_system: TargetSystem
@@ -41,24 +56,29 @@ class MLIPConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+
 # --- Compatibility / Legacy Models ---
 
+
 class MinimalConfig(BaseModel):
-    # Mapping to TargetSystem + Resources (approx)
     project_name: str = "MLIP Project"
     target_system: TargetSystem
-    # Resources...
     model_config = ConfigDict(extra="allow")
 
-# Placeholder models for strict typing
+
+# Placeholder for strictly typed schemas that might not be importable yet
+# We allow arbitrary types here only because we can't import the real ones safely yet,
+# but we forbid extra fields in the container.
 class PlaceholderConfig(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+
 
 class SystemConfig(BaseModel):
     """
     Legacy SystemConfig for compatibility with existing modules.
     Wraps MLIPConfig components.
     """
+
     minimal: MinimalConfig | None = None
     target_system: TargetSystem | None = None
     dft_config: DFTConfig | None = None
@@ -82,6 +102,7 @@ class SystemConfig(BaseModel):
 
     # Strictly forbid extra fields to ensure data integrity
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
 
 class CheckpointState(BaseModel):
     # Placeholder for workflow state

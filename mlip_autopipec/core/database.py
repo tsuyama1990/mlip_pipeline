@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import ase.db
 import numpy as np
@@ -11,31 +11,66 @@ from mlip_autopipec.exceptions import DatabaseError
 if TYPE_CHECKING:
     from mlip_autopipec.config.models import SystemConfig
 
+
 class DatabaseManager:
     """
     Wrapper around ase.db to enforce schema and metadata requirements.
+
+    This class manages the connection to the ASE database (SQLite).
+    It implements the Context Manager protocol to ensure connections are closed.
     """
 
     def __init__(self, db_path: Path) -> None:
+        """
+        Initialize the DatabaseManager.
+
+        Args:
+            db_path: Path to the SQLite database file.
+        """
         self.db_path = db_path
         self._connection: ase.db.core.Database | None = None
+
+    def __enter__(self) -> Self:
+        """Context manager entry."""
+        self.initialize()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        """Context manager exit. Closes connection."""
+        self.close()
+
+    def close(self) -> None:
+        """
+        Closes the database connection.
+        """
+        if self._connection:
+            # ase.db doesn't have a close() method for SQLite usually, but we clear the ref
+            # If backend were different (e.g. Postgres), it might.
+            # For robustness, we set it to None.
+            self._connection = None
 
     def initialize(self) -> None:
         """
         Initializes the database connection.
         If the database does not exist, it is created.
         """
+        if self._connection is not None:
+            return
+
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._connection = ase.db.connect(str(self.db_path))
             # Force creating the file by checking count
             self._connection.count()
         except OSError as e:
-            raise DatabaseError(f"FileSystem error initializing database at {self.db_path}: {e}") from e
+            raise DatabaseError(
+                f"FileSystem error initializing database at {self.db_path}: {e}"
+            ) from e
         except sqlite3.DatabaseError as e:
-            raise DatabaseError(f"File at {self.db_path} is not a valid SQLite database: {e}") from e
+            raise DatabaseError(
+                f"File at {self.db_path} is not a valid SQLite database: {e}"
+            ) from e
         except Exception as e:
-            # ase.db might raise other errors
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
     def _ensure_connection(self) -> None:
@@ -55,11 +90,9 @@ class DatabaseManager:
         """
         self._ensure_connection()
 
-        # We perform validation but catch specific errors
         required_keys = {"status", "config_type", "generation"}
         if not required_keys.issubset(metadata.keys()):
-            # Log warning or allow, but here we proceed
-            pass
+            pass  # We allow missing keys for flexibility, but warn in logs if we had a logger here
 
         try:
             if self._connection is not None:
@@ -69,7 +102,6 @@ class DatabaseManager:
         except KeyError as e:
             raise DatabaseError(f"Invalid key in metadata: {e}") from e
         except Exception as e:
-             # ase.db write failures
             raise DatabaseError(f"Failed to add structure: {e}") from e
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
@@ -82,7 +114,6 @@ class DatabaseManager:
                 return self._connection.count(selection=selection, **kwargs)
             return 0
         except Exception as e:
-             # Count should be robust
             raise DatabaseError(f"Failed to count rows: {e}") from e
 
     def update_status(self, id: int, status: str) -> None:
@@ -94,13 +125,12 @@ class DatabaseManager:
             if self._connection is not None:
                 self._connection.update(id, status=status)
         except KeyError as e:
-             raise DatabaseError(f"ID {id} not found: {e}") from e
+            raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
             raise DatabaseError(f"Failed to update status: {e}") from e
 
-    # --- Compatibility Methods ---
-
     def get_atoms(self, selection: str | None = None) -> list[Atoms]:
+        """Retrieve atoms matching selection."""
         self._ensure_connection()
         try:
             if self._connection is not None:
@@ -111,7 +141,7 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to get atoms: {e}") from e
 
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
-        # Wrapper for add_structure
+        """Save a candidate structure."""
         if "status" not in metadata:
             metadata["status"] = "pending"
         if "generation" not in metadata:
@@ -121,10 +151,9 @@ class DatabaseManager:
         self.add_structure(atoms, metadata)
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
-        # result is likely DFTResult model
+        """Save a DFT result."""
         self._ensure_connection()
         try:
-            # Map DFTResult to atoms.info/arrays
             if hasattr(result, "energy"):
                 atoms.info["energy"] = result.energy
             if hasattr(result, "forces"):
@@ -132,40 +161,40 @@ class DatabaseManager:
             if hasattr(result, "stress"):
                 atoms.info["stress"] = np.array(result.stress)
 
-            # Merge metadata
             atoms.info.update(metadata)
 
             if self._connection is not None:
-                self._connection.write(atoms, data=result.model_dump() if hasattr(result, "model_dump") else {})
+                self._connection.write(
+                    atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
+                )
         except AttributeError as e:
-             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
+            raise DatabaseError(f"Invalid DFTResult object: {e}") from e
         except Exception as e:
-             raise DatabaseError(f"Failed to save DFT result: {e}") from e
+            raise DatabaseError(f"Failed to save DFT result: {e}") from e
 
     def get_training_data(self) -> list[Atoms]:
-        # Select completed calculations
+        """Get atoms with status=completed."""
         return self.get_atoms(selection="status=completed")
 
     def set_system_config(self, config: "SystemConfig") -> None:
+        """Store system config in metadata."""
         self._ensure_connection()
         if self._connection is not None:
             try:
                 self._connection.metadata = config.model_dump(mode="json")
             except Exception:
-                # We suppress metadata write errors as they are non-critical for operation flow
-                # but in strict mode we might want to log.
-                # The feedback specifically said "narrow try-except".
-                # For set_system_config, failures are usually serialization issues.
                 pass
 
     def get_system_config(self) -> "SystemConfig":
+        """Retrieve system config from metadata."""
         from pydantic import ValidationError
 
         from mlip_autopipec.config.models import SystemConfig
+
         self._ensure_connection()
         if self._connection is not None:
-             try:
+            try:
                 return SystemConfig.model_validate(self._connection.metadata)
-             except ValidationError as e:
-                 raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
+            except ValidationError as e:
+                raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
         raise DatabaseError("No SystemConfig found")

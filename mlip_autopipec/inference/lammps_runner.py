@@ -59,13 +59,18 @@ class LammpsRunner(MDRunner):
             dump_file = dump_file_path
 
             # Determine executable
-            executable = str(self.config.lammps_executable) if self.config.lammps_executable else "lmp_serial"
+            executable = (
+                str(self.config.lammps_executable)
+                if self.config.lammps_executable
+                else "lmp_serial"
+            )
 
             # Verify executable exists and is executable
-            # shutil.which checks PATH if it's a command name, or checks file if it's a path
             if not shutil.which(executable):
-                 logger.error(f"LAMMPS executable '{executable}' not found in PATH or is not executable.")
-                 return InferenceResult(
+                logger.error(
+                    f"LAMMPS executable '{executable}' not found in PATH or is not executable."
+                )
+                return InferenceResult(
                     succeeded=False,
                     final_structure=None,
                     uncertain_structures=[],
@@ -82,23 +87,21 @@ class LammpsRunner(MDRunner):
             ]
 
             logger.info(f"Starting LAMMPS execution: {' '.join(cmd)}")
-            # Security: check=False is intentional, we handle returncode.
-            # shell=False (default) prevents command injection from arguments.
+
             result = subprocess.run(
-                cmd, check=False, capture_output=True, text=True, cwd=self.work_dir
+                cmd, check=True, capture_output=True, text=True, cwd=self.work_dir
             )
 
-            if result.returncode != 0:
-                logger.error(f"LAMMPS execution failed with return code {result.returncode}")
-                logger.error(f"Stdout: {result.stdout}")
-                logger.error(f"Stderr: {result.stderr}")
-                success = False
-            else:
-                logger.info("LAMMPS execution completed successfully.")
-                success = True
+            logger.info("LAMMPS execution completed successfully.")
+            success = True
 
-        except Exception:  # Catch-all for unexpected errors (e.g. permission denied, etc.)
-            logger.exception("An error occurred during LAMMPS execution setup or run.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"LAMMPS execution failed with return code {e.returncode}")
+            logger.error(f"Stdout: {e.stdout}")
+            logger.error(f"Stderr: {e.stderr}")
+            success = False
+        except Exception:
+            logger.exception("An unexpected error occurred during LAMMPS execution.")
             success = False
 
         # Process Results (Best Effort)
