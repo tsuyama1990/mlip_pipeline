@@ -46,6 +46,14 @@ def test_dft_config_validation(tmp_path: Path) -> None:
             pseudopotential_dir=tmp_path / "non_existent"
         )
 
+    # Test negative ecutwfc
+    with pytest.raises(ValidationError):
+        DFTConfig(
+            command="pw.x",
+            pseudopotential_dir=pseudo_dir,
+            ecutwfc=-10
+        )
+
 def test_global_config_validation() -> None:
     # Valid config
     config = GlobalConfig(
@@ -61,4 +69,11 @@ def test_global_config_validation() -> None:
             project_name="TestProject",
             database_path=Path("test.db"),
             logging_level="INVALID"
+        )
+
+    # Empty project name
+    with pytest.raises(ValidationError):
+        GlobalConfig(
+            project_name="",
+            database_path=Path("test.db")
         )

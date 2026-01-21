@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import contextlib
 import ase.db
 from ase import Atoms
@@ -13,6 +13,9 @@ class DatabaseManager:
         """
         Initialize the database manager.
         Establishes connection to the SQLite database. Creates it if it doesn't exist.
+
+        Args:
+            db_path: Path to the SQLite database file.
         """
         self.db_path = db_path
         self._connection = ase.db.connect(str(db_path))
@@ -21,7 +24,15 @@ class DatabaseManager:
             self._connection.count()
 
     def count(self, **kwargs: Any) -> int:
-        """Returns the number of rows matching the query."""
+        """
+        Returns the number of rows matching the query.
+
+        Args:
+            **kwargs: Query parameters passed to ase.db.count().
+
+        Returns:
+            The count of matching rows.
+        """
         # ase.db.count returns int
         return self._connection.count(**kwargs)
 
@@ -60,13 +71,25 @@ class DatabaseManager:
     def save_candidate(self, atoms: Atoms, metadata: Dict[str, Any]) -> int:
         """
         Saves a candidate structure (without calculation results) with 'pending' status.
+
+        Args:
+            atoms: The candidate structure.
+            metadata: Metadata associated with the candidate.
+
+        Returns:
+            The ID of the inserted row.
         """
         data = metadata.copy()
         data["status"] = "pending"
         return self._connection.write(atoms, **data)
 
     def get_pending_calculations(self) -> List[Atoms]:
-        """Retrieves entries flagged for computation (status='pending')."""
+        """
+        Retrieves entries flagged for computation (status='pending').
+
+        Returns:
+            List of Atoms objects pending calculation.
+        """
         # select returns an iterator of Rows. Row.toatoms() converts to Atoms.
         rows = self._connection.select(status="pending")
         return [row.toatoms() for row in rows]

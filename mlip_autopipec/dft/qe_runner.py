@@ -20,11 +20,27 @@ class QERunner:
     Executes Quantum Espresso (pw.x) calculations.
     """
     def __init__(self, config: DFTConfig) -> None:
+        """
+        Initializes the QE runner.
+
+        Args:
+            config: The DFT configuration.
+        """
         self.config = config
 
     def run_static_calculation(self, atoms: Atoms, run_dir: Path) -> DFTResult:
         """
         Runs a static SCF calculation for the given structure.
+
+        Args:
+            atoms: The atomic structure to calculate.
+            run_dir: The directory to run the calculation in.
+
+        Returns:
+            The calculation results (energy, forces, stress).
+
+        Raises:
+            DFTRuntimeError: If execution or parsing fails.
         """
         run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -39,6 +55,7 @@ class QERunner:
         return result
 
     def _generate_input(self, atoms: Atoms, run_dir: Path, input_file: Path) -> None:
+        """Generates the Quantum Espresso input file."""
         elements = sorted(set(atoms.get_chemical_symbols()))
         try:
             pseudos = get_sssp_pseudopotentials(elements, self.config.pseudopotential_dir)
@@ -77,6 +94,7 @@ class QERunner:
         write_pw_input(atoms, input_file, input_data, pseudos, kpts=kpts)
 
     def _execute_calculation(self, input_file: Path, output_file: Path, run_dir: Path) -> None:
+        """Executes the pw.x command."""
         cmd_parts = self.config.command.split()
         # Standard QE usage: pw.x -in pw.in > pw.out
         cmd_parts.extend(["-in", input_file.name])
@@ -105,6 +123,7 @@ class QERunner:
              raise DFTRuntimeError(msg) from e
 
     def _parse_results(self, output_file: Path) -> DFTResult:
+        """Parses the calculation results."""
         try:
             return parse_pw_output(output_file)
         except DFTError:
@@ -114,6 +133,7 @@ class QERunner:
             raise DFTRuntimeError(msg) from e
 
     def _cleanup(self, run_dir: Path) -> None:
+        """Removes large temporary files."""
         # Remove bulky temporary files
         for item in run_dir.iterdir():
             if item.suffix in [".wfc", ".hub", ".mix", ".save"]:
