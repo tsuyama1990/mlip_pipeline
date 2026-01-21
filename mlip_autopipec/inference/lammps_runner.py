@@ -6,6 +6,7 @@ It delegates input creation to LammpsInputWriter.
 """
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -46,15 +47,34 @@ class LammpsRunner(MDRunner):
         Returns:
             InferenceResult object containing simulation status and artifacts.
         """
+        data_file = self.work_dir / "data.lammps"
+        dump_file = self.work_dir / "dump.gamma"
+        success = False
+
         try:
             # Delegate writing
-            input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms)
+            input_file, data_file_path, log_file, dump_file_path = self.writer.write_inputs(atoms)
+            # Update paths in case writer changed them
+            data_file = data_file_path
+            dump_file = dump_file_path
+
+            # Determine executable
+            executable = str(self.config.lammps_executable) if self.config.lammps_executable else "lmp_serial"
+
+            # Verify executable exists and is executable
+            # shutil.which checks PATH if it's a command name, or checks file if it's a path
+            if not shutil.which(executable):
+                 logger.error(f"LAMMPS executable '{executable}' not found in PATH or is not executable.")
+                 return InferenceResult(
+                    succeeded=False,
+                    final_structure=None,
+                    uncertain_structures=[],
+                    max_gamma_observed=0.0,
+                )
 
             # Execute
             cmd = [
-                str(self.config.lammps_executable)
-                if self.config.lammps_executable
-                else "lmp_serial",
+                executable,
                 "-in",
                 str(input_file),
                 "-log",
@@ -80,9 +100,6 @@ class LammpsRunner(MDRunner):
         except Exception:  # Catch-all for unexpected errors (e.g. permission denied, etc.)
             logger.exception("An error occurred during LAMMPS execution setup or run.")
             success = False
-            # Ensure variables are defined if exception occurs before assignment
-            data_file = self.work_dir / "data.lammps"
-            dump_file = self.work_dir / "dump.gamma"
 
         # Process Results (Best Effort)
         uncertain_structures = []

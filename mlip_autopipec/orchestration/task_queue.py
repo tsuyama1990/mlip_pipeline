@@ -27,15 +27,31 @@ class TaskQueue:
             workers: Number of workers to spawn if starting a LocalCluster.
         """
         self.cluster = None
-        if scheduler_address:
-            logger.info(f"Connecting to existing Dask scheduler at {scheduler_address}")
-            self.client = Client(scheduler_address)
-        else:
-            logger.info(f"Starting LocalCluster with {workers} workers")
-            self.cluster = LocalCluster(n_workers=workers)
-            self.client = Client(self.cluster)
+        self.client = None
 
-        logger.info(f"Dask Client initialized: {self.client}")
+        try:
+            if scheduler_address:
+                logger.info(f"Connecting to existing Dask scheduler at {scheduler_address}")
+                self.client = Client(scheduler_address)
+            else:
+                logger.info(f"Starting LocalCluster with {workers} workers")
+                self.cluster = LocalCluster(n_workers=workers)
+                self.client = Client(self.cluster)
+
+            logger.info(f"Dask Client initialized: {self.client}")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Dask client/cluster: {e}")
+            # Clean up if partially initialized
+            if self.cluster:
+                try:
+                    self.cluster.close()
+                except Exception:
+                    pass
+            self.cluster = None
+            self.client = None
+            # Re-raise to alert caller
+            raise RuntimeError(f"TaskQueue initialization failed: {e}") from e
 
     def submit_dft_batch(
         self, func: Callable[..., Any], items: list[Any], **kwargs: Any
@@ -51,6 +67,9 @@ class TaskQueue:
         Returns:
             List of Dask Futures representing the submitted tasks.
         """
+        if not self.client:
+             raise RuntimeError("Dask Client is not initialized.")
+
         logger.info(f"Submitting {len(items)} tasks to Dask.")
         return self.client.map(func, items, **kwargs)
 
@@ -71,6 +90,9 @@ class TaskQueue:
             List of results corresponding to the input futures.
             Failed tasks result in None.
         """
+        if not self.client:
+             raise RuntimeError("Dask Client is not initialized.")
+
         logger.info(f"Waiting for {len(futures)} tasks to complete...")
         wait(futures, timeout=timeout)
 
@@ -108,6 +130,8 @@ class TaskQueue:
         Returns:
             Dask Future.
         """
+        if not self.client:
+             raise RuntimeError("Dask Client is not initialized.")
         return self.client.submit(func, *args, **kwargs)
 
     def shutdown(self) -> None:
@@ -115,6 +139,7 @@ class TaskQueue:
         Shutdown the Dask client and cluster.
         """
         logger.info("Shutting down Dask client...")
-        self.client.close()
+        if self.client:
+            self.client.close()
         if self.cluster:
             self.cluster.close()

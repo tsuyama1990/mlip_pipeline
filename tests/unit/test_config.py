@@ -34,6 +34,26 @@ def test_target_system_invalid_composition_sum():
         )
     assert "Composition fractions must sum to 1.0" in str(excinfo.value)
 
+def test_target_system_invalid_composition_sum_3_elements():
+    """Test composition sum validation with 3 elements."""
+    with pytest.raises(ValidationError) as excinfo:
+        TargetSystem(
+            elements=["Fe", "Ni", "Al"],
+            composition={"Fe": 0.33, "Ni": 0.33, "Al": 0.33} # Sum 0.99
+        )
+    assert "Composition fractions must sum to 1.0" in str(excinfo.value)
+
+def test_target_system_invalid_composition_symbol():
+    """Test composition contains invalid symbol."""
+    # This raises ValueError inside the validator, which Pydantic wraps in ValidationError
+    with pytest.raises(ValidationError) as excinfo:
+        TargetSystem(
+            elements=["Fe", "Ni"],
+            composition={"Fe": 0.5, "Ni": 0.4, "X": 0.1}
+        )
+    assert "not a valid chemical symbol" in str(excinfo.value)
+
+
 # --- DFTConfig Tests ---
 
 def test_dft_config_valid(tmp_path):

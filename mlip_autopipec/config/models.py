@@ -50,6 +50,10 @@ class MinimalConfig(BaseModel):
     # Resources...
     model_config = ConfigDict(extra="allow")
 
+# Placeholder models for strict typing
+class PlaceholderConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
 class SystemConfig(BaseModel):
     """
     Legacy SystemConfig for compatibility with existing modules.
@@ -63,12 +67,12 @@ class SystemConfig(BaseModel):
     log_path: Path = Path("mlip.log")
 
     # Strictly typed legacy fields where possible
-    workflow_config: Any | None = None
-    explorer_config: Any | None = None
-    surrogate_config: Any | None = None
-    training_config: Any | None = None
-    inference_config: Any | None = None
-    generator_config: Any | None = None
+    workflow_config: PlaceholderConfig | None = None
+    explorer_config: PlaceholderConfig | None = None
+    surrogate_config: PlaceholderConfig | None = None
+    training_config: PlaceholderConfig | None = None
+    inference_config: PlaceholderConfig | None = None
+    generator_config: PlaceholderConfig | None = None
 
     # Legacy aliases that were causing strictness issues
     generator: Any | None = None

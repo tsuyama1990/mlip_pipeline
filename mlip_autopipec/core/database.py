@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -31,8 +32,10 @@ class DatabaseManager:
             self._connection.count()
         except OSError as e:
             raise DatabaseError(f"FileSystem error initializing database at {self.db_path}: {e}") from e
+        except sqlite3.DatabaseError as e:
+            raise DatabaseError(f"File at {self.db_path} is not a valid SQLite database: {e}") from e
         except Exception as e:
-             # ase.db might raise other errors
+            # ase.db might raise other errors
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
     def _ensure_connection(self) -> None:
