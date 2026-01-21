@@ -17,7 +17,9 @@ class ScriptGenerator:
         # Determine ensemble fix
         if self.config.ensemble == "nvt":
             tdamp = self.config.timestep * 100
-            fix_cmd = f"fix 1 all nvt temp {self.config.temperature} {self.config.temperature} {tdamp}"
+            fix_cmd = (
+                f"fix 1 all nvt temp {self.config.temperature} {self.config.temperature} {tdamp}"
+            )
         elif self.config.ensemble == "npt":
             tdamp = self.config.timestep * 100
             pdamp = self.config.timestep * 1000
@@ -63,7 +65,7 @@ class ScriptGenerator:
             "# Run",
             fix_cmd,
             f"run {self.config.steps}",
-            "unfix 1"
+            "unfix 1",
         ]
 
         return "\n".join(lines)

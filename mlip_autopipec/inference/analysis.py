@@ -77,9 +77,7 @@ class AnalysisUtils:
         if "Temp" in headers:
             temps = [d["Temp"] for d in data]
             stats["temperature_mean"] = statistics.mean(temps)
-            stats["temperature_std"] = (
-                statistics.stdev(temps) if len(temps) > 1 else 0.0
-            )
+            stats["temperature_std"] = statistics.stdev(temps) if len(temps) > 1 else 0.0
 
         if "Press" in headers:
             presss = [d["Press"] for d in data]

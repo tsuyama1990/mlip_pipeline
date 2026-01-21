@@ -6,6 +6,7 @@ It delegates input creation to LammpsInputWriter.
 """
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -46,15 +47,33 @@ class LammpsRunner(MDRunner):
         Returns:
             InferenceResult object containing simulation status and artifacts.
         """
+        data_file = self.work_dir / "data.lammps"
+        dump_file = self.work_dir / "dump.gamma"
+        success = False
+
         try:
             # Delegate writing
-            input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms)
+            input_file, data_file_path, log_file, dump_file_path = self.writer.write_inputs(atoms)
+            # Update paths in case writer changed them
+            data_file = data_file_path
+            dump_file = dump_file_path
+
+            # Determine executable
+            executable = (
+                str(self.config.lammps_executable)
+                if self.config.lammps_executable
+                else "lmp_serial"
+            )
+
+            # Verify executable exists and is executable
+            if not shutil.which(executable):
+                msg = f"LAMMPS executable '{executable}' not found in PATH or is not executable."
+                logger.error(msg)
+                raise RuntimeError(msg)
 
             # Execute
             cmd = [
-                str(self.config.lammps_executable)
-                if self.config.lammps_executable
-                else "lmp_serial",
+                executable,
                 "-in",
                 str(input_file),
                 "-log",
@@ -62,27 +81,22 @@ class LammpsRunner(MDRunner):
             ]
 
             logger.info(f"Starting LAMMPS execution: {' '.join(cmd)}")
-            # Security: check=False is intentional, we handle returncode.
-            # shell=False (default) prevents command injection from arguments.
+
             result = subprocess.run(
-                cmd, check=False, capture_output=True, text=True, cwd=self.work_dir
+                cmd, check=True, capture_output=True, text=True, cwd=self.work_dir
             )
 
-            if result.returncode != 0:
-                logger.error(f"LAMMPS execution failed with return code {result.returncode}")
-                logger.error(f"Stdout: {result.stdout}")
-                logger.error(f"Stderr: {result.stderr}")
-                success = False
-            else:
-                logger.info("LAMMPS execution completed successfully.")
-                success = True
+            logger.info("LAMMPS execution completed successfully.")
+            success = True
 
-        except Exception: # Catch-all for unexpected errors (e.g. permission denied, etc.)
-            logger.exception("An error occurred during LAMMPS execution setup or run.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"LAMMPS execution failed with return code {e.returncode}")
+            logger.error(f"Stdout: {e.stdout}")
+            logger.error(f"Stderr: {e.stderr}")
             success = False
-            # Ensure variables are defined if exception occurs before assignment
-            data_file = self.work_dir / "data.lammps"
-            dump_file = self.work_dir / "dump.gamma"
+        except Exception:
+            logger.exception("An unexpected error occurred during LAMMPS execution.")
+            success = False
 
         # Process Results (Best Effort)
         uncertain_structures = []

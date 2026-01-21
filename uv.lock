@@ -975,8 +975,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ase" },
-    { name = "dask" },
+    { name = "ase", specifier = ">=3.22.1" },
+    { name = "dask", specifier = ">=2023.1.0" },
     { name = "dask", extras = ["distributed"], marker = "extra == 'dev'" },
     { name = "distributed" },
     { name = "dscribe", specifier = ">=2.1.0" },
