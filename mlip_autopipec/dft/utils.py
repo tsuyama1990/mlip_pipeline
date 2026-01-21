@@ -1,12 +1,12 @@
-import numpy as np
-from typing import List, Dict, Any
 from pathlib import Path
+
+import numpy as np
 from ase import Atoms
-import os
 
 MAGNETIC_ELEMENTS = {"Fe", "Co", "Ni", "Mn", "Cr"}
 
-def get_kpoints(atoms: Atoms, density: float) -> List[int]:
+
+def get_kpoints(atoms: Atoms, density: float) -> list[int]:
     """
     Calculates the Monkhorst-Pack grid based on reciprocal lattice vectors.
     k_i = max(1, round(|b_i| * density))
@@ -28,11 +28,13 @@ def get_kpoints(atoms: Atoms, density: float) -> List[int]:
 
     return kpoints
 
+
 def is_magnetic(atoms: Atoms) -> bool:
     """Checks if the structure contains magnetic elements."""
     return any(atom.symbol in MAGNETIC_ELEMENTS for atom in atoms)
 
-def get_sssp_pseudopotentials(elements: List[str], pseudo_dir: Path) -> Dict[str, str]:
+
+def get_sssp_pseudopotentials(elements: list[str], pseudo_dir: Path) -> dict[str, str]:
     """
     Maps elements to UPF filenames in the pseudopotential directory.
 
@@ -69,15 +71,15 @@ def get_sssp_pseudopotentials(elements: List[str], pseudo_dir: Path) -> Dict[str
             # Basic validation: check if file is not empty
             file_path = pseudo_dir / match
             if file_path.stat().st_size == 0:
-                 msg = f"Pseudopotential file {file_path} is empty."
-                 raise ValueError(msg)
+                msg = f"Pseudopotential file {file_path} is empty."
+                raise ValueError(msg)
             # Check header
             with file_path.open("r", errors="ignore") as f:
                 header = f.read(1024)
                 if "<UPF" not in header and "&" not in header:
-                     # Very basic check for XML or old format
-                     # But don't be too strict if format varies
-                     pass
+                    # Very basic check for XML or old format
+                    # But don't be too strict if format varies
+                    pass
 
             mapping[element] = match
         else:

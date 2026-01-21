@@ -19,7 +19,7 @@ def test_parse_pw_output_success(tmp_path: Path) -> None:
         atoms.calc = MagicMock()
         # Mock methods directly on atoms if no calculator attached or if parse returns Atoms with results
         atoms.get_potential_energy = MagicMock(return_value=-13.6)
-        atoms.get_forces = MagicMock(return_value=np.zeros((1,3)))
+        atoms.get_forces = MagicMock(return_value=np.zeros((1, 3)))
         atoms.get_stress = MagicMock(return_value=np.zeros(6))
         mock_read.return_value = atoms
 
@@ -31,6 +31,7 @@ def test_parse_pw_output_success(tmp_path: Path) -> None:
         assert result.stress is not None
         assert np.allclose(result.stress, 0.0)
 
+
 def test_parse_pw_output_missing_job_done(tmp_path: Path) -> None:
     output_file = tmp_path / "pw.out"
     output_file.write_text("Some random output without finish marker.")
@@ -38,12 +39,14 @@ def test_parse_pw_output_missing_job_done(tmp_path: Path) -> None:
     with pytest.raises(DFTRuntimeError, match="missing 'JOB DONE'"):
         parse_pw_output(output_file)
 
+
 def test_parse_pw_output_convergence_error(tmp_path: Path) -> None:
     output_file = tmp_path / "pw.out"
     output_file.write_text("convergence not achieved")
 
     with pytest.raises(DFTConvergenceError, match="convergence not achieved"):
         parse_pw_output(output_file)
+
 
 def test_parse_pw_output_nan_forces(tmp_path: Path) -> None:
     output_file = tmp_path / "pw.out"

@@ -14,6 +14,7 @@ def test_database_creation(tmp_path: Path) -> None:
     assert db_path.exists()
     assert db.count() == 0
 
+
 def test_add_calculation(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     db = DatabaseManager(db_path)
@@ -46,6 +47,7 @@ def test_add_calculation(tmp_path: Path) -> None:
     assert np.allclose(retrieved_atoms.get_forces(), forces)
     assert row.config_type == "scf"
 
+
 def test_add_calculation_validation(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     db = DatabaseManager(db_path)
@@ -55,6 +57,7 @@ def test_add_calculation_validation(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Atoms object must have energy"):
         db.add_calculation(atoms, {})
+
 
 def test_save_and_get_pending(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"

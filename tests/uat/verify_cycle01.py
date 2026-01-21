@@ -14,6 +14,7 @@ from mlip_autopipec.dft.qe_runner import QERunner
 
 runner = CliRunner()
 
+
 def test_scenario_1_1_config_validation(tmp_path: Path) -> None:
     # Valid
     config_file = tmp_path / "valid.yaml"
@@ -37,6 +38,7 @@ dft:
     assert result.exit_code == 1
     assert "Validation Error" in result.stdout
 
+
 def test_scenario_1_2_static_calculation(tmp_path: Path, mocker: MagicMock) -> None:
     # Setup
     db_path = tmp_path / "uat.db"
@@ -46,14 +48,10 @@ def test_scenario_1_2_static_calculation(tmp_path: Path, mocker: MagicMock) -> N
     pseudo_dir.mkdir()
     (pseudo_dir / "Si.upf").touch()
 
-    config = DFTConfig(
-        command="pw.x",
-        pseudopotential_dir=pseudo_dir,
-        ecutwfc=30
-    )
+    config = DFTConfig(command="pw.x", pseudopotential_dir=pseudo_dir, ecutwfc=30)
     qe_runner = QERunner(config)
 
-    atoms = Atoms("Si2", positions=[[0,0,0], [1,1,1]], cell=[5,5,5], pbc=True)
+    atoms = Atoms("Si2", positions=[[0, 0, 0], [1, 1, 1]], cell=[5, 5, 5], pbc=True)
 
     # Mock execution and parsing
     mock_run = mocker.patch("subprocess.run")
@@ -66,14 +64,16 @@ def test_scenario_1_2_static_calculation(tmp_path: Path, mocker: MagicMock) -> N
     # But QERunner calls parse_pw_output(output_file).
     # If parse_pw_output reads the file, it will be empty!
     # Mock parse_pw_output
-    expected_result = DFTResult(energy=-21.0, forces=np.zeros((2,3)), stress=np.zeros(6))
+    expected_result = DFTResult(energy=-21.0, forces=np.zeros((2, 3)), stress=np.zeros(6))
     mocker.patch("mlip_autopipec.dft.qe_runner.parse_pw_output", return_value=expected_result)
 
     # Execute
     result = qe_runner.run_static_calculation(atoms, tmp_path / "run_si")
 
     # Verify DB insertion
-    calc = SinglePointCalculator(atoms, energy=result.energy, forces=result.forces, stress=result.stress)
+    calc = SinglePointCalculator(
+        atoms, energy=result.energy, forces=result.forces, stress=result.stress
+    )
     atoms.calc = calc
 
     db.add_calculation(atoms, {"config_type": "scf"})
@@ -83,16 +83,13 @@ def test_scenario_1_2_static_calculation(tmp_path: Path, mocker: MagicMock) -> N
     row = db._connection.get(id=1)
     assert row.energy == -21.0
 
+
 def test_scenario_1_3_magnetism(tmp_path: Path, mocker: MagicMock) -> None:
     pseudo_dir = tmp_path / "pseudo"
     pseudo_dir.mkdir()
     (pseudo_dir / "Fe.upf").touch()
 
-    config = DFTConfig(
-        command="pw.x",
-        pseudopotential_dir=pseudo_dir,
-        ecutwfc=30
-    )
+    config = DFTConfig(command="pw.x", pseudopotential_dir=pseudo_dir, ecutwfc=30)
     qe_runner = QERunner(config)
 
     atoms = Atoms("Fe", cell=[2.8, 2.8, 2.8], pbc=True)
@@ -100,8 +97,10 @@ def test_scenario_1_3_magnetism(tmp_path: Path, mocker: MagicMock) -> None:
     # Mock subprocess to intercept input file
     mock_run = mocker.patch("subprocess.run")
     mock_run.return_value = MagicMock(returncode=0)
-    mocker.patch("mlip_autopipec.dft.qe_runner.parse_pw_output",
-                 return_value=DFTResult(energy=0, forces=np.zeros((1,3)), stress=np.zeros(6)))
+    mocker.patch(
+        "mlip_autopipec.dft.qe_runner.parse_pw_output",
+        return_value=DFTResult(energy=0, forces=np.zeros((1, 3)), stress=np.zeros(6)),
+    )
 
     qe_runner.run_static_calculation(atoms, tmp_path / "run_fe")
 

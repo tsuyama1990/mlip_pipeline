@@ -1,14 +1,17 @@
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 import contextlib
+from pathlib import Path
+from typing import Any
+
 import ase.db
-from ase import Atoms
 import numpy as np
+from ase import Atoms
+
 
 class DatabaseManager:
     """
     Wrapper around ase.db for managing atomic structures and calculations.
     """
+
     def __init__(self, db_path: Path) -> None:
         """
         Initialize the database manager.
@@ -36,7 +39,7 @@ class DatabaseManager:
         # ase.db.count returns int
         return self._connection.count(**kwargs)
 
-    def add_calculation(self, atoms: Atoms, metadata: Dict[str, Any]) -> int:
+    def add_calculation(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
         Adds a completed calculation to the database.
 
@@ -68,7 +71,7 @@ class DatabaseManager:
         # Treat all metadata as key-value pairs for `write` (kwargs).
         return self._connection.write(atoms, **metadata)
 
-    def save_candidate(self, atoms: Atoms, metadata: Dict[str, Any]) -> int:
+    def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
         Saves a candidate structure (without calculation results) with 'pending' status.
 
@@ -83,7 +86,7 @@ class DatabaseManager:
         data["status"] = "pending"
         return self._connection.write(atoms, **data)
 
-    def get_pending_calculations(self) -> List[Atoms]:
+    def get_pending_calculations(self) -> list[Atoms]:
         """
         Retrieves entries flagged for computation (status='pending').
 

@@ -1,9 +1,11 @@
 from pathlib import Path
+
 import ase.io
-from ase import Atoms
 import numpy as np
+
+from mlip_autopipec.core.exceptions import DFTConvergenceError, DFTRuntimeError
 from mlip_autopipec.core.models import DFTResult
-from mlip_autopipec.core.exceptions import DFTRuntimeError, DFTConvergenceError
+
 
 def parse_pw_output(output_file: Path) -> DFTResult:
     """
@@ -71,8 +73,4 @@ def parse_pw_output(output_file: Path) -> DFTResult:
         msg = "Forces contain NaN or Inf values."
         raise DFTRuntimeError(msg)
 
-    return DFTResult(
-        energy=energy,
-        forces=forces,
-        stress=stress
-    )
+    return DFTResult(energy=energy, forces=forces, stress=stress)

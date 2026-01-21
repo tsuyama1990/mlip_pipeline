@@ -1,15 +1,17 @@
-import pytest
-from ase import Atoms
 from pathlib import Path
+
+from ase import Atoms
+
 from mlip_autopipec.dft.input_gen import write_pw_input
 
+
 def test_write_pw_input(tmp_path: Path) -> None:
-    atoms = Atoms("Si2", positions=[[0,0,0], [0.25, 0.25, 0.25]], cell=[5.43]*3, pbc=True)
+    atoms = Atoms("Si2", positions=[[0, 0, 0], [0.25, 0.25, 0.25]], cell=[5.43] * 3, pbc=True)
     filename = tmp_path / "pw.in"
     input_data = {
         "control": {"calculation": "scf", "restart_mode": "from_scratch"},
         "system": {"ecutwfc": 30},
-        "electrons": {"conv_thr": 1e-6}
+        "electrons": {"conv_thr": 1e-6},
     }
     pseudos = {"Si": "Si.upf"}
     kpts = [2, 2, 2]
@@ -17,6 +19,7 @@ def test_write_pw_input(tmp_path: Path) -> None:
     write_pw_input(atoms, filename, input_data, pseudos, kpts=kpts)
 
     import re
+
     content = filename.read_text()
     # Check for content without being too strict on whitespace
     assert "calculation" in content
@@ -30,6 +33,7 @@ def test_write_pw_input(tmp_path: Path) -> None:
     assert "K_POINTS automatic" in content
     assert re.search(r"2\s+2\s+2\s+0\s+0\s+0", content)
 
+
 def test_write_pw_input_defaults(tmp_path: Path) -> None:
     # Test handling of None for optional args
     atoms = Atoms("H")
@@ -40,9 +44,10 @@ def test_write_pw_input_defaults(tmp_path: Path) -> None:
     write_pw_input(atoms, filename, input_data, pseudos)
 
     content = filename.read_text()
-    assert "calculation" in content # Should default to scf
+    assert "calculation" in content  # Should default to scf
     assert "tprnfor" in content
-    assert "K_POINTS gamma" in content # Default if kpts=None
+    assert "K_POINTS gamma" in content  # Default if kpts=None
+
 
 def test_write_pw_input_custom_koffset(tmp_path: Path) -> None:
     atoms = Atoms("H")
@@ -56,4 +61,5 @@ def test_write_pw_input_custom_koffset(tmp_path: Path) -> None:
 
     content = filename.read_text()
     import re
+
     assert re.search(r"2\s+2\s+2\s+1\s+1\s+1", content)

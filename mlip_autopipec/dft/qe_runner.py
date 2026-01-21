@@ -15,10 +15,12 @@ from mlip_autopipec.dft.utils import get_kpoints, get_sssp_pseudopotentials, is_
 
 logger = logging.getLogger(__name__)
 
+
 class QERunner:
     """
     Executes Quantum Espresso (pw.x) calculations.
     """
+
     def __init__(self, config: DFTConfig) -> None:
         """
         Initializes the QE runner.
@@ -77,18 +79,18 @@ class QERunner:
                 "calculation": "scf",
                 "restart_mode": "from_scratch",
                 "pseudo_dir": str(self.config.pseudopotential_dir),
-                "outdir": str(run_dir)
+                "outdir": str(run_dir),
             },
             "system": {
                 "ecutwfc": self.config.ecutwfc,
                 "occupations": "smearing",
                 "smearing": self.config.smearing,
-                "degauss": 0.02
+                "degauss": 0.02,
             },
             "electrons": {
                 "conv_thr": self.config.scf_convergence_threshold,
-                "mixing_beta": self.config.mixing_beta
-            }
+                "mixing_beta": self.config.mixing_beta,
+            },
         }
 
         write_pw_input(atoms, input_file, input_data, pseudos, kpts=kpts)
@@ -107,9 +109,9 @@ class QERunner:
                     cmd_parts,
                     cwd=run_dir,
                     stdout=f_out,
-                    stderr=subprocess.STDOUT, # Redirect stderr to stdout log
-                    timeout=14400, # 4 hours
-                    check=True
+                    stderr=subprocess.STDOUT,  # Redirect stderr to stdout log
+                    timeout=14400,  # 4 hours
+                    check=True,
                 )
         except subprocess.TimeoutExpired as e:
             msg = "DFT calculation timed out."
@@ -119,8 +121,8 @@ class QERunner:
             # We proceed to parse_pw_output, which checks for "JOB DONE".
             pass
         except Exception as e:
-             msg = f"Failed to execute DFT command: {e}"
-             raise DFTRuntimeError(msg) from e
+            msg = f"Failed to execute DFT command: {e}"
+            raise DFTRuntimeError(msg) from e
 
     def _parse_results(self, output_file: Path) -> DFTResult:
         """Parses the calculation results."""

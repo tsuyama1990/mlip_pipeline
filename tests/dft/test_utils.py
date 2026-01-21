@@ -23,6 +23,7 @@ def test_kpoints_generation() -> None:
     assert k_large == [1, 1, 1]
     assert k_small == [5, 5, 5]
 
+
 def test_is_magnetic() -> None:
     assert is_magnetic(Atoms("Fe"))
     assert is_magnetic(Atoms("Co"))
@@ -30,6 +31,7 @@ def test_is_magnetic() -> None:
     assert is_magnetic(Atoms("Fe2O3"))
     assert not is_magnetic(Atoms("Si"))
     assert not is_magnetic(Atoms("H2O"))
+
 
 def test_sssp_mapping(tmp_path: Path) -> None:
     pseudo_dir = tmp_path / "pseudo"

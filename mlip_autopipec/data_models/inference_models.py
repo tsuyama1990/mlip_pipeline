@@ -13,6 +13,7 @@ class ExtractedStructure(BaseModel):
         origin_index: The index of the focal atom in the original frame.
         mask_radius: The radius used for force masking (core radius).
     """
+
     atoms: Any = Field(..., description="The ASE Atoms object")
     origin_uuid: str = Field(..., description="UUID of the original MD frame")
     origin_index: int = Field(..., description="Index of the focal atom in original frame")
