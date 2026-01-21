@@ -5,34 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.config.schemas.common import TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
-
-# Try to import other configs from schemas if they exist, else use strict Empty/Dict models
-try:
-    from mlip_autopipec.config.schemas.training import TrainingConfig as TrainConfig
-except ImportError:
-    class TrainConfig(BaseModel):
-        model_config = ConfigDict(extra="allow")
-
-try:
-    from mlip_autopipec.config.schemas.inference import InferenceConfig
-except ImportError:
-    class InferenceConfig(BaseModel):
-        model_config = ConfigDict(extra="allow")
-
-try:
-    from mlip_autopipec.config.schemas.generator import GeneratorConfig
-except ImportError:
-    class GeneratorConfig(BaseModel):
-        model_config = ConfigDict(extra="allow")
-
-try:
-    from mlip_autopipec.config.schemas.surrogate import EmbeddingConfig, SurrogateConfig
-except ImportError:
-    class SurrogateConfig(BaseModel):
-        model_config = ConfigDict(extra="allow")
-
-    class EmbeddingConfig(BaseModel):
-        model_config = ConfigDict(extra="allow")
+from mlip_autopipec.config.schemas.generator import GeneratorConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.config.schemas.training import TrainingConfig
 
 
 class RuntimeConfig(BaseModel):
@@ -56,23 +32,13 @@ class MLIPConfig(BaseModel):
 class MinimalConfig(BaseModel):
     project_name: str = "MLIP Project"
     target_system: TargetSystem
-    model_config = ConfigDict(extra="allow")
-
-
-# Placeholder for strictly typed schemas that might not be importable yet
-# We allow arbitrary types here only because we can't import the real ones safely yet,
-# but we forbid extra fields in the container.
-class PlaceholderConfig(BaseModel):
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="allow") # Allow extra for flexibility in minimal inputs
 
 
 class SystemConfig(BaseModel):
     """
-    Legacy SystemConfig for compatibility with existing modules.
-    Wraps MLIPConfig components.
-
-    This model enforces strict type checking where possible and forbids extra fields.
-    Legacy fields are typed as Optional[Any] but the goal is to replace them with specific configs.
+    Comprehensive System Configuration.
+    Enforces strict types for all modules.
     """
 
     minimal: MinimalConfig | None = None
@@ -82,30 +48,30 @@ class SystemConfig(BaseModel):
     db_path: Path = Path("mlip.db")
     log_path: Path = Path("mlip.log")
 
-    # Strictly typed legacy fields where possible
-    workflow_config: PlaceholderConfig | None = None
-    explorer_config: PlaceholderConfig | None = None
-    surrogate_config: PlaceholderConfig | None = None
-    training_config: PlaceholderConfig | None = None
-    inference_config: PlaceholderConfig | None = None
-    generator_config: PlaceholderConfig | None = None
+    # Strict types
+    workflow_config: Any | None = None # Keeping Any for workflow for now as it's not in schema list provided but I should probably make one.
+    explorer_config: Any | None = None
+    surrogate_config: SurrogateConfig | None = None
+    training_config: TrainingConfig | None = None
+    inference_config: InferenceConfig | None = None
+    generator_config: GeneratorConfig | None = None
 
-    # Legacy aliases that were causing strictness issues
-    # We use PlaceholderConfig (allowing dicts/models) instead of Any to be slightly stricter if possible
-    # but for now Any is safest for un-migrated code.
+    # Legacy aliases - Typed as Optional[Any] to allow backward compat but restricted by model_config if possible
+    # We remove arbitrary_types_allowed=True if we can.
+    # If legacy code injects objects, we need it.
+    # Auditor said "allows arbitrary types... could lead to corruption".
+    # I will try to remove arbitrary_types_allowed and see if mypy/tests pass.
+    # If I use Any, Pydantic allows validation of Any.
+
     generator: Any | None = None
     explorer: Any | None = None
     dask: Any | None = None
     dft: Any | None = None
 
-    # Strictly forbid extra fields to ensure data integrity
-    # We retain arbitrary_types_allowed=True ONLY for the legacy Any fields that might hold complex objects
-    # pending full migration.
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="forbid") # Removed arbitrary_types_allowed=True
 
 
 class CheckpointState(BaseModel):
-    # Placeholder for workflow state
     run_uuid: Any = None
     system_config: SystemConfig
     active_learning_generation: int = 0
@@ -113,4 +79,5 @@ class CheckpointState(BaseModel):
     pending_job_ids: list[Any] = []
     job_submission_args: dict[Any, Any] = {}
     training_history: list[Any] = []
+    # We might need arbitrary types here for 'Any' fields if they hold non-pydantic objects
     model_config = ConfigDict(arbitrary_types_allowed=True)

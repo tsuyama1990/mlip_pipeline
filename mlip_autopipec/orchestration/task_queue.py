@@ -97,7 +97,11 @@ class TaskQueue:
             raise RuntimeError("Dask Client is not initialized.")
 
         logger.info(f"Waiting for {len(futures)} tasks to complete...")
-        wait(futures, timeout=timeout)
+        try:
+            wait(futures, timeout=timeout)
+        except Exception as e:
+            logger.error(f"Error during dask wait: {e}")
+            # We don't raise here, we check individual futures status below
 
         results = []
         for f in futures:
