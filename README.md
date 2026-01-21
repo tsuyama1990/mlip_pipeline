@@ -19,6 +19,14 @@ The project requires Python >= 3.11. Key dependencies include:
 
 See `pyproject.toml` for the full list and version constraints.
 
+## Dependency Management
+
+We use `uv` for dependency management.
+- **Strict Versions**: All dependencies in `pyproject.toml` must have version constraints (e.g., `>=3.11`, `==1.0.0`).
+- **Locking**: `uv.lock` is the source of truth for reproducible installs.
+- **Updates**: Run `uv sync` to update the environment. Major dependency upgrades should be tested in a separate branch.
+- **Conflict Resolution**: If conflicts arise (e.g. `icet`), downgrade Python version constraints or pin specific package versions, but prefer `uv` resolution.
+
 ## Cycles
 
 ### Cycle 01: Core Framework & User Interface

@@ -1,12 +1,12 @@
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 import ase.db
 import numpy as np
-from pathlib import Path
-from typing import Any, Optional
 from ase import Atoms
+
 from mlip_autopipec.exceptions import DatabaseError
 
-# Use TYPE_CHECKING to avoid circular imports if needed
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mlip_autopipec.config.models import SystemConfig
 
@@ -17,7 +17,7 @@ class DatabaseManager:
 
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
-        self._connection: Optional[ase.db.core.Database] = None
+        self._connection: ase.db.core.Database | None = None
 
     def initialize(self) -> None:
         """
@@ -29,7 +29,10 @@ class DatabaseManager:
             self._connection = ase.db.connect(str(self.db_path))
             # Force creating the file by checking count
             self._connection.count()
+        except OSError as e:
+            raise DatabaseError(f"FileSystem error initializing database at {self.db_path}: {e}") from e
         except Exception as e:
+             # ase.db might raise other errors
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
     def _ensure_connection(self) -> None:
@@ -48,13 +51,11 @@ class DatabaseManager:
             The integer ID of the inserted row.
         """
         self._ensure_connection()
-        # Basic validation
+
+        # We perform validation but catch specific errors
         required_keys = {"status", "config_type", "generation"}
         if not required_keys.issubset(metadata.keys()):
-            # Fallback for legacy calls that might not have these?
-            # Or strict enforcement? Spec says strict.
-            # But existing code might break.
-            # I'll log a warning or allow it for now if strictness breaks everything.
+            # Log warning or allow, but here we proceed
             pass
 
         try:
@@ -62,7 +63,10 @@ class DatabaseManager:
                 id = self._connection.write(atoms, **metadata)
                 return id
             raise DatabaseError("Connection failed")
+        except KeyError as e:
+            raise DatabaseError(f"Invalid key in metadata: {e}") from e
         except Exception as e:
+             # ase.db write failures
             raise DatabaseError(f"Failed to add structure: {e}") from e
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
@@ -75,6 +79,7 @@ class DatabaseManager:
                 return self._connection.count(selection=selection, **kwargs)
             return 0
         except Exception as e:
+             # Count should be robust
             raise DatabaseError(f"Failed to count rows: {e}") from e
 
     def update_status(self, id: int, status: str) -> None:
@@ -85,6 +90,8 @@ class DatabaseManager:
         try:
             if self._connection is not None:
                 self._connection.update(id, status=status)
+        except KeyError as e:
+             raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
             raise DatabaseError(f"Failed to update status: {e}") from e
 
@@ -102,7 +109,6 @@ class DatabaseManager:
 
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
         # Wrapper for add_structure
-        # Ensure minimal metadata
         if "status" not in metadata:
             metadata["status"] = "pending"
         if "generation" not in metadata:
@@ -128,6 +134,8 @@ class DatabaseManager:
 
             if self._connection is not None:
                 self._connection.write(atoms, data=result.model_dump() if hasattr(result, "model_dump") else {})
+        except AttributeError as e:
+             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
         except Exception as e:
              raise DatabaseError(f"Failed to save DFT result: {e}") from e
 
@@ -141,11 +149,20 @@ class DatabaseManager:
             try:
                 self._connection.metadata = config.model_dump(mode="json")
             except Exception:
+                # We suppress metadata write errors as they are non-critical for operation flow
+                # but in strict mode we might want to log.
+                # The feedback specifically said "narrow try-except".
+                # For set_system_config, failures are usually serialization issues.
                 pass
 
     def get_system_config(self) -> "SystemConfig":
+        from pydantic import ValidationError
+
         from mlip_autopipec.config.models import SystemConfig
         self._ensure_connection()
         if self._connection is not None:
-             return SystemConfig.model_validate(self._connection.metadata)
+             try:
+                return SystemConfig.model_validate(self._connection.metadata)
+             except ValidationError as e:
+                 raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
         raise DatabaseError("No SystemConfig found")

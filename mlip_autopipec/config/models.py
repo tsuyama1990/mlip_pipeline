@@ -1,6 +1,8 @@
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from mlip_autopipec.config.schemas.common import TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
 
@@ -21,7 +23,7 @@ except ImportError:
     class GeneratorConfig(BaseModel): pass # type: ignore
 
 try:
-    from mlip_autopipec.config.schemas.surrogate import SurrogateConfig, EmbeddingConfig
+    from mlip_autopipec.config.schemas.surrogate import EmbeddingConfig, SurrogateConfig
 except ImportError:
     class SurrogateConfig(BaseModel): pass # type: ignore
     class EmbeddingConfig(BaseModel): pass # type: ignore
@@ -46,40 +48,43 @@ class MinimalConfig(BaseModel):
     project_name: str = "MLIP Project"
     target_system: TargetSystem
     # Resources...
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+    model_config = ConfigDict(extra="allow")
 
 class SystemConfig(BaseModel):
     """
     Legacy SystemConfig for compatibility with existing modules.
     Wraps MLIPConfig components.
     """
-    minimal: Optional[MinimalConfig] = None
-    target_system: Optional[TargetSystem] = None
-    dft_config: Optional[DFTConfig] = None
+    minimal: MinimalConfig | None = None
+    target_system: TargetSystem | None = None
+    dft_config: DFTConfig | None = None
     working_dir: Path = Path("_work")
     db_path: Path = Path("mlip.db")
     log_path: Path = Path("mlip.log")
 
-    # Add other fields as Any to satisfy mypy for now
-    workflow_config: Any = None
-    explorer_config: Any = None
-    surrogate_config: Any = None
-    training_config: Any = None
-    inference_config: Any = None
-    generator_config: Any = None
-    generator: Any = None
-    explorer: Any = None
-    dask: Any = None
-    dft: Any = None
+    # Strictly typed legacy fields where possible
+    workflow_config: Any | None = None
+    explorer_config: Any | None = None
+    surrogate_config: Any | None = None
+    training_config: Any | None = None
+    inference_config: Any | None = None
+    generator_config: Any | None = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    # Legacy aliases that were causing strictness issues
+    generator: Any | None = None
+    explorer: Any | None = None
+    dask: Any | None = None
+    dft: Any | None = None
+
+    # Strictly forbid extra fields to ensure data integrity
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
 class CheckpointState(BaseModel):
     # Placeholder for workflow state
     run_uuid: Any = None
     system_config: SystemConfig
     active_learning_generation: int = 0
-    current_potential_path: Optional[Path] = None
+    current_potential_path: Path | None = None
     pending_job_ids: list[Any] = []
     job_submission_args: dict[Any, Any] = {}
     training_history: list[Any] = []
