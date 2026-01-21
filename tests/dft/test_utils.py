@@ -34,8 +34,8 @@ def test_is_magnetic() -> None:
 def test_sssp_mapping(tmp_path: Path) -> None:
     pseudo_dir = tmp_path / "pseudo"
     pseudo_dir.mkdir()
-    (pseudo_dir / "Fe.upf").touch()
-    (pseudo_dir / "O_pbe.upf").touch()
+    (pseudo_dir / "Fe.upf").write_text("<UPF version='2.0.1'>Fake content</UPF>")
+    (pseudo_dir / "O_pbe.upf").write_text("<UPF version='2.0.1'>Fake content</UPF>")
 
     mapping = get_sssp_pseudopotentials(["Fe", "O"], pseudo_dir)
     assert mapping["Fe"] == "Fe.upf"

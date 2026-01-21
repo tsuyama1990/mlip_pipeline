@@ -13,7 +13,7 @@ def test_qe_runner_mock(tmp_path: Path, mocker: MagicMock) -> None:
     # Setup
     pseudo_dir = tmp_path / "pseudo"
     pseudo_dir.mkdir()
-    (pseudo_dir / "Si.upf").touch()
+    (pseudo_dir / "Si.upf").write_text("<UPF>Fake</UPF>")
 
     config = DFTConfig(
         command="pw.x",

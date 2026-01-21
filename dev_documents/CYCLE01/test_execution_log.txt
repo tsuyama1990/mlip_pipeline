@@ -3,14 +3,15 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 19 items
+collected 20 items
 
 tests/core/test_config.py ...                                            [ 15%]
-tests/core/test_database.py ....                                         [ 36%]
-tests/dft/test_input_gen.py ...                                          [ 52%]
-tests/dft/test_parsers.py ....                                           [ 73%]
-tests/dft/test_runner_errors.py .                                        [ 78%]
-tests/dft/test_utils.py ...                                              [ 94%]
+tests/core/test_database.py ....                                         [ 35%]
+tests/core/test_logging.py .                                             [ 40%]
+tests/dft/test_input_gen.py ...                                          [ 55%]
+tests/dft/test_parsers.py ....                                           [ 75%]
+tests/dft/test_runner_errors.py .                                        [ 80%]
+tests/dft/test_utils.py ...                                              [ 95%]
 tests/integration/test_qe_mock.py .                                      [100%]
 
 ================================ tests coverage ================================
@@ -19,7 +20,7 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                             Stmts   Miss  Cover   Missing
 ------------------------------------------------------------------------------
 mlip_autopipec/__init__.py                           0      0   100%
-mlip_autopipec/app.py                               27     27     0%   1-37
+mlip_autopipec/app.py                               32     32     0%   1-46
 mlip_autopipec/config/__init__.py                    2      2     0%   8-19
 mlip_autopipec/config/factory.py                    37     37     0%   1-62
 mlip_autopipec/config/models.py                      8      8     0%   2-9
@@ -27,9 +28,8 @@ mlip_autopipec/core/__init__.py                      0      0   100%
 mlip_autopipec/core/config.py                       33      9    73%   38-50
 mlip_autopipec/core/database.py                     32      2    94%   63-64
 mlip_autopipec/core/exceptions.py                    5      0   100%
-mlip_autopipec/core/logging.py                       4      4     0%   1-8
-mlip_autopipec/core/models.py                        8      0   100%
-mlip_autopipec/core/services.py                      8      8     0%   1-24
+mlip_autopipec/core/logging.py                       4      0   100%
+mlip_autopipec/core/models.py                        9      0   100%
 mlip_autopipec/core/workspace.py                    13     13     0%   1-25
 mlip_autopipec/data/__init__.py                      0      0   100%
 mlip_autopipec/data/database.py                     23     23     0%   7-73
@@ -37,7 +37,7 @@ mlip_autopipec/data_models/__init__.py               4      4     0%   9-13
 mlip_autopipec/data_models/candidate.py              5      5     0%   1-11
 mlip_autopipec/data_models/dft_models.py            35     35     0%   1-45
 mlip_autopipec/data_models/inference_models.py      18     18     0%   1-33
-mlip_autopipec/data_models/training_data.py         52     52     0%   2-83
+mlip_autopipec/data_models/training_data.py          9      9     0%   1-14
 mlip_autopipec/dft/__init__.py                       0      0   100%
 mlip_autopipec/dft/constants.py                      3      3     0%   1-91
 mlip_autopipec/dft/input_gen.py                     19      0   100%
@@ -46,7 +46,7 @@ mlip_autopipec/dft/parsers.py                       43     12    72%   24-25, 44
 mlip_autopipec/dft/qe_runner.py                     70     21    70%   62-64, 72-73, 117-123, 129-133, 140-146
 mlip_autopipec/dft/recovery.py                      30     30     0%   1-81
 mlip_autopipec/dft/runner.py                        79     79     0%   1-170
-mlip_autopipec/dft/utils.py                         33      3    91%   57-58, 76
+mlip_autopipec/dft/utils.py                         42      5    88%   51-52, 66, 72, 79
 mlip_autopipec/exceptions.py                        25     25     0%   8-66
 mlip_autopipec/generator/__init__.py                 5      5     0%   2-7
 mlip_autopipec/generator/alloy.py                  101    101     0%   1-237
@@ -101,5 +101,5 @@ mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
-TOTAL                                             2782   2586     7%
-============================== 19 passed in 2.71s ==============================
+TOTAL                                             2746   2538     8%
+============================== 20 passed in 3.57s ==============================

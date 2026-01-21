@@ -1,17 +1,20 @@
-import pytest
-from unittest.mock import MagicMock
-from pathlib import Path
-from ase import Atoms
 import subprocess
-from mlip_autopipec.dft.qe_runner import QERunner
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+from ase import Atoms
+
 from mlip_autopipec.core.config import DFTConfig
 from mlip_autopipec.core.exceptions import DFTRuntimeError
+from mlip_autopipec.dft.qe_runner import QERunner
+
 
 def test_qe_runner_timeout(tmp_path: Path, mocker: MagicMock) -> None:
     # Setup
     pseudo_dir = tmp_path / "pseudo"
     pseudo_dir.mkdir()
-    (pseudo_dir / "Si.upf").touch()
+    (pseudo_dir / "Si.upf").write_text("<UPF>Fake</UPF>")
 
     config = DFTConfig(
         command="pw.x",

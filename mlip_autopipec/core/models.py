@@ -1,7 +1,7 @@
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict, Field
-
 
 class DFTResult(BaseModel):
     """
@@ -11,4 +11,4 @@ class DFTResult(BaseModel):
 
     energy: float = Field(..., description="Total potential energy in eV")
     forces: NDArray[np.float64] = Field(..., description="Atomic forces in eV/A")
-    stress: NDArray[np.float64] | None = Field(None, description="Stress tensor in eV/A^3")
+    stress: Optional[NDArray[np.float64]] = Field(None, description="Stress tensor in eV/A^3")
