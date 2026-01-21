@@ -1,67 +1,44 @@
 # MLIP-AutoPipe
 
-MLIP-AutoPipe is a project designed to provide a "Zero-Human" protocol for the autonomous generation of Machine Learning Interatomic Potentials (MLIPs). This system automates the entire MLIP lifecycle, from initial data generation to active learning and large-scale production simulations.
+## Cycle 01: Core Framework & DFT Factory
 
-## System Architecture
+### Summary
+Implementation of the Automated DFT Factory using Quantum Espresso. This cycle establishes the core infrastructure for configuration, database management, and robust DFT execution.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed diagram and module description.
+### Key Features
+- **Type-Safe Configuration**: Pydantic models for strict validation of global and DFT parameters.
+- **Database Management**: Wrapper around `ase.db` for storing atomic structures and calculation results.
+- **Automated DFT Execution**:
+  - `QERunner`: Robust execution of `pw.x` with timeout handling.
+  - `InputGenerator`: Automatic generation of inputs with required flags (`tprnfor`, `tstress`).
+  - `Parsers`: Safe parsing of output files with validation for convergence and physical sanity (NaN/Inf checks).
+- **Auto-Magnetism**: Detection of magnetic elements (Fe, Co, Ni) and automatic initialization of spin-polarized calculations.
+- **CLI**: `mlip-auto check-config` command for validating configuration files.
 
-## Dependencies
+### Usage
 
-The project requires Python >= 3.11. Key dependencies include:
-- `ase`
-- `numpy`
-- `pydantic`
-- `dask`
-- `matplotlib`
-- `mace-torch`
-- `dscribe`
-
-See `pyproject.toml` for the full list and version constraints.
-
-## Cycles
-
-### Cycle 01: Core Framework & User Interface
-- **Strict Schema**: `MinimalConfig` & `SystemConfig`.
-- **Data Persistence**: `DatabaseManager` (ASE-db).
-- **CLI Initialization**.
-
-### Cycle 02: Automated DFT Factory
-- **Autonomous Execution**: `QERunner`.
-- **Auto-Recovery**: `RecoveryHandler`.
-
-### Cycle 03: Structure Generator
-- **Generators**: SQS, NMS, Defects.
-
-### Cycle 04: Surrogate Explorer
-- **Pre-screening**: MACE foundation model.
-- **Selection**: FPS on SOAP descriptors.
-
-### Cycle 05: Active Learning & Training
-- **Training**: Pacemaker integration.
-- **Physics**: ZBL baseline subtraction.
-
-### Cycle 06: Scalable Inference Engine (Part 1)
-- **MD**: LAMMPS integration.
-- **UQ**: Uncertainty monitoring.
-
-### Cycle 07: Scalable Inference Engine (Part 2)
-- **Extraction**: Periodic embedding of local clusters.
-- **Masking**: Force masking for training.
-
-### Cycle 08: Orchestration
-- **WorkflowManager**: State machine for autonomous operation.
-- **TaskQueue**: Distributed execution via Dask.
-- **Dashboard**: HTML monitoring interface.
-
-## Getting Started
-
-Create environment:
+#### Check Configuration
 ```bash
-uv sync --extra dev
+mlip-auto check-config config.yaml
 ```
 
-Run:
+#### Configuration Example
+```yaml
+global:
+  project_name: "MyMaterial"
+  database_path: "data.db"
+  logging_level: "INFO"
+
+dft:
+  command: "mpirun -np 4 pw.x"
+  pseudopotential_dir: "/path/to/pseudos"
+  ecutwfc: 50.0
+  scf_convergence_threshold: 1e-6
+  kpoints_density: 0.15
+```
+
+### Testing
+Run the full test suite:
 ```bash
-mlip-auto run input.yaml
+uv run pytest
 ```
