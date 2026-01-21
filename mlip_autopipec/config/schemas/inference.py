@@ -25,6 +25,7 @@ class InferenceConfig(BaseModel):
         lammps_executable (FilePath | None): Path to the LAMMPS executable (optional).
         elements (list[str]): List of chemical elements in the system, order-matched to potential.
     """
+
     temperature: float = Field(..., gt=0, description="Temperature in Kelvin")
     pressure: float = Field(0.0, ge=0, description="Pressure in Bar (0 for NVT)")
     timestep: float = Field(0.001, gt=0, description="Time step in ps")
@@ -53,14 +54,14 @@ class InferenceConfig(BaseModel):
             # We check if User Execute bit is set.
             st_mode = v.stat().st_mode
             if not (st_mode & stat.S_IXUSR):
-                 raise ValueError(f"File at {v} is not executable.")
+                raise ValueError(f"File at {v} is not executable.")
         return v
 
     @field_validator("potential_path")
     @classmethod
     def validate_potential_exists(cls, v: FilePath) -> FilePath:
         if not v.exists():
-             raise ValueError(f"Potential file {v} does not exist.")
+            raise ValueError(f"Potential file {v} does not exist.")
         return v
 
 
@@ -74,6 +75,7 @@ class InferenceResult(BaseModel):
         uncertain_structures (list[Path]): List of paths to files containing uncertain structures.
         max_gamma_observed (float): The maximum extrapolation grade observed during the run.
     """
+
     succeeded: bool
     final_structure: Path | None = None
     uncertain_structures: list[Path] = Field(default_factory=list)
@@ -90,7 +92,10 @@ class EmbeddingConfig(BaseModel):
         core_radius (float): Radius of the trusted core region (Angstroms).
         buffer_width (float): Width of the buffer region (Angstroms).
     """
-    core_radius: float = Field(4.0, gt=0, description="Radius of the trusted core region (Angstroms)")
+
+    core_radius: float = Field(
+        4.0, gt=0, description="Radius of the trusted core region (Angstroms)"
+    )
     buffer_width: float = Field(2.0, gt=0, description="Width of the buffer region (Angstroms)")
 
     model_config = ConfigDict(extra="forbid")

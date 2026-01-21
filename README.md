@@ -63,5 +63,15 @@ uv sync --extra dev
 
 Run:
 ```bash
+# Initialize a new project
+mlip-auto init
+
+# Validate your configuration
+mlip-auto check-config input.yaml
+
+# Initialize the database
+mlip-auto db init
+
+# Run the pipeline (if implemented)
 mlip-auto run input.yaml
 ```

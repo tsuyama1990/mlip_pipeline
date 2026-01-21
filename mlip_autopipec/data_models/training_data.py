@@ -1,14 +1,13 @@
 # This module defines the schemas for Training Data.
 import math
-from typing import List, Union, Any
+from typing import Any
 
-import numpy as np
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 # Type alias for Matrix3x3 (List of 3 Lists of 3 floats)
-Vector3D = List[float]
-Matrix3x3 = List[Vector3D]
+Vector3D = list[float]
+Matrix3x3 = list[Vector3D]
 
 
 class TrainingData(BaseModel):
@@ -18,9 +17,9 @@ class TrainingData(BaseModel):
     """
 
     energy: float
-    forces: List[Vector3D]
-    stress: Union[Matrix3x3, Vector3D, None] = None
-    virial: Union[Matrix3x3, Vector3D, None] = None
+    forces: list[Vector3D]
+    stress: Matrix3x3 | Vector3D | None = None
+    virial: Matrix3x3 | Vector3D | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -33,7 +32,7 @@ class TrainingData(BaseModel):
 
     @field_validator("forces")
     @classmethod
-    def check_forces_shape(cls, v: List[Vector3D]) -> List[Vector3D]:
+    def check_forces_shape(cls, v: list[Vector3D]) -> list[Vector3D]:
         """
         Validates that the forces array is a list of 3-component vectors.
         """
@@ -50,17 +49,17 @@ class TrainingData(BaseModel):
 
     @field_validator("stress", "virial")
     @classmethod
-    def check_matrix_shape(cls, v: Union[Matrix3x3, Vector3D, None]) -> Union[Matrix3x3, Vector3D, None]:
+    def check_matrix_shape(cls, v: Matrix3x3 | Vector3D | None) -> Matrix3x3 | Vector3D | None:
         if v is None:
             return v
 
         # 3x3 Matrix
         if len(v) == 3:
-             if not all(len(row) == 3 for row in v): # type: ignore
-                 raise ValueError("Stress/Virial matrix must be 3x3.")
+            if not all(len(row) == 3 for row in v):  # type: ignore
+                raise ValueError("Stress/Virial matrix must be 3x3.")
         # Voigt notation (6 components) or flattened (9)
         elif len(v) not in [6, 9]:
-             raise ValueError("Stress/Virial must be 3x3 matrix or 6-component vector.")
+            raise ValueError("Stress/Virial must be 3x3 matrix or 6-component vector.")
 
         return v
 
@@ -70,15 +69,15 @@ class TrainingBatch(BaseModel):
     Schema for a batch of training data exported to Pacemaker.
     """
 
-    atoms_list: List["Atoms"]  # Forward reference to ASE Atoms
+    atoms_list: list["Atoms"]  # Forward reference to ASE Atoms
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     @field_validator("atoms_list")
     @classmethod
-    def validate_atoms_list(cls, v: List[Any]) -> List[Any]:
+    def validate_atoms_list(cls, v: list[Any]) -> list[Any]:
         if not v:
             return v
         # Basic check
         if not hasattr(v[0], "get_positions"):
-             raise ValueError("Items in atoms_list do not appear to be ASE Atoms objects.")
+            raise ValueError("Items in atoms_list do not appear to be ASE Atoms objects.")
         return v

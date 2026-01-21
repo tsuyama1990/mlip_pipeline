@@ -6,6 +6,7 @@ class ForceMasker:
     """
     Applies force masking to an atomic structure based on distance from a center.
     """
+
     def apply(self, atoms: Atoms, center: np.ndarray, radius: float) -> None:
         """
         Applies force mask to atoms.
@@ -38,7 +39,9 @@ class ForceMasker:
                 # Explicit check for cell volume to ensure it's a valid periodic box
                 vol = abs(cell.volume)
                 if vol < 1e-6:
-                    raise ValueError(f"Atoms object has zero or near-zero cell volume ({vol}) with PBC enabled: {pbc}")
+                    raise ValueError(
+                        f"Atoms object has zero or near-zero cell volume ({vol}) with PBC enabled: {pbc}"
+                    )
 
                 # Check for orthogonal cell for fast path
                 # L = box dimensions
@@ -54,9 +57,10 @@ class ForceMasker:
                                 raise ValueError(f"Cell dimension {i} is zero but PBC is enabled.")
                             diff[:, i] = diff[:, i] - np.round(diff[:, i] / L[i]) * L[i]
                 else:
-                     # Fallback to ASE's find_mic for non-orthogonal cells
-                     from ase.geometry import find_mic
-                     diff, _ = find_mic(diff, cell, pbc)
+                    # Fallback to ASE's find_mic for non-orthogonal cells
+                    from ase.geometry import find_mic
+
+                    diff, _ = find_mic(diff, cell, pbc)
 
             dists = np.linalg.norm(diff, axis=1)
 

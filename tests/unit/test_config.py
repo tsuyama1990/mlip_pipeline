@@ -1,0 +1,63 @@
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from mlip_autopipec.config.models import MLIPConfig, RuntimeConfig
+from mlip_autopipec.config.schemas.common import TargetSystem
+from mlip_autopipec.config.schemas.dft import DFTConfig
+
+# --- TargetSystem Tests ---
+
+
+def test_target_system_valid():
+    ts = TargetSystem(
+        elements=["Fe", "Ni"], composition={"Fe": 0.7, "Ni": 0.3}, crystal_structure="fcc"
+    )
+    assert ts.elements == ["Fe", "Ni"]
+    assert ts.composition["Fe"] == 0.7
+
+
+def test_target_system_invalid_element():
+    with pytest.raises(ValidationError) as excinfo:
+        TargetSystem(elements=["Fee", "Ni"], composition={"Fe": 0.7, "Ni": 0.3})
+    assert "not a valid chemical symbol" in str(excinfo.value)
+
+
+def test_target_system_invalid_composition_sum():
+    with pytest.raises(ValidationError) as excinfo:
+        TargetSystem(elements=["Fe", "Ni"], composition={"Fe": 0.5, "Ni": 0.1})
+    assert "Composition fractions must sum to 1.0" in str(excinfo.value)
+
+
+# --- DFTConfig Tests ---
+
+
+def test_dft_config_valid(tmp_path):
+    dft = DFTConfig(pseudopotential_dir=tmp_path, ecutwfc=30.0, kspacing=0.15, nspin=2)
+    assert dft.ecutwfc == 30.0
+
+
+def test_dft_config_invalid_path():
+    with pytest.raises(ValidationError) as excinfo:
+        DFTConfig(pseudopotential_dir=Path("/non/existent/path"), ecutwfc=30.0, kspacing=0.15)
+    assert "Pseudopotential directory does not exist" in str(excinfo.value)
+
+
+def test_dft_config_negative_cutoff(tmp_path):
+    with pytest.raises(ValidationError) as excinfo:
+        DFTConfig(pseudopotential_dir=tmp_path, ecutwfc=-10.0, kspacing=0.15)
+    assert "greater than 0" in str(excinfo.value)
+
+
+# --- MLIPConfig Tests ---
+
+
+def test_mlip_config_full(tmp_path):
+    config = MLIPConfig(
+        target_system=TargetSystem(elements=["Al"], composition={"Al": 1.0}),
+        dft=DFTConfig(pseudopotential_dir=tmp_path, ecutwfc=40.0, kspacing=0.1),
+        runtime=RuntimeConfig(work_dir=Path("scratch")),
+    )
+    assert config.dft.ecutwfc == 40.0
+    assert config.runtime.database_path == Path("mlip.db")
