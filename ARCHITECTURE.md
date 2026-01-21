@@ -17,31 +17,42 @@ graph TD
     end
 
     subgraph "Execution Layer"
-        Manager --> Gen[Generator (Module A)]
-        Manager --> Sur[Surrogate (Module B)]
-        Manager --> DFT[DFT Runner (Module C)]
-        Manager --> Train[Pacemaker (Module D)]
-        Manager --> Inf[Inference (Module E)]
+        Manager --> Gen[Generator]
+        Manager --> Sur[Surrogate]
+        Manager --> DFT[DFT Runner]
+        Manager --> Train[Pacemaker]
+        Manager --> Inf[Inference]
     end
 
     TQ --> DFT
     TQ --> Inf
+    TQ --> Train
 ```
 
-## Module Descriptions
+## Component Interactions
 
-- **Config (`mlip_autopipec.config`)**: Defines strict Pydantic schemas for all inputs.
-- **Core (`mlip_autopipec.core`)**: Utilities for Database (ASE-DB) and Logging.
-- **Generator (`mlip_autopipec.generator`)**: Creates initial atomic structures (SQS, NMS, Defects).
-- **Surrogate (`mlip_autopipec.surrogate`)**: Pre-screens candidates using MACE and Farthest Point Sampling.
-- **DFT (`mlip_autopipec.dft`)**: Runs Quantum Espresso calculations with automatic error recovery.
-- **Training (`mlip_autopipec.training`)**: Prepares datasets and trains ACE potentials using Pacemaker.
-- **Inference (`mlip_autopipec.inference`)**: Runs LAMMPS MD simulations and quantifies uncertainty.
-- **Orchestration (`mlip_autopipec.orchestration`)**: Manages the state machine and distributed execution.
+### 1. Configuration (`mlip_autopipec.config`)
+-   **Role**: Source of Truth.
+-   **Interaction**: All modules import schemas from here. `WorkflowManager` validates input against `MLIPConfig`.
 
-## Data Flow
+### 2. Database (`mlip_autopipec.core.database`)
+-   **Role**: Persistence.
+-   **Implementation**: Wraps `ase.db` (SQLite).
+-   **Usage**:
+    -   `WorkflowManager` polls for pending structures.
+    -   Runners (DFT, Inference) write results back.
+    -   Ensures ACID properties via SQLite file locking.
 
-1.  **Exploration**: `Generator` produces structures -> `Surrogate` filters them -> `Database`.
-2.  **Labeling**: `WorkflowManager` pulls from DB -> `TaskQueue` runs `DFT` -> Results to DB.
-3.  **Learning**: `Trainer` pulls labeled data -> Fits Potential -> Saves artifact.
-4.  **Inference**: `Inference` runs MD with new Potential -> Detects Uncertainty -> Extracts structures -> DB.
+### 3. Orchestration (`mlip_autopipec.orchestration`)
+-   **WorkflowManager**: State machine. Decides *what* to do next (e.g., "Run DFT" or "Train Potential").
+-   **TaskQueue**: Execution engine. Wraps `dask.distributed`. Handles retries and batch submission.
+
+### 4. Execution Modules
+-   **DFT**: Executes Quantum Espresso. Uses `QERunner`.
+-   **Inference**: Executes LAMMPS. Uses `LammpsRunner`.
+-   **Training**: Executes Pacemaker.
+
+## Error Handling Strategy
+-   **Task Level**: `TaskQueue` uses `tenacity` to retry transient submission errors.
+-   **Job Level**: Runners (e.g., `LammpsRunner`) catch subprocess errors and return a "Failed" result object instead of crashing the worker.
+-   **System Level**: `WorkflowManager` checkpoints state to disk (`checkpoint.json`) to allow resumption after crashes.

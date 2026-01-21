@@ -6,40 +6,33 @@ from pydantic import BaseModel, ConfigDict, Field
 from mlip_autopipec.config.schemas.common import TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
 
-# Try to import other configs from schemas if they exist, else use Any/Dummy
+# Try to import other configs from schemas if they exist, else use strict Empty/Dict models
 try:
     from mlip_autopipec.config.schemas.training import TrainingConfig as TrainConfig
 except ImportError:
-
     class TrainConfig(BaseModel):
-        pass  # type: ignore
-
+        model_config = ConfigDict(extra="allow")
 
 try:
     from mlip_autopipec.config.schemas.inference import InferenceConfig
 except ImportError:
-
     class InferenceConfig(BaseModel):
-        pass  # type: ignore
-
+        model_config = ConfigDict(extra="allow")
 
 try:
     from mlip_autopipec.config.schemas.generator import GeneratorConfig
 except ImportError:
-
     class GeneratorConfig(BaseModel):
-        pass  # type: ignore
-
+        model_config = ConfigDict(extra="allow")
 
 try:
     from mlip_autopipec.config.schemas.surrogate import EmbeddingConfig, SurrogateConfig
 except ImportError:
-
     class SurrogateConfig(BaseModel):
-        pass  # type: ignore
+        model_config = ConfigDict(extra="allow")
 
     class EmbeddingConfig(BaseModel):
-        pass  # type: ignore
+        model_config = ConfigDict(extra="allow")
 
 
 class RuntimeConfig(BaseModel):
@@ -77,6 +70,9 @@ class SystemConfig(BaseModel):
     """
     Legacy SystemConfig for compatibility with existing modules.
     Wraps MLIPConfig components.
+
+    This model enforces strict type checking where possible and forbids extra fields.
+    Legacy fields are typed as Optional[Any] but the goal is to replace them with specific configs.
     """
 
     minimal: MinimalConfig | None = None
@@ -95,12 +91,16 @@ class SystemConfig(BaseModel):
     generator_config: PlaceholderConfig | None = None
 
     # Legacy aliases that were causing strictness issues
+    # We use PlaceholderConfig (allowing dicts/models) instead of Any to be slightly stricter if possible
+    # but for now Any is safest for un-migrated code.
     generator: Any | None = None
     explorer: Any | None = None
     dask: Any | None = None
     dft: Any | None = None
 
     # Strictly forbid extra fields to ensure data integrity
+    # We retain arbitrary_types_allowed=True ONLY for the legacy Any fields that might hold complex objects
+    # pending full migration.
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
 

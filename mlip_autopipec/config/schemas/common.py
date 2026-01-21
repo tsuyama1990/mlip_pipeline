@@ -24,6 +24,11 @@ class TargetSystem(BaseModel):
         if not composition:
             raise ValueError("Composition cannot be empty.")
 
+        # Check values range
+        for sym, frac in composition.items():
+            if not (0.0 <= frac <= 1.0):
+                raise ValueError(f"Composition fraction for {sym} must be between 0.0 and 1.0.")
+
         total = sum(composition.values())
         if not (0.99999 <= total <= 1.00001):
             raise ValueError(f"Composition fractions must sum to 1.0 (got {total}).")
