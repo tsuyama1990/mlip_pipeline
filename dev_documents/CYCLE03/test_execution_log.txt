@@ -35,7 +35,7 @@ mlip_autopipec/config/schemas/orchestration.py       5      0   100%
 mlip_autopipec/config/schemas/surrogate.py           8      0   100%
 mlip_autopipec/config/schemas/training.py            5      0   100%
 mlip_autopipec/core/__init__.py                      0      0   100%
-mlip_autopipec/core/database.py                    148     73    51%   67-79, 102-108, 118-121, 131-136, 146-151, 166-169, 180-183, 194-214, 218-223, 227-238
+mlip_autopipec/core/database.py                    148     73    51%   74-86, 110-116, 130-133, 143-148, 158-163, 181-184, 196-199, 210-230, 234-239, 243-254
 mlip_autopipec/core/logging.py                      11      4    64%   24-29
 mlip_autopipec/core/services.py                     11      2    82%   24, 30
 mlip_autopipec/core/workspace.py                    13     13     0%   1-25
@@ -111,4 +111,4 @@ mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
 TOTAL                                             3123   2321    26%
-============================== 31 passed in 5.61s ==============================
+============================== 31 passed in 8.28s ==============================

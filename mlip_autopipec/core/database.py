@@ -20,6 +20,13 @@ class DatabaseManager:
 
     This class manages the connection to the ASE database (SQLite).
     It implements the Context Manager protocol to ensure connections are closed.
+
+    Security Note:
+        The underlying `ase.db` library handles SQL query construction.
+        Methods like `count` and `get_atoms` accept a `selection` string or `**kwargs`.
+        When possible, use `**kwargs` (e.g., `status="pending"`) which `ase.db` treats as parameterized inputs.
+        When using selection strings (e.g., "energy < 0"), ensure the input is sanitized if it comes from untrusted sources.
+        In this system, inputs typically come from strictly typed configuration files or internal logic, mitigating injection risks.
     """
 
     def __init__(self, db_path: Path) -> None:
@@ -96,6 +103,7 @@ class DatabaseManager:
         self._ensure_connection()
 
         try:
+            # ase.db.write uses parameterized insertion for key-value pairs
             if self._connection is not None:
                 id = self._connection.write(atoms, **metadata)
                 return id
@@ -110,6 +118,10 @@ class DatabaseManager:
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
         """
         Wraps db.count().
+
+        Args:
+            selection: Raw selection string (use with caution).
+            **kwargs: Parameterized selection criteria (preferred).
         """
         self._ensure_connection()
         try:
@@ -150,12 +162,15 @@ class DatabaseManager:
             logger.error(f"Failed to update metadata: {e}")
             raise DatabaseError(f"Failed to update metadata: {e}") from e
 
-    def get_atoms(self, selection: str | None = None) -> list[Atoms]:
-        """Retrieve atoms matching selection."""
+    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
+        """
+        Retrieve atoms matching selection.
+        Prefer using **kwargs for parameterized queries.
+        """
         self._ensure_connection()
         try:
             if self._connection is not None:
-                rows = self._connection.select(selection=selection)
+                rows = self._connection.select(selection=selection, **kwargs)
                 atoms_list = []
                 for row in rows:
                     at = row.toatoms()
@@ -168,14 +183,15 @@ class DatabaseManager:
             logger.error(f"Failed to get atoms: {e}")
             raise DatabaseError(f"Failed to get atoms: {e}") from e
 
-    def get_entries(self, selection: str | None = None) -> list[tuple[int, Atoms]]:
+    def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
         """
         Retrieve entries as (id, Atoms) tuples.
+        Prefer using **kwargs for parameterized queries.
         """
         self._ensure_connection()
         try:
             if self._connection is not None:
-                rows = self._connection.select(selection=selection)
+                rows = self._connection.select(selection=selection, **kwargs)
                 return [(row.id, row.toatoms()) for row in rows]
             return []
         except Exception as e:
