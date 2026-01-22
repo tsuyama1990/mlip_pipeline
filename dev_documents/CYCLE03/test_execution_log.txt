@@ -3,14 +3,15 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 21 items
+collected 22 items
 
-tests/unit/test_surrogate_schemas.py ....                                [ 19%]
-tests/unit/test_sampling.py ...                                          [ 33%]
-tests/unit/test_mace_wrapper.py ..                                       [ 42%]
-tests/unit/test_surrogate_pipeline.py ...                                [ 57%]
-tests/unit/test_mace_wrapper_real.py ....                                [ 76%]
-tests/unit/test_database.py ..                                           [ 85%]
+tests/integration/test_pipeline_integration.py .                         [  4%]
+tests/unit/test_surrogate_schemas.py ....                                [ 22%]
+tests/unit/test_sampling.py ...                                          [ 36%]
+tests/unit/test_mace_wrapper.py ..                                       [ 45%]
+tests/unit/test_surrogate_pipeline.py ...                                [ 59%]
+tests/unit/test_mace_wrapper_real.py ....                                [ 77%]
+tests/unit/test_database.py ..                                           [ 86%]
 tests/uat/test_cycle03_uat.py ...                                        [100%]
 
 ================================ tests coverage ================================
@@ -19,7 +20,7 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                             Stmts   Miss  Cover   Missing
 ------------------------------------------------------------------------------
 mlip_autopipec/__init__.py                           4      0   100%
-mlip_autopipec/app.py                               94     94     0%   5-178
+mlip_autopipec/app.py                               92     92     0%   5-176
 mlip_autopipec/config/__init__.py                    3      0   100%
 mlip_autopipec/config/factory.py                    37     37     0%   1-62
 mlip_autopipec/config/models.py                     53      0   100%
@@ -32,7 +33,7 @@ mlip_autopipec/config/schemas/orchestration.py       5      0   100%
 mlip_autopipec/config/schemas/surrogate.py           8      0   100%
 mlip_autopipec/config/schemas/training.py            5      0   100%
 mlip_autopipec/core/__init__.py                      0      0   100%
-mlip_autopipec/core/database.py                    131     58    56%   65-75, 98-102, 112-114, 124-127, 137-140, 157-159, 172-174, 197-217, 221-226, 230-240
+mlip_autopipec/core/database.py                    148     73    51%   67-79, 102-108, 118-121, 131-136, 146-151, 166-169, 180-183, 194-214, 218-223, 227-238
 mlip_autopipec/core/logging.py                      11      7    36%   19-31
 mlip_autopipec/core/services.py                     11     11     0%   1-32
 mlip_autopipec/core/workspace.py                    13     13     0%   1-25
@@ -86,7 +87,7 @@ mlip_autopipec/orchestration/models.py              18     18     0%   1-50
 mlip_autopipec/orchestration/phase_executor.py      80     80     0%   1-133
 mlip_autopipec/orchestration/task_queue.py          74     74     0%   1-151
 mlip_autopipec/surrogate/__init__.py                 5      0   100%
-mlip_autopipec/surrogate/candidate_manager.py       14     14     0%   2-22
+mlip_autopipec/surrogate/candidate_manager.py       14      0   100%
 mlip_autopipec/surrogate/descriptors.py             30     30     0%   1-84
 mlip_autopipec/surrogate/mace_client.py             62     62     0%   1-146
 mlip_autopipec/surrogate/mace_wrapper.py            53      6    89%   32, 47, 73-77, 86, 103
@@ -107,5 +108,5 @@ mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
-TOTAL                                             3100   2694    13%
-============================== 21 passed in 5.61s ==============================
+TOTAL                                             3115   2693    14%
+============================== 22 passed in 7.78s ==============================

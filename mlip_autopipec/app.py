@@ -95,17 +95,15 @@ def generate(
             console.print("[yellow]Dry run: Not saving to database.[/yellow]")
             return
 
+        from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+
         with DatabaseManager(config.runtime.database_path) as db:
+            cm = CandidateManager(db)
             for atoms in structures:
                 # Extract metadata
                 metadata = atoms.info.copy()
-                # Ensure core fields
-                if "status" not in metadata:
-                    metadata["status"] = "pending"
-                if "generation" not in metadata:
-                    metadata["generation"] = 0
-
-                db.save_candidate(atoms, metadata)
+                # CandidateManager handles defaults for status, generation etc.
+                cm.create_candidate(atoms, metadata)
 
         console.print(f"[green]Saved to {config.runtime.database_path}[/green]")
 
