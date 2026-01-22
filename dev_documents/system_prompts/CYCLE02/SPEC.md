@@ -38,10 +38,18 @@ mlip_autopipec/
 
 | Model Name | Field | Type | Description |
 | :--- | :--- | :--- | :--- |
-| **GeneratorConfig** | supercell_size | List[int] | Dimensions of supercell (e.g., `[2, 2, 2]`). |
-| | sqs_enabled | bool | If True, use SQS. If False, use random substitution. |
-| | rattle_stdev | float | Standard deviation of Gaussian noise for thermal displacements (Angstrom). |
+| **SQSConfig** | enabled | bool | If True, use SQS. If False, use random substitution. |
+| | supercell_size | List[int] | Dimensions of supercell (e.g., `[2, 2, 2]`). |
+| **DistortionConfig** | enabled | bool | If True, apply strain and rattle. |
 | | strain_range | Tuple[float, float] | Range of linear strain (e.g., `(-0.05, 0.05)`). |
+| | rattle_stdev | float | Standard deviation of Gaussian noise for thermal displacements (Angstrom). |
+| **DefectConfig** | enabled | bool | If True, apply defects. |
+| | vacancies | bool | Enable vacancy generation. |
+| | interstitials | bool | Enable interstitial generation. |
+| | interstitial_elements | List[str] | Elements to insert as interstitials (optional). |
+| **GeneratorConfig** | sqs | SQSConfig | SQS configuration. |
+| | distortion | DistortionConfig | Distortion configuration. |
+| | defects | DefectConfig | Defect configuration. |
 | | number_of_structures | int | Number of unique structures to generate per batch. |
 | **CandidateData** | atoms | ase.Atoms | The atomic structure. |
 | | config_type | str | Tag indicating origin (e.g., "sqs_strained"). |
@@ -51,11 +59,21 @@ mlip_autopipec/
 
 ### Configuration (`GeneratorConfig`)
 We add a new section to the Pydantic config in `config/schemas/generator.py`.
--   `supercell_size`: `List[int]` (e.g., `[2, 2, 2]`). Defines the size of the box relative to the primitive cell.
--   `sqs_enabled`: `bool`. Whether to use SQS or simple random substitution.
--   `rattle_stdev`: `float` (Angstroms). The standard deviation of the Gaussian noise.
--   `strain_range`: `Tuple[float, float]` (e.g., `(-0.05, 0.05)`). Min and max linear strain.
--   `number_of_structures`: `int`. How many structures to generate in a batch.
+-   **SQSConfig**:
+    -   `enabled`: `bool`.
+    -   `supercell_size`: `List[int]` (e.g., `[2, 2, 2]`). Defines the size of the box relative to the primitive cell.
+-   **DistortionConfig**:
+    -   `enabled`: `bool`.
+    -   `strain_range`: `Tuple[float, float]` (e.g., `(-0.05, 0.05)`). Min and max linear strain.
+    -   `rattle_stdev`: `float` (Angstroms). The standard deviation of the Gaussian noise.
+-   **DefectConfig**:
+    -   `enabled`: `bool`.
+    -   `vacancies`: `bool`.
+    -   `interstitials`: `bool`.
+    -   `interstitial_elements`: `List[str]`.
+-   **GeneratorConfig**:
+    -   Aggregates the above.
+    -   `number_of_structures`: `int`. How many structures to generate in a batch.
 
 ### Generation Strategy Pattern
 The `StructureBuilder` class acts as a Facade for various strategies. This allows us to plug in new generation methods (e.g., Interface generation) later without changing the core loop.
@@ -95,7 +113,7 @@ The `StructureBuilder` class acts as a Facade for various strategies. This allow
 1.  **Implement Strategies**:
     -   Start with `transformations.py`. Implement `apply_strain(atoms, strain_tensor)` and `apply_rattle(atoms, sigma)`. These are pure functions. Use `atoms.set_cell(..., scale_atoms=True)` for strain.
     -   Implement `defects.py`. Write a simple `create_vacancy(atoms, count=1)` function.
-    -   Implement `sqs.py`. This is the hardest part. Check for `icet` import. If `ImportError`, warn user and fall back to random shuffle.
+    -   Implement `sqs.py`. Check for `icet` import. If `ImportError`, warn user and fall back to random shuffle.
 2.  **Build the Facade**:
     -   Create `generator/builder.py`. The `StructureBuilder` class should take the config in `__init__`.
     -   Method `build_batch() -> List[CandidateData]`. This manages the loop and applies the transformations sequentially. It generates unique IDs for each structure.

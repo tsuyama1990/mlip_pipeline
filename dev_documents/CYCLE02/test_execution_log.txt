@@ -1,0 +1,66 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: mock-3.15.1, cov-7.0.0
+collected 37 items / 3 errors
+
+==================================== ERRORS ====================================
+____________ ERROR collecting tests/unit/test_structure_builder.py _____________
+ImportError while importing test module '/app/tests/unit/test_structure_builder.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_structure_builder.py:9: in <module>
+    from mlip_autopipec.generator.builder import StructureBuilder
+mlip_autopipec/generator/__init__.py:2: in <module>
+    from .builder import StructureBuilder
+mlip_autopipec/generator/builder.py:14: in <module>
+    from mlip_autopipec.generator.sqs import SQSStrategy
+mlip_autopipec/generator/sqs.py:8: in <module>
+    from mlip_autopipec.config.schemas.common import Composition
+E   ImportError: cannot import name 'Composition' from 'mlip_autopipec.config.schemas.common' (/app/mlip_autopipec/config/schemas/common.py)
+____________________ ERROR collecting tests/e2e/test_cli.py ____________________
+ImportError while importing test module '/app/tests/e2e/test_cli.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_cli.py:6: in <module>
+    from mlip_autopipec.app import app
+mlip_autopipec/app.py:16: in <module>
+    from mlip_autopipec.generator import StructureBuilder
+mlip_autopipec/generator/__init__.py:2: in <module>
+    from .builder import StructureBuilder
+mlip_autopipec/generator/builder.py:14: in <module>
+    from mlip_autopipec.generator.sqs import SQSStrategy
+mlip_autopipec/generator/sqs.py:8: in <module>
+    from mlip_autopipec.config.schemas.common import Composition
+E   ImportError: cannot import name 'Composition' from 'mlip_autopipec.config.schemas.common' (/app/mlip_autopipec/config/schemas/common.py)
+_______________ ERROR collecting tests/e2e/test_generator_uat.py _______________
+ImportError while importing test module '/app/tests/e2e/test_generator_uat.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_generator_uat.py:3: in <module>
+    from mlip_autopipec.app import app
+mlip_autopipec/app.py:16: in <module>
+    from mlip_autopipec.generator import StructureBuilder
+mlip_autopipec/generator/__init__.py:2: in <module>
+    from .builder import StructureBuilder
+mlip_autopipec/generator/builder.py:14: in <module>
+    from mlip_autopipec.generator.sqs import SQSStrategy
+mlip_autopipec/generator/sqs.py:8: in <module>
+    from mlip_autopipec.config.schemas.common import Composition
+E   ImportError: cannot import name 'Composition' from 'mlip_autopipec.config.schemas.common' (/app/mlip_autopipec/config/schemas/common.py)
+=========================== short test summary info ============================
+ERROR tests/unit/test_structure_builder.py
+ERROR tests/e2e/test_cli.py
+ERROR tests/e2e/test_generator_uat.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 3 errors in 4.94s ===============================

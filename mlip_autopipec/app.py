@@ -13,6 +13,7 @@ from rich.console import Console
 from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.core.logging import setup_logging
 from mlip_autopipec.core.services import load_config
+from mlip_autopipec.generator import StructureBuilder
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 db_app = typer.Typer(help="Database management commands")
@@ -69,6 +70,47 @@ def check_config(file: Path = typer.Argument(..., help="Path to config file")) -
         raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def generate(
+    config_file: Path = typer.Option(
+        Path("input.yaml"), "--config", "-c", help="Config file"
+    ),
+    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
+) -> None:
+    """
+    Generate initial training structures.
+    """
+    setup_logging()
+    try:
+        config = load_config(config_file)
+        builder = StructureBuilder(config)
+        structures = builder.build_batch()
+
+        console.print(f"[green]Generated {len(structures)} structures.[/green]")
+
+        if dry_run:
+            console.print("[yellow]Dry run: Not saving to database.[/yellow]")
+            return
+
+        with DatabaseManager(config.runtime.database_path) as db:
+            for atoms in structures:
+                # Extract metadata
+                metadata = atoms.info.copy()
+                # Ensure core fields
+                if "status" not in metadata:
+                    metadata["status"] = "pending"
+                if "generation" not in metadata:
+                    metadata["generation"] = 0
+
+                db.save_candidate(atoms, metadata)
+
+        console.print(f"[green]Saved to {config.runtime.database_path}[/green]")
+
+    except Exception as e:
+        console.print(f"[bold red]Generation Failed:[/bold red] {e}")
         raise typer.Exit(code=1)
 
 

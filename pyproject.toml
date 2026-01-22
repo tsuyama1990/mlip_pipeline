@@ -48,6 +48,7 @@ dependencies = [
 dev = [
     "pytest",
     "dask[distributed]",
+    "mypy",
 ]
 
 [tool.setuptools]
@@ -137,6 +138,7 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
 
 [dependency-groups]
 dev = [
