@@ -33,7 +33,6 @@ class QERunner:
         """
         Validates and splits the command string safely.
         """
-        # Additional Security check (redundant with schema but good for runtime)
         if any(char in command for char in [";", "&", "|", "`", "$"]):
              raise DFTFatalError("Command contains potentially unsafe shell characters.")
 
@@ -54,7 +53,6 @@ class QERunner:
         if uid is None:
             uid = str(uuid4())
 
-        # Validate command
         command_parts = self._validate_command(self.config.command)
 
         current_params = DFTInputParams(
@@ -100,14 +98,14 @@ class QERunner:
 
                     returncode = proc.returncode
 
-                    # Read logs
                     try:
                         stdout_content = output_path.read_text(encoding="utf-8", errors="replace")
                     except FileNotFoundError:
                         stdout_content = ""
                     stderr_content = proc.stderr if proc.stderr else ""
 
-                except subprocess.TimeoutExpired:
+                except subprocess.TimeoutExpired as e:
+                    logger.error(f"DFT Timeout for job {uid}: {e}")
                     returncode = -1
                     try:
                         stdout_content = output_path.read_text(encoding="utf-8", errors="replace")
@@ -115,13 +113,13 @@ class QERunner:
                          stdout_content = ""
                     stderr_content = "Timeout Expired"
                 except OSError as e:
-                     logger.error(f"OS Error executing subprocess: {e}")
+                     logger.error(f"OS Error executing subprocess for job {uid}: {e}", exc_info=True)
                      last_error = e
                      returncode = -998
                      stdout_content = ""
                      stderr_content = str(e)
                 except Exception as e:
-                     logger.error(f"Subprocess execution failed: {e}")
+                     logger.error(f"Subprocess execution failed for job {uid}: {e}", exc_info=True)
                      last_error = e
                      returncode = -999
                      stdout_content = ""
@@ -130,9 +128,8 @@ class QERunner:
                 wall_time = time.time() - start_time
 
                 if returncode != 0:
-                    logger.warning(f"QE process exited with code {returncode}")
+                    logger.warning(f"QE process exited with code {returncode}. Stderr: {stderr_content[:200]}")
 
-                # Try to parse output if successful
                 if returncode == 0:
                     try:
                         result = self._parse_output(output_path, uid, wall_time, current_params.model_dump(), atoms)
@@ -140,20 +137,17 @@ class QERunner:
                             return result
                     except Exception as e:
                         last_error = e
-                        logger.warning(f"Parsing failed despite return code 0: {e}")
+                        logger.warning(f"Parsing failed despite return code 0 for job {uid}: {e}", exc_info=True)
 
-                # Analyze errors
                 error_type = RecoveryHandler.analyze(stdout_content, stderr_content)
 
                 if not self.config.recoverable or attempt > self.config.max_retries:
-                    break  # Fatal
+                    break
 
-                # CRITICAL FIX: If no specific error detected but return code was non-zero, it's an unknown fatal error usually
                 if error_type.name == "NONE" and returncode != 0:
                      msg = f"Process exited with {returncode} but no known error pattern found."
                      logger.error(msg)
                      last_error = DFTFatalError(msg)
-                     # Break the loop, do not retry blindly
                      break
 
                 try:
@@ -164,10 +158,11 @@ class QERunner:
                     logger.info(f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {new_params_dict}")
                     continue
                 except Exception as e:
+                    logger.error(f"Recovery strategy failed for job {uid}: {e}", exc_info=True)
                     last_error = e
-                    # If getting strategy failed (e.g. OOM has no strategy), we break
                     break
 
+        logger.critical(f"Job {uid} failed completely after {attempt} attempts.")
         raise DFTFatalError(f"Job {uid} failed after {attempt} attempts. Last error: {last_error}")
 
     def _stage_pseudos(self, work_dir: Path, atoms: Atoms):

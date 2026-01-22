@@ -1,46 +1,63 @@
+
+import pytest
 from ase import Atoms
 
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
 
-def test_integration_pipeline_real_db(tmp_path):
+@pytest.fixture
+def mock_db(tmp_path):
     """
-    Test Pipeline with real DB and mock model but integrated CandidateManager.
+    Creates a temporary database for integration testing.
+    This replaces any 'real' DB file with an isolated temp file.
     """
-    db_path = tmp_path / "integration.db"
-    db = DatabaseManager(db_path)
-    db.initialize()
+    db_path = tmp_path / "test_pipeline.db"
+    return DatabaseManager(db_path)
 
-    cm = CandidateManager(db)
+def test_integration_pipeline_real_db(mock_db):
+    """
+    Integration test using a real (but temporary) SQLite database file.
+    Verifies interaction between DB and Surrogate Pipeline.
+    """
+    # 1. Setup DB with pending structures
+    with mock_db:
+        mock_db.add_structure(Atoms('H2', positions=[[0,0,0], [0,0,0.74]]), metadata={"status": "pending"})
+        mock_db.add_structure(Atoms('O2', positions=[[0,0,0], [0,0,1.2]]), metadata={"status": "pending"})
+        assert mock_db.count(status="pending") == 2
 
-    # 1. Create candidates
-    atoms = Atoms('H2', positions=[[0,0,0], [0,0,0.8]])
-    cm.create_candidate(atoms)
+    # 2. Configure Surrogate Pipeline (using mock model for simplicity in this integration scope)
+    config = SurrogateConfig(
+        model_type="mock",
+        model_path="dummy.pt",
+        force_threshold=100.0,
+        n_samples=1
+    )
 
-    assert db.count(selection="status=pending") == 1
+    # Mocking the MaceWrapper internally used by pipeline to avoid heavy model loading
+    # We patch at the class level or inject a mock model if the constructor allows.
+    # SurrogatePipeline allows injecting `model`.
 
-    # 2. Run Pipeline (using mock model for simplicity but exercising DB code)
     from unittest.mock import MagicMock
+    mock_model_interface = MagicMock()
+    # Mock return: energy per atom, forces per atom
+    # H2: 2 atoms. O2: 2 atoms.
+    mock_model_interface.compute_energy_forces.return_value = (
+        [-1.0, -2.0], # Energies
+        [[[0,0,0], [0,0,0]], [[0,0,0], [0,0,0]]] # Zero forces
+    )
+    # Mock descriptors
+    mock_model_interface.compute_descriptors.return_value = [[1.0], [2.0]]
 
-    import numpy as np
+    pipeline = SurrogatePipeline(mock_db, config, model=mock_model_interface)
 
-    from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
-    from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
-
-    config = SurrogateConfig(model_type="mock", n_samples=1)
-
-    # We still use a mock model to avoid heavy ML deps in this test environment if needed,
-    # but the focus is on the DB interaction flow.
-    mock_model = MagicMock()
-    mock_model.compute_energy_forces.return_value = (np.array([-5.0]), [np.zeros((2,3))])
-    mock_model.compute_descriptors.return_value = np.array([[0.0]])
-
-    pipeline = SurrogatePipeline(db, config, model=mock_model)
+    # 3. Run Pipeline
     pipeline.run()
 
-    # 3. Verify
-    assert db.count(selection="status=selected") == 1
-    # Check if metadata updated
-    entry = db.get_atoms(selection="status=selected")[0]
-    assert "mace_energy" in entry.info
+    # 4. Verify DB state
+    with mock_db:
+        # 1 selected (n_samples=1), 1 held
+        assert mock_db.count(status="selected") == 1
+        assert mock_db.count(status="held") == 1
+        assert mock_db.count(status="pending") == 0

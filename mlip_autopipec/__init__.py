@@ -1,62 +1,47 @@
 """
 MLIP-AutoPipe: Automated Machine Learning Interatomic Potential Pipeline.
 
-Architecture Overview:
-----------------------
-This package is organized into several key modules that interact to produce
-machine learning potentials.
+Architecture Overview
+---------------------
+This package is structured into modular components following a Hexagonal (Ports & Adapters) style architecture,
+orchestrated by a central Workflow Manager.
 
-1. **Config (`mlip_autopipec.config`)**:
-   Defines strict Pydantic schemas for all inputs (`DFTConfig`, `GeneratorConfig`, etc.).
-   This is the source of truth for the pipeline.
+Modules & Interactions:
 
-2. **Core (`mlip_autopipec.core`)**:
-   Provides foundational services like `DatabaseManager` (for SQLite/ASE access)
-   and logging.
+1.  **Config (`mlip_autopipec.config`)**
+    -   **Role**: Source of Truth.
+    -   **Interactions**: Imported by all other modules. Validates inputs before any execution begins.
 
-3. **Generator (`mlip_autopipec.generator`)**:
-   Responsible for creating atomic structures. `StructureBuilder` orchestrates
-   strategies like SQS (alloys) and Defects to populate the database.
+2.  **Core (`mlip_autopipec.core`)**
+    -   **Role**: Infrastructure Layer.
+    -   **Database**: `DatabaseManager` wraps `ase.db` (SQLite). It provides atomic CRUD operations.
+        It is used by Generator (write), Surrogate (read/update), and DFT (read/update).
+    -   **Logging**: Centralized logging configuration.
 
-4. **Surrogate (`mlip_autopipec.surrogate`)**:
-   Implements the Active Learning loop. `SurrogatePipeline` uses a foundation model
-   (MACE) to screen candidates and `FarthestPointSampling` to select diverse ones.
+3.  **Generator (`mlip_autopipec.generator`)**
+    -   **Role**: Domain Logic for creating atomic structures.
+    -   **Interactions**: `StructureBuilder` receives `GeneratorConfig`, applies strategies (SQS, Defects),
+        and writes new "pending" candidates to the Database.
 
-5. **DFT (`mlip_autopipec.dft`)**:
-   The "Factory" for ground-truth data. `QERunner` executes Quantum Espresso
-   calculations, handling errors via `RecoveryHandler` and parsing results
-   with `QEOutputParser`.
+4.  **Surrogate (`mlip_autopipec.surrogate`)**
+    -   **Role**: Active Learning Strategy.
+    -   **Interactions**: `SurrogatePipeline` reads "pending" structures from DB. It delegates to
+        `MaceWrapper` (Adapter) for inference and `FarthestPointSampling` for selection.
+        Updates DB status to "selected" or "rejected".
 
-6. **Orchestration (`mlip_autopipec.orchestration`)**:
-   `WorkflowManager` ties everything together, managing state transitions
-   (Pending -> Selected -> Completed) and distributing tasks via `TaskQueue`.
+5.  **DFT (`mlip_autopipec.dft`)**
+    -   **Role**: Ground Truth Factory.
+    -   **Interactions**: `QERunner` reads "selected" structures. It executes Quantum Espresso via subprocess.
+        `RecoveryHandler` interprets errors. `QEOutputParser` extracts results.
+        Updates DB status to "completed".
 
-Module Interactions:
---------------------
-The system follows a linear pipeline architecture orchestrated by `WorkflowManager`:
+6.  **Orchestration (`mlip_autopipec.orchestration`)**
+    -   **Role**: Control Plane.
+    -   **Interactions**: `WorkflowManager` monitors DB state and triggers the appropriate module (Generator -> Surrogate -> DFT).
+        `TaskQueue` (Adapter) handles distributed execution logic (Dask).
 
-1.  **Initialization**: `WorkflowManager` loads `MLIPConfig` and initializes the `DatabaseManager`.
-2.  **Generation**:
-    - `StructureBuilder` generates structures based on `GeneratorConfig`.
-    - Structures are saved to DB with status "pending".
-3.  **Surrogate Selection**:
-    - `SurrogatePipeline` queries "pending" structures.
-    - `MaceWrapper` filters unphysical structures (force threshold).
-    - `FarthestPointSampling` selects diverse subset.
-    - Selected structures marked "selected"; others "held" or "rejected".
-4.  **DFT Execution**:
-    - `TaskQueue` picks up "selected" structures.
-    - `QERunner` executes Quantum Espresso.
-    - On success: Results (Energy/Forces/Stress) saved to DB, status -> "completed".
-    - On failure: `RecoveryHandler` attempts parameter adjustments (beta, smearing). If all fail, status -> "failed".
-5.  **Training** (Future):
-    - `Pacemaker` trains on "completed" structures.
-
-Dependencies:
--------------
-- `config` -> All modules (schemas)
-- `core` -> All modules (database/logging)
-- `orchestration` -> `generator`, `surrogate`, `dft` (control flow)
+Key Data Flow:
+[User Config] -> [StructureBuilder] -> [Database (Pending)] -> [SurrogatePipeline] -> [Database (Selected)] -> [QERunner] -> [Database (Completed)]
 """
 
 from mlip_autopipec.config.models import (
