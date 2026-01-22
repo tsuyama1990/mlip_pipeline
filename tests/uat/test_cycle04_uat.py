@@ -10,8 +10,9 @@ from mlip_autopipec.dft.runner import DFTFatalError, QERunner
 
 # Scenario 4.1: Successful Static Calculation
 def test_uat_4_1_successful_calculation(tmp_path):
+    (tmp_path / "pseudos").mkdir()
     config = DFTConfig(
-        pseudopotential_dir=tmp_path,
+        pseudopotential_dir=tmp_path / "pseudos",
         ecutwfc=30.0,
         kspacing=0.05,
         command="pw.x"
@@ -50,8 +51,9 @@ def test_uat_4_1_successful_calculation(tmp_path):
 
 # Scenario 4.2: Convergence Failure Recovery
 def test_uat_4_2_convergence_recovery(tmp_path):
+    (tmp_path / "pseudos").mkdir()
     config = DFTConfig(
-        pseudopotential_dir=tmp_path,
+        pseudopotential_dir=tmp_path / "pseudos",
         ecutwfc=30.0,
         kspacing=0.05,
         command="pw.x"
@@ -67,20 +69,18 @@ def test_uat_4_2_convergence_recovery(tmp_path):
 
         mock_which.return_value = "/bin/pw.x"
 
-        # Sequence:
-        # 1. Fail (Convergence) -> Write to stdout
-        # 2. Fail (Convergence)
-        # 3. Success
-
         call_count = 0
         def side_effect_run(*args, **kwargs):
             nonlocal call_count
             call_count += 1
+            # 1. Fail (Convergence)
+            # 2. Fail (Convergence) - but parameters should have changed
+            # 3. Success
             if call_count <= 2:
                 if kwargs.get('stdout'):
                     kwargs['stdout'].write("convergence NOT achieved\n")
                     kwargs['stdout'].flush()
-                return MagicMock(returncode=0, stderr="") # Return 0 but parser fails
+                return MagicMock(returncode=0, stderr="")
             if kwargs.get('stdout'):
                 kwargs['stdout'].write("JOB DONE\n")
                 kwargs['stdout'].flush()
@@ -100,7 +100,7 @@ def test_uat_4_2_convergence_recovery(tmp_path):
             )
         ]
 
-        # Recovery Logic: Ensure it sees the stdout content
+        # Recovery Logic side effects
         def side_effect_analyze(stdout, stderr):
             if "convergence NOT achieved" in stdout:
                 from mlip_autopipec.data_models.dft_models import DFTErrorType
@@ -110,8 +110,9 @@ def test_uat_4_2_convergence_recovery(tmp_path):
 
         mock_recovery.analyze.side_effect = side_effect_analyze
 
-        # Mock strategy responses
+        # Mock strategy
         def side_effect_strategy(error, params):
+            # params is a dict from model_dump
             new_p = params.copy()
             if params.get("mixing_beta", 0.7) > 0.35:
                 new_p["mixing_beta"] = 0.3
@@ -125,14 +126,27 @@ def test_uat_4_2_convergence_recovery(tmp_path):
 
         assert result.succeeded
         assert mock_run.call_count == 3
-        # Check that we eventually got the result
+
+        # Verify the progression of parameters by checking what input generator received (indirectly)
+        # or checking result provenance.
         assert result.parameters["diagonalization"] == "cg"
+
+        # Verify call arguments to strategy were distinct
+        first_call_args = mock_recovery.get_strategy.call_args_list[0]
+        second_call_args = mock_recovery.get_strategy.call_args_list[1]
+
+        # First call: default beta 0.7
+        assert first_call_args[0][1]["mixing_beta"] == 0.7
+
+        # Second call: beta 0.3 (updated from first recovery)
+        assert second_call_args[0][1]["mixing_beta"] == 0.3
 
 
 # Scenario 4.3: Fatal Error Handling
 def test_uat_4_3_fatal_error(tmp_path):
+    (tmp_path / "pseudos").mkdir()
     config = DFTConfig(
-        pseudopotential_dir=tmp_path,
+        pseudopotential_dir=tmp_path / "pseudos",
         ecutwfc=30.0,
         kspacing=0.05,
         command="pw.x"
@@ -148,20 +162,16 @@ def test_uat_4_3_fatal_error(tmp_path):
 
         mock_which.return_value = "/bin/pw.x"
 
-        # Segfault
         def segfault(*args, **kwargs):
-             # Segfault might write to stderr or stdout
-             # Standard segfault writes to stderr usually.
              return MagicMock(returncode=139, stderr="Segmentation fault")
 
         mock_run.side_effect = segfault
-
         mock_parser = mock_parser_cls.return_value
         mock_parser.parse.side_effect = Exception("Crash")
 
         from mlip_autopipec.data_models.dft_models import DFTErrorType
-        mock_recovery.analyze.return_value = DFTErrorType.UNKNOWN
-        mock_recovery.get_strategy.side_effect = Exception("No strategy")
+        # Return NONE to simulate unknown error pattern, but since returncode != 0 it should fail
+        mock_recovery.analyze.return_value = DFTErrorType.NONE
 
-        with pytest.raises(DFTFatalError):
+        with pytest.raises(DFTFatalError, match="exited with 139"):
             runner.run(atoms, uid="uat_4_3")

@@ -33,9 +33,10 @@ class QERunner:
         """
         Validates and splits the command string safely.
         """
-        # Security: Prevent basic injection if we were using shell=True,
-        # but since we use shell=False, we mostly need to ensure it's tokenized.
-        # We also check if the executable exists.
+        # Additional Security check (redundant with schema but good for runtime)
+        if any(char in command for char in [";", "&", "|"]):
+             raise DFTFatalError("Command contains potentially unsafe shell characters.")
+
         parts = shlex.split(command)
         if not parts:
             raise DFTFatalError("Command is empty.")
@@ -53,10 +54,9 @@ class QERunner:
         if uid is None:
             uid = str(uuid4())
 
-        # Validate command once
+        # Validate command
         command_parts = self._validate_command(self.config.command)
 
-        # Initialize params from config defaults using Pydantic model
         current_params = DFTInputParams(
             mixing_beta=self.config.mixing_beta,
             diagonalization=self.config.diagonalization,
@@ -74,48 +74,40 @@ class QERunner:
 
             with tempfile.TemporaryDirectory(prefix=f"dft_run_{uid}_") as tmpdir:
                 work_dir = Path(tmpdir)
-                # Convert model to dict for backward compatibility if needed, or pass model directly
-                # InputGenerator now accepts model.
                 input_str = InputGenerator.create_input_string(atoms, current_params)
 
                 input_path = work_dir / "pw.in"
                 output_path = work_dir / "pw.out"
 
                 input_path.write_text(input_str)
-
-                # Symlink pseudos
                 self._stage_pseudos(work_dir, atoms)
 
                 start_time = time.time()
-
-                # Construct command: command + -in pw.in
-                # Note: QE accepts '-in pw.in' or '< pw.in'.
-                # We use '-in pw.in' to avoid shell redirection syntax '<' which requires shell=True
                 full_command = command_parts + ["-in", "pw.in"]
 
                 try:
-                    # Open output file for writing
                     with output_path.open("w") as stdout_f:
                         proc = subprocess.run(
                             full_command,
                             check=False,
-                            shell=False, # Secure
+                            shell=False,
                             cwd=str(work_dir),
                             stdout=stdout_f,
-                            stderr=subprocess.PIPE, # Capture stderr
+                            stderr=subprocess.PIPE,
                             timeout=self.config.timeout,
                             text=True,
                         )
 
-                    # Read stdout from file for analysis
+                    # Robustness: Handle non-zero return code even if parser might not be called yet
+                    returncode = proc.returncode
+
+                    # Read logs
                     try:
                         stdout_content = output_path.read_text()
                     except FileNotFoundError:
                         stdout_content = ""
-
                     stderr_content = proc.stderr if proc.stderr else ""
 
-                    returncode = proc.returncode
                 except subprocess.TimeoutExpired:
                     returncode = -1
                     try:
@@ -124,35 +116,49 @@ class QERunner:
                          stdout_content = ""
                     stderr_content = "Timeout Expired"
                 except Exception as e:
-                     logger.error(f"Subprocess failed: {e}")
+                     logger.error(f"Subprocess execution failed: {e}")
                      last_error = e
+                     # Don't break immediately, try to recover if it's a known error type?
+                     # But if subprocess failed to start, we can't recover via physics params.
+                     # Here we treat it as a fatal attempt unless we have specific recovery.
                      returncode = -999
                      stdout_content = ""
                      stderr_content = str(e)
 
-
                 wall_time = time.time() - start_time
 
-                # Try to parse output
-                try:
-                    # Parse returns a DFTResult
-                    result = self._parse_output(output_path, uid, wall_time, current_params.model_dump(), atoms)
-                    if result.succeeded:
-                        return result
-                except Exception as e:
-                    # Parse failed, treat as error
-                    last_error = e
+                # Check for system level crashes (Segfaults etc)
+                # QE typically returns non-zero on error.
+                if returncode != 0:
+                    logger.warning(f"QE process exited with code {returncode}")
+                    # If it's a crash (e.g. 139), we might not want to parse,
+                    # but we SHOULD analyze stdout for "convergence not achieved" which sometimes accompanies non-zero exits in some wrappers (though usually 0 for unconverged).
+                    # We continue to analysis.
 
-                # If we are here, something failed (crash or parse error).
+                # Try to parse output if it looks like it might have finished or we want partials?
+                # Usually we only parse on success or to check completion.
+                # If returncode is 0, we expect success.
+                if returncode == 0:
+                    try:
+                        result = self._parse_output(output_path, uid, wall_time, current_params.model_dump(), atoms)
+                        if result.succeeded:
+                            return result
+                    except Exception as e:
+                        last_error = e
+                        logger.warning(f"Parsing failed despite return code 0: {e}")
+
+                # Analyze errors
                 error_type = RecoveryHandler.analyze(stdout_content, stderr_content)
 
                 if not self.config.recoverable or attempt > self.config.max_retries:
                     break  # Fatal
 
+                # If no specific error detected but return code was non-zero, it's an unknown fatal error usually
+                if error_type.name == "NONE" and returncode != 0:
+                     last_error = DFTFatalError(f"Process exited with {returncode} but no known error pattern found.")
+                     break
+
                 try:
-                    # Update parameters using strategy
-                    # current_params is DFTInputParams model
-                    # Strategy returns dict. We update model.
                     current_params_dict = current_params.model_dump()
                     new_params_dict = RecoveryHandler.get_strategy(error_type, current_params_dict)
                     current_params = DFTInputParams(**new_params_dict)
@@ -161,7 +167,7 @@ class QERunner:
                     continue
                 except Exception as e:
                     last_error = e
-                    break  # No strategy found
+                    break
 
         raise DFTFatalError(f"Job {uid} failed after {attempt} attempts. Last error: {last_error}")
 
@@ -172,7 +178,6 @@ class QERunner:
         from mlip_autopipec.dft.constants import SSSP_EFFICIENCY_1_1
 
         pseudo_src_dir = self.config.pseudopotential_dir
-        # Config validation ensures existence if checked
 
         unique_species = set(atoms.get_chemical_symbols())
         for s in unique_species:

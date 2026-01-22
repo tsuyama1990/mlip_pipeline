@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -23,9 +24,10 @@ class DFTConfig(BaseModel):
     @field_validator("pseudopotential_dir")
     @classmethod
     def validate_pseudo_dir(cls, v: Path) -> Path:
+        if not v.exists():
+            raise ValueError(f"Pseudopotential directory does not exist: {v}")
         if not v.is_dir():
-             # Strict validation as requested by Audit
-            raise ValueError(f"Pseudopotential directory does not exist or is not a directory: {v}")
+            raise ValueError(f"Pseudopotential path is not a directory: {v}")
         return v
 
     @field_validator("nspin")
@@ -33,4 +35,17 @@ class DFTConfig(BaseModel):
     def validate_nspin(cls, v: int) -> int:
         if v not in (1, 2):
             raise ValueError("nspin must be 1 or 2.")
+        return v
+
+    @field_validator("command")
+    @classmethod
+    def validate_command_security(cls, v: str) -> str:
+        """
+        Basic security check to prevent obvious shell injection if used improperly,
+        though runner uses shell=False.
+        Disallows chaining operators like ';', '&&', '|'.
+        """
+        # We allow arguments but disallow shell operators
+        if re.search(r"[;&|]", v):
+            raise ValueError("Command contains potentially unsafe shell characters (;, &, |).")
         return v
