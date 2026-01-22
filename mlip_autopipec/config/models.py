@@ -36,7 +36,10 @@ class MLIPConfig(BaseModel):
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
 
-    model_config = ConfigDict(extra="forbid")
+    # Added for Orchestration
+    workflow_config: WorkflowConfig | None = Field(None, alias="workflow")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 # --- Compatibility / Legacy Models ---
@@ -71,12 +74,13 @@ class SystemConfig(BaseModel):
     inference_config: InferenceConfig | None = None
     generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
 
-    # Legacy aliases - Typed as Optional[Any] to allow backward compat but restricted by model_config if possible
+    # Legacy aliases - Typed as specific configs where possible, but kept optional for backward compat
+    # We remove 'Any' usage.
 
-    generator: Any | None = None
-    explorer: Any | None = None
-    dask: Any | None = None
-    dft: Any | None = None
+    generator: GeneratorConfig | None = None
+    explorer: ExplorerConfig | None = None
+    # dask: Removed to enforce usage of workflow_config
+    dft: DFTConfig | None = None
 
     model_config = ConfigDict(extra="forbid")
 

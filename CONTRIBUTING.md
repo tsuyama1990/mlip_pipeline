@@ -1,23 +1,23 @@
 # Contributing to MLIP-AutoPipe
 
-We welcome contributions! Please follow these guidelines.
+We love your input! We want to make contributing to this project as easy and transparent as possible.
 
-## Development Setup
+## Pull Request Process
 
-1.  Clone the repository.
-2.  Install `uv` (https://astral.sh/uv).
-3.  Run `uv sync` to install dependencies.
-4.  Run `uv run pre-commit install` (if configured) or ensure you run linting manually.
+1.  **Fork** the repo and create your branch from `main`.
+2.  **Install** dependencies using `uv sync` or `pip install -e .[dev]`.
+3.  **Test**: Ensure the test suite passes (`pytest`).
+4.  **Lint**: Ensure code follows standards (`ruff check .`, `mypy .`).
+5.  **Submit** a Pull Request.
 
-## Standards
+## Coding Standards
 
--   **Linting**: We use `ruff` and `mypy`. Run `uv run ruff check .` and `uv run mypy .` before submitting.
--   **Testing**: We practice TDD. Write tests in `tests/` before implementing features. Ensure 85% coverage.
--   **Code Style**: Follow PEP 8 (enforced by `ruff`).
--   **Type Hints**: All functions must have type hints.
+-   **Type Hints**: All function arguments and return values must be typed.
+-   **Docstrings**: Use Google-style docstrings for all classes and public methods.
+-   **Validation**: Use Pydantic schemas for data structures.
+-   **Testing**: Add unit tests for new features. Mock external binaries.
 
-## Pull Requests
+## Issue Reporting
 
-1.  Open a PR with a descriptive title.
-2.  Ensure all tests pass.
-3.  Request review.
+-   Use the GitHub Issues tracker.
+-   Describe the issue clearly, including steps to reproduce.

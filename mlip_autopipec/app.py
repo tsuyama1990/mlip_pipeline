@@ -1,5 +1,13 @@
 """
 Main CLI application for MLIP-AutoPipe.
+
+This module provides the command-line interface using `typer`.
+It supports:
+- Project initialization (`init`)
+- Configuration validation (`check-config`)
+- Individual phase execution (`generate`, `select`, `train`)
+- Full loop execution (`run loop`)
+- Database management (`db init`)
 """
 
 import logging
@@ -17,7 +25,9 @@ from mlip_autopipec.generator import StructureBuilder
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 db_app = typer.Typer(help="Database management commands")
+run_app = typer.Typer(help="Execution commands")
 app.add_typer(db_app, name="db")
+app.add_typer(run_app, name="run")
 
 console = Console()
 logger = logging.getLogger("mlip_autopipec")
@@ -25,9 +35,7 @@ logger = logging.getLogger("mlip_autopipec")
 
 @app.command()
 def init() -> None:
-    """
-    Initialize a new project with a template configuration file.
-    """
+    """Initialize a new project with a template configuration file."""
     input_file = Path("input.yaml")
     if input_file.exists():
         console.print("[yellow]input.yaml already exists.[/yellow]")
@@ -41,6 +49,7 @@ def init() -> None:
             "crystal_structure": "fcc",
         },
         "dft": {
+            "command": "mpirun -np 4 pw.x",
             "pseudopotential_dir": "/path/to/upf",
             "ecutwfc": 40.0,
             "kspacing": 0.15,
@@ -53,6 +62,16 @@ def init() -> None:
              "kappa": 0.5,
              "kappa_f": 100.0,
              "max_iter": 100
+        },
+        "inference_config": {
+            "lammps_executable": "/path/to/lmp",
+            "temperature": 1000.0,
+            "steps": 10000,
+            "uncertainty_threshold": 10.0
+        },
+        "workflow": {
+            "max_generations": 5,
+            "workers": 4
         }
     }
 
@@ -64,9 +83,7 @@ def init() -> None:
 
 @app.command(name="check-config")
 def check_config(file: Path = typer.Argument(..., help="Path to config file")) -> None:
-    """
-    Validate the configuration file.
-    """
+    """Validate the configuration file."""
     setup_logging()
     try:
         load_config(file)
@@ -74,22 +91,20 @@ def check_config(file: Path = typer.Argument(..., help="Path to config file")) -
     except ValidationError as e:
         console.print("[bold red]Validation Error:[/bold red]")
         console.print(str(e))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
 def generate(
-    config_file: Path = typer.Option(
+    config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
+    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),  # noqa: B008
 ) -> None:
-    """
-    Generate initial training structures.
-    """
+    """Generate initial training structures."""
     setup_logging()
     try:
         config = load_config(config_file)
@@ -117,20 +132,18 @@ def generate(
 
     except Exception as e:
         console.print(f"[bold red]Generation Failed:[/bold red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
 def select(
-    config_file: Path = typer.Option(
+    config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
-    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
+    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),  # noqa: B008
+    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),  # noqa: B008
 ) -> None:
-    """
-    Select diverse candidates using a surrogate model.
-    """
+    """Select diverse candidates using a surrogate model."""
     setup_logging()
     try:
         from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
@@ -154,22 +167,18 @@ def select(
 
     except Exception as e:
         console.print(f"[bold red]Selection Failed:[/bold red] {e}")
-        # Print full traceback for debug in dev
-        import traceback
-        traceback.print_exc()
-        raise typer.Exit(code=1)
+        logger.exception("Selection failed")
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
 def train(
-    config_file: Path = typer.Option(
+    config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
+    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),  # noqa: B008
 ) -> None:
-    """
-    Train a potential using Pacemaker.
-    """
+    """Train a potential using Pacemaker."""
     setup_logging()
     try:
         # Use TrainingManager (Module D)
@@ -189,10 +198,6 @@ def train(
             manager = TrainingManager(db, train_conf, work_dir)
 
             if prepare_only:
-                # We can expose a method on TrainingManager for this or call internal logic if needed.
-                # Ideally TrainingManager should have a public method for preparation.
-                # For now, we can instantiate internal builders if we want to bypass full run,
-                # or add prepare_data() to TrainingManager.
                 from mlip_autopipec.training.dataset import DatasetBuilder
                 builder = DatasetBuilder(db)
                 builder.export(train_conf, work_dir)
@@ -214,29 +219,57 @@ def train(
 
     except Exception as e:
         console.print(f"[bold red]Training Failed:[/bold red] {e}")
-        import traceback
-        traceback.print_exc()
-        raise typer.Exit(code=1)
+        logger.exception("Training failed")
+        raise typer.Exit(code=1) from e
 
 
 @db_app.command(name="init")
 def db_init(
-    config_file: Path = typer.Option(
+    config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Path to config file"
     ),
 ) -> None:
-    """
-    Initialize the database based on the configuration.
-    """
+    """Initialize the database based on the configuration."""
     setup_logging()
     try:
         config = load_config(config_file)
         db_manager = DatabaseManager(config.runtime.database_path)
-        db_manager.initialize()
+        # ASE DB handles initialization on first connection/write
+        with db_manager:
+            pass # Just connect to initialize
         console.print(f"[green]Database initialized at {config.runtime.database_path}[/green]")
     except Exception as e:
         console.print(f"[bold red]Database Error:[/bold red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
+
+
+@run_app.command(name="loop")
+def run_loop(
+    config_file: Path = typer.Option(  # noqa: B008
+        Path("input.yaml"), "--config", "-c", help="Config file"
+    ),
+) -> None:
+    """Run the full autonomous loop (Generation -> DFT -> Training -> Inference)."""
+    setup_logging()
+    try:
+        from mlip_autopipec.orchestration.models import OrchestratorConfig
+        from mlip_autopipec.orchestration.workflow import WorkflowManager
+
+        config = load_config(config_file)
+
+        # Extract Orchestrator Config from 'workflow_config'
+        # If missing, provide defaults or raise error
+        wf_config = config.workflow_config if config.workflow_config else OrchestratorConfig()
+
+        manager = WorkflowManager(config, wf_config)
+        manager.run()
+
+        console.print("[green]Workflow finished.[/green]")
+
+    except Exception as e:
+        console.print(f"[bold red]Workflow Failed:[/bold red] {e}")
+        logger.exception("Workflow failed")
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":

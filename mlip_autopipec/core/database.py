@@ -86,6 +86,23 @@ class DatabaseManager:
         """Internal helper to get connection."""
         return self.connector.connect()
 
+    def _validate_atoms(self, atoms: Atoms) -> None:
+        """
+        Validates an ASE Atoms object before insertion.
+        Checks for NaN positions, infinite values, or zero cells if PBC is true.
+        """
+        if not isinstance(atoms, Atoms):
+            raise TypeError("Input must be an ase.Atoms object")
+
+        positions = atoms.get_positions()
+        if np.any(np.isnan(positions)) or np.any(np.isinf(positions)):
+            raise ValueError("Atoms object contains NaN or Inf in positions.")
+
+        if atoms.pbc.any():
+            cell = atoms.get_cell()
+            if np.isclose(np.linalg.det(cell), 0.0):
+                raise ValueError("Atoms object has zero cell volume but PBC is enabled.")
+
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
         Inserts an atom with metadata.
@@ -101,8 +118,12 @@ class DatabaseManager:
             DatabaseError: If insertion fails.
         """
         try:
+            self._validate_atoms(atoms)
             id = self._connection.write(atoms, **metadata)
             return id
+        except ValueError as e:
+            logger.error(f"Validation failed for atoms insertion: {e}")
+            raise DatabaseError(f"Invalid Atoms object: {e}") from e
         except KeyError as e:
             logger.error(f"Invalid key in metadata during add_structure: {e}")
             raise DatabaseError(f"Invalid key in metadata: {e}") from e
@@ -217,9 +238,10 @@ class DatabaseManager:
         Args:
             atoms: The Atoms object (updated with results).
             result: The DFTResult object.
-            metadata: Additional metadata to save.
+            metadata: Additional metadata to save (will be indexed).
         """
         try:
+            self._validate_atoms(atoms)
             if hasattr(result, "energy"):
                 atoms.info["energy"] = result.energy
             if hasattr(result, "forces"):
@@ -230,11 +252,16 @@ class DatabaseManager:
             atoms.info.update(metadata)
 
             self._connection.write(
-                atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
+                atoms,
+                data=result.model_dump() if hasattr(result, "model_dump") else {},
+                **metadata  # Pass metadata as kwargs so they are indexed columns!
             )
         except AttributeError as e:
             logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
+        except ValueError as e:
+            logger.error(f"Validation failed for atoms insertion in save_dft_result: {e}")
+            raise DatabaseError(f"Invalid Atoms object: {e}") from e
         except Exception as e:
             logger.error(f"Failed to save DFT result: {e}")
             raise DatabaseError(f"Failed to save DFT result: {e}") from e

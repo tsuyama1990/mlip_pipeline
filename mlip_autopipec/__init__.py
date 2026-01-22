@@ -1,75 +1,40 @@
 """
 MLIP-AutoPipe: Automated Machine Learning Interatomic Potential Pipeline.
 
-Architecture Overview
----------------------
-This package is structured into modular components following a Hexagonal (Ports & Adapters) style architecture,
-orchestrated by a central Workflow Manager.
+This package provides a zero-human automated pipeline for generating, labeling (DFT),
+training, and verifying machine learning interatomic potentials.
 
-Modules & Interactions:
+Key Components
+--------------
+- **Configuration**: Strictly typed Pydantic models (see `mlip_autopipec.config`).
+- **Orchestration**: `WorkflowManager` coordinates the active learning loop.
+- **Database**: `DatabaseManager` handles all persistence via ASE/SQLite.
 
-1.  **Config (`mlip_autopipec.config`)**
-    -   **Role**: Source of Truth.
-    -   **Interactions**: Imported by all other modules. Validates inputs before any execution begins.
+Usage
+-----
+The primary interface is via the Command Line Interface (CLI):
+    $ mlip-auto --help
 
-2.  **Core (`mlip_autopipec.core`)**
-    -   **Role**: Infrastructure Layer.
-    -   **Database**: `DatabaseManager` wraps `ase.db` (SQLite). It provides atomic CRUD operations.
-        It is used by Generator (write), Surrogate (read/update), and DFT (read/update).
-    -   **Logging**: Centralized logging configuration.
+For programmatic usage, initialize a configuration and run the workflow:
 
-3.  **Generator (`mlip_autopipec.generator`)**
-    -   **Role**: Domain Logic for creating atomic structures.
-    -   **Interactions**: `StructureBuilder` receives `GeneratorConfig`, applies strategies (SQS, Defects),
-        and writes new "pending" candidates to the Database.
+    from mlip_autopipec import MLIPConfig, WorkflowManager
 
-4.  **Surrogate (`mlip_autopipec.surrogate`)**
-    -   **Role**: Active Learning Strategy.
-    -   **Interactions**: `SurrogatePipeline` reads "pending" structures from DB. It delegates to
-        `MaceWrapper` (Adapter) for inference and `FarthestPointSampling` for selection.
-        Updates DB status to "selected" or "rejected".
+    config = MLIPConfig(...)
+    manager = WorkflowManager(config)
+    manager.run()
 
-5.  **DFT (`mlip_autopipec.dft`)**
-    -   **Role**: Ground Truth Factory.
-    -   **Interactions**: `QERunner` reads "selected" structures. It executes Quantum Espresso via subprocess.
-        `RecoveryHandler` interprets errors. `QEOutputParser` extracts results.
-        Updates DB status to "completed".
-
-6.  **Orchestration (`mlip_autopipec.orchestration`)**
-    -   **Role**: Control Plane.
-    -   **Interactions**: `WorkflowManager` monitors DB state and triggers the appropriate module (Generator -> Surrogate -> DFT).
-        `TaskQueue` (Adapter) handles distributed execution logic (Dask).
-
-Key Data Flow:
-[User Config] -> [StructureBuilder] -> [Database (Pending)] -> [SurrogatePipeline] -> [Database (Selected)] -> [QERunner] -> [Database (Completed)]
 """
 
 from mlip_autopipec.config.models import (
-    DFTConfig,
-    GeneratorConfig,
     MLIPConfig,
-    SurrogateConfig,
     SystemConfig,
-    TargetSystem,
 )
 from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.dft.runner import QERunner
-from mlip_autopipec.generator.builder import StructureBuilder
-from mlip_autopipec.orchestration.manager import WorkflowManager
-from mlip_autopipec.orchestration.task_queue import TaskQueue
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 __all__ = [
-    "DFTConfig",
     "DatabaseManager",
-    "GeneratorConfig",
     "MLIPConfig",
-    "QERunner",
-    "StructureBuilder",
-    "SurrogateConfig",
-    "SurrogatePipeline",
     "SystemConfig",
-    "TargetSystem",
-    "TaskQueue",
     "WorkflowManager",
 ]
