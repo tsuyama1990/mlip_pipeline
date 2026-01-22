@@ -90,6 +90,10 @@ class PacemakerWrapper:
     def _execute_subprocess(self, cmd: list[str], log_path: Path) -> int:
         """Helper to run the subprocess."""
         try:
+            # Check for shell injection characters if we were using shell=True,
+            # but we use shell=False with list args which avoids shell injection.
+            # However, verifying executable path is good practice.
+
             with log_path.open("w") as log_file:
                 # S603 is ignored as we are constructing cmd internally
                 result = subprocess.run(
@@ -121,13 +125,15 @@ class PacemakerWrapper:
             config_path = self.generate_config()
             log_path = self.work_dir / "log.txt"
 
-            if not shutil.which("pacemaker"):
+            executable_path = shutil.which("pacemaker")
+            if not executable_path:
                 logger.error("Pacemaker executable not found in PATH.")
                 return TrainingResult(success=False)
 
-            cmd = ["pacemaker", str(config_path.name)]
+            # Use full path resolved by shutil.which for security
+            cmd = [executable_path, str(config_path.name)]
 
-            logger.info(f"Running Pacemaker in {self.work_dir}")
+            logger.info(f"Running Pacemaker: {cmd} in {self.work_dir}")
 
             returncode = self._execute_subprocess(cmd, log_path)
 

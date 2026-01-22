@@ -13,7 +13,6 @@ from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 def uat_db(tmp_path):
     db_path = tmp_path / "uat.db"
     db = DatabaseManager(db_path)
-    db.initialize()
     return db
 
 def test_scenario_3_1_prescreening(uat_db):

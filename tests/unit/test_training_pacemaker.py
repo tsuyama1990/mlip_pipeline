@@ -68,7 +68,8 @@ def test_train_success(mock_parse, mock_check, mock_run, mock_which, training_co
     # Verify subprocess call
     args, kwargs = mock_run.call_args
     # args[0] should contain 'pacemaker' and 'input.yaml'
-    assert "pacemaker" in args[0]
+    # Use any because the path might be absolute
+    assert any("pacemaker" in str(arg) for arg in args[0])
     # The second arg is usually the config path (relative if cwd is set)
     assert "input.yaml" in args[0]
 

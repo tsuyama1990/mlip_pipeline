@@ -1,3 +1,4 @@
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -56,7 +57,6 @@ def uat_config(tmp_path):
     return config_path, work_dir, db_path
 
 
-@pytest.mark.xfail(reason="CLI invocation fails with code 2, debugging constrained by lack of output.")
 def test_uat_loop_execution(uat_config):
     """
     Scenario 6.4: Full Autonomous Loop (Zero-Human).
@@ -72,10 +72,7 @@ def test_uat_loop_execution(uat_config):
             # Run CLI
             result = runner.invoke(app, ["run", "loop", "--config", str(config_path)])
 
-            if result.exit_code != 0:
-                print(result.stdout)
             assert result.exit_code == 0
-
             assert MockExecutor.called
 
 def test_uat_inference_stop(uat_config):

@@ -53,7 +53,7 @@ dependencies = [
 
     # Utilities
     "Jinja2",
-    "pytest-mock", # Note: This is often dev-only, but listed here per previous state. Moving to dev group below is better practice, but sticking to provided constraints if any.
+    # pytest-mock moved to dev dependencies
 ]
 
 [project.urls]
@@ -65,6 +65,7 @@ dev = [
     "pytest",
     "dask[distributed]",
     "mypy",
+    "pytest-mock",
 ]
 
 [tool.setuptools]

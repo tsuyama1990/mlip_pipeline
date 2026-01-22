@@ -99,8 +99,8 @@ class PhaseExecutor:
                             self.db.update_status(db_id, "labeled")
 
                             success_count += 1
-                        except Exception as e:
-                            logger.error(f"Failed to save DFT result: {e}")
+                        except Exception:
+                            logger.exception("Failed to save DFT result")
                     else:
                         logger.warning("DFT failed for an atom.")
 
@@ -190,7 +190,7 @@ class PhaseExecutor:
                         frame = frames[-1]
 
                         # Simplified: Re-assign symbols based on types if available
-                        species = sorted(list(set(start_atoms.get_chemical_symbols())))
+                        species = sorted(set(start_atoms.get_chemical_symbols()))
                         if 'type' in frame.arrays:
                             types = frame.arrays['type']
                             symbols = [species[t-1] for t in types]
@@ -213,8 +213,8 @@ class PhaseExecutor:
                             )
                             return True
 
-                    except Exception as e:
-                        logger.error(f"Failed to process dump file {dump_path}: {e}")
+                    except Exception:
+                        logger.exception(f"Failed to process dump file {dump_path}")
 
             logger.info("Inference finished without high uncertainty.")
             return False

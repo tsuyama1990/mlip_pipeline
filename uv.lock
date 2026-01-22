@@ -1015,7 +1015,6 @@ dependencies = [
     { name = "pandas" },
     { name = "plotly" },
     { name = "pydantic" },
-    { name = "pytest-mock" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "scikit-learn" },
@@ -1030,6 +1029,7 @@ dev = [
     { name = "dask", extra = ["distributed"] },
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-mock" },
 ]
 
 [package.dev-dependencies]
@@ -1055,7 +1055,7 @@ requires-dist = [
     { name = "plotly" },
     { name = "pydantic" },
     { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-mock" },
+    { name = "pytest-mock", marker = "extra == 'dev'" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "scikit-learn", specifier = ">=1.8.0" },

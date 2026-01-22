@@ -1,3 +1,4 @@
+
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,7 +29,7 @@ def mock_db(tmp_path):
     db_path = tmp_path / "test_pipeline.db"
     manager = DatabaseManager(db_path)
     # Ensure any connection is closed after test
-    return manager
+    yield manager
     # DatabaseManager context manager usage in tests is preferred,
     # but if used directly, we rely on GC or explicit close if method existed.
     # ASE db connection is usually file based.
@@ -79,7 +80,7 @@ def test_integration_training_flow(mock_db, tmp_path):
     """
     # 1. Setup DB with completed structures
     with mock_db:
-        for i in range(10):
+        for _ in range(10):
              at = Atoms('Cu', positions=[[0,0,0]])
              at.info['energy'] = -3.0
              at.arrays['forces'] = np.array([[0.0, 0.0, 0.0]])
@@ -104,7 +105,7 @@ def test_integration_training_flow(mock_db, tmp_path):
     assert (work_dir / "data" / "test.xyz").exists()
 
     # Verify content
-    with open(train_file) as f:
+    with train_file.open() as f:
         content = f.read()
         assert "Lattice=" in content
         assert "energy=" in content
@@ -170,11 +171,11 @@ def test_full_loop_integration(integration_config):
     builder_mock.build.return_value = [candidate]
 
     # Initialize Manager
-    # We need to patch dependencies inside WorkflowManager or PhaseExecutor
+    # We patch dependencies inside WorkflowManager or PhaseExecutor
 
     with patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue, \
-         patch("mlip_autopipec.orchestration.phase_executor.shutil.which", return_value="/bin/echo"), \
-         patch("mlip_autopipec.inference.runner.shutil.which", return_value="/bin/echo"):
+         patch("mlip_autopipec.training.pacemaker.shutil.which", return_value="/bin/pacemaker"), \
+         patch("mlip_autopipec.inference.runner.shutil.which", return_value="/bin/lmp"):
 
         # Mock TaskQueue to return successful futures immediately
         queue_instance = MockTaskQueue.return_value
@@ -195,68 +196,71 @@ def test_full_loop_integration(integration_config):
 
         manager = WorkflowManager(integration_config, orch_config, builder=builder_mock)
 
-        # MOCKING PhaseExecutor components
+        # MOCKING PhaseExecutor components by patching the modules where PhaseExecutor imports them
+        # Note: We must patch the *imported names* in phase_executor module if they are imported via 'from x import y'
+        # Or patch the source if they are used via module.Class.
+        # PhaseExecutor uses 'from mlip_autopipec.inference.runner import LammpsRunner'
+        # So we patch 'mlip_autopipec.orchestration.phase_executor.LammpsRunner'
 
-        with patch("mlip_autopipec.orchestration.phase_executor.QERunner") as MockQE:
-            with patch("mlip_autopipec.orchestration.phase_executor.PacemakerWrapper") as MockPM:
-                # Patch LammpsRunner at source to avoid AttributeError if import path varies
-                with patch("mlip_autopipec.inference.runner.LammpsRunner") as MockLammps:
-                    with patch("mlip_autopipec.inference.embedding.EmbeddingExtractor") as MockExtractor:
-                         with patch("mlip_autopipec.orchestration.phase_executor.DatasetBuilder"):
-                            with patch("mlip_autopipec.orchestration.phase_executor.TrainConfigGenerator"):
+        with patch("mlip_autopipec.orchestration.phase_executor.QERunner"), \
+             patch("mlip_autopipec.orchestration.phase_executor.PacemakerWrapper") as MockPM, \
+             patch("mlip_autopipec.orchestration.phase_executor.LammpsRunner") as MockLammps, \
+             patch("mlip_autopipec.orchestration.phase_executor.EmbeddingExtractor") as MockExtractor, \
+             patch("mlip_autopipec.orchestration.phase_executor.DatasetBuilder"), \
+             patch("mlip_autopipec.orchestration.phase_executor.TrainConfigGenerator"):
 
-                                # Configure Mocks
-                                # Need to ensure train returns a result with potential_path
-                                mock_train_result = MagicMock()
-                                mock_train_result.potential_path = integration_config.working_dir / "potentials" / "generation_0.yace"
-                                mock_train_result.success = True
-                                MockPM.return_value.train.return_value = mock_train_result
+            # Configure Mocks
+            # Need to ensure train returns a result with potential_path
+            mock_train_result = MagicMock()
+            mock_train_result.potential_path = integration_config.working_dir / "potentials" / "generation_0.yace"
+            mock_train_result.success = True
+            MockPM.return_value.train.return_value = mock_train_result
 
-                                (integration_config.working_dir / "potentials").mkdir(parents=True)
-                                (integration_config.working_dir / "potentials" / "generation_0.yace").touch()
+            (integration_config.working_dir / "potentials").mkdir(parents=True)
+            (integration_config.working_dir / "potentials" / "generation_0.yace").touch()
 
-                                # Mock Inference to return High Uncertainty
-                                mock_run_result = MagicMock()
-                                mock_run_result.uncertain_structures = [Path("dump.gamma")]
-                                MockLammps.return_value.run.return_value = mock_run_result
+            # Mock Inference to return High Uncertainty
+            mock_run_result = MagicMock()
+            mock_run_result.uncertain_structures = [Path("dump.gamma")]
+            MockLammps.return_value.run.return_value = mock_run_result
 
-                                # Mock Extractor
-                                mock_extracted = MagicMock()
-                                mock_extracted.atoms = Atoms('H', cell=[5,5,5])
-                                MockExtractor.return_value.extract.return_value = mock_extracted
+            # Mock Extractor
+            mock_extracted = MagicMock()
+            mock_extracted.atoms = Atoms('H', cell=[5,5,5])
+            MockExtractor.return_value.extract.return_value = mock_extracted
 
-                                # Mock ASE read for dump file in execute_inference
-                                with patch("ase.io.read") as mock_read:
-                                    atom = Atoms('H', cell=[5,5,5])
-                                    atom.new_array('c_gamma', np.array([10.0]))
-                                    mock_read.return_value = [atom]
+            # Mock ASE read for dump file in execute_inference
+            with patch("ase.io.read") as mock_read:
+                atom = Atoms('H', cell=[5,5,5])
+                atom.new_array('c_gamma', np.array([10.0]))
+                mock_read.return_value = [atom]
 
-                                    # RUN GENERATION 0
+                # RUN GENERATION 0
 
-                                    # 1. Idle -> DFT
-                                    manager._dispatch_phase()
-                                    assert manager.state.status == "dft"
-                                    # DB should have 1 pending structure
-                                    assert manager.db_manager.count(status="pending") == 1
+                # 1. Idle -> DFT
+                manager._dispatch_phase()
+                assert manager.state.status == "dft"
+                # DB should have 1 pending structure
+                assert manager.db_manager.count(status="pending") == 1
 
-                                    # 2. DFT -> Training
-                                    manager._dispatch_phase()
+                # 2. DFT -> Training
+                manager._dispatch_phase()
 
-                                    assert manager.state.status == "training"
+                assert manager.state.status == "training"
 
-                                    # DB should have 1 training structure (completed)
-                                    # And original structure is now 'labeled' (updated logic)
-                                    assert manager.db_manager.count(status="training") == 1
-                                    assert manager.db_manager.count(status="labeled") == 1
+                # DB should have 1 training structure (completed)
+                # And original structure is now 'labeled' (updated logic)
+                assert manager.db_manager.count(status="training") == 1
+                assert manager.db_manager.count(status="labeled") == 1
 
-                                    # 3. Training -> Inference
-                                    manager._dispatch_phase()
-                                    assert manager.state.status == "inference"
+                # 3. Training -> Inference
+                manager._dispatch_phase()
+                assert manager.state.status == "inference"
 
-                                    # 4. Inference -> Active Learning -> DFT
-                                    # Inference triggered active learning because we mocked uncertain_structures
-                                    manager._dispatch_phase()
-                                    assert manager.state.status == "dft"
+                # 4. Inference -> Active Learning -> DFT
+                # Inference triggered active learning because we mocked uncertain_structures
+                manager._dispatch_phase()
+                assert manager.state.status == "dft"
 
-                                    # DB should have NEW pending structure (from extraction)
-                                    assert manager.db_manager.count(status="pending") == 1
+                # DB should have NEW pending structure (from extraction)
+                assert manager.db_manager.count(status="pending") == 1

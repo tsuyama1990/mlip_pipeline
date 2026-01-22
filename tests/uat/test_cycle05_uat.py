@@ -104,7 +104,9 @@ training_config:
 """
 
     with patch("mlip_autopipec.training.dataset.DatasetBuilder"), \
-         patch("mlip_autopipec.training.pacemaker.PacemakerWrapper") as MockWrapper, \
+         patch("mlip_autopipec.modules.training_orchestrator.PacemakerWrapper") as MockWrapper, \
+         patch("mlip_autopipec.training.pacemaker.PacemakerWrapper"), \
+         patch("shutil.which", return_value="/bin/pacemaker"), \
          patch("mlip_autopipec.app.DatabaseManager") as MockDBApp:
 
         instance = MockDBApp.return_value

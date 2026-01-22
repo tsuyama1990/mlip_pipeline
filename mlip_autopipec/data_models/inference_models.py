@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -32,3 +33,14 @@ class ExtractedStructure(BaseModel):
         if not isinstance(v, Atoms):
             raise TypeError("Field 'atoms' must be an ase.Atoms object.")
         return v
+
+
+class InferenceResult(BaseModel):
+    """
+    Result from an inference run (e.g. LAMMPS MD).
+    """
+    succeeded: bool = Field(..., description="Whether the simulation completed successfully")
+    max_gamma_observed: float = Field(0.0, description="Maximum extrapolation grade (gamma) observed")
+    uncertain_structures: list[Path] = Field(default_factory=list, description="List of paths to dump files containing uncertain structures")
+
+    model_config = ConfigDict(extra="forbid")
