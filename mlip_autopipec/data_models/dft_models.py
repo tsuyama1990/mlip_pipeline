@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -11,6 +11,24 @@ class DFTErrorType(str, Enum):
     OOM_KILL = "OOM_KILL"
     UNKNOWN = "UNKNOWN"
     NONE = "NONE"
+
+
+class DFTInputParams(BaseModel):
+    """
+    Structured parameters for DFT input generation.
+    """
+    kspacing: float | None = None
+    k_density: float | None = None  # Legacy/Alias support
+    ecutwfc: float = 60.0
+    ecutrho: float | None = None
+    mixing_beta: float = 0.7
+    electron_maxstep: int = 100
+    diagonalization: Literal["david", "cg"] = "david"
+    smearing: Literal["mv", "mp", "fd"] = "mv"
+    degauss: float = 0.02
+    input_data: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class DFTResult(BaseModel):

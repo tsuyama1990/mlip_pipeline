@@ -1,6 +1,7 @@
-import pytest
 from ase import Atoms
+
 from mlip_autopipec.core.database import DatabaseManager
+
 
 def test_update_metadata(tmp_path):
     """Test updating and retrieving metadata."""

@@ -1,13 +1,13 @@
 import logging
-from typing import Any
 
-from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
-from mlip_autopipec.surrogate.model_interface import ModelInterface
-from mlip_autopipec.surrogate.mace_wrapper import MaceWrapper
-from mlip_autopipec.surrogate.sampling import FarthestPointSampling
 import numpy as np
 from ase import Atoms
+
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.surrogate.mace_wrapper import MaceWrapper
+from mlip_autopipec.surrogate.model_interface import ModelInterface
+from mlip_autopipec.surrogate.sampling import FarthestPointSampling
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class SurrogatePipeline:
 
             self._select_and_update(valid_indices, ids, atoms_list)
 
-        except Exception as e:
+        except Exception:
             logger.error("Surrogate Pipeline failed.", exc_info=True)
             raise
 
@@ -67,16 +67,32 @@ class SurrogatePipeline:
     def _prescreen_candidates(self, ids: list[int], atoms_list: list[Atoms]) -> tuple[list[int], list[int]]:
         logger.info("Computing energy and forces...")
 
+        if not atoms_list:
+            return [], []
+
         # Assume model is loaded
         if not self.model:
              raise RuntimeError("Model not initialized")
 
         energies, forces_list = self.model.compute_energy_forces(atoms_list)
 
+        # Validate shapes
+        if len(energies) != len(atoms_list):
+            raise RuntimeError(f"Energy array length {len(energies)} mismatches atoms list {len(atoms_list)}")
+        if len(forces_list) != len(atoms_list):
+             raise RuntimeError(f"Forces array length {len(forces_list)} mismatches atoms list {len(atoms_list)}")
+
         valid_indices = []
         rejected_ids = []
 
         for idx, forces in enumerate(forces_list):
+            # Validate forces shape for individual atom
+            n_atoms = len(atoms_list[idx])
+            if forces.shape != (n_atoms, 3):
+                 # Log error but maybe skip structure? Or fail?
+                 # If model returns wrong shape, it's critical.
+                 raise RuntimeError(f"Forces shape {forces.shape} invalid for {n_atoms} atoms at index {idx}")
+
             max_force = np.max(np.linalg.norm(forces, axis=1))
             energy = float(energies[idx])
 
@@ -113,6 +129,10 @@ class SurrogatePipeline:
                  raise RuntimeError("Model not initialized")
 
             descriptors = self.model.compute_descriptors(valid_atoms)
+            # Validate descriptors
+            if len(descriptors) != len(valid_atoms):
+                 raise RuntimeError("Descriptor count mismatch")
+
             fps = FarthestPointSampling(n_samples=n_samples)
             selected_indices_local = fps.select(descriptors)
             selected_valid_indices = set(selected_indices_local)

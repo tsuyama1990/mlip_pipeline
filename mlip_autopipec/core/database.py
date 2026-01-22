@@ -1,5 +1,5 @@
-import sqlite3
 import logging
+import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
@@ -14,63 +14,28 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-class DatabaseManager:
+
+class DatabaseConnector:
     """
-    Wrapper around ase.db to enforce schema and metadata requirements.
-
-    This class manages the connection to the ASE database (SQLite).
-    It implements the Context Manager protocol to ensure connections are closed.
-
-    Security Note:
-        The underlying `ase.db` library handles SQL query construction.
-        Methods like `count` and `get_atoms` accept a `selection` string or `**kwargs`.
-        When possible, use `**kwargs` (e.g., `status="pending"`) which `ase.db` treats as parameterized inputs.
-        When using selection strings (e.g., "energy < 0"), ensure the input is sanitized if it comes from untrusted sources.
-        In this system, inputs typically come from strictly typed configuration files or internal logic, mitigating injection risks.
+    Handles the connection lifecycle to the ASE/SQLite database.
     """
-
     def __init__(self, db_path: Path) -> None:
-        """
-        Initialize the DatabaseManager.
-
-        Args:
-            db_path: Path to the SQLite database file.
-        """
         self.db_path = db_path
         self._connection: ase.db.core.Database | None = None
 
-    def __enter__(self) -> Self:
-        """Context manager entry."""
-        self.initialize()
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        """Context manager exit. Closes connection."""
-        self.close()
-
-    def close(self) -> None:
+    def connect(self) -> ase.db.core.Database:
         """
-        Closes the database connection.
-        """
-        if self._connection:
-            self._connection = None
-
-    def initialize(self) -> None:
-        """
-        Initializes the database connection.
-        If the database does not exist, it is created.
-
-        Raises:
-            DatabaseError: If initialization fails or file is not a valid DB.
+        Establishes and returns the database connection.
         """
         if self._connection is not None:
-            return
+            return self._connection
 
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._connection = ase.db.connect(str(self.db_path))
-            # Force creating the file by checking count
+            # Verify validity by attempting a lightweight operation
             self._connection.count()
+            return self._connection
         except OSError as e:
             logger.error(f"FileSystem error initializing database at {self.db_path}: {e}")
             raise DatabaseError(
@@ -85,9 +50,41 @@ class DatabaseManager:
             logger.error(f"Failed to initialize database: {e}")
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
-    def _ensure_connection(self) -> None:
-        if self._connection is None:
-            self.initialize()
+    def close(self) -> None:
+        """Closes the active connection."""
+        self._connection = None
+
+
+class DatabaseManager:
+    """
+    Wrapper around ase.db to enforce schema and metadata requirements.
+
+    This class manages data access and persistence operations.
+    It implements the Context Manager protocol.
+    """
+
+    def __init__(self, db_path: Path) -> None:
+        """
+        Initialize the DatabaseManager.
+
+        Args:
+            db_path: Path to the SQLite database file.
+        """
+        self.connector = DatabaseConnector(db_path)
+
+    def __enter__(self) -> Self:
+        """Context manager entry. Ensures connection is ready."""
+        self.connector.connect()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        """Context manager exit. Closes connection."""
+        self.connector.close()
+
+    @property
+    def _connection(self) -> ase.db.core.Database:
+        """Internal helper to get connection."""
+        return self.connector.connect()
 
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
@@ -99,17 +96,15 @@ class DatabaseManager:
 
         Returns:
             The integer ID of the inserted row.
-        """
-        self._ensure_connection()
 
+        Raises:
+            DatabaseError: If insertion fails.
+        """
         try:
-            # ase.db.write uses parameterized insertion for key-value pairs
-            if self._connection is not None:
-                id = self._connection.write(atoms, **metadata)
-                return id
-            raise DatabaseError("Connection failed")
+            id = self._connection.write(atoms, **metadata)
+            return id
         except KeyError as e:
-            logger.error(f"Invalid key in metadata: {e}")
+            logger.error(f"Invalid key in metadata during add_structure: {e}")
             raise DatabaseError(f"Invalid key in metadata: {e}") from e
         except Exception as e:
             logger.error(f"Failed to add structure: {e}")
@@ -117,17 +112,17 @@ class DatabaseManager:
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
         """
-        Wraps db.count().
+        Counts rows matching selection.
 
         Args:
             selection: Raw selection string (use with caution).
             **kwargs: Parameterized selection criteria (preferred).
+
+        Returns:
+            Number of matching rows.
         """
-        self._ensure_connection()
         try:
-            if self._connection is not None:
-                return self._connection.count(selection=selection, **kwargs)
-            return 0
+            return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
             logger.error(f"Failed to count rows: {e}")
             raise DatabaseError(f"Failed to count rows: {e}") from e
@@ -135,50 +130,57 @@ class DatabaseManager:
     def update_status(self, id: int, status: str) -> None:
         """
         Updates the status of a specific row.
+
+        Args:
+            id: Database ID of the row.
+            status: New status string.
         """
-        self._ensure_connection()
         try:
-            if self._connection is not None:
-                self._connection.update(id, status=status)
+            self._connection.update(id, status=status)
         except KeyError as e:
-            logger.error(f"ID {id} not found: {e}")
+            logger.error(f"ID {id} not found during update_status: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
-            logger.error(f"Failed to update status: {e}")
+            logger.error(f"Failed to update status for ID {id}: {e}")
             raise DatabaseError(f"Failed to update status: {e}") from e
 
     def update_metadata(self, id: int, data: dict[str, Any]) -> None:
         """
         Updates metadata for a specific row.
+
+        Args:
+            id: Database ID of the row.
+            data: Dictionary of key-value pairs to update.
         """
-        self._ensure_connection()
         try:
-            if self._connection is not None:
-                self._connection.update(id, **data)
+            self._connection.update(id, **data)
         except KeyError as e:
-            logger.error(f"ID {id} not found: {e}")
+            logger.error(f"ID {id} not found during update_metadata: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
-            logger.error(f"Failed to update metadata: {e}")
+            logger.error(f"Failed to update metadata for ID {id}: {e}")
             raise DatabaseError(f"Failed to update metadata: {e}") from e
 
     def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
         """
         Retrieve atoms matching selection.
-        Prefer using **kwargs for parameterized queries.
+
+        Args:
+            selection: Selection string.
+            **kwargs: Parameterized query arguments.
+
+        Returns:
+            List of ASE Atoms objects with populated info dictionary.
         """
-        self._ensure_connection()
         try:
-            if self._connection is not None:
-                rows = self._connection.select(selection=selection, **kwargs)
-                atoms_list = []
-                for row in rows:
-                    at = row.toatoms()
-                    if hasattr(row, "key_value_pairs"):
-                        at.info.update(row.key_value_pairs)
-                    atoms_list.append(at)
-                return atoms_list
-            return []
+            rows = self._connection.select(selection=selection, **kwargs)
+            atoms_list = []
+            for row in rows:
+                at = row.toatoms()
+                if hasattr(row, "key_value_pairs"):
+                    at.info.update(row.key_value_pairs)
+                atoms_list.append(at)
+            return atoms_list
         except Exception as e:
             logger.error(f"Failed to get atoms: {e}")
             raise DatabaseError(f"Failed to get atoms: {e}") from e
@@ -186,14 +188,17 @@ class DatabaseManager:
     def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
         """
         Retrieve entries as (id, Atoms) tuples.
-        Prefer using **kwargs for parameterized queries.
+
+        Args:
+            selection: Selection string.
+            **kwargs: Parameterized query arguments.
+
+        Returns:
+            List of (id, Atoms) tuples.
         """
-        self._ensure_connection()
         try:
-            if self._connection is not None:
-                rows = self._connection.select(selection=selection, **kwargs)
-                return [(row.id, row.toatoms()) for row in rows]
-            return []
+            rows = self._connection.select(selection=selection, **kwargs)
+            return [(row.id, row.toatoms()) for row in rows]
         except Exception as e:
             logger.error(f"Failed to get entries: {e}")
             raise DatabaseError(f"Failed to get entries: {e}") from e
@@ -206,8 +211,14 @@ class DatabaseManager:
         self.add_structure(atoms, metadata)
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
-        """Save a DFT result."""
-        self._ensure_connection()
+        """
+        Save a DFT result.
+
+        Args:
+            atoms: The Atoms object (updated with results).
+            result: The DFTResult object.
+            metadata: Additional metadata to save.
+        """
         try:
             if hasattr(result, "energy"):
                 atoms.info["energy"] = result.energy
@@ -218,12 +229,11 @@ class DatabaseManager:
 
             atoms.info.update(metadata)
 
-            if self._connection is not None:
-                self._connection.write(
-                    atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
-                )
+            self._connection.write(
+                atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
+            )
         except AttributeError as e:
-            logger.error(f"Invalid DFTResult object: {e}")
+            logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
         except Exception as e:
             logger.error(f"Failed to save DFT result: {e}")
@@ -231,12 +241,11 @@ class DatabaseManager:
 
     def set_system_config(self, config: "SystemConfig") -> None:
         """Store system config in metadata."""
-        self._ensure_connection()
-        if self._connection is not None:
-            try:
-                self._connection.metadata = config.model_dump(mode="json")
-            except Exception as e:
-                logger.warning(f"Failed to store SystemConfig: {e}")
+        try:
+            self._connection.metadata = config.model_dump(mode="json")
+        except Exception as e:
+            logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
+            # Non-critical, warning only
 
     def get_system_config(self) -> "SystemConfig":
         """Retrieve system config from metadata."""
@@ -244,11 +253,11 @@ class DatabaseManager:
 
         from mlip_autopipec.config.models import SystemConfig
 
-        self._ensure_connection()
-        if self._connection is not None:
-            try:
-                return SystemConfig.model_validate(self._connection.metadata)
-            except ValidationError as e:
-                logger.error(f"Stored SystemConfig is invalid: {e}")
-                raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
-        raise DatabaseError("No SystemConfig found")
+        try:
+            return SystemConfig.model_validate(self._connection.metadata)
+        except ValidationError as e:
+            logger.error(f"Stored SystemConfig in database is invalid: {e}")
+            raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
+        except Exception as e:
+            logger.error(f"Error retrieving SystemConfig from database: {e}")
+            raise DatabaseError(f"No SystemConfig found or error retrieving: {e}") from e

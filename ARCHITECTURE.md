@@ -1,87 +1,76 @@
-# System Architecture
+# MLIP-AutoPipe Architecture
 
-## Overview
+## System Overview
 
-MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials.
+MLIP-AutoPipe is an automated pipeline designed to generate atomic structures, screen them using surrogate models, and validate them with Density Functional Theory (DFT) to create training datasets for Machine Learning Interatomic Potentials (MLIPs).
 
-## Diagram
+## Data Flow Diagram
 
 ```mermaid
 graph TD
-    User[User Config] --> Manager[WorkflowManager]
+    User([User Config]) -->|Validate| WM[WorkflowManager]
+    WM -->|Init| DB[(Database - SQLite)]
 
-    subgraph "Orchestration Layer"
-        Manager --> DB[(DatabaseManager)]
-        Manager --> TQ[TaskQueue (Dask)]
-        Manager --> Dash[Dashboard]
+    subgraph Generation
+        WM -->|Config| Gen[StructureBuilder]
+        Gen -->|Atoms| DB
     end
 
-    subgraph "Module A: Generator"
-        Manager --> Builder[StructureBuilder]
-        Builder --> SQS[SQS Strategy]
-        Builder --> Dist[Distortions (Strain/Rattle)]
-        Builder --> Defect[Defect Strategy]
+    subgraph Selection
+        WM -->|Trigger| SP[SurrogatePipeline]
+        DB -->|Pending Atoms| SP
+        SP -->|Prescreen| MACE[MaceWrapper]
+        SP -->|Select| FPS[FarthestPointSampling]
+        SP -->|Update Status| DB
     end
 
-    subgraph "Module B: Surrogate"
-        Builder --> Sur[SurrogateExplorer]
-        Sur --> MACE[MACE Model]
-        Sur --> FPS[Farthest Point Sampling]
+    subgraph Execution
+        WM -->|Trigger| TQ[TaskQueue]
+        TQ -->|Dispatch| DFT[QERunner]
+        DB -->|Selected Atoms| DFT
+        DFT -->|Run pw.x| QE[Quantum Espresso]
+        QE -->|Log/Output| Parser[QEOutputParser]
+        Parser -->|Results| DB
     end
-
-    subgraph "Execution Layer (HPC)"
-        Manager --> DFT[DFT Runner (Quantum Espresso)]
-        Manager --> Train[Pacemaker (Training)]
-        Manager --> Inf[Inference (LAMMPS)]
-    end
-
-    TQ --> DFT
-    TQ --> Inf
-    TQ --> Train
 ```
 
-## Component Interactions
+## Component Details
 
 ### 1. Configuration (`mlip_autopipec.config`)
--   **Role**: Source of Truth.
--   **Interaction**: All modules import schemas from here. `WorkflowManager` validates input against `MLIPConfig` (aggregating `TargetSystem`, `DFTConfig`, `GeneratorConfig`, etc.).
--   **Strictness**: Validation is enforced via Pydantic with `extra="forbid"`.
+-   **Role**: Defines the schema for all system inputs using Pydantic.
+-   **Key Models**:
+    -   `MLIPConfig`: Root configuration.
+    -   `DFTConfig`: Parameters for Quantum Espresso (cutoff, k-points, etc.).
+    -   `GeneratorConfig`: Settings for SQS and defects.
+-   **Validation**: Strict typing and validation logic (e.g., directory existence checks) ensure fail-fast behavior.
 
-### 2. Database (`mlip_autopipec.core.database`)
--   **Role**: Persistence Layer.
--   **Implementation**: Wraps `ase.db` (SQLite).
--   **Usage**:
-    -   `WorkflowManager` polls for pending structures.
-    -   `StructureBuilder` saves initial candidates.
-    -   Runners (DFT, Inference) write results (Forces, Energy, Stress) back.
-    -   Ensures ACID properties via SQLite file locking.
+### 2. Core Database (`mlip_autopipec.core.database`)
+-   **DatabaseConnector**:
+    -   **Responsibility**: Manages the SQLite connection lifecycle (open/close) and file creation.
+    -   **Pattern**: Context Manager.
+-   **DatabaseManager**:
+    -   **Responsibility**: Provides high-level CRUD operations (`add_structure`, `get_atoms`, `update_metadata`).
+    -   **Abstraction**: Hides the details of `ase.db` from the rest of the application.
+    -   **Error Handling**: Wraps low-level SQL/OS errors into `DatabaseError`.
 
-### 3. Orchestration (`mlip_autopipec.orchestration`)
--   **WorkflowManager**: State machine. Decides *what* to do next (e.g., "Run DFT" or "Train Potential").
--   **TaskQueue**: Execution engine. Wraps `dask.distributed`. Handles retries and batch submission to local or HPC resources.
+### 3. DFT Factory (`mlip_autopipec.dft`)
+-   **QERunner**:
+    -   **Role**: Orchestrates the execution of DFT calculations.
+    -   **Features**: Auto-recovery loop, secure command execution (no shell), timeout management.
+-   **InputGenerator**:
+    -   **Role**: Converts atomic structures and config parameters into `pw.in` files.
+    -   **Physics**: Auto-calculates K-grid based on `kspacing`.
+-   **RecoveryHandler**:
+    -   **Role**: Analyzes stdout/stderr for specific error patterns (e.g., convergence failure).
+    -   **Logic**: Implements a "Recovery Ladder" (e.g., Reduce Beta -> Change Solver -> Increase Temp).
 
-### 4. Generator Module (`mlip_autopipec.generator`)
--   **StructureBuilder**: Facade pattern. Orchestrates the generation pipeline.
--   **SQSStrategy**: Generates chemically disordered supercells for alloys using `icet` (if available) or random shuffling.
--   **Distortions**: Applies physical distortions.
-    -   **Strain**: Applies affine transformations to the cell to explore the Equation of State.
-    -   **Rattle**: Applies Gaussian thermal noise to atomic positions.
--   **Defects**: Introduces point defects (vacancies, interstitials) based on Voronoi analysis or random selection.
+### 4. Surrogate Module (`mlip_autopipec.surrogate`)
+-   **SurrogatePipeline**:
+    -   **Role**: Driver for the active learning cycle.
+    -   **Logic**: Rejects unphysical structures (high forces) and samples diverse ones.
+-   **MaceWrapper**: Adapter for the MACE foundation model.
 
-### 5. Execution Modules
--   **DFT**: Executes Quantum Espresso. Uses `QERunner`. Handles error recovery (convergence failure).
--   **Inference**: Executes LAMMPS. Uses `LammpsRunner`. Monitors uncertainty.
--   **Training**: Executes Pacemaker.
-
-## Error Handling Strategy
--   **Task Level**: `TaskQueue` uses `tenacity` to retry transient submission errors.
--   **Job Level**: Runners (e.g., `LammpsRunner`, `QERunner`) catch subprocess errors, parse logs for specific failure codes (e.g., SCF convergence), and return a structured "Failed" result object.
--   **System Level**: `WorkflowManager` checkpoints state to disk (`checkpoint.json`) to allow resumption after crashes.
-
-## Data Flow (Generator)
-1.  User invokes `mlip-auto generate`.
-2.  `StructureBuilder` reads `GeneratorConfig` and `TargetSystem`.
-3.  `StructureBuilder` calls `SQSStrategy` to create a base supercell.
-4.  `StructureBuilder` loops through strain/rattle steps to create a pool of distorted structures.
-5.  `StructureBuilder` applies defects to the pool.
-6.  Structures are validated (ASE check) and saved to `DatabaseManager` with metadata (provenance, config_type).
+## Security & Robustness
+-   **Subprocess Safety**: External commands (QE, LAMMPS) are executed with `shell=False` and validated argument lists to prevent injection.
+-   **Data Integrity**: Inputs are validated against strict schemas. Outputs (Forces, Stress) are checked for NaNs and shape consistency.
+-   **Error Handling**: Custom exception hierarchy (`DFTFatalError`, `DatabaseError`) allows for targeted recovery or graceful shutdown.

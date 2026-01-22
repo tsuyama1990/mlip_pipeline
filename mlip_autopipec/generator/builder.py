@@ -130,7 +130,7 @@ class StructureBuilder:
 
         if structure_type == "bulk":
             return self._generate_bulk_base(target)
-        elif structure_type == "molecule":
+        if structure_type == "molecule":
             try:
                 mol = molecule(target.name)
                 return [mol]

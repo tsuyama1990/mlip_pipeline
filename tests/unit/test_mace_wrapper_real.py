@@ -1,9 +1,12 @@
-import pytest
-from unittest.mock import MagicMock, patch
 import sys
-from ase import Atoms
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
+from ase import Atoms
+
 from mlip_autopipec.surrogate.mace_wrapper import MaceWrapper
+
 
 @pytest.fixture
 def mock_mace_calc():

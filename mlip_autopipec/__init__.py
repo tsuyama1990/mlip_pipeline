@@ -1,43 +1,75 @@
 """
-MLIP-AutoPipe Package.
+MLIP-AutoPipe: Automated Machine Learning Interatomic Potential Pipeline.
 
-Architecture:
--------------
-MLIP-AutoPipe follows a modular architecture orchestrated by a central WorkflowManager.
+Architecture Overview
+---------------------
+This package is structured into modular components following a Hexagonal (Ports & Adapters) style architecture,
+orchestrated by a central Workflow Manager.
 
-Components:
-1.  **Config (`mlip_autopipec.config`)**: Pydantic schemas acting as the contract for all modules.
-    -   `MLIPConfig` is the root configuration.
-    -   `SystemConfig` is the comprehensive internal state.
+Modules & Interactions:
 
-2.  **Core (`mlip_autopipec.core`)**: Shared infrastructure.
-    -   `DatabaseManager`: Wraps `ase.db` (SQLite) for storing atomic structures and metadata.
-    -   `Logging`: Centralized logging configuration using `rich`.
+1.  **Config (`mlip_autopipec.config`)**
+    -   **Role**: Source of Truth.
+    -   **Interactions**: Imported by all other modules. Validates inputs before any execution begins.
 
-3.  **Orchestration (`mlip_autopipec.orchestration`)**:
-    -   `TaskQueue`: Manages distributed task execution using `dask.distributed`.
-    -   `WorkflowManager`: Implements the active learning state machine.
+2.  **Core (`mlip_autopipec.core`)**
+    -   **Role**: Infrastructure Layer.
+    -   **Database**: `DatabaseManager` wraps `ase.db` (SQLite). It provides atomic CRUD operations.
+        It is used by Generator (write), Surrogate (read/update), and DFT (read/update).
+    -   **Logging**: Centralized logging configuration.
 
-4.  **Execution Modules**:
-    -   `Generator`: Creates initial structures.
-    -   `Surrogate`: Filters structures.
-    -   `DFT`: Runs Quantum Espresso.
-    -   `Training`: Trains potentials (Pacemaker).
-    -   `Inference`: Runs MD (LAMMPS).
+3.  **Generator (`mlip_autopipec.generator`)**
+    -   **Role**: Domain Logic for creating atomic structures.
+    -   **Interactions**: `StructureBuilder` receives `GeneratorConfig`, applies strategies (SQS, Defects),
+        and writes new "pending" candidates to the Database.
 
-Interactions:
--   The `WorkflowManager` reads `SystemConfig` and initializes the `DatabaseManager` and `TaskQueue`.
--   It queries the DB for tasks.
--   It submits tasks (e.g., DFT calculations) to the `TaskQueue`.
--   `TaskQueue` executes functions (e.g., `QERunner.run`) on workers.
--   Results are written back to the DB via `DatabaseManager`.
+4.  **Surrogate (`mlip_autopipec.surrogate`)**
+    -   **Role**: Active Learning Strategy.
+    -   **Interactions**: `SurrogatePipeline` reads "pending" structures from DB. It delegates to
+        `MaceWrapper` (Adapter) for inference and `FarthestPointSampling` for selection.
+        Updates DB status to "selected" or "rejected".
 
-Dependency Management:
--   Managed via `uv`. `pyproject.toml` defines strict version constraints.
+5.  **DFT (`mlip_autopipec.dft`)**
+    -   **Role**: Ground Truth Factory.
+    -   **Interactions**: `QERunner` reads "selected" structures. It executes Quantum Espresso via subprocess.
+        `RecoveryHandler` interprets errors. `QEOutputParser` extracts results.
+        Updates DB status to "completed".
+
+6.  **Orchestration (`mlip_autopipec.orchestration`)**
+    -   **Role**: Control Plane.
+    -   **Interactions**: `WorkflowManager` monitors DB state and triggers the appropriate module (Generator -> Surrogate -> DFT).
+        `TaskQueue` (Adapter) handles distributed execution logic (Dask).
+
+Key Data Flow:
+[User Config] -> [StructureBuilder] -> [Database (Pending)] -> [SurrogatePipeline] -> [Database (Selected)] -> [QERunner] -> [Database (Completed)]
 """
 
-from mlip_autopipec.config.models import MLIPConfig, SystemConfig
+from mlip_autopipec.config.models import (
+    DFTConfig,
+    GeneratorConfig,
+    MLIPConfig,
+    SurrogateConfig,
+    SystemConfig,
+    TargetSystem,
+)
 from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.core.logging import setup_logging
+from mlip_autopipec.dft.runner import QERunner
+from mlip_autopipec.generator.builder import StructureBuilder
+from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.orchestration.task_queue import TaskQueue
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
-__all__ = ["DatabaseManager", "MLIPConfig", "SystemConfig", "setup_logging"]
+__all__ = [
+    "DFTConfig",
+    "DatabaseManager",
+    "GeneratorConfig",
+    "MLIPConfig",
+    "QERunner",
+    "StructureBuilder",
+    "SurrogateConfig",
+    "SurrogatePipeline",
+    "SystemConfig",
+    "TargetSystem",
+    "TaskQueue",
+    "WorkflowManager",
+]
