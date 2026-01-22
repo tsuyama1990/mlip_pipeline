@@ -217,7 +217,7 @@ class DatabaseManager:
         Args:
             atoms: The Atoms object (updated with results).
             result: The DFTResult object.
-            metadata: Additional metadata to save.
+            metadata: Additional metadata to save (will be indexed).
         """
         try:
             if hasattr(result, "energy"):
@@ -230,7 +230,9 @@ class DatabaseManager:
             atoms.info.update(metadata)
 
             self._connection.write(
-                atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
+                atoms,
+                data=result.model_dump() if hasattr(result, "model_dump") else {},
+                **metadata  # Pass metadata as kwargs so they are indexed columns!
             )
         except AttributeError as e:
             logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")

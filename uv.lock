@@ -1029,12 +1029,8 @@ dev = [
     { name = "dask", extra = ["distributed"] },
     { name = "mypy" },
     { name = "pytest" },
-    { name = "pytest-mock" },
-]
-
-[package.dev-dependencies]
-dev = [
     { name = "pytest-cov" },
+    { name = "pytest-mock" },
     { name = "types-pyyaml" },
 ]
 
@@ -1055,6 +1051,7 @@ requires-dist = [
     { name = "plotly" },
     { name = "pydantic" },
     { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-mock", marker = "extra == 'dev'" },
     { name = "pyyaml" },
     { name = "rich" },
@@ -1063,14 +1060,9 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "torch", specifier = ">=2.0.0" },
     { name = "typer" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.12.20250915" },
 ]
 provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
-]
 
 [[package]]
 name = "mpmath"

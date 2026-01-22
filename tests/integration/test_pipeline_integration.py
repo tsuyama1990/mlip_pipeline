@@ -26,6 +26,7 @@ def mock_db(tmp_path):
     This replaces any 'real' DB file with an isolated temp file.
     The fixture automatically handles cleanup by deleting tmp_path.
     """
+    # Use isolated temp file
     db_path = tmp_path / "test_pipeline.db"
     manager = DatabaseManager(db_path)
     # Ensure any connection is closed after test
@@ -34,10 +35,11 @@ def mock_db(tmp_path):
     # but if used directly, we rely on GC or explicit close if method existed.
     # ASE db connection is usually file based.
 
-def test_integration_pipeline_real_db(mock_db):
+def test_integration_pipeline_sqlite_persistence(mock_db):
     """
-    Integration test using a real (but temporary) SQLite database file.
+    Integration test using an isolated SQLite database file.
     Verifies interaction between DB and Surrogate Pipeline.
+    (Previously 'test_integration_pipeline_real_db', renamed to clarify isolation)
     """
     # 1. Setup DB with pending structures
     with mock_db:
@@ -73,7 +75,6 @@ def test_integration_pipeline_real_db(mock_db):
         assert mock_db.count(status="held") == 1
         assert mock_db.count(status="pending") == 0
 
-@pytest.mark.xfail(reason="Complex mocking of subprocess/shutil in integration context is fragile")
 def test_integration_training_flow(mock_db, tmp_path):
     """
     Integration test for the training flow: DB -> Dataset -> Config -> Pacemaker(Mock).
@@ -81,7 +82,7 @@ def test_integration_training_flow(mock_db, tmp_path):
     # 1. Setup DB with completed structures
     with mock_db:
         for _ in range(10):
-             at = Atoms('Cu', positions=[[0,0,0]])
+             at = Atoms('Cu', positions=[[0,0,0]], cell=[5,5,5], pbc=True)
              at.info['energy'] = -3.0
              at.arrays['forces'] = np.array([[0.0, 0.0, 0.0]])
              mock_db.add_structure(at, metadata={"status": "completed"})
@@ -152,7 +153,6 @@ def integration_config(tmp_path):
         inference_config=InferenceConfig(steps=100)
     )
 
-@pytest.mark.xfail(reason="Complex mocking of multiple external binaries in integration context is fragile")
 def test_full_loop_integration(integration_config):
     """
     Test the full loop:
@@ -225,9 +225,9 @@ def test_full_loop_integration(integration_config):
             MockLammps.return_value.run.return_value = mock_run_result
 
             # Mock Extractor
-            mock_extracted = MagicMock()
-            mock_extracted.atoms = Atoms('H', cell=[5,5,5])
-            MockExtractor.return_value.extract.return_value = mock_extracted
+            # Update: Return ASE Atoms directly, NOT an object with .atoms
+            mock_extracted_atoms = Atoms('H', cell=[5,5,5])
+            MockExtractor.return_value.extract.return_value = mock_extracted_atoms
 
             # Mock ASE read for dump file in execute_inference
             with patch("ase.io.read") as mock_read:

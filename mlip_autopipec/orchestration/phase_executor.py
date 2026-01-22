@@ -200,11 +200,12 @@ class PhaseExecutor:
                             gammas = frame.arrays['c_gamma']
                             max_idx = int(gammas.argmax())
 
-                            extracted = extractor.extract(frame, max_idx)
+                            # returns ase.Atoms directly
+                            extracted_atoms = extractor.extract(frame, max_idx)
 
                             # Save to DB
                             self.db.save_candidate(
-                                extracted.atoms,
+                                extracted_atoms,
                                 {
                                     "status": "pending",
                                     "generation": self.manager.state.current_generation,

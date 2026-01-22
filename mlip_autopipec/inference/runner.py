@@ -4,6 +4,7 @@ Detects uncertainty and aborts if necessary.
 """
 
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -53,32 +54,26 @@ class LammpsRunner:
             # 1. Prepare Inputs
             input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms, potential_path)
 
-            # 2. Check Executable
-            executable = shutil.which(self.config.lammps_executable)
-            if not executable:
-                # If path is absolute/relative but not in PATH
-                if Path(self.config.lammps_executable).exists():
-                    executable = str(Path(self.config.lammps_executable).resolve())
+            # 2. Validate and Resolve Executable
+            executable = self._resolve_executable()
 
-            if not executable:
-                msg = f"LAMMPS executable '{self.config.lammps_executable}' not found in PATH or is not executable."
-                logger.error(msg)
-                raise RuntimeError(msg)
-
-            # 3. Build Command
-            # "lmp -in input.lammps"
-            cmd = [executable, "-in", str(input_file.name)]
+            # 3. Build Command (Whitelist approach: only allow fixed flag structure)
+            # cmd structure: [executable, "-in", input_file_name]
+            # No user-provided shell strings are passed directly.
+            cmd = [str(executable), "-in", str(input_file.name)]
 
             logger.info(f"Starting LAMMPS execution: {' '.join(cmd)}")
 
             # 4. Run
-            # We use check=False to capture non-zero exit codes manually if needed
+            # shell=False is critical for security to prevent shell injection.
+            # We strictly control the arguments list.
             result = subprocess.run(
                 cmd,
                 check=False,
                 capture_output=True,
                 text=True,
-                cwd=self.work_dir
+                cwd=self.work_dir,
+                shell=False
             )
 
             if result.returncode != 0:
@@ -91,7 +86,6 @@ class LammpsRunner:
                 )
 
             # 5. Parse Output
-            # We check the log file for thermodynamic output and max_gamma
             max_gamma = self._parse_max_gamma(log_file)
             logger.info(f"Max Gamma observed: {max_gamma}")
 
@@ -115,36 +109,47 @@ class LammpsRunner:
                 uncertain_structures=[]
             )
 
+    def _resolve_executable(self) -> str:
+        """
+        Resolves the LAMMPS executable path and performs security checks.
+        """
+        raw_path = str(self.config.lammps_executable)
+
+        # Security: Basic character blacklist for paranoid validation,
+        # though subprocess.run(shell=False) handles this safely.
+        # We reject obviously suspicious characters in the path itself.
+        if any(char in raw_path for char in [";", "|", "&", "`", "$", "(", ")"]):
+             raise ValueError(f"Security: Invalid characters detected in executable path: {raw_path}")
+
+        executable = shutil.which(raw_path)
+        if not executable:
+            # If path is absolute/relative but not in PATH
+            p = Path(raw_path)
+            if p.exists() and p.is_file(): # Ensure it is a file
+                 # Ensure executable permission
+                 if not os.access(p, os.X_OK):
+                     raise ValueError(f"File at {p} is not executable.")
+                 executable = str(p.resolve())
+            else:
+                 msg = f"LAMMPS executable '{raw_path}' not found in PATH or is not a valid file."
+                 logger.error(msg)
+                 raise RuntimeError(msg)
+
+        return executable
+
     def _parse_max_gamma(self, log_file: Path) -> float:
         """
         Parse the LAMMPS log file to find the maximum c_gamma value.
-        Assumes "thermo_style custom ... c_gamma" was used.
         """
         if not log_file.exists():
             return 0.0
 
         max_val = 0.0
         try:
-            with open(log_file) as f:
+            with log_file.open() as f:
                 content = f.read()
 
-            # Look for lines with numbers.
-            # This is heuristic. Better to parse column headers if possible.
-            # But pacemaker/lammps output usually prints steps.
-            # We can also rely on the dump file, but that's heavier.
-            # Let's simple regex for now if we know the format or just parse all floats.
-
-            # Alternative: if we ran with 'compute gamma', maybe we can just assume
-            # if the run finished, we scan for "Max Gamma" if we printed it?
-            # Our writer adds `thermo_style custom ... c_gamma`
-            # So the last column might be gamma if configured last.
-
-            # Simple fallback: return 0.0 if parsing fails, rely on dump file analysis if needed.
-            # For this cycle, we assume the simulation might output it.
-
-            # Let's iterate lines that look like thermo output
             lines = content.splitlines()
-            # Find the header
             header_idx = -1
             gamma_col_idx = -1
 
@@ -165,7 +170,7 @@ class LammpsRunner:
                             if val > max_val:
                                 max_val = val
                         except ValueError:
-                            pass # loop section or other text
+                            pass
 
         except Exception:
             logger.warning("Failed to parse max_gamma from log.")

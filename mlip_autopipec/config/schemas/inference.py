@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class InferenceConfig(BaseModel):
     """Configuration for LAMMPS inference."""
     lammps_executable: Path | None = Field(None, description="Path to LAMMPS executable")
-    temperature: float = Field(300.0, ge=0.0, description="MD temperature in Kelvin")
+    temperature: float = Field(300.0, ge=0.0, description="MD temperature in Kelvin (K)")
     pressure: float = Field(1.0, ge=0.0, description="MD pressure in Bar")
     timestep: float = Field(1.0, gt=0.0, description="Timestep in fs")
     steps: int = Field(1000, gt=0, description="Number of MD steps")
@@ -33,7 +33,7 @@ class InferenceConfig(BaseModel):
 
 class InferenceResult(BaseModel):
     succeeded: bool
-    final_structure: Path | None
+    final_structure: Path | None = None
     uncertain_structures: list[Path]
     max_gamma_observed: float
     model_config = ConfigDict(extra="forbid")

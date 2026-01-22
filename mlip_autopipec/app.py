@@ -1,5 +1,13 @@
 """
 Main CLI application for MLIP-AutoPipe.
+
+This module provides the command-line interface using `typer`.
+It supports:
+- Project initialization (`init`)
+- Configuration validation (`check-config`)
+- Individual phase execution (`generate`, `select`, `train`)
+- Full loop execution (`run loop`)
+- Database management (`db init`)
 """
 
 import logging
@@ -27,9 +35,7 @@ logger = logging.getLogger("mlip_autopipec")
 
 @app.command()
 def init() -> None:
-    """
-    Initialize a new project with a template configuration file.
-    """
+    """Initialize a new project with a template configuration file."""
     input_file = Path("input.yaml")
     if input_file.exists():
         console.print("[yellow]input.yaml already exists.[/yellow]")
@@ -77,9 +83,7 @@ def init() -> None:
 
 @app.command(name="check-config")
 def check_config(file: Path = typer.Argument(..., help="Path to config file")) -> None:
-    """
-    Validate the configuration file.
-    """
+    """Validate the configuration file."""
     setup_logging()
     try:
         load_config(file)
@@ -100,9 +104,7 @@ def generate(
     ),
     dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),  # noqa: B008
 ) -> None:
-    """
-    Generate initial training structures.
-    """
+    """Generate initial training structures."""
     setup_logging()
     try:
         config = load_config(config_file)
@@ -141,9 +143,7 @@ def select(
     n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),  # noqa: B008
     model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),  # noqa: B008
 ) -> None:
-    """
-    Select diverse candidates using a surrogate model.
-    """
+    """Select diverse candidates using a surrogate model."""
     setup_logging()
     try:
         from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
@@ -178,9 +178,7 @@ def train(
     ),
     prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),  # noqa: B008
 ) -> None:
-    """
-    Train a potential using Pacemaker.
-    """
+    """Train a potential using Pacemaker."""
     setup_logging()
     try:
         # Use TrainingManager (Module D)
@@ -231,9 +229,7 @@ def db_init(
         Path("input.yaml"), "--config", "-c", help="Path to config file"
     ),
 ) -> None:
-    """
-    Initialize the database based on the configuration.
-    """
+    """Initialize the database based on the configuration."""
     setup_logging()
     try:
         config = load_config(config_file)
@@ -253,9 +249,7 @@ def run_loop(
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
 ) -> None:
-    """
-    Run the full autonomous loop (Generation -> DFT -> Training -> Inference).
-    """
+    """Run the full autonomous loop (Generation -> DFT -> Training -> Inference)."""
     setup_logging()
     try:
         from mlip_autopipec.config.models import SystemConfig
