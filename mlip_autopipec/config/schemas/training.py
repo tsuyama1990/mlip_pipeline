@@ -26,11 +26,14 @@ class TrainingConfig(BaseModel):
     @classmethod
     def validate_cutoff(cls, v: float) -> float:
         """
-        Validates that the cutoff is a positive value.
-        (Redundant with PositiveFloat but explicit per request)
+        Validates that the cutoff is a positive value and within a reasonable physical range.
+        Standard interatomic potentials rarely exceed 20 Angstroms.
         """
         if v <= 0:
             msg = "Cutoff must be positive."
+            raise ValueError(msg)
+        if v > 20.0:
+            msg = "Cutoff is unusually large (> 20.0 A). Please verify."
             raise ValueError(msg)
         return v
 

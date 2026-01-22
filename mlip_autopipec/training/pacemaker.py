@@ -4,15 +4,16 @@ Manages configuration generation and execution.
 """
 
 import logging
-import shlex
 import subprocess
-import yaml
 from pathlib import Path
+
+import yaml
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.metrics import LogParser
 
 logger = logging.getLogger(__name__)
+
 
 class PacemakerWrapper:
     """
@@ -51,20 +52,13 @@ class PacemakerWrapper:
             "cutoff": self.config.cutoff,
             "data": {
                 "filename": self.config.training_data_path,
-                "test_filename": self.config.test_data_path
+                "test_filename": self.config.test_data_path,
             },
             "fit": {
-                "loss": {
-                    "kappa": self.config.kappa,
-                    "kappa_f": self.config.kappa_f
-                },
-                "optimizer": {
-                    "max_iter": self.config.max_iter
-                }
+                "loss": {"kappa": self.config.kappa, "kappa_f": self.config.kappa_f},
+                "optimizer": {"max_iter": self.config.max_iter},
             },
-            "b_basis": {
-                "size": self.config.b_basis_size
-            }
+            "b_basis": {"size": self.config.b_basis_size},
         }
 
         # Safe open logic handled by Path
@@ -92,11 +86,7 @@ class PacemakerWrapper:
             with log_path.open("w") as log_file:
                 # S603 is ignored as we are constructing cmd internally
                 result = subprocess.run(
-                    cmd,
-                    cwd=self.work_dir,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    check=False
+                    cmd, cwd=self.work_dir, stdout=log_file, stderr=subprocess.STDOUT, check=False
                 )
             return result.returncode
         except subprocess.SubprocessError:
@@ -138,24 +128,23 @@ class PacemakerWrapper:
             output_yace = self.work_dir / "output.yace"
 
             if not output_yace.exists():
-                 yace_files = list(self.work_dir.glob("*.yace"))
-                 if yace_files:
-                     output_yace = yace_files[0]
+                yace_files = list(self.work_dir.glob("*.yace"))
+                if yace_files:
+                    output_yace = yace_files[0]
 
             if self.check_output(output_yace):
-                 parser = LogParser()
-                 metrics = parser.parse_file(log_path)
-                 return TrainingResult(
-                     success=True,
-                     potential_path=str(output_yace),
-                     metrics=metrics
-                 )
-            else:
-                 logger.error("No valid .yace output found.")
-                 return TrainingResult(success=False)
+                parser = LogParser()
+                metrics = parser.parse_file(log_path)
+                return TrainingResult(
+                    success=True, potential_path=str(output_yace), metrics=metrics
+                )
+            logger.error("No valid .yace output found.")
+            return TrainingResult(success=False)
 
         except FileNotFoundError:
-            logger.exception("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")
+            logger.exception(
+                "Pacemaker executable not found. Please ensure 'pacemaker' is in PATH."
+            )
             return TrainingResult(success=False)
         except OSError:
             logger.exception("OS Error during training execution")
