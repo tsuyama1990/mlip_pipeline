@@ -1,37 +1,22 @@
-from ase import Atoms
-
 
 class CandidateManager:
     """
-    Manages a pool of candidate structures, preserving their identity via indices.
+    Manages candidate data persistence logic.
+    Separates business logic (defaults, validation) from raw DB access.
     """
+    def __init__(self, db_manager):
+        self.db = db_manager
 
-    @staticmethod
-    def tag_candidates(candidates: list[Atoms]) -> list[Atoms]:
-        """
-        Tags each atom with its original index in the list.
-        This modifies the atoms in-place (or returns the modified list).
-        """
-        for i, atom in enumerate(candidates):
-            if "info" not in dir(atom):
-                atom.info = {}
-            atom.info["_original_index"] = i
-        return candidates
+    def create_candidate(self, atoms, metadata: dict = None):
+        if metadata is None:
+            metadata = {}
+        # Apply defaults
+        meta = metadata.copy()
+        if "status" not in meta:
+            meta["status"] = "pending"
+        if "generation" not in meta:
+            meta["generation"] = 0
+        if "config_type" not in meta:
+            meta["config_type"] = "candidate"
 
-    @staticmethod
-    def resolve_selection(
-        pool: list[Atoms], local_indices: list[int]
-    ) -> tuple[list[Atoms], list[int]]:
-        """
-        Resolves the selected subset and maps back to original indices.
-
-        Args:
-            pool: The filtered pool of candidates.
-            local_indices: Indices within the filtered pool.
-
-        Returns:
-            (selected_structures, original_indices)
-        """
-        selected_structures = [pool[i] for i in local_indices]
-        original_indices = [atom.info.get("_original_index", -1) for atom in selected_structures]
-        return selected_structures, original_indices
+        self.db.add_structure(atoms, meta)

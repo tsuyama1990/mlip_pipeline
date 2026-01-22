@@ -1,0 +1,265 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: mock-3.15.1, cov-7.0.0
+collected 25 items
+
+tests/unit/test_training_schemas.py ......                               [ 24%]
+tests/unit/test_training_dataset.py ..                                   [ 32%]
+tests/unit/test_training_pacemaker.py .F......                           [ 64%]
+tests/unit/test_training_metrics.py .....                                [ 84%]
+tests/uat/test_cycle05_uat.py .F                                         [ 92%]
+tests/integration/test_pipeline_integration.py .F                        [100%]
+
+=================================== FAILURES ===================================
+______________________________ test_train_success ______________________________
+
+mock_parse = <MagicMock name='parse_file' id='139889062670176'>
+mock_check = <MagicMock name='check_output' id='139889062969664'>
+mock_run = <MagicMock name='run' id='139889062973504'>
+training_config = TrainingConfig(training_data_path='data/train.xyz', test_data_path='data/test.xyz', cutoff=4.5, b_basis_size=200, kappa=0.6, kappa_f=100.0, max_iter=10)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_train_success0')
+
+    @patch("subprocess.run")
+    @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output")
+    @patch("mlip_autopipec.training.metrics.LogParser.parse_file")
+    def test_train_success(mock_parse, mock_check, mock_run, training_config, tmp_path):
+        """Test successful training run."""
+        wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+        # Mock subprocess success
+        mock_run.return_value.returncode = 0
+
+        # Mock output check success
+        mock_check.return_value = True
+
+        # Mock metrics parsing
+        expected_metrics = TrainingMetrics(epoch=10, rmse_energy=1.5, rmse_force=0.02)
+        mock_parse.return_value = expected_metrics
+
+        result = wrapper.train()
+
+>       assert result.success is True
+E       assert False is True
+E        +  where False = TrainingResult(success=False, potential_path=None, metrics=None).success
+
+tests/unit/test_training_pacemaker.py:60: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    mlip_autopipec.training.pacemaker:pacemaker.py:125 Pacemaker executable not found in PATH.
+_____________________ test_scenario_5_2_training_execution _____________________
+
+mock_db_manager = <MagicMock name='DatabaseManager()' id='139889062076224'>
+mock_pacemaker = <MagicMock name='run' id='139889062080304'>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_scenario_5_2_training_exe0')
+
+    def test_scenario_5_2_training_execution(mock_db_manager, mock_pacemaker, tmp_path):
+        """
+        Scenario 5.2: Training Execution
+        """
+        # Ensure pseudo dir exists
+        pseudo_dir = tmp_path / "pseudo"
+        pseudo_dir.mkdir(exist_ok=True)
+
+        config_content = f"""
+    target_system:
+      name: "Al"
+      elements: ["Al"]
+      composition: {{"Al": 1.0}}
+
+    dft:
+      ecutwfc: 40.0
+      kspacing: 0.04
+      pseudopotential_dir: "{pseudo_dir!s}"
+
+    training_config:
+      cutoff: 5.0
+      b_basis_size: 100
+      kappa: 0.5
+      kappa_f: 100.0
+      max_iter: 100
+    """
+
+        with patch("mlip_autopipec.training.dataset.DatasetBuilder"), \
+             patch("mlip_autopipec.training.pacemaker.PacemakerWrapper") as MockWrapper, \
+             patch("mlip_autopipec.app.DatabaseManager") as MockDBApp:
+
+            instance = MockDBApp.return_value
+            instance.__enter__.return_value = instance
+
+            wrapper_instance = MockWrapper.return_value
+            wrapper_instance.train.return_value.success = True
+            wrapper_instance.train.return_value.metrics = MagicMock()
+            wrapper_instance.train.return_value.potential_path = "pot.yace"
+
+            with runner.isolated_filesystem():
+                with open("mlip.yaml", "w") as f:
+                    f.write(config_content)
+
+                result = runner.invoke(app, ["train", "--config", "mlip.yaml"])
+
+                if result.exit_code != 0:
+                     print(result.stdout)
+
+>               assert result.exit_code == 0
+E               assert 1 == 0
+E                +  where 1 = <Result SystemExit(1)>.exit_code
+
+tests/uat/test_cycle05_uat.py:127: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Training failed.
+Training Failed:
+
+------------------------------ Captured log call -------------------------------
+ERROR    mlip_autopipec.training.pacemaker:pacemaker.py:125 Pacemaker executable not found in PATH.
+________________________ test_integration_training_flow ________________________
+
+mock_db = <mlip_autopipec.core.database.DatabaseManager object at 0x7f3a75df7f50>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-20/test_integration_training_flow0')
+
+    def test_integration_training_flow(mock_db, tmp_path):
+        """
+        Integration test for the training flow: DB -> Dataset -> Config -> Pacemaker(Mock).
+        """
+        from unittest.mock import patch
+
+        import numpy as np
+
+        from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingMetrics
+        from mlip_autopipec.training.dataset import DatasetBuilder
+        from mlip_autopipec.training.pacemaker import PacemakerWrapper
+
+        # 1. Setup DB with completed structures
+        with mock_db:
+            for i in range(10):
+                 at = Atoms('Cu', positions=[[0,0,0]])
+                 at.info['energy'] = -3.0
+                 at.arrays['forces'] = np.array([[0.0, 0.0, 0.0]])
+                 mock_db.add_structure(at, metadata={"status": "completed"})
+
+        config = TrainingConfig(
+            cutoff=3.0,
+            b_basis_size=10,
+            kappa=1.0,
+            kappa_f=1.0,
+            max_iter=10
+        )
+
+        work_dir = tmp_path / "training_work"
+
+        # 2. Export Data
+        builder = DatasetBuilder(mock_db)
+        builder.export(config, work_dir)
+
+        train_file = work_dir / "data" / "train.xyz"
+        assert train_file.exists()
+        assert (work_dir / "data" / "test.xyz").exists()
+
+        # Verify content
+        with open(train_file) as f:
+            content = f.read()
+>           assert "Lattice=" in content
+E           assert 'Lattice=' in '1\nProperties=species:S:1:pos:R:3 status=completed pbc="F F F"\nCu       0.00000000       0.00000000       0.00000000...\nProperties=species:S:1:pos:R:3 status=completed pbc="F F F"\nCu       0.00000000       0.00000000       0.00000000\n'
+
+tests/integration/test_pipeline_integration.py:116: AssertionError
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                              Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------------------
+mlip_autopipec/__init__.py                            8      0   100%
+mlip_autopipec/app.py                               126     73    42%   31-62, 70-80, 93-120, 134-160, 182-183, 206-210, 231-239, 243
+mlip_autopipec/config/__init__.py                     3      0   100%
+mlip_autopipec/config/factory.py                     37     37     0%   1-62
+mlip_autopipec/config/models.py                      55      0   100%
+mlip_autopipec/config/schemas/common.py              31      5    84%   19, 26, 31, 35, 41
+mlip_autopipec/config/schemas/dft.py                 38      8    79%   34, 36, 42-44, 54-56
+mlip_autopipec/config/schemas/exploration.py          5      0   100%
+mlip_autopipec/config/schemas/generator.py           26      0   100%
+mlip_autopipec/config/schemas/inference.py           20      1    95%   28
+mlip_autopipec/config/schemas/orchestration.py        5      0   100%
+mlip_autopipec/config/schemas/surrogate.py            8      0   100%
+mlip_autopipec/config/schemas/training.py            38      6    84%   33-34, 36-37, 47-48
+mlip_autopipec/core/__init__.py                       0      0   100%
+mlip_autopipec/core/database.py                     131     66    50%   39-51, 106-111, 126-128, 140-145, 157-162, 184-186, 202-204, 211, 222-240, 244-247, 252-263
+mlip_autopipec/core/logging.py                       11      4    64%   24-29
+mlip_autopipec/core/services.py                      11      2    82%   24, 30
+mlip_autopipec/core/workspace.py                     13     13     0%   1-25
+mlip_autopipec/data/__init__.py                       0      0   100%
+mlip_autopipec/data/database.py                      23     23     0%   7-73
+mlip_autopipec/data_models/__init__.py                4      0   100%
+mlip_autopipec/data_models/candidate.py              10     10     0%   1-19
+mlip_autopipec/data_models/dft_models.py             47      8    83%   51-53, 59-63
+mlip_autopipec/data_models/inference_models.py       18      7    61%   27-34
+mlip_autopipec/data_models/structure_enums.py         9      9     0%   1-11
+mlip_autopipec/data_models/training_data.py          59     32    46%   29-33, 41-60, 65-76, 90-95
+mlip_autopipec/data_models/types.py                  16     16     0%   1-31
+mlip_autopipec/dft/__init__.py                        0      0   100%
+mlip_autopipec/dft/constants.py                       3      0   100%
+mlip_autopipec/dft/inputs.py                         70     54    23%   30-114, 122-134, 141-149, 156-163
+mlip_autopipec/dft/parsers.py                        32     24    25%   27, 53-99
+mlip_autopipec/dft/recovery.py                       32     23    28%   33-40, 49-78
+mlip_autopipec/dft/runner.py                        122     99    19%   30, 36-47, 53-166, 172-183, 191-192
+mlip_autopipec/exceptions.py                         25     13    48%   43-48, 51-52, 59-60, 63-66
+mlip_autopipec/generator/__init__.py                  5      0   100%
+mlip_autopipec/generator/builder.py                 117     96    18%   40-49, 72-103, 106-109, 112-117, 123-142, 157-176, 191-235
+mlip_autopipec/generator/defects.py                  84     71    15%   29-30, 43-63, 79-111, 127-184
+mlip_autopipec/generator/sqs.py                      45     35    22%   29-30, 49-100
+mlip_autopipec/generator/transformations.py          46     38    17%   26-56, 74-98
+mlip_autopipec/inference/__init__.py                  9      9     0%   8-17
+mlip_autopipec/inference/analysis.py                 44     44     0%   8-88
+mlip_autopipec/inference/embedding.py                53     53     0%   1-105
+mlip_autopipec/inference/inputs.py                   19     19     0%   7-71
+mlip_autopipec/inference/interfaces.py                5      5     0%   5-17
+mlip_autopipec/inference/lammps_runner.py            45     45     0%   8-108
+mlip_autopipec/inference/masking.py                  33     33     0%   1-76
+mlip_autopipec/inference/uq.py                       23     23     0%   1-38
+mlip_autopipec/inference/writer.py                   20     20     0%   7-58
+mlip_autopipec/modules/__init__.py                    0      0   100%
+mlip_autopipec/modules/config_generator.py           15     15     0%   3-74
+mlip_autopipec/modules/descriptors.py                31     31     0%   3-62
+mlip_autopipec/modules/dft.py                        67     67     0%   6-189
+mlip_autopipec/modules/exploration.py                51     51     0%   7-130
+mlip_autopipec/modules/explorer.py                   46     46     0%   3-90
+mlip_autopipec/modules/generator.py                  72     72     0%   3-203
+mlip_autopipec/modules/inference.py                 136    136     0%   7-333
+mlip_autopipec/modules/screening.py                  41     41     0%   3-68
+mlip_autopipec/modules/training_orchestrator.py      22      3    86%   71-73
+mlip_autopipec/monitoring/__init__.py                 0      0   100%
+mlip_autopipec/monitoring/dashboard.py               63     63     0%   1-115
+mlip_autopipec/orchestration/__init__.py              5      0   100%
+mlip_autopipec/orchestration/dashboard.py            47     33    30%   31-34, 45-55, 67-95, 108-110
+mlip_autopipec/orchestration/interfaces.py            9      0   100%
+mlip_autopipec/orchestration/manager.py              66     49    26%   41-62, 66-72, 76, 82-95, 99-114, 118-128
+mlip_autopipec/orchestration/models.py               18      0   100%
+mlip_autopipec/orchestration/phase_executor.py       80     63    21%   25-32, 36-61, 65-96, 100-121, 125-133
+mlip_autopipec/orchestration/task_queue.py           74     60    19%   29-52, 69-77, 96-124, 139-141, 147-151
+mlip_autopipec/surrogate/__init__.py                  5      0   100%
+mlip_autopipec/surrogate/candidate_manager.py        14     14     0%   2-22
+mlip_autopipec/surrogate/descriptors.py              30     30     0%   1-84
+mlip_autopipec/surrogate/mace_client.py              62     62     0%   1-146
+mlip_autopipec/surrogate/mace_wrapper.py             53     46    13%   11-13, 19-34, 40-61, 67-105
+mlip_autopipec/surrogate/model_interface.py           8      0   100%
+mlip_autopipec/surrogate/pipeline.py                100     21    79%   22, 36, 46-47, 51-53, 58-59, 71, 75, 81, 83, 94, 108-110, 129, 134, 140-141
+mlip_autopipec/surrogate/sampling.py                 19      6    68%   21, 23, 36-41
+mlip_autopipec/training/__init__.py                   4      0   100%
+mlip_autopipec/training/config_gen.py                16     10    38%   12-14, 32-46
+mlip_autopipec/training/dataset.py                   45      7    84%   77-82, 89-90, 117-118
+mlip_autopipec/training/metrics.py                   35      3    91%   50, 68-69
+mlip_autopipec/training/pacemaker.py                 73     39    47%   88, 92-108, 128-161, 164-165, 169-171
+mlip_autopipec/training/physics.py                   39     28    28%   43-109
+mlip_autopipec/utils/__init__.py                      0      0   100%
+mlip_autopipec/utils/ase_utils.py                    42     42     0%   12-120
+mlip_autopipec/utils/config_utils.py                  7      7     0%   3-38
+mlip_autopipec/utils/dask_utils.py                   12     12     0%   6-43
+mlip_autopipec/utils/data_loader.py                  15     15     0%   5-39
+mlip_autopipec/utils/resilience.py                   29     29     0%   6-93
+mlip_autopipec/utils/workflow_utils.py               32     32     0%   3-53
+mlip_autopipec/workflow_manager.py                  106    106     0%   1-191
+-------------------------------------------------------------------------------
+TOTAL                                              3173   2263    29%
+=========================== short test summary info ============================
+FAILED tests/unit/test_training_pacemaker.py::test_train_success - assert Fal...
+FAILED tests/uat/test_cycle05_uat.py::test_scenario_5_2_training_execution - ...
+FAILED tests/integration/test_pipeline_integration.py::test_integration_training_flow
+======================== 3 failed, 22 passed in 14.29s =========================

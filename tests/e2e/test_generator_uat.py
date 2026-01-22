@@ -1,0 +1,241 @@
+
+import yaml
+from typer.testing import CliRunner
+
+from mlip_autopipec.app import app
+from mlip_autopipec.core.database import DatabaseManager
+
+runner = CliRunner()
+
+def test_uat_2_1_generate_sqs_alloy(tmp_path):
+    """
+    Scenario 2.1: Generate SQS Alloy Structures
+    """
+    db_path = tmp_path / "mlip.db"
+
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    config_data = {
+        "target_system": {
+            "name": "FeNi",
+            "elements": ["Fe", "Ni"],
+            "composition": {"Fe": 0.5, "Ni": 0.5},
+            "crystal_structure": "fcc"
+        },
+        "generator_config": {
+            "sqs": {"enabled": True, "supercell_size": [2, 2, 2]},
+            "distortion": {"enabled": False},
+            "defects": {"enabled": False},
+            "number_of_structures": 10
+        },
+        "dft": {
+            "pseudopotential_dir": str(pseudo_dir),
+            "ecutwfc": 40.0,
+            "kspacing": 0.15
+        },
+        "runtime": {
+            "database_path": str(db_path),
+            "work_dir": str(tmp_path / "work")
+        }
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    runner.invoke(app, ["db", "init", "--config", str(config_file)])
+
+    result = runner.invoke(app, ["generate", "--config", str(config_file)])
+    print(f"STDOUT: {result.stdout}")
+    assert result.exit_code == 0, f"Generate failed: {result.stdout}"
+
+    assert "Generated 1 structures" in result.stdout
+
+    with DatabaseManager(db_path) as db:
+        count = db.count()
+        assert count == 1
+        assert db.count(selection="config_type=sqs") == 1
+
+        atoms = db.get_atoms(selection="config_type=sqs")[0]
+        assert len(atoms) == 8 # 2x2x2 FCC (1 atom prim) -> 8 atoms
+        syms = atoms.get_chemical_symbols()
+        assert syms.count("Fe") == 4
+        assert syms.count("Ni") == 4
+
+        # Verify composition matches input (0.5/0.5)
+        # 4/8 = 0.5. Assertion is essentially covered by counts above, but explicit check:
+        comp_fe = syms.count("Fe") / len(atoms)
+        comp_ni = syms.count("Ni") / len(atoms)
+        assert abs(comp_fe - 0.5) < 1e-6
+        assert abs(comp_ni - 0.5) < 1e-6
+
+def test_uat_2_1_generate_invalid_config(tmp_path):
+    """
+    Test generating with invalid configuration (Scenario requested by audit).
+    """
+    db_path = tmp_path / "mlip.db"
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    # Invalid: Composition sum != 1.0
+    config_data = {
+        "target_system": {
+            "name": "FeNi",
+            "elements": ["Fe", "Ni"],
+            "composition": {"Fe": 0.5, "Ni": 0.2}, # Sum 0.7
+            "crystal_structure": "fcc"
+        },
+        "generator_config": {"sqs": {"enabled": True}},
+        "dft": {
+            "pseudopotential_dir": str(pseudo_dir),
+            "ecutwfc": 40.0,
+            "kspacing": 0.15
+        },
+        "runtime": {
+            "database_path": str(db_path),
+            "work_dir": str(tmp_path / "work")
+        }
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    # Initialize should fail or generate should fail validation
+    # init checks schema? No, init just copies template.
+    # db init loads config.
+    result = runner.invoke(app, ["db", "init", "--config", str(config_file)])
+    assert result.exit_code != 0
+    assert "Validation Error" in result.stdout or "Database Error" in result.stdout
+
+def test_uat_2_2_apply_strain(tmp_path):
+    """
+    Scenario 2.2: Apply Elastic Strain
+    """
+    db_path = tmp_path / "mlip.db"
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    config_data = {
+        "target_system": {
+            "name": "Al",
+            "elements": ["Al"],
+            "composition": {"Al": 1.0},
+            "crystal_structure": "fcc"
+        },
+        "generator_config": {
+            "sqs": {"enabled": False},
+            "distortion": {
+                "enabled": True,
+                "strain_range": [-0.1, 0.1],
+                "n_strain_steps": 5,
+                "n_rattle_steps": 0
+            },
+            "number_of_structures": 100
+        },
+        "dft": {
+            "pseudopotential_dir": str(pseudo_dir),
+            "ecutwfc": 30.0,
+            "kspacing": 0.15
+        },
+        "runtime": {"database_path": str(db_path), "work_dir": str(tmp_path)}
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    runner.invoke(app, ["db", "init", "--config", str(config_file)])
+    result = runner.invoke(app, ["generate", "--config", str(config_file)])
+    assert result.exit_code == 0
+
+    with DatabaseManager(db_path) as db:
+        count = db.count()
+        assert count == 5
+
+def test_uat_2_3_defect_vacancy(tmp_path):
+    """
+    Scenario 2.3: Defect Generation (Vacancies)
+    """
+    db_path = tmp_path / "mlip.db"
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    config_data = {
+        "target_system": {
+            "name": "Cu",
+            "elements": ["Cu"],
+            "composition": {"Cu": 1.0},
+            "crystal_structure": "fcc"
+        },
+        "generator_config": {
+            "sqs": {"enabled": True, "supercell_size": [2, 2, 2]},
+            "distortion": {"enabled": False},
+            "defects": {
+                "enabled": True,
+                "vacancies": True,
+                "interstitials": False
+            },
+            "number_of_structures": 10
+        },
+        "dft": {"pseudopotential_dir": str(pseudo_dir), "ecutwfc": 30, "kspacing": 0.15},
+        "runtime": {"database_path": str(db_path), "work_dir": str(tmp_path)}
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    runner.invoke(app, ["db", "init", "--config", str(config_file)])
+    result = runner.invoke(app, ["generate", "--config", str(config_file)])
+    assert result.exit_code == 0
+
+    with DatabaseManager(db_path) as db:
+        count = db.count()
+        assert count == 9
+        assert db.count(selection="config_type=vacancy") >= 1
+
+def test_uat_2_4_defect_interstitial(tmp_path):
+    """
+    Scenario 2.4: Defect Generation (Interstitials)
+    """
+    db_path = tmp_path / "mlip.db"
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    config_data = {
+        "target_system": {
+            "name": "Fe",
+            "elements": ["Fe"],
+            "composition": {"Fe": 1.0},
+            "crystal_structure": "bcc"
+        },
+        "generator_config": {
+            # Use SQS enabled with pure Fe to generate a supercell
+            # Primitive cell is too small for interstitials (distance check fails)
+            "sqs": {"enabled": True, "supercell_size": [2, 2, 2]},
+            "distortion": {"enabled": False},
+            "defects": {
+                "enabled": True,
+                "vacancies": False,
+                "interstitials": True,
+                "interstitial_elements": ["H"]
+            },
+            "number_of_structures": 10
+        },
+        "dft": {"pseudopotential_dir": str(pseudo_dir), "ecutwfc": 30, "kspacing": 0.15},
+        "runtime": {"database_path": str(db_path), "work_dir": str(tmp_path)}
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    runner.invoke(app, ["db", "init", "--config", str(config_file)])
+    result = runner.invoke(app, ["generate", "--config", str(config_file)])
+    assert result.exit_code == 0
+
+    with DatabaseManager(db_path) as db:
+        count_int = db.count(selection="config_type=interstitial")
+        assert count_int > 0

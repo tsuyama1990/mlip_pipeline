@@ -7,6 +7,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+build/
+dist/
 
 # Environment
 .env
@@ -30,7 +32,13 @@ env/
 *.err
 temp_ase_calc/
 .ac_cdd/
+_work/
+mlip.db
+mlip.log
 
+# Data
+data/
+potentials/
 
 # AC-CDD Configuration
 .ac_cdd/.env

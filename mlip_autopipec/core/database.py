@@ -1,242 +1,290 @@
-import contextlib
+import logging
+import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-from typing import Any as AtomsObject
+from typing import TYPE_CHECKING, Any, Self
 
 import ase.db
 import numpy as np
-from ase.db.core import Database
-from pydantic import ValidationError
+from ase import Atoms
 
 from mlip_autopipec.exceptions import DatabaseError
 
 if TYPE_CHECKING:
-    from mlip_autopipec.config.schemas.system import SystemConfig
-    from mlip_autopipec.data_models.dft_models import DFTResult
+    from mlip_autopipec.config.models import SystemConfig
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseConnector:
+    """
+    Handles the connection lifecycle to the ASE/SQLite database.
+    """
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self._connection: ase.db.core.Database | None = None
+
+    def connect(self) -> ase.db.core.Database:
+        """
+        Establishes and returns the database connection.
+        """
+        if self._connection is not None:
+            return self._connection
+
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._connection = ase.db.connect(str(self.db_path))
+            # Verify validity by attempting a lightweight operation
+            self._connection.count()
+            return self._connection
+        except OSError as e:
+            logger.error(f"FileSystem error initializing database at {self.db_path}: {e}")
+            raise DatabaseError(
+                f"FileSystem error initializing database at {self.db_path}: {e}"
+            ) from e
+        except sqlite3.DatabaseError as e:
+            logger.error(f"File at {self.db_path} is not a valid SQLite database: {e}")
+            raise DatabaseError(
+                f"File at {self.db_path} is not a valid SQLite database: {e}"
+            ) from e
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}")
+            raise DatabaseError(f"Failed to initialize database: {e}") from e
+
+    def close(self) -> None:
+        """Closes the active connection."""
+        self._connection = None
 
 
 class DatabaseManager:
     """
     Wrapper around ase.db to enforce schema and metadata requirements.
-    Acts as the single source of truth for all database interactions.
+
+    This class manages data access and persistence operations.
+    It implements the Context Manager protocol.
     """
 
     def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-        self._connection: Database | None = None
-
-    def initialize(self) -> None:
         """
-        Initializes the database connection.
-        If the database does not exist, it is created.
+        Initialize the DatabaseManager.
+
+        Args:
+            db_path: Path to the SQLite database file.
         """
-        try:
-            # Ensure parent directory exists (though WorkspaceManager handles this, redundancy is safe)
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.connector = DatabaseConnector(db_path)
 
-            # Connect (or create)
-            self._connection = ase.db.connect(str(self.db_path))
+    def __enter__(self) -> Self:
+        """Context manager entry. Ensures connection is ready."""
+        self.connector.connect()
+        return self
 
-            # Secure the database file
-            # Might fail on Windows or some filesystems, log warning but don't crash
-            # Since logger is not imported here to keep it simple, we just pass
-            # or could import logging if strictly required.
-            with contextlib.suppress(OSError):
-                self.db_path.chmod(0o600)
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        """Context manager exit. Closes connection."""
+        self.connector.close()
 
-            # Force initialization
-            self._connection.count()
-        except Exception as e:
-            msg = f"Failed to initialize database at {self.db_path}: {e}"
-            raise DatabaseError(msg) from e
+    @property
+    def _connection(self) -> ase.db.core.Database:
+        """Internal helper to get connection."""
+        return self.connector.connect()
 
-    def _ensure_connection(self) -> None:
-        """Helper to ensure connection exists or raise error."""
-        if self._connection is None:
-            self.initialize()
-            if self._connection is None:
-                msg = "Database connection is None after initialization."
-                raise DatabaseError(msg)
-
-    def set_system_config(self, config: "SystemConfig") -> None:
+    def _validate_atoms(self, atoms: Atoms) -> None:
         """
-        Stores the system configuration in the database metadata.
-        This must be called during initialization or setup.
+        Validates an ASE Atoms object before insertion.
+        Checks for NaN positions, infinite values, or zero cells if PBC is true.
         """
-        self._ensure_connection()
+        if not isinstance(atoms, Atoms):
+            raise TypeError("Input must be an ase.Atoms object")
 
-        try:
-            config_dict = config.model_dump(mode="json")
+        positions = atoms.get_positions()
+        if np.any(np.isnan(positions)) or np.any(np.isinf(positions)):
+            raise ValueError("Atoms object contains NaN or Inf in positions.")
 
-            # Update metadata
-            if self._connection is None:  # Redundant check for type checker
-                raise DatabaseError("Connection lost")
+        if atoms.pbc.any():
+            cell = atoms.get_cell()
+            if np.isclose(np.linalg.det(cell), 0.0):
+                raise ValueError("Atoms object has zero cell volume but PBC is enabled.")
 
-            current_metadata = self._connection.metadata.copy()
-            current_metadata.update(config_dict)
-            self._connection.metadata = current_metadata
-        except Exception as e:
-            msg = "Failed to write system configuration to database metadata."
-            raise DatabaseError(msg) from e
-
-    def get_metadata(self) -> dict[str, Any]:
+    def add_structure(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
-        Retrieves the metadata from the database.
-        """
-        self._ensure_connection()
-        return self._connection.metadata  # type: ignore
+        Inserts an atom with metadata.
 
-    def get_system_config(self) -> "SystemConfig":
-        """
-        Retrieves and validates the SystemConfig stored in the database metadata.
+        Args:
+            atoms: ASE Atoms object.
+            metadata: Dictionary containing 'status', 'config_type', 'generation'.
 
         Returns:
-            A validated SystemConfig object.
+            The integer ID of the inserted row.
 
         Raises:
-            DatabaseError: If metadata is missing or invalid.
+            DatabaseError: If insertion fails.
         """
-        # Delayed import to avoid circular dependency/tight coupling at module level
-        from mlip_autopipec.config.schemas.system import SystemConfig
-
-        metadata = self.get_metadata()
         try:
-            # We assume the config is stored at the top level or under specific keys.
-            # set_system_config dumps the whole model into metadata.
-            return SystemConfig.model_validate(metadata)
-        except ValidationError as e:
-            msg = f"Database metadata does not contain a valid SystemConfig: {e}"
-            raise DatabaseError(msg) from e
+            self._validate_atoms(atoms)
+            id = self._connection.write(atoms, **metadata)
+            return id
+        except ValueError as e:
+            logger.error(f"Validation failed for atoms insertion: {e}")
+            raise DatabaseError(f"Invalid Atoms object: {e}") from e
+        except KeyError as e:
+            logger.error(f"Invalid key in metadata during add_structure: {e}")
+            raise DatabaseError(f"Invalid key in metadata: {e}") from e
+        except Exception as e:
+            logger.error(f"Failed to add structure: {e}")
+            raise DatabaseError(f"Failed to add structure: {e}") from e
 
-    def get_atoms(self, selection: str | None = None) -> list[AtomsObject]:
+    def count(self, selection: str | None = None, **kwargs: Any) -> int:
         """
-        Retrieves atoms objects from the database.
+        Counts rows matching selection.
 
         Args:
-            selection: ASE DB selection string (e.g. 'energy<0').
+            selection: Raw selection string (use with caution).
+            **kwargs: Parameterized selection criteria (preferred).
 
         Returns:
-            List of ASE Atoms objects.
+            Number of matching rows.
         """
-        self._ensure_connection()
-
         try:
-            # ase.db.select returns an iterator
-            if self._connection:
-                rows = self._connection.select(selection=selection)
-                return [row.toatoms() for row in rows]
-            return []
+            return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
-            msg = f"Failed to retrieve atoms from database: {e}"
-            raise DatabaseError(msg) from e
+            logger.error(f"Failed to count rows: {e}")
+            raise DatabaseError(f"Failed to count rows: {e}") from e
 
-    def get_training_data(self) -> list[AtomsObject]:
+    def update_status(self, id: int, status: str) -> None:
         """
-        Retrieves atoms specifically formatted and validated for training.
-        Use this instead of raw get_atoms when preparing for Pacemaker.
+        Updates the status of a specific row.
+
+        Args:
+            id: Database ID of the row.
+            status: New status string.
+        """
+        try:
+            self._connection.update(id, status=status)
+        except KeyError as e:
+            logger.error(f"ID {id} not found during update_status: {e}")
+            raise DatabaseError(f"ID {id} not found: {e}") from e
+        except Exception as e:
+            logger.error(f"Failed to update status for ID {id}: {e}")
+            raise DatabaseError(f"Failed to update status: {e}") from e
+
+    def update_metadata(self, id: int, data: dict[str, Any]) -> None:
+        """
+        Updates metadata for a specific row.
+
+        Args:
+            id: Database ID of the row.
+            data: Dictionary of key-value pairs to update.
+        """
+        try:
+            self._connection.update(id, **data)
+        except KeyError as e:
+            logger.error(f"ID {id} not found during update_metadata: {e}")
+            raise DatabaseError(f"ID {id} not found: {e}") from e
+        except Exception as e:
+            logger.error(f"Failed to update metadata for ID {id}: {e}")
+            raise DatabaseError(f"Failed to update metadata: {e}") from e
+
+    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
+        """
+        Retrieve atoms matching selection.
+
+        Args:
+            selection: Selection string.
+            **kwargs: Parameterized query arguments.
 
         Returns:
-             List of ASE Atoms objects with info['energy'] and arrays['forces'] populated.
+            List of ASE Atoms objects with populated info dictionary.
         """
-        # Import here to avoid coupling
-        from mlip_autopipec.config.schemas.training import TrainingData
-
-        self._ensure_connection()
-
-        atoms_list = []
         try:
-            if self._connection:
-                for row in self._connection.select():
-                    # Validate that the row has the required data fields
-                    # We use the TrainingData Pydantic model for validation
-                    try:
-                        # row.data contains the dictionary of key-value pairs stored with the atoms
-                        validated_data = TrainingData(**row.data)
-
-                        atoms = row.toatoms()
-                        # Map validated data to atoms attributes expected by Pacemaker/ASE
-                        atoms.info["energy"] = validated_data.energy
-                        atoms.arrays["forces"] = np.array(validated_data.forces)
-                        atoms_list.append(atoms)
-                    except ValidationError:
-                        # Skip rows that don't match training data schema (maybe failed jobs or different types)
-                        continue
+            rows = self._connection.select(selection=selection, **kwargs)
+            atoms_list = []
+            for row in rows:
+                at = row.toatoms()
+                if hasattr(row, "key_value_pairs"):
+                    at.info.update(row.key_value_pairs)
+                atoms_list.append(at)
+            return atoms_list
         except Exception as e:
-            msg = f"Failed to read training data: {e}"
-            raise DatabaseError(msg) from e
+            logger.error(f"Failed to get atoms: {e}")
+            raise DatabaseError(f"Failed to get atoms: {e}") from e
 
-        return atoms_list
-
-    def save_dft_result(
-        self, atoms: AtomsObject, result: "DFTResult", metadata: dict[str, Any]
-    ) -> None:
+    def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
         """
-        Saves a DFT calculation result and its metadata.
-        """
-        self._ensure_connection()
+        Retrieve entries as (id, Atoms) tuples.
 
+        Args:
+            selection: Selection string.
+            **kwargs: Parameterized query arguments.
+
+        Returns:
+            List of (id, Atoms) tuples.
+        """
         try:
-            # Separate metadata for info dict and arrays
-            info_metadata = metadata.copy()
-            force_mask = info_metadata.pop("force_mask", None)
-
-            atoms.info["energy"] = result.energy
-            atoms.info["forces"] = result.forces
-            atoms.info["stress"] = result.stress
-            atoms.info.update(info_metadata)
-
-            if force_mask is not None:
-                atoms.arrays["force_mask"] = np.array(force_mask)
-
-            # Check if exists logic could go here, but for now we write
-            if self._connection:
-                self._connection.write(atoms, data=result.model_dump())
-            # Note: We save result.model_dump() into 'data' so we can reconstruct TrainingData later
+            rows = self._connection.select(selection=selection, **kwargs)
+            return [(row.id, row.toatoms()) for row in rows]
         except Exception as e:
-            msg = f"Failed to save DFT result: {e}"
-            raise DatabaseError(msg) from e
+            logger.error(f"Failed to get entries: {e}")
+            raise DatabaseError(f"Failed to get entries: {e}") from e
 
-    def save_candidate(self, atoms: AtomsObject, metadata: dict[str, Any]) -> None:
+    def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
         """
-        Saves a candidate structure (without DFT results) to the database.
-
-        Validates metadata against CandidateData schema before saving.
+        Save a candidate structure.
+        Caller is responsible for providing all necessary metadata.
         """
-        from mlip_autopipec.data_models.candidate import CandidateData
+        self.add_structure(atoms, metadata)
 
-        self._ensure_connection()
+    def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
+        """
+        Save a DFT result.
 
+        Args:
+            atoms: The Atoms object (updated with results).
+            result: The DFTResult object.
+            metadata: Additional metadata to save (will be indexed).
+        """
         try:
-            # Validate metadata
-            CandidateData(**metadata)
+            self._validate_atoms(atoms)
+            if hasattr(result, "energy"):
+                atoms.info["energy"] = result.energy
+            if hasattr(result, "forces"):
+                atoms.arrays["forces"] = np.array(result.forces)
+            if hasattr(result, "stress"):
+                atoms.info["stress"] = np.array(result.stress)
 
-            # Update atoms info with metadata
             atoms.info.update(metadata)
-            if self._connection:
-                self._connection.write(atoms)
-        except ValidationError as e:
-            msg = f"Invalid candidate metadata: {e}"
-            raise DatabaseError(msg) from e
+
+            self._connection.write(
+                atoms,
+                data=result.model_dump() if hasattr(result, "model_dump") else {},
+                **metadata  # Pass metadata as kwargs so they are indexed columns!
+            )
+        except AttributeError as e:
+            logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
+            raise DatabaseError(f"Invalid DFTResult object: {e}") from e
+        except ValueError as e:
+            logger.error(f"Validation failed for atoms insertion in save_dft_result: {e}")
+            raise DatabaseError(f"Invalid Atoms object: {e}") from e
         except Exception as e:
-            msg = f"Failed to save candidate: {e}"
-            raise DatabaseError(msg) from e
+            logger.error(f"Failed to save DFT result: {e}")
+            raise DatabaseError(f"Failed to save DFT result: {e}") from e
 
-    def count(self, selection: str | None = None) -> int:
-        """
-        Count rows in the database.
+    def set_system_config(self, config: "SystemConfig") -> None:
+        """Store system config in metadata."""
+        try:
+            self._connection.metadata = config.model_dump(mode="json")
+        except Exception as e:
+            logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
+            # Non-critical, warning only
 
-        Args:
-            selection: ASE DB selection string.
+    def get_system_config(self) -> "SystemConfig":
+        """Retrieve system config from metadata."""
+        from pydantic import ValidationError
 
-        Returns:
-            Number of rows matching selection.
-        """
-        self._ensure_connection()
+        from mlip_autopipec.config.models import SystemConfig
 
         try:
-            if self._connection:
-                return int(self._connection.count(selection=selection))
-            return 0
+            return SystemConfig.model_validate(self._connection.metadata)
+        except ValidationError as e:
+            logger.error(f"Stored SystemConfig in database is invalid: {e}")
+            raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
         except Exception as e:
-            msg = f"Failed to count rows: {e}"
-            raise DatabaseError(msg) from e
+            logger.error(f"Error retrieving SystemConfig from database: {e}")
+            raise DatabaseError(f"No SystemConfig found or error retrieving: {e}") from e

@@ -1,59 +1,59 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SQSConfig(BaseModel):
-    enabled: bool = Field(True, description="Enable SQS generation for bulk alloys.")
-    supercell_matrix: list[list[int]] = Field(
-        default=[[2, 0, 0], [0, 2, 0], [0, 0, 2]],
-        description="Transformation matrix for the supercell (3x3).",
+    """Configuration for Special Quasirandom Structures (SQS)."""
+
+    enabled: bool = Field(True, description="Whether to use SQS generation for alloys.")
+    supercell_size: list[int] = Field(
+        default=[2, 2, 2], description="Dimensions of the supercell (e.g., [2, 2, 2])."
     )
     model_config = ConfigDict(extra="forbid")
-
-    @field_validator("supercell_matrix")
-    def validate_matrix_shape(cls, v: list[list[int]]) -> list[list[int]]:  # noqa: N805
-        if len(v) != 3:
-            raise ValueError("Supercell matrix must have 3 rows.")
-        for row in v:
-            if len(row) != 3:
-                raise ValueError("Supercell matrix rows must have 3 elements.")
-        return v
 
 
 class DistortionConfig(BaseModel):
-    enabled: bool = Field(True, description="Enable strain and rattle distortions.")
-    rattling_amplitude: float = Field(
-        0.05, gt=0, description="Standard deviation for Gaussian rattling (Angstroms)."
-    )
+    """Configuration for lattice strain and atomic rattling."""
+
+    enabled: bool = Field(True, description="Whether to apply distortions.")
     strain_range: tuple[float, float] = Field(
-        (-0.05, 0.05), description="Min and max linear strain."
+        (-0.05, 0.05), description="Range of linear strain (min, max)."
     )
-    n_strain_steps: int = Field(5, ge=1, description="Number of strain steps.")
-    n_rattle_steps: int = Field(3, ge=1, description="Number of rattle steps per structure.")
-    model_config = ConfigDict(extra="forbid")
+    rattle_stdev: float = Field(
+        0.01, description="Standard deviation of Gaussian noise for rattling (Angstroms)."
+    )
+    n_strain_steps: int = Field(5, description="Number of strain steps.")
+    n_rattle_steps: int = Field(1, description="Number of rattle steps per strain.")
+    rattling_amplitude: float = Field(
+        0.01, description="Amplitude for rattling (deprecated, use rattle_stdev)."
+    )
 
-
-class NMSConfig(BaseModel):
-    enabled: bool = Field(True, description="Enable Normal Mode Sampling for molecules.")
-    temperatures: list[int] = Field(default=[300, 600, 1000], description="Temperatures for NMS.")
-    n_samples: int = Field(5, ge=1, description="Number of samples per temperature.")
     model_config = ConfigDict(extra="forbid")
 
 
 class DefectConfig(BaseModel):
-    enabled: bool = Field(False, description="Enable defect generation.")
-    vacancies: bool = Field(True, description="Generate vacancies.")
+    """Configuration for point defects."""
+
+    enabled: bool = Field(False, description="Whether to generate defects.")
+    vacancies: bool = Field(False, description="Generate vacancies.")
     interstitials: bool = Field(False, description="Generate interstitials.")
     interstitial_elements: list[str] = Field(
-        default_factory=list, description="Elements to insert as interstitials."
+        default_factory=list, description="List of elements to insert as interstitials."
     )
     model_config = ConfigDict(extra="forbid")
 
 
 class GeneratorConfig(BaseModel):
-    # Required fields to ensure explicit configuration
-    sqs: SQSConfig = Field(..., description="SQS Configuration")
-    distortion: DistortionConfig = Field(..., description="Distortion Configuration")
-    nms: NMSConfig = Field(..., description="Normal Mode Sampling Configuration")
-    defects: DefectConfig = Field(..., description="Defect Configuration")
+    """
+    Configuration for the physics-informed structure generator.
+    Aggregates SQS, Distortion, and Defect configurations.
+    """
+
+    sqs: SQSConfig = Field(default_factory=SQSConfig)
+    distortion: DistortionConfig = Field(default_factory=DistortionConfig)
+    defects: DefectConfig = Field(default_factory=DefectConfig)
+    number_of_structures: int = Field(
+        10, description="Number of unique structures to generate per batch."
+    )
+    seed: int | None = Field(None, description="Random seed for deterministic generation.")
 
     model_config = ConfigDict(extra="forbid")

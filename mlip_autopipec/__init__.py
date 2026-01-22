@@ -1,31 +1,40 @@
 """
-MLIP-AutoPipe: Machine Learning Interatomic Potential Automated Pipeline.
+MLIP-AutoPipe: Automated Machine Learning Interatomic Potential Pipeline.
 
-Architecture Overview:
-----------------------
-The system is designed as a modular, event-driven pipeline for active learning of MLIPs.
+This package provides a zero-human automated pipeline for generating, labeling (DFT),
+training, and verifying machine learning interatomic potentials.
 
-Core Modules:
-- **Config**: Pydantic schemas for strict validation (`mlip_autopipec.config`).
-- **Data**: Database abstraction layer using ASE DB (`mlip_autopipec.core.database`).
-- **Generator**: Structure generation (SQS, NMS, Defects) (`mlip_autopipec.generator`).
-- **Surrogate**: Pre-screening using MACE and FPS (`mlip_autopipec.surrogate`).
-- **DFT**: Quantum Espresso execution and recovery (`mlip_autopipec.dft`).
-- **Training**: ACE potential training via Pacemaker (`mlip_autopipec.training`).
-- **Inference**: MD simulations (LAMMPS) and uncertainty quantification (`mlip_autopipec.inference`).
-- **Orchestration**: Workflow management and distributed execution (`mlip_autopipec.orchestration`).
+Key Components
+--------------
+- **Configuration**: Strictly typed Pydantic models (see `mlip_autopipec.config`).
+- **Orchestration**: `WorkflowManager` coordinates the active learning loop.
+- **Database**: `DatabaseManager` handles all persistence via ASE/SQLite.
 
-Data Flow:
-----------
-1. **Exploration**: Generator -> Candidates -> Surrogate -> Selected Structures -> DB.
-2. **Labeling**: DB (pending) -> Orchestrator -> TaskQueue -> DFT -> DB (labeled).
-3. **Training**: DB (labeled) -> DatasetBuilder -> Pacemaker -> Potential (.yace).
-4. **Inference**: Potential -> LAMMPS -> Uncertainty Check -> DB (new candidates).
+Usage
+-----
+The primary interface is via the Command Line Interface (CLI):
+    $ mlip-auto --help
 
-Dependencies:
--------------
-- ASE (Atomic Simulation Environment)
-- Pydantic (Data Validation)
-- Dask (Distributed Computing)
-- Matplotlib (Visualization)
+For programmatic usage, initialize a configuration and run the workflow:
+
+    from mlip_autopipec import MLIPConfig, WorkflowManager
+
+    config = MLIPConfig(...)
+    manager = WorkflowManager(config)
+    manager.run()
+
 """
+
+from mlip_autopipec.config.models import (
+    MLIPConfig,
+    SystemConfig,
+)
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.orchestration.workflow import WorkflowManager
+
+__all__ = [
+    "DatabaseManager",
+    "MLIPConfig",
+    "SystemConfig",
+    "WorkflowManager",
+]

@@ -28,12 +28,13 @@ class LammpsInputWriter:
         self.work_dir = work_dir
         self.generator = ScriptGenerator(config)
 
-    def write_inputs(self, atoms: Atoms) -> tuple[Path, Path, Path, Path]:
+    def write_inputs(self, atoms: Atoms, potential_path: Path) -> tuple[Path, Path, Path, Path]:
         """
         Writes data file and input script to disk.
 
         Args:
             atoms: Atomic structure.
+            potential_path: Path to the potential file (.yace).
 
         Returns:
             Tuple of (input_file, data_file, log_file, dump_file) paths.
@@ -50,9 +51,7 @@ class LammpsInputWriter:
 
         # Generate Input Script
         script_content = self.generator.generate(
-            atoms_file=data_file,
-            potential_path=self.config.potential_path,
-            dump_file=dump_file
+            atoms_file=data_file, potential_path=potential_path, dump_file=dump_file
         )
 
         input_file.write_text(script_content)

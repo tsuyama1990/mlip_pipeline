@@ -1,108 +1,73 @@
-import math
-import os
-from pathlib import Path
-
-from pydantic import BaseModel, ConfigDict, Field, FilePath, field_validator
-
-
-class LossWeights(BaseModel):
-    energy: float = Field(1.0, gt=0)
-    forces: float = Field(100.0, gt=0)
-    stress: float = Field(10.0, gt=0)
-    model_config = ConfigDict(extra="forbid")
-
-
-class PacemakerLossWeights(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    energy: float = Field(..., gt=0)
-    forces: float = Field(..., gt=0)
-    stress: float = Field(..., gt=0)
-
-
-class PacemakerACEParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    radial_basis: str
-    correlation_order: int = Field(..., ge=2)
-    element_dependent_cutoffs: bool
-
-
-class PacemakerFitParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    dataset_filename: str
-    loss_weights: PacemakerLossWeights
-    ace: PacemakerACEParams
-
-
-class PacemakerConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    fit_params: PacemakerFitParams
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator
 
 
 class TrainingConfig(BaseModel):
-    pacemaker_executable: FilePath | None = None
-    data_source_db: Path
-    template_file: FilePath | None = None
-    delta_learning: bool = True
-    loss_weights: LossWeights = Field(default_factory=LossWeights)
-    ace_params: PacemakerACEParams = Field(
-        default_factory=lambda: PacemakerACEParams(
-            radial_basis="radial", correlation_order=3, element_dependent_cutoffs=False
-        )
-    )
+    """
+    Configuration for Pacemaker training.
+    """
+    # File Paths
+    training_data_path: str = Field("data/train.xyz", description="Path to training data file")
+    test_data_path: str = Field("data/test.xyz", description="Path to validation data file")
+
+    # Physics Constraints
+    cutoff: PositiveFloat = Field(..., description="Radial cutoff for the potential (Angstrom)")
+    b_basis_size: PositiveInt = Field(..., description="Number of basis functions (complexity)")
+
+    # Loss Function Weights
+    kappa: PositiveFloat = Field(..., description="Weight for Energy loss")
+    kappa_f: PositiveFloat = Field(..., description="Weight for Force loss")
+
+    # Optimization
+    max_iter: PositiveInt = Field(1000, description="Maximum training epochs")
+
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("pacemaker_executable")
+    @field_validator("cutoff")
     @classmethod
-    def validate_executable(cls, v: FilePath | None) -> FilePath | None:
-        if v is not None:
-            if not os.access(v, os.X_OK):
-                raise ValueError(f"File at {v} is not executable.")
+    def validate_cutoff(cls, v: float) -> float:
+        """
+        Validates that the cutoff is a positive value and within a reasonable physical range.
+        Standard interatomic potentials rarely exceed 20 Angstroms and are at least 1 Angstrom.
+        """
+        if v < 1.0:
+            msg = "Cutoff is too small (< 1.0 A)."
+            raise ValueError(msg)
+        if v > 20.0:
+            msg = "Cutoff is unusually large (> 20.0 A). Please verify."
+            raise ValueError(msg)
+        return v
+
+    @field_validator("b_basis_size")
+    @classmethod
+    def validate_b_basis_size(cls, v: int) -> int:
+        """
+        Validates that the basis size is a positive integer.
+        """
+        if v <= 0:
+            msg = "Basis size must be positive."
+            raise ValueError(msg)
         return v
 
 
-class TrainConfig(BaseModel):
-    cutoff: float = Field(6.0, gt=0)  # Angstroms
-    loss_weights: dict[str, float] = Field(default={"energy": 1.0, "forces": 100.0, "stress": 10.0})
-    test_fraction: float = Field(0.1, ge=0.0, lt=1.0)
-    max_generations: int = Field(10, ge=1)
-    enable_delta_learning: bool = True
-    batch_size: int = Field(100, gt=0)
-    ace_basis_size: str = Field("medium", pattern="^(small|medium|large)$")
+class TrainConfig(TrainingConfig):
+    """Alias for backward compatibility if needed."""
+
+
+class TrainingMetrics(BaseModel):
+    """
+    Metrics extracted from training logs.
+    """
+    epoch: int = Field(..., ge=0, description="Current epoch")
+    rmse_energy: float = Field(..., ge=0.0, description="Energy error (meV/atom)")
+    rmse_force: float = Field(..., ge=0.0, description="Force error (eV/A)")
+
     model_config = ConfigDict(extra="forbid")
 
 
 class TrainingResult(BaseModel):
-    potential_path: Path
-    rmse_energy: float = Field(..., ge=0)
-    rmse_forces: float = Field(..., ge=0)
-    training_time: float = Field(..., ge=0)
-    generation: int = Field(..., ge=0)
-    model_config = ConfigDict(extra="forbid")
+    """Result of training."""
+    success: bool
+    potential_path: str | None = None
+    metrics: TrainingMetrics | None = None
 
-
-class TrainingData(BaseModel):
-    energy: float
-    forces: list[list[float]]
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator("forces")
-    @classmethod
-    def check_forces_shape(cls, v: list[list[float]]) -> list[list[float]]:
-        if not v:
-            return v
-        if not all(len(row) == 3 for row in v):
-            raise ValueError("Each force vector must have 3 components (x, y, z).")
-        # Check for NaN or Infinity
-        for row in v:
-            for val in row:
-                if not math.isfinite(val):
-                    raise ValueError(f"Force value {val} is not finite.")
-        return v
-
-
-class TrainingRunMetrics(BaseModel):
-    generation: int
-    num_structures: int
-    rmse_forces: float
-    rmse_energy_per_atom: float
     model_config = ConfigDict(extra="forbid")

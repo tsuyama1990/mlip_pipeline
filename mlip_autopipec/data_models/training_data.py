@@ -1,14 +1,13 @@
 # This module defines the schemas for Training Data.
 import math
-from typing import List, Union, Any
+from typing import Any
 
-import numpy as np
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 # Type alias for Matrix3x3 (List of 3 Lists of 3 floats)
-Vector3D = List[float]
-Matrix3x3 = List[Vector3D]
+Vector3D = list[float]
+Matrix3x3 = list[Vector3D]
 
 
 class TrainingData(BaseModel):
@@ -18,49 +17,61 @@ class TrainingData(BaseModel):
     """
 
     energy: float
-    forces: List[Vector3D]
-    stress: Union[Matrix3x3, Vector3D, None] = None
-    virial: Union[Matrix3x3, Vector3D, None] = None
+    forces: list[Vector3D]
+    stress: Matrix3x3 | Vector3D | None = None
+    virial: Matrix3x3 | Vector3D | None = None
 
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("energy")
     @classmethod
     def check_energy_finite(cls, v: float) -> float:
+        if not isinstance(v, float):
+             raise ValueError(f"Energy must be a float, got {type(v)}")
         if not math.isfinite(v):
             raise ValueError(f"Energy value {v} is not finite.")
         return v
 
     @field_validator("forces")
     @classmethod
-    def check_forces_shape(cls, v: List[Vector3D]) -> List[Vector3D]:
+    def check_forces_shape(cls, v: list[Vector3D]) -> list[Vector3D]:
         """
         Validates that the forces array is a list of 3-component vectors.
         """
         if not v:
             return v
-        if not all(len(row) == 3 for row in v):
-            raise ValueError("Each force vector must have 3 components (x, y, z).")
+
+        # Check shape of each vector
+        for i, row in enumerate(v):
+            if not isinstance(row, list):
+                raise ValueError(f"Force vector at index {i} must be a list.")
+            if len(row) != 3:
+                raise ValueError(
+                    f"Force vector at index {i} must have exactly 3 components (got {len(row)})."
+                )
+
         # Check for NaN or Infinity
-        for row in v:
-            for val in row:
+        for i, row in enumerate(v):
+            for j, val in enumerate(row):
+                if not isinstance(val, (int, float)):
+                    raise ValueError(f"Force value at [{i}, {j}] must be a number.")
                 if not math.isfinite(val):
-                    raise ValueError(f"Force value {val} is not finite.")
+                    raise ValueError(f"Force value {val} at [{i}, {j}] is not finite.")
         return v
 
     @field_validator("stress", "virial")
     @classmethod
-    def check_matrix_shape(cls, v: Union[Matrix3x3, Vector3D, None]) -> Union[Matrix3x3, Vector3D, None]:
+    def check_matrix_shape(cls, v: Matrix3x3 | Vector3D | None) -> Matrix3x3 | Vector3D | None:
         if v is None:
             return v
 
         # 3x3 Matrix
         if len(v) == 3:
-             if not all(len(row) == 3 for row in v): # type: ignore
-                 raise ValueError("Stress/Virial matrix must be 3x3.")
+            if not all(len(row) == 3 for row in v):  # type: ignore
+                raise ValueError("Stress/Virial matrix must be 3x3.")
         # Voigt notation (6 components) or flattened (9)
         elif len(v) not in [6, 9]:
-             raise ValueError("Stress/Virial must be 3x3 matrix or 6-component vector.")
+            raise ValueError("Stress/Virial must be 3x3 matrix or 6-component vector.")
 
         return v
 
@@ -70,15 +81,15 @@ class TrainingBatch(BaseModel):
     Schema for a batch of training data exported to Pacemaker.
     """
 
-    atoms_list: List["Atoms"]  # Forward reference to ASE Atoms
+    atoms_list: list["Atoms"]  # Forward reference to ASE Atoms
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     @field_validator("atoms_list")
     @classmethod
-    def validate_atoms_list(cls, v: List[Any]) -> List[Any]:
+    def validate_atoms_list(cls, v: list[Any]) -> list[Any]:
         if not v:
             return v
         # Basic check
         if not hasattr(v[0], "get_positions"):
-             raise ValueError("Items in atoms_list do not appear to be ASE Atoms objects.")
+            raise ValueError("Items in atoms_list do not appear to be ASE Atoms objects.")
         return v

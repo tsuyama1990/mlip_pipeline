@@ -1,0 +1,114 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: mock-3.15.1, cov-7.0.0
+collected 21 items
+
+tests/e2e/test_cli.py .....                                              [ 23%]
+tests/unit/test_config.py ....F........                                  [ 85%]
+tests/unit/test_database.py ...                                          [100%]
+
+=================================== FAILURES ===================================
+________________ test_target_system_invalid_composition_symbol _________________
+
+    def test_target_system_invalid_composition_symbol():
+        """Test composition contains invalid symbol."""
+>       with pytest.raises(ValidationError) as excinfo:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'pydantic_core._pydantic_core.ValidationError'>
+
+tests/unit/test_config.py:45: Failed
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                             Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------
+mlip_autopipec/__init__.py                           0      0   100%
+mlip_autopipec/app.py                               50      9    82%   32-33, 70-72, 90-92, 96
+mlip_autopipec/config/__init__.py                    2      0   100%
+mlip_autopipec/config/factory.py                    37     37     0%   1-62
+mlip_autopipec/config/models.py                     69      9    87%   12-15, 20-23, 28-31
+mlip_autopipec/config/schemas/common.py             27      2    93%   25, 35
+mlip_autopipec/config/schemas/dft.py                20      1    95%   25
+mlip_autopipec/config/schemas/generator.py          37      6    84%   14-19
+mlip_autopipec/config/schemas/inference.py          49     12    76%   45-47, 52-58, 63-65, 106
+mlip_autopipec/config/schemas/surrogate.py          37      6    84%   59-65
+mlip_autopipec/config/schemas/training.py           80     13    84%   57-60, 91-100
+mlip_autopipec/core/__init__.py                      0      0   100%
+mlip_autopipec/core/database.py                    118     71    40%   35-36, 40, 46-50, 58, 65-74, 78, 101-105, 115-117, 127-130, 134-141, 145-151, 155-173, 177, 181-186, 190-200
+mlip_autopipec/core/logging.py                      11      4    64%   24-29
+mlip_autopipec/core/services.py                     11      2    82%   24, 30
+mlip_autopipec/core/workspace.py                    13     13     0%   1-25
+mlip_autopipec/data/__init__.py                      0      0   100%
+mlip_autopipec/data/database.py                     23     23     0%   7-73
+mlip_autopipec/data_models/__init__.py               4      4     0%   9-13
+mlip_autopipec/data_models/candidate.py              5      5     0%   1-12
+mlip_autopipec/data_models/dft_models.py            35     35     0%   1-45
+mlip_autopipec/data_models/inference_models.py      18     18     0%   1-34
+mlip_autopipec/data_models/training_data.py         57     57     0%   2-93
+mlip_autopipec/dft/__init__.py                       0      0   100%
+mlip_autopipec/dft/constants.py                      3      3     0%   1-91
+mlip_autopipec/dft/inputs.py                        57     57     0%   1-166
+mlip_autopipec/dft/parsers.py                       21     21     0%   5-83
+mlip_autopipec/dft/recovery.py                      30     30     0%   1-81
+mlip_autopipec/dft/runner.py                        79     79     0%   1-170
+mlip_autopipec/exceptions.py                        25     13    48%   43-48, 51-52, 59-60, 63-66
+mlip_autopipec/generator/__init__.py                 5      5     0%   2-7
+mlip_autopipec/generator/alloy.py                  101    101     0%   1-237
+mlip_autopipec/generator/builder.py                 75     75     0%   1-140
+mlip_autopipec/generator/defect.py                  66     66     0%   1-157
+mlip_autopipec/generator/molecule.py                54     54     0%   1-120
+mlip_autopipec/inference/__init__.py                 9      9     0%   8-17
+mlip_autopipec/inference/analysis.py                44     44     0%   8-88
+mlip_autopipec/inference/embedding.py               53     53     0%   1-105
+mlip_autopipec/inference/inputs.py                  19     19     0%   7-71
+mlip_autopipec/inference/interfaces.py               5      5     0%   5-17
+mlip_autopipec/inference/lammps_runner.py           44     44     0%   8-114
+mlip_autopipec/inference/masking.py                 33     33     0%   1-76
+mlip_autopipec/inference/uq.py                      23     23     0%   1-38
+mlip_autopipec/inference/writer.py                  20     20     0%   7-58
+mlip_autopipec/modules/__init__.py                   0      0   100%
+mlip_autopipec/modules/config_generator.py          15     15     0%   3-74
+mlip_autopipec/modules/descriptors.py               31     31     0%   3-62
+mlip_autopipec/modules/dft.py                       67     67     0%   6-189
+mlip_autopipec/modules/exploration.py               51     51     0%   7-130
+mlip_autopipec/modules/explorer.py                  46     46     0%   3-90
+mlip_autopipec/modules/generator.py                 72     72     0%   3-203
+mlip_autopipec/modules/inference.py                136    136     0%   7-333
+mlip_autopipec/modules/screening.py                 41     41     0%   3-68
+mlip_autopipec/modules/training.py                  94     94     0%   9-234
+mlip_autopipec/monitoring/__init__.py                0      0   100%
+mlip_autopipec/monitoring/dashboard.py              63     63     0%   1-115
+mlip_autopipec/orchestration/__init__.py             5      5     0%   1-6
+mlip_autopipec/orchestration/dashboard.py           47     47     0%   1-110
+mlip_autopipec/orchestration/interfaces.py           9      9     0%   1-29
+mlip_autopipec/orchestration/manager.py             66     66     0%   1-128
+mlip_autopipec/orchestration/models.py              18     18     0%   1-50
+mlip_autopipec/orchestration/phase_executor.py      80     80     0%   1-133
+mlip_autopipec/orchestration/task_queue.py          71     71     0%   1-147
+mlip_autopipec/surrogate/__init__.py                 0      0   100%
+mlip_autopipec/surrogate/candidate_manager.py       14     14     0%   1-37
+mlip_autopipec/surrogate/descriptors.py             30     30     0%   1-84
+mlip_autopipec/surrogate/mace_client.py             62     62     0%   1-146
+mlip_autopipec/surrogate/pipeline.py                54     54     0%   1-118
+mlip_autopipec/surrogate/sampling.py                28     28     0%   1-80
+mlip_autopipec/training/__init__.py                  4      4     0%   1-5
+mlip_autopipec/training/config_gen.py               16     16     0%   1-46
+mlip_autopipec/training/dataset.py                 104    104     0%   6-219
+mlip_autopipec/training/pacemaker.py                92     92     0%   6-187
+mlip_autopipec/training/physics.py                  39     39     0%   6-109
+mlip_autopipec/utils/__init__.py                     0      0   100%
+mlip_autopipec/utils/ase_utils.py                   42     42     0%   12-120
+mlip_autopipec/utils/config_utils.py                 7      7     0%   3-38
+mlip_autopipec/utils/dask_utils.py                  12     12     0%   6-43
+mlip_autopipec/utils/data_loader.py                 15     15     0%   5-39
+mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
+mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
+mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
+------------------------------------------------------------------------------
+TOTAL                                             3067   2679    13%
+=========================== short test summary info ============================
+FAILED tests/unit/test_config.py::test_target_system_invalid_composition_symbol
+========================= 1 failed, 20 passed in 4.33s =========================

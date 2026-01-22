@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -13,6 +14,7 @@ class ExtractedStructure(BaseModel):
         origin_index: The index of the focal atom in the original frame.
         mask_radius: The radius used for force masking (core radius).
     """
+
     atoms: Any = Field(..., description="The ASE Atoms object")
     origin_uuid: str = Field(..., description="UUID of the original MD frame")
     origin_index: int = Field(..., description="Index of the focal atom in original frame")
@@ -31,3 +33,14 @@ class ExtractedStructure(BaseModel):
         if not isinstance(v, Atoms):
             raise TypeError("Field 'atoms' must be an ase.Atoms object.")
         return v
+
+
+class InferenceResult(BaseModel):
+    """
+    Result from an inference run (e.g. LAMMPS MD).
+    """
+    succeeded: bool = Field(..., description="Whether the simulation completed successfully")
+    max_gamma_observed: float = Field(0.0, description="Maximum extrapolation grade (gamma) observed")
+    uncertain_structures: list[Path] = Field(default_factory=list, description="List of paths to dump files containing uncertain structures")
+
+    model_config = ConfigDict(extra="forbid")

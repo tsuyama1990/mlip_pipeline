@@ -1,73 +1,43 @@
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
-
-# Common / Shared Models
-
-
-class Composition(RootModel[dict[str, float]]):
-    """
-    Represents the chemical composition of the system.
-    Keys must be valid chemical symbols, and values must sum to 1.0.
-    """
-
-    @field_validator("root")
-    def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:  # noqa: N805
-        from ase.data import chemical_symbols
-
-        if not v:
-            raise ValueError("Composition dictionary cannot be empty.")
-
-        # Check sum
-        if not abs(sum(v.values()) - 1.0) < 1e-6:
-            msg = "Composition fractions must sum to 1.0."
-            raise ValueError(msg)
-
-        # Check keys are valid symbols
-        for symbol in v:
-            if symbol not in chemical_symbols:
-                msg = f"'{symbol}' is not a valid chemical symbol."
-                raise ValueError(msg)
-
-        return v
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TargetSystem(BaseModel):
-    name: str = Field("System", description="Name of the system, e.g., 'Fe-Ni' or 'H2O'")
-    structure_type: Literal["bulk", "molecule", "defect"] = Field(
-        "bulk", description="Type of structure to generate"
-    )
-    elements: list[str]
-    composition: Composition
+    name: str = Field("System", description="Name of the target system")
+    elements: list[str] = Field(..., description="List of chemical symbols")
+    composition: dict[str, float] = Field(..., description="Atomic fractions")
+    crystal_structure: str | None = Field(None, description="Base structure (e.g., 'fcc')")
+
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("elements")
-    def validate_elements(cls, elements: list[str]) -> list[str]:  # noqa: N805
+    @classmethod
+    def validate_elements(cls, elements: list[str]) -> list[str]:
         from ase.data import chemical_symbols
 
         for symbol in elements:
             if symbol not in chemical_symbols:
-                msg = f"'{symbol}' is not a valid chemical symbol."
-                raise ValueError(msg)
+                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
         return elements
 
-    @model_validator(mode="after")
-    def check_composition_keys(self):
-        if set(self.elements) != set(self.composition.root.keys()):
-            msg = "Composition keys must match the elements list."
-            raise ValueError(msg)
-        return self
+    @field_validator("composition")
+    @classmethod
+    def validate_composition(cls, composition: dict[str, float]) -> dict[str, float]:
+        if not composition:
+            raise ValueError("Composition cannot be empty.")
 
+        # Check values range
+        for sym, frac in composition.items():
+            if not (0.0 <= frac <= 1.0):
+                raise ValueError(f"Composition fraction for {sym} must be between 0.0 and 1.0.")
 
-class Resources(BaseModel):
-    dft_code: Literal["quantum_espresso", "vasp"]
-    parallel_cores: int = Field(gt=0)
-    gpu_enabled: bool = False
-    model_config = ConfigDict(extra="forbid")
+        total = sum(composition.values())
+        if not (0.99999 <= total <= 1.00001):
+            raise ValueError(f"Composition fractions must sum to 1.0 (got {total}).")
 
+        from ase.data import chemical_symbols
 
-class MinimalConfig(BaseModel):
-    project_name: str
-    target_system: TargetSystem
-    resources: Resources
-    model_config = ConfigDict(extra="forbid")
+        for symbol in composition:
+            if symbol not in chemical_symbols:
+                raise ValueError(f"'{symbol}' is not a valid chemical symbol in composition.")
+
+        return composition

@@ -1,47 +1,87 @@
-# System Architecture
+# MLIP-AutoPipe Architecture
 
-## Overview
+## System Overview
 
-MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials.
+MLIP-AutoPipe is an automated pipeline designed to generate atomic structures, screen them using surrogate models, validate them with Density Functional Theory (DFT), train Machine Learning Interatomic Potentials (MLIPs), and perform active learning cycles.
 
-## Diagram
+## Component Interaction Diagram
 
 ```mermaid
 graph TD
-    User[User Config] --> Manager[WorkflowManager]
+    User([User Config]) -->|Validate| WM[WorkflowManager]
+    WM -->|Init| DB[(Database - SQLite)]
+    WM -->|Delegate| PE[PhaseExecutor]
 
-    subgraph "Orchestration Layer"
-        Manager --> DB[(DatabaseManager)]
-        Manager --> TQ[TaskQueue (Dask)]
-        Manager --> Dash[Dashboard]
+    subgraph "Phase A: Exploration"
+        PE -->|Config| Gen[StructureBuilder]
+        Gen -->|Atoms| DB
+        PE -->|Trigger| SP[SurrogatePipeline]
+        SP -->|Prescreen| MACE[MaceWrapper]
+        SP -->|Select| FPS[FarthestPointSampling]
     end
 
-    subgraph "Execution Layer"
-        Manager --> Gen[Generator (Module A)]
-        Manager --> Sur[Surrogate (Module B)]
-        Manager --> DFT[DFT Runner (Module C)]
-        Manager --> Train[Pacemaker (Module D)]
-        Manager --> Inf[Inference (Module E)]
+    subgraph "Phase B: Labeling (DFT)"
+        PE -->|Trigger| TQ[TaskQueue]
+        TQ -->|Dispatch| DFT[QERunner]
+        DB -->|Selected Atoms| DFT
+        DFT -->|Run pw.x| QE[Quantum Espresso]
+        QE -->|Log/Output| Parser[QEOutputParser]
+        Parser -->|Results| DB
     end
 
-    TQ --> DFT
-    TQ --> Inf
+    subgraph "Phase C: Training"
+        PE -->|Config| PM[PacemakerWrapper]
+        DB -->|Export| DS[DatasetBuilder]
+        DS -->|XYZ| PM
+        PM -->|Train| Pace[Pacemaker]
+        Pace -->|Potential| FS[FileSystem]
+    end
+
+    subgraph "Phase D: Inference (Active Learning)"
+        PE -->|Config| Inf[LammpsRunner]
+        FS -->|Potential| Inf
+        Inf -->|Run MD| LAMMPS[LAMMPS]
+        LAMMPS -->|Uncertainty| EE[EmbeddingExtractor]
+        EE -->|New Candidates| DB
+    end
 ```
 
-## Module Descriptions
+## Component Details
 
-- **Config (`mlip_autopipec.config`)**: Defines strict Pydantic schemas for all inputs.
-- **Core (`mlip_autopipec.core`)**: Utilities for Database (ASE-DB) and Logging.
-- **Generator (`mlip_autopipec.generator`)**: Creates initial atomic structures (SQS, NMS, Defects).
-- **Surrogate (`mlip_autopipec.surrogate`)**: Pre-screens candidates using MACE and Farthest Point Sampling.
-- **DFT (`mlip_autopipec.dft`)**: Runs Quantum Espresso calculations with automatic error recovery.
-- **Training (`mlip_autopipec.training`)**: Prepares datasets and trains ACE potentials using Pacemaker.
-- **Inference (`mlip_autopipec.inference`)**: Runs LAMMPS MD simulations and quantifies uncertainty.
-- **Orchestration (`mlip_autopipec.orchestration`)**: Manages the state machine and distributed execution.
+### 1. Configuration (`mlip_autopipec.config`)
+-   **Role**: Source of Truth.
+-   **Key Models**: `MLIPConfig` (Root), `DFTConfig`, `TrainingConfig`, `InferenceConfig`.
+-   **Validation**: Strict Pydantic schemas enforce type safety and logical constraints (e.g., non-negative temperatures).
 
-## Data Flow
+### 2. Core Database (`mlip_autopipec.core.database`)
+-   **Role**: Central Persistence Layer.
+-   **Implementation**: Abstraction over `ase.db` (SQLite).
+-   **Features**:
+    -   **Validation**: Ensures `ase.Atoms` integrity (no NaNs, valid cells) before insertion.
+    -   **Atomic Operations**: Transactions for metadata updates.
+    -   **Connection Management**: `DatabaseConnector` handles lifecycle.
 
-1.  **Exploration**: `Generator` produces structures -> `Surrogate` filters them -> `Database`.
-2.  **Labeling**: `WorkflowManager` pulls from DB -> `TaskQueue` runs `DFT` -> Results to DB.
-3.  **Learning**: `Trainer` pulls labeled data -> Fits Potential -> Saves artifact.
-4.  **Inference**: `Inference` runs MD with new Potential -> Detects Uncertainty -> Extracts structures -> DB.
+### 3. Orchestration (`mlip_autopipec.orchestration`)
+-   **WorkflowManager**: State machine managing the active learning loop (Generation -> DFT -> Training -> Inference).
+-   **PhaseExecutor**: Facade that isolates the logic for executing each phase, delegating to specialized runners.
+-   **TaskQueue**: Manages distributed execution via Dask (future-proof).
+
+### 4. DFT Factory (`mlip_autopipec.dft`)
+-   **QERunner**: Secure execution of Quantum Espresso. Handles timeout and basic recovery.
+-   **RecoveryHandler**: Implements strategies to fix convergence failures (e.g., reducing mixing beta).
+
+### 5. Training Module (`mlip_autopipec.training`)
+-   **PacemakerWrapper**: Automates the `pacemaker` training tool.
+    -   **Input**: Generates validated `input.yaml` from `TrainingConfig`.
+    -   **Execution**: Runs subprocess safely.
+    -   **Output**: Parses logs for RMSE metrics.
+
+### 6. Inference & Active Learning (`mlip_autopipec.inference`)
+-   **LammpsRunner**: Runs MD simulations with uncertainty monitoring.
+    -   **Security**: Validates executable paths and prevents shell injection.
+-   **EmbeddingExtractor**: Extracts local environments from high-uncertainty configurations to seed the next generation.
+
+## Security & Robustness
+-   **Subprocess Safety**: All external binaries (QE, LAMMPS, Pacemaker) are executed with `shell=False` and fully resolved paths. Arguments are passed as lists.
+-   **Data Integrity**: `DatabaseManager` strictly validates inputs. Configuration files are generated and validated before use.
+-   **Error Handling**: Comprehensive exception handling in runners prevents pipeline crashes from individual job failures.
