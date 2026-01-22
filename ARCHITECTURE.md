@@ -17,7 +17,11 @@ graph TD
     end
 
     subgraph "Execution Layer"
-        Manager --> Gen[Generator]
+        Manager --> Gen[StructureBuilder (Generator)]
+        Gen --> SQS[SQS Strategy]
+        Gen --> Dist[Distortions]
+        Gen --> Defect[Defects]
+
         Manager --> Sur[Surrogate]
         Manager --> DFT[DFT Runner]
         Manager --> Train[Pacemaker]

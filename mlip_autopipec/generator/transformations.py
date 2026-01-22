@@ -12,7 +12,20 @@ logger = logging.getLogger(__name__)
 def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
     """
     Applies a generic strain tensor to the atoms object.
+
+    Args:
+        atoms (Atoms): The structure to strain.
+        strain_tensor (np.ndarray): A 3x3 symmetric strain tensor (epsilon).
+
+    Returns:
+        Atoms: The new strained structure with updated cell dimensions.
+
+    Raises:
+        GeneratorError: If matrix operations fail or inputs are invalid.
     """
+    if not isinstance(strain_tensor, np.ndarray) or strain_tensor.shape != (3, 3):
+        raise GeneratorError("Strain tensor must be a 3x3 numpy array.")
+
     try:
         strained = atoms.copy() # type: ignore[no-untyped-call]
         cell = strained.get_cell()
@@ -29,8 +42,11 @@ def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
         # Store as string for ASE DB compatibility
         strained.info["strain_tensor"] = json.dumps(strain_tensor.tolist())
 
+    except GeneratorError:
+        raise
     except Exception as e:
         msg = f"Failed to apply strain: {e}"
+        logger.error(msg, exc_info=True)
         raise GeneratorError(msg) from e
 
     return strained
@@ -39,17 +55,36 @@ def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
 def apply_rattle(atoms: Atoms, sigma: float) -> Atoms:
     """
     Applies random thermal displacement (rattling) to atomic positions.
+
+    Args:
+        atoms (Atoms): The structure to rattle.
+        sigma (float): Standard deviation of the displacement in Angstroms.
+
+    Returns:
+        Atoms: The rattled structure.
+
+    Raises:
+        GeneratorError: If the operation fails.
     """
+    if sigma < 0:
+        raise GeneratorError("Rattle standard deviation (sigma) must be non-negative.")
+
     try:
         rattled = atoms.copy() # type: ignore[no-untyped-call]
+        # Explicit implementation using numpy.random.normal
         delta = np.random.normal(0, sigma, atoms.positions.shape)
-        rattled.positions += delta
+
+        # Must set positions explicitly as .positions usually returns a copy
+        rattled.set_positions(rattled.get_positions() + delta)
 
         rattled.info["config_type"] = "rattle"
         rattled.info["rattle_sigma"] = sigma
 
+    except GeneratorError:
+        raise
     except Exception as e:
         msg = f"Failed to apply rattle: {e}"
+        logger.error(msg, exc_info=True)
         raise GeneratorError(msg) from e
 
     return rattled

@@ -3,14 +3,14 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 42 items
+collected 45 items
 
-tests/unit/test_config.py ..............                                 [ 33%]
-tests/unit/test_database.py .....                                        [ 45%]
-tests/unit/test_generator_schemas.py .......                             [ 61%]
-tests/unit/test_generator_strategies.py .....                            [ 73%]
-tests/unit/test_structure_builder.py ..                                  [ 78%]
-tests/e2e/test_cli.py ......                                             [ 92%]
+tests/unit/test_config.py ..............                                 [ 31%]
+tests/unit/test_database.py .....                                        [ 42%]
+tests/unit/test_generator_schemas.py .......                             [ 57%]
+tests/unit/test_generator_strategies.py ........                         [ 75%]
+tests/unit/test_structure_builder.py ..                                  [ 80%]
+tests/e2e/test_cli.py ......                                             [ 93%]
 tests/e2e/test_generator_uat.py ...                                      [100%]
 
 ================================ tests coverage ================================
@@ -38,7 +38,7 @@ mlip_autopipec/core/workspace.py                    13     13     0%   1-25
 mlip_autopipec/data/__init__.py                      0      0   100%
 mlip_autopipec/data/database.py                     23     23     0%   7-73
 mlip_autopipec/data_models/__init__.py               4      4     0%   9-13
-mlip_autopipec/data_models/candidate.py              9      9     0%   1-17
+mlip_autopipec/data_models/candidate.py             15     15     0%   1-25
 mlip_autopipec/data_models/dft_models.py            35     35     0%   1-45
 mlip_autopipec/data_models/inference_models.py      18     18     0%   1-34
 mlip_autopipec/data_models/structure_enums.py        9      9     0%   1-11
@@ -49,13 +49,13 @@ mlip_autopipec/dft/inputs.py                        57     57     0%   1-166
 mlip_autopipec/dft/parsers.py                       21     21     0%   5-83
 mlip_autopipec/dft/recovery.py                      30     30     0%   1-81
 mlip_autopipec/dft/runner.py                        79     79     0%   1-170
-mlip_autopipec/exceptions.py                        25     13    48%   43-48, 51-52, 59-60, 63-66
+mlip_autopipec/exceptions.py                        25      8    68%   43-48, 51-52, 65
 mlip_autopipec/generator/__init__.py                 5      0   100%
-mlip_autopipec/generator/builder.py                110     26    76%   35-36, 52-53, 64, 66, 70-80, 95-99, 123-127, 168-169, 178, 181-182
-mlip_autopipec/generator/defects.py                 82     23    72%   43-45, 58, 72-83, 112-119, 147-149
+mlip_autopipec/generator/builder.py                111     27    76%   45-46, 76-77, 88, 90, 94-104, 119-124, 158-162, 214-215, 224, 227-228
+mlip_autopipec/generator/defects.py                 82     22    73%   43-45, 72-83, 112-119, 147-149
 mlip_autopipec/generator/molecule.py                54     41    24%   49-120
 mlip_autopipec/generator/sqs.py                     43      8    81%   38, 63-66, 78-80
-mlip_autopipec/generator/transformations.py         30      6    80%   32-34, 51-53
+mlip_autopipec/generator/transformations.py         40     12    70%   45-50, 83-88
 mlip_autopipec/inference/__init__.py                 9      9     0%   8-17
 mlip_autopipec/inference/analysis.py                44     44     0%   8-88
 mlip_autopipec/inference/embedding.py               53     53     0%   1-105
@@ -104,9 +104,5 @@ mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
-TOTAL                                             2983   2451    18%
-============================== 42 passed in 4.45s ==============================
-   Building mlip-autopipec @ file:///app
-      Built mlip-autopipec @ file:///app
-Uninstalled 1 package in 0.54ms
-Installed 1 package in 3ms
+TOTAL                                             3000   2458    18%
+============================== 45 passed in 5.98s ==============================

@@ -1,5 +1,6 @@
 import logging
 import uuid
+import random
 
 import numpy as np
 from ase import Atoms
@@ -18,15 +19,24 @@ logger = logging.getLogger(__name__)
 
 class StructureBuilder:
     """
-    Facade for structure generation. Orchestrates SQS, Distortions, and Defects.
+    Facade for structure generation strategies.
+
+    This class orchestrates the generation of diverse atomic structures for training ML potentials.
+    It integrates three primary generation strategies:
+    1.  **SQS (Special Quasirandom Structures)**: Generates disordered supercells for alloys.
+    2.  **Distortions**: Applies elastic strain and thermal rattling to explore the potential energy surface.
+    3.  **Defects**: Introduces point defects (vacancies, interstitials) to capture defect energetics.
+
+    The builder processes these strategies sequentially to produce a batch of candidate structures.
     """
 
     def __init__(self, system_config: SystemConfig) -> None:
         """
-        Initialize the StructureBuilder.
+        Initialize the StructureBuilder with system configuration.
 
         Args:
-            system_config (SystemConfig): The full system configuration.
+            system_config (SystemConfig): The full system configuration object, containing
+                                          target system details and generator settings.
         """
         self.system_config = system_config
         self.generator_config = system_config.generator_config
@@ -42,10 +52,24 @@ class StructureBuilder:
 
     def build_batch(self) -> list[Atoms]:
         """
-        Orchestrates the generation process.
+        Orchestrates the generation pipeline to produce a batch of structures.
+
+        The pipeline consists of the following steps:
+        1.  **Base Generation**: Creates initial bulk or molecular structures. For alloys,
+            this involves generating SQS supercells.
+        2.  **Distortion**: Applies lattice strain and atomic rattling to the base structures
+            to create a distorted pool.
+        3.  **Defect Application**: Introduces vacancies and interstitials to the distorted
+            pool.
+        4.  **Metadata Tagging**: Assigns unique IDs and system tags to all generated structures.
+        5.  **Sampling**: If the number of generated structures exceeds the requested count,
+            a random sample is returned.
 
         Returns:
-            List[Atoms]: A list of generated atomic structures.
+            list[Atoms]: A list of ASE Atoms objects representing the generated structures.
+
+        Raises:
+            GeneratorError: If the generation process fails critically.
         """
         target = self.system_config.target_system
         if not target:
@@ -96,6 +120,7 @@ class StructureBuilder:
             if isinstance(e, GeneratorError):
                 raise
             msg = f"Structure generation failed: {e}"
+            logger.error(msg, exc_info=True)
             raise GeneratorError(msg, context={"target": target.name}) from e
 
         # 4. Final Metadata Tagging
@@ -107,13 +132,23 @@ class StructureBuilder:
         # 5. Limit number of structures if needed (random sample)
         n_req = self.generator_config.number_of_structures
         if len(final_structures) > n_req:
-             import random
              final_structures = random.sample(final_structures, n_req)
 
         return final_structures
 
     def _generate_bulk_base(self, target) -> list[Atoms]:
-        """Generates bulk structures including SQS."""
+        """
+        Generates base bulk structures.
+
+        If SQS is enabled, generates a Special Quasirandom Structure supercell.
+        Otherwise, generates a primitive cell.
+
+        Args:
+            target: The TargetSystem configuration.
+
+        Returns:
+            list[Atoms]: A list containing the base bulk structure(s).
+        """
         structures = []
 
         # Heuristic: Take the first element from composition and use its bulk structure.
@@ -136,7 +171,18 @@ class StructureBuilder:
         return structures
 
     def _apply_distortions(self, base_structures: list[Atoms]) -> list[Atoms]:
-        """Applies strain and rattle to base structures."""
+        """
+        Applies strain and rattle distortions to base structures.
+
+        Generates a combinatorial set of structures by applying strain steps
+        and then rattling each strained structure.
+
+        Args:
+            base_structures (list[Atoms]): The input structures to distort.
+
+        Returns:
+            list[Atoms]: A list including the original base structures and the distorted variants.
+        """
         results = []
 
         # Include base structures first

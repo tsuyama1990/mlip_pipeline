@@ -24,6 +24,18 @@ def test_apply_strain_hydrostatic():
     stored_strain = json.loads(strained.info["strain_tensor"])
     assert np.allclose(stored_strain, strain)
 
+def test_apply_strain_invalid_input():
+    from mlip_autopipec.generator.transformations import apply_strain
+    from mlip_autopipec.exceptions import GeneratorError
+
+    atoms = bulk("Cu")
+    # Invalid shape
+    with pytest.raises(GeneratorError, match="must be a 3x3"):
+        apply_strain(atoms, np.array([0.1, 0.2]))
+
+    # Invalid type
+    with pytest.raises(GeneratorError, match="must be a 3x3"):
+        apply_strain(atoms, "invalid") # type: ignore
 
 def test_apply_rattle():
     from mlip_autopipec.generator.transformations import apply_rattle
@@ -41,6 +53,13 @@ def test_apply_rattle():
     assert rattled.info["config_type"] == "rattle"
     assert rattled.info["rattle_sigma"] == 0.1
 
+def test_apply_rattle_invalid_sigma():
+    from mlip_autopipec.generator.transformations import apply_rattle
+    from mlip_autopipec.exceptions import GeneratorError
+
+    atoms = bulk("Cu")
+    with pytest.raises(GeneratorError, match="must be non-negative"):
+        apply_rattle(atoms, sigma=-0.1)
 
 def test_defect_vacancy():
     from mlip_autopipec.generator.defects import DefectStrategy
@@ -58,6 +77,15 @@ def test_defect_vacancy():
         assert v.info["config_type"] == "vacancy"
         assert "defect_index" in v.info
 
+def test_defect_vacancy_too_many():
+    from mlip_autopipec.generator.defects import DefectStrategy
+    from mlip_autopipec.config.schemas.generator import DefectConfig
+
+    atoms = bulk("Cu") # 1 atom
+    strategy = DefectStrategy(DefectConfig(enabled=True, vacancies=True))
+    # Try to remove 2 atoms from 1 -> Should return empty list
+    vacancies = strategy.generate_vacancies(atoms, count=2)
+    assert vacancies == []
 
 def test_defect_interstitial():
     from mlip_autopipec.generator.defects import DefectStrategy

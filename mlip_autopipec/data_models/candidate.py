@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CandidateData(BaseModel):
@@ -14,4 +14,12 @@ class CandidateData(BaseModel):
     status: str = Field("pending", pattern="^(pending|training|failed)$")
     generation: int = Field(0, ge=0)
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("atoms")
+    @classmethod
+    def validate_atoms(cls, v: Any) -> Any:
+        # Check if it has 'get_positions' and 'get_cell' methods (Duck typing for ASE Atoms)
+        if not (hasattr(v, "get_positions") and hasattr(v, "get_cell")):
+             raise ValueError("Field 'atoms' must be an ASE Atoms object")
+        return v
