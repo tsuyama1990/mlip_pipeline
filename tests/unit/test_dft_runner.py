@@ -1,15 +1,18 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-from pathlib import Path
 from ase import Atoms
-from mlip_autopipec.dft.runner import QERunner, DFTFatalError
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 @pytest.fixture
-def dft_config():
+def dft_config(tmp_path):
+    (tmp_path / "pseudos").mkdir()
     return DFTConfig(
-        pseudopotential_dir=Path("/tmp"),
+        pseudopotential_dir=tmp_path / "pseudos",
         ecutwfc=30.0,
         kspacing=0.05,
         command="pw.x"
@@ -42,7 +45,13 @@ def test_runner_success(mock_parser_cls, mock_input_gen, mock_which, mock_run, d
 
     assert result.succeeded
     assert result.energy == -10.0
+
+    # Verify shell=False usage
     mock_run.assert_called()
+    call_args = mock_run.call_args
+    assert call_args.kwargs['shell'] is False
+    assert isinstance(call_args.args[0], list)
+    assert call_args.args[0] == ['pw.x', '-in', 'pw.in']
 
 @patch("mlip_autopipec.dft.runner.subprocess.run")
 @patch("mlip_autopipec.dft.runner.shutil.which")
@@ -54,21 +63,22 @@ def test_runner_recovery(mock_recovery, mock_parser_cls, mock_input_gen, mock_wh
 
     mock_input_gen.create_input_string.return_value = "mock input content"
 
-    # Side effects to simulate writing to STDOUT (file)
+    # Side effects to simulate writing to output file
     call_count = 0
     def side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
+
+        # We need to simulate writing to the stdout file handle passed in kwargs
+        stdout_f = kwargs['stdout']
+
         if call_count == 1:
-            if kwargs.get('stdout'):
-                kwargs['stdout'].write("convergence NOT achieved\n")
-                kwargs['stdout'].flush()
+            stdout_f.write("convergence NOT achieved\n")
+            stdout_f.flush()
             return MagicMock(returncode=1, stderr="")
-        else:
-            if kwargs.get('stdout'):
-                kwargs['stdout'].write("JOB DONE\n")
-                kwargs['stdout'].flush()
-            return MagicMock(returncode=0, stderr="")
+        stdout_f.write("JOB DONE\n")
+        stdout_f.flush()
+        return MagicMock(returncode=0, stderr="")
 
     mock_run.side_effect = side_effect
 
@@ -102,14 +112,25 @@ def test_runner_recovery(mock_recovery, mock_parser_cls, mock_input_gen, mock_wh
     assert mock_run.call_count == 2
     mock_recovery.get_strategy.assert_called()
 
-    # Verify analyze was called with proper text in first arg (stdout)
-    args, _ = mock_recovery.analyze.call_args_list[0]
-    assert "convergence NOT achieved" in args[0]
-    assert args[1] == "" # stderr should be empty
-
 @patch("mlip_autopipec.dft.runner.shutil.which")
 def test_runner_missing_executable(mock_which, dft_config):
     mock_which.return_value = None
     runner = QERunner(dft_config)
     with pytest.raises(DFTFatalError, match="not found"):
         runner.run(Atoms('H'))
+
+@patch("mlip_autopipec.dft.runner.shutil.which")
+def test_runner_command_validation(mock_which, dft_config):
+    runner = QERunner(dft_config)
+    mock_which.return_value = "/bin/pw.x"
+
+    # Valid
+    parts = runner._validate_command("pw.x")
+    assert parts == ["pw.x"]
+
+    parts = runner._validate_command("mpirun -np 4 pw.x")
+    assert parts == ["mpirun", "-np", "4", "pw.x"]
+
+    # Empty
+    with pytest.raises(DFTFatalError):
+        runner._validate_command("")

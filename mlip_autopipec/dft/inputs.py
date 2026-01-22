@@ -1,10 +1,11 @@
+from io import StringIO
 from typing import Any
 
 import numpy as np
 from ase import Atoms
 from ase.io.espresso import write_espresso_in
-from io import StringIO
 
+from mlip_autopipec.data_models.dft_models import DFTInputParams
 from mlip_autopipec.dft.constants import (
     DEFAULT_KPOINT_DENSITY,
     MAGNETIC_ELEMENTS,
@@ -18,21 +19,23 @@ class InputGenerator:
     """
 
     @staticmethod
-    def create_input_string(atoms: Atoms, params: dict[str, Any] | None = None) -> str:
+    def create_input_string(atoms: Atoms, params: DFTInputParams | dict[str, Any] | None = None) -> str:
         """
         Generates the content of a pw.in file.
 
         Args:
             atoms: The ASE Atoms object.
-            params: Optional overrides for parameters. Dictionary is used here for flexibility
-                    but should ideally align with DFTInputParameters model where possible.
+            params: Parameters for generation. Can be a DFTInputParams model or a dict (for backward compat/tests).
         """
         if params is None:
-            params = {}
+            params_obj = DFTInputParams()
+        elif isinstance(params, dict):
+            params_obj = DFTInputParams(**params)
+        else:
+            params_obj = params
 
-        # 1. Determine K-points based on kspacing
-        # Prefer 'kspacing' key, fallback to 'k_density' for compat, default to constant
-        kspacing = params.get("kspacing", params.get("k_density", DEFAULT_KPOINT_DENSITY))
+        # 1. Determine K-points
+        kspacing = params_obj.kspacing or params_obj.k_density or DEFAULT_KPOINT_DENSITY
         k_points = InputGenerator._calculate_kpoints(atoms, kspacing)
 
         # 2. Determine Magnetism
@@ -41,30 +44,31 @@ class InputGenerator:
         # 3. Determine Pseudopotentials
         pseudopotentials = InputGenerator._get_pseudopotentials(atoms)
 
-        # 4. Construct the input data
+        # 4. Construct input data
+        # Base settings
         input_data = {
             "control": {
                 "calculation": "scf",
                 "restart_mode": "from_scratch",
                 "tstress": True,
                 "tprnfor": True,
-                "disk_io": "low",  # Cleanup large files
-                "pseudo_dir": "./",  # Will be handled by runner
-                "outdir": "./",  # Will be handled by runner
+                "disk_io": "low",
+                "pseudo_dir": "./",
+                "outdir": "./",
                 "prefix": "calc",
             },
             "system": {
-                "ecutwfc": params.get("ecutwfc", 60.0),  # Default heuristic
-                "ecutrho": params.get("ecutrho", params.get("ecutwfc", 60.0) * 4), # ecutrho usually 4*ecutwfc
-                "nosym": True,  # As per SPEC
+                "ecutwfc": params_obj.ecutwfc,
+                "ecutrho": params_obj.ecutrho if params_obj.ecutrho else params_obj.ecutwfc * 4,
+                "nosym": True,
                 "occupations": "smearing",
-                "smearing": params.get("smearing", "mv"),
-                "degauss": params.get("degauss", 0.02),
+                "smearing": params_obj.smearing,
+                "degauss": params_obj.degauss,
             },
             "electrons": {
-                "mixing_beta": params.get("mixing_beta", 0.7),
-                "electron_maxstep": params.get("electron_maxstep", 100),
-                "diagonalization": params.get("diagonalization", "david"),
+                "mixing_beta": params_obj.mixing_beta,
+                "electron_maxstep": params_obj.electron_maxstep,
+                "diagonalization": params_obj.diagonalization,
             },
         }
 
@@ -72,34 +76,31 @@ class InputGenerator:
         if magnetism_settings:
             input_data["system"].update(magnetism_settings["system"])
 
-        # Apply other overrides from params['input_data']
-        if "input_data" in params:
-            for section, values in params["input_data"].items():
+        # Apply overrides from input_data field
+        if params_obj.input_data:
+            for section, values in params_obj.input_data.items():
                 if section in input_data:
                     input_data[section].update(values)
                 else:
                     input_data[section] = values
 
-        # Enforce Mandatory Flags (Safety & Training Requirements)
+        # Enforce Mandatory Flags
         input_data["control"]["tstress"] = True
         input_data["control"]["tprnfor"] = True
         input_data["control"]["disk_io"] = "low"
         input_data["system"]["nosym"] = True
 
-        # Handle magnetism on atoms object (ASE < 3.23 compat)
+        # Handle magnetism on atoms object
         if input_data["system"].get("nspin") == 2:
-            # Set initial moments if not present on atoms
-            # Check existing moments
             moms = atoms.get_initial_magnetic_moments()
-            # If all zeros, set default for magnetic elements
             if np.all(moms == 0):
                 new_moms = [0.0] * len(atoms)
                 for i, atom in enumerate(atoms):
                     if atom.symbol in MAGNETIC_ELEMENTS:
-                        new_moms[i] = 2.0  # Default starting mag
+                        new_moms[i] = 2.0
                 atoms.set_initial_magnetic_moments(new_moms)
 
-        # Capture output in memory
+        # Capture output
         s_buffer = StringIO()
 
         write_espresso_in(
@@ -119,18 +120,15 @@ class InputGenerator:
         Nk = ceil(2 * pi / (L * kspacing))
         """
         cell = atoms.get_cell()
-        # Handle non-periodic or zero cell
         if np.all(cell == 0) or not np.any(atoms.pbc):
              return (1, 1, 1)
 
         lengths = np.linalg.norm(cell, axis=1)
         kpoints = []
         for l in lengths:
-            if l < 1e-6: # Avoid division by zero for collapsed cells
+            if l < 1e-6:
                 k = 1
             else:
-                # Reciprocal lattice vector length b ~ 2pi / a
-                # Nk > 2pi / (a * kspacing)
                 k = int(np.ceil(2 * np.pi / (l * kspacing)))
             kpoints.append(max(1, k))
         return tuple(kpoints)
@@ -145,7 +143,7 @@ class InputGenerator:
             return {
                 "system": {
                     "nspin": 2,
-                    "starting_magnetization": {} # Placeholder, ASE handles it via magmom
+                    "starting_magnetization": {}
                 }
             }
         return {}

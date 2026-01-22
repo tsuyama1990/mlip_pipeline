@@ -1,6 +1,6 @@
-import pytest
-from mlip_autopipec.dft.recovery import RecoveryHandler
 from mlip_autopipec.data_models.dft_models import DFTErrorType
+from mlip_autopipec.dft.recovery import RecoveryHandler
+
 
 def test_analyze_convergence_error():
     stdout = "some output"

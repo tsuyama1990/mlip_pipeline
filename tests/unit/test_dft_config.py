@@ -1,11 +1,15 @@
-from pathlib import Path
 import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
 
-def test_dft_config_valid():
+
+def test_dft_config_valid(tmp_path):
+    # Create valid directory
+    (tmp_path / "pseudos").mkdir()
+
     config = DFTConfig(
-        pseudopotential_dir=Path("/tmp/pseudos"),
+        pseudopotential_dir=tmp_path / "pseudos",
         ecutwfc=60.0,
         kspacing=0.04,
         nspin=1,
@@ -18,9 +22,10 @@ def test_dft_config_valid():
     assert config.mixing_beta == 0.7
     assert config.command == "pw.x"  # Default
 
-def test_dft_config_defaults():
+def test_dft_config_defaults(tmp_path):
+    (tmp_path / "pseudos").mkdir()
     config = DFTConfig(
-        pseudopotential_dir=Path("/tmp/pseudos"),
+        pseudopotential_dir=tmp_path / "pseudos",
         ecutwfc=60.0,
         kspacing=0.04
     )
@@ -32,17 +37,29 @@ def test_dft_config_defaults():
     assert config.max_retries == 5
     assert config.timeout == 3600.0
 
-def test_dft_config_validation_errors():
+def test_dft_config_validation_errors(tmp_path):
+    # Invalid directory
+    with pytest.raises(ValidationError, match="does not exist"):
+        DFTConfig(
+            pseudopotential_dir=tmp_path / "nonexistent",
+            ecutwfc=60.0,
+            kspacing=0.04
+        )
+
+    # Valid dir for subsequent tests
+    (tmp_path / "pseudos").mkdir()
+    valid_dir = tmp_path / "pseudos"
+
     with pytest.raises(ValidationError):
         DFTConfig(
-            pseudopotential_dir=Path("/tmp/pseudos"),
+            pseudopotential_dir=valid_dir,
             ecutwfc=-10.0, # Invalid
             kspacing=0.04
         )
 
     with pytest.raises(ValidationError):
         DFTConfig(
-            pseudopotential_dir=Path("/tmp/pseudos"),
+            pseudopotential_dir=valid_dir,
             ecutwfc=60.0,
             kspacing=0.04,
             mixing_beta=1.5 # Invalid
@@ -50,8 +67,16 @@ def test_dft_config_validation_errors():
 
     with pytest.raises(ValidationError):
         DFTConfig(
-            pseudopotential_dir=Path("/tmp/pseudos"),
+            pseudopotential_dir=valid_dir,
             ecutwfc=60.0,
             kspacing=0.04,
             diagonalization="invalid" # Invalid
+        )
+
+    with pytest.raises(ValidationError):
+        DFTConfig(
+            pseudopotential_dir=valid_dir,
+            ecutwfc=60.0,
+            kspacing=0.04,
+            nspin=3 # Invalid
         )

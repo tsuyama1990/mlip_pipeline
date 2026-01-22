@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
+
 import numpy as np
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.dft.parsers import QEOutputParser
-from mlip_autopipec.data_models.dft_models import DFTResult
+
 
 @pytest.fixture
 def mock_read():

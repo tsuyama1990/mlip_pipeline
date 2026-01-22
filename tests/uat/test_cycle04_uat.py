@@ -1,10 +1,12 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
+
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.dft.runner import QERunner, DFTFatalError
 from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 # Scenario 4.1: Successful Static Calculation
 def test_uat_4_1_successful_calculation(tmp_path):
@@ -79,11 +81,10 @@ def test_uat_4_2_convergence_recovery(tmp_path):
                     kwargs['stdout'].write("convergence NOT achieved\n")
                     kwargs['stdout'].flush()
                 return MagicMock(returncode=0, stderr="") # Return 0 but parser fails
-            else:
-                if kwargs.get('stdout'):
-                    kwargs['stdout'].write("JOB DONE\n")
-                    kwargs['stdout'].flush()
-                return MagicMock(returncode=0, stderr="")
+            if kwargs.get('stdout'):
+                kwargs['stdout'].write("JOB DONE\n")
+                kwargs['stdout'].flush()
+            return MagicMock(returncode=0, stderr="")
 
         mock_run.side_effect = side_effect_run
 

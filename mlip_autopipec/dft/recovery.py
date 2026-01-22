@@ -69,7 +69,7 @@ class RecoveryHandler:
             new_params["degauss"] = round(degauss + 0.01, 4)
             return new_params
 
-        elif error_type == DFTErrorType.DIAGONALIZATION_ERROR:
+        if error_type == DFTErrorType.DIAGONALIZATION_ERROR:
             # Immediate switch to CG
             new_params["diagonalization"] = "cg"
             return new_params

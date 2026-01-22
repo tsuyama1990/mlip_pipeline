@@ -1,87 +1,50 @@
-# System Architecture
+# MLIP-AutoPipe Architecture
 
-## Overview
+## System Overview
 
-MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials.
+MLIP-AutoPipe is an automated pipeline for generating Machine Learning Interatomic Potentials (MLIPs). It orchestrates structure generation, active learning (surrogate modeling), and ground-truth validation via Density Functional Theory (DFT).
 
-## Diagram
-
-```mermaid
-graph TD
-    User[User Config] --> Manager[WorkflowManager]
-
-    subgraph "Orchestration Layer"
-        Manager --> DB[(DatabaseManager)]
-        Manager --> TQ[TaskQueue (Dask)]
-        Manager --> Dash[Dashboard]
-    end
-
-    subgraph "Module A: Generator"
-        Manager --> Builder[StructureBuilder]
-        Builder --> SQS[SQS Strategy]
-        Builder --> Dist[Distortions (Strain/Rattle)]
-        Builder --> Defect[Defect Strategy]
-    end
-
-    subgraph "Module B: Surrogate"
-        Builder --> Sur[SurrogateExplorer]
-        Sur --> MACE[MACE Model]
-        Sur --> FPS[Farthest Point Sampling]
-    end
-
-    subgraph "Execution Layer (HPC)"
-        Manager --> DFT[DFT Runner (Quantum Espresso)]
-        Manager --> Train[Pacemaker (Training)]
-        Manager --> Inf[Inference (LAMMPS)]
-    end
-
-    TQ --> DFT
-    TQ --> Inf
-    TQ --> Train
-```
-
-## Component Interactions
+## Core Components
 
 ### 1. Configuration (`mlip_autopipec.config`)
--   **Role**: Source of Truth.
--   **Interaction**: All modules import schemas from here. `WorkflowManager` validates input against `MLIPConfig` (aggregating `TargetSystem`, `DFTConfig`, `GeneratorConfig`, etc.).
--   **Strictness**: Validation is enforced via Pydantic with `extra="forbid"`.
+-   **Role**: Centralized configuration management using Pydantic schemas.
+-   **Key Schemas**: `MLIPConfig` (root), `DFTConfig`, `GeneratorConfig`, `SystemConfig`.
+-   **Principle**: Schema-First Development. All inputs are strictly validated before execution.
 
-### 2. Database (`mlip_autopipec.core.database`)
--   **Role**: Persistence Layer.
--   **Implementation**: Wraps `ase.db` (SQLite).
--   **Usage**:
-    -   `WorkflowManager` polls for pending structures.
-    -   `StructureBuilder` saves initial candidates.
-    -   Runners (DFT, Inference) write results (Forces, Energy, Stress) back.
-    -   Ensures ACID properties via SQLite file locking.
+### 2. Database Layer (`mlip_autopipec.core.database`)
+-   **DatabaseConnector**: Handles connection lifecycle to the underlying SQLite database (`ase.db`).
+-   **DatabaseManager**: Provides high-level data access methods (CRUD) and metadata management. It isolates the rest of the system from raw SQL/ASE DB details.
 
-### 3. Orchestration (`mlip_autopipec.orchestration`)
--   **WorkflowManager**: State machine. Decides *what* to do next (e.g., "Run DFT" or "Train Potential").
--   **TaskQueue**: Execution engine. Wraps `dask.distributed`. Handles retries and batch submission to local or HPC resources.
+### 3. Generator Module (`mlip_autopipec.generator`)
+-   **StructureBuilder**: Facade for generating atomic structures.
+-   **Strategies**: `SQSStrategy` (alloys), `DefectStrategy` (point defects).
+-   **Transformations**: Strain, Rattle.
 
-### 4. Generator Module (`mlip_autopipec.generator`)
--   **StructureBuilder**: Facade pattern. Orchestrates the generation pipeline.
--   **SQSStrategy**: Generates chemically disordered supercells for alloys using `icet` (if available) or random shuffling.
--   **Distortions**: Applies physical distortions.
-    -   **Strain**: Applies affine transformations to the cell to explore the Equation of State.
-    -   **Rattle**: Applies Gaussian thermal noise to atomic positions.
--   **Defects**: Introduces point defects (vacancies, interstitials) based on Voronoi analysis or random selection.
+### 4. Surrogate Module (`mlip_autopipec.surrogate`)
+-   **SurrogatePipeline**: Selects diverse candidates for DFT.
+-   **MaceWrapper**: Wraps the MACE foundation model for pre-screening.
+-   **Sampling**: Implements Farthest Point Sampling (FPS) on descriptors.
 
-### 5. Execution Modules
--   **DFT**: Executes Quantum Espresso. Uses `QERunner`. Handles error recovery (convergence failure).
--   **Inference**: Executes LAMMPS. Uses `LammpsRunner`. Monitors uncertainty.
--   **Training**: Executes Pacemaker.
+### 5. DFT Factory (`mlip_autopipec.dft`)
+-   **QERunner**: Orchestrates Quantum Espresso calculations. It handles the execution loop and retry logic.
+-   **RecoveryHandler**: Analyzes failures (e.g., convergence errors) and prescribes recovery strategies (e.g., mixing beta reduction).
+-   **InputGenerator**: Generates `pw.in` files with correct physics parameters (k-points, flags).
+-   **QEOutputParser**: robustly parses output and validates physical integrity (check for NaNs).
 
-## Error Handling Strategy
--   **Task Level**: `TaskQueue` uses `tenacity` to retry transient submission errors.
--   **Job Level**: Runners (e.g., `LammpsRunner`, `QERunner`) catch subprocess errors, parse logs for specific failure codes (e.g., SCF convergence), and return a structured "Failed" result object.
--   **System Level**: `WorkflowManager` checkpoints state to disk (`checkpoint.json`) to allow resumption after crashes.
+### 6. Orchestration (`mlip_autopipec.orchestration`)
+-   **WorkflowManager**: State machine that drives the pipeline phases (Generation -> Selection -> DFT -> Training).
+-   **TaskQueue**: Manages parallel execution using Dask.
 
-## Data Flow (Generator)
-1.  User invokes `mlip-auto generate`.
-2.  `StructureBuilder` reads `GeneratorConfig` and `TargetSystem`.
-3.  `StructureBuilder` calls `SQSStrategy` to create a base supercell.
-4.  `StructureBuilder` loops through strain/rattle steps to create a pool of distorted structures.
-5.  `StructureBuilder` applies defects to the pool.
-6.  Structures are validated (ASE check) and saved to `DatabaseManager` with metadata (provenance, config_type).
+## Interaction Flow
+
+1.  **User** defines `input.yaml`.
+2.  **WorkflowManager** validates config and initializes DB.
+3.  **Generator** creates thousands of candidate structures -> DB (pending).
+4.  **Surrogate** screens candidates, selects diverse subset -> DB (selected).
+5.  **DFT Runner** picks selected structures, runs QE, handles errors -> DB (completed/failed).
+6.  **Trainer** (Future) trains the MLIP on completed data.
+
+## Design Principles
+-   **TDD**: Tests define behavior before implementation.
+-   **Robustness**: Explicit error recovery (DFT ladder, retry loops).
+-   **Type Safety**: 100% Type Hint coverage enforced by MyPy.

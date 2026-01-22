@@ -23,11 +23,9 @@ class DFTConfig(BaseModel):
     @field_validator("pseudopotential_dir")
     @classmethod
     def validate_pseudo_dir(cls, v: Path) -> Path:
-        if not v.exists():
-            # Warning: In a real app, use logging or warnings.warn
-            # For Pydantic, we can just let it pass but maybe print/log?
-            # We stick to returning it, but acknowledge it might be checked at runtime.
-            pass
+        if not v.is_dir():
+             # Strict validation as requested by Audit
+            raise ValueError(f"Pseudopotential directory does not exist or is not a directory: {v}")
         return v
 
     @field_validator("nspin")
