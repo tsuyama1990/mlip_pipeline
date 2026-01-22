@@ -1,11 +1,13 @@
-import pytest
-from pathlib import Path
-from ase import Atoms
-from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
-import numpy as np
 from unittest.mock import MagicMock
+
+import numpy as np
+import pytest
+from ase import Atoms
+
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+
 
 @pytest.fixture
 def uat_db(tmp_path):

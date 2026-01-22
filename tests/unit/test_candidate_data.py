@@ -1,9 +1,12 @@
-import pytest
-from pydantic import ValidationError
-from ase import Atoms
-from mlip_autopipec.data_models.candidate import CandidateData
 from unittest.mock import MagicMock
+
 import numpy as np
+import pytest
+from ase import Atoms
+from pydantic import ValidationError
+
+from mlip_autopipec.data_models.candidate import CandidateData
+
 
 def test_candidate_data_valid_atoms():
     # Valid atoms

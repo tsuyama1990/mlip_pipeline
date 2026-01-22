@@ -5,6 +5,7 @@ Module for parsing Quantum Espresso output files.
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from ase.io import read as ase_read
 
 from mlip_autopipec.data_models.dft_models import DFTResult
@@ -46,26 +47,41 @@ class QEOutputParser:
             stress.
 
         Raises:
-            Exception: If the output file cannot be parsed.
+            Exception: If the output file cannot be parsed or indicates failure.
         """
+        # 1. robustly verify completion
+        try:
+            content = output_path.read_text(errors="replace")
+            if "JOB DONE" not in content:
+                 raise Exception("QE output missing 'JOB DONE' marker.")
+        except FileNotFoundError:
+             raise Exception(f"Output file not found: {output_path}")
+
         try:
             # ase.io.read returns Atoms object
             # format='espresso-out' is auto-detected usually
+            # We use 'espresso-out' specifically to avoid ambiguity
             atoms_out = self.reader(output_path, format="espresso-out")
 
             energy = atoms_out.get_potential_energy()
 
-            # Helper to safely convert numpy arrays to lists if needed
             forces = atoms_out.get_forces()
-            if hasattr(forces, "tolist"):
-                forces = forces.tolist()
+
+            # Check for NaN/Inf in forces
+            if np.isnan(forces).any() or np.isinf(forces).any():
+                raise ValueError("Forces contain NaN or Inf values.")
 
             stress = atoms_out.get_stress(voigt=False)  # Get 3x3 tensor
+
+            # Check for NaN/Inf in stress
+            if np.isnan(stress).any() or np.isinf(stress).any():
+                raise ValueError("Stress contains NaN or Inf values.")
+
+            if hasattr(forces, "tolist"):
+                forces = forces.tolist()
             if hasattr(stress, "tolist"):
                 stress = stress.tolist()
 
-            # Helper to get mixing beta if available?
-            # ASE might not parse it easily. We use the one from params or default
             final_beta = params.get("mixing_beta", 0.7)
 
             return DFTResult(

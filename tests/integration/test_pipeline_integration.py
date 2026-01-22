@@ -1,7 +1,8 @@
-import pytest
 from ase import Atoms
+
 from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+
 
 def test_integration_pipeline_real_db(tmp_path):
     """
@@ -20,10 +21,12 @@ def test_integration_pipeline_real_db(tmp_path):
     assert db.count(selection="status=pending") == 1
 
     # 2. Run Pipeline (using mock model for simplicity but exercising DB code)
-    from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
-    from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
     from unittest.mock import MagicMock
+
     import numpy as np
+
+    from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+    from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
     config = SurrogateConfig(model_type="mock", n_samples=1)
 

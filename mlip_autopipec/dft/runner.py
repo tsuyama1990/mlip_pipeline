@@ -33,34 +33,24 @@ class QERunner:
         if uid is None:
             uid = str(uuid4())
 
-        # Create a working directory for this run
-        # Use temp dir or configured working dir?
-        # Ideally, we should use a scratch space.
-        # For now, let's use a temporary directory to be safe and clean up later.
-
         # Check executable existence
-        # The command might be complex like "mpirun -np 4 pw.x"
-        # We try to find the executable part.
         executable_candidate = self.config.command.split()[0]
-        # If it's mpirun, we assume it's installed. If it's pw.x directly, we check.
-        # But really we should check whatever is being run if possible.
-        # Simple heuristic: if command starts with something that shutil.which can find, we are good.
         if not shutil.which(executable_candidate):
-            # If mpirun is not found, or pw.x is not found
-            # If the command is absolute path, which also handles it.
-            # One edge case: "mpirun" might be aliased or loaded via module.
-            # But generally for robustness we can warn or fail.
-            # Given the audit feedback, let's raise a clear error if we can't find it.
-            # Wait, splitting "mpirun -np 4 pw.x" gives "mpirun".
-            # If "pw.x" is used, it gives "pw.x".
-            # We should check if the executable exists.
-            if not shutil.which(executable_candidate):
-                raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
+            raise DFTFatalError(f"Executable '{executable_candidate}' not found in PATH.")
 
-        # We need to preserve params across retries
-        current_params = {}  # Start with defaults (empty dict means InputGenerator uses defaults)
+        # Initialize params from config defaults
+        current_params = {
+            "mixing_beta": self.config.mixing_beta,
+            "diagonalization": self.config.diagonalization,
+            "smearing": self.config.smearing,
+            "degauss": self.config.degauss,
+            "ecutwfc": self.config.ecutwfc,
+            "kspacing": self.config.kspacing
+        }
 
         attempt = 0
+        last_error = None
+
         while attempt <= self.config.max_retries:
             attempt += 1
 
@@ -73,16 +63,10 @@ class QERunner:
 
                 input_path.write_text(input_str)
 
-                # Let's symlink pseudos for now as it's safer for QE
+                # Symlink pseudos
                 self._stage_pseudos(work_dir, atoms)
 
                 start_time = time.time()
-
-                # Run command
-                # We need to replace pw.x with command from config
-                # The config command might be "mpirun -np 4 pw.x"
-                # We assume input is piped via stdin or -in flag.
-                # QE typically: pw.x < pw.in > pw.out
 
                 full_command = f"{self.config.command} -in pw.in"
 
@@ -90,7 +74,7 @@ class QERunner:
                     proc = subprocess.run(
                         full_command,
                         check=False,
-                        shell=True,  # shell=True to handle redirection if we used < > but here we used -in
+                        shell=True,
                         cwd=str(work_dir),
                         stdout=open(output_path, "w"),
                         stderr=subprocess.PIPE,
@@ -108,18 +92,14 @@ class QERunner:
 
                 wall_time = time.time() - start_time
 
-                # Check for success
-                # Even if returncode is 0, we must verify output
-
+                # Try to parse output
                 try:
                     result = self._parse_output(output_path, uid, wall_time, current_params, atoms)
                     if result.succeeded:
                         return result
-                    # Logic to handle failure even if parse succeeded but indicated failure?
-                    # _parse_output currently raises error if it can't parse, or returns partial result.
-                except Exception:
+                except Exception as e:
                     # Parse failed, treat as error
-                    pass
+                    last_error = e
 
                 # If we are here, something failed.
                 error_type = RecoveryHandler.analyze(stdout, stderr)
@@ -129,15 +109,14 @@ class QERunner:
 
                 try:
                     current_params = RecoveryHandler.get_strategy(error_type, current_params)
-                    # Log retry
-                    print(
-                        f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {current_params}"
-                    )
+                    # Log retry (mock logging)
+                    # print(f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {current_params}")
                     continue
-                except Exception:
+                except Exception as e:
+                    last_error = e
                     break  # No strategy found
 
-        raise DFTFatalError(f"Job {uid} failed after {attempt} attempts.")
+        raise DFTFatalError(f"Job {uid} failed after {attempt} attempts. Last error: {last_error}")
 
     def _stage_pseudos(self, work_dir: Path, atoms: Atoms):
         """
@@ -145,10 +124,12 @@ class QERunner:
         """
         from mlip_autopipec.dft.constants import SSSP_EFFICIENCY_1_1
 
-        pseudo_src_dir = self.config.pseudo_dir
+        pseudo_src_dir = self.config.pseudopotential_dir
         if not pseudo_src_dir.exists():
-            # In tests, this might not exist.
-            # We should probably warn or skip if not strict.
+            # If directory doesn't exist, we can't stage.
+            # If strict validation, we should raise.
+            # But for tests using temp paths that might not exist, we skip if not exists?
+            # Better to assume it exists if config validated it.
             pass
 
         unique_species = set(atoms.get_chemical_symbols())
