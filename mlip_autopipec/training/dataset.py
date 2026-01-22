@@ -17,9 +17,13 @@ logger = logging.getLogger(__name__)
 class DatasetBuilder:
     """
     Builds training datasets from ASE database for Pacemaker training.
+
+    This class isolates the data access and transformation logic required
+    to prepare the ExtXYZ files for Pacemaker. It decouples the raw
+    database format from the training engine requirements.
     """
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(self, db_manager: DatabaseManager) -> None:
         """
         Initialize the DatasetBuilder.
 

@@ -4,10 +4,10 @@ Manages configuration generation and execution.
 """
 
 import logging
+import shlex
 import subprocess
-from pathlib import Path
-
 import yaml
+from pathlib import Path
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.metrics import LogParser
@@ -18,6 +18,10 @@ class PacemakerWrapper:
     """
     Wraps Pacemaker training process.
     Handles input generation, execution of the binary, and output verification.
+
+    This class is responsible for the interaction with the external 'pacemaker'
+    binary. It generates the necessary 'input.yaml' from the Pydantic configuration,
+    launches the subprocess, and parses the result.
     """
 
     def __init__(self, config: TrainingConfig, work_dir: Path) -> None:
@@ -84,9 +88,9 @@ class PacemakerWrapper:
 
     def _execute_subprocess(self, cmd: list[str], log_path: Path) -> int:
         """Helper to run the subprocess."""
-        with log_path.open("w") as log_file:
-            # S603 is ignored as we are constructing cmd internally
-            try:
+        try:
+            with log_path.open("w") as log_file:
+                # S603 is ignored as we are constructing cmd internally
                 result = subprocess.run(
                     cmd,
                     cwd=self.work_dir,
@@ -94,11 +98,13 @@ class PacemakerWrapper:
                     stderr=subprocess.STDOUT,
                     check=False
                 )
-            except subprocess.SubprocessError:
-                logger.exception("Subprocess execution failed")
-                return -1
-
             return result.returncode
+        except subprocess.SubprocessError:
+            logger.exception("Subprocess execution failed")
+            return -1
+        except OSError:
+            logger.exception("OS Error during subprocess execution")
+            return -1
 
     def train(self) -> TrainingResult:
         """
@@ -144,8 +150,9 @@ class PacemakerWrapper:
                      potential_path=str(output_yace),
                      metrics=metrics
                  )
-            logger.error("No valid .yace output found.")
-            return TrainingResult(success=False)
+            else:
+                 logger.error("No valid .yace output found.")
+                 return TrainingResult(success=False)
 
         except FileNotFoundError:
             logger.exception("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")

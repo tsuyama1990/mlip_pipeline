@@ -12,13 +12,18 @@ from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
 logger = logging.getLogger(__name__)
 
+
 class TrainingManager:
     """
     Orchestrates the MLIP training workflow.
 
-    This class serves as the high-level controller for the training process,
-    coordinating data preparation, configuration, and execution of the
-    training engine (Pacemaker).
+    This class acts as a coordinator, delegating specific tasks to specialized
+    components. It ensures separation of concerns by:
+    1. Delegating data extraction and file preparation to `DatasetBuilder`.
+    2. Delegating external tool execution (Pacemaker) to `PacemakerWrapper`.
+
+    This design keeps the core application logic clean and allows individual
+    components (Data Prep vs Execution) to be tested or swapped independently.
 
     Attributes:
         db_manager: Interface to the ASE database for data retrieval.

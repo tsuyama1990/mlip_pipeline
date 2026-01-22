@@ -94,6 +94,8 @@ def test_train_failure_missing_executable(mock_run, training_config, tmp_path):
     """Test training failure when binary is missing."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
+    # Actually FileNotFoundError for binary usually happens before subprocess if checking which,
+    # but subprocess.run raises FileNotFoundError if executable not found in path
     mock_run.side_effect = FileNotFoundError("pacemaker not found")
 
     result = wrapper.train()
@@ -123,3 +125,16 @@ def test_train_success_no_output(mock_check, mock_run, training_config, tmp_path
     result = wrapper.train()
 
     assert result.success is False
+
+def test_train_config_write_permission_error(training_config, tmp_path):
+    """Test handling of permission error when writing config."""
+    # Make dir read-only
+    try:
+        tmp_path.chmod(0o500)
+        wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+        # This should fail gracefully and return success=False
+        result = wrapper.train()
+        assert result.success is False
+    finally:
+        tmp_path.chmod(0o700)
