@@ -1,9 +1,8 @@
-
 import yaml
 from typer.testing import CliRunner
-
 from mlip_autopipec.app import app
 from mlip_autopipec.core.database import DatabaseManager
+from pathlib import Path
 
 runner = CliRunner()
 
@@ -55,7 +54,7 @@ def test_uat_2_1_generate_sqs_alloy(tmp_path):
     with DatabaseManager(db_path) as db:
         count = db.count()
         assert count == 1
-        # Check config_type via selection, as it might not be in atoms.info
+        # Check config_type via selection
         assert db.count(selection="config_type=sqs") == 1
 
 def test_uat_2_2_apply_strain(tmp_path):
@@ -108,9 +107,8 @@ def test_uat_2_2_apply_strain(tmp_path):
 
 def test_uat_2_3_defect_vacancy(tmp_path):
     """
-    Scenario 2.3: Defect Generation
+    Scenario 2.3: Defect Generation (Vacancies)
     """
-    # Use SQS enabled to ensure supercell
     db_path = tmp_path / "mlip.db"
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
@@ -148,10 +146,60 @@ def test_uat_2_3_defect_vacancy(tmp_path):
     with DatabaseManager(db_path) as db:
         count = db.count()
         print(f"DB Count: {count}")
-        # SQS (primitive * 8 = 8 atoms) -> Base
-        # Vacancies -> 8 structures
-        # Total 1 + 8 = 9 structures.
-        assert count == 9
+        # SQS (32 atoms) -> Base
+        # Vacancies -> 32 structures
+        # Total 1 + 32 = 33 structures. Limit 10 -> sampled.
+        assert count == 10
+        assert db.count(selection="config_type=vacancy") >= 1
 
-        # Check vacancies exist
-        assert db.count(selection="config_type=vacancy") == 8
+def test_uat_2_4_defect_interstitial(tmp_path):
+    """
+    Scenario 2.4: Defect Generation (Interstitials)
+    """
+    db_path = tmp_path / "mlip.db"
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    config_data = {
+        "target_system": {
+            "name": "Fe",
+            "elements": ["Fe"],
+            "composition": {"Fe": 1.0},
+            "crystal_structure": "bcc"
+        },
+        "generator_config": {
+            "sqs": {"enabled": False}, # Primitive
+            "distortion": {"enabled": False},
+            "defects": {
+                "enabled": True,
+                "vacancies": False,
+                "interstitials": True,
+                "interstitial_elements": ["H"]
+            },
+            "number_of_structures": 10
+        },
+        "dft": {"pseudopotential_dir": str(pseudo_dir), "ecutwfc": 30, "kspacing": 0.15},
+        "runtime": {"database_path": str(db_path), "work_dir": str(tmp_path)}
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    runner.invoke(app, ["db", "init", "--config", str(config_file)])
+    result = runner.invoke(app, ["generate", "--config", str(config_file)])
+    print(f"STDOUT: {result.stdout}")
+    assert result.exit_code == 0
+
+    with DatabaseManager(db_path) as db:
+        # Primitive BCC Fe has 1 atom (if using ase.build.bulk without cubic=True? No, default is primitive)
+        # Or 2 atoms if cubic=True?
+        # Using "crystal_structure": "bcc" calls _generate_bulk_base -> bulk("Fe").
+        # ase.build.bulk("Fe") defaults to BCC primitive (1 atom).
+        # Voronoi needs >4 atoms. Fallback logic runs.
+        # It generates candidates.
+
+        # Check we have interstitials
+        count_int = db.count(selection="config_type=interstitial")
+        print(f"Interstitials: {count_int}")
+        assert count_int > 0

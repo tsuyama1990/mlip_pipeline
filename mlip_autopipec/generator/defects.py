@@ -1,5 +1,4 @@
 import logging
-import random
 
 import numpy as np
 from ase import Atoms
@@ -19,14 +18,16 @@ class DefectStrategy:
     This class handles the creation of defects in atomic structures.
     """
 
-    def __init__(self, config: DefectConfig) -> None:
+    def __init__(self, config: DefectConfig, seed: int | None = None) -> None:
         """
         Initialize the DefectStrategy.
 
         Args:
             config: Defect configuration.
+            seed: Random seed for deterministic generation.
         """
         self.config = config
+        self.rng = np.random.default_rng(seed)
 
     def apply(self, structures: list[Atoms], primary_element: str | None = None) -> list[Atoms]:
         """
@@ -92,7 +93,8 @@ class DefectStrategy:
                     results.append(new_atoms)
             else:
                  # Randomly remove 'count' atoms once
-                 indices = random.sample(range(n_atoms), count)
+                 # Use self.rng for determinism
+                 indices = self.rng.choice(n_atoms, size=count, replace=False).tolist()
                  new_atoms = atoms.copy() # type: ignore[no-untyped-call]
                  # Delete in reverse order to preserve indices
                  for i in sorted(indices, reverse=True):

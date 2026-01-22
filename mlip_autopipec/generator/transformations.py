@@ -56,13 +56,14 @@ def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
     return strained
 
 
-def apply_rattle(atoms: Atoms, sigma: float) -> Atoms:
+def apply_rattle(atoms: Atoms, sigma: float, rng: np.random.Generator | None = None) -> Atoms:
     """
     Applies random thermal displacement (rattling) to atomic positions.
 
     Args:
         atoms (Atoms): The structure to rattle.
         sigma (float): Standard deviation of the displacement in Angstroms.
+        rng (np.random.Generator, optional): Random number generator for determinism.
 
     Returns:
         Atoms: The rattled structure.
@@ -73,10 +74,13 @@ def apply_rattle(atoms: Atoms, sigma: float) -> Atoms:
     if sigma < 0:
         raise GeneratorError("Rattle standard deviation (sigma) must be non-negative.")
 
+    if rng is None:
+        rng = np.random.default_rng()
+
     try:
         rattled = atoms.copy() # type: ignore[no-untyped-call]
-        # Explicit implementation using numpy.random.normal
-        delta = np.random.normal(0, sigma, atoms.positions.shape)
+
+        delta = rng.normal(0, sigma, atoms.positions.shape)
 
         # Must set positions explicitly as .positions usually returns a copy
         rattled.set_positions(rattled.get_positions() + delta)

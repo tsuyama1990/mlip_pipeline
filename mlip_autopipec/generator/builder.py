@@ -45,8 +45,9 @@ class StructureBuilder:
             logger.info("No generator_config provided in SystemConfig, using defaults.")
             self.generator_config = GeneratorConfig()
 
-        self.sqs_strategy = SQSStrategy(self.generator_config.sqs)
-        self.defect_strategy = DefectStrategy(self.generator_config.defects)
+        self.rng = np.random.default_rng(self.generator_config.seed)
+        self.sqs_strategy = SQSStrategy(self.generator_config.sqs, seed=self.generator_config.seed)
+        self.defect_strategy = DefectStrategy(self.generator_config.defects, seed=self.generator_config.seed)
         # Molecule generator kept for legacy/completeness
         self.mol_gen = MoleculeGenerator(self.generator_config)
 
@@ -132,7 +133,9 @@ class StructureBuilder:
         # 5. Limit number of structures if needed (random sample)
         n_req = self.generator_config.number_of_structures
         if len(final_structures) > n_req:
-             final_structures = random.sample(final_structures, n_req)
+             # Use self.rng to sample indices
+             indices = self.rng.choice(len(final_structures), size=n_req, replace=False)
+             final_structures = [final_structures[i] for i in indices]
 
         return final_structures
 
@@ -218,7 +221,7 @@ class StructureBuilder:
             for st in strained_pool:
                 for _ in range(n_rattle):
                     try:
-                        rattled = apply_rattle(st, rattle_stdev)
+                        rattled = apply_rattle(st, rattle_stdev, rng=self.rng)
                         # Inherit metadata
                         if "strain_tensor" in st.info:
                              rattled.info["strain_tensor"] = st.info["strain_tensor"]

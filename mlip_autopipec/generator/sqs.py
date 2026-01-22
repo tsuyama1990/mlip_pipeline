@@ -20,14 +20,16 @@ class SQSStrategy:
     mimic random alloys.
     """
 
-    def __init__(self, config: SQSConfig) -> None:
+    def __init__(self, config: SQSConfig, seed: int | None = None) -> None:
         """
         Initialize the SQSStrategy.
 
         Args:
             config: SQS configuration.
+            seed: Random seed for deterministic generation.
         """
         self.config = config
+        self.rng = np.random.default_rng(seed)
 
     def generate(self, prim_cell: Atoms, composition: Composition) -> Atoms:
         """
@@ -85,7 +87,7 @@ class SQSStrategy:
                 # Placeholder for icet logic
                 pass
 
-            np.random.shuffle(symbols)
+            self.rng.shuffle(symbols)
             atoms.set_chemical_symbols(symbols)
             atoms.info["config_type"] = "sqs"
             atoms.info["origin"] = "random_shuffle"

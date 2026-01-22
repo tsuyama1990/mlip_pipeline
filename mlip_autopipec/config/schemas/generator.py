@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -26,8 +25,7 @@ class DistortionConfig(BaseModel):
     n_rattle_steps: int = Field(1, description="Number of rattle steps per strain.")
     rattling_amplitude: float = Field(
         0.01, description="Amplitude for rattling (deprecated, use rattle_stdev)."
-    ) # Keeping this because AlloyGenerator used it, but spec says rattle_stdev.
-    # Actually, I should probably align everything to spec.
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -56,9 +54,6 @@ class GeneratorConfig(BaseModel):
     number_of_structures: int = Field(
         10, description="Number of unique structures to generate per batch."
     )
-
-    # Legacy fields to support existing code if any, but ideally we remove them.
-    # The previous version had 'supercell_size' at root.
-    # I will rely on 'sqs.supercell_size'.
+    seed: int | None = Field(None, description="Random seed for deterministic generation.")
 
     model_config = ConfigDict(extra="forbid")
