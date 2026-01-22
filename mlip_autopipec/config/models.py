@@ -14,6 +14,9 @@ from mlip_autopipec.config.schemas.training import TrainingConfig
 
 
 class RuntimeConfig(BaseModel):
+    """
+    Runtime environment configuration.
+    """
     database_path: Path = Field(Path("mlip.db"), description="Path to SQLite database")
     work_dir: Path = Field(Path("_work"), description="Scratch directory for calculations")
 
@@ -21,6 +24,10 @@ class RuntimeConfig(BaseModel):
 
 
 class MLIPConfig(BaseModel):
+    """
+    Root configuration object for MLIP-AutoPipe.
+    Aggregates all module configurations.
+    """
     target_system: TargetSystem
     dft: DFTConfig
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
@@ -42,6 +49,8 @@ class SystemConfig(BaseModel):
     """
     Comprehensive System Configuration.
     Enforces strict types for all modules.
+
+    This model serves as the central state object for configuration throughout the lifecycle.
     """
 
     minimal: MinimalConfig | None = None
@@ -57,7 +66,7 @@ class SystemConfig(BaseModel):
     surrogate_config: SurrogateConfig | None = None
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
-    generator_config: GeneratorConfig | None = None
+    generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
 
     # Legacy aliases - Typed as Optional[Any] to allow backward compat but restricted by model_config if possible
 
@@ -79,7 +88,4 @@ class CheckpointState(BaseModel):
     job_submission_args: dict[str, Any] = {}
     training_history: list[dict[str, Any]] = []
 
-    # We remove arbitrary_types_allowed=True.
-    # If Any contains non-Pydantic types, it might fail if they are not JSON serializable.
-    # But Pydantic allows Any.
     model_config = ConfigDict(extra="forbid")

@@ -105,6 +105,7 @@ class DefectStrategy:
 
         except Exception as e:
             msg = f"Vacancy generation failed: {e}"
+            logger.error(msg, exc_info=True)
             raise GeneratorError(msg) from e
 
         return results
@@ -177,6 +178,7 @@ class DefectStrategy:
 
         except Exception as e:
              msg = f"Interstitial generation failed: {e}"
+             logger.error(msg, exc_info=True)
              raise GeneratorError(msg) from e
 
         return results

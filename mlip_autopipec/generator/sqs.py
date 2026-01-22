@@ -5,6 +5,7 @@ import numpy as np
 from ase import Atoms
 from ase.build import make_supercell
 
+from mlip_autopipec.config.schemas.common import Composition
 from mlip_autopipec.config.schemas.generator import SQSConfig
 from mlip_autopipec.exceptions import GeneratorError
 
@@ -30,7 +31,7 @@ class SQSStrategy:
         self.config = config
         self.rng = np.random.default_rng(seed)
 
-    def generate(self, prim_cell: Atoms, composition: dict[str, float]) -> Atoms:
+    def generate(self, prim_cell: Atoms, composition: Composition) -> Atoms:
         """
         Generates an SQS supercell.
 
@@ -58,7 +59,7 @@ class SQSStrategy:
             n_atoms = len(atoms)
 
             # 2. Determine target counts
-            comp_dict = composition
+            comp_dict = composition.root
             sorted_comp = sorted(comp_dict.items(), key=lambda x: x[1], reverse=True)
 
             symbols: list[str] = []
@@ -82,8 +83,11 @@ class SQSStrategy:
                     symbols.append(sorted_comp[0][0])
 
             # 3. Try icet if available
-            if "icet" in sys.modules:
-                # Placeholder for icet logic
+            try:
+                import icet # noqa: F401
+                # Placeholder for icet logic if implemented
+            except ImportError:
+                # Fallback to random shuffle
                 pass
 
             self.rng.shuffle(symbols)
@@ -93,6 +97,7 @@ class SQSStrategy:
 
         except Exception as e:
             msg = f"Failed to generate SQS: {e}"
+            logger.error(msg, exc_info=True)
             raise GeneratorError(msg) from e
 
         return atoms

@@ -57,6 +57,16 @@ def test_uat_2_1_generate_sqs_alloy(tmp_path):
         # Check config_type via selection
         assert db.count(selection="config_type=sqs") == 1
 
+        # Verify structure content (extra assertion requested)
+        atoms = db.get_atoms(selection="config_type=sqs")[0]
+        assert len(atoms) == 8 # 2x2x2 FCC (1 atom prim) -> 8 atoms? Wait.
+        # ASE bulk("Fe", "fcc") is primitive (1 atom).
+        # 2x2x2 supercell -> 8 atoms.
+        # SQS logic attempts to match stoichiometry 0.5/0.5 -> 4 Fe, 4 Ni.
+        syms = atoms.get_chemical_symbols()
+        assert syms.count("Fe") == 4
+        assert syms.count("Ni") == 4
+
 def test_uat_2_2_apply_strain(tmp_path):
     """
     Scenario 2.2: Apply Elastic Strain
@@ -146,10 +156,10 @@ def test_uat_2_3_defect_vacancy(tmp_path):
     with DatabaseManager(db_path) as db:
         count = db.count()
         print(f"DB Count: {count}")
-        # SQS (32 atoms) -> Base
-        # Vacancies -> 32 structures
-        # Total 1 + 32 = 33 structures. Limit 10 -> sampled.
-        assert count == 10
+        # SQS (32 atoms?? No, 2x2x2 FCC prim = 8 atoms) -> Base
+        # Vacancies -> 8 structures (each 1 vacancy)
+        # Total 1 + 8 = 9 structures.
+        assert count == 9
         assert db.count(selection="config_type=vacancy") >= 1
 
 def test_uat_2_4_defect_interstitial(tmp_path):
@@ -192,14 +202,6 @@ def test_uat_2_4_defect_interstitial(tmp_path):
     assert result.exit_code == 0
 
     with DatabaseManager(db_path) as db:
-        # Primitive BCC Fe has 1 atom (if using ase.build.bulk without cubic=True? No, default is primitive)
-        # Or 2 atoms if cubic=True?
-        # Using "crystal_structure": "bcc" calls _generate_bulk_base -> bulk("Fe").
-        # ase.build.bulk("Fe") defaults to BCC primitive (1 atom).
-        # Voronoi needs >4 atoms. Fallback logic runs.
-        # It generates candidates.
-
-        # Check we have interstitials
         count_int = db.count(selection="config_type=interstitial")
         print(f"Interstitials: {count_int}")
         assert count_int > 0
