@@ -1021,6 +1021,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "tenacity" },
+    { name = "torch" },
     { name = "typer" },
 ]
 
@@ -1060,6 +1061,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "scipy", specifier = ">=1.17.0" },
     { name = "tenacity", specifier = ">=9.1.2" },
+    { name = "torch", specifier = ">=2.0.0" },
     { name = "typer" },
 ]
 provides-extras = ["dev"]

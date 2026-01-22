@@ -1,4 +1,5 @@
 import sqlite3
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
@@ -11,6 +12,7 @@ from mlip_autopipec.exceptions import DatabaseError
 if TYPE_CHECKING:
     from mlip_autopipec.config.models import SystemConfig
 
+logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """
@@ -18,7 +20,13 @@ class DatabaseManager:
 
     This class manages the connection to the ASE database (SQLite).
     It implements the Context Manager protocol to ensure connections are closed.
-    It strictly handles data persistence and does not inject business logic defaults.
+
+    Security Note:
+        The underlying `ase.db` library handles SQL query construction.
+        Methods like `count` and `get_atoms` accept a `selection` string or `**kwargs`.
+        When possible, use `**kwargs` (e.g., `status="pending"`) which `ase.db` treats as parameterized inputs.
+        When using selection strings (e.g., "energy < 0"), ensure the input is sanitized if it comes from untrusted sources.
+        In this system, inputs typically come from strictly typed configuration files or internal logic, mitigating injection risks.
     """
 
     def __init__(self, db_path: Path) -> None:
@@ -64,15 +72,17 @@ class DatabaseManager:
             # Force creating the file by checking count
             self._connection.count()
         except OSError as e:
+            logger.error(f"FileSystem error initializing database at {self.db_path}: {e}")
             raise DatabaseError(
                 f"FileSystem error initializing database at {self.db_path}: {e}"
             ) from e
         except sqlite3.DatabaseError as e:
+            logger.error(f"File at {self.db_path} is not a valid SQLite database: {e}")
             raise DatabaseError(
                 f"File at {self.db_path} is not a valid SQLite database: {e}"
             ) from e
         except Exception as e:
-            # Catch ase.db specific errors if any, or general errors
+            logger.error(f"Failed to initialize database: {e}")
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
     def _ensure_connection(self) -> None:
@@ -92,25 +102,26 @@ class DatabaseManager:
         """
         self._ensure_connection()
 
-        required_keys = {"status", "config_type", "generation"}
-        if not required_keys.issubset(metadata.keys()):
-            # We log a warning if possible, but we don't block for now to maintain flexibility
-            # unless strict schema enforcement is required by spec.
-            pass
-
         try:
+            # ase.db.write uses parameterized insertion for key-value pairs
             if self._connection is not None:
                 id = self._connection.write(atoms, **metadata)
                 return id
             raise DatabaseError("Connection failed")
         except KeyError as e:
+            logger.error(f"Invalid key in metadata: {e}")
             raise DatabaseError(f"Invalid key in metadata: {e}") from e
         except Exception as e:
+            logger.error(f"Failed to add structure: {e}")
             raise DatabaseError(f"Failed to add structure: {e}") from e
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
         """
         Wraps db.count().
+
+        Args:
+            selection: Raw selection string (use with caution).
+            **kwargs: Parameterized selection criteria (preferred).
         """
         self._ensure_connection()
         try:
@@ -118,6 +129,7 @@ class DatabaseManager:
                 return self._connection.count(selection=selection, **kwargs)
             return 0
         except Exception as e:
+            logger.error(f"Failed to count rows: {e}")
             raise DatabaseError(f"Failed to count rows: {e}") from e
 
     def update_status(self, id: int, status: str) -> None:
@@ -129,29 +141,68 @@ class DatabaseManager:
             if self._connection is not None:
                 self._connection.update(id, status=status)
         except KeyError as e:
+            logger.error(f"ID {id} not found: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
+            logger.error(f"Failed to update status: {e}")
             raise DatabaseError(f"Failed to update status: {e}") from e
 
-    def get_atoms(self, selection: str | None = None) -> list[Atoms]:
-        """Retrieve atoms matching selection."""
+    def update_metadata(self, id: int, data: dict[str, Any]) -> None:
+        """
+        Updates metadata for a specific row.
+        """
         self._ensure_connection()
         try:
             if self._connection is not None:
-                rows = self._connection.select(selection=selection)
-                return [row.toatoms() for row in rows]
+                self._connection.update(id, **data)
+        except KeyError as e:
+            logger.error(f"ID {id} not found: {e}")
+            raise DatabaseError(f"ID {id} not found: {e}") from e
+        except Exception as e:
+            logger.error(f"Failed to update metadata: {e}")
+            raise DatabaseError(f"Failed to update metadata: {e}") from e
+
+    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
+        """
+        Retrieve atoms matching selection.
+        Prefer using **kwargs for parameterized queries.
+        """
+        self._ensure_connection()
+        try:
+            if self._connection is not None:
+                rows = self._connection.select(selection=selection, **kwargs)
+                atoms_list = []
+                for row in rows:
+                    at = row.toatoms()
+                    if hasattr(row, "key_value_pairs"):
+                        at.info.update(row.key_value_pairs)
+                    atoms_list.append(at)
+                return atoms_list
             return []
         except Exception as e:
+            logger.error(f"Failed to get atoms: {e}")
             raise DatabaseError(f"Failed to get atoms: {e}") from e
 
+    def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
+        """
+        Retrieve entries as (id, Atoms) tuples.
+        Prefer using **kwargs for parameterized queries.
+        """
+        self._ensure_connection()
+        try:
+            if self._connection is not None:
+                rows = self._connection.select(selection=selection, **kwargs)
+                return [(row.id, row.toatoms()) for row in rows]
+            return []
+        except Exception as e:
+            logger.error(f"Failed to get entries: {e}")
+            raise DatabaseError(f"Failed to get entries: {e}") from e
+
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
-        """Save a candidate structure."""
-        if "status" not in metadata:
-            metadata["status"] = "pending"
-        if "generation" not in metadata:
-            metadata["generation"] = 0
-        if "config_type" not in metadata:
-            metadata["config_type"] = "candidate"
+        """
+        Save a candidate structure.
+        Caller is responsible for providing all necessary metadata.
+        """
         self.add_structure(atoms, metadata)
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
@@ -172,13 +223,11 @@ class DatabaseManager:
                     atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
                 )
         except AttributeError as e:
+            logger.error(f"Invalid DFTResult object: {e}")
             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
         except Exception as e:
+            logger.error(f"Failed to save DFT result: {e}")
             raise DatabaseError(f"Failed to save DFT result: {e}") from e
-
-    def get_training_data(self) -> list[Atoms]:
-        """Get atoms with status=completed."""
-        return self.get_atoms(selection="status=completed")
 
     def set_system_config(self, config: "SystemConfig") -> None:
         """Store system config in metadata."""
@@ -186,8 +235,8 @@ class DatabaseManager:
         if self._connection is not None:
             try:
                 self._connection.metadata = config.model_dump(mode="json")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to store SystemConfig: {e}")
 
     def get_system_config(self) -> "SystemConfig":
         """Retrieve system config from metadata."""
@@ -200,5 +249,6 @@ class DatabaseManager:
             try:
                 return SystemConfig.model_validate(self._connection.metadata)
             except ValidationError as e:
+                logger.error(f"Stored SystemConfig is invalid: {e}")
                 raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
         raise DatabaseError("No SystemConfig found")

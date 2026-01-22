@@ -1,8 +1,9 @@
+
 import yaml
 from typer.testing import CliRunner
+
 from mlip_autopipec.app import app
 from mlip_autopipec.core.database import DatabaseManager
-from pathlib import Path
 
 runner = CliRunner()
 
@@ -61,6 +62,13 @@ def test_uat_2_1_generate_sqs_alloy(tmp_path):
         syms = atoms.get_chemical_symbols()
         assert syms.count("Fe") == 4
         assert syms.count("Ni") == 4
+
+        # Verify composition matches input (0.5/0.5)
+        # 4/8 = 0.5. Assertion is essentially covered by counts above, but explicit check:
+        comp_fe = syms.count("Fe") / len(atoms)
+        comp_ni = syms.count("Ni") / len(atoms)
+        assert abs(comp_fe - 0.5) < 1e-6
+        assert abs(comp_ni - 0.5) < 1e-6
 
 def test_uat_2_1_generate_invalid_config(tmp_path):
     """
@@ -204,7 +212,9 @@ def test_uat_2_4_defect_interstitial(tmp_path):
             "crystal_structure": "bcc"
         },
         "generator_config": {
-            "sqs": {"enabled": False}, # Primitive
+            # Use SQS enabled with pure Fe to generate a supercell
+            # Primitive cell is too small for interstitials (distance check fails)
+            "sqs": {"enabled": True, "supercell_size": [2, 2, 2]},
             "distortion": {"enabled": False},
             "defects": {
                 "enabled": True,

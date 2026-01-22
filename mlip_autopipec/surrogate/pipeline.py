@@ -1,118 +1,135 @@
 import logging
+from typing import Any
 
+from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.surrogate.model_interface import ModelInterface
+from mlip_autopipec.surrogate.mace_wrapper import MaceWrapper
+from mlip_autopipec.surrogate.sampling import FarthestPointSampling
 import numpy as np
 from ase import Atoms
 
-from mlip_autopipec.config.schemas.surrogate import SelectionResult, SurrogateConfig
-from mlip_autopipec.surrogate.candidate_manager import CandidateManager
-from mlip_autopipec.surrogate.descriptors import DescriptorCalculator
-from mlip_autopipec.surrogate.mace_client import MaceClient
-from mlip_autopipec.surrogate.sampling import FPSSampler
-
 logger = logging.getLogger(__name__)
 
-
 class SurrogatePipeline:
-    """
-    Orchestrates the Surrogate Explorer module workflow.
-
-    This class ties together Pre-screening (MACE), Featurization (SOAP),
-    and Selection (FPS) to filter and select candidate structures.
-    It delegates data management to CandidateManager.
-    """
-
-    def __init__(self, config: SurrogateConfig):
-        """
-        Args:
-            config: Configuration for the surrogate pipeline.
-        """
+    def __init__(self, db_manager: DatabaseManager, config: SurrogateConfig, model: ModelInterface | None = None):
+        self.db_manager = db_manager
         self.config = config
-        self.mace_client = MaceClient(config)
-        # Use descriptor_config from SurrogateConfig
-        self.descriptor_calc = DescriptorCalculator(config.descriptor_config)
-        self.sampler = FPSSampler()
+        self.model = model
 
-    def run(self, candidates: list[Atoms]) -> tuple[list[Atoms], SelectionResult]:
+        # Initialize model if needed
+        if self.model is None:
+            self.model = MaceWrapper(model_type=self.config.model_type)
+
+    def run(self) -> None:
         """
-        Executes the surrogate pipeline on a list of candidate structures.
-
-        Args:
-            candidates: List of candidate atomic structures (ase.Atoms).
-
-        Returns:
-            A tuple of (selected_structures, selection_result).
-            selection_result contains indices relative to the input `candidates` list.
-
-        Raises:
-            RuntimeError: If any stage of the pipeline fails.
+        Executes the surrogate selection pipeline.
+        1. Fetch pending candidates.
+        2. Filter unphysical structures.
+        3. Select diverse subset.
+        4. Update database.
         """
-        if not candidates:
-            return [], SelectionResult(selected_indices=[], scores=[])
-
-        logger.info(f"Starting surrogate pipeline with {len(candidates)} candidates.")
-
+        logger.info("Starting Surrogate Pipeline")
         try:
-            # 1. Pre-processing
-            candidates_with_meta = CandidateManager.tag_candidates(candidates)
+            entries = self._fetch_pending_entries()
+            if not entries:
+                return
 
-            # 2. Pre-screening
-            kept_atoms = self._execute_prescreening(candidates_with_meta)
-            if not kept_atoms:
-                return [], SelectionResult(selected_indices=[], scores=[])
+            ids = [e[0] for e in entries]
+            atoms_list = [e[1] for e in entries]
 
-            # 3. Descriptor Calculation
-            descriptors = self._execute_featurization(kept_atoms)
+            self._ensure_model_loaded()
 
-            # 4. FPS Selection
-            selected_indices_local, scores = self._execute_selection(descriptors, len(kept_atoms))
+            valid_indices, rejected_ids = self._prescreen_candidates(ids, atoms_list)
 
-            # 5. Result Resolution
-            selected_structures, original_indices = CandidateManager.resolve_selection(
-                kept_atoms, selected_indices_local
-            )
+            if not valid_indices:
+                logger.warning("No valid structures remained after filtering.")
+                return
 
-            result = SelectionResult(selected_indices=original_indices, scores=scores)
-
-            return selected_structures, result
+            self._select_and_update(valid_indices, ids, atoms_list)
 
         except Exception as e:
-            logger.error(f"Surrogate pipeline execution failed: {e}", exc_info=True)
-            raise RuntimeError(f"Surrogate pipeline execution failed: {e}") from e
+            logger.error("Surrogate Pipeline failed.", exc_info=True)
+            raise
 
-    def _execute_prescreening(self, candidates: list[Atoms]) -> list[Atoms]:
-        """Runs MACE pre-screening."""
-        logger.debug("Running MACE pre-screening...")
-        kept_atoms, rejected_info = self.mace_client.filter_unphysical(candidates)
+    def _fetch_pending_entries(self) -> list[tuple[int, Atoms]]:
+        entries = self.db_manager.get_entries(selection="status=pending")
+        if not entries:
+            logger.info("No pending structures found.")
+            return []
+        logger.info(f"Found {len(entries)} pending structures.")
+        return entries
 
-        logger.info(f"Pre-screening complete. Kept {len(kept_atoms)}/{len(candidates)} structures.")
+    def _ensure_model_loaded(self) -> None:
+        if self.model:
+            self.model.load_model(self.config.model_path, self.config.device)
 
-        if rejected_info:
-            logger.info(
-                f"Rejected {len(rejected_info)} structures. Sample reason: {rejected_info[0].reason}"
-            )
+    def _prescreen_candidates(self, ids: list[int], atoms_list: list[Atoms]) -> tuple[list[int], list[int]]:
+        logger.info("Computing energy and forces...")
 
-        if len(kept_atoms) == 0:
-            logger.warning("No candidates passed pre-screening.")
+        # Assume model is loaded
+        if not self.model:
+             raise RuntimeError("Model not initialized")
 
-        return kept_atoms
+        energies, forces_list = self.model.compute_energy_forces(atoms_list)
 
-    def _execute_featurization(self, kept_atoms: list[Atoms]) -> np.ndarray:
-        """Computes descriptors."""
-        logger.debug("Calculating descriptors...")
-        try:
-            descriptor_result = self.descriptor_calc.compute_soap(kept_atoms)
-            return descriptor_result.features
-        except Exception as e:
-            raise RuntimeError(f"Descriptor calculation failed: {e}") from e
+        valid_indices = []
+        rejected_ids = []
 
-    def _execute_selection(
-        self, descriptors: np.ndarray, pool_size: int
-    ) -> tuple[list[int], list[float]]:
-        """Runs FPS selection."""
-        n_samples = min(self.config.fps_n_samples, pool_size)
-        logger.info(f"Selecting {n_samples} structures via FPS...")
+        for idx, forces in enumerate(forces_list):
+            max_force = np.max(np.linalg.norm(forces, axis=1))
+            energy = float(energies[idx])
 
-        if n_samples == 0:
-            return [], []
+            meta = {
+                "mace_energy": energy,
+                "mace_max_force": float(max_force)
+            }
 
-        return self.sampler.select_with_scores(descriptors, n_samples)
+            current_id = ids[idx]
+            self.db_manager.update_metadata(current_id, meta)
+
+            if max_force > self.config.force_threshold:
+                logger.debug(f"Rejecting structure {current_id}: Max force {max_force:.2f} > {self.config.force_threshold}")
+                rejected_ids.append(current_id)
+                self.db_manager.update_status(current_id, "rejected")
+            else:
+                valid_indices.append(idx)
+
+        logger.info(f"Rejected {len(rejected_ids)} structures due to high forces.")
+        return valid_indices, rejected_ids
+
+    def _select_and_update(self, valid_indices: list[int], ids: list[int], atoms_list: list[Atoms]) -> None:
+        valid_atoms = [atoms_list[i] for i in valid_indices]
+        valid_ids = [ids[i] for i in valid_indices]
+
+        n_samples = min(self.config.n_samples, len(valid_atoms))
+        selected_valid_indices = set()
+
+        if n_samples < len(valid_atoms):
+            logger.info(f"Selecting {n_samples} structures from {len(valid_atoms)} valid candidates.")
+            logger.info("Computing descriptors...")
+
+            if not self.model:
+                 raise RuntimeError("Model not initialized")
+
+            descriptors = self.model.compute_descriptors(valid_atoms)
+            fps = FarthestPointSampling(n_samples=n_samples)
+            selected_indices_local = fps.select(descriptors)
+            selected_valid_indices = set(selected_indices_local)
+        else:
+            logger.info(f"Selecting all {len(valid_atoms)} valid candidates (requested {self.config.n_samples}).")
+            selected_valid_indices = set(range(len(valid_atoms)))
+
+        selected_count = 0
+        held_count = 0
+
+        for i in range(len(valid_atoms)):
+            real_id = valid_ids[i]
+            if i in selected_valid_indices:
+                self.db_manager.update_status(real_id, "selected")
+                selected_count += 1
+            else:
+                self.db_manager.update_status(real_id, "held")
+                held_count += 1
+
+        logger.info(f"Pipeline complete. Selected: {selected_count}, Held: {held_count}")

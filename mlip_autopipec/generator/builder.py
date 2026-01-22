@@ -1,6 +1,6 @@
 import logging
 import uuid
-import random
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -10,7 +10,6 @@ from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.generator.defects import DefectStrategy
-from mlip_autopipec.generator.molecule import MoleculeGenerator
 from mlip_autopipec.generator.sqs import SQSStrategy
 from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
 
@@ -48,8 +47,6 @@ class StructureBuilder:
         self.rng = np.random.default_rng(self.generator_config.seed)
         self.sqs_strategy = SQSStrategy(self.generator_config.sqs, seed=self.generator_config.seed)
         self.defect_strategy = DefectStrategy(self.generator_config.defects, seed=self.generator_config.seed)
-        # Molecule generator kept for legacy/completeness
-        self.mol_gen = MoleculeGenerator(self.generator_config)
 
     def build_batch(self) -> list[Atoms]:
         """
@@ -77,40 +74,15 @@ class StructureBuilder:
             logger.warning("No target_system defined. Returning empty structure list.")
             return []
 
-        base_structures: list[Atoms] = []
-
         try:
             # 1. Base Generation Phase
-            # Determine structure type
-            structure_type = "bulk" # Default
-            if target.crystal_structure:
-                structure_type = "bulk"
-            elif hasattr(target, "structure_type") and target.structure_type:
-                structure_type = target.structure_type
-            elif "molecule" in target.name.lower():
-                 structure_type = "molecule"
-
-            if structure_type == "bulk":
-                base_structures = self._generate_bulk_base(target)
-            elif structure_type == "molecule":
-                # Delegate to legacy molecule generator logic or adapt
-                # For now, minimal support
-                try:
-                    mol = molecule(target.name)
-                    base_structures.append(mol)
-                except Exception:
-                     logger.warning(f"Could not build molecule {target.name}")
-            else:
-                 # Default to bulk if unknown
-                 base_structures = self._generate_bulk_base(target)
+            base_structures = self._generate_base(target)
 
             # 2. Distortions (Strain + Rattle)
+            # This returns original + distorted structures
             distorted_structures = self._apply_distortions(base_structures)
 
-            # Combine base and distorted
-            # (Logic depends if we want to keep base. Usually yes.)
-            # The _apply_distortions below might return expanded set.
-
+            # Use distorted structures (including base) as the pool for defects
             current_pool = distorted_structures
 
             # 3. Defect Application Phase
@@ -125,21 +97,51 @@ class StructureBuilder:
             raise GeneratorError(msg, context={"target": target.name}) from e
 
         # 4. Final Metadata Tagging
-        for s in final_structures:
-            if "uuid" not in s.info:
-                s.info["uuid"] = str(uuid.uuid4())
-            s.info["target_system"] = target.name
+        self._tag_metadata(final_structures, target.name)
 
         # 5. Limit number of structures if needed (random sample)
+        return self._sample_results(final_structures)
+
+    def _tag_metadata(self, structures: list[Atoms], target_name: str) -> None:
+        for s in structures:
+            if "uuid" not in s.info:
+                s.info["uuid"] = str(uuid.uuid4())
+            s.info["target_system"] = target_name
+
+    def _sample_results(self, structures: list[Atoms]) -> list[Atoms]:
         n_req = self.generator_config.number_of_structures
-        if len(final_structures) > n_req:
+        if len(structures) > n_req:
              # Use self.rng to sample indices
-             indices = self.rng.choice(len(final_structures), size=n_req, replace=False)
-             final_structures = [final_structures[i] for i in indices]
+             indices = self.rng.choice(len(structures), size=n_req, replace=False)
+             return [structures[i] for i in indices]
+        return structures
 
-        return final_structures
+    def _generate_base(self, target: Any) -> list[Atoms]:
+        """
+        Generates base structures based on target type (bulk/molecule).
+        """
+        structure_type = "bulk" # Default
+        if target.crystal_structure:
+            structure_type = "bulk"
+        elif hasattr(target, "structure_type") and target.structure_type:
+            structure_type = target.structure_type
+        elif "molecule" in target.name.lower():
+             structure_type = "molecule"
 
-    def _generate_bulk_base(self, target) -> list[Atoms]:
+        if structure_type == "bulk":
+            return self._generate_bulk_base(target)
+        elif structure_type == "molecule":
+            try:
+                mol = molecule(target.name)
+                return [mol]
+            except Exception:
+                 logger.warning(f"Could not build molecule {target.name}")
+                 return []
+
+        # Default fallback
+        return self._generate_bulk_base(target)
+
+    def _generate_bulk_base(self, target: Any) -> list[Atoms]:
         """
         Generates base bulk structures.
 
@@ -157,7 +159,7 @@ class StructureBuilder:
         # Heuristic: Take the first element from composition and use its bulk structure.
         primary_elem = next(iter(target.composition.keys()))
         try:
-            prim = bulk(primary_elem)
+            prim = bulk(primary_elem, crystalstructure=target.crystal_structure or 'fcc')
         except Exception as e:
             logger.warning(
                 f"Could not build bulk for {primary_elem}: {e}. Falling back to 'Fe' bcc."

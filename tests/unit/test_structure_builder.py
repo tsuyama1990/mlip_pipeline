@@ -1,11 +1,9 @@
-import pytest
 import numpy as np
-from ase import Atoms
 from ase.build import bulk
 
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.common import TargetSystem
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig, DistortionConfig
+from mlip_autopipec.config.schemas.generator import DistortionConfig, GeneratorConfig, SQSConfig
 from mlip_autopipec.generator.builder import StructureBuilder
 
 

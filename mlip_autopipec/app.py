@@ -95,22 +95,60 @@ def generate(
             console.print("[yellow]Dry run: Not saving to database.[/yellow]")
             return
 
+        from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+
         with DatabaseManager(config.runtime.database_path) as db:
+            cm = CandidateManager(db)
             for atoms in structures:
                 # Extract metadata
                 metadata = atoms.info.copy()
-                # Ensure core fields
-                if "status" not in metadata:
-                    metadata["status"] = "pending"
-                if "generation" not in metadata:
-                    metadata["generation"] = 0
-
-                db.save_candidate(atoms, metadata)
+                # CandidateManager handles defaults for status, generation etc.
+                cm.create_candidate(atoms, metadata)
 
         console.print(f"[green]Saved to {config.runtime.database_path}[/green]")
 
     except Exception as e:
         console.print(f"[bold red]Generation Failed:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def select(
+    config_file: Path = typer.Option(
+        Path("input.yaml"), "--config", "-c", help="Config file"
+    ),
+    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
+    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
+) -> None:
+    """
+    Select diverse candidates using a surrogate model.
+    """
+    setup_logging()
+    try:
+        from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
+
+        config = load_config(config_file)
+
+        # Prepare Surrogate Config
+        surrogate_conf = config.surrogate_config
+
+        # Override with CLI args
+        if n_samples is not None:
+            surrogate_conf.n_samples = n_samples
+        if model_type is not None:
+            surrogate_conf.model_type = model_type
+
+        with DatabaseManager(config.runtime.database_path) as db:
+            pipeline = SurrogatePipeline(db, surrogate_conf)
+            pipeline.run()
+
+        console.print("[green]Selection complete.[/green]")
+
+    except Exception as e:
+        console.print(f"[bold red]Selection Failed:[/bold red] {e}")
+        # Print full traceback for debug in dev
+        import traceback
+        traceback.print_exc()
         raise typer.Exit(code=1)
 
 

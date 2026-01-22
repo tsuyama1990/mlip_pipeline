@@ -1,16 +1,12 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SurrogateConfig(BaseModel):
-    """Configuration for surrogate model."""
-    model_path: str | None = None
-    model_config = ConfigDict(extra="forbid")
+    """Configuration for surrogate model selection."""
+    model_type: str = Field("mace_mp", description="Type of surrogate model: 'mace_mp', 'chgnet', or 'mock'")
+    model_path: str = Field("medium", description="Path to weights or HuggingFace ID (e.g., 'medium' for MACE)")
+    device: str = Field("cpu", description="Device to run on: 'cuda' or 'cpu'")
+    force_threshold: float = Field(50.0, description="Max allowed force (eV/A) before rejection")
+    n_samples: int = Field(100, description="Number of structures to select via FPS")
 
-class EmbeddingConfig(BaseModel):
-    # Redundant but referenced in some imports, keep sync or alias
-    # Actually, Inference usually owns embedding.
-    # But if SPEC says surrogate has it...
-    # I'll define it here if needed, or import.
-    # For now, simplistic definition.
-    core_radius: float = 4.0
     model_config = ConfigDict(extra="forbid")

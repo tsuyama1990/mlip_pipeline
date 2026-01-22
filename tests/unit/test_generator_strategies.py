@@ -1,8 +1,9 @@
+import json
+
 import numpy as np
 import pytest
-import json
-from ase import Atoms
 from ase.build import bulk
+
 
 def test_apply_strain_hydrostatic():
     from mlip_autopipec.generator.transformations import apply_strain
@@ -25,8 +26,8 @@ def test_apply_strain_hydrostatic():
     assert np.allclose(stored_strain, strain)
 
 def test_apply_strain_invalid_input():
-    from mlip_autopipec.generator.transformations import apply_strain
     from mlip_autopipec.exceptions import GeneratorError
+    from mlip_autopipec.generator.transformations import apply_strain
 
     atoms = bulk("Cu")
     # Invalid shape
@@ -54,16 +55,16 @@ def test_apply_rattle():
     assert rattled.info["rattle_sigma"] == 0.1
 
 def test_apply_rattle_invalid_sigma():
-    from mlip_autopipec.generator.transformations import apply_rattle
     from mlip_autopipec.exceptions import GeneratorError
+    from mlip_autopipec.generator.transformations import apply_rattle
 
     atoms = bulk("Cu")
     with pytest.raises(GeneratorError, match="must be non-negative"):
         apply_rattle(atoms, sigma=-0.1)
 
 def test_defect_vacancy():
-    from mlip_autopipec.generator.defects import DefectStrategy
     from mlip_autopipec.config.schemas.generator import DefectConfig
+    from mlip_autopipec.generator.defects import DefectStrategy
 
     atoms = bulk("Cu", "fcc", cubic=True) * (2, 2, 2) # 32 atoms
     n_atoms = len(atoms)
@@ -78,8 +79,8 @@ def test_defect_vacancy():
         assert "defect_index" in v.info
 
 def test_defect_vacancy_too_many():
-    from mlip_autopipec.generator.defects import DefectStrategy
     from mlip_autopipec.config.schemas.generator import DefectConfig
+    from mlip_autopipec.generator.defects import DefectStrategy
 
     atoms = bulk("Cu") # 1 atom
     strategy = DefectStrategy(DefectConfig(enabled=True, vacancies=True))
@@ -88,8 +89,8 @@ def test_defect_vacancy_too_many():
     assert vacancies == []
 
 def test_defect_interstitial():
-    from mlip_autopipec.generator.defects import DefectStrategy
     from mlip_autopipec.config.schemas.generator import DefectConfig
+    from mlip_autopipec.generator.defects import DefectStrategy
 
     atoms = bulk("Fe", "bcc", cubic=True) # 2 atoms
     n_atoms = len(atoms)
@@ -110,8 +111,8 @@ def test_sqs_fallback_random(mocker):
     # Mock icet to fail import or be None
     mocker.patch.dict("sys.modules", {"icet": None})
 
-    from mlip_autopipec.generator.sqs import SQSStrategy
     from mlip_autopipec.config.schemas.generator import SQSConfig
+    from mlip_autopipec.generator.sqs import SQSStrategy
 
     prim = bulk("Fe")
     comp = {"Fe": 0.5, "Ni": 0.5}
