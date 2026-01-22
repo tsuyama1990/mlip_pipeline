@@ -63,6 +63,13 @@ def test_uat_2_1_generate_sqs_alloy(tmp_path):
         assert syms.count("Fe") == 4
         assert syms.count("Ni") == 4
 
+        # Verify composition matches input (0.5/0.5)
+        # 4/8 = 0.5. Assertion is essentially covered by counts above, but explicit check:
+        comp_fe = syms.count("Fe") / len(atoms)
+        comp_ni = syms.count("Ni") / len(atoms)
+        assert abs(comp_fe - 0.5) < 1e-6
+        assert abs(comp_ni - 0.5) < 1e-6
+
 def test_uat_2_1_generate_invalid_config(tmp_path):
     """
     Test generating with invalid configuration (Scenario requested by audit).
