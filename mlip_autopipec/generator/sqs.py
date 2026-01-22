@@ -5,7 +5,6 @@ import numpy as np
 from ase import Atoms
 from ase.build import make_supercell
 
-from mlip_autopipec.config.schemas.common import Composition
 from mlip_autopipec.config.schemas.generator import SQSConfig
 from mlip_autopipec.exceptions import GeneratorError
 
@@ -31,7 +30,7 @@ class SQSStrategy:
         self.config = config
         self.rng = np.random.default_rng(seed)
 
-    def generate(self, prim_cell: Atoms, composition: Composition) -> Atoms:
+    def generate(self, prim_cell: Atoms, composition: dict[str, float]) -> Atoms:
         """
         Generates an SQS supercell.
 
@@ -59,7 +58,7 @@ class SQSStrategy:
             n_atoms = len(atoms)
 
             # 2. Determine target counts
-            comp_dict = composition.root
+            comp_dict = composition
             sorted_comp = sorted(comp_dict.items(), key=lambda x: x[1], reverse=True)
 
             symbols: list[str] = []
