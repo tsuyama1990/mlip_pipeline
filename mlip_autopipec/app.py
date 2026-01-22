@@ -102,7 +102,7 @@ def generate(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),  # noqa: B008
+    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
 ) -> None:
     """Generate initial training structures."""
     setup_logging()
@@ -140,8 +140,8 @@ def select(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),  # noqa: B008
-    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),  # noqa: B008
+    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
+    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
 ) -> None:
     """Select diverse candidates using a surrogate model."""
     setup_logging()
@@ -176,7 +176,7 @@ def train(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),  # noqa: B008
+    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
 ) -> None:
     """Train a potential using Pacemaker."""
     setup_logging()
@@ -252,7 +252,6 @@ def run_loop(
     """Run the full autonomous loop (Generation -> DFT -> Training -> Inference)."""
     setup_logging()
     try:
-        from mlip_autopipec.config.models import SystemConfig
         from mlip_autopipec.orchestration.models import OrchestratorConfig
         from mlip_autopipec.orchestration.workflow import WorkflowManager
 

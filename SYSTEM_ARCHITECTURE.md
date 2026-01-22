@@ -2,7 +2,7 @@
 
 ## Overview
 
-MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials. It orchestrates a pipeline involving structure generation, surrogate model screening, DFT calculations, and potential training.
+MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials. It orchestrates a pipeline involving structure generation, surrogate model screening, DFT calculations, potential training, and inference.
 
 ## Component Diagram
 
@@ -11,13 +11,14 @@ graph TD
     User[User Config] --> Manager[WorkflowManager]
 
     subgraph "Orchestration Layer"
+        Manager --> PE[PhaseExecutor]
         Manager --> DB[(DatabaseManager)]
         Manager --> TQ[TaskQueue (Dask)]
         Manager --> Dash[Dashboard]
     end
 
     subgraph "Module A: Generator"
-        Manager --> Builder[StructureBuilder]
+        PE --> Builder[StructureBuilder]
         Builder --> SQS[SQS Strategy]
         Builder --> Dist[Distortions (Strain/Rattle)]
         Builder --> Defect[Defect Strategy]
@@ -31,15 +32,26 @@ graph TD
         CM --> DB
     end
 
-    subgraph "Execution Layer (HPC)"
-        Manager --> DFT[DFT Runner (Quantum Espresso)]
-        Manager --> Train[Pacemaker (Training)]
-        Manager --> Inf[Inference (LAMMPS)]
+    subgraph "Module C: DFT"
+        PE --> DFT[QERunner]
+        DFT --> QE[Quantum Espresso]
+        DFT --> DB
+    end
+
+    subgraph "Module D: Training"
+        PE --> PM[PacemakerWrapper]
+        PM --> Pacemaker[Pacemaker]
+        PM --> ConfigGen[TrainConfigGenerator]
+    end
+
+    subgraph "Module E: Inference (Active Learning)"
+        PE --> Inf[LammpsRunner]
+        Inf --> LAMMPS[LAMMPS]
+        Inf --> AL[EmbeddingExtractor]
+        AL --> DB
     end
 
     TQ --> DFT
-    TQ --> Inf
-    TQ --> Train
 ```
 
 ## Component Descriptions & Interactions
@@ -59,7 +71,9 @@ graph TD
     -   **CandidateManager**: Handles business logic for creating new candidates (setting default status, generation tags) to keep `DatabaseManager` pure.
 
 ### 3. Orchestration (`mlip_autopipec.orchestration`)
--   **WorkflowManager**: State machine. Decides *what* to do next (e.g., "Run DFT" or "Train Potential").
+-   **WorkflowManager**: State machine. Maintains the global state (Current Generation, Phase).
+    -   **Phases**: Idle -> DFT -> Training -> Inference -> (Loop).
+-   **PhaseExecutor**: Decouples logic. `WorkflowManager` delegates the specific execution details of each phase (e.g., "Run DFT Batch", "Train Potential") to this class.
 -   **TaskQueue**: Execution engine. Wraps `dask.distributed`. Handles retries and batch submission to local or HPC resources.
 
 ### 4. Generator Module (`mlip_autopipec.generator`)
@@ -77,20 +91,21 @@ graph TD
     -   **Update**: Marks selected candidates in the database via `DatabaseManager`.
 
 ### 6. Execution Modules
--   **DFT**: Executes Quantum Espresso. Uses `QERunner`. Handles error recovery (convergence failure).
--   **Inference**: Executes LAMMPS. Uses `LammpsRunner`. Monitors uncertainty.
--   **Training**: Executes Pacemaker.
+-   **DFT (`mlip_autopipec.dft`)**: Executes Quantum Espresso. Uses `QERunner`. Handles error recovery (convergence failure). Writes labeled data to DB.
+-   **Training (`mlip_autopipec.training`)**: Executes Pacemaker. `PacemakerWrapper` handles data export (ExtXYZ) and configuration generation.
+-   **Inference (`mlip_autopipec.inference`)**: Executes LAMMPS.
+    -   `LammpsRunner`: Runs MD using the trained potential. Monitors uncertainty (extrapolation grade).
+    -   `EmbeddingExtractor`: If uncertainty threshold is exceeded, extracts local atomic environments (candidates) for the next generation.
+
+## Active Learning Loop
+1.  **Exploration**: `StructureBuilder` + `SurrogatePipeline` populate DB with initial candidates.
+2.  **DFT**: `QERunner` calculates ground truth labels.
+3.  **Training**: `PacemakerWrapper` fits a potential to the labeled data.
+4.  **Inference**: `LammpsRunner` runs MD with the new potential.
+    -   If **Stable**: Loop finishes (or proceeds to next generation).
+    -   If **Unstable** (High Gamma): `EmbeddingExtractor` creates new candidates from uncertain regions -> **Back to DFT**.
 
 ## Error Handling Strategy
 -   **Task Level**: `TaskQueue` uses `tenacity` to retry transient submission errors.
 -   **Job Level**: Runners (e.g., `LammpsRunner`, `QERunner`) catch subprocess errors, parse logs for specific failure codes.
--   **System Level**: `WorkflowManager` checkpoints state to disk.
-
-## Data Flow (Generator -> Surrogate)
-1.  `StructureBuilder` creates thousands of raw structures.
-2.  `CandidateManager` saves them to DB with `status="pending"`.
-3.  `SurrogatePipeline` fetches pending structures from `DatabaseManager`.
-4.  `MaceWrapper` predicts Energy/Forces. High-force structures are rejected (`status="rejected"`).
-5.  `FarthestPointSampling` selects top $N$ diverse structures.
-6.  Selected structures are updated to `status="selected"`.
-7.  `WorkflowManager` picks up selected structures for DFT.
+-   **System Level**: `WorkflowManager` checkpoints state to disk (`workflow_state.json`).

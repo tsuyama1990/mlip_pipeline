@@ -5,13 +5,11 @@ Detects uncertainty and aborts if necessary.
 
 import logging
 import os
-import re
 import shutil
 import subprocess
 from pathlib import Path
 
 from ase import Atoms
-from ase.io import write
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.data_models.inference_models import InferenceResult
@@ -167,8 +165,7 @@ class LammpsRunner:
                     if len(parts) > gamma_col_idx:
                         try:
                             val = float(parts[gamma_col_idx])
-                            if val > max_val:
-                                max_val = val
+                            max_val = max(max_val, val)
                         except ValueError:
                             pass
 

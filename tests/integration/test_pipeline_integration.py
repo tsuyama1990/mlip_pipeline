@@ -30,7 +30,7 @@ def mock_db(tmp_path):
     db_path = tmp_path / "test_pipeline.db"
     manager = DatabaseManager(db_path)
     # Ensure any connection is closed after test
-    yield manager
+    return manager
     # DatabaseManager context manager usage in tests is preferred,
     # but if used directly, we rely on GC or explicit close if method existed.
     # ASE db connection is usually file based.

@@ -4,6 +4,7 @@ Manages configuration generation and execution.
 """
 
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -43,6 +44,8 @@ class PacemakerWrapper:
 
         Maps the Pydantic TrainingConfig to the YAML structure required by Pacemaker.
 
+        It strictly validates the generated YAML by parsing it back.
+
         Returns:
             Path to the generated input.yaml file.
         """
@@ -68,9 +71,22 @@ class PacemakerWrapper:
             }
         }
 
-        # Safe open logic handled by Path
-        with config_path.open("w") as f:
-            yaml.dump(pacemaker_config, f)
+        try:
+            with config_path.open("w") as f:
+                yaml.dump(pacemaker_config, f)
+
+            # Validation: Read back and check structure
+            with config_path.open("r") as f:
+                loaded_config = yaml.safe_load(f)
+
+            if not isinstance(loaded_config, dict):
+                raise ValueError("Generated YAML is not a dictionary.")
+            if "cutoff" not in loaded_config:
+                raise ValueError("Generated YAML missing required key: cutoff")
+
+        except Exception as e:
+            logger.error(f"Failed to generate valid Pacemaker config: {e}")
+            raise
 
         logger.info(f"Generated Pacemaker config at {config_path}")
         return config_path
@@ -90,18 +106,15 @@ class PacemakerWrapper:
     def _execute_subprocess(self, cmd: list[str], log_path: Path) -> int:
         """Helper to run the subprocess."""
         try:
-            # Check for shell injection characters if we were using shell=True,
-            # but we use shell=False with list args which avoids shell injection.
-            # However, verifying executable path is good practice.
-
+            # shell=False prevents shell injection
             with log_path.open("w") as log_file:
-                # S603 is ignored as we are constructing cmd internally
                 result = subprocess.run(
                     cmd,
                     cwd=self.work_dir,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
-                    check=False
+                    check=False,
+                    shell=False
                 )
             return result.returncode
         except subprocess.SubprocessError:
@@ -110,6 +123,25 @@ class PacemakerWrapper:
         except OSError:
             logger.exception("OS Error during subprocess execution")
             return -1
+
+    def _resolve_executable(self) -> str:
+        """
+        Resolves the Pacemaker executable path and performs security checks.
+        """
+        executable_name = "pacemaker"
+
+        executable = shutil.which(executable_name)
+        if not executable:
+             # Check if provided as absolute path via env or config (if we had that field)
+             # For now, we strictly require it in PATH or standard locations
+             raise FileNotFoundError(f"Pacemaker executable '{executable_name}' not found in PATH.")
+
+        # Verify it's an executable file
+        p = Path(executable)
+        if not (p.exists() and p.is_file() and os.access(p, os.X_OK)):
+             raise ValueError(f"Found pacemaker at {executable} but it is not a valid executable.")
+
+        return executable
 
     def train(self) -> TrainingResult:
         """
@@ -125,10 +157,7 @@ class PacemakerWrapper:
             config_path = self.generate_config()
             log_path = self.work_dir / "log.txt"
 
-            executable_path = shutil.which("pacemaker")
-            if not executable_path:
-                logger.error("Pacemaker executable not found in PATH.")
-                return TrainingResult(success=False)
+            executable_path = self._resolve_executable()
 
             # Use full path resolved by shutil.which for security
             cmd = [executable_path, str(config_path.name)]
