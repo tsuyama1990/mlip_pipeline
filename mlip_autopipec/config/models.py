@@ -33,6 +33,8 @@ class MLIPConfig(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
     surrogate_config: SurrogateConfig = Field(default_factory=SurrogateConfig)
+    training_config: TrainingConfig | None = None
+    inference_config: InferenceConfig | None = None
 
     model_config = ConfigDict(extra="forbid")
 

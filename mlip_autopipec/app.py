@@ -47,6 +47,13 @@ def init() -> None:
             "nspin": 2,
         },
         "runtime": {"database_path": "mlip.db", "work_dir": "_work"},
+        "training_config": {
+             "cutoff": 5.0,
+             "b_basis_size": 300,
+             "kappa": 0.5,
+             "kappa_f": 100.0,
+             "max_iter": 100
+        }
     }
 
     with open(input_file, "w") as f:
@@ -147,6 +154,61 @@ def select(
     except Exception as e:
         console.print(f"[bold red]Selection Failed:[/bold red] {e}")
         # Print full traceback for debug in dev
+        import traceback
+        traceback.print_exc()
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def train(
+    config_file: Path = typer.Option(
+        Path("input.yaml"), "--config", "-c", help="Config file"
+    ),
+    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
+) -> None:
+    """
+    Train a potential using Pacemaker.
+    """
+    setup_logging()
+    try:
+        from mlip_autopipec.training.dataset import DatasetBuilder
+        from mlip_autopipec.training.pacemaker import PacemakerWrapper
+
+        config = load_config(config_file)
+        train_conf = config.training_config
+
+        if not train_conf:
+            console.print("[red]No training configuration found in input.yaml[/red]")
+            raise typer.Exit(code=1)
+
+        work_dir = config.runtime.work_dir
+        db_path = config.runtime.database_path
+
+        with DatabaseManager(db_path) as db:
+            builder = DatasetBuilder(db)
+            # Step 1: Export Data
+            builder.export(train_conf, work_dir)
+
+            if prepare_only:
+                console.print(f"[green]Data preparation complete in {work_dir}[/green]")
+                return
+
+            # Step 2: Train
+            wrapper = PacemakerWrapper(train_conf, work_dir)
+            result = wrapper.train()
+
+            if result.success:
+                console.print(f"[green]Training successful![/green]")
+                if result.metrics:
+                    console.print(f"Metrics: {result.metrics}")
+                if result.potential_path:
+                    console.print(f"Potential saved to: {result.potential_path}")
+            else:
+                console.print("[bold red]Training failed.[/bold red]")
+                raise typer.Exit(code=1)
+
+    except Exception as e:
+        console.print(f"[bold red]Training Failed:[/bold red] {e}")
         import traceback
         traceback.print_exc()
         raise typer.Exit(code=1)
