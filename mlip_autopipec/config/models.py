@@ -74,12 +74,14 @@ class SystemConfig(BaseModel):
     inference_config: InferenceConfig | None = None
     generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
 
-    # Legacy aliases - Typed as Optional[Any] to allow backward compat but restricted by model_config if possible
+    # Legacy aliases - Restricted types where possible, but kept as Optional for backward compat if needed.
+    # However, to improve integrity, we should rely on the typed fields above.
+    # We will remove Any where we can or keep them as deprecated aliases mapping to above.
 
-    generator: Any | None = None
-    explorer: Any | None = None
-    dask: Any | None = None
-    dft: Any | None = None
+    generator: GeneratorConfig | None = None
+    explorer: ExplorerConfig | None = None
+    # dask: Any | None = None # Removed to enforce use of workflow_config or specific dask config
+    dft: DFTConfig | None = None
 
     model_config = ConfigDict(extra="forbid")
 

@@ -6,7 +6,6 @@ It delegates input creation to LammpsInputWriter.
 """
 
 import logging
-import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -143,8 +142,7 @@ class LammpsRunner(MDRunner):
                         try:
                             # last col is c_max_gamma
                             val = float(parts[-1])
-                            if val > max_g:
-                                max_g = val
+                            max_g = max(max_g, val)
                         except ValueError:
                             pass
         except Exception:

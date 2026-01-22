@@ -1,13 +1,12 @@
 import logging
-import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from mlip_autopipec.config.schemas.inference import EmbeddingConfig
 from mlip_autopipec.dft.runner import QERunner
 from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.inference.embedding import EmbeddingExtractor
 from mlip_autopipec.inference.runner import LammpsRunner
-from mlip_autopipec.config.schemas.inference import EmbeddingConfig
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.training.config_gen import TrainConfigGenerator

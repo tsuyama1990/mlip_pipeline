@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InferenceConfig(BaseModel):
@@ -13,6 +13,22 @@ class InferenceConfig(BaseModel):
     uncertainty_threshold: float = Field(5.0, gt=0.0, description="Max extrapolation grade before stop")
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("lammps_executable")
+    @classmethod
+    def validate_executable(cls, v: Path | None) -> Path | None:
+        """
+        Validates that the executable path string is not empty if provided.
+        Actual existence check is runtime dependent (e.g. remote nodes),
+        but we can check if it's a valid path structure.
+        """
+        if v is not None:
+            if str(v).strip() == "":
+                raise ValueError("LAMMPS executable path cannot be empty.")
+            # Optional: Check if it's absolute or in path?
+            # shutil.which might fail if run in environment different from execution env.
+            # So we stick to basic validation.
+        return v
 
 
 class InferenceResult(BaseModel):

@@ -1,24 +1,21 @@
-
-import shutil
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import numpy as np
 
+import numpy as np
 import pytest
 from ase import Atoms
 
+from mlip_autopipec.config.models import DFTConfig, InferenceConfig, SystemConfig, TrainingConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
+from mlip_autopipec.config.schemas.training import TrainingMetrics
 from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
-from mlip_autopipec.config.models import SystemConfig, DFTConfig, TrainingConfig, InferenceConfig
+from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.orchestration.models import OrchestratorConfig
 from mlip_autopipec.orchestration.workflow import WorkflowManager
-from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
-from mlip_autopipec.training.metrics import LogParser # type: ignore
-from mlip_autopipec.config.schemas.training import TrainingMetrics
 
 
 @pytest.fixture
@@ -26,9 +23,15 @@ def mock_db(tmp_path):
     """
     Creates a temporary database for integration testing.
     This replaces any 'real' DB file with an isolated temp file.
+    The fixture automatically handles cleanup by deleting tmp_path.
     """
     db_path = tmp_path / "test_pipeline.db"
-    return DatabaseManager(db_path)
+    manager = DatabaseManager(db_path)
+    # Ensure any connection is closed after test
+    return manager
+    # DatabaseManager context manager usage in tests is preferred,
+    # but if used directly, we rely on GC or explicit close if method existed.
+    # ASE db connection is usually file based.
 
 def test_integration_pipeline_real_db(mock_db):
     """
@@ -111,7 +114,7 @@ def test_integration_training_flow(mock_db, tmp_path):
 
     # 3. Train (Mocking Pacemaker subprocess)
     with patch("mlip_autopipec.training.pacemaker.subprocess.run") as mock_run, \
-         patch("shutil.which", return_value="/usr/bin/pacemaker"), \
+         patch("mlip_autopipec.training.pacemaker.shutil.which", return_value="/usr/bin/pacemaker"), \
          patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output", return_value=True), \
          patch("mlip_autopipec.training.metrics.LogParser.parse_file") as mock_parse:
 
@@ -170,7 +173,8 @@ def test_full_loop_integration(integration_config):
     # We need to patch dependencies inside WorkflowManager or PhaseExecutor
 
     with patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue, \
-         patch("shutil.which", return_value="/bin/mock_binary"):
+         patch("mlip_autopipec.orchestration.phase_executor.shutil.which", return_value="/bin/echo"), \
+         patch("mlip_autopipec.inference.runner.shutil.which", return_value="/bin/echo"):
 
         # Mock TaskQueue to return successful futures immediately
         queue_instance = MockTaskQueue.return_value

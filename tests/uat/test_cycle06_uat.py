@@ -1,13 +1,11 @@
-import shutil
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
-from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -87,9 +85,10 @@ def test_uat_inference_stop(uat_config):
     """
     config_path, work_dir, db_path = uat_config
 
-    from mlip_autopipec.inference.runner import LammpsRunner
-    from mlip_autopipec.config.schemas.inference import InferenceConfig
     from ase import Atoms
+
+    from mlip_autopipec.config.schemas.inference import InferenceConfig
+    from mlip_autopipec.inference.runner import LammpsRunner
 
     # Create config object manually or load
     config = InferenceConfig(

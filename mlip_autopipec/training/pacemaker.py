@@ -4,11 +4,11 @@ Manages configuration generation and execution.
 """
 
 import logging
-import shlex
 import shutil
 import subprocess
-import yaml
 from pathlib import Path
+
+import yaml
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.metrics import LogParser
@@ -156,9 +156,8 @@ class PacemakerWrapper:
                      potential_path=str(output_yace),
                      metrics=metrics
                  )
-            else:
-                 logger.error("No valid .yace output found.")
-                 return TrainingResult(success=False)
+            logger.error("No valid .yace output found.")
+            return TrainingResult(success=False)
 
         except FileNotFoundError:
             logger.exception("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")
