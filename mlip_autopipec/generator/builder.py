@@ -1,6 +1,5 @@
 import logging
 import uuid
-import random
 
 import numpy as np
 from ase import Atoms

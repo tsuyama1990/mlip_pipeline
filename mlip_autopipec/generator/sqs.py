@@ -1,5 +1,4 @@
 import logging
-import sys
 
 import numpy as np
 from ase import Atoms
@@ -84,7 +83,7 @@ class SQSStrategy:
 
             # 3. Try icet if available
             try:
-                import icet # noqa: F401
+                import icet  # noqa: F401
                 # Placeholder for icet logic if implemented
             except ImportError:
                 # Fallback to random shuffle

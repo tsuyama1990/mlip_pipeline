@@ -1,6 +1,8 @@
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
+
 from mlip_autopipec.config.schemas.exploration import ExplorerConfig
+
 
 def test_explorer_config_default():
     config = ExplorerConfig()

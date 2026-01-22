@@ -1,8 +1,9 @@
+
 import yaml
 from typer.testing import CliRunner
+
 from mlip_autopipec.app import app
 from mlip_autopipec.core.database import DatabaseManager
-from pathlib import Path
 
 runner = CliRunner()
 

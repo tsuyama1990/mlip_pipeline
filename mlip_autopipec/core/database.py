@@ -133,16 +133,52 @@ class DatabaseManager:
         except Exception as e:
             raise DatabaseError(f"Failed to update status: {e}") from e
 
+    def update_metadata(self, id: int, data: dict[str, Any]) -> None:
+        """
+        Updates metadata for a specific row.
+        """
+        self._ensure_connection()
+        try:
+            if self._connection is not None:
+                self._connection.update(id, **data)
+        except KeyError as e:
+            raise DatabaseError(f"ID {id} not found: {e}") from e
+        except Exception as e:
+            raise DatabaseError(f"Failed to update metadata: {e}") from e
+
     def get_atoms(self, selection: str | None = None) -> list[Atoms]:
         """Retrieve atoms matching selection."""
         self._ensure_connection()
         try:
             if self._connection is not None:
                 rows = self._connection.select(selection=selection)
-                return [row.toatoms() for row in rows]
+                atoms_list = []
+                for row in rows:
+                    at = row.toatoms()
+                    # Manually inject key_value_pairs into info if missing
+                    # ase.db Row objects store KVP in the 'key_value_pairs' attribute
+                    if hasattr(row, "key_value_pairs"):
+                        at.info.update(row.key_value_pairs)
+                    atoms_list.append(at)
+                return atoms_list
             return []
         except Exception as e:
             raise DatabaseError(f"Failed to get atoms: {e}") from e
+
+    def get_entries(self, selection: str | None = None) -> list[tuple[int, Atoms]]:
+        """
+        Retrieve entries as (id, Atoms) tuples.
+        Useful when ID is needed for updates.
+        """
+        self._ensure_connection()
+        try:
+            if self._connection is not None:
+                rows = self._connection.select(selection=selection)
+                # row.id is the database ID
+                return [(row.id, row.toatoms()) for row in rows]
+            return []
+        except Exception as e:
+            raise DatabaseError(f"Failed to get entries: {e}") from e
 
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
         """Save a candidate structure."""

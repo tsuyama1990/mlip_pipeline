@@ -1,7 +1,8 @@
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 from ase import Atoms
 from pydantic import BeforeValidator
+
 
 def validate_ase_atoms(v: Any) -> Atoms:
     if isinstance(v, Atoms):
