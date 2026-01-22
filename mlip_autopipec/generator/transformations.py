@@ -42,6 +42,10 @@ def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
         # Store as string for ASE DB compatibility
         strained.info["strain_tensor"] = json.dumps(strain_tensor.tolist())
 
+    except np.linalg.LinAlgError as e:
+        msg = f"Matrix operation failed during strain application: {e}"
+        logger.error(msg, exc_info=True)
+        raise GeneratorError(msg) from e
     except GeneratorError:
         raise
     except Exception as e:

@@ -15,14 +15,29 @@ logger = logging.getLogger(__name__)
 class DefectStrategy:
     """
     Strategy for generating point defects (vacancies and interstitials).
+
+    This class handles the creation of defects in atomic structures.
     """
 
     def __init__(self, config: DefectConfig) -> None:
+        """
+        Initialize the DefectStrategy.
+
+        Args:
+            config: Defect configuration.
+        """
         self.config = config
 
     def apply(self, structures: list[Atoms], primary_element: str | None = None) -> list[Atoms]:
         """
         Applies defects to a list of structures based on configuration.
+
+        Args:
+            structures: List of input atomic structures.
+            primary_element: The primary element symbol, used for interstitial fallback.
+
+        Returns:
+            list[Atoms]: A list containing the original structures and the newly generated defect structures.
         """
         if not self.config.enabled:
             return structures
@@ -49,8 +64,16 @@ class DefectStrategy:
     def generate_vacancies(self, atoms: Atoms, count: int = 1) -> list[Atoms]:
         """
         Generates structures with vacancies.
-        Currently generates all unique single vacancies (if count=1).
-        If count > 1, random sampling might be better.
+
+        If `count` is 1, generates all unique single vacancy structures (exhaustive).
+        If `count` > 1, generates a single structure with `count` randomly removed atoms.
+
+        Args:
+            atoms: The input structure.
+            count: Number of vacancies to create per structure.
+
+        Returns:
+            list[Atoms]: List of structures with vacancies.
         """
         results = []
         n_atoms = len(atoms)
@@ -86,15 +109,23 @@ class DefectStrategy:
 
     def generate_interstitials(self, atoms: Atoms, element: str = "H") -> list[Atoms]:
         """
-        Generates structures with one interstitial atom using Voronoi tessellation.
+        Generates structures with one interstitial atom.
+
+        Uses Voronoi tessellation to identify void spaces. If the structure is too small
+        for Voronoi (fewer than 4 atoms), falls back to heuristic fractional coordinates.
+
+        Args:
+            atoms: The input structure.
+            element: The chemical symbol of the interstitial atom.
+
+        Returns:
+            list[Atoms]: List of structures with an interstitial atom inserted.
         """
         results = []
         try:
             # Let's try Voronoi if enough points, otherwise fallback
-            # Ensure we use arrays for coordinates to avoid subtraction errors later
             if len(atoms) < 4:
                  # Fallback to simple fractional coordinates
-                 # Try multiple potential sites including tetrahedral voids
                  candidates = [
                      np.array([0.5, 0.5, 0.5]),
                      np.array([0.25, 0.25, 0.25]),
@@ -102,7 +133,7 @@ class DefectStrategy:
                      np.array([0.5, 0.0, 0.0]),
                      np.array([0.0, 0.5, 0.0]),
                      np.array([0.0, 0.0, 0.5]),
-                     np.array([0.5, 0.25, 0.0]), # Tetrahedral
+                     np.array([0.5, 0.25, 0.0]),
                      np.array([0.5, 0.75, 0.0]),
                      np.array([0.0, 0.5, 0.25]),
                      np.array([0.25, 0.0, 0.5]),
@@ -124,8 +155,6 @@ class DefectStrategy:
                 # Check distance to existing atoms
                 pos = np.dot(c, atoms.get_cell())
 
-                # Calculate distances with MIC using ase.geometry.get_distances
-                # get_distances(p1, p2, cell, pbc) returns (vectors, distances)
                 D_vectors, D_scalar = get_distances(atoms.positions, pos.reshape(1, 3), cell=atoms.cell, pbc=atoms.pbc)
                 dists = D_scalar.flatten()
 

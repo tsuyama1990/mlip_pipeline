@@ -5,6 +5,7 @@ import numpy as np
 from ase import Atoms
 from ase.build import make_supercell
 
+from mlip_autopipec.config.schemas.common import Composition
 from mlip_autopipec.config.schemas.generator import SQSConfig
 from mlip_autopipec.exceptions import GeneratorError
 
@@ -14,21 +15,36 @@ logger = logging.getLogger(__name__)
 class SQSStrategy:
     """
     Strategy for generating Special Quasirandom Structures (SQS).
+
+    This class handles the creation of chemically disordered supercells that
+    mimic random alloys.
     """
 
     def __init__(self, config: SQSConfig) -> None:
+        """
+        Initialize the SQSStrategy.
+
+        Args:
+            config: SQS configuration.
+        """
         self.config = config
 
-    def generate(self, prim_cell: Atoms, composition: dict[str, float]) -> Atoms:
+    def generate(self, prim_cell: Atoms, composition: Composition) -> Atoms:
         """
         Generates an SQS supercell.
 
+        Attempts to use `icet` if available for optimal SQS generation.
+        Falls back to random shuffling if `icet` is not installed or fails.
+
         Args:
-            prim_cell: Primitive cell.
-            composition: Target composition dictionary.
+            prim_cell: The primitive unit cell.
+            composition: Target composition mapping elements to fractions.
 
         Returns:
-            Atoms: Generated SQS structure.
+            Atoms: The generated SQS structure.
+
+        Raises:
+            GeneratorError: If generation fails.
         """
         try:
             # 1. Create Supercell
@@ -41,7 +57,7 @@ class SQSStrategy:
             n_atoms = len(atoms)
 
             # 2. Determine target counts
-            comp_dict = composition
+            comp_dict = composition.root
             sorted_comp = sorted(comp_dict.items(), key=lambda x: x[1], reverse=True)
 
             symbols: list[str] = []
@@ -57,9 +73,8 @@ class SQSStrategy:
                 symbols.extend([elem] * count)
                 current_count += count
 
-            # Ensure exact length (though logic above should cover it)
+            # Ensure exact length
             if len(symbols) != n_atoms:
-                # Should not happen with logic above, but safety check
                 logger.warning(f"SQS symbol count mismatch: {len(symbols)} vs {n_atoms}. Truncating/Filling.")
                 symbols = symbols[:n_atoms]
                 while len(symbols) < n_atoms:

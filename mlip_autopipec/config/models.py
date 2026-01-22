@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.config.schemas.common import TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.schemas.exploration import ExplorerConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.orchestration import WorkflowConfig
@@ -52,35 +53,33 @@ class SystemConfig(BaseModel):
 
     # Strict types
     workflow_config: WorkflowConfig | None = None
-    explorer_config: Any | None = None # Still Any as no schema provided for Explorer yet
+    explorer_config: ExplorerConfig | None = None
     surrogate_config: SurrogateConfig | None = None
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
     generator_config: GeneratorConfig | None = None
 
     # Legacy aliases - Typed as Optional[Any] to allow backward compat but restricted by model_config if possible
-    # We remove arbitrary_types_allowed=True if we can.
-    # If legacy code injects objects, we need it.
-    # Auditor said "allows arbitrary types... could lead to corruption".
-    # I will try to remove arbitrary_types_allowed and see if mypy/tests pass.
-    # If I use Any, Pydantic allows validation of Any.
 
     generator: Any | None = None
     explorer: Any | None = None
     dask: Any | None = None
     dft: Any | None = None
 
-    model_config = ConfigDict(extra="forbid") # Removed arbitrary_types_allowed=True
+    model_config = ConfigDict(extra="forbid")
 
 
 class CheckpointState(BaseModel):
     # Placeholder for workflow state
-    run_uuid: Any = None
+    run_uuid: str | None = None
     system_config: SystemConfig
     active_learning_generation: int = 0
     current_potential_path: Path | None = None
-    pending_job_ids: list[Any] = []
-    job_submission_args: dict[Any, Any] = {}
-    training_history: list[Any] = []
-    # We might need arbitrary types here for 'Any' fields if they hold non-pydantic objects
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    pending_job_ids: list[str] = []
+    job_submission_args: dict[str, Any] = {}
+    training_history: list[dict[str, Any]] = []
+
+    # We remove arbitrary_types_allowed=True.
+    # If Any contains non-Pydantic types, it might fail if they are not JSON serializable.
+    # But Pydantic allows Any.
+    model_config = ConfigDict(extra="forbid")
