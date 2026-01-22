@@ -1,7 +1,13 @@
 # Facade for the generator module
-from .alloy import AlloyGenerator
 from .builder import StructureBuilder
-from .defect import DefectGenerator
-from .molecule import MoleculeGenerator
+from .defects import DefectStrategy
+from .sqs import SQSStrategy
+from .transformations import apply_rattle, apply_strain
 
-__all__ = ["AlloyGenerator", "DefectGenerator", "MoleculeGenerator", "StructureBuilder"]
+__all__ = [
+    "DefectStrategy",
+    "SQSStrategy",
+    "StructureBuilder",
+    "apply_rattle",
+    "apply_strain",
+]

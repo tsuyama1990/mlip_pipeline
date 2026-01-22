@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TargetSystem(BaseModel):
+    name: str = Field("System", description="Name of the target system")
     elements: list[str] = Field(..., description="List of chemical symbols")
     composition: dict[str, float] = Field(..., description="Atomic fractions")
     crystal_structure: str | None = Field(None, description="Base structure (e.g., 'fcc')")

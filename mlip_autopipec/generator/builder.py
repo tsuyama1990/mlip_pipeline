@@ -1,22 +1,24 @@
 import logging
 import uuid
 
+import numpy as np
 from ase import Atoms
 from ase.build import bulk, molecule
 
-from mlip_autopipec.config.schemas.system import SystemConfig
+from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
-
-from .alloy import AlloyGenerator
-from .defect import DefectApplicator
-from .molecule import MoleculeGenerator
+from mlip_autopipec.generator.defects import DefectStrategy
+from mlip_autopipec.generator.molecule import MoleculeGenerator
+from mlip_autopipec.generator.sqs import SQSStrategy
+from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
 
 logger = logging.getLogger(__name__)
 
 
 class StructureBuilder:
     """
-    Facade for structure generation. Orchestrates Alloy, Molecule, and Defect generators.
+    Facade for structure generation. Orchestrates SQS, Distortions, and Defects.
     """
 
     def __init__(self, system_config: SystemConfig) -> None:
@@ -31,26 +33,19 @@ class StructureBuilder:
 
         if not self.generator_config:
             logger.info("No generator_config provided in SystemConfig, using defaults.")
-            raise GeneratorError("GeneratorConfig is missing in SystemConfig.")
+            self.generator_config = GeneratorConfig()
 
-        self.alloy_gen = AlloyGenerator(self.generator_config)
+        self.sqs_strategy = SQSStrategy(self.generator_config.sqs)
+        self.defect_strategy = DefectStrategy(self.generator_config.defects)
+        # Molecule generator kept for legacy/completeness
         self.mol_gen = MoleculeGenerator(self.generator_config)
-        self.defect_applicator = DefectApplicator(self.generator_config)
 
-    def build(self) -> list[Atoms]:
+    def build_batch(self) -> list[Atoms]:
         """
-        Orchestrates the generation process based on TargetSystem.
-
-        The process follows a strict pipeline:
-        1. Generate Base Structures (SQS or Molecule).
-        2. Apply Distortions (Strain, Rattle, NMS).
-        3. Apply Defects (Post-processing).
+        Orchestrates the generation process.
 
         Returns:
             List[Atoms]: A list of generated atomic structures.
-
-        Raises:
-            GeneratorError: If critical generation steps fail.
         """
         target = self.system_config.target_system
         if not target:
@@ -61,21 +56,41 @@ class StructureBuilder:
 
         try:
             # 1. Base Generation Phase
-            if target.structure_type == "bulk":
-                base_structures = self._generate_bulk_base(target)
-            elif target.structure_type == "molecule":
-                base_structures = self._generate_molecule_base(target)
-            elif target.structure_type == "defect":
-                # Treated as bulk with mandatory defects in config
-                base_structures = self._generate_bulk_base(target)
-            else:
-                logger.warning(f"Unknown structure_type: {target.structure_type}")
-                return []
+            # Determine structure type
+            structure_type = "bulk" # Default
+            if target.crystal_structure:
+                structure_type = "bulk"
+            elif hasattr(target, "structure_type") and target.structure_type:
+                structure_type = target.structure_type
+            elif "molecule" in target.name.lower():
+                 structure_type = "molecule"
 
-            # 2. Defect Application Phase (Post-Processing)
-            # Apply defects to the generated base structures via Applicator
-            primary_elem = next(iter(target.composition.root.keys()))
-            final_structures = self.defect_applicator.apply(base_structures, primary_elem)
+            if structure_type == "bulk":
+                base_structures = self._generate_bulk_base(target)
+            elif structure_type == "molecule":
+                # Delegate to legacy molecule generator logic or adapt
+                # For now, minimal support
+                try:
+                    mol = molecule(target.name)
+                    base_structures.append(mol)
+                except Exception:
+                     logger.warning(f"Could not build molecule {target.name}")
+            else:
+                 # Default to bulk if unknown
+                 base_structures = self._generate_bulk_base(target)
+
+            # 2. Distortions (Strain + Rattle)
+            distorted_structures = self._apply_distortions(base_structures)
+
+            # Combine base and distorted
+            # (Logic depends if we want to keep base. Usually yes.)
+            # The _apply_distortions below might return expanded set.
+
+            current_pool = distorted_structures
+
+            # 3. Defect Application Phase
+            primary_elem = next(iter(target.composition.keys()))
+            final_structures = self.defect_strategy.apply(current_pool, primary_elem)
 
         except Exception as e:
             if isinstance(e, GeneratorError):
@@ -83,20 +98,26 @@ class StructureBuilder:
             msg = f"Structure generation failed: {e}"
             raise GeneratorError(msg, context={"target": target.name}) from e
 
-        # 3. Final Metadata Tagging
+        # 4. Final Metadata Tagging
         for s in final_structures:
             if "uuid" not in s.info:
                 s.info["uuid"] = str(uuid.uuid4())
             s.info["target_system"] = target.name
 
+        # 5. Limit number of structures if needed (random sample)
+        n_req = self.generator_config.number_of_structures
+        if len(final_structures) > n_req:
+             import random
+             final_structures = random.sample(final_structures, n_req)
+
         return final_structures
 
     def _generate_bulk_base(self, target) -> list[Atoms]:
-        """Generates bulk structures including SQS and Distortions."""
+        """Generates bulk structures including SQS."""
         structures = []
 
         # Heuristic: Take the first element from composition and use its bulk structure.
-        primary_elem = next(iter(target.composition.root.keys()))
+        primary_elem = next(iter(target.composition.keys()))
         try:
             prim = bulk(primary_elem)
         except Exception as e:
@@ -105,36 +126,59 @@ class StructureBuilder:
             )
             prim = bulk("Fe")
 
-        # SQS & Distortions
         if self.generator_config.sqs.enabled:
-            # Generate SQS
-            sqs = self.alloy_gen.generate_sqs(prim, target.composition)
-
-            # Apply Distortions (Strain + Rattle)
-            # generate_batch handles the expansion logic
-            batch = self.alloy_gen.generate_batch(sqs)
-            structures.extend(batch)
+            sqs = self.sqs_strategy.generate(prim, target.composition)
+            structures.append(sqs)
         else:
-            # If SQS disabled, pass
-            pass
+            # Just primitive
+            structures.append(prim)
 
         return structures
 
-    def _generate_molecule_base(self, target) -> list[Atoms]:
-        """Generates molecular structures including NMS."""
-        structures = []
-        try:
-            mol = molecule(target.name)
-        except Exception as e:
-            msg = f"Could not build molecule '{target.name}': {e}"
-            raise GeneratorError(msg) from e
+    def _apply_distortions(self, base_structures: list[Atoms]) -> list[Atoms]:
+        """Applies strain and rattle to base structures."""
+        results = []
 
-        if self.generator_config.nms.enabled:
-            n_samples = self.generator_config.nms.n_samples
-            for T in self.generator_config.nms.temperatures:
-                samples = self.mol_gen.normal_mode_sampling(mol, T, n_samples=n_samples)
-                structures.extend(samples)
-        else:
-            structures.append(mol)
+        # Include base structures first
+        results.extend(base_structures)
 
-        return structures
+        if not self.generator_config.distortion.enabled:
+            return results
+
+        n_strain = self.generator_config.distortion.n_strain_steps
+        n_rattle = self.generator_config.distortion.n_rattle_steps
+        strain_range = self.generator_config.distortion.strain_range
+        rattle_stdev = self.generator_config.distortion.rattle_stdev
+
+        for base in base_structures:
+            # Strains
+            strains = np.linspace(strain_range[0], strain_range[1], n_strain)
+            strained_pool = [base]
+
+            for s in strains:
+                if abs(s) < 1e-6:
+                    continue # Skip zero strain (base)
+
+                # Hydrostatic
+                strain_tensor = np.eye(3) * s
+                try:
+                    strained = apply_strain(base, strain_tensor)
+                    strained_pool.append(strained)
+                    results.append(strained)
+                except Exception as e:
+                    logger.warning(f"Strain failed: {e}")
+
+            # Rattles
+            for st in strained_pool:
+                for _ in range(n_rattle):
+                    try:
+                        rattled = apply_rattle(st, rattle_stdev)
+                        # Inherit metadata
+                        if "strain_tensor" in st.info:
+                             rattled.info["strain_tensor"] = st.info["strain_tensor"]
+                        rattled.info["parent_config_type"] = st.info.get("config_type")
+                        results.append(rattled)
+                    except Exception as e:
+                        logger.warning(f"Rattle failed: {e}")
+
+        return results

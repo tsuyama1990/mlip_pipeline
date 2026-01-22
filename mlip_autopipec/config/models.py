@@ -23,6 +23,7 @@ class MLIPConfig(BaseModel):
     target_system: TargetSystem
     dft: DFTConfig
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
 
     model_config = ConfigDict(extra="forbid")
 
