@@ -54,18 +54,52 @@ def test_uat_2_1_generate_sqs_alloy(tmp_path):
     with DatabaseManager(db_path) as db:
         count = db.count()
         assert count == 1
-        # Check config_type via selection
         assert db.count(selection="config_type=sqs") == 1
 
-        # Verify structure content (extra assertion requested)
         atoms = db.get_atoms(selection="config_type=sqs")[0]
-        assert len(atoms) == 8 # 2x2x2 FCC (1 atom prim) -> 8 atoms? Wait.
-        # ASE bulk("Fe", "fcc") is primitive (1 atom).
-        # 2x2x2 supercell -> 8 atoms.
-        # SQS logic attempts to match stoichiometry 0.5/0.5 -> 4 Fe, 4 Ni.
+        assert len(atoms) == 8 # 2x2x2 FCC (1 atom prim) -> 8 atoms
         syms = atoms.get_chemical_symbols()
         assert syms.count("Fe") == 4
         assert syms.count("Ni") == 4
+
+def test_uat_2_1_generate_invalid_config(tmp_path):
+    """
+    Test generating with invalid configuration (Scenario requested by audit).
+    """
+    db_path = tmp_path / "mlip.db"
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+
+    # Invalid: Composition sum != 1.0
+    config_data = {
+        "target_system": {
+            "name": "FeNi",
+            "elements": ["Fe", "Ni"],
+            "composition": {"Fe": 0.5, "Ni": 0.2}, # Sum 0.7
+            "crystal_structure": "fcc"
+        },
+        "generator_config": {"sqs": {"enabled": True}},
+        "dft": {
+            "pseudopotential_dir": str(pseudo_dir),
+            "ecutwfc": 40.0,
+            "kspacing": 0.15
+        },
+        "runtime": {
+            "database_path": str(db_path),
+            "work_dir": str(tmp_path / "work")
+        }
+    }
+
+    config_file = tmp_path / "input.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    # Initialize should fail or generate should fail validation
+    # init checks schema? No, init just copies template.
+    # db init loads config.
+    result = runner.invoke(app, ["db", "init", "--config", str(config_file)])
+    assert result.exit_code != 0
+    assert "Validation Error" in result.stdout or "Database Error" in result.stdout
 
 def test_uat_2_2_apply_strain(tmp_path):
     """
@@ -106,13 +140,10 @@ def test_uat_2_2_apply_strain(tmp_path):
 
     runner.invoke(app, ["db", "init", "--config", str(config_file)])
     result = runner.invoke(app, ["generate", "--config", str(config_file)])
-    print(f"STDOUT: {result.stdout}")
     assert result.exit_code == 0
 
     with DatabaseManager(db_path) as db:
         count = db.count()
-        print(f"DB Count: {count}")
-        # Base (1) + 4 strained = 5 structures
         assert count == 5
 
 def test_uat_2_3_defect_vacancy(tmp_path):
@@ -150,15 +181,10 @@ def test_uat_2_3_defect_vacancy(tmp_path):
 
     runner.invoke(app, ["db", "init", "--config", str(config_file)])
     result = runner.invoke(app, ["generate", "--config", str(config_file)])
-    print(f"STDOUT: {result.stdout}")
     assert result.exit_code == 0
 
     with DatabaseManager(db_path) as db:
         count = db.count()
-        print(f"DB Count: {count}")
-        # SQS (32 atoms?? No, 2x2x2 FCC prim = 8 atoms) -> Base
-        # Vacancies -> 8 structures (each 1 vacancy)
-        # Total 1 + 8 = 9 structures.
         assert count == 9
         assert db.count(selection="config_type=vacancy") >= 1
 
@@ -198,10 +224,8 @@ def test_uat_2_4_defect_interstitial(tmp_path):
 
     runner.invoke(app, ["db", "init", "--config", str(config_file)])
     result = runner.invoke(app, ["generate", "--config", str(config_file)])
-    print(f"STDOUT: {result.stdout}")
     assert result.exit_code == 0
 
     with DatabaseManager(db_path) as db:
         count_int = db.count(selection="config_type=interstitial")
-        print(f"Interstitials: {count_int}")
         assert count_int > 0
