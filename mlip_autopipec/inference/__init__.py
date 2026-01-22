@@ -9,7 +9,7 @@ from .analysis import AnalysisUtils
 from .embedding import EmbeddingExtractor
 from .inputs import ScriptGenerator
 from .interfaces import MDRunner
-from .lammps_runner import LammpsRunner
+from .runner import LammpsRunner
 from .masking import ForceMasker
 from .uq import UncertaintyChecker
 from .writer import LammpsInputWriter

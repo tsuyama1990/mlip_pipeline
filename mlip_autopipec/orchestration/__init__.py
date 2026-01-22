@@ -1,5 +1,5 @@
 from .dashboard import Dashboard
-from .manager import WorkflowManager
+from .workflow import WorkflowManager
 from .models import DashboardData, OrchestratorConfig, WorkflowState
 from .task_queue import TaskQueue
 

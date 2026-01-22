@@ -38,12 +38,16 @@ def test_generate_config(training_config, tmp_path):
     assert data['fit']['loss']['kappa'] == 0.6
     assert data['fit']['loss']['kappa_f'] == 100.0
 
+@patch("shutil.which")
 @patch("subprocess.run")
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output")
 @patch("mlip_autopipec.training.metrics.LogParser.parse_file")
-def test_train_success(mock_parse, mock_check, mock_run, training_config, tmp_path):
+def test_train_success(mock_parse, mock_check, mock_run, mock_which, training_config, tmp_path):
     """Test successful training run."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    # Mock executable existence
+    mock_which.return_value = "/usr/bin/pacemaker"
 
     # Mock subprocess success
     mock_run.return_value.returncode = 0
@@ -64,7 +68,8 @@ def test_train_success(mock_parse, mock_check, mock_run, training_config, tmp_pa
     args, kwargs = mock_run.call_args
     # args[0] should contain 'pacemaker' and 'input.yaml'
     assert "pacemaker" in args[0]
-    assert str(tmp_path / "input.yaml") in args[0]
+    # The second arg is usually the config path (relative if cwd is set)
+    assert "input.yaml" in args[0]
 
 @patch("subprocess.run")
 def test_train_failure_return_code(mock_run, training_config, tmp_path):

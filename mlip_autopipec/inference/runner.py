@@ -6,6 +6,7 @@ It delegates input creation to LammpsInputWriter.
 """
 
 import logging
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -37,26 +38,31 @@ class LammpsRunner(MDRunner):
         self.work_dir = work_dir
         self.writer = LammpsInputWriter(config, work_dir)
 
-    def run(self, atoms: Atoms) -> InferenceResult:
+    def run(self, atoms: Atoms, potential_path: Path) -> InferenceResult:
         """
         Executes a LAMMPS simulation for the given atoms object.
 
         Args:
             atoms: The atomic structure to simulate.
+            potential_path: Path to the .yace potential.
 
         Returns:
             InferenceResult object containing simulation status and artifacts.
         """
+        success = False
+        max_gamma = 0.0
+
+        # Initialize paths (will be overwritten by writer)
         data_file = self.work_dir / "data.lammps"
         dump_file = self.work_dir / "dump.gamma"
-        success = False
+        log_file = self.work_dir / "log.lammps"
 
         try:
             # Delegate writing
-            input_file, data_file_path, log_file, dump_file_path = self.writer.write_inputs(atoms)
-            # Update paths in case writer changed them
+            input_file, data_file_path, log_file_path, dump_file_path = self.writer.write_inputs(atoms, potential_path)
             data_file = data_file_path
             dump_file = dump_file_path
+            log_file = log_file_path
 
             # Determine executable
             executable = (
@@ -83,27 +89,33 @@ class LammpsRunner(MDRunner):
             logger.info(f"Starting LAMMPS execution: {' '.join(cmd)}")
 
             result = subprocess.run(
-                cmd, check=True, capture_output=True, text=True, cwd=self.work_dir
+                cmd, check=False, capture_output=True, text=True, cwd=self.work_dir
             )
 
-            logger.info("LAMMPS execution completed successfully.")
-            success = True
+            if result.returncode != 0:
+                logger.error(f"LAMMPS execution failed with return code {result.returncode}")
+                logger.error(f"Stdout: {result.stdout}")
+                logger.error(f"Stderr: {result.stderr}")
+                success = False
+            else:
+                logger.info("LAMMPS execution completed successfully.")
+                success = True
 
-        except subprocess.CalledProcessError as e:
-            logger.error(f"LAMMPS execution failed with return code {e.returncode}")
-            logger.error(f"Stdout: {e.stdout}")
-            logger.error(f"Stderr: {e.stderr}")
-            success = False
-        except Exception:
-            logger.exception("An unexpected error occurred during LAMMPS execution.")
+        except Exception as e:
+            logger.exception(f"An unexpected error occurred during LAMMPS execution: {e}")
             success = False
 
-        # Process Results (Best Effort)
+        # Parse Log for Max Gamma
+        if log_file.exists():
+            max_gamma = self._parse_max_gamma(log_file)
+            logger.info(f"Max Gamma observed: {max_gamma}")
+
+        # Process Results
         uncertain_structures = []
-        if success and dump_file.exists() and dump_file.stat().st_size > 0:
+        if dump_file.exists() and dump_file.stat().st_size > 0:
+            # If we have a dump, it means we ran.
+            # We treat the dump as the source of uncertain structures if gamma > threshold.
             uncertain_structures.append(dump_file)
-
-        max_gamma = 0.0
 
         return InferenceResult(
             succeeded=success,
@@ -111,3 +123,31 @@ class LammpsRunner(MDRunner):
             uncertain_structures=uncertain_structures,
             max_gamma_observed=max_gamma,
         )
+
+    def _parse_max_gamma(self, log_file: Path) -> float:
+        """Parses the log file to find the maximum gamma value recorded."""
+        max_g = 0.0
+        try:
+            content = log_file.read_text()
+            lines = content.splitlines()
+            header_found = False
+            for line in lines:
+                if "Step" in line and "c_max_gamma" in line:
+                    header_found = True
+                    continue
+                if header_found:
+                    if "Loop time" in line:
+                        break
+                    parts = line.split()
+                    if len(parts) >= 5: # We have at least 5 cols
+                        try:
+                            # last col is c_max_gamma
+                            val = float(parts[-1])
+                            if val > max_g:
+                                max_g = val
+                        except ValueError:
+                            pass
+        except Exception:
+            logger.warning("Failed to parse max gamma from log.")
+
+        return max_g

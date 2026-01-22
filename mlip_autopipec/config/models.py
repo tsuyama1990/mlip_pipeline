@@ -36,7 +36,10 @@ class MLIPConfig(BaseModel):
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
 
-    model_config = ConfigDict(extra="forbid")
+    # Added for Orchestration
+    workflow_config: WorkflowConfig | None = Field(None, alias="workflow")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 # --- Compatibility / Legacy Models ---

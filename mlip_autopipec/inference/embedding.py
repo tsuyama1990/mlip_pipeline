@@ -69,6 +69,12 @@ class EmbeddingExtractor:
             symbols=cluster_symbols, positions=final_positions, cell=[L, L, L], pbc=True
         )
         cluster.new_array("original_index", np.array(cluster_indices))
+
+        # Compute masks
+        dists = np.linalg.norm(cluster.positions - box_center, axis=1)
+        mask = np.where(dists < self.config.core_radius, 1.0, 0.0)
+        cluster.new_array("force_mask", mask)
+
         return cluster
 
     def extract(self, large_atoms: Atoms, center_idx: int) -> ExtractedStructure:
