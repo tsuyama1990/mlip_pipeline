@@ -34,7 +34,7 @@ class QERunner:
         Validates and splits the command string safely.
         """
         # Additional Security check (redundant with schema but good for runtime)
-        if any(char in command for char in [";", "&", "|"]):
+        if any(char in command for char in [";", "&", "|", "`", "$"]):
              raise DFTFatalError("Command contains potentially unsafe shell characters.")
 
         parts = shlex.split(command)
@@ -103,7 +103,7 @@ class QERunner:
 
                     # Read logs
                     try:
-                        stdout_content = output_path.read_text()
+                        stdout_content = output_path.read_text(encoding="utf-8", errors="replace")
                     except FileNotFoundError:
                         stdout_content = ""
                     stderr_content = proc.stderr if proc.stderr else ""
@@ -111,16 +111,20 @@ class QERunner:
                 except subprocess.TimeoutExpired:
                     returncode = -1
                     try:
-                        stdout_content = output_path.read_text()
+                        stdout_content = output_path.read_text(encoding="utf-8", errors="replace")
                     except FileNotFoundError:
                          stdout_content = ""
                     stderr_content = "Timeout Expired"
+                except OSError as e:
+                     # Specific handling for Executable not found (if shutil passed but execution failed)
+                     logger.error(f"OS Error executing subprocess: {e}")
+                     last_error = e
+                     returncode = -998
+                     stdout_content = ""
+                     stderr_content = str(e)
                 except Exception as e:
                      logger.error(f"Subprocess execution failed: {e}")
                      last_error = e
-                     # Don't break immediately, try to recover if it's a known error type?
-                     # But if subprocess failed to start, we can't recover via physics params.
-                     # Here we treat it as a fatal attempt unless we have specific recovery.
                      returncode = -999
                      stdout_content = ""
                      stderr_content = str(e)
@@ -131,13 +135,8 @@ class QERunner:
                 # QE typically returns non-zero on error.
                 if returncode != 0:
                     logger.warning(f"QE process exited with code {returncode}")
-                    # If it's a crash (e.g. 139), we might not want to parse,
-                    # but we SHOULD analyze stdout for "convergence not achieved" which sometimes accompanies non-zero exits in some wrappers (though usually 0 for unconverged).
-                    # We continue to analysis.
 
                 # Try to parse output if it looks like it might have finished or we want partials?
-                # Usually we only parse on success or to check completion.
-                # If returncode is 0, we expect success.
                 if returncode == 0:
                     try:
                         result = self._parse_output(output_path, uid, wall_time, current_params.model_dump(), atoms)

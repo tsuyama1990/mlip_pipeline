@@ -41,11 +41,10 @@ class DFTConfig(BaseModel):
     @classmethod
     def validate_command_security(cls, v: str) -> str:
         """
-        Basic security check to prevent obvious shell injection if used improperly,
-        though runner uses shell=False.
-        Disallows chaining operators like ';', '&&', '|'.
+        Security check to prevent shell injection.
+        Disallows: ; & | ` $ ( )
         """
-        # We allow arguments but disallow shell operators
-        if re.search(r"[;&|]", v):
-            raise ValueError("Command contains potentially unsafe shell characters (;, &, |).")
+        # Strict check for shell control operators
+        if re.search(r"[;&|`$()]", v):
+            raise ValueError("Command contains unsafe shell characters (; & | ` $ ( )).")
         return v
