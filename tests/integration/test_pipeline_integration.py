@@ -116,6 +116,8 @@ def test_integration_training_flow(mock_db, tmp_path):
         assert "Lattice=" in content
         assert "energy=" in content
         assert "Cu" in content
+        # Ensure it is ExtXYZ
+        assert "Properties=species:S:1:pos:R:3" in content
 
     # 3. Train (Mocking Pacemaker subprocess)
     with patch("mlip_autopipec.training.pacemaker.subprocess.run") as mock_run, \

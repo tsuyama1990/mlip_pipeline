@@ -27,10 +27,10 @@ class TrainingConfig(BaseModel):
     def validate_cutoff(cls, v: float) -> float:
         """
         Validates that the cutoff is a positive value and within a reasonable physical range.
-        Standard interatomic potentials rarely exceed 20 Angstroms.
+        Standard interatomic potentials rarely exceed 20 Angstroms and are at least 1 Angstrom.
         """
-        if v <= 0:
-            msg = "Cutoff must be positive."
+        if v < 1.0:
+            msg = "Cutoff is too small (< 1.0 A)."
             raise ValueError(msg)
         if v > 20.0:
             msg = "Cutoff is unusually large (> 20.0 A). Please verify."

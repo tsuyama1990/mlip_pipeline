@@ -173,7 +173,7 @@ def train(
     setup_logging()
     try:
         # Use TrainingManager (Module D)
-        from mlip_autopipec.modules.training import TrainingManager
+        from mlip_autopipec.modules.training_orchestrator import TrainingManager
 
         config = load_config(config_file)
         train_conf = config.training_config
