@@ -96,8 +96,16 @@ def test_integration_training_flow(mock_db, tmp_path):
     builder = DatasetBuilder(mock_db)
     builder.export(config, work_dir)
 
-    assert (work_dir / "data" / "train.xyz").exists()
+    train_file = work_dir / "data" / "train.xyz"
+    assert train_file.exists()
     assert (work_dir / "data" / "test.xyz").exists()
+
+    # Verify content
+    with open(train_file) as f:
+        content = f.read()
+        assert "Lattice=" in content
+        assert "energy=" in content
+        assert "Cu" in content
 
     # 3. Train (Mocking Pacemaker subprocess)
     with patch("mlip_autopipec.training.pacemaker.subprocess.run") as mock_run, \

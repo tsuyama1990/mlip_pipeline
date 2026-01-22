@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator
 
 
 class TrainingConfig(BaseModel):
@@ -21,6 +21,17 @@ class TrainingConfig(BaseModel):
     max_iter: PositiveInt = Field(1000, description="Maximum training epochs")
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("cutoff")
+    @classmethod
+    def validate_cutoff(cls, v: float) -> float:
+        """
+        Validates that the cutoff is a positive value.
+        (Redundant with PositiveFloat but explicit per request)
+        """
+        if v <= 0:
+            raise ValueError("Cutoff must be positive.")
+        return v
 
 
 class TrainConfig(TrainingConfig):

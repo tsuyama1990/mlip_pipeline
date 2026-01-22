@@ -16,16 +16,29 @@ logger = logging.getLogger(__name__)
 class PacemakerWrapper:
     """
     Wraps Pacemaker training process.
+    Handles input generation, execution of the binary, and output verification.
     """
 
     def __init__(self, config: TrainingConfig, work_dir: Path):
+        """
+        Initialize the wrapper.
+
+        Args:
+            config: Training configuration.
+            work_dir: Working directory for training artifacts.
+        """
         self.config = config
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
     def generate_config(self) -> Path:
         """
-        Generates the Pacemaker input YAML.
+        Generates the Pacemaker input YAML configuration file.
+
+        Maps the Pydantic TrainingConfig to the YAML structure required by Pacemaker.
+
+        Returns:
+            Path to the generated input.yaml file.
         """
         config_path = self.work_dir / "input.yaml"
 
@@ -56,20 +69,35 @@ class PacemakerWrapper:
         return config_path
 
     def check_output(self, output_path: Path) -> bool:
-        """Verifies the output potential file."""
+        """
+        Verifies the output potential file exists and is not empty.
+
+        Args:
+            output_path: Path to the expected .yace file.
+
+        Returns:
+            True if valid, False otherwise.
+        """
         return output_path.exists() and output_path.stat().st_size > 0
 
     def train(self) -> TrainingResult:
         """
         Runs Pacemaker training.
+
+        Executes the 'pacemaker' binary as a subprocess. Captures stdout/stderr
+        to a log file and parses metrics upon completion.
+
+        Returns:
+            TrainingResult object containing status, metrics, and potential path.
         """
-        config_path = self.generate_config()
-        log_path = self.work_dir / "log.txt"
-
-        cmd = ["pacemaker", str(config_path.name)]
-
-        logger.info(f"Running Pacemaker in {self.work_dir}")
         try:
+            config_path = self.generate_config()
+            log_path = self.work_dir / "log.txt"
+
+            cmd = ["pacemaker", str(config_path.name)]
+
+            logger.info(f"Running Pacemaker in {self.work_dir}")
+
             with open(log_path, "w") as log_file:
                 result = subprocess.run(
                     cmd,
@@ -85,6 +113,7 @@ class PacemakerWrapper:
 
             output_yace = self.work_dir / "output.yace"
 
+            # Check for other named files if default name is not used by Pacemaker version
             if not output_yace.exists():
                  yace_files = list(self.work_dir.glob("*.yace"))
                  if yace_files:
@@ -103,6 +132,12 @@ class PacemakerWrapper:
                  logger.error("No valid .yace output found.")
                  return TrainingResult(success=False)
 
+        except FileNotFoundError:
+            logger.error("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")
+            return TrainingResult(success=False)
+        except OSError as e:
+            logger.error(f"OS Error during training execution: {e}")
+            return TrainingResult(success=False)
         except Exception as e:
-            logger.exception(f"Training failed: {e}")
+            logger.exception(f"Training failed with unexpected error: {e}")
             return TrainingResult(success=False)

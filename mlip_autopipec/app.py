@@ -171,8 +171,7 @@ def train(
     """
     setup_logging()
     try:
-        from mlip_autopipec.training.dataset import DatasetBuilder
-        from mlip_autopipec.training.pacemaker import PacemakerWrapper
+        from mlip_autopipec.training.manager import TrainingManager
 
         config = load_config(config_file)
         train_conf = config.training_config
@@ -185,17 +184,17 @@ def train(
         db_path = config.runtime.database_path
 
         with DatabaseManager(db_path) as db:
-            builder = DatasetBuilder(db)
-            # Step 1: Export Data
-            builder.export(train_conf, work_dir)
+            manager = TrainingManager(db, train_conf, work_dir)
 
             if prepare_only:
+                from mlip_autopipec.training.dataset import DatasetBuilder
+                # Expose internal builder for prepare-only
+                builder = DatasetBuilder(db)
+                builder.export(train_conf, work_dir)
                 console.print(f"[green]Data preparation complete in {work_dir}[/green]")
                 return
 
-            # Step 2: Train
-            wrapper = PacemakerWrapper(train_conf, work_dir)
-            result = wrapper.train()
+            result = manager.run_training()
 
             if result.success:
                 console.print(f"[green]Training successful![/green]")

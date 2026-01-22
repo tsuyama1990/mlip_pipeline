@@ -17,6 +17,9 @@ class LogParser:
         """
         Parses the log file to extract the latest metrics.
 
+        Searches for RMSE energy and force values in the log content.
+        Checks for divergence (NaN/Inf).
+
         Args:
             log_path: Path to the log file.
 

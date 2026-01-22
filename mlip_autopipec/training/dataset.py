@@ -21,21 +21,31 @@ class DatasetBuilder:
     """
 
     def __init__(self, db_manager: DatabaseManager):
+        """
+        Initialize the DatasetBuilder.
+
+        Args:
+            db_manager: An initialized DatabaseManager instance.
+        """
         self.db_manager = db_manager
 
     def export(self, config: TrainingConfig, output_dir: Path) -> Path:
         """
         Exports data to Pacemaker format (ExtXYZ).
 
+        This method queries the database for completed structures, splits them
+        into training and validation sets, and writes them to the paths specified
+        in the configuration relative to the output directory.
+
         Args:
-            config: Training configuration.
-            output_dir: Directory to save the exported files.
+            config: Training configuration containing file paths and parameters.
+            output_dir: Base directory where data files will be saved.
 
         Returns:
             Path to the training data file.
 
         Raises:
-            ValueError: If no data is found or split results in empty training set.
+            ValueError: If no data is found in the database.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -89,10 +99,6 @@ class DatasetBuilder:
         # Helper to clean/prep atoms for ExtXYZ if needed
         # ASE ExtXYZ writer handles energy/forces if in atoms.info/arrays/calc
         # DB `get_atoms` puts them in info/arrays.
-
-        # Note: Pacemaker expects 'energy' and 'forces'.
-        # DatabaseManager.get_atoms populates info with key_value_pairs.
-        # Forces are usually in arrays.
 
         logger.info(f"Writing {len(train_set)} structures to {train_path}")
         write(train_path, train_set, format="extxyz")
