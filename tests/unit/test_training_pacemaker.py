@@ -40,10 +40,13 @@ def test_generate_config(training_config, tmp_path):
     assert data['fit']['loss']['kappa_f'] == 100.0
 
 @patch("shutil.which")
+@patch("os.access", return_value=True)
+@patch("pathlib.Path.exists", return_value=True)
+@patch("pathlib.Path.is_file", return_value=True)
 @patch("subprocess.run")
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output")
 @patch("mlip_autopipec.training.metrics.LogParser.parse_file")
-def test_train_success(mock_parse, mock_check, mock_run, mock_which, training_config, tmp_path):
+def test_train_success(mock_parse, mock_check, mock_run, mock_is_file, mock_exists, mock_access, mock_which, training_config, tmp_path):
     """Test successful training run."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
@@ -73,8 +76,12 @@ def test_train_success(mock_parse, mock_check, mock_run, mock_which, training_co
     # The second arg is usually the config path (relative if cwd is set)
     assert "input.yaml" in args[0]
 
+@patch("shutil.which", return_value="/usr/bin/pacemaker")
+@patch("os.access", return_value=True)
+@patch("pathlib.Path.exists", return_value=True)
+@patch("pathlib.Path.is_file", return_value=True)
 @patch("subprocess.run")
-def test_train_failure_return_code(mock_run, training_config, tmp_path):
+def test_train_failure_return_code(mock_run, mock_is_file, mock_exists, mock_access, mock_which, training_config, tmp_path):
     """Test training failure (non-zero return code)."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
@@ -85,8 +92,12 @@ def test_train_failure_return_code(mock_run, training_config, tmp_path):
     assert result.success is False
     assert result.metrics is None
 
+@patch("shutil.which", return_value="/usr/bin/pacemaker")
+@patch("os.access", return_value=True)
+@patch("pathlib.Path.exists", return_value=True)
+@patch("pathlib.Path.is_file", return_value=True)
 @patch("subprocess.run")
-def test_train_failure_os_error(mock_run, training_config, tmp_path):
+def test_train_failure_os_error(mock_run, mock_is_file, mock_exists, mock_access, mock_which, training_config, tmp_path):
     """Test training failure due to OS error (permission denied, etc)."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
@@ -109,8 +120,12 @@ def test_train_failure_missing_executable(mock_run, training_config, tmp_path):
 
     assert result.success is False
 
+@patch("shutil.which", return_value="/usr/bin/pacemaker")
+@patch("os.access", return_value=True)
+@patch("pathlib.Path.exists", return_value=True)
+@patch("pathlib.Path.is_file", return_value=True)
 @patch("subprocess.run")
-def test_train_failure_subprocess_error(mock_run, training_config, tmp_path):
+def test_train_failure_subprocess_error(mock_run, mock_is_file, mock_exists, mock_access, mock_which, training_config, tmp_path):
     """Test training failure due to generic subprocess error."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
@@ -120,9 +135,13 @@ def test_train_failure_subprocess_error(mock_run, training_config, tmp_path):
 
     assert result.success is False
 
+@patch("shutil.which", return_value="/usr/bin/pacemaker")
+@patch("os.access", return_value=True)
+@patch("pathlib.Path.exists", return_value=True)
+@patch("pathlib.Path.is_file", return_value=True)
 @patch("subprocess.run")
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output")
-def test_train_success_no_output(mock_check, mock_run, training_config, tmp_path):
+def test_train_success_no_output(mock_check, mock_run, mock_is_file, mock_exists, mock_access, mock_which, training_config, tmp_path):
     """Test training succeeds but output file is missing/empty."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
@@ -145,3 +164,32 @@ def test_train_config_write_permission_error(training_config, tmp_path):
         assert result.success is False
     finally:
         tmp_path.chmod(0o700)
+
+@patch("shutil.which", return_value="/usr/bin/pacemaker")
+@patch("os.access", return_value=True)
+@patch("pathlib.Path.exists", return_value=True)
+@patch("pathlib.Path.is_file", return_value=True)
+@patch("subprocess.run")
+def test_train_timeout(mock_run, mock_is_file, mock_exists, mock_access, mock_which, training_config, tmp_path):
+    """Test handling of subprocess timeout."""
+    wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="pacemaker", timeout=10)
+
+    result = wrapper.train()
+
+    assert result.success is False
+
+def test_generate_config_validation_error(training_config, tmp_path):
+    """Test validation fails if generated config is invalid (e.g. malformed)."""
+    wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    # Mocking open/yaml to simulate corrupted generation
+    with patch("yaml.dump") as mock_dump:
+        # Mock valid dump first
+        mock_dump.return_value = None
+
+        # Now mock read back returning invalid structure
+        with patch("yaml.safe_load", return_value="Not a dict"):
+             with pytest.raises(ValueError, match="Generated YAML is not a dictionary"):
+                 wrapper.generate_config()

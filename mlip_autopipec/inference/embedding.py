@@ -46,9 +46,7 @@ class EmbeddingExtractor:
         indices, offsets = self._get_neighbors(large_atoms, center_idx)
 
         # 2. Build cluster
-        cluster_atoms = self._build_cluster(large_atoms, center_idx, indices, offsets)
-
-        return cluster_atoms
+        return self._build_cluster(large_atoms, center_idx, indices, offsets)
 
     def _validate_input(self, large_atoms: Atoms, center_idx: int) -> None:
         """Validate input structure and index."""
@@ -57,7 +55,8 @@ class EmbeddingExtractor:
         if len(large_atoms) == 0:
             raise ValueError("Input structure is empty.")
         if center_idx < 0 or center_idx >= len(large_atoms):
-            raise IndexError(f"Center index {center_idx} out of bounds (0-{len(large_atoms) - 1}).")
+            msg = f"Center index {center_idx} out of bounds (0-{len(large_atoms) - 1})."
+            raise IndexError(msg)
 
     def _get_neighbors(self, large_atoms: Atoms, center_idx: int) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -79,12 +78,12 @@ class EmbeddingExtractor:
 
         # Optimized approach: Use primitive neighbor list but filter
         # "S" -> shift vectors (number of cell vectors added)
-        i_arr, j_arr, S_arr = neighbor_list(
+        i_arr, j_arr, s_arr = neighbor_list(
             "ijS", large_atoms, cutoff
         )
         mask = i_arr == center_idx
         neighbors_indices = j_arr[mask]
-        neighbor_offsets = S_arr[mask]
+        neighbor_offsets = s_arr[mask]
 
         return neighbors_indices, neighbor_offsets
 
@@ -108,10 +107,10 @@ class EmbeddingExtractor:
         symbols.append(large_atoms.get_chemical_symbols()[center_idx])
 
         for i, offset in zip(indices, offsets, strict=True):
-            pos = large_atoms.positions[i]
             # Unwrap: position + offset @ cell
             # offset is integers (n1, n2, n3). cell is 3x3.
             # dot(offset, cell) gives the Cartesian shift vector.
+            pos = large_atoms.positions[i]
             shifted_pos = pos + np.dot(offset, cell)
             # Relative to center
             rel_pos = shifted_pos - center_pos
@@ -126,12 +125,6 @@ class EmbeddingExtractor:
         )
 
         # Add vacuum padding
-        # We use box_size from config or just buffer_width as vacuum
-        # box_size = 2*(core + buffer) + 2.0
-        # If we use `center(vacuum=X)`, total size = range + 2*X.
-        # Let's use config.buffer_width + config.core_radius as minimal vacuum?
-        # Actually, if we want isolated cluster, usually 5-10A vacuum is enough.
-        # Let's use a reasonable default or derive from buffer.
         cluster.center(vacuum=self.config.buffer_width + 5.0)
 
         return cluster

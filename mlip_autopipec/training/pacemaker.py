@@ -107,6 +107,7 @@ class PacemakerWrapper:
         """Helper to run the subprocess."""
         try:
             # shell=False prevents shell injection
+            # timeout=None by default, but could be added if config supported it
             with log_path.open("w") as log_file:
                 result = subprocess.run(
                     cmd,
@@ -117,11 +118,14 @@ class PacemakerWrapper:
                     shell=False
                 )
             return result.returncode
-        except subprocess.SubprocessError:
-            logger.exception("Subprocess execution failed")
+        except subprocess.TimeoutExpired:
+            logger.error("Pacemaker execution timed out.")
             return -1
-        except OSError:
-            logger.exception("OS Error during subprocess execution")
+        except subprocess.SubprocessError as e:
+            logger.exception(f"Subprocess execution failed: {e}")
+            return -1
+        except OSError as e:
+            logger.exception(f"OS Error during subprocess execution: {e}")
             return -1
 
     def _resolve_executable(self) -> str:
