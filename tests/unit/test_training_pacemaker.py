@@ -1,10 +1,11 @@
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 import yaml
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingMetrics
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
+
 
 @pytest.fixture
 def training_config():

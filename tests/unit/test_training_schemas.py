@@ -3,6 +3,7 @@ from pydantic import ValidationError
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingMetrics
 
+
 def test_training_config_valid():
     """Test creating a valid TrainingConfig."""
     config = TrainingConfig(

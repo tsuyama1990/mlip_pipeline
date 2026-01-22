@@ -2,10 +2,11 @@
 Module for parsing Pacemaker training logs.
 """
 
-import re
-import math
 import logging
+import math
+import re
 from pathlib import Path
+
 from mlip_autopipec.config.schemas.training import TrainingMetrics
 
 logger = logging.getLogger(__name__)

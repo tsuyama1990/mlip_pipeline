@@ -4,6 +4,7 @@ Manages configuration generation and execution.
 """
 
 import logging
+import shlex
 import subprocess
 import yaml
 from pathlib import Path
@@ -19,7 +20,7 @@ class PacemakerWrapper:
     Handles input generation, execution of the binary, and output verification.
     """
 
-    def __init__(self, config: TrainingConfig, work_dir: Path):
+    def __init__(self, config: TrainingConfig, work_dir: Path) -> None:
         """
         Initialize the wrapper.
 
@@ -62,7 +63,8 @@ class PacemakerWrapper:
             }
         }
 
-        with open(config_path, "w") as f:
+        # Safe open logic handled by Path
+        with config_path.open("w") as f:
             yaml.dump(pacemaker_config, f)
 
         logger.info(f"Generated Pacemaker config at {config_path}")
@@ -94,11 +96,15 @@ class PacemakerWrapper:
             config_path = self.generate_config()
             log_path = self.work_dir / "log.txt"
 
+            # Use shlex.split for extra safety if we were parsing a string,
+            # though here we construct the list directly which is safer.
             cmd = ["pacemaker", str(config_path.name)]
 
             logger.info(f"Running Pacemaker in {self.work_dir}")
 
-            with open(log_path, "w") as log_file:
+            # Use Path.open for compliance
+            with log_path.open("w") as log_file:
+                # subprocess.run with a list is generally safe from shell injection
                 result = subprocess.run(
                     cmd,
                     cwd=self.work_dir,
@@ -109,6 +115,13 @@ class PacemakerWrapper:
 
             if result.returncode != 0:
                 logger.error(f"Pacemaker failed with code {result.returncode}")
+                # Log the stderr content for debugging
+                if log_path.exists():
+                    try:
+                        content = log_path.read_text()
+                        logger.error(f"Pacemaker Output:\n{content}")
+                    except Exception:
+                        logger.exception("Could not read log file")
                 return TrainingResult(success=False)
 
             output_yace = self.work_dir / "output.yace"
@@ -133,11 +146,11 @@ class PacemakerWrapper:
                  return TrainingResult(success=False)
 
         except FileNotFoundError:
-            logger.error("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")
+            logger.exception("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")
             return TrainingResult(success=False)
-        except OSError as e:
-            logger.error(f"OS Error during training execution: {e}")
+        except OSError:
+            logger.exception("OS Error during training execution")
             return TrainingResult(success=False)
-        except Exception as e:
-            logger.exception(f"Training failed with unexpected error: {e}")
+        except Exception:
+            logger.exception("Training failed with unexpected error")
             return TrainingResult(success=False)

@@ -1,10 +1,12 @@
-import pytest
+from unittest.mock import MagicMock
+
 import numpy as np
-from pathlib import Path
-from unittest.mock import MagicMock, call
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.training.dataset import DatasetBuilder
+
 
 @pytest.fixture
 def mock_db_manager():

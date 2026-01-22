@@ -33,6 +33,16 @@ class TrainingConfig(BaseModel):
             raise ValueError("Cutoff must be positive.")
         return v
 
+    @field_validator("b_basis_size")
+    @classmethod
+    def validate_b_basis_size(cls, v: int) -> int:
+        """
+        Validates that the basis size is a positive integer.
+        """
+        if v <= 0:
+            raise ValueError("Basis size must be positive.")
+        return v
+
 
 class TrainConfig(TrainingConfig):
     """Alias for backward compatibility if needed."""

@@ -1,7 +1,8 @@
+
 import pytest
-from pathlib import Path
-from mlip_autopipec.training.metrics import LogParser
+
 from mlip_autopipec.config.schemas.training import TrainingMetrics
+from mlip_autopipec.training.metrics import LogParser
 
 SAMPLE_LOG = """
 Pacemaker v1.0

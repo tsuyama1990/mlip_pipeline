@@ -1,11 +1,9 @@
-import pytest
-import os
-from pathlib import Path
-from typer.testing import CliRunner
 from unittest.mock import MagicMock, patch
 
+import pytest
+from typer.testing import CliRunner
+
 from mlip_autopipec.app import app
-from mlip_autopipec.config.schemas.training import TrainingConfig
 
 runner = CliRunner()
 
@@ -42,7 +40,7 @@ target_system:
 dft:
   ecutwfc: 40.0
   kspacing: 0.04
-  pseudopotential_dir: "{str(pseudo_dir)}"
+  pseudopotential_dir: "{pseudo_dir!s}"
 
 training_config:
   cutoff: 5.0
@@ -95,7 +93,7 @@ target_system:
 dft:
   ecutwfc: 40.0
   kspacing: 0.04
-  pseudopotential_dir: "{str(pseudo_dir)}"
+  pseudopotential_dir: "{pseudo_dir!s}"
 
 training_config:
   cutoff: 5.0

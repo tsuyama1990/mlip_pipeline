@@ -171,7 +171,7 @@ def train(
     """
     setup_logging()
     try:
-        from mlip_autopipec.training.manager import TrainingManager
+        from mlip_autopipec.modules.training import TrainingManager
 
         config = load_config(config_file)
         train_conf = config.training_config
@@ -197,7 +197,7 @@ def train(
             result = manager.run_training()
 
             if result.success:
-                console.print(f"[green]Training successful![/green]")
+                console.print("[green]Training successful![/green]")
                 if result.metrics:
                     console.print(f"Metrics: {result.metrics}")
                 if result.potential_path:
