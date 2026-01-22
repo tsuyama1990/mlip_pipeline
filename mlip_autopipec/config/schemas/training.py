@@ -30,7 +30,8 @@ class TrainingConfig(BaseModel):
         (Redundant with PositiveFloat but explicit per request)
         """
         if v <= 0:
-            raise ValueError("Cutoff must be positive.")
+            msg = "Cutoff must be positive."
+            raise ValueError(msg)
         return v
 
     @field_validator("b_basis_size")
@@ -40,7 +41,8 @@ class TrainingConfig(BaseModel):
         Validates that the basis size is a positive integer.
         """
         if v <= 0:
-            raise ValueError("Basis size must be positive.")
+            msg = "Basis size must be positive."
+            raise ValueError(msg)
         return v
 
 

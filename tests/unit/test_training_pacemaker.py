@@ -1,11 +1,11 @@
-from unittest.mock import patch
-
 import pytest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 import yaml
+import subprocess
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingMetrics
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
-
 
 @pytest.fixture
 def training_config():
@@ -64,11 +64,11 @@ def test_train_success(mock_parse, mock_check, mock_run, training_config, tmp_pa
     args, kwargs = mock_run.call_args
     # args[0] should contain 'pacemaker' and 'input.yaml'
     assert "pacemaker" in args[0]
-    assert "input.yaml" in args[0]
+    assert str(tmp_path / "input.yaml") in args[0]
 
 @patch("subprocess.run")
-def test_train_failure(mock_run, training_config, tmp_path):
-    """Test training failure (subprocess error)."""
+def test_train_failure_return_code(mock_run, training_config, tmp_path):
+    """Test training failure (non-zero return code)."""
     wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
 
     mock_run.return_value.returncode = 1
@@ -77,3 +77,49 @@ def test_train_failure(mock_run, training_config, tmp_path):
 
     assert result.success is False
     assert result.metrics is None
+
+@patch("subprocess.run")
+def test_train_failure_os_error(mock_run, training_config, tmp_path):
+    """Test training failure due to OS error (permission denied, etc)."""
+    wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    mock_run.side_effect = OSError("Permission denied")
+
+    result = wrapper.train()
+
+    assert result.success is False
+
+@patch("subprocess.run")
+def test_train_failure_missing_executable(mock_run, training_config, tmp_path):
+    """Test training failure when binary is missing."""
+    wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    mock_run.side_effect = FileNotFoundError("pacemaker not found")
+
+    result = wrapper.train()
+
+    assert result.success is False
+
+@patch("subprocess.run")
+def test_train_failure_subprocess_error(mock_run, training_config, tmp_path):
+    """Test training failure due to generic subprocess error."""
+    wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    mock_run.side_effect = subprocess.SubprocessError("Failed to spawn")
+
+    result = wrapper.train()
+
+    assert result.success is False
+
+@patch("subprocess.run")
+@patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output")
+def test_train_success_no_output(mock_check, mock_run, training_config, tmp_path):
+    """Test training succeeds but output file is missing/empty."""
+    wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+    mock_run.return_value.returncode = 0
+    mock_check.return_value = False # Output check fails
+
+    result = wrapper.train()
+
+    assert result.success is False

@@ -3,21 +3,60 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: mock-3.15.1, cov-7.0.0
-collected 20 items
+collected 24 items
 
-tests/unit/test_training_schemas.py ......                               [ 30%]
-tests/unit/test_training_dataset.py ..                                   [ 40%]
-tests/unit/test_training_pacemaker.py ...                                [ 55%]
-tests/unit/test_training_metrics.py .....                                [ 80%]
-tests/uat/test_cycle05_uat.py .F                                         [ 90%]
+tests/unit/test_training_schemas.py ......                               [ 25%]
+tests/unit/test_training_dataset.py ..                                   [ 33%]
+tests/unit/test_training_pacemaker.py .F.....                            [ 62%]
+tests/unit/test_training_metrics.py .....                                [ 83%]
+tests/uat/test_cycle05_uat.py .F                                         [ 91%]
 tests/integration/test_pipeline_integration.py .F                        [100%]
 
 =================================== FAILURES ===================================
+______________________________ test_train_success ______________________________
+
+mock_parse = <MagicMock name='parse_file' id='139966318098288'>
+mock_check = <MagicMock name='check_output' id='139966318216784'>
+mock_run = <MagicMock name='run' id='139966318096704'>
+training_config = TrainingConfig(training_data_path='data/train.xyz', test_data_path='data/test.xyz', cutoff=4.5, b_basis_size=200, kappa=0.6, kappa_f=100.0, max_iter=10)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-17/test_train_success0')
+
+    @patch("subprocess.run")
+    @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper.check_output")
+    @patch("mlip_autopipec.training.metrics.LogParser.parse_file")
+    def test_train_success(mock_parse, mock_check, mock_run, training_config, tmp_path):
+        """Test successful training run."""
+        wrapper = PacemakerWrapper(config=training_config, work_dir=tmp_path)
+
+        # Mock subprocess success
+        mock_run.return_value.returncode = 0
+
+        # Mock output check success
+        mock_check.return_value = True
+
+        # Mock metrics parsing
+        expected_metrics = TrainingMetrics(epoch=10, rmse_energy=1.5, rmse_force=0.02)
+        mock_parse.return_value = expected_metrics
+
+        result = wrapper.train()
+
+        assert result.success is True
+        assert result.metrics == expected_metrics
+
+        # Verify subprocess call
+        args, kwargs = mock_run.call_args
+        # args[0] should contain 'pacemaker' and 'input.yaml'
+        assert "pacemaker" in args[0]
+>       assert str(tmp_path / "input.yaml") in args[0]
+E       AssertionError: assert '/tmp/pytest-of-jules/pytest-17/test_train_success0/input.yaml' in ['pacemaker', 'input.yaml']
+E        +  where '/tmp/pytest-of-jules/pytest-17/test_train_success0/input.yaml' = str((PosixPath('/tmp/pytest-of-jules/pytest-17/test_train_success0') / 'input.yaml'))
+
+tests/unit/test_training_pacemaker.py:67: AssertionError
 _____________________ test_scenario_5_2_training_execution _____________________
 
-mock_db_manager = <MagicMock name='DatabaseManager()' id='140644545944112'>
-mock_pacemaker = <MagicMock name='run' id='140644545948384'>
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-16/test_scenario_5_2_training_exe0')
+mock_db_manager = <MagicMock name='DatabaseManager()' id='139966317553152'>
+mock_pacemaker = <MagicMock name='run' id='139966317626384'>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-17/test_scenario_5_2_training_exe0')
 
     def test_scenario_5_2_training_execution(mock_db_manager, mock_pacemaker, tmp_path):
         """
@@ -77,11 +116,11 @@ Training failed.
 Training Failed:
 
 ------------------------------ Captured log call -------------------------------
-ERROR    mlip_autopipec.training.pacemaker:pacemaker.py:145 No valid .yace output found.
+ERROR    mlip_autopipec.training.pacemaker:pacemaker.py:149 No valid .yace output found.
 ________________________ test_integration_training_flow ________________________
 
-mock_db = <mlip_autopipec.core.database.DatabaseManager object at 0x7fea5c3ac860>
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-16/test_integration_training_flow0')
+mock_db = <mlip_autopipec.core.database.DatabaseManager object at 0x7f4c728a11c0>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-17/test_integration_training_flow0')
 
     def test_integration_training_flow(mock_db, tmp_path):
         """
@@ -134,7 +173,7 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                             Stmts   Miss  Cover   Missing
 ------------------------------------------------------------------------------
 mlip_autopipec/__init__.py                           8      0   100%
-mlip_autopipec/app.py                              126     73    42%   31-62, 70-80, 93-119, 133-159, 180-181, 200-204, 225-233, 237
+mlip_autopipec/app.py                              126     73    42%   31-62, 70-80, 93-120, 134-160, 182-183, 206-210, 231-239, 243
 mlip_autopipec/config/__init__.py                    3      0   100%
 mlip_autopipec/config/factory.py                    37     37     0%   1-62
 mlip_autopipec/config/models.py                     55      0   100%
@@ -190,7 +229,7 @@ mlip_autopipec/modules/explorer.py                  46     46     0%   3-90
 mlip_autopipec/modules/generator.py                 72     72     0%   3-203
 mlip_autopipec/modules/inference.py                136    136     0%   7-333
 mlip_autopipec/modules/screening.py                 41     41     0%   3-68
-mlip_autopipec/modules/training.py                  22      3    86%   43-45
+mlip_autopipec/modules/training.py                  22      3    86%   66-68
 mlip_autopipec/monitoring/__init__.py                0      0   100%
 mlip_autopipec/monitoring/dashboard.py              63     63     0%   1-115
 mlip_autopipec/orchestration/__init__.py             5      0   100%
@@ -212,7 +251,7 @@ mlip_autopipec/training/__init__.py                  4      0   100%
 mlip_autopipec/training/config_gen.py               16     10    38%   12-14, 32-46
 mlip_autopipec/training/dataset.py                  45      7    84%   73-78, 85-86, 113-114
 mlip_autopipec/training/metrics.py                  35      3    91%   50, 68-69
-mlip_autopipec/training/pacemaker.py                59     12    80%   123-124, 133, 148-156
+mlip_autopipec/training/pacemaker.py                63      6    90%   127-128, 137, 158-160
 mlip_autopipec/training/physics.py                  39     28    28%   43-109
 mlip_autopipec/utils/__init__.py                     0      0   100%
 mlip_autopipec/utils/ase_utils.py                   42     42     0%   12-120
@@ -223,8 +262,9 @@ mlip_autopipec/utils/resilience.py                  29     29     0%   6-93
 mlip_autopipec/utils/workflow_utils.py              32     32     0%   3-53
 mlip_autopipec/workflow_manager.py                 106    106     0%   1-191
 ------------------------------------------------------------------------------
-TOTAL                                             3154   2232    29%
+TOTAL                                             3158   2226    30%
 =========================== short test summary info ============================
+FAILED tests/unit/test_training_pacemaker.py::test_train_success - AssertionE...
 FAILED tests/uat/test_cycle05_uat.py::test_scenario_5_2_training_execution - ...
 FAILED tests/integration/test_pipeline_integration.py::test_integration_training_flow
-========================= 2 failed, 18 passed in 9.57s =========================
+======================== 3 failed, 21 passed in 12.97s =========================

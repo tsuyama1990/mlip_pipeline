@@ -45,7 +45,7 @@ class MLIPConfig(BaseModel):
 class MinimalConfig(BaseModel):
     project_name: str = "MLIP Project"
     target_system: TargetSystem
-    model_config = ConfigDict(extra="allow") # Allow extra for flexibility in minimal inputs
+    model_config = ConfigDict(extra="forbid")
 
 
 class SystemConfig(BaseModel):

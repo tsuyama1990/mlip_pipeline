@@ -4,10 +4,10 @@ Manages configuration generation and execution.
 """
 
 import logging
-import shlex
 import subprocess
-import yaml
 from pathlib import Path
+
+import yaml
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.metrics import LogParser
@@ -82,6 +82,24 @@ class PacemakerWrapper:
         """
         return output_path.exists() and output_path.stat().st_size > 0
 
+    def _execute_subprocess(self, cmd: list[str], log_path: Path) -> int:
+        """Helper to run the subprocess."""
+        with log_path.open("w") as log_file:
+            # S603 is ignored as we are constructing cmd internally
+            try:
+                result = subprocess.run(
+                    cmd,
+                    cwd=self.work_dir,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    check=False
+                )
+            except subprocess.SubprocessError:
+                logger.exception("Subprocess execution failed")
+                return -1
+
+            return result.returncode
+
     def train(self) -> TrainingResult:
         """
         Runs Pacemaker training.
@@ -95,27 +113,14 @@ class PacemakerWrapper:
         try:
             config_path = self.generate_config()
             log_path = self.work_dir / "log.txt"
-
-            # Use shlex.split for extra safety if we were parsing a string,
-            # though here we construct the list directly which is safer.
             cmd = ["pacemaker", str(config_path.name)]
 
             logger.info(f"Running Pacemaker in {self.work_dir}")
 
-            # Use Path.open for compliance
-            with log_path.open("w") as log_file:
-                # subprocess.run with a list is generally safe from shell injection
-                result = subprocess.run(
-                    cmd,
-                    cwd=self.work_dir,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    check=False
-                )
+            returncode = self._execute_subprocess(cmd, log_path)
 
-            if result.returncode != 0:
-                logger.error(f"Pacemaker failed with code {result.returncode}")
-                # Log the stderr content for debugging
+            if returncode != 0:
+                logger.error(f"Pacemaker failed with code {returncode}")
                 if log_path.exists():
                     try:
                         content = log_path.read_text()
@@ -126,7 +131,6 @@ class PacemakerWrapper:
 
             output_yace = self.work_dir / "output.yace"
 
-            # Check for other named files if default name is not used by Pacemaker version
             if not output_yace.exists():
                  yace_files = list(self.work_dir.glob("*.yace"))
                  if yace_files:
@@ -135,15 +139,13 @@ class PacemakerWrapper:
             if self.check_output(output_yace):
                  parser = LogParser()
                  metrics = parser.parse_file(log_path)
-
                  return TrainingResult(
                      success=True,
                      potential_path=str(output_yace),
                      metrics=metrics
                  )
-            else:
-                 logger.error("No valid .yace output found.")
-                 return TrainingResult(success=False)
+            logger.error("No valid .yace output found.")
+            return TrainingResult(success=False)
 
         except FileNotFoundError:
             logger.exception("Pacemaker executable not found. Please ensure 'pacemaker' is in PATH.")
