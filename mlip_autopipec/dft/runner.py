@@ -98,7 +98,6 @@ class QERunner:
                             text=True,
                         )
 
-                    # Robustness: Handle non-zero return code even if parser might not be called yet
                     returncode = proc.returncode
 
                     # Read logs
@@ -116,7 +115,6 @@ class QERunner:
                          stdout_content = ""
                     stderr_content = "Timeout Expired"
                 except OSError as e:
-                     # Specific handling for Executable not found (if shutil passed but execution failed)
                      logger.error(f"OS Error executing subprocess: {e}")
                      last_error = e
                      returncode = -998
@@ -131,12 +129,10 @@ class QERunner:
 
                 wall_time = time.time() - start_time
 
-                # Check for system level crashes (Segfaults etc)
-                # QE typically returns non-zero on error.
                 if returncode != 0:
                     logger.warning(f"QE process exited with code {returncode}")
 
-                # Try to parse output if it looks like it might have finished or we want partials?
+                # Try to parse output if successful
                 if returncode == 0:
                     try:
                         result = self._parse_output(output_path, uid, wall_time, current_params.model_dump(), atoms)
@@ -152,9 +148,12 @@ class QERunner:
                 if not self.config.recoverable or attempt > self.config.max_retries:
                     break  # Fatal
 
-                # If no specific error detected but return code was non-zero, it's an unknown fatal error usually
+                # CRITICAL FIX: If no specific error detected but return code was non-zero, it's an unknown fatal error usually
                 if error_type.name == "NONE" and returncode != 0:
-                     last_error = DFTFatalError(f"Process exited with {returncode} but no known error pattern found.")
+                     msg = f"Process exited with {returncode} but no known error pattern found."
+                     logger.error(msg)
+                     last_error = DFTFatalError(msg)
+                     # Break the loop, do not retry blindly
                      break
 
                 try:
@@ -166,6 +165,7 @@ class QERunner:
                     continue
                 except Exception as e:
                     last_error = e
+                    # If getting strategy failed (e.g. OOM has no strategy), we break
                     break
 
         raise DFTFatalError(f"Job {uid} failed after {attempt} attempts. Last error: {last_error}")

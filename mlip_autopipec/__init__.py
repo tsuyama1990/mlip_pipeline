@@ -31,9 +31,32 @@ machine learning potentials.
    `WorkflowManager` ties everything together, managing state transitions
    (Pending -> Selected -> Completed) and distributing tasks via `TaskQueue`.
 
-Interaction Flow:
------------------
-User Config -> WorkflowManager -> Generator -> DB -> Surrogate -> DB -> DFT -> DB -> Trainer
+Module Interactions:
+--------------------
+The system follows a linear pipeline architecture orchestrated by `WorkflowManager`:
+
+1.  **Initialization**: `WorkflowManager` loads `MLIPConfig` and initializes the `DatabaseManager`.
+2.  **Generation**:
+    - `StructureBuilder` generates structures based on `GeneratorConfig`.
+    - Structures are saved to DB with status "pending".
+3.  **Surrogate Selection**:
+    - `SurrogatePipeline` queries "pending" structures.
+    - `MaceWrapper` filters unphysical structures (force threshold).
+    - `FarthestPointSampling` selects diverse subset.
+    - Selected structures marked "selected"; others "held" or "rejected".
+4.  **DFT Execution**:
+    - `TaskQueue` picks up "selected" structures.
+    - `QERunner` executes Quantum Espresso.
+    - On success: Results (Energy/Forces/Stress) saved to DB, status -> "completed".
+    - On failure: `RecoveryHandler` attempts parameter adjustments (beta, smearing). If all fail, status -> "failed".
+5.  **Training** (Future):
+    - `Pacemaker` trains on "completed" structures.
+
+Dependencies:
+-------------
+- `config` -> All modules (schemas)
+- `core` -> All modules (database/logging)
+- `orchestration` -> `generator`, `surrogate`, `dft` (control flow)
 """
 
 from mlip_autopipec.config.models import (

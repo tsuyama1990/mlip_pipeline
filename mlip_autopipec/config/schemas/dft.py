@@ -46,5 +46,5 @@ class DFTConfig(BaseModel):
         """
         # Strict check for shell control operators
         if re.search(r"[;&|`$()]", v):
-            raise ValueError("Command contains unsafe shell characters (; & | ` $ ( )).")
+            raise ValueError("Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked.")
         return v

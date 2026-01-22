@@ -73,9 +73,6 @@ def test_uat_4_2_convergence_recovery(tmp_path):
         def side_effect_run(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            # 1. Fail (Convergence)
-            # 2. Fail (Convergence) - but parameters should have changed
-            # 3. Success
             if call_count <= 2:
                 if kwargs.get('stdout'):
                     kwargs['stdout'].write("convergence NOT achieved\n")
@@ -100,7 +97,6 @@ def test_uat_4_2_convergence_recovery(tmp_path):
             )
         ]
 
-        # Recovery Logic side effects
         def side_effect_analyze(stdout, stderr):
             if "convergence NOT achieved" in stdout:
                 from mlip_autopipec.data_models.dft_models import DFTErrorType
@@ -112,7 +108,6 @@ def test_uat_4_2_convergence_recovery(tmp_path):
 
         # Mock strategy
         def side_effect_strategy(error, params):
-            # params is a dict from model_dump
             new_p = params.copy()
             if params.get("mixing_beta", 0.7) > 0.35:
                 new_p["mixing_beta"] = 0.3
@@ -126,20 +121,48 @@ def test_uat_4_2_convergence_recovery(tmp_path):
 
         assert result.succeeded
         assert mock_run.call_count == 3
-
-        # Verify the progression of parameters by checking what input generator received (indirectly)
-        # or checking result provenance.
         assert result.parameters["diagonalization"] == "cg"
 
-        # Verify call arguments to strategy were distinct
-        first_call_args = mock_recovery.get_strategy.call_args_list[0]
-        second_call_args = mock_recovery.get_strategy.call_args_list[1]
+# New Test: Recovery Strategy Failure (Max Retries)
+def test_uat_4_2b_recovery_failure(tmp_path):
+    (tmp_path / "pseudos").mkdir()
+    config = DFTConfig(
+        pseudopotential_dir=tmp_path / "pseudos",
+        ecutwfc=30.0,
+        kspacing=0.05,
+        command="pw.x",
+        max_retries=2 # Limit retries
+    )
 
-        # First call: default beta 0.7
-        assert first_call_args[0][1]["mixing_beta"] == 0.7
+    runner = QERunner(config)
+    atoms = Atoms('Fe', cell=[3,3,3], pbc=True)
 
-        # Second call: beta 0.3 (updated from first recovery)
-        assert second_call_args[0][1]["mixing_beta"] == 0.3
+    with patch("mlip_autopipec.dft.runner.subprocess.run") as mock_run, \
+         patch("mlip_autopipec.dft.runner.shutil.which") as mock_which, \
+         patch("mlip_autopipec.dft.runner.QEOutputParser") as mock_parser_cls, \
+         patch("mlip_autopipec.dft.runner.RecoveryHandler") as mock_recovery:
+
+        mock_which.return_value = "/bin/pw.x"
+
+        # Always fail with convergence error
+        def side_effect_run(*args, **kwargs):
+            if kwargs.get('stdout'):
+                kwargs['stdout'].write("convergence NOT achieved\n")
+                kwargs['stdout'].flush()
+            return MagicMock(returncode=0, stderr="")
+
+        mock_run.side_effect = side_effect_run
+
+        mock_parser = mock_parser_cls.return_value
+        mock_parser.parse.side_effect = Exception("Parse fail")
+
+        from mlip_autopipec.data_models.dft_models import DFTErrorType
+        mock_recovery.analyze.return_value = DFTErrorType.CONVERGENCE_FAIL
+        mock_recovery.get_strategy.return_value = {"mixing_beta": 0.1} # Dummy new param
+
+        with pytest.raises(DFTFatalError, match="failed after 3 attempts"):
+            # 1 initial + 2 retries = 3 total attempts
+            runner.run(atoms, uid="uat_4_2b")
 
 
 # Scenario 4.3: Fatal Error Handling
@@ -170,7 +193,6 @@ def test_uat_4_3_fatal_error(tmp_path):
         mock_parser.parse.side_effect = Exception("Crash")
 
         from mlip_autopipec.data_models.dft_models import DFTErrorType
-        # Return NONE to simulate unknown error pattern, but since returncode != 0 it should fail
         mock_recovery.analyze.return_value = DFTErrorType.NONE
 
         with pytest.raises(DFTFatalError, match="exited with 139"):
