@@ -1,10 +1,12 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-from pathlib import Path
 from ase import Atoms
-from mlip_autopipec.dft.runner import QERunner, DFTFatalError
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 @pytest.fixture
 def dft_config(tmp_path):
@@ -76,10 +78,9 @@ def test_runner_recovery(mock_recovery, mock_parser_cls, mock_input_gen, mock_wh
             stdout_f.flush()
             # Simulate failure return code if desired, or 0 if QE failed to converge but exited "normally"
             return MagicMock(returncode=1, stderr="")
-        else:
-            stdout_f.write("JOB DONE\n")
-            stdout_f.flush()
-            return MagicMock(returncode=0, stderr="")
+        stdout_f.write("JOB DONE\n")
+        stdout_f.flush()
+        return MagicMock(returncode=0, stderr="")
 
     mock_run.side_effect = side_effect
 

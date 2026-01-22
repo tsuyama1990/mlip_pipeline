@@ -9,7 +9,6 @@ class TrainConfig(BaseModel):
 
 class TrainingConfig(TrainConfig):
     """Alias for TrainConfig to satisfy imports."""
-    pass
 
 class TrainingResult(BaseModel):
     """Result of training."""
@@ -18,4 +17,3 @@ class TrainingResult(BaseModel):
 
 class TrainingData(BaseModel):
     """Placeholder for training data model."""
-    pass

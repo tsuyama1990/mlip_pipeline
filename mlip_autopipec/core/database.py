@@ -33,7 +33,7 @@ class DatabaseConnector:
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             self._connection = ase.db.connect(str(self.db_path))
-            # Verify validity
+            # Verify validity by attempting a lightweight operation
             self._connection.count()
             return self._connection
         except OSError as e:
@@ -104,7 +104,7 @@ class DatabaseManager:
             id = self._connection.write(atoms, **metadata)
             return id
         except KeyError as e:
-            logger.error(f"Invalid key in metadata: {e}")
+            logger.error(f"Invalid key in metadata during add_structure: {e}")
             raise DatabaseError(f"Invalid key in metadata: {e}") from e
         except Exception as e:
             logger.error(f"Failed to add structure: {e}")
@@ -138,10 +138,10 @@ class DatabaseManager:
         try:
             self._connection.update(id, status=status)
         except KeyError as e:
-            logger.error(f"ID {id} not found: {e}")
+            logger.error(f"ID {id} not found during update_status: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
-            logger.error(f"Failed to update status: {e}")
+            logger.error(f"Failed to update status for ID {id}: {e}")
             raise DatabaseError(f"Failed to update status: {e}") from e
 
     def update_metadata(self, id: int, data: dict[str, Any]) -> None:
@@ -155,10 +155,10 @@ class DatabaseManager:
         try:
             self._connection.update(id, **data)
         except KeyError as e:
-            logger.error(f"ID {id} not found: {e}")
+            logger.error(f"ID {id} not found during update_metadata: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
         except Exception as e:
-            logger.error(f"Failed to update metadata: {e}")
+            logger.error(f"Failed to update metadata for ID {id}: {e}")
             raise DatabaseError(f"Failed to update metadata: {e}") from e
 
     def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
@@ -233,7 +233,7 @@ class DatabaseManager:
                 atoms, data=result.model_dump() if hasattr(result, "model_dump") else {}
             )
         except AttributeError as e:
-            logger.error(f"Invalid DFTResult object: {e}")
+            logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
         except Exception as e:
             logger.error(f"Failed to save DFT result: {e}")
@@ -244,7 +244,8 @@ class DatabaseManager:
         try:
             self._connection.metadata = config.model_dump(mode="json")
         except Exception as e:
-            logger.warning(f"Failed to store SystemConfig: {e}")
+            logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
+            # Non-critical, warning only
 
     def get_system_config(self) -> "SystemConfig":
         """Retrieve system config from metadata."""
@@ -255,8 +256,8 @@ class DatabaseManager:
         try:
             return SystemConfig.model_validate(self._connection.metadata)
         except ValidationError as e:
-            logger.error(f"Stored SystemConfig is invalid: {e}")
+            logger.error(f"Stored SystemConfig in database is invalid: {e}")
             raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
         except Exception as e:
-            # Catch AttributeError if metadata is missing or None
+            logger.error(f"Error retrieving SystemConfig from database: {e}")
             raise DatabaseError(f"No SystemConfig found or error retrieving: {e}") from e
