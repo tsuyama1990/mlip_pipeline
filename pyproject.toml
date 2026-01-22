@@ -19,26 +19,41 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    # Core Data Models & Validation
     "pydantic",
+
+    # Scientific Computing
     "numpy",
-    "ase>=3.22.1",
-    "pyyaml",
-    "pytest-mock",
-    "dask>=2023.1.0",
-    "Jinja2",
-    "dscribe>=2.1.0",
-    "distributed",
-    "numba>=0.59.0",
-    "mace-torch",
-    "typer",
-    "rich",
-    "plotly",
-    "pandas",
     "scipy>=1.17.0",
     "scikit-learn>=1.8.0",
-    "matplotlib",
-    "tenacity>=9.1.2",
+    "pandas",
+    "numba>=0.59.0",
+
+    # Atomic Simulation Environment
+    "ase>=3.22.1",
+
+    # Machine Learning / Surrogate Models
+    "mace-torch",
+    "dscribe>=2.1.0",
     "torch>=2.0.0",
+
+    # CLI & Output
+    "typer",
+    "rich",
+    "pyyaml",
+
+    # Distributed Computing
+    "dask>=2023.1.0",
+    "distributed",
+    "tenacity>=9.1.2",
+
+    # Visualization
+    "plotly",
+    "matplotlib",
+
+    # Utilities
+    "Jinja2",
+    "pytest-mock", # Note: This is often dev-only, but listed here per previous state. Moving to dev group below is better practice, but sticking to provided constraints if any.
 ]
 
 [project.urls]

@@ -79,9 +79,10 @@ class StructureBuilder:
             base_structures = self._generate_base(target)
 
             # 2. Distortions (Strain + Rattle)
+            # This returns original + distorted structures
             distorted_structures = self._apply_distortions(base_structures)
 
-            # The distorted pool contains base structures too.
+            # Use distorted structures (including base) as the pool for defects
             current_pool = distorted_structures
 
             # 3. Defect Application Phase
@@ -96,20 +97,24 @@ class StructureBuilder:
             raise GeneratorError(msg, context={"target": target.name}) from e
 
         # 4. Final Metadata Tagging
-        for s in final_structures:
-            if "uuid" not in s.info:
-                s.info["uuid"] = str(uuid.uuid4())
-            s.info["target_system"] = target.name
+        self._tag_metadata(final_structures, target.name)
 
         # 5. Limit number of structures if needed (random sample)
-        n_req = self.generator_config.number_of_structures
-        # Always prioritize defects and distortions over pure base
-        if len(final_structures) > n_req:
-             # Use self.rng to sample indices
-             indices = self.rng.choice(len(final_structures), size=n_req, replace=False)
-             final_structures = [final_structures[i] for i in indices]
+        return self._sample_results(final_structures)
 
-        return final_structures
+    def _tag_metadata(self, structures: list[Atoms], target_name: str) -> None:
+        for s in structures:
+            if "uuid" not in s.info:
+                s.info["uuid"] = str(uuid.uuid4())
+            s.info["target_system"] = target_name
+
+    def _sample_results(self, structures: list[Atoms]) -> list[Atoms]:
+        n_req = self.generator_config.number_of_structures
+        if len(structures) > n_req:
+             # Use self.rng to sample indices
+             indices = self.rng.choice(len(structures), size=n_req, replace=False)
+             return [structures[i] for i in indices]
+        return structures
 
     def _generate_base(self, target: Any) -> list[Atoms]:
         """

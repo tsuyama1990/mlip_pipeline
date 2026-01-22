@@ -212,7 +212,9 @@ def test_uat_2_4_defect_interstitial(tmp_path):
             "crystal_structure": "bcc"
         },
         "generator_config": {
-            "sqs": {"enabled": False}, # Primitive
+            # Use SQS enabled with pure Fe to generate a supercell
+            # Primitive cell is too small for interstitials (distance check fails)
+            "sqs": {"enabled": True, "supercell_size": [2, 2, 2]},
             "distortion": {"enabled": False},
             "defects": {
                 "enabled": True,

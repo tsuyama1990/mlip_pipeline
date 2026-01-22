@@ -2,9 +2,9 @@
 
 ## Overview
 
-MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials.
+MLIP-AutoPipe is a modular, event-driven system designed to automate the generation, calculation, and active learning of machine learning interatomic potentials. It orchestrates a pipeline involving structure generation, surrogate model screening, DFT calculations, and potential training.
 
-## Diagram
+## Component Diagram
 
 ```mermaid
 graph TD
@@ -42,7 +42,7 @@ graph TD
     TQ --> Train
 ```
 
-## Component Interactions
+## Component Descriptions & Interactions
 
 ### 1. Configuration (`mlip_autopipec.config`)
 -   **Role**: Source of Truth.
@@ -89,7 +89,7 @@ graph TD
 ## Data Flow (Generator -> Surrogate)
 1.  `StructureBuilder` creates thousands of raw structures.
 2.  `CandidateManager` saves them to DB with `status="pending"`.
-3.  `SurrogatePipeline` fetches pending structures.
+3.  `SurrogatePipeline` fetches pending structures from `DatabaseManager`.
 4.  `MaceWrapper` predicts Energy/Forces. High-force structures are rejected (`status="rejected"`).
 5.  `FarthestPointSampling` selects top $N$ diverse structures.
 6.  Selected structures are updated to `status="selected"`.
