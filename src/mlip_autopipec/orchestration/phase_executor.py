@@ -1,23 +1,34 @@
 import logging
+import itertools
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar, Iterable, Iterator
 
-from mlip_autopipec.config.schemas.inference import EmbeddingConfig
+from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.dft.runner import QERunner
 from mlip_autopipec.generator.builder import StructureBuilder
-from mlip_autopipec.inference.embedding import EmbeddingExtractor
 from mlip_autopipec.inference.runner import LammpsRunner
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.training.config_gen import TrainConfigGenerator
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
+from mlip_autopipec.utils.embedding import EmbeddingExtractor
 
 if TYPE_CHECKING:
     from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
+def chunked(iterable: Iterable[T], size: int) -> Iterator[list[T]]:
+    """Yield successive chunks from iterable."""
+    it = iter(iterable)
+    while True:
+        chunk = list(itertools.islice(it, size))
+        if not chunk:
+            break
+        yield chunk
 
 class PhaseExecutor:
     """
@@ -41,24 +52,29 @@ class PhaseExecutor:
             if not self._builder:
                 self._builder = StructureBuilder(self.config)
 
-            candidates = self._builder.build()
-            logger.info(f"Generated {len(candidates)} raw candidates.")
+            # Use batch processing to avoid OOM with large generation
+            batch_size = 100
+            total_generated = 0
 
-            if self.config.surrogate_config:
-                if not self._surrogate:
-                    self._surrogate = SurrogatePipeline(self.config.surrogate_config)
+            # Use chunked processing on the generator
+            for candidate_batch in chunked(self._builder.build(), batch_size):
+                if self.config.surrogate_config:
+                    if not self._surrogate:
+                        self._surrogate = SurrogatePipeline(self.config.surrogate_config)
 
-                selected, _ = self._surrogate.run(candidates)
-                logger.info(f"Selected {len(selected)} candidates via Surrogate.")
-            else:
-                selected = candidates
-                logger.info("Surrogate skipped (no config). Using all candidates.")
+                    selected, _ = self._surrogate.run(candidate_batch)
+                    logger.info(f"Batch: Generated {len(candidate_batch)}, Selected {len(selected)}")
+                else:
+                    selected = candidate_batch
 
-            for atoms in selected:
-                self.db.save_candidate(
-                    atoms,
-                    {"status": "pending", "generation": self.manager.state.current_generation},
-                )
+                for atoms in selected:
+                    self.db.save_candidate(
+                        atoms,
+                        {"status": "pending", "generation": self.manager.state.current_generation},
+                    )
+                total_generated += len(selected)
+
+            logger.info(f"Exploration complete. Total candidates saved: {total_generated}")
 
         except Exception:
             logger.exception("Exploration phase failed")
@@ -67,44 +83,50 @@ class PhaseExecutor:
         """Execute Phase B: DFT Labeling."""
         logger.info("Phase B: DFT Labeling")
         try:
-            # Use get_entries to get ID for updates
-            entries = self.db.get_entries("status=pending")
-            if not entries:
-                logger.warning("No pending atoms found for DFT.")
-                return
+            batch_size = 50
 
-            logger.info(f"Found {len(entries)} pending atoms for DFT.")
-            atoms_list = [at for _, at in entries]
-            ids = [i for i, _ in entries]
+            # Using new generator method select_entries to lazily fetch ID+Atoms
+            pending_entries = self.db.select_entries("status=pending")
+
+            total_success = 0
+            processed_count = 0
 
             if self.config.dft_config:
                 runner = QERunner(self.config.dft_config)
-                futures = self.queue.submit_dft_batch(runner.run, atoms_list)
-                results = self.queue.wait_for_completion(futures)
 
-                success_count = 0
-                for atoms, db_id, res in zip(atoms_list, ids, results, strict=True):
-                    if res:
-                        try:
-                            # Save new row with results
-                            self.db.save_dft_result(
-                                atoms,
-                                res,
-                                {
-                                    "status": "training",
-                                    "generation": self.manager.state.current_generation,
-                                },
-                            )
-                            # Mark old row as processed (labeled)
-                            self.db.update_status(db_id, "labeled")
+                for batch in chunked(pending_entries, batch_size):
+                    if not batch:
+                        continue
 
-                            success_count += 1
-                        except Exception:
-                            logger.exception("Failed to save DFT result")
-                    else:
-                        logger.warning("DFT failed for an atom.")
+                    atoms_list = [at for _, at in batch]
+                    ids = [i for i, _ in batch]
 
-                logger.info(f"DFT Phase complete. Success: {success_count}/{len(atoms_list)}")
+                    logger.info(f"Submitting DFT batch of {len(atoms_list)} structures.")
+
+                    futures = self.queue.submit_dft_batch(runner.run, atoms_list)
+                    results = self.queue.wait_for_completion(futures)
+
+                    for atoms, db_id, res in zip(atoms_list, ids, results, strict=True):
+                        if res:
+                            try:
+                                self.db.save_dft_result(
+                                    atoms,
+                                    res,
+                                    {
+                                        "status": "training",
+                                        "generation": self.manager.state.current_generation,
+                                    },
+                                )
+                                self.db.update_status(db_id, "labeled")
+                                total_success += 1
+                            except Exception:
+                                logger.exception("Failed to save DFT result")
+                        else:
+                            logger.warning(f"DFT failed for atom ID {db_id}.")
+
+                    processed_count += len(batch)
+
+            logger.info(f"DFT Phase complete. Processed: {processed_count}, Success: {total_success}")
 
         except Exception:
             logger.exception("DFT phase failed")

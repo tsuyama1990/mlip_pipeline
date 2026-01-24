@@ -6,7 +6,6 @@ using LAMMPS, including input generation, execution, and uncertainty quantificat
 """
 
 from .analysis import AnalysisUtils
-from .embedding import EmbeddingExtractor
 from .inputs import ScriptGenerator
 from .interfaces import MDRunner
 from .masking import ForceMasker
@@ -16,7 +15,6 @@ from .writer import LammpsInputWriter
 
 __all__ = [
     "AnalysisUtils",
-    "EmbeddingExtractor",
     "ForceMasker",
     "LammpsInputWriter",
     "LammpsRunner",

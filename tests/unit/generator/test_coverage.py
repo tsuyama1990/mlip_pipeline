@@ -1,13 +1,15 @@
-import pytest
+from unittest.mock import patch
+
 import numpy as np
-from unittest.mock import MagicMock, patch
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.generator.builder import StructureBuilder
-from mlip_autopipec.generator.transformations import apply_strain, apply_rattle
 from mlip_autopipec.exceptions import GeneratorError
+from mlip_autopipec.generator.builder import StructureBuilder
+from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
 
 # --- StructureBuilder Coverage ---
 

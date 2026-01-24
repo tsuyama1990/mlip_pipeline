@@ -9,7 +9,7 @@ import numpy as np
 from ase import Atoms
 from ase.neighborlist import neighbor_list
 
-from mlip_autopipec.config.schemas.inference import EmbeddingConfig
+from mlip_autopipec.config.schemas.common import EmbeddingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +51,11 @@ class EmbeddingExtractor:
     def _validate_input(self, large_atoms: Atoms, center_idx: int) -> None:
         """Validate input structure and index."""
         if not isinstance(large_atoms, Atoms):
-            raise TypeError("Input must be an ase.Atoms object.")
+            msg = "Input must be an ase.Atoms object."
+            raise TypeError(msg)
         if len(large_atoms) == 0:
-            raise ValueError("Input structure is empty.")
+            msg = "Input structure is empty."
+            raise ValueError(msg)
         if center_idx < 0 or center_idx >= len(large_atoms):
             msg = f"Center index {center_idx} out of bounds (0-{len(large_atoms) - 1})."
             raise IndexError(msg)

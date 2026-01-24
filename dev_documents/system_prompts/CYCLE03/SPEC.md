@@ -12,8 +12,7 @@ mlip_autopipec/
 │       └── dft.py              # **DFT Config Schema**
 ├── dft/
 │   ├── __init__.py
-│   ├── runner.py               # **Base Runner Class**
-│   ├── qe.py                   # **Quantum Espresso Implementation**
+│   ├── runner.py               # **Base Runner & QE Implementation**
 │   ├── inputs.py               # **Input File Generation**
 │   ├── parsers.py              # **Output Parsing**
 │   └── recovery.py             # **Error Handler Strategy**
@@ -23,11 +22,12 @@ mlip_autopipec/
 
 ## 3. Design Architecture
 
-### 3.1. DFT Runner (`dft/runner.py`, `dft/qe.py`)
+### 3.1. DFT Runner (`dft/runner.py`)
 Abstract base class `DFTRunner` defining the contract:
 - `calculate(atoms, run_dir) -> DFTResult`
 - `DFTResult` contains energy, forces, stress, and success status.
-- `QERunner` implements this for Quantum Espresso, handling `pw.x` execution via `subprocess`.
+
+`QERunner` implements this for Quantum Espresso in the same module, handling `pw.x` execution via `subprocess`.
 
 ### 3.2. Input Generation (`dft/inputs.py`)
 - **Auto K-Spacing**: Logic to convert `kspacing` (1/Å) into a k-point grid mesh (e.g., `4 4 4`) based on cell dimensions.

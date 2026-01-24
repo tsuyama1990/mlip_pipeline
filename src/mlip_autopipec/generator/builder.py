@@ -1,6 +1,7 @@
 import logging
 import uuid
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -10,8 +11,8 @@ from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.generator.defects import DefectStrategy
-from mlip_autopipec.generator.sqs import SQSStrategy
 from mlip_autopipec.generator.distortions import DistortionStrategy
+from mlip_autopipec.generator.sqs import SQSStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -81,19 +82,10 @@ class StructureBuilder:
             base_structures = self._generate_base(target)
 
             # 2. Distortions (Strain + Rattle)
-            # This yields original + distorted structures lazily
-            # We wrap base_structures (iterator) directly
-            distorted_stream = self.distortion_strategy.apply(base_structures)
+            distorted_stream = self._apply_distortions(base_structures)
 
             # 3. Defect Application Phase
-            primary_elem = next(iter(target.composition.keys()))
-
-            def defect_generator(stream: Iterator[Atoms]) -> Iterator[Atoms]:
-                for s in stream:
-                    # apply returns list[Atoms] (original + defects)
-                    yield from self.defect_strategy.apply([s], primary_elem)
-
-            defect_stream = defect_generator(distorted_stream)
+            defect_stream = self._apply_defects(distorted_stream, target)
 
             # 4. Final Metadata Tagging & 5. Sampling
             yield from self._sample_results(self._tag_metadata_stream(defect_stream, target.name))
@@ -104,6 +96,20 @@ class StructureBuilder:
             msg = f"Structure generation failed: {e}"
             logger.error(msg, exc_info=True)
             raise GeneratorError(msg, context={"target": target.name}) from e
+
+    def _apply_distortions(self, base_structures: Iterator[Atoms]) -> Iterator[Atoms]:
+        """
+        Applies lattice strain and atomic rattling to the base structures.
+        """
+        return self.distortion_strategy.apply(base_structures)
+
+    def _apply_defects(self, structures: Iterator[Atoms], target: Any) -> Iterator[Atoms]:
+        """
+        Introduces vacancies and interstitials to the distorted pool.
+        """
+        primary_elem = next(iter(target.composition.keys()))
+        for s in structures:
+            yield from self.defect_strategy.apply([s], primary_elem)
 
     def _tag_metadata_stream(self, structures: Iterator[Atoms], target_name: str) -> Iterator[Atoms]:
         for s in structures:
