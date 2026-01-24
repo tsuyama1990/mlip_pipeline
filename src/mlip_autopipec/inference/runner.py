@@ -49,6 +49,13 @@ class LammpsRunner:
         Returns:
             InferenceResult object containing success status, max uncertainty, and dump files.
         """
+        # Validate inputs
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+
+        if not potential_path.exists():
+            raise FileNotFoundError(f"Potential file not found: {potential_path}")
+
         try:
             # 1. Prepare Inputs
             input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms, potential_path)
@@ -119,12 +126,23 @@ class LammpsRunner:
     def _resolve_executable(self) -> str:
         """
         Resolves the LAMMPS executable path and performs security checks.
+        If config.lammps_executable is None, attempts to find 'lmp' or 'lmp_serial' in PATH.
         """
-        raw_path = str(self.config.lammps_executable)
+        raw_path = str(self.config.lammps_executable) if self.config.lammps_executable else None
 
-        # Security: Basic character blacklist for paranoid validation,
-        # though subprocess.run(shell=False) handles this safely.
-        # We reject obviously suspicious characters in the path itself.
+        if not raw_path:
+            # Fallback to standard names
+            for name in ["lmp", "lmp_serial", "lmp_mpi"]:
+                found = shutil.which(name)
+                if found:
+                    raw_path = found
+                    break
+
+            if not raw_path:
+                 msg = "LAMMPS executable not specified and not found in PATH."
+                 raise RuntimeError(msg)
+
+        # Check blacklist characters if path was provided
         if any(char in raw_path for char in [";", "|", "&", "`", "$", "(", ")"]):
              msg = f"Security: Invalid characters detected in executable path: {raw_path}"
              raise ValueError(msg)

@@ -5,26 +5,30 @@ This module provides the ScriptGenerator class for creating LAMMPS input scripts
 """
 
 from pathlib import Path
-
 from ase.data import atomic_numbers
-
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 
 
 class ScriptGenerator:
+    # Constants
+    NEIGHBOR_SETTINGS = "neighbor 1.0 bin"
+    NEIGH_MODIFY = "neigh_modify delay 0 every 1 check yes"
+    TDAMP_MULTIPLIER = 100.0
+    PDAMP_MULTIPLIER = 1000.0
+
     def __init__(self, config: InferenceConfig) -> None:
         self.config = config
 
     def generate(self, atoms_file: Path, potential_path: Path, dump_file: Path, elements: list[str]) -> str:
         # Determine ensemble fix
         if self.config.ensemble == "nvt":
-            tdamp = self.config.timestep * 100.0
+            tdamp = self.config.timestep * self.TDAMP_MULTIPLIER
             fix_cmd = (
                 f"fix 1 all nvt temp {self.config.temperature} {self.config.temperature} {tdamp}"
             )
         elif self.config.ensemble == "npt":
-            tdamp = self.config.timestep * 100.0
-            pdamp = self.config.timestep * 1000.0
+            tdamp = self.config.timestep * self.TDAMP_MULTIPLIER
+            pdamp = self.config.timestep * self.PDAMP_MULTIPLIER
             fix_cmd = f"fix 1 all npt temp {self.config.temperature} {self.config.temperature} {tdamp} iso {self.config.pressure} {self.config.pressure} {pdamp}"
         else:
             msg = f"Unsupported ensemble: {self.config.ensemble}"
@@ -61,8 +65,8 @@ class ScriptGenerator:
             *potential_lines,
             "",
             "# Settings",
-            "neighbor 1.0 bin",
-            "neigh_modify delay 0 every 1 check yes",
+            self.NEIGHBOR_SETTINGS,
+            self.NEIGH_MODIFY,
             f"timestep {self.config.timestep}",
             "",
             "# Compute Gamma (Extrapolation Grade)",
