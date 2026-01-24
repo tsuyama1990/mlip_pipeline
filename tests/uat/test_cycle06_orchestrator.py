@@ -1,13 +1,12 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from mlip_autopipec.orchestration.workflow import WorkflowManager
-from mlip_autopipec.config.models import SystemConfig, WorkflowConfig, TargetSystem, DFTConfig
-from mlip_autopipec.config.schemas.training import TrainingConfig
+import pytest
+
+from mlip_autopipec.config.models import DFTConfig, SystemConfig, TargetSystem, WorkflowConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.data_models.state import WorkflowPhase
-from mlip_autopipec.orchestration.phase_executor import PhaseExecutor
+from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 # UAT Scenario 06-01: Full Active Learning Cycle (Simulated)
 

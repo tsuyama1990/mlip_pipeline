@@ -17,4 +17,3 @@ class BasePhase(ABC):
     @abstractmethod
     def execute(self) -> Any:
         """Execute the phase logic."""
-        pass

@@ -1,6 +1,8 @@
 import logging
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
+from typing import Union
+from mlip_autopipec.inference.eon import EONWrapper
 from mlip_autopipec.inference.runner import LammpsRunner
 from mlip_autopipec.orchestration.phases.base import BasePhase
 from mlip_autopipec.utils.embedding import EmbeddingExtractor
@@ -37,7 +39,15 @@ class InferencePhase(BasePhase):
                 return False
 
             # 3. Run Inference
-            runner = LammpsRunner(self.config.inference_config, self.manager.work_dir / "inference")
+            runner: Union[LammpsRunner, EONWrapper]
+            if self.config.inference_config.active_engine == "eon":
+                if not self.config.inference_config.eon:
+                    logger.error("EON engine selected but no EON config provided.")
+                    return False
+                runner = EONWrapper(self.config.inference_config.eon, self.manager.work_dir / "inference_eon")
+            else:
+                runner = LammpsRunner(self.config.inference_config, self.manager.work_dir / "inference")
+
             result = runner.run(start_atoms, potential_path)
 
             # 4. Check for Halt
@@ -51,36 +61,51 @@ class InferencePhase(BasePhase):
                 extracted_count = 0
                 for dump_path in result.uncertain_structures:
                     try:
-                        frames = read(dump_path, index=":", format="lammps-dump-text")
+                        # Differentiate extraction based on engine
+                        if self.config.inference_config.active_engine == "eon":
+                            # EON produces .con files usually. Use auto-detect or explicit 'eon'
+                            frames = [read(dump_path)]
+                        else:
+                            frames = read(dump_path, index=":", format="lammps-dump-text")
 
                         if not frames:
                             continue
 
                         frame = frames[-1]
 
-                        # Simplified: Re-assign symbols based on types if available
-                        species = sorted(set(start_atoms.get_chemical_symbols()))
-                        if 'type' in frame.arrays:
-                            types = frame.arrays['type']
-                            symbols = [species[t-1] for t in types]
-                            frame.set_chemical_symbols(symbols)
+                        # Simplified: Re-assign symbols based on types if available (LAMMPS specific)
+                        if self.config.inference_config.active_engine == "lammps":
+                            species = sorted(set(start_atoms.get_chemical_symbols()))
+                            if 'type' in frame.arrays:
+                                types = frame.arrays['type']
+                                symbols = [species[t-1] for t in types]
+                                frame.set_chemical_symbols(symbols)
+
+                        # Logic for extraction:
+                        # For LAMMPS, we check per-atom gamma (c_gamma).
+                        # For EON, the whole structure is 'uncertain' usually (Saddle point high gamma).
+                        # The driver checks max_gamma.
+                        # If EON returns it, it's likely the whole structure we want to add.
 
                         if 'c_gamma' in frame.arrays:
                             gammas = frame.arrays['c_gamma']
                             max_idx = int(gammas.argmax())
-
                             extracted_atoms = extractor.extract(frame, max_idx)
+                        else:
+                            # For EON, we take the whole frame as candidate if explicit atom-wise gamma is missing
+                            # Or we should re-calculate? No, just add the structure.
+                            extracted_atoms = frame
 
-                            # Save as 'screening' status for Selection phase
-                            self.db.save_candidate(
-                                extracted_atoms,
-                                {
-                                    "status": "screening",
-                                    "generation": self.manager.state.cycle_index,
-                                    "config_type": "active_learning"
-                                }
-                            )
-                            extracted_count += 1
+                        # Save as 'screening' status for Selection phase
+                        self.db.save_candidate(
+                            extracted_atoms,
+                            {
+                                "status": "screening",
+                                "generation": self.manager.state.cycle_index,
+                                "config_type": "active_learning"
+                            }
+                        )
+                        extracted_count += 1
 
                     except Exception:
                         logger.exception(f"Failed to process dump file {dump_path}")
