@@ -1,6 +1,5 @@
 import logging
-import json
-from typing import Iterator
+from collections.abc import Iterator
 
 import numpy as np
 from ase import Atoms

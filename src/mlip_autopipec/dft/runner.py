@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
 from pathlib import Path
 from uuid import uuid4
@@ -26,26 +27,61 @@ class DFTRetriableError(Exception):
 
 logger = logging.getLogger(__name__)
 
-class QERunner:
+class DFTRunner(ABC):
+    """
+    Abstract base class for DFT runners.
+    """
+    @abstractmethod
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """Runs the DFT calculation."""
+
+    @abstractmethod
+    def run_batch(self, atoms_iterable: Iterable[Atoms]) -> Generator[DFTResult, None, None]:
+        """Runs a batch of DFT calculations."""
+
+class QERunner(DFTRunner):
     """
     Orchestrates Quantum Espresso calculations with auto-recovery and efficient retries.
     """
+    INPUT_FILE = "pw.in"
+    OUTPUT_FILE = "pw.out"
 
-    def __init__(self, config: DFTConfig):
+    def __init__(self, config: DFTConfig, parser_class: type[QEOutputParser] = QEOutputParser):
+        """
+        Initialize QERunner.
+
+        Args:
+            config: DFT Configuration.
+            parser_class: Class to use for parsing output (Dependency Injection).
+        """
         self.config = config
+        self.parser_class = parser_class
 
     def _validate_command(self, command: str) -> list[str]:
         """
         Validates and splits the command string safely.
+        Enforces strict security checks.
         """
-        if any(char in command for char in [";", "&", "|", "`", "$"]):
-             raise DFTFatalError("Command contains potentially unsafe shell characters.")
-
-        parts = shlex.split(command)
-        if not parts:
+        if not command:
             raise DFTFatalError("Command is empty.")
 
+        # Check for forbidden characters that might indicate shell injection attempts
+        # independent of shlex splitting.
+        forbidden = [";", "&", "|", "`", "$", "(", ")", "<", ">"]
+        if any(char in command for char in forbidden):
+             raise DFTFatalError("Command contains unsafe shell characters.")
+
+        try:
+            parts = shlex.split(command)
+        except ValueError as e:
+            raise DFTFatalError(f"Command string could not be parsed: {e}") from e
+
+        if not parts:
+            raise DFTFatalError("Command parses to empty list.")
+
         executable = parts[0]
+
+        # Verify executable exists
         if not shutil.which(executable):
              raise DFTFatalError(f"Executable '{executable}' not found in PATH.")
 
@@ -60,6 +96,7 @@ class QERunner:
     )
     def _execute_subprocess_with_retry(self, cmd: list[str], cwd: Path, stdout_f, timeout: float) -> subprocess.CompletedProcess:
         try:
+            # STRICT SECURITY: shell=False is mandatory.
             return subprocess.run(
                 cmd,
                 check=False,
@@ -103,14 +140,14 @@ class QERunner:
                 work_dir = Path(tmpdir)
                 input_str = InputGenerator.create_input_string(atoms, current_params)
 
-                input_path = work_dir / "pw.in"
-                output_path = work_dir / "pw.out"
+                input_path = work_dir / self.INPUT_FILE
+                output_path = work_dir / self.OUTPUT_FILE
 
                 input_path.write_text(input_str)
                 self._stage_pseudos(work_dir, atoms)
 
                 start_time = time.time()
-                full_command = command_parts + ["-in", "pw.in"]
+                full_command = command_parts + ["-in", self.INPUT_FILE]
 
                 returncode = -999
                 stdout_content = ""
@@ -191,6 +228,7 @@ class QERunner:
         """
         Processes a batch of atoms by consuming an iterable/generator.
         This enables processing large datasets without pre-loading them.
+        This method runs sequentially. For parallelism, use TaskQueue in orchestration.
         """
         for atoms in atoms_iterable:
             try:
@@ -224,7 +262,7 @@ class QERunner:
         self, output_path: Path, uid: str, wall_time: float, params: dict, atoms: Atoms
     ) -> DFTResult:
         """
-        Parses pw.out using QEOutputParser.
+        Parses pw.out using the injected parser class.
         """
-        parser = QEOutputParser()
+        parser = self.parser_class()
         return parser.parse(output_path, uid, wall_time, params)

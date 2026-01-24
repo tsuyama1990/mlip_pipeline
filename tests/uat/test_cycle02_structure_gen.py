@@ -1,9 +1,10 @@
-import pytest
 import numpy as np
+
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
-from mlip_autopipec.config.schemas.generator import GeneratorConfig, DistortionConfig, DefectConfig
+from mlip_autopipec.config.schemas.generator import DefectConfig, DistortionConfig, GeneratorConfig
 from mlip_autopipec.generator.builder import StructureBuilder
+
 
 def test_scenario_02_01_bulk_generation() -> None:
     """
