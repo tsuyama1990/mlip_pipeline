@@ -10,6 +10,7 @@ from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.config.schemas.validation import ValidationConfig
 from mlip_autopipec.config.schemas.workflow import WorkflowConfig
 
 
@@ -18,6 +19,7 @@ class MLIPConfig(BaseModel):
     Root configuration object for MLIP-AutoPipe.
     Aggregates all module configurations.
     """
+
     target_system: TargetSystem
     dft: DFTConfig
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
@@ -25,6 +27,7 @@ class MLIPConfig(BaseModel):
     surrogate_config: SurrogateConfig = Field(default_factory=SurrogateConfig)
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
+    validation_config: ValidationConfig | None = None
 
     # Added for Orchestration
     workflow_config: WorkflowConfig | None = Field(None, alias="workflow")
@@ -65,6 +68,7 @@ class SystemConfig(BaseModel):
     surrogate_config: SurrogateConfig | None = None
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
+    validation_config: ValidationConfig | None = None
     generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
 
     # Legacy aliases - Typed as specific configs where possible, but kept optional for backward compat

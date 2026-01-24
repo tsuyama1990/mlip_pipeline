@@ -1,0 +1,259 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 180 items
+
+tests/e2e/test_cycle01.py ..F...                                         [  3%]
+tests/uat/test_cycle02_structure_gen.py ...                              [  5%]
+tests/uat/test_cycle03_oracle.py ...                                     [  6%]
+tests/uat/test_cycle06_orchestrator.py F                                 [  7%]
+tests/uat/test_cycle08_validation.py ...                                 [  8%]
+tests/unit/dft/test_inputs.py ....                                       [ 11%]
+tests/unit/dft/test_parsers.py ....                                      [ 13%]
+tests/unit/dft/test_recovery.py ....                                     [ 15%]
+tests/unit/dft/test_runner.py ....                                       [ 17%]
+tests/unit/dft/test_security.py ..                                       [ 18%]
+tests/unit/generator/test_builder.py ....                                [ 21%]
+tests/unit/generator/test_coverage.py ......                             [ 24%]
+tests/unit/generator/test_defects.py .....                               [ 27%]
+tests/unit/generator/test_schemas.py ......                              [ 30%]
+tests/unit/generator/test_sqs.py ..                                      [ 31%]
+tests/unit/generator/test_transformations.py ....                        [ 33%]
+tests/unit/inference/test_eon_schema.py ...                              [ 35%]
+tests/unit/inference/test_eon_wrapper.py ......                          [ 38%]
+tests/unit/inference/test_inference_inputs.py .....                      [ 41%]
+tests/unit/inference/test_pace_driver.py ..                              [ 42%]
+tests/unit/inference/test_parsers.py ....                                [ 45%]
+tests/unit/inference/test_runner.py ...                                  [ 46%]
+tests/unit/inference/test_schemas.py .....                               [ 49%]
+tests/unit/inference/test_writer.py .                                    [ 50%]
+tests/unit/orchestration/test_db_manager.py ..                           [ 51%]
+tests/unit/orchestration/test_state.py ...                               [ 52%]
+tests/unit/orchestration/test_strategies.py ..                           [ 53%]
+tests/unit/orchestration/test_workflow.py ..                             [ 55%]
+tests/unit/test_atoms.py ....                                            [ 57%]
+tests/unit/test_config.py .......                                        [ 61%]
+tests/unit/test_database.py .....................                        [ 72%]
+tests/unit/test_feedback_fixes.py ....                                   [ 75%]
+tests/unit/training/test_dataset.py .                                    [ 75%]
+tests/unit/training/test_metrics.py .......                              [ 79%]
+tests/unit/training/test_pacemaker.py .............                      [ 86%]
+tests/unit/training/test_schemas.py .....                                [ 89%]
+tests/unit/utils/test_embedding.py ...                                   [ 91%]
+tests/unit/validation/test_elasticity.py ....                            [ 93%]
+tests/unit/validation/test_eos.py ..                                     [ 94%]
+tests/unit/validation/test_phonon.py ...                                 [ 96%]
+tests/unit/validation/test_runner.py ..                                  [ 97%]
+tests/unit/validation/test_schemas.py .....                              [100%]
+
+=================================== FAILURES ===================================
+__________________________ test_validate_valid_config __________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-1/test_validate_valid_config0')
+
+    def test_validate_valid_config(tmp_path):
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            # Create valid config
+            runner.invoke(app, ["init"])
+
+            # Override pseudopotential_dir to a valid path for validation
+            with Path("input.yaml").open() as f:
+                data = yaml.safe_load(f)
+
+            pseudo_dir = tmp_path / "upf"
+            pseudo_dir.mkdir()
+            (pseudo_dir / "Fe.upf").touch()
+            data["dft"]["pseudopotential_dir"] = str(pseudo_dir)
+
+            with Path("input.yaml").open("w") as f:
+                yaml.dump(data, f)
+
+            result = runner.invoke(app, ["validate", "input.yaml"])
+>           assert result.exit_code == 0
+E           assert 1 == 0
+E            +  where 1 = <Result SystemExit(1)>.exit_code
+
+tests/e2e/test_cycle01.py:51: AssertionError
+________________________ test_uat_full_cycle_simulation ________________________
+
+uat_config = SystemConfig(minimal=None, target_system=TargetSystem(name='UAT System', elements=['Fe'], composition={'Fe': 1.0}, cry...titials=False, interstitial_elements=[]), number_of_structures=10, seed=None), generator=None, explorer=None, dft=None)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-1/test_uat_full_cycle_simulation0')
+
+    def test_uat_full_cycle_simulation(uat_config, tmp_path):
+        # 1. Setup mocks for runners
+        # Note: We patch where the classes are IMPORTED/USED, which is now in sub-phases
+        with (
+            patch("mlip_autopipec.orchestration.phases.dft.QERunner") as MockQERunner,
+            patch("mlip_autopipec.orchestration.phases.inference.LammpsRunner") as MockLammpsRunner,
+            patch(
+                "mlip_autopipec.orchestration.phases.training.PacemakerWrapper"
+            ) as MockPacemakerWrapper,
+            patch(
+                "mlip_autopipec.orchestration.phases.selection.PacemakerWrapper"
+            ) as MockSelectionPacemaker,
+>           patch("mlip_autopipec.orchestration.phases.inference.EmbeddingExtractor") as MockExtractor,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder") as MockDatasetBuilder,
+            patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue,
+            patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask,
+        ):
+
+tests/uat/test_cycle06_orchestrator.py:57:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unittest.mock._patch object at 0x7fdff770ade0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+
+        original = DEFAULT
+        local = False
+
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'mlip_autopipec.orchestration.phases.inference' from '/app/src/mlip_autopipec/orchestration/phases/inference.py'> does not have the attribute 'EmbeddingExtractor'
+
+/home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1437: AttributeError
+=============================== warnings summary ===============================
+tests/unit/orchestration/test_workflow.py::test_workflow_run_loop
+  /app/src/mlip_autopipec/orchestration/dashboard.py:94: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+    plt.legend()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               4      0   100%
+src/mlip_autopipec/app.py                                   79     34    57%   33-35, 70-75, 89-95, 108-114, 127-129, 139-145, 149
+src/mlip_autopipec/config/__init__.py                        3      0   100%
+src/mlip_autopipec/config/factory.py                        37     37     0%   1-62
+src/mlip_autopipec/config/models.py                         54      0   100%
+src/mlip_autopipec/config/schemas/common.py                 38     19    50%   15-20, 25-43, 55
+src/mlip_autopipec/config/schemas/core.py                   37      2    95%   28, 33
+src/mlip_autopipec/config/schemas/dft.py                    48      6    88%   40, 42, 55, 74-76
+src/mlip_autopipec/config/schemas/exploration.py             5      0   100%
+src/mlip_autopipec/config/schemas/generator.py              26      0   100%
+src/mlip_autopipec/config/schemas/inference.py              42      1    98%   78
+src/mlip_autopipec/config/schemas/surrogate.py               8      0   100%
+src/mlip_autopipec/config/schemas/training.py               40      2    95%   54-55
+src/mlip_autopipec/config/schemas/validation.py             23      0   100%
+src/mlip_autopipec/config/schemas/workflow.py                6      0   100%
+src/mlip_autopipec/core/__init__.py                          0      0   100%
+src/mlip_autopipec/core/services.py                         11      1    91%   30
+src/mlip_autopipec/core/workspace.py                        13     13     0%   1-25
+src/mlip_autopipec/data_models/__init__.py                   4      0   100%
+src/mlip_autopipec/data_models/atoms.py                     21      1    95%   15
+src/mlip_autopipec/data_models/candidate.py                 10     10     0%   1-19
+src/mlip_autopipec/data_models/dft_models.py                51      5    90%   55, 57, 65, 67, 69
+src/mlip_autopipec/data_models/inference_models.py          24      7    71%   28-35
+src/mlip_autopipec/data_models/state.py                     14      0   100%
+src/mlip_autopipec/data_models/structure_enums.py            9      9     0%   1-11
+src/mlip_autopipec/data_models/training_data.py             59     32    46%   29-33, 41-60, 65-76, 90-95
+src/mlip_autopipec/dft/__init__.py                           0      0   100%
+src/mlip_autopipec/dft/constants.py                          3      0   100%
+src/mlip_autopipec/dft/inputs.py                            70      7    90%   35, 83-87, 132, 159
+src/mlip_autopipec/dft/parsers.py                           32      2    94%   58, 78
+src/mlip_autopipec/dft/recovery.py                          32      4    88%   72-78
+src/mlip_autopipec/dft/runner.py                           151     44    71%   72, 82-83, 86, 118-120, 176-192, 208-210, 219, 222-225, 236-242, 250-259, 276
+src/mlip_autopipec/exceptions.py                            25      7    72%   43-48, 51-52
+src/mlip_autopipec/generator/__init__.py                     5      0   100%
+src/mlip_autopipec/generator/builder.py                     90      5    94%   45-46, 108, 149, 165
+src/mlip_autopipec/generator/defects.py                     83     10    88%   82, 106-109, 132, 181-184
+src/mlip_autopipec/generator/distortions.py                 43      4    91%   68-69, 81-82
+src/mlip_autopipec/generator/sqs.py                         44      9    80%   55, 78-83, 95-98
+src/mlip_autopipec/generator/transformations.py             48      5    90%   47-49, 51, 94
+src/mlip_autopipec/inference/__init__.py                     8      0   100%
+src/mlip_autopipec/inference/analysis.py                    44     39    11%   22, 34-88
+src/mlip_autopipec/inference/drivers/pace_driver.py         51     31    39%   11-16, 47-85, 89
+src/mlip_autopipec/inference/eon.py                         72     10    86%   66-67, 114-116, 119-120, 157-159
+src/mlip_autopipec/inference/inputs.py                      35      0   100%
+src/mlip_autopipec/inference/interfaces.py                   5      0   100%
+src/mlip_autopipec/inference/masking.py                     33     29    12%   23-76
+src/mlip_autopipec/inference/parsers.py                     41      3    93%   39, 80-82
+src/mlip_autopipec/inference/processing.py                  40     28    30%   22-24, 39-81
+src/mlip_autopipec/inference/runner.py                      82     26    68%   91, 97-112, 122, 130-132, 150-151, 155-156, 164-167
+src/mlip_autopipec/inference/uq.py                          23     17    26%   9, 16-38
+src/mlip_autopipec/inference/writer.py                      21      0   100%
+src/mlip_autopipec/modules/__init__.py                       0      0   100%
+src/mlip_autopipec/modules/cli_handlers/handlers.py        140     82    41%   70-72, 76-96, 100-113, 117-149, 162-173, 195-196, 202-231
+src/mlip_autopipec/modules/config_generator.py              15     15     0%   3-74
+src/mlip_autopipec/modules/descriptors.py                   31     31     0%   3-62
+src/mlip_autopipec/modules/dft.py                           67     67     0%   6-189
+src/mlip_autopipec/modules/exploration.py                   51     51     0%   7-130
+src/mlip_autopipec/modules/explorer.py                      46     46     0%   3-90
+src/mlip_autopipec/modules/generator.py                     72     72     0%   3-203
+src/mlip_autopipec/modules/inference.py                    136    136     0%   7-333
+src/mlip_autopipec/modules/screening.py                     41     41     0%   3-68
+src/mlip_autopipec/modules/training_orchestrator.py         22     12    45%   43-45, 60-73
+src/mlip_autopipec/monitoring/__init__.py                    0      0   100%
+src/mlip_autopipec/monitoring/dashboard.py                  63     63     0%   1-115
+src/mlip_autopipec/orchestration/__init__.py                 7      0   100%
+src/mlip_autopipec/orchestration/dashboard.py               57      3    95%   81, 88, 101
+src/mlip_autopipec/orchestration/database.py               180     31    83%   52-54, 101, 141-143, 177-178, 195-196, 284-299, 310, 326-327, 329-330, 340-341, 354-356
+src/mlip_autopipec/orchestration/interfaces.py              10      0   100%
+src/mlip_autopipec/orchestration/phase_executor.py          23     10    57%   20-24, 28, 32, 36, 43, 47
+src/mlip_autopipec/orchestration/phases/base.py             10      4    60%   14-17
+src/mlip_autopipec/orchestration/phases/dft.py              36     29    19%   13-62
+src/mlip_autopipec/orchestration/phases/exploration.py      35     23    34%   17-22, 28-59
+src/mlip_autopipec/orchestration/phases/inference.py        51     39    24%   25-86
+src/mlip_autopipec/orchestration/phases/selection.py        34     26    24%   17-66
+src/mlip_autopipec/orchestration/phases/training.py         41     33    20%   14-61
+src/mlip_autopipec/orchestration/strategies.py              27      1    96%   50
+src/mlip_autopipec/orchestration/task_queue.py              74     60    19%   29-52, 69-77, 96-124, 139-141, 147-151
+src/mlip_autopipec/orchestration/workflow.py                90     13    86%   77, 90, 95-99, 128-129, 153-155, 175-176
+src/mlip_autopipec/surrogate/__init__.py                     5      0   100%
+src/mlip_autopipec/surrogate/candidate_manager.py           14     11    21%   8, 11-22
+src/mlip_autopipec/surrogate/descriptors.py                 30     30     0%   1-84
+src/mlip_autopipec/surrogate/mace_client.py                 62     62     0%   1-146
+src/mlip_autopipec/surrogate/mace_wrapper.py                53     46    13%   11-13, 19-37, 43-64, 70-108
+src/mlip_autopipec/surrogate/model_interface.py              8      0   100%
+src/mlip_autopipec/surrogate/pipeline.py                   100     84    16%   22-28, 38-59, 62-67, 70-71, 76-128, 133-174
+src/mlip_autopipec/surrogate/sampling.py                    19     14    26%   7, 19-45
+src/mlip_autopipec/training/__init__.py                      4      0   100%
+src/mlip_autopipec/training/config_gen.py                   16     16     0%   1-46
+src/mlip_autopipec/training/dataset.py                      53     33    38%   55-57, 77-121
+src/mlip_autopipec/training/metrics.py                      39      3    92%   40-42
+src/mlip_autopipec/training/pacemaker.py                   143     40    72%   50-61, 127-128, 132-134, 142-146, 182-183, 190-193, 201-209, 220-222, 239-240, 253-255
+src/mlip_autopipec/training/physics.py                      39     28    28%   43-109
+src/mlip_autopipec/utils/__init__.py                         0      0   100%
+src/mlip_autopipec/utils/ase_utils.py                       42     42     0%   12-120
+src/mlip_autopipec/utils/config_utils.py                    30     17    43%   25, 27-28, 41-57
+src/mlip_autopipec/utils/dask_utils.py                      12      7    42%   31-43
+src/mlip_autopipec/utils/data_loader.py                     15     15     0%   5-39
+src/mlip_autopipec/utils/embedding.py                       46      0   100%
+src/mlip_autopipec/utils/logging.py                         11      4    64%   24-29
+src/mlip_autopipec/utils/resilience.py                      29     29     0%   6-93
+src/mlip_autopipec/utils/workflow_utils.py                  32     32     0%   3-53
+src/mlip_autopipec/validation/__init__.py                    0      0   100%
+src/mlip_autopipec/validation/elasticity.py                 70     29    59%   35-37, 61-115, 125-126, 153
+src/mlip_autopipec/validation/eos.py                        41      6    85%   57-59, 80-82
+src/mlip_autopipec/validation/phonon.py                     41      5    88%   49-50, 74-76
+src/mlip_autopipec/validation/runner.py                    103     45    56%   42, 51-52, 58-60, 68-69, 80, 83-89, 97-108, 119, 125-137, 147-161
+--------------------------------------------------------------------------------------
+TOTAL                                                     4163   1945    53%
+=========================== short test summary info ============================
+FAILED tests/e2e/test_cycle01.py::test_validate_valid_config - assert 1 == 0
+FAILED tests/uat/test_cycle06_orchestrator.py::test_uat_full_cycle_simulation
+================== 2 failed, 178 passed, 1 warning in 16.53s ===================

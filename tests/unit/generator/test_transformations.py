@@ -10,8 +10,9 @@ from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
 def simple_atoms() -> Atoms:
     return Atoms("Al", positions=[[0, 0, 0]], cell=[3, 3, 3], pbc=True)
 
+
 def test_apply_strain(simple_atoms: Atoms) -> None:
-    strain = np.diag([0.1, 0.1, 0.1]) # 10% expansion
+    strain = np.diag([0.1, 0.1, 0.1])  # 10% expansion
     strained = apply_strain(simple_atoms, strain)
 
     # Original cell was 3x3x3. New cell should be 3.3x3.3x3.3
@@ -25,9 +26,11 @@ def test_apply_strain(simple_atoms: Atoms) -> None:
     assert strained.info["config_type"] == "strain"
     assert "strain_tensor" in strained.info
 
+
 def test_apply_strain_invalid_input(simple_atoms: Atoms) -> None:
     with pytest.raises(GeneratorError):
-        apply_strain(simple_atoms, np.array([0.1, 0.1])) # Invalid shape
+        apply_strain(simple_atoms, np.array([0.1, 0.1]))  # Invalid shape
+
 
 def test_apply_rattle(simple_atoms: Atoms) -> None:
     sigma = 0.1
@@ -44,6 +47,7 @@ def test_apply_rattle(simple_atoms: Atoms) -> None:
     rng2 = np.random.default_rng(42)
     rattled2 = apply_rattle(simple_atoms, sigma, rng=rng2)
     np.testing.assert_allclose(rattled.positions, rattled2.positions)
+
 
 def test_apply_rattle_invalid_sigma(simple_atoms: Atoms) -> None:
     with pytest.raises(GeneratorError):

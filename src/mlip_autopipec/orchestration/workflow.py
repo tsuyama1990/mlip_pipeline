@@ -83,7 +83,7 @@ class WorkflowManager:
                 surrogate_config=config.surrogate_config,
                 training_config=config.training_config,
                 inference_config=config.inference_config,
-                generator_config=config.generator_config
+                generator_config=config.generator_config,
             )
         if isinstance(config, SystemConfig):
             return config
@@ -109,10 +109,14 @@ class WorkflowManager:
         """
         logger.info("Starting Workflow Manager...")
         try:
-            print(f"DEBUG: Entering run loop. Cycle: {self.state.cycle_index}, Max: {self.workflow_config.max_generations}")
+            print(
+                f"DEBUG: Entering run loop. Cycle: {self.state.cycle_index}, Max: {self.workflow_config.max_generations}"
+            )
             while self.state.cycle_index < self.workflow_config.max_generations:
                 print(f"DEBUG: Inside loop. Cycle: {self.state.cycle_index}")
-                logger.info(f"--- Cycle {self.state.cycle_index} | Phase: {self.state.current_phase.value} ---")
+                logger.info(
+                    f"--- Cycle {self.state.cycle_index} | Phase: {self.state.current_phase.value} ---"
+                )
 
                 self._dispatch_phase()
                 self._update_dashboard()
@@ -141,7 +145,9 @@ class WorkflowManager:
             halted = self.executor.execute_inference()
             print(f"DEBUG: execute_inference returned {halted}")
             if halted:
-                logger.info("Exploration halted due to high uncertainty. Transitioning to Selection.")
+                logger.info(
+                    "Exploration halted due to high uncertainty. Transitioning to Selection."
+                )
                 self.state.current_phase = WorkflowPhase.SELECTION
             else:
                 logger.info("Exploration finished without halting. System Converged.")

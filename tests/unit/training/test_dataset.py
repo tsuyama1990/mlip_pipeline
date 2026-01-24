@@ -11,6 +11,7 @@ def mock_db_manager():
     manager = MagicMock()
     return manager
 
+
 def test_export_atoms_iterable(mock_db_manager, tmp_path):
     builder = DatasetBuilder(mock_db_manager)
     atoms_list = [Atoms("H"), Atoms("He")]

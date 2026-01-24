@@ -8,6 +8,7 @@ def test_workflow_state_initialization():
     assert state.active_tasks == []
     assert state.latest_potential_path is None
 
+
 def test_workflow_state_transitions():
     state = WorkflowState()
     state.current_phase = WorkflowPhase.SELECTION
@@ -16,8 +17,11 @@ def test_workflow_state_transitions():
     state.cycle_index += 1
     assert state.cycle_index == 1
 
+
 def test_workflow_state_serialization():
-    state = WorkflowState(cycle_index=2, current_phase=WorkflowPhase.TRAINING, active_tasks=["task1"])
+    state = WorkflowState(
+        cycle_index=2, current_phase=WorkflowPhase.TRAINING, active_tasks=["task1"]
+    )
     json_str = state.model_dump_json()
 
     loaded_state = WorkflowState.model_validate_json(json_str)

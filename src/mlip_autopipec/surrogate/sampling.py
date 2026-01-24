@@ -29,7 +29,7 @@ class FarthestPointSampling:
 
         # Initial distances from point 0 to all other points
         # cdist returns (1, N) matrix, flatten to (N,)
-        min_dists = cdist(descriptors[0:1], descriptors, metric='euclidean').flatten()
+        min_dists = cdist(descriptors[0:1], descriptors, metric="euclidean").flatten()
 
         for _ in range(1, self.n_samples):
             # Find point with maximum minimum distance to the current set
@@ -37,7 +37,9 @@ class FarthestPointSampling:
             selected_indices.append(int(farthest_idx))
 
             # Update min_dists with distances from the new selected point
-            new_dists = cdist(descriptors[farthest_idx:farthest_idx+1], descriptors, metric='euclidean').flatten()
+            new_dists = cdist(
+                descriptors[farthest_idx : farthest_idx + 1], descriptors, metric="euclidean"
+            ).flatten()
             min_dists = np.minimum(min_dists, new_dists)
 
         return selected_indices

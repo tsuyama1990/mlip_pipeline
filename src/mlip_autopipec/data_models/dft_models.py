@@ -17,6 +17,7 @@ class DFTInputParams(BaseModel):
     """
     Structured parameters for DFT input generation.
     """
+
     kspacing: float | None = None
     k_density: float | None = None  # Legacy/Alias support
     ecutwfc: float = 60.0
@@ -49,9 +50,9 @@ class DFTResult(BaseModel):
     @classmethod
     def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
         if not forces:
-             # Depending on logic, empty forces might be valid for failed calc, but if succeeded=True it shouldn't.
-             # We won't enforce non-empty here unless we check succeeded.
-             return forces
+            # Depending on logic, empty forces might be valid for failed calc, but if succeeded=True it shouldn't.
+            # We won't enforce non-empty here unless we check succeeded.
+            return forces
         if not all(len(row) == 3 for row in forces):
             raise ValueError("Forces must have a shape of (N_atoms, 3).")
         return forces

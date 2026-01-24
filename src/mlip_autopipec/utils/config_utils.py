@@ -9,6 +9,7 @@ from mlip_autopipec.config.models import MLIPConfig
 
 logger = logging.getLogger(__name__)
 
+
 def validate_path_safety(path: Path | str) -> Path:
     """
     Ensures the path is safe and resolved.
@@ -21,7 +22,7 @@ def validate_path_safety(path: Path | str) -> Path:
         # In a real restricted environment, we might check if resolved path is within a specific root.
         # For now, we ensure it's resolved and not empty.
         if str(resolved) == ".":
-             return resolved
+            return resolved
         return resolved
     except Exception as e:
         raise ValueError(f"Invalid path: {path}") from e

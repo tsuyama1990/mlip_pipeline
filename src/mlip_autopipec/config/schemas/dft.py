@@ -10,17 +10,22 @@ class DFTConfig(BaseModel):
     """
     Configuration for Density Functional Theory calculations.
     """
+
     # Required fields defined without default values
     pseudopotential_dir: Path = Field(description="Directory containing .UPF files")
     ecutwfc: float = Field(gt=0, description="Wavefunction cutoff energy (Ry)")
     kspacing: float = Field(gt=0, description="Inverse K-point density (1/A)")
 
     # Optional fields with defaults
-    command: str = Field("pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')")
+    command: str = Field(
+        "pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')"
+    )
     nspin: int = Field(1, description="Spin polarization (1=off, 2=on)")
     mixing_beta: float = Field(0.7, ge=0.0, le=1.0, description="SCF Mixing parameter (0.0-1.0)")
     diagonalization: Literal["david", "cg"] = Field("david", description="Solver ('david', 'cg')")
-    smearing: Literal["mv", "mp", "fd"] = Field("mv", description="Smearing type ('mv', 'mp', 'fd')")
+    smearing: Literal["mv", "mp", "fd"] = Field(
+        "mv", description="Smearing type ('mv', 'mp', 'fd')"
+    )
     degauss: float = Field(0.02, gt=0, description="Smearing width (Ry)")
     recoverable: bool = Field(True, description="Enable auto-recovery")
     max_retries: int = Field(5, ge=0, description="Maximum number of retries")
@@ -59,7 +64,9 @@ class DFTConfig(BaseModel):
         """
         # Strict check for shell control operators
         if re.search(r"[;&|`$()]", v):
-            raise ValueError("Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked.")
+            raise ValueError(
+                "Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked."
+            )
 
         try:
             parts = shlex.split(v)

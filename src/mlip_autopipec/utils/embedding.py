@@ -80,9 +80,7 @@ class EmbeddingExtractor:
 
         # Optimized approach: Use primitive neighbor list but filter
         # "S" -> shift vectors (number of cell vectors added)
-        i_arr, j_arr, s_arr = neighbor_list(
-            "ijS", large_atoms, cutoff
-        )
+        i_arr, j_arr, s_arr = neighbor_list("ijS", large_atoms, cutoff)
         mask = i_arr == center_idx
         neighbors_indices = j_arr[mask]
         neighbor_offsets = s_arr[mask]
@@ -90,11 +88,7 @@ class EmbeddingExtractor:
         return neighbors_indices, neighbor_offsets
 
     def _build_cluster(
-        self,
-        large_atoms: Atoms,
-        center_idx: int,
-        indices: np.ndarray,
-        offsets: np.ndarray
+        self, large_atoms: Atoms, center_idx: int, indices: np.ndarray, offsets: np.ndarray
     ) -> Atoms:
         """
         Construct the cluster Atoms object.
@@ -123,7 +117,7 @@ class EmbeddingExtractor:
         cluster = Atoms(
             symbols=symbols,
             positions=positions,
-            pbc=False  # Clusters are non-periodic
+            pbc=False,  # Clusters are non-periodic
         )
 
         # Add vacuum padding

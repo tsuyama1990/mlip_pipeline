@@ -11,6 +11,7 @@ from mlip_autopipec.config.schemas.training import TrainingMetrics
 
 logger = logging.getLogger(__name__)
 
+
 class LogParser:
     """Parses Pacemaker log files."""
 
@@ -66,15 +67,13 @@ class LogParser:
             rmse_e = float(last_rmse_e_str)
             rmse_f = float(last_rmse_f_str)
         except ValueError:
-            logger.warning(f"Could not convert RMSE to float: E={last_rmse_e_str}, F={last_rmse_f_str}")
+            logger.warning(
+                f"Could not convert RMSE to float: E={last_rmse_e_str}, F={last_rmse_f_str}"
+            )
             return None
 
         if not math.isfinite(rmse_e) or not math.isfinite(rmse_f):
-             logger.error("Training diverged: Infinite metrics.")
-             raise ValueError("Training diverged (Infinite metrics)")
+            logger.error("Training diverged: Infinite metrics.")
+            raise ValueError("Training diverged (Infinite metrics)")
 
-        return TrainingMetrics(
-            epoch=last_epoch,
-            rmse_energy=rmse_e,
-            rmse_force=rmse_f
-        )
+        return TrainingMetrics(epoch=last_epoch, rmse_energy=rmse_e, rmse_force=rmse_f)

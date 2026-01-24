@@ -36,11 +36,20 @@ def init() -> None:
 
 
 @app.command(name="validate")
-def validate(file: Path = typer.Argument(..., help="Path to config file")) -> None:
-    """Validate the configuration file."""
+def validate(
+    file: Path = typer.Argument(..., help="Path to config file"),
+    phonon: bool = typer.Option(False, help="Run phonon validation"),
+    elastic: bool = typer.Option(False, help="Run elasticity validation"),
+    eos: bool = typer.Option(False, help="Run EOS validation"),
+) -> None:
+    """
+    Validate the potential (Phonon, Elasticity, EOS).
+    If no flags are set, configuration defaults are used.
+    """
     setup_logging()
+    flags = {"phonon": phonon, "elastic": elastic, "eos": eos}
     try:
-        CLIHandler.validate_config(file)
+        CLIHandler.validate_potential(file, flags)
     except ValidationError as e:
         console.print("[bold red]Validation Error:[/bold red]")
         console.print(str(e))
@@ -71,7 +80,9 @@ def select(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
+    n_samples: int = typer.Option(
+        None, "--n", help="Number of samples to select (overrides config)"
+    ),
     model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
 ) -> None:
     """Select diverse candidates using a surrogate model."""
@@ -89,7 +100,9 @@ def train(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
+    prepare_only: bool = typer.Option(
+        False, "--prepare-only", help="Only prepare data, do not train"
+    ),
 ) -> None:
     """Train a potential using Pacemaker."""
     setup_logging()

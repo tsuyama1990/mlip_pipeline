@@ -13,6 +13,7 @@ DEFAULT_POTENTIAL_FILENAME = "current.yace"
 INFERENCE_DIR_NAME = "inference"
 INFERENCE_EON_DIR_NAME = "inference_eon"
 
+
 class InferencePhase(BasePhase):
     def execute(self) -> bool:
         """
@@ -28,7 +29,9 @@ class InferencePhase(BasePhase):
                 return False
 
             # 1. Locate Potential
-            potential_path = self.manager.state.latest_potential_path or (self.manager.work_dir / DEFAULT_POTENTIAL_FILENAME)
+            potential_path = self.manager.state.latest_potential_path or (
+                self.manager.work_dir / DEFAULT_POTENTIAL_FILENAME
+            )
 
             if not potential_path.exists():
                 logger.error(f"Potential file not found at {potential_path}")

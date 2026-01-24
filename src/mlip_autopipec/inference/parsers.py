@@ -9,6 +9,7 @@ from pathlib import Path
 # Maximum log file size to process (100 MB) to prevent OOM
 MAX_LOG_SIZE = 100 * 1024 * 1024
 
+
 class LogParser:
     """Parses LAMMPS log files."""
 
@@ -31,11 +32,11 @@ class LogParser:
 
         # Scalability Check: Ensure file is not too large
         if log_file.stat().st_size > MAX_LOG_SIZE:
-             # If too large, we might skip parsing or parse only tail.
-             # For now, we return default to avoid crashing.
-             # Alternatively, read line by line.
-             # Let's switch to line-by-line reading for memory efficiency.
-             pass
+            # If too large, we might skip parsing or parse only tail.
+            # For now, we return default to avoid crashing.
+            # Alternatively, read line by line.
+            # Let's switch to line-by-line reading for memory efficiency.
+            pass
 
         max_gamma = 0.0
         halted = False
@@ -46,8 +47,8 @@ class LogParser:
         step_col_idx = -1
 
         try:
-             with log_file.open("r", encoding="utf-8", errors="replace") as f:
-                 for line in f:
+            with log_file.open("r", encoding="utf-8", errors="replace") as f:
+                for line in f:
                     # Check for halt message
                     if "Fix halt condition met" in line:
                         halted = True
@@ -77,8 +78,8 @@ class LogParser:
                         except ValueError:
                             pass
         except Exception:
-             # Handle read errors gracefully
-             return max_gamma, halted, halt_step
+            # Handle read errors gracefully
+            return max_gamma, halted, halt_step
 
         if not halted:
             halt_step = None

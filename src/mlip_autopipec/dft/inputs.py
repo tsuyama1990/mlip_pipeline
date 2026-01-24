@@ -19,7 +19,9 @@ class InputGenerator:
     """
 
     @staticmethod
-    def create_input_string(atoms: Atoms, params: DFTInputParams | dict[str, Any] | None = None) -> str:
+    def create_input_string(
+        atoms: Atoms, params: DFTInputParams | dict[str, Any] | None = None
+    ) -> str:
         """
         Generates the content of a pw.in file.
 
@@ -121,7 +123,7 @@ class InputGenerator:
         """
         cell = atoms.get_cell()
         if np.all(cell == 0) or not np.any(atoms.pbc):
-             return (1, 1, 1)
+            return (1, 1, 1)
 
         lengths = np.linalg.norm(cell, axis=1)
         kpoints = []
@@ -140,12 +142,7 @@ class InputGenerator:
         """
         symbols = set(atoms.get_chemical_symbols())
         if not symbols.isdisjoint(MAGNETIC_ELEMENTS):
-            return {
-                "system": {
-                    "nspin": 2,
-                    "starting_magnetization": {}
-                }
-            }
+            return {"system": {"nspin": 2, "starting_magnetization": {}}}
         return {}
 
     @staticmethod

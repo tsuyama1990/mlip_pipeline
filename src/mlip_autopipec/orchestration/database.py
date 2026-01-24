@@ -21,6 +21,7 @@ class DatabaseConnector:
     """
     Handles the connection lifecycle to the ASE/SQLite database.
     """
+
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self._connection: ase.db.core.Database | None = None
@@ -222,7 +223,9 @@ class DatabaseManager:
             logger.error(f"Failed to select atoms: {e}")
             raise DatabaseError(f"Failed to select atoms: {e}") from e
 
-    def select_entries(self, selection: str | None = None, **kwargs: Any) -> Generator[tuple[int, Atoms], None, None]:
+    def select_entries(
+        self, selection: str | None = None, **kwargs: Any
+    ) -> Generator[tuple[int, Atoms], None, None]:
         """
         Generator that yields (id, atoms) tuples matching selection.
         Crucial for batch processing where ID is needed for updates.
@@ -247,14 +250,18 @@ class DatabaseManager:
             logger.error(f"Failed to select entries: {e}")
             raise DatabaseError(f"Failed to select entries: {e}") from e
 
-    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
+    def get_atoms(
+        self, selection: str | None = None, **kwargs: Any
+    ) -> Generator[Atoms, None, None]:
         """
         Retrieve atoms matching selection.
         Returns a generator to avoid OOM on large datasets.
         """
         return self.select(selection=selection, **kwargs)
 
-    def get_entries(self, selection: str | None = None, **kwargs: Any) -> Generator[tuple[int, Atoms], None, None]:
+    def get_entries(
+        self, selection: str | None = None, **kwargs: Any
+    ) -> Generator[tuple[int, Atoms], None, None]:
         """
         Retrieve entries as (id, Atoms) tuples.
         Returns a generator to avoid OOM on large datasets.
@@ -300,7 +307,7 @@ class DatabaseManager:
             if hasattr(result, "energy"):
                 # Check for physical validity
                 if not np.isfinite(result.energy):
-                     raise ValueError("DFT Energy is not finite.")
+                    raise ValueError("DFT Energy is not finite.")
                 atoms.info["energy"] = result.energy
             if hasattr(result, "forces"):
                 atoms.arrays["forces"] = np.array(result.forces)
@@ -313,7 +320,7 @@ class DatabaseManager:
                 self._connection.write(
                     atoms,
                     data=result.model_dump() if hasattr(result, "model_dump") else {},
-                    **metadata
+                    **metadata,
                 )
         except AttributeError as e:
             logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
