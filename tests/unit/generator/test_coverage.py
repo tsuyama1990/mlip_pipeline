@@ -1,15 +1,13 @@
-from unittest.mock import patch
-
-import numpy as np
 import pytest
+import numpy as np
+from unittest.mock import MagicMock, patch
 from ase import Atoms
-
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
-from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.generator.builder import StructureBuilder
-from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
+from mlip_autopipec.generator.transformations import apply_strain, apply_rattle
+from mlip_autopipec.exceptions import GeneratorError
 
 # --- StructureBuilder Coverage ---
 
@@ -27,7 +25,7 @@ def test_builder_molecule_generation() -> None:
     with patch("mlip_autopipec.generator.builder.molecule") as mock_mol:
         mock_mol.return_value = Atoms("H2O", positions=[[0,0,0], [0,0,1], [0,1,0]])
 
-        structures = builder.build()
+        structures = list(builder.build())
         assert len(structures) >= 1
         assert len(structures[0]) == 3
         mock_mol.assert_called()
@@ -44,7 +42,7 @@ def test_builder_molecule_failure() -> None:
 
     with patch("mlip_autopipec.generator.builder.molecule", side_effect=Exception("Mol fail")):
         # Should warn and return empty list
-        structures = builder.build()
+        structures = list(builder.build())
         assert len(structures) == 0
 
 def test_builder_bulk_fallback() -> None:
@@ -65,7 +63,7 @@ def test_builder_bulk_fallback() -> None:
 
     with patch("mlip_autopipec.generator.builder.bulk", side_effect=bulk_side_effect):
         # Should fallback to Fe
-        structures = builder.build()
+        structures = list(builder.build())
         assert len(structures) > 0
         assert structures[0].symbols[0] == "Fe"
 
@@ -81,7 +79,7 @@ def test_builder_critical_failure() -> None:
 
     with patch.object(builder, '_generate_base', side_effect=Exception("Critical")):
         with pytest.raises(GeneratorError) as excinfo:
-            builder.build()
+            list(builder.build())
         assert "Structure generation failed" in str(excinfo.value)
 
 # --- Transformations Coverage ---

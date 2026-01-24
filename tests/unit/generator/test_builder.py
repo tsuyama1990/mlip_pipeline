@@ -1,11 +1,9 @@
-
 import pytest
-
+from types import GeneratorType
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.generator.builder import StructureBuilder
-
 
 @pytest.fixture
 def system_config() -> SystemConfig:
@@ -28,9 +26,11 @@ def test_build_flow(system_config: SystemConfig) -> None:
     system_config.generator_config.distortion.n_rattle_steps = 1
 
     builder = StructureBuilder(system_config)
-    structures = builder.build()
+    structures_iter = builder.build()
 
-    assert isinstance(structures, list)
+    assert isinstance(structures_iter, GeneratorType)
+
+    structures = list(structures_iter)
     assert len(structures) > 0
     # Should be limited to number_of_structures if we generated more
     assert len(structures) <= 5
@@ -43,11 +43,11 @@ def test_build_with_defaults(system_config: SystemConfig) -> None:
     # Default generator config
     system_config.generator_config = GeneratorConfig() # Defaults
     builder = StructureBuilder(system_config)
-    structures = builder.build()
+    structures = list(builder.build())
     assert len(structures) > 0
 
 def test_build_no_target() -> None:
     config = SystemConfig() # No target system
     builder = StructureBuilder(config)
-    structures = builder.build()
+    structures = list(builder.build())
     assert structures == []

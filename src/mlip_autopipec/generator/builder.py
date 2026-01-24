@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Any
+from typing import Any, Iterator
 
 import numpy as np
 from ase import Atoms
@@ -11,7 +11,7 @@ from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.generator.defects import DefectStrategy
 from mlip_autopipec.generator.sqs import SQSStrategy
-from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
+from mlip_autopipec.generator.distortions import DistortionStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +47,11 @@ class StructureBuilder:
         self.rng = np.random.default_rng(self.generator_config.seed)
         self.sqs_strategy = SQSStrategy(self.generator_config.sqs, seed=self.generator_config.seed)
         self.defect_strategy = DefectStrategy(self.generator_config.defects, seed=self.generator_config.seed)
+        self.distortion_strategy = DistortionStrategy(self.generator_config.distortion, seed=self.generator_config.seed)
 
-    def build(self) -> list[Atoms]:
+    def build(self) -> Iterator[Atoms]:
         """
-        Orchestrates the generation pipeline to produce a batch of structures.
+        Orchestrates the generation pipeline to produce a stream of structures.
         Implements BuilderProtocol.
 
         The pipeline consists of the following steps:
@@ -62,33 +63,45 @@ class StructureBuilder:
             pool.
         4.  **Metadata Tagging**: Assigns unique IDs and system tags to all generated structures.
         5.  **Sampling**: If the number of generated structures exceeds the requested count,
-            a random sample is returned.
+            reservoir sampling is used to limit the output.
 
-        Returns:
-            list[Atoms]: A list of ASE Atoms objects representing the generated structures.
+        Yields:
+            Atoms: ASE Atoms objects representing the generated structures.
 
         Raises:
             GeneratorError: If the generation process fails critically.
         """
         target = self.system_config.target_system
         if not target:
-            logger.warning("No target_system defined. Returning empty structure list.")
-            return []
+            logger.warning("No target_system defined. Returning empty structure stream.")
+            return
 
         try:
             # 1. Base Generation Phase
             base_structures = self._generate_base(target)
 
             # 2. Distortions (Strain + Rattle)
-            # This returns original + distorted structures
-            distorted_structures = self._apply_distortions(base_structures)
-
-            # Use distorted structures (including base) as the pool for defects
-            current_pool = distorted_structures
+            # This yields original + distorted structures lazily
+            # We wrap base_structures (list) into an iterator
+            distorted_stream = self.distortion_strategy.apply(iter(base_structures))
 
             # 3. Defect Application Phase
+            # DefectStrategy.apply currently expects list, we need to adapt it or iterate
+            # Since defects might multiply structures, it's better if DefectStrategy supports streaming too.
+            # But for now, let's iterate and call apply on single items or refactor DefectStrategy.
+            # Refactoring DefectStrategy is cleaner. For now, let's wrap:
+
             primary_elem = next(iter(target.composition.keys()))
-            final_structures = self.defect_strategy.apply(current_pool, primary_elem)
+
+            def defect_generator(stream: Iterator[Atoms]) -> Iterator[Atoms]:
+                for s in stream:
+                    # apply returns list[Atoms] (original + defects)
+                    yield from self.defect_strategy.apply([s], primary_elem)
+
+            defect_stream = defect_generator(distorted_stream)
+
+            # 4. Final Metadata Tagging & 5. Sampling
+            yield from self._sample_results(self._tag_metadata_stream(defect_stream, target.name))
 
         except Exception as e:
             if isinstance(e, GeneratorError):
@@ -97,25 +110,31 @@ class StructureBuilder:
             logger.error(msg, exc_info=True)
             raise GeneratorError(msg, context={"target": target.name}) from e
 
-        # 4. Final Metadata Tagging
-        self._tag_metadata(final_structures, target.name)
-
-        # 5. Limit number of structures if needed (random sample)
-        return self._sample_results(final_structures)
-
-    def _tag_metadata(self, structures: list[Atoms], target_name: str) -> None:
+    def _tag_metadata_stream(self, structures: Iterator[Atoms], target_name: str) -> Iterator[Atoms]:
         for s in structures:
             if "uuid" not in s.info:
                 s.info["uuid"] = str(uuid.uuid4())
             s.info["target_system"] = target_name
+            yield s
 
-    def _sample_results(self, structures: list[Atoms]) -> list[Atoms]:
+    def _sample_results(self, structures: Iterator[Atoms]) -> Iterator[Atoms]:
+        """
+        Applies reservoir sampling to limit the number of yielded structures
+        without loading everything into memory.
+        """
         n_req = self.generator_config.number_of_structures
-        if len(structures) > n_req:
-             # Use self.rng to sample indices
-             indices = self.rng.choice(len(structures), size=n_req, replace=False)
-             return [structures[i] for i in indices]
-        return structures
+
+        # Reservoir sampling
+        reservoir: list[Atoms] = []
+        for i, s in enumerate(structures):
+            if i < n_req:
+                reservoir.append(s)
+            else:
+                j = self.rng.integers(0, i + 1)
+                if j < n_req:
+                    reservoir[j] = s
+
+        yield from reservoir
 
     def _generate_base(self, target: Any) -> list[Atoms]:
         """
@@ -175,62 +194,3 @@ class StructureBuilder:
             structures.append(prim)
 
         return structures
-
-    def _apply_distortions(self, base_structures: list[Atoms]) -> list[Atoms]:
-        """
-        Applies strain and rattle distortions to base structures.
-
-        Generates a combinatorial set of structures by applying strain steps
-        and then rattling each strained structure.
-
-        Args:
-            base_structures (list[Atoms]): The input structures to distort.
-
-        Returns:
-            list[Atoms]: A list including the original base structures and the distorted variants.
-        """
-        results = []
-
-        # Include base structures first
-        results.extend(base_structures)
-
-        if not self.generator_config.distortion.enabled:
-            return results
-
-        n_strain = self.generator_config.distortion.n_strain_steps
-        n_rattle = self.generator_config.distortion.n_rattle_steps
-        strain_range = self.generator_config.distortion.strain_range
-        rattle_stdev = self.generator_config.distortion.rattle_stdev
-
-        for base in base_structures:
-            # Strains
-            strains = np.linspace(strain_range[0], strain_range[1], n_strain)
-            strained_pool = [base]
-
-            for s in strains:
-                if abs(s) < 1e-6:
-                    continue # Skip zero strain (base)
-
-                # Hydrostatic
-                strain_tensor = np.eye(3) * s
-                try:
-                    strained = apply_strain(base, strain_tensor)
-                    strained_pool.append(strained)
-                    results.append(strained)
-                except Exception as e:
-                    logger.warning(f"Strain failed: {e}")
-
-            # Rattles
-            for st in strained_pool:
-                for _ in range(n_rattle):
-                    try:
-                        rattled = apply_rattle(st, rattle_stdev, rng=self.rng)
-                        # Inherit metadata
-                        if "strain_tensor" in st.info:
-                             rattled.info["strain_tensor"] = st.info["strain_tensor"]
-                        rattled.info["parent_config_type"] = st.info.get("config_type")
-                        results.append(rattled)
-                    except Exception as e:
-                        logger.warning(f"Rattle failed: {e}")
-
-        return results

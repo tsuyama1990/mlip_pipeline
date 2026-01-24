@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from ase import Atoms
 
@@ -9,7 +9,7 @@ from mlip_autopipec.data_models.dft_models import DFTResult
 
 
 class BuilderProtocol(Protocol):
-    def build(self) -> list[Atoms]: ...
+    def build(self) -> Iterator[Atoms]: ...
 
 
 class SurrogateProtocol(Protocol):

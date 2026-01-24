@@ -76,21 +76,24 @@ class CLIHandler:
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
         builder = StructureBuilder(config)
-        structures = builder.build()
+        structures_iter = builder.build()
 
-        console(f"Generated {len(structures)} structures.")
-
+        count = 0
         if dry_run:
-            console("Dry run: Not saving to database.")
+            # Just count
+            for _ in structures_iter:
+                count += 1
+            console(f"Dry run: Generated {count} structures. Not saving to database.")
             return
 
         with DatabaseManager(config.runtime.database_path) as db:
             cm = CandidateManager(db)
-            for atoms in structures:
+            for atoms in structures_iter:
                 metadata = atoms.info.copy()
                 cm.create_candidate(atoms, metadata)
+                count += 1
 
-        console(f"Saved to {config.runtime.database_path}")
+        console(f"Generated and saved {count} structures to {config.runtime.database_path}")
 
     @staticmethod
     def select_candidates(config_file: Path, n_samples: int | None, model_type: str | None) -> None:

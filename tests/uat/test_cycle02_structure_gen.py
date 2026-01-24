@@ -1,10 +1,9 @@
+import pytest
 import numpy as np
-
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
-from mlip_autopipec.config.schemas.generator import DefectConfig, DistortionConfig, GeneratorConfig
+from mlip_autopipec.config.schemas.generator import GeneratorConfig, DistortionConfig, DefectConfig
 from mlip_autopipec.generator.builder import StructureBuilder
-
 
 def test_scenario_02_01_bulk_generation() -> None:
     """
@@ -36,7 +35,7 @@ def test_scenario_02_01_bulk_generation() -> None:
     sys_config = SystemConfig(target_system=target, generator_config=gen_config)
     builder = StructureBuilder(sys_config)
 
-    structures = builder.build()
+    structures = list(builder.build())
 
     # We requested 5 structures.
     assert len(structures) == 5
@@ -72,7 +71,7 @@ def test_scenario_02_02_defect_introduction() -> None:
 
     # 2x2x2 FCC Primitive = 1 * 8 = 8 atoms
 
-    structures = builder.build()
+    structures = list(builder.build())
 
     # Check for vacancy structures
     vacancy_structs = [s for s in structures if s.info.get("config_type") == "vacancy"]
@@ -105,11 +104,11 @@ def test_scenario_02_03_reproducibility() -> None:
 
     # Run 1
     builder1 = StructureBuilder(sys_config)
-    batch1 = builder1.build()
+    batch1 = list(builder1.build())
 
     # Run 2
     builder2 = StructureBuilder(sys_config)
-    batch2 = builder2.build()
+    batch2 = list(builder2.build())
 
     assert len(batch1) == len(batch2)
 
