@@ -1,8 +1,9 @@
-from typing import List, Tuple, Any
+import logging
 from pathlib import Path
+from typing import Any
+
 from ase import Atoms
 from ase.io import read
-import logging
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
@@ -21,7 +22,7 @@ class CandidateProcessor:
         self.embedding_config = EmbeddingConfig()
         self.extractor = EmbeddingExtractor(self.embedding_config)
 
-    def extract_candidates(self, dump_paths: List[Path], start_atoms: Atoms) -> List[Tuple[Atoms, dict[str, Any]]]:
+    def extract_candidates(self, dump_paths: list[Path], start_atoms: Atoms) -> list[tuple[Atoms, dict[str, Any]]]:
         """
         Extracts candidates from a list of dump files.
 
@@ -32,7 +33,7 @@ class CandidateProcessor:
         Returns:
             List of tuples (Atoms, metadata_dict) ready for database insertion.
         """
-        candidates: List[Tuple[Atoms, dict[str, Any]]] = []
+        candidates: list[tuple[Atoms, dict[str, Any]]] = []
 
         for dump_path in dump_paths:
             try:
