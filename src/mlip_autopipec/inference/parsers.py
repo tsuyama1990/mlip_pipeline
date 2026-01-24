@@ -5,7 +5,6 @@ This module provides functionality to parse LAMMPS log files for uncertainty dat
 """
 
 from pathlib import Path
-import os
 
 # Maximum log file size to process (100 MB) to prevent OOM
 MAX_LOG_SIZE = 100 * 1024 * 1024

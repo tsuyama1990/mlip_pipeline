@@ -165,7 +165,7 @@ def test_get_atoms_error(db_path):
 
         with pytest.raises(DatabaseError) as exc:
             db.get_atoms()
-        assert "Failed to get atoms" in str(exc.value)
+        assert "Failed to select atoms" in str(exc.value)
 
 def test_get_entries_error(db_path):
     with DatabaseManager(db_path) as db:
@@ -174,7 +174,7 @@ def test_get_entries_error(db_path):
 
         with pytest.raises(DatabaseError) as exc:
             db.get_entries()
-        assert "Failed to get entries" in str(exc.value)
+        assert "Failed to select entries" in str(exc.value)
 
 def test_count_error(db_path):
     with DatabaseManager(db_path) as db:

@@ -1,7 +1,9 @@
+
 import pytest
-from pathlib import Path
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.inference.inputs import ScriptGenerator
+
 
 @pytest.fixture
 def basic_config():
@@ -64,7 +66,7 @@ def test_script_generator_dump_modify(basic_config, tmp_path):
 
     # Check that dump command and dump_modify thresh are present
     assert f"dump my_dump all custom {basic_config.sampling_interval} {dump_file.resolve()}" in script
-    assert f"dump_modify my_dump thresh" in script
+    assert "dump_modify my_dump thresh" in script
     assert str(basic_config.uncertainty_threshold) in script
 
 def test_script_generator_multiple_elements_zbl(basic_config, tmp_path):

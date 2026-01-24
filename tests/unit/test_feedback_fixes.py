@@ -28,7 +28,7 @@ def test_select_generator(db_path):
         assert isinstance(db.select(), Generator)
 
 def test_validate_path_safety_valid(tmp_path):
-    from mlip_autopipec.app import validate_path_safety
+    from mlip_autopipec.utils.config_utils import validate_path_safety
 
     p = tmp_path / "config.yaml"
     p.touch()
@@ -37,7 +37,7 @@ def test_validate_path_safety_valid(tmp_path):
     assert safe == p.resolve()
 
 def test_validate_path_safety_invalid():
-    from mlip_autopipec.app import validate_path_safety
+    from mlip_autopipec.utils.config_utils import validate_path_safety
 
     # Path that doesn't exist but we want to check safety logic if it were to resolve to something weird
     # Currently it just resolves.

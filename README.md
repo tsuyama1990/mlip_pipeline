@@ -14,7 +14,8 @@
 *   **DFT Oracle**: Integrated Quantum Espresso runner with auto-recovery for convergence failures (e.g., mixing beta reduction).
 *   **Training Orchestration**: Automated training of MLIPs using **Pacemaker**, with support for Active Set selection and Delta Learning configuration.
 *   **Periodic Embedding**: Utilities for extracting local atomic environments from larger simulation cells for targeted re-calculation.
-*   **Active Learning Loop**: Autonomous cycle of generation, labeling, training, and validation.
+*   **Orchestration Engine**: Centralized state machine managing the Active Learning loop (Exploration -> Selection -> Calculation -> Training), complete with persistence and resumption capabilities.
+*   **Dashboard**: Real-time status reporting via HTML dashboard visualizing learning curves and database statistics.
 
 ## Requirements
 
@@ -87,6 +88,12 @@ mlip-auto db init --config input.yaml
 Generate candidate structures based on your configuration:
 ```bash
 mlip-auto generate input.yaml
+```
+
+### 6. Run Active Learning Loop
+Execute the autonomous pipeline:
+```bash
+mlip-auto run loop --config input.yaml
 ```
 
 ## Architecture

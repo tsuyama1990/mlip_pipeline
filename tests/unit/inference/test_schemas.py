@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
+
 
 def test_inference_config_defaults():
     config = InferenceConfig()

@@ -9,6 +9,7 @@ from mlip_autopipec.dft.runner import QERunner
 from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.inference.runner import LammpsRunner
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
+from mlip_autopipec.orchestration.strategies import GammaSelectionStrategy
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
@@ -83,7 +84,7 @@ class PhaseExecutor:
                 for atoms in selected:
                     self.db.save_candidate(
                         atoms,
-                        {"status": "pending", "generation": self.manager.state.current_generation},
+                        {"status": "pending", "generation": self.manager.state.cycle_index},
                     )
                 total_generated += len(selected)
 
@@ -125,7 +126,7 @@ class PhaseExecutor:
                                     res,
                                     {
                                         "status": "training",
-                                        "generation": self.manager.state.current_generation,
+                                        "generation": self.manager.state.cycle_index,
                                     },
                                 )
                                 self.db.update_status(db_id, "labeled")
@@ -163,13 +164,13 @@ class PhaseExecutor:
 
             # Assuming previous generation's potential can be used as initial
             initial_potential = None
-            prev_gen = self.manager.state.current_generation - 1
+            prev_gen = self.manager.state.cycle_index - 1
             if prev_gen >= 0:
                  prev_pot = self.manager.work_dir / "potentials" / f"generation_{prev_gen}.yace"
                  if prev_pot.exists():
                      initial_potential = prev_pot
 
-            logger.info(f"Starting training (Gen {self.manager.state.current_generation})...")
+            logger.info(f"Starting training (Gen {self.manager.state.cycle_index})...")
             result = wrapper.train(initial_potential=initial_potential)
 
             if result.success and result.potential_path:
@@ -177,7 +178,10 @@ class PhaseExecutor:
                 # Save potential to generation specific path
                 pot_dir = self.manager.work_dir / "potentials"
                 pot_dir.mkdir(exist_ok=True)
-                dest = pot_dir / f"generation_{self.manager.state.current_generation}.yace"
+                dest = pot_dir / f"generation_{self.manager.state.cycle_index}.yace"
+
+                # Update state
+                self.manager.state.latest_potential_path = dest
 
                 # Copy or move
                 try:
@@ -196,27 +200,25 @@ class PhaseExecutor:
 
     def execute_inference(self) -> bool:
         """
-        Execute Phase D: Inference.
+        Execute Phase: Exploration (MD Inference).
 
         Returns:
-            True if new candidates were extracted (active learning triggered), False otherwise.
+            True if high uncertainty was detected (halted), False otherwise.
         """
-        logger.info("Phase D: Inference")
+        logger.info("Phase: Inference / Exploration")
         try:
             if not self.config.inference_config:
                 logger.warning("No Inference Config. Skipping inference.")
                 return False
 
             # 1. Locate Potential
-            potential_path = self.manager.work_dir / "current.yace"
+            potential_path = self.manager.state.latest_potential_path or (self.manager.work_dir / "current.yace")
 
             if not potential_path.exists():
                 logger.error(f"Potential file not found at {potential_path}")
                 return False
 
             # 2. Select Structure for MD
-            # Pick the last completed structure efficiently
-            # Using generator to avoid loading all into memory
             last_atom_gen = self.db.select(selection="status=training", sort="-id", limit=1)
             start_atoms = next(last_atom_gen, None)
 
@@ -228,14 +230,15 @@ class PhaseExecutor:
             runner = self._create_lammps_runner(self.manager.work_dir / "inference")
             result = runner.run(start_atoms, potential_path)
 
-            # 4. Active Learning Logic
+            # 4. Check for Halt
             if result.uncertain_structures:
-                logger.info("High uncertainty detected. Extracting candidates...")
+                logger.info("High uncertainty detected. Extracting raw candidates...")
                 embedding_config = EmbeddingConfig()
                 extractor = EmbeddingExtractor(embedding_config)
 
                 from ase.io import read
 
+                extracted_count = 0
                 for dump_path in result.uncertain_structures:
                     try:
                         frames = read(dump_path, index=":", format="lammps-dump-text")
@@ -258,18 +261,21 @@ class PhaseExecutor:
 
                             extracted_atoms = extractor.extract(frame, max_idx)
 
+                            # Save as 'screening' status for Selection phase
                             self.db.save_candidate(
                                 extracted_atoms,
                                 {
-                                    "status": "pending",
-                                    "generation": self.manager.state.current_generation,
+                                    "status": "screening",
+                                    "generation": self.manager.state.cycle_index,
                                     "config_type": "active_learning"
                                 }
                             )
-                            return True
+                            extracted_count += 1
 
                     except Exception:
                         logger.exception(f"Failed to process dump file {dump_path}")
+
+                return extracted_count > 0
 
             logger.info("Inference finished without high uncertainty.")
             return False
@@ -277,3 +283,80 @@ class PhaseExecutor:
         except Exception:
             logger.exception("Inference phase failed")
             return False
+
+    def execute_selection(self) -> None:
+        """
+        Execute Phase: Selection.
+        Selects from 'screening' candidates and promotes them to 'pending'.
+        """
+        logger.info("Phase: Selection")
+        try:
+            # 1. Load candidates pending screening
+            screening_entries = list(self.db.select_entries("status=screening"))
+            if not screening_entries:
+                logger.info("No candidates in screening.")
+                return
+
+            candidates = [atoms for _, atoms in screening_entries]
+            ids = [i for i, _ in screening_entries]
+
+            logger.info(f"Screening {len(candidates)} candidates.")
+
+            # 2. Initialize Strategy
+            potential_path = self.manager.state.latest_potential_path or (self.manager.work_dir / "current.yace")
+
+            if not self.config.training_config:
+                 logger.warning("No Training Config for Selection Strategy.")
+                 # Fallback: select all if no training config (can't run pacemaker)
+                 selected_indices = range(len(candidates))
+            else:
+                 pacemaker = self._create_pacemaker_wrapper(self.config.training_config, self.manager.work_dir)
+                 strategy = GammaSelectionStrategy(pacemaker, EmbeddingConfig()) # Using default embedding config
+
+                 # Strategy returns Atoms objects, but we need to map back to DB IDs to update status
+                 # This implies strategy should probably take IDs or return indices?
+                 # My strategy returns Atoms.
+
+                 # Let's modify usage:
+                 # We can just update ALL 'screening' to 'rejected' first, then 'pending' for selected?
+                 # Or better: match by some property? Atoms equality is hard.
+
+                 # Refactoring Strategy to return indices might be better?
+                 # But sticking to current implementation:
+
+                 # Since GammaSelectionStrategy uses PacemakerWrapper.select_active_set which works on file,
+                 # and returns indices relative to the input list.
+                 # I can rely on list order preservation.
+
+                 # Let's peek at GammaSelectionStrategy implementation:
+                 # it calls self.pacemaker.select_active_set(candidates, potential_path) which returns indices.
+                 # and then returns [candidates[i] for i in indices].
+
+                 # I should assume order is preserved.
+                 # But I need to invoke pacemaker active set directly to get indices if I want IDs.
+                 # Or I can update GammaSelectionStrategy to return indices or (Atoms, ID) tuples?
+
+                 # I'll rely on the fact that `strategy.pacemaker.select_active_set` is what does the work.
+                 # I will copy logic here to get indices, effectively bypassing Strategy class if it hides indices.
+                 # Or better, I should have designed Strategy to return indices.
+
+                 # Implementation Fix:
+                 # I will just select all for now if I can't easily map back.
+                 # Wait, I implemented GammaSelectionStrategy.
+
+                 indices = pacemaker.select_active_set(candidates, potential_path)
+                 selected_indices = set(indices)
+
+            # 3. Update Status
+            selected_count = 0
+            for i, db_id in enumerate(ids):
+                if i in selected_indices:
+                    self.db.update_status(db_id, "pending")
+                    selected_count += 1
+                else:
+                    self.db.update_status(db_id, "rejected")
+
+            logger.info(f"Selection complete. Selected: {selected_count}, Rejected: {len(candidates) - selected_count}")
+
+        except Exception:
+            logger.exception("Selection phase failed")

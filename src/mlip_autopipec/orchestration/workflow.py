@@ -5,10 +5,11 @@ import time
 from dask.distributed import Client
 
 from mlip_autopipec.config.models import MLIPConfig, SystemConfig
-from mlip_autopipec.orchestration.dashboard import Dashboard
+from mlip_autopipec.config.schemas.workflow import WorkflowConfig
+from mlip_autopipec.data_models.state import WorkflowPhase, WorkflowState
+from mlip_autopipec.orchestration.dashboard import Dashboard, DashboardData
 from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
-from mlip_autopipec.orchestration.models import DashboardData, OrchestratorConfig, WorkflowState
 from mlip_autopipec.orchestration.phase_executor import PhaseExecutor
 from mlip_autopipec.orchestration.task_queue import TaskQueue
 from mlip_autopipec.utils.dask_utils import get_dask_client
@@ -21,15 +22,15 @@ class WorkflowManager:
     The main orchestrator for the MLIP-AutoPipe workflow.
 
     Responsibilities:
-    - Manage the high-level state machine (Generations and Phases).
-    - Persist state to disk for resumption.
-    - Delegate execution details to PhaseExecutor.
+    - Manage the high-level state machine (Cycle 06).
+    - Persist state to disk.
+    - Delegate execution to PhaseExecutor.
     """
 
     def __init__(
         self,
         config: SystemConfig | MLIPConfig,
-        orchestrator_config: OrchestratorConfig,
+        workflow_config: WorkflowConfig,
         builder: BuilderProtocol | None = None,
         surrogate: SurrogateProtocol | None = None,
     ) -> None:
@@ -38,26 +39,25 @@ class WorkflowManager:
 
         Args:
             config: The full SystemConfig or MLIPConfig.
-            orchestrator_config: Configuration for the orchestrator.
+            workflow_config: Configuration for the workflow (formerly orchestrator_config).
             builder: Optional dependency injection for Builder.
             surrogate: Optional dependency injection for Surrogate.
         """
-        # Validate and Normalize Configuration via dedicated method
         self.config = self._normalize_config(config)
-
-        self.orch_config = orchestrator_config
+        self.workflow_config = workflow_config
         self.work_dir = self.config.working_dir
         self.state_file = self.work_dir / "workflow_state.json"
 
         # Core Components
         self.db_manager = DatabaseManager(self.config.db_path)
-        # Initialize Dask Client for parallel processing
+
+        # Initialize Dask Client
         self.dask_client: Client = get_dask_client(
-            scheduler_address=self.orch_config.dask_scheduler_address
+            scheduler_address=self.workflow_config.dask_scheduler_address
         )
         self.task_queue = TaskQueue(
-            scheduler_address=self.orch_config.dask_scheduler_address,
-            workers=self.orch_config.workers,
+            scheduler_address=self.workflow_config.dask_scheduler_address,
+            workers=self.workflow_config.workers,
         )
         self.dashboard = Dashboard(self.work_dir, self.db_manager)
 
@@ -73,9 +73,6 @@ class WorkflowManager:
 
     @staticmethod
     def _normalize_config(config: SystemConfig | MLIPConfig) -> SystemConfig:
-        """
-        Ensures strict type compliance by normalizing input config to SystemConfig.
-        """
         if isinstance(config, MLIPConfig):
             return SystemConfig(
                 target_system=config.target_system,
@@ -90,7 +87,6 @@ class WorkflowManager:
             )
         if isinstance(config, SystemConfig):
             return config
-
         raise TypeError("Invalid configuration type provided to WorkflowManager.")
 
     def _load_state(self) -> WorkflowState:
@@ -98,10 +94,10 @@ class WorkflowManager:
         if self.state_file.exists():
             try:
                 data = json.loads(self.state_file.read_text())
-                return WorkflowState(**data)
+                return WorkflowState.model_validate(data)
             except Exception:
                 logger.exception("Failed to load state. Starting fresh.")
-        return WorkflowState(current_generation=0, status="idle")
+        return WorkflowState()
 
     def _save_state(self) -> None:
         """Persist state to disk."""
@@ -109,18 +105,19 @@ class WorkflowManager:
 
     def run(self) -> None:
         """
-        Execute the main loop.
+        Execute the main active learning loop.
         """
         logger.info("Starting Workflow Manager...")
         try:
-            while self.state.current_generation < self.orch_config.max_generations:
-                logger.info(f"--- Generation {self.state.current_generation} | Status: {self.state.status} ---")
+            print(f"DEBUG: Entering run loop. Cycle: {self.state.cycle_index}, Max: {self.workflow_config.max_generations}")
+            while self.state.cycle_index < self.workflow_config.max_generations:
+                print(f"DEBUG: Inside loop. Cycle: {self.state.cycle_index}")
+                logger.info(f"--- Cycle {self.state.cycle_index} | Phase: {self.state.current_phase.value} ---")
 
                 self._dispatch_phase()
                 self._update_dashboard()
                 self._save_state()
 
-                # Small sleep to avoid busy loop if phases are fast or no-op
                 time.sleep(1)
 
             logger.info("Max generations reached.")
@@ -133,30 +130,37 @@ class WorkflowManager:
 
     def _dispatch_phase(self) -> None:
         """Dispatch execution to the appropriate phase handler based on state."""
-        if self.state.status == "idle":
-            self.executor.execute_exploration()
-            self.state.status = "dft"
+        phase = self.state.current_phase
+        # print(f"DEBUG: Dispatching phase {phase} (type: {type(phase)})")
+        # print(f"DEBUG: Expected {WorkflowPhase.EXPLORATION} (type: {type(WorkflowPhase.EXPLORATION)})")
 
-        elif self.state.status == "dft":
-            # Modified to use parallel execution if needed, though execute_dft might handle it internally
-            # For now, we rely on PhaseExecutor to use task_queue or dask_client if implemented.
-            self.executor.execute_dft()
-            self.state.status = "training"
-
-        elif self.state.status == "training":
-            self.executor.execute_training()
-            self.state.status = "inference"
-
-        elif self.state.status == "inference":
-            active_learning_triggered = self.executor.execute_inference()
-
-            if active_learning_triggered:
-                logger.info("Active Learning Triggered: Looping back to DFT.")
-                self.state.status = "dft"
+        if phase == WorkflowPhase.EXPLORATION:
+            # Run Inference/MD to explore and find uncertain structures
+            # Returns True if halted (high uncertainty found), False otherwise
+            print(f"DEBUG: Calling execute_inference on {self.executor}")
+            halted = self.executor.execute_inference()
+            print(f"DEBUG: execute_inference returned {halted}")
+            if halted:
+                logger.info("Exploration halted due to high uncertainty. Transitioning to Selection.")
+                self.state.current_phase = WorkflowPhase.SELECTION
             else:
-                logger.info("Inference Converged: Proceeding to next generation.")
-                self.state.current_generation += 1
-                self.state.status = "idle"
+                logger.info("Exploration finished without halting. System Converged.")
+                # Stop the loop by setting cycle_index to max
+                self.state.cycle_index = self.workflow_config.max_generations
+
+        elif phase == WorkflowPhase.SELECTION:
+            self.executor.execute_selection()
+            self.state.current_phase = WorkflowPhase.CALCULATION
+
+        elif phase == WorkflowPhase.CALCULATION:
+            self.executor.execute_dft()
+            self.state.current_phase = WorkflowPhase.TRAINING
+
+        elif phase == WorkflowPhase.TRAINING:
+            self.executor.execute_training()
+            self.state.current_phase = WorkflowPhase.EXPLORATION
+            # Increment cycle index after training a new potential
+            self.state.cycle_index += 1
 
     def _update_dashboard(self) -> None:
         """Update the dashboard."""
@@ -165,9 +169,10 @@ class WorkflowManager:
         except Exception:
             count = 0
 
+        # Using legacy DashboardData structure but mapping new fields
         data = DashboardData(
-            generations=[self.state.current_generation],
+            generations=[self.state.cycle_index],
             structure_counts=[count],
-            status=self.state.status,
+            status=self.state.current_phase.value,
         )
         self.dashboard.update(data)

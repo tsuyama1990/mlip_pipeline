@@ -1,8 +1,10 @@
+from unittest.mock import MagicMock
+
 import pytest
-from pathlib import Path
 from ase import Atoms
-from unittest.mock import MagicMock, patch
-from mlip_autopipec.training.dataset import DatasetBuilder, DEFAULT_VALIDATION_RATIO
+
+from mlip_autopipec.training.dataset import DatasetBuilder
+
 
 @pytest.fixture
 def mock_db_manager():
