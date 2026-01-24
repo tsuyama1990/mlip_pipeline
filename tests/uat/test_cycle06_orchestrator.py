@@ -116,8 +116,9 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         (manager.work_dir / "current.yace").touch()
 
         # Seed DB with a training structure for Inference
-        from mlip_autopipec.orchestration.database import DatabaseManager
         from ase import Atoms
+
+        from mlip_autopipec.orchestration.database import DatabaseManager
         with DatabaseManager(uat_config.db_path) as db:
             db.add_structure(Atoms("Fe"), metadata={"status": "training"})
 
