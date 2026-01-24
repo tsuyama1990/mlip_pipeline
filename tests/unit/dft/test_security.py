@@ -1,8 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
-from mlip_autopipec.dft.runner import QERunner, DFTFatalError
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> DFTConfig:

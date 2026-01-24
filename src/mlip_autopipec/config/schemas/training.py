@@ -18,9 +18,11 @@ class TrainingConfig(BaseModel):
     kappa_f: PositiveFloat = Field(..., description="Weight for Force loss")
 
     # Optimization
-    max_iter: PositiveInt = Field(1000, description="Maximum training epochs")
+    max_num_epochs: PositiveInt = Field(1000, alias="max_iter", description="Maximum training epochs")
+    batch_size: PositiveInt = Field(..., description="Batch size for training")
+    ladder_step: list[int] = Field(default_factory=list, description="Ladder steps for hierarchical training")
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     @field_validator("cutoff")
     @classmethod

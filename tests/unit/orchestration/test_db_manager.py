@@ -1,8 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 from ase import Atoms
-from mlip_autopipec.orchestration.database import DatabaseManager, DatabaseError
+
+from mlip_autopipec.orchestration.database import DatabaseError, DatabaseManager
+
 
 @pytest.fixture
 def db_manager(tmp_path: Path) -> DatabaseManager:
