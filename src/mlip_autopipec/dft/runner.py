@@ -9,6 +9,7 @@ from typing import Generator, Iterable, Iterator
 from uuid import uuid4
 
 from ase import Atoms
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTInputParams, DFTResult
@@ -20,11 +21,15 @@ from mlip_autopipec.dft.recovery import RecoveryHandler
 class DFTFatalError(Exception):
     pass
 
+class DFTRetriableError(Exception):
+    """Exception raised for errors that might be resolved by retrying (e.g. system glitches)."""
+    pass
+
 logger = logging.getLogger(__name__)
 
 class QERunner:
     """
-    Orchestrates Quantum Espresso calculations with auto-recovery.
+    Orchestrates Quantum Espresso calculations with auto-recovery and efficient retries.
     """
 
     def __init__(self, config: DFTConfig):
@@ -47,6 +52,29 @@ class QERunner:
 
         return parts
 
+    # Use tenacity for exponential backoff on retriable system errors
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(DFTRetriableError),
+        reraise=True
+    )
+    def _execute_subprocess_with_retry(self, cmd: list[str], cwd: Path, stdout_f, timeout: float) -> subprocess.CompletedProcess:
+        try:
+            return subprocess.run(
+                cmd,
+                check=False,
+                shell=False,
+                cwd=str(cwd),
+                stdout=stdout_f,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+                text=True,
+            )
+        except OSError as e:
+            # OS errors might be transient (e.g. file system blips), so we retry
+            raise DFTRetriableError(f"OS Error: {e}") from e
+
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
         """
         Runs the DFT calculation for the given atoms object.
@@ -68,6 +96,7 @@ class QERunner:
         attempt = 0
         last_error = None
 
+        # Logic retry loop (for physics errors/convergence)
         while attempt <= self.config.max_retries:
             attempt += 1
 
@@ -84,46 +113,38 @@ class QERunner:
                 start_time = time.time()
                 full_command = command_parts + ["-in", "pw.in"]
 
+                returncode = -999
+                stdout_content = ""
+                stderr_content = ""
+
                 try:
                     with output_path.open("w") as stdout_f:
-                        proc = subprocess.run(
-                            full_command,
-                            check=False,
-                            shell=False,
-                            cwd=str(work_dir),
-                            stdout=stdout_f,
-                            stderr=subprocess.PIPE,
-                            timeout=self.config.timeout,
-                            text=True,
+                        # Use internal retry for system stability
+                        proc = self._execute_subprocess_with_retry(
+                            full_command, work_dir, stdout_f, self.config.timeout
                         )
 
                     returncode = proc.returncode
+                    stderr_content = proc.stderr if proc.stderr else ""
 
                     try:
                         stdout_content = output_path.read_text(encoding="utf-8", errors="replace")
                     except FileNotFoundError:
                         stdout_content = ""
-                    stderr_content = proc.stderr if proc.stderr else ""
 
                 except subprocess.TimeoutExpired as e:
                     logger.error(f"DFT Timeout for job {uid}: {e}")
                     returncode = -1
-                    try:
-                        stdout_content = output_path.read_text(encoding="utf-8", errors="replace")
-                    except FileNotFoundError:
-                         stdout_content = ""
                     stderr_content = "Timeout Expired"
-                except OSError as e:
-                     logger.error(f"OS Error executing subprocess for job {uid}: {e}", exc_info=True)
+                except DFTRetriableError as e:
+                     logger.error(f"System error persisted after retries for job {uid}: {e}")
                      last_error = e
                      returncode = -998
-                     stdout_content = ""
                      stderr_content = str(e)
                 except Exception as e:
-                     logger.error(f"Subprocess execution failed for job {uid}: {e}", exc_info=True)
+                     logger.error(f"Unexpected execution failure for job {uid}: {e}", exc_info=True)
                      last_error = e
                      returncode = -999
-                     stdout_content = ""
                      stderr_content = str(e)
 
                 wall_time = time.time() - start_time
@@ -140,6 +161,7 @@ class QERunner:
                         last_error = e
                         logger.warning(f"Parsing failed despite return code 0 for job {uid}: {e}", exc_info=True)
 
+                # Physics Error Analysis & Recovery Strategy
                 error_type = RecoveryHandler.analyze(stdout_content, stderr_content)
 
                 if not self.config.recoverable or attempt > self.config.max_retries:

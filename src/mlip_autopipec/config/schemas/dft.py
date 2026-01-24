@@ -1,4 +1,5 @@
 import re
+import shlex
 from pathlib import Path
 from typing import Literal
 
@@ -54,9 +55,17 @@ class DFTConfig(BaseModel):
     def validate_command_security(cls, v: str) -> str:
         """
         Security check to prevent shell injection.
-        Disallows: ; & | ` $ ( )
+        Disallows unsafe characters and validates splitting with shlex.
         """
         # Strict check for shell control operators
         if re.search(r"[;&|`$()]", v):
             raise ValueError("Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked.")
+
+        try:
+            parts = shlex.split(v)
+            if not parts:
+                raise ValueError("Command is empty.")
+        except ValueError as e:
+            raise ValueError(f"Command string is invalid according to shlex: {e}") from e
+
         return v

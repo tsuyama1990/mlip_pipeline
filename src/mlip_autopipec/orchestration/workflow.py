@@ -1,6 +1,9 @@
 import json
 import logging
 import time
+from uuid import UUID
+
+from dask.distributed import Client, Future, as_completed
 
 from mlip_autopipec.config.models import MLIPConfig, SystemConfig
 from mlip_autopipec.orchestration.dashboard import Dashboard
@@ -9,6 +12,7 @@ from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogatePr
 from mlip_autopipec.orchestration.models import DashboardData, OrchestratorConfig, WorkflowState
 from mlip_autopipec.orchestration.phase_executor import PhaseExecutor
 from mlip_autopipec.orchestration.task_queue import TaskQueue
+from mlip_autopipec.utils.dask_utils import get_dask_client
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,10 @@ class WorkflowManager:
 
         # Core Components
         self.db_manager = DatabaseManager(self.config.db_path)
+        # Initialize Dask Client for parallel processing
+        self.dask_client: Client = get_dask_client(
+            scheduler_address=self.orch_config.dask_scheduler_address
+        )
         self.task_queue = TaskQueue(
             scheduler_address=self.orch_config.dask_scheduler_address,
             workers=self.orch_config.workers,
@@ -121,6 +129,8 @@ class WorkflowManager:
             logger.exception("Critical failure in run loop.")
         finally:
             self.task_queue.shutdown()
+            if self.dask_client:
+                self.dask_client.close()
 
     def _dispatch_phase(self) -> None:
         """Dispatch execution to the appropriate phase handler based on state."""
@@ -129,7 +139,8 @@ class WorkflowManager:
             self.state.status = "dft"
 
         elif self.state.status == "dft":
-            # This blocks until DFT is done
+            # Modified to use parallel execution if needed, though execute_dft might handle it internally
+            # For now, we rely on PhaseExecutor to use task_queue or dask_client if implemented.
             self.executor.execute_dft()
             self.state.status = "training"
 

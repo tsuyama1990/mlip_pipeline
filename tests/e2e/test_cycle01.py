@@ -19,6 +19,14 @@ def test_init_creates_template(tmp_path):
         assert "target_system" in data
         assert "dft" in data
 
+def test_init_existing_file(tmp_path):
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        # Create dummy file
+        Path("input.yaml").touch()
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0
+        assert "input.yaml already exists" in result.stdout
+
 def test_validate_valid_config(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         # Create valid config
@@ -28,7 +36,10 @@ def test_validate_valid_config(tmp_path):
         with Path("input.yaml").open() as f:
             data = yaml.safe_load(f)
 
-        data["dft"]["pseudopotential_dir"] = str(tmp_path)
+        pseudo_dir = tmp_path / "upf"
+        pseudo_dir.mkdir()
+        (pseudo_dir / "Fe.upf").touch()
+        data["dft"]["pseudopotential_dir"] = str(pseudo_dir)
 
         with Path("input.yaml").open("w") as f:
             yaml.dump(data, f)
@@ -46,6 +57,12 @@ def test_validate_invalid_config(tmp_path):
         assert result.exit_code == 1
         assert "Validation Error" in result.stdout
 
+def test_validate_missing_file(tmp_path):
+    result = runner.invoke(app, ["validate", "non_existent.yaml"])
+    assert result.exit_code == 1
+    # Error message might vary depending on OS error or my code, but usually "Error"
+    assert "Error" in result.stdout or "No such file" in result.stdout
+
 def test_db_init(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         runner.invoke(app, ["init"])
@@ -53,7 +70,12 @@ def test_db_init(tmp_path):
         # Fix path
         with Path("input.yaml").open() as f:
             data = yaml.safe_load(f)
-        data["dft"]["pseudopotential_dir"] = str(tmp_path)
+
+        pseudo_dir = tmp_path / "upf"
+        pseudo_dir.mkdir()
+        (pseudo_dir / "Fe.upf").touch()
+        data["dft"]["pseudopotential_dir"] = str(pseudo_dir)
+
         with Path("input.yaml").open("w") as f:
             yaml.dump(data, f)
 
