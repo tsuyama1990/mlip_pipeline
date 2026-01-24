@@ -7,15 +7,18 @@ def test_analyze_convergence_fail():
     stderr = "convergence NOT achieved after 100 iterations"
     assert RecoveryHandler.analyze(stdout, stderr) == DFTErrorType.CONVERGENCE_FAIL
 
+
 def test_analyze_diagonalization_error():
     stdout = "error in diagonalization"
     stderr = ""
     assert RecoveryHandler.analyze(stdout, stderr) == DFTErrorType.DIAGONALIZATION_ERROR
 
+
 def test_analyze_unknown():
     stdout = "Everything is fine"
     stderr = "Just a warning"
     assert RecoveryHandler.analyze(stdout, stderr) == DFTErrorType.NONE
+
 
 def test_strategy_convergence():
     params = {"mixing_beta": 0.7, "diagonalization": "david", "degauss": 0.02}

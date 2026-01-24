@@ -7,6 +7,7 @@ from mlip_autopipec.app import app
 
 runner = CliRunner()
 
+
 def test_init_creates_template(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         result = runner.invoke(app, ["init"])
@@ -19,6 +20,7 @@ def test_init_creates_template(tmp_path):
         assert "target_system" in data
         assert "dft" in data
 
+
 def test_init_existing_file(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         # Create dummy file
@@ -26,6 +28,7 @@ def test_init_existing_file(tmp_path):
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
         assert "input.yaml already exists" in result.stdout
+
 
 def test_validate_valid_config(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -48,20 +51,23 @@ def test_validate_valid_config(tmp_path):
         assert result.exit_code == 0
         assert "Validation Successful" in result.stdout
 
+
 def test_validate_invalid_config(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         with Path("bad_config.yaml").open("w") as f:
-            f.write("target_system: []\n") # Invalid type
+            f.write("target_system: []\n")  # Invalid type
 
         result = runner.invoke(app, ["validate", "bad_config.yaml"])
         assert result.exit_code == 1
         assert "Validation Error" in result.stdout
+
 
 def test_validate_missing_file(tmp_path):
     result = runner.invoke(app, ["validate", "non_existent.yaml"])
     assert result.exit_code == 1
     # Error message might vary depending on OS error or my code, but usually "Error"
     assert "Error" in result.stdout or "No such file" in result.stdout
+
 
 def test_db_init(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):

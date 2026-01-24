@@ -21,7 +21,9 @@ class ScriptGenerator:
     def __init__(self, config: InferenceConfig) -> None:
         self.config = config
 
-    def generate(self, atoms_file: Path, potential_path: Path, dump_file: Path, elements: list[str]) -> str:
+    def generate(
+        self, atoms_file: Path, potential_path: Path, dump_file: Path, elements: list[str]
+    ) -> str:
         # Determine ensemble fix
         if self.config.ensemble == "nvt":
             tdamp = self.config.timestep * self.TDAMP_MULTIPLIER
@@ -41,7 +43,9 @@ class ScriptGenerator:
 
         potential_lines = []
         if self.config.use_zbl_baseline:
-            potential_lines.append(f"pair_style hybrid/overlay pace zbl {self.config.zbl_inner_cutoff} {self.config.zbl_outer_cutoff}")
+            potential_lines.append(
+                f"pair_style hybrid/overlay pace zbl {self.config.zbl_inner_cutoff} {self.config.zbl_outer_cutoff}"
+            )
             potential_lines.append(f"pair_coeff * * pace {potential_path.resolve()} {elements_str}")
 
             # Generate ZBL pair coefficients for all pairs

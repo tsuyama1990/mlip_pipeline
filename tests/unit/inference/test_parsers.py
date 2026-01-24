@@ -8,6 +8,7 @@ def test_log_parser_no_file(tmp_path):
     assert halted is False
     assert halt_step is None
 
+
 def test_log_parser_success_run(tmp_path):
     log_file = tmp_path / "log.lammps"
     content = """
@@ -23,6 +24,7 @@ Loop time of 1.23 on 1 procs
     assert max_gamma == 1.2
     assert halted is False
     assert halt_step is None
+
 
 def test_log_parser_halted_run(tmp_path):
     log_file = tmp_path / "log.lammps"
@@ -44,6 +46,7 @@ Last command: run 1000
     # If the parser logic is robust, it finds 10 as the step where it exceeded.
 
     # Let's assume our parser implementation will look at the last valid Step line if halt detected.
+
 
 def test_log_parser_halted_run_explicit_step(tmp_path):
     # Some setups might use "fix halt ... error hard" which terminates.

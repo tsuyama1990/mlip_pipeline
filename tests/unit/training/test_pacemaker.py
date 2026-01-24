@@ -19,7 +19,7 @@ def training_config() -> TrainingConfig:
         kappa_f=0.6,
         batch_size=32,
         max_num_epochs=100,
-        ladder_step=[10, 50]
+        ladder_step=[10, 50],
     )
 
 
@@ -46,7 +46,9 @@ def test_prepare_data_unsafe_filename(wrapper: PacemakerWrapper, tmp_path: Path)
 
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_train_unsafe_initial_potential(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper) -> None:
+def test_train_unsafe_initial_potential(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper
+) -> None:
     """Test training with non-existent initial potential."""
     mock_resolve.return_value = "/bin/pacemaker"
 
@@ -56,14 +58,16 @@ def test_train_unsafe_initial_potential(mock_run: MagicMock, mock_resolve: Magic
 
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_select_active_set_unsafe_path(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper) -> None:
+def test_select_active_set_unsafe_path(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper
+) -> None:
     """Test active set selection with unsafe/missing potential."""
     mock_resolve.return_value = "/bin/pace_activeset"
 
     candidates = [Atoms("H")]
 
     with pytest.raises(FileNotFoundError):
-         wrapper.select_active_set(candidates, "missing.yace")
+        wrapper.select_active_set(candidates, "missing.yace")
 
 
 def test_generate_config(wrapper: PacemakerWrapper, training_config: TrainingConfig) -> None:
@@ -74,30 +78,41 @@ def test_generate_config(wrapper: PacemakerWrapper, training_config: TrainingCon
         data = yaml.safe_load(f)
     assert data["cutoff"] == 4.0
 
+
 def test_generate_config_fail(wrapper: PacemakerWrapper) -> None:
     """Test config generation failure (e.g. permission error)."""
-    with patch.object(Path, "open", side_effect=OSError("Permission denied")), pytest.raises(OSError, match="Permission denied"):
-         wrapper.generate_config()
+    with (
+        patch.object(Path, "open", side_effect=OSError("Permission denied")),
+        pytest.raises(OSError, match="Permission denied"),
+    ):
+        wrapper.generate_config()
+
 
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_train_success(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path) -> None:
+def test_train_success(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path
+) -> None:
     mock_resolve.return_value = "/bin/pacemaker"
     output_file = tmp_path / "output.yace"
     output_file.write_text("content")
 
     def side_effect(*args, **kwargs):
-        if 'stdout' in kwargs and hasattr(kwargs['stdout'], 'write'):
-            kwargs['stdout'].write("Epoch 100\nRMSE (energy): 0.1\nRMSE (forces): 0.01")
+        if "stdout" in kwargs and hasattr(kwargs["stdout"], "write"):
+            kwargs["stdout"].write("Epoch 100\nRMSE (energy): 0.1\nRMSE (forces): 0.01")
         return MagicMock(returncode=0)
+
     mock_run.side_effect = side_effect
 
     result = wrapper.train()
     assert result.success
 
+
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_select_active_set_success(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path) -> None:
+def test_select_active_set_success(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path
+) -> None:
     mock_resolve.return_value = "/bin/pace_activeset"
     mock_run.return_value.stdout = "Selected indices: 0 1"
     mock_run.return_value.returncode = 0
@@ -109,41 +124,53 @@ def test_select_active_set_success(mock_run: MagicMock, mock_resolve: MagicMock,
     indices = wrapper.select_active_set(candidates, tmp_path / "current.yace")
     assert indices == [0, 1]
 
+
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_train_with_initial_potential(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path) -> None:
+def test_train_with_initial_potential(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path
+) -> None:
     mock_resolve.return_value = "/bin/pacemaker"
     (tmp_path / "output.yace").write_text("fake potential")
     (tmp_path / "init.yace").touch()
 
     def side_effect(*args, **kwargs):
-        if 'stdout' in kwargs and hasattr(kwargs['stdout'], 'write'):
-            kwargs['stdout'].write("Epoch 100\nRMSE (energy): 0.1\nRMSE (forces): 0.01")
+        if "stdout" in kwargs and hasattr(kwargs["stdout"], "write"):
+            kwargs["stdout"].write("Epoch 100\nRMSE (energy): 0.1\nRMSE (forces): 0.01")
         return MagicMock(returncode=0)
+
     mock_run.side_effect = side_effect
 
     result = wrapper.train(initial_potential=tmp_path / "init.yace")
     assert result.success
 
+
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_train_failure_code(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper) -> None:
+def test_train_failure_code(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper
+) -> None:
     mock_resolve.return_value = "/bin/pacemaker"
     mock_run.return_value.returncode = 1
     result = wrapper.train()
     assert not result.success
 
+
 @patch("mlip_autopipec.training.pacemaker.PacemakerWrapper._resolve_executable")
 @patch("mlip_autopipec.training.pacemaker.subprocess.run")
-def test_train_exception(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper) -> None:
+def test_train_exception(
+    mock_run: MagicMock, mock_resolve: MagicMock, wrapper: PacemakerWrapper
+) -> None:
     mock_resolve.return_value = "/bin/pacemaker"
     mock_run.side_effect = subprocess.SubprocessError("Boom")
     result = wrapper.train()
     assert not result.success
 
+
 def test_resolve_executable_not_found(wrapper: PacemakerWrapper) -> None:
     with patch("shutil.which", return_value=None), pytest.raises(FileNotFoundError):
         wrapper._resolve_executable("missing_exe")
+
 
 def test_check_output(wrapper: PacemakerWrapper, tmp_path: Path) -> None:
     f = tmp_path / "test.yace"

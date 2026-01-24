@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+
 def chunked(iterable: Iterable[T], size: int) -> Iterator[list[T]]:
     """Yield successive chunks from iterable."""
     it = iter(iterable)
@@ -19,6 +20,7 @@ def chunked(iterable: Iterable[T], size: int) -> Iterator[list[T]]:
         if not chunk:
             break
         yield chunk
+
 
 class ExplorationPhase(BasePhase):
     def execute(self) -> None:
@@ -34,9 +36,13 @@ class ExplorationPhase(BasePhase):
             # Chunked processing to avoid OOM
             for candidate_batch in chunked(builder.build(), batch_size):
                 if self.config.surrogate_config:
-                    surrogate = self.manager.surrogate or SurrogatePipeline(self.config.surrogate_config)
+                    surrogate = self.manager.surrogate or SurrogatePipeline(
+                        self.config.surrogate_config
+                    )
                     selected, _ = surrogate.run(candidate_batch)
-                    logger.info(f"Batch: Generated {len(candidate_batch)}, Selected {len(selected)}")
+                    logger.info(
+                        f"Batch: Generated {len(candidate_batch)}, Selected {len(selected)}"
+                    )
                 else:
                     selected = candidate_batch
 

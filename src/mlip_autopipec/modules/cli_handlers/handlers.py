@@ -1,6 +1,7 @@
 """
 Handlers for CLI commands to ensure Single Responsibility Principle in app.py.
 """
+
 import logging
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
 console = typer.echo
+
 
 class CLIHandler:
     @staticmethod
@@ -42,23 +44,20 @@ class CLIHandler:
             },
             "runtime": {"database_path": "mlip.db", "work_dir": "_work"},
             "training_config": {
-                 "cutoff": 5.0,
-                 "b_basis_size": 300,
-                 "kappa": 0.5,
-                 "kappa_f": 100.0,
-                 "max_iter": 100,
-                 "batch_size": 32
+                "cutoff": 5.0,
+                "b_basis_size": 300,
+                "kappa": 0.5,
+                "kappa_f": 100.0,
+                "max_iter": 100,
+                "batch_size": 32,
             },
             "inference_config": {
                 "lammps_executable": "/path/to/lmp",
                 "temperature": 1000.0,
                 "steps": 10000,
-                "uncertainty_threshold": 10.0
+                "uncertainty_threshold": 10.0,
             },
-            "workflow": {
-                "max_generations": 5,
-                "workers": 4
-            }
+            "workflow": {"max_generations": 5, "workers": 4},
         }
 
         with open(input_file, "w") as f:
@@ -131,6 +130,7 @@ class CLIHandler:
 
             if prepare_only:
                 from mlip_autopipec.training.dataset import DatasetBuilder
+
                 builder = DatasetBuilder(db)
                 builder.export(train_conf, work_dir)
                 console(f"Data preparation complete in {work_dir}")
@@ -171,3 +171,61 @@ class CLIHandler:
         manager.run()
 
         console("Workflow finished.")
+
+    @staticmethod
+    def validate_potential(config_file: Path, flags: dict[str, bool]) -> None:
+        from ase.build import bulk
+
+        from mlip_autopipec.validation.runner import ValidationRunner
+
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
+
+        # 1. Locate Potential
+        work_dir = config.runtime.work_dir
+        potential_path = work_dir / "output.yace"
+
+        if not potential_path.exists():
+            potential_path = work_dir / "model.model"
+
+        if not potential_path.exists():
+            # Check if we can find any .yace file in work_dir
+            yace_files = list(work_dir.glob("*.yace"))
+            if yace_files:
+                yace_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                potential_path = yace_files[0]
+
+        if not potential_path.exists():
+            console("Error: Potential file not found.")
+            raise typer.Exit(code=1)
+
+        console(f"Validating potential: {potential_path}")
+
+        # 2. Build Structure
+        ts = config.target_system
+        # Simple structure generation for validation
+        # Ideally we should use the Generator module, but for simple phonon/elasticity checks
+        # on elementals, ase.build.bulk is robust.
+        if len(ts.elements) == 1:
+            if ts.crystal_structure:
+                atoms = bulk(ts.elements[0], crystalstructure=ts.crystal_structure, cubic=True)
+            else:
+                atoms = bulk(ts.elements[0], cubic=True)
+        else:
+            # Alloy case: Fallback to primary element or warn
+            # For rigorous validation of alloys, SQS is needed.
+            # We assume primary element for now to avoid crashing.
+            primary = ts.elements[0]
+            cryst = ts.crystal_structure or "fcc"
+            atoms = bulk(primary, crystalstructure=cryst, cubic=True)
+            console(f"Warning: Multi-component validation simplified to {primary} {cryst}.")
+
+        # 3. Run
+        runner = ValidationRunner(config, potential_path)
+        success = runner.run(atoms, flags)
+
+        if not success:
+            console("Validation Failed.")
+            raise typer.Exit(code=1)
+
+        console("Validation Passed.")

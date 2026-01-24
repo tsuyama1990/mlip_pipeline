@@ -7,6 +7,7 @@ from mlip_autopipec.generator.defects import DefectStrategy
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 def test_vacancy():
     supercell = bulk("Al", "fcc", a=4.05).repeat((2, 2, 2))
     print(f"Supercell size: {len(supercell)}")
@@ -16,6 +17,7 @@ def test_vacancy():
 
     vac_structures = strategy.generate_vacancies(supercell, count=1)
     print(f"Generated vacancies: {len(vac_structures)}")
+
 
 if __name__ == "__main__":
     test_vacancy()

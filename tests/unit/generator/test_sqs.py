@@ -15,7 +15,7 @@ def test_sqs_generation_random_shuffle() -> None:
     sqs = strategy.generate(prim, composition)
 
     # Check size
-    assert len(sqs) == len(prim) * 8 # 2x2x2 = 8
+    assert len(sqs) == len(prim) * 8  # 2x2x2 = 8
 
     # Check composition
     symbols = sqs.get_chemical_symbols()
@@ -25,6 +25,7 @@ def test_sqs_generation_random_shuffle() -> None:
     assert n_Au == 4
     assert n_Cu == 4
     assert sqs.info["config_type"] == "sqs"
+
 
 def test_sqs_generation_composition_rounding() -> None:
     config = SQSConfig(enabled=True, supercell_size=[2, 2, 2])

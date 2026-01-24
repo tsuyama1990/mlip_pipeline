@@ -11,8 +11,9 @@ from mlip_autopipec.orchestration.database import DatabaseManager
 def db_path(tmp_path):
     return tmp_path / "test.db"
 
+
 def test_select_generator(db_path):
-    atoms = Atoms('H')
+    atoms = Atoms("H")
     with DatabaseManager(db_path) as db:
         for i in range(5):
             db.add_structure(atoms, {"status": "pending", "id_val": i})
@@ -25,7 +26,9 @@ def test_select_generator(db_path):
 
         # Verify streaming nature (conceptually, by checking type)
         from collections.abc import Generator
+
         assert isinstance(db.select(), Generator)
+
 
 def test_validate_path_safety_valid(tmp_path):
     from mlip_autopipec.utils.config_utils import validate_path_safety
@@ -35,6 +38,7 @@ def test_validate_path_safety_valid(tmp_path):
 
     safe = validate_path_safety(p)
     assert safe == p.resolve()
+
 
 def test_validate_path_safety_invalid():
     from mlip_autopipec.utils.config_utils import validate_path_safety
@@ -46,26 +50,19 @@ def test_validate_path_safety_invalid():
     safe = validate_path_safety(p)
     assert safe == p.resolve()
 
+
 def test_pseudo_dir_validation(tmp_path):
     from mlip_autopipec.config.schemas.dft import DFTConfig
 
     # Empty dir - should fail
     (tmp_path / "empty").mkdir()
     with pytest.raises(ValidationError) as exc:
-        DFTConfig(
-            pseudopotential_dir=tmp_path / "empty",
-            ecutwfc=30.0,
-            kspacing=0.1
-        )
+        DFTConfig(pseudopotential_dir=tmp_path / "empty", ecutwfc=30.0, kspacing=0.1)
     assert "No .UPF" in str(exc.value)
 
     # Dir with UPF - should pass
     (tmp_path / "valid").mkdir()
     (tmp_path / "valid" / "Fe.upf").touch()
 
-    config = DFTConfig(
-        pseudopotential_dir=tmp_path / "valid",
-        ecutwfc=30.0,
-        kspacing=0.1
-    )
+    config = DFTConfig(pseudopotential_dir=tmp_path / "valid", ecutwfc=30.0, kspacing=0.1)
     assert config.pseudopotential_dir == tmp_path / "valid"

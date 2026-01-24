@@ -22,15 +22,19 @@ from mlip_autopipec.dft.recovery import RecoveryHandler
 class DFTFatalError(Exception):
     pass
 
+
 class DFTRetriableError(Exception):
     """Exception raised for errors that might be resolved by retrying (e.g. system glitches)."""
 
+
 logger = logging.getLogger(__name__)
+
 
 class DFTRunner(ABC):
     """
     Abstract base class for DFT runners.
     """
+
     @abstractmethod
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
         """Runs the DFT calculation."""
@@ -39,10 +43,12 @@ class DFTRunner(ABC):
     def run_batch(self, atoms_iterable: Iterable[Atoms]) -> Generator[DFTResult, None, None]:
         """Runs a batch of DFT calculations."""
 
+
 class QERunner(DFTRunner):
     """
     Orchestrates Quantum Espresso calculations with auto-recovery and efficient retries.
     """
+
     INPUT_FILE = "pw.in"
     OUTPUT_FILE = "pw.out"
 
@@ -69,7 +75,7 @@ class QERunner(DFTRunner):
         # independent of shlex splitting.
         forbidden = [";", "&", "|", "`", "$", "(", ")", "<", ">"]
         if any(char in command for char in forbidden):
-             raise DFTFatalError("Command contains unsafe shell characters.")
+            raise DFTFatalError("Command contains unsafe shell characters.")
 
         try:
             parts = shlex.split(command)
@@ -83,7 +89,7 @@ class QERunner(DFTRunner):
 
         # Verify executable exists
         if not shutil.which(executable):
-             raise DFTFatalError(f"Executable '{executable}' not found in PATH.")
+            raise DFTFatalError(f"Executable '{executable}' not found in PATH.")
 
         return parts
 
@@ -92,9 +98,11 @@ class QERunner(DFTRunner):
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type(DFTRetriableError),
-        reraise=True
+        reraise=True,
     )
-    def _execute_subprocess_with_retry(self, cmd: list[str], cwd: Path, stdout_f, timeout: float) -> subprocess.CompletedProcess:
+    def _execute_subprocess_with_retry(
+        self, cmd: list[str], cwd: Path, stdout_f, timeout: float
+    ) -> subprocess.CompletedProcess:
         try:
             # STRICT SECURITY: shell=False is mandatory.
             return subprocess.run(
@@ -126,7 +134,7 @@ class QERunner(DFTRunner):
             smearing=self.config.smearing,
             degauss=self.config.degauss,
             ecutwfc=self.config.ecutwfc,
-            kspacing=self.config.kspacing
+            kspacing=self.config.kspacing,
         )
 
         attempt = 0
@@ -173,29 +181,36 @@ class QERunner(DFTRunner):
                     returncode = -1
                     stderr_content = "Timeout Expired"
                 except DFTRetriableError as e:
-                     logger.error(f"System error persisted after retries for job {uid}: {e}")
-                     last_error = e
-                     returncode = -998
-                     stderr_content = str(e)
+                    logger.error(f"System error persisted after retries for job {uid}: {e}")
+                    last_error = e
+                    returncode = -998
+                    stderr_content = str(e)
                 except Exception as e:
-                     logger.error(f"Unexpected execution failure for job {uid}: {e}", exc_info=True)
-                     last_error = e
-                     returncode = -999
-                     stderr_content = str(e)
+                    logger.error(f"Unexpected execution failure for job {uid}: {e}", exc_info=True)
+                    last_error = e
+                    returncode = -999
+                    stderr_content = str(e)
 
                 wall_time = time.time() - start_time
 
                 if returncode != 0:
-                    logger.warning(f"QE process exited with code {returncode}. Stderr: {stderr_content[:200]}")
+                    logger.warning(
+                        f"QE process exited with code {returncode}. Stderr: {stderr_content[:200]}"
+                    )
 
                 if returncode == 0:
                     try:
-                        result = self._parse_output(output_path, uid, wall_time, current_params.model_dump(), atoms)
+                        result = self._parse_output(
+                            output_path, uid, wall_time, current_params.model_dump(), atoms
+                        )
                         if result.succeeded:
                             return result
                     except Exception as e:
                         last_error = e
-                        logger.warning(f"Parsing failed despite return code 0 for job {uid}: {e}", exc_info=True)
+                        logger.warning(
+                            f"Parsing failed despite return code 0 for job {uid}: {e}",
+                            exc_info=True,
+                        )
 
                 # Physics Error Analysis & Recovery Strategy
                 error_type = RecoveryHandler.analyze(stdout_content, stderr_content)
@@ -204,17 +219,19 @@ class QERunner(DFTRunner):
                     break
 
                 if error_type.name == "NONE" and returncode != 0:
-                     msg = f"Process exited with {returncode} but no known error pattern found."
-                     logger.error(msg)
-                     last_error = DFTFatalError(msg)
-                     break
+                    msg = f"Process exited with {returncode} but no known error pattern found."
+                    logger.error(msg)
+                    last_error = DFTFatalError(msg)
+                    break
 
                 try:
                     current_params_dict = current_params.model_dump()
                     new_params_dict = RecoveryHandler.get_strategy(error_type, current_params_dict)
                     current_params = DFTInputParams(**new_params_dict)
 
-                    logger.info(f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {new_params_dict}")
+                    logger.info(
+                        f"Retrying job {uid} (Attempt {attempt + 1}) with new params: {new_params_dict}"
+                    )
                     continue
                 except Exception as e:
                     logger.error(f"Recovery strategy failed for job {uid}: {e}", exc_info=True)

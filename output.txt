@@ -1,0 +1,168 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 1 item
+
+tests/unit/validation/test_elasticity.py F                               [100%]
+
+=================================== FAILURES ===================================
+_______________________ test_elasticity_calculation_mock _______________________
+
+    def test_elasticity_calculation_mock():
+        config = ElasticityConfig(strain_max=0.01, num_points=2)
+        validator = ElasticityValidator(config)
+        atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[4, 4, 4], pbc=True)
+        calculator = MagicMock()
+
+        # Mock get_stress returns different values for different strains?
+        # It's hard to mock realistic stress responses for 6 deformations * points.
+        # Instead, we mock internal calculate_elastic_tensor method if we were doing integration test,
+        # but here we want to test that 'validate' calls 'calculate_elastic_tensor' and uses the result.
+
+        # We will use monkeypatch to mock the internal calculation method for this test
+        # assuming we split the logic.
+
+        C_stable = np.zeros((6,6))
+        C11, C12, C44 = 100.0, 50.0, 30.0
+        C_stable[0,0] = C_stable[1,1] = C_stable[2,2] = C11
+        C_stable[0,1] = C_stable[0,2] = C_stable[1,2] = C12
+        C_stable[3,3] = C_stable[4,4] = C_stable[5,5] = C44
+
+        # Determine system type logic (e.g. assume cubic for simplicity or check lattice)
+        # We'll assume the implementation detects cubic.
+
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr(validator, "calculate_elastic_tensor", lambda a, c: C_stable)
+            result = validator.validate(atoms, calculator)
+            assert result is True
+
+        # Test Unstable
+        C_unstable = np.zeros((6,6))
+        C11, C12, C44 = 100.0, 120.0, 30.0 # Unstable
+        C_unstable[0,0] = C11; C_unstable[0,1] = C12
+
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr(validator, "calculate_elastic_tensor", lambda a, c: C_unstable)
+            result = validator.validate(atoms, calculator)
+>           assert result is False
+E           assert np.False_ is False
+
+tests/unit/validation/test_elasticity.py:74: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  mlip_autopipec.validation.elasticity:elasticity.py:47 Elastic tensor is not positive definite.
+WARNING  mlip_autopipec.validation.elasticity:elasticity.py:141 Born stability criteria failed for cubic system.
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               4      0   100%
+src/mlip_autopipec/app.py                                   78     78     0%   8-136
+src/mlip_autopipec/config/__init__.py                        3      0   100%
+src/mlip_autopipec/config/factory.py                        37     37     0%   1-62
+src/mlip_autopipec/config/models.py                         54      0   100%
+src/mlip_autopipec/config/schemas/common.py                 38     19    50%   15-20, 25-43, 54
+src/mlip_autopipec/config/schemas/core.py                   37     18    51%   17-22, 27-45
+src/mlip_autopipec/config/schemas/dft.py                    48     20    58%   34-44, 49-51, 61-71
+src/mlip_autopipec/config/schemas/exploration.py             5      0   100%
+src/mlip_autopipec/config/schemas/generator.py              26      0   100%
+src/mlip_autopipec/config/schemas/inference.py              42      4    90%   58-61
+src/mlip_autopipec/config/schemas/surrogate.py               8      0   100%
+src/mlip_autopipec/config/schemas/training.py               40     11    72%   34-40, 48-51
+src/mlip_autopipec/config/schemas/validation.py             24      0   100%
+src/mlip_autopipec/config/schemas/workflow.py                6      0   100%
+src/mlip_autopipec/core/__init__.py                          0      0   100%
+src/mlip_autopipec/core/services.py                         11     11     0%   1-32
+src/mlip_autopipec/core/workspace.py                        13     13     0%   1-25
+src/mlip_autopipec/data_models/__init__.py                   4      0   100%
+src/mlip_autopipec/data_models/atoms.py                     21     21     0%   1-38
+src/mlip_autopipec/data_models/candidate.py                 10     10     0%   1-19
+src/mlip_autopipec/data_models/dft_models.py                51     12    76%   51-57, 63-69
+src/mlip_autopipec/data_models/inference_models.py          24      7    71%   28-35
+src/mlip_autopipec/data_models/state.py                     14      0   100%
+src/mlip_autopipec/data_models/structure_enums.py            9      9     0%   1-11
+src/mlip_autopipec/data_models/training_data.py             59     32    46%   29-33, 41-60, 65-76, 90-95
+src/mlip_autopipec/dft/__init__.py                           0      0   100%
+src/mlip_autopipec/dft/constants.py                          3      0   100%
+src/mlip_autopipec/dft/inputs.py                            70     54    23%   30-114, 122-134, 141-149, 156-163
+src/mlip_autopipec/dft/parsers.py                           32     24    25%   27, 53-99
+src/mlip_autopipec/dft/recovery.py                          32     23    28%   33-40, 49-78
+src/mlip_autopipec/dft/runner.py                           151    114    25%   57-58, 65-88, 98-112, 118-225, 233-242, 248-259, 267-268
+src/mlip_autopipec/exceptions.py                            25     13    48%   43-48, 51-52, 59-60, 63-66
+src/mlip_autopipec/generator/__init__.py                     5      0   100%
+src/mlip_autopipec/generator/builder.py                     90     69    23%   41-51, 75-107, 110-114, 121-133, 139-159, 175-189
+src/mlip_autopipec/generator/defects.py                     83     70    16%   29-30, 43-63, 79-111, 127-182
+src/mlip_autopipec/generator/distortions.py                 43     33    23%   26-27, 39-82
+src/mlip_autopipec/generator/sqs.py                         44     33    25%   30-31, 50-98
+src/mlip_autopipec/generator/transformations.py             48     40    17%   26-57, 75-100
+src/mlip_autopipec/inference/__init__.py                     8      0   100%
+src/mlip_autopipec/inference/analysis.py                    44     39    11%   22, 34-88
+src/mlip_autopipec/inference/drivers/pace_driver.py         51     42    18%   11-15, 22-38, 47-85, 88
+src/mlip_autopipec/inference/eon.py                         72     55    24%   33-35, 44-56, 65-66, 86-168
+src/mlip_autopipec/inference/inputs.py                      35     25    29%   22, 26-101
+src/mlip_autopipec/inference/interfaces.py                   5      0   100%
+src/mlip_autopipec/inference/masking.py                     33     29    12%   23-76
+src/mlip_autopipec/inference/parsers.py                     41     36    12%   29-86
+src/mlip_autopipec/inference/processing.py                  40     28    30%   20-22, 35-80
+src/mlip_autopipec/inference/runner.py                      82     67    18%   36-39, 53-137, 148-182
+src/mlip_autopipec/inference/uq.py                          23     17    26%   9, 16-38
+src/mlip_autopipec/inference/writer.py                      21     13    38%   27-29, 42-65
+src/mlip_autopipec/modules/__init__.py                       0      0   100%
+src/mlip_autopipec/modules/config_generator.py              15     15     0%   3-74
+src/mlip_autopipec/modules/descriptors.py                   31     31     0%   3-62
+src/mlip_autopipec/modules/dft.py                           67     67     0%   6-189
+src/mlip_autopipec/modules/exploration.py                   51     51     0%   7-130
+src/mlip_autopipec/modules/explorer.py                      46     46     0%   3-90
+src/mlip_autopipec/modules/generator.py                     72     72     0%   3-203
+src/mlip_autopipec/modules/inference.py                    136    136     0%   7-333
+src/mlip_autopipec/modules/screening.py                     41     41     0%   3-68
+src/mlip_autopipec/modules/training_orchestrator.py         22     22     0%   5-73
+src/mlip_autopipec/monitoring/__init__.py                    0      0   100%
+src/mlip_autopipec/monitoring/dashboard.py                  63     63     0%   1-115
+src/mlip_autopipec/orchestration/__init__.py                 7      0   100%
+src/mlip_autopipec/orchestration/dashboard.py               57     37    35%   43-46, 57-67, 79-113, 126-128
+src/mlip_autopipec/orchestration/database.py               180    145    19%   25-26, 32-53, 57, 76-77, 81-82, 86, 91, 99-109, 129-142, 155-162, 172-180, 190-198, 212-223, 237-248, 255, 262, 268, 277-292, 298-326, 330-334, 338-349
+src/mlip_autopipec/orchestration/interfaces.py              10      0   100%
+src/mlip_autopipec/orchestration/phase_executor.py          23     10    57%   19-23, 27, 31, 35, 42, 46
+src/mlip_autopipec/orchestration/phases/base.py             10      4    60%   12-15
+src/mlip_autopipec/orchestration/phases/dft.py              36     29    19%   12-59
+src/mlip_autopipec/orchestration/phases/exploration.py      35     23    34%   16-21, 26-53
+src/mlip_autopipec/orchestration/phases/inference.py        51     39    24%   24-83
+src/mlip_autopipec/orchestration/phases/selection.py        34     26    24%   16-59
+src/mlip_autopipec/orchestration/phases/training.py         41     33    20%   13-60
+src/mlip_autopipec/orchestration/strategies.py              27     13    52%   39-41, 47-59
+src/mlip_autopipec/orchestration/task_queue.py              74     60    19%   29-52, 69-77, 96-124, 139-141, 147-151
+src/mlip_autopipec/orchestration/workflow.py                90     67    26%   46-72, 76-90, 94-100, 104, 110-129, 133-163, 167-178
+src/mlip_autopipec/surrogate/__init__.py                     5      0   100%
+src/mlip_autopipec/surrogate/candidate_manager.py           14     14     0%   2-22
+src/mlip_autopipec/surrogate/descriptors.py                 30     30     0%   1-84
+src/mlip_autopipec/surrogate/mace_client.py                 62     62     0%   1-146
+src/mlip_autopipec/surrogate/mace_wrapper.py                53     46    13%   11-13, 19-34, 40-61, 67-105
+src/mlip_autopipec/surrogate/model_interface.py              8      0   100%
+src/mlip_autopipec/surrogate/pipeline.py                   100     84    16%   16-22, 32-53, 56-61, 64-65, 68-115, 118-155
+src/mlip_autopipec/surrogate/sampling.py                    19     14    26%   7, 19-43
+src/mlip_autopipec/training/__init__.py                      4      0   100%
+src/mlip_autopipec/training/config_gen.py                   16     16     0%   1-46
+src/mlip_autopipec/training/dataset.py                      53     38    28%   39, 49-56, 76-118
+src/mlip_autopipec/training/metrics.py                      39     31    21%   33-76
+src/mlip_autopipec/training/pacemaker.py                   143    119    17%   38-40, 46-60, 64-104, 108, 112, 116-138, 142-150, 157-215, 221-264
+src/mlip_autopipec/training/physics.py                      39     28    28%   43-109
+src/mlip_autopipec/utils/__init__.py                         0      0   100%
+src/mlip_autopipec/utils/ase_utils.py                       42     42     0%   12-120
+src/mlip_autopipec/utils/config_utils.py                    30     23    23%   17-27, 40-56
+src/mlip_autopipec/utils/dask_utils.py                      12      7    42%   31-43
+src/mlip_autopipec/utils/data_loader.py                     15     15     0%   5-39
+src/mlip_autopipec/utils/embedding.py                       46     34    26%   30, 43-49, 53-61, 74-90, 102-132
+src/mlip_autopipec/utils/logging.py                         11     11     0%   5-31
+src/mlip_autopipec/utils/resilience.py                      29     29     0%   6-93
+src/mlip_autopipec/utils/workflow_utils.py                  32     32     0%   3-53
+src/mlip_autopipec/validation/__init__.py                    0      0   100%
+src/mlip_autopipec/validation/elasticity.py                 70     29    59%   32-34, 58-110, 120-121, 146
+src/mlip_autopipec/validation/phonon.py                     41     41     0%   1-92
+--------------------------------------------------------------------------------------
+TOTAL                                                     3879   2901    25%
+=========================== short test summary info ============================
+FAILED tests/unit/validation/test_elasticity.py::test_elasticity_calculation_mock
+============================== 1 failed in 8.05s ===============================

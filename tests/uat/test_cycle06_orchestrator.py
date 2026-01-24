@@ -10,6 +10,7 @@ from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 # UAT Scenario 06-01: Full Active Learning Cycle (Simulated)
 
+
 @pytest.fixture
 def uat_config(tmp_path):
     (tmp_path / "Fe.UPF").touch()
@@ -22,23 +23,16 @@ def uat_config(tmp_path):
         b_basis_size=100,
         kappa=0.5,
         kappa_f=10.0,
-        batch_size=32
+        batch_size=32,
     )
 
     # Create valid InferenceConfig
-    inf_conf = InferenceConfig(
-        lammps_executable="/bin/lmp",
-        temperature=100.0,
-        steps=100
-    )
+    inf_conf = InferenceConfig(lammps_executable="/bin/lmp", temperature=100.0, steps=100)
 
     return SystemConfig(
         target_system=TargetSystem(name="UAT System", elements=["Fe"], composition={"Fe": 1.0}),
         dft_config=DFTConfig(
-            pseudopotential_dir=tmp_path,
-            ecutwfc=30,
-            kspacing=0.05,
-            command="pw.x"
+            pseudopotential_dir=tmp_path, ecutwfc=30, kspacing=0.05, command="pw.x"
         ),
         workflow_config=WorkflowConfig(max_generations=2),
         working_dir=tmp_path / "_work",
@@ -47,18 +41,24 @@ def uat_config(tmp_path):
         inference_config=inf_conf,
     )
 
+
 def test_uat_full_cycle_simulation(uat_config, tmp_path):
     # 1. Setup mocks for runners
     # Note: We patch where the classes are IMPORTED/USED, which is now in sub-phases
-    with patch("mlip_autopipec.orchestration.phases.dft.QERunner") as MockQERunner, \
-         patch("mlip_autopipec.orchestration.phases.inference.LammpsRunner") as MockLammpsRunner, \
-         patch("mlip_autopipec.orchestration.phases.training.PacemakerWrapper") as MockPacemakerWrapper, \
-         patch("mlip_autopipec.orchestration.phases.selection.PacemakerWrapper") as MockSelectionPacemaker, \
-         patch("mlip_autopipec.orchestration.phases.inference.EmbeddingExtractor") as MockExtractor, \
-         patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder") as MockDatasetBuilder, \
-         patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue, \
-         patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask:
-
+    with (
+        patch("mlip_autopipec.orchestration.phases.dft.QERunner") as MockQERunner,
+        patch("mlip_autopipec.orchestration.phases.inference.LammpsRunner") as MockLammpsRunner,
+        patch(
+            "mlip_autopipec.orchestration.phases.training.PacemakerWrapper"
+        ) as MockPacemakerWrapper,
+        patch(
+            "mlip_autopipec.orchestration.phases.selection.PacemakerWrapper"
+        ) as MockSelectionPacemaker,
+        patch("mlip_autopipec.orchestration.phases.inference.EmbeddingExtractor") as MockExtractor,
+        patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder") as MockDatasetBuilder,
+        patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue,
+        patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask,
+    ):
         # Configure LammpsRunner to trigger Active Learning ONCE
         mock_lammps = MockLammpsRunner.return_value
         # First call: Returns result with uncertain_structures (Halt)
@@ -75,11 +75,12 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         # Configure EmbeddingExtractor to return atoms
         mock_extractor = MockExtractor.return_value
         from ase import Atoms
+
         mock_extractor.extract.return_value = Atoms("Fe")
 
         # Configure DFT Runner
         mock_qe = MockQERunner.return_value
-        mock_qe.run.return_value = {"energy": -10.0, "forces": [[0,0,0]], "stress": [0]*6}
+        mock_qe.run.return_value = {"energy": -10.0, "forces": [[0, 0, 0]], "stress": [0] * 6}
 
         # Configure Pacemaker (Training)
         mock_pacemaker = MockPacemakerWrapper.return_value

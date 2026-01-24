@@ -7,6 +7,7 @@ from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
 logger = logging.getLogger(__name__)
 
+
 class TrainingPhase(BasePhase):
     def execute(self) -> None:
         """Execute Phase C: Training."""
@@ -28,9 +29,9 @@ class TrainingPhase(BasePhase):
             initial_potential = None
             prev_gen = self.manager.state.cycle_index - 1
             if prev_gen >= 0:
-                 prev_pot = self.manager.work_dir / "potentials" / f"generation_{prev_gen}.yace"
-                 if prev_pot.exists():
-                     initial_potential = prev_pot
+                prev_pot = self.manager.work_dir / "potentials" / f"generation_{prev_gen}.yace"
+                if prev_pot.exists():
+                    initial_potential = prev_pot
 
             logger.info(f"Starting training (Gen {self.manager.state.cycle_index})...")
             result = wrapper.train(initial_potential=initial_potential)

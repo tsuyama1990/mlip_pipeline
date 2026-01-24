@@ -14,6 +14,7 @@ from mlip_autopipec.inference.drivers import pace_driver
 
 logger = logging.getLogger(__name__)
 
+
 class EONWrapper:
     """
     Wrapper for EON (Kinetic Monte Carlo) software.
@@ -95,7 +96,7 @@ class EONWrapper:
             with local_driver.open("w") as f:
                 f.write("#!/bin/bash\n")
                 # Ensure we use the same python interpreter
-                f.write(f"{sys.executable} {driver_path} \"$@\"\n")
+                f.write(f'{sys.executable} {driver_path} "$@"\n')
 
             # Make executable
             local_driver.chmod(0o755)
@@ -122,11 +123,7 @@ class EONWrapper:
 
             # Run EON
             result = subprocess.run(
-                [str(eon_exe)],
-                cwd=self.work_dir,
-                env=env,
-                capture_output=True,
-                text=True
+                [str(eon_exe)], cwd=self.work_dir, env=env, capture_output=True, text=True
             )
 
             logger.debug(f"EON stdout: {result.stdout}")
@@ -136,9 +133,7 @@ class EONWrapper:
             # Check Exit Codes
             if result.returncode == 0:
                 return InferenceResult(
-                    succeeded=True,
-                    max_gamma_observed=0.0,
-                    uncertain_structures=[]
+                    succeeded=True, max_gamma_observed=0.0, uncertain_structures=[]
                 )
 
             if result.returncode == 100:
@@ -151,22 +146,14 @@ class EONWrapper:
                     uncertain_structures.append(bad_struct)
 
                 return InferenceResult(
-                    succeeded=True, # Halted is a valid "outcome" for AL
-                    max_gamma_observed=999.0, # Indicator
-                    uncertain_structures=uncertain_structures
+                    succeeded=True,  # Halted is a valid "outcome" for AL
+                    max_gamma_observed=999.0,  # Indicator
+                    uncertain_structures=uncertain_structures,
                 )
 
             logger.error(f"EON failed with code {result.returncode}")
-            return InferenceResult(
-                succeeded=False,
-                max_gamma_observed=0.0,
-                uncertain_structures=[]
-            )
+            return InferenceResult(succeeded=False, max_gamma_observed=0.0, uncertain_structures=[])
 
         except Exception:
             logger.exception("EON run failed")
-            return InferenceResult(
-                succeeded=False,
-                max_gamma_observed=0.0,
-                uncertain_structures=[]
-            )
+            return InferenceResult(succeeded=False, max_gamma_observed=0.0, uncertain_structures=[])

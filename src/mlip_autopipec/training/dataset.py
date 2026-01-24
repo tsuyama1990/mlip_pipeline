@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Constants
 DEFAULT_VALIDATION_RATIO = 0.1
 
+
 class DatasetBuilder:
     """
     Builds training datasets from ASE database for Pacemaker training.
@@ -112,7 +113,9 @@ class DatasetBuilder:
             raise ValueError("No training data found in database.")
 
         if test_count == 0 and train_count > 0:
-             logger.warning("Validation set empty after split.")
+            logger.warning("Validation set empty after split.")
 
-        logger.info(f"Exported {count} structures: {train_count} training, {test_count} validation.")
+        logger.info(
+            f"Exported {count} structures: {train_count} training, {test_count} validation."
+        )
         return train_path

@@ -57,7 +57,7 @@ class LammpsInputWriter:
             atoms_file=data_file,
             potential_path=potential_path,
             dump_file=dump_file,
-            elements=elements
+            elements=elements,
         )
 
         input_file.write_text(script_content)

@@ -1,9 +1,9 @@
-
 class CandidateManager:
     """
     Manages candidate data persistence logic.
     Separates business logic (defaults, validation) from raw DB access.
     """
+
     def __init__(self, db_manager):
         self.db = db_manager
 

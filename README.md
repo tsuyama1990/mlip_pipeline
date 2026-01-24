@@ -1,130 +1,103 @@
-# MLIP Auto PiPEC: Automated Machine Learning Interatomic Potential Pipeline
+# MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-**MLIP Auto PiPEC** is a fully automated, active-learning based system for generating state-of-the-art Machine Learning Interatomic Potentials (MLIPs). It democratizes access to high-accuracy atomic simulations by replacing manual, expert-driven workflows with a robust, "Zero-Config" autonomous pipeline.
+**Automated Pipeline for Exascale Computing of Machine Learning Interatomic Potentials.**
+
+## Overview
+
+**MLIP-AutoPipe** is an autonomous system designed to democratize the creation of state-of-the-art Machine Learning Interatomic Potentials (MLIPs). By automating the complex cycle of structure generation, First-Principles (DFT) labeling, and active learning, it allows materials scientists to go from chemical composition to production-ready potentials with zero human intervention.
+
+### Why MLIP-AutoPipe?
+- **Expert Gap**: Removes the need for deep expertise in ML and DFT workflows.
+- **Efficiency**: Uses Active Learning to minimize expensive DFT calculations.
+- **Robustness**: Enforces physical constraints (Phonons, Elasticity, ZBL repulsion) to prevent simulation crashes.
 
 ## Features
 
-*   **Robust Configuration**: Strictly validated YAML configuration using Pydantic schemas ensures fail-fast behavior.
-*   **Database Management**: Thread-safe, resilient interface to `ase.db` (SQLite) for storing structures and calculation results.
-*   **Structure Generation**: Physics-informed generator supporting supercells, random substitutions (SQS), lattice strain, thermal rattling, and point defects (vacancies/interstitials).
-*   **DFT Oracle**: Integrated Quantum Espresso runner with auto-recovery for convergence failures (e.g., mixing beta reduction).
-*   **Training Orchestration**: Automated training of MLIPs using **Pacemaker**, with support for Active Set selection and Delta Learning configuration.
-*   **Periodic Embedding**: Utilities for extracting local atomic environments from larger simulation cells for targeted re-calculation.
-*   **Orchestration Engine**: Centralized state machine managing the Active Learning loop (Exploration -> Selection -> Calculation -> Training), complete with persistence and resumption capabilities.
-*   **Dashboard**: Real-time status reporting via HTML dashboard visualizing learning curves and database statistics.
-*   **Kinetic Monte Carlo (kMC)**: Integration with **EON** for long-timescale exploration of rare events (diffusion, reactions) with on-the-fly uncertainty detection.
+- **Zero-Config Workflow**: Start with a simple `config.yaml` defining your material.
+- **Active Learning Loop**: autonomous Exploration -> Detection -> Labeling -> Training cycle.
+- **Robust Physics**:
+  - **Phonon Stability**: Checks for imaginary modes.
+  - **Elasticity**: Validates Born stability criteria.
+  - **EOS**: Checks Bulk Modulus.
+  - **ZBL Baseline**: Ensures physical core repulsion.
+- **Hybrid Engine**: Supports MD (LAMMPS) and kMC (EON).
+- **Scalable**: Built for local workstations and HPC clusters (via Dask/Slurm).
 
 ## Requirements
 
-*   **Python**: 3.11+
-*   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `rich`, `pyyaml`, `scipy`.
-*   **External Engines**: Quantum Espresso, LAMMPS, Pacemaker, EON.
+- Python 3.11 or higher
+- Docker (optional, for containerized execution)
+- DFT Code: Quantum Espresso (pw.x) installed and in PATH.
+- MD Code: LAMMPS (lmp) installed and in PATH.
+- MLIP Engine: Pacemaker or MACE.
 
 ## Installation
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/your-org/mlip-autopipec.git
-    cd mlip-autopipec
-    ```
-
-2.  **Install Dependencies**
-    Using `uv` (Recommended):
-    ```bash
-    uv sync
-    ```
-    Or using `pip`:
-    ```bash
-    pip install .
-    ```
+```bash
+git clone https://github.com/your-org/mlip-autopipec.git
+cd mlip-autopipec
+uv sync
+# OR
+pip install .
+```
 
 ## Usage
 
 ### 1. Initialize Project
-Create a template configuration file (`input.yaml`) with default settings:
+Create a template configuration file:
 ```bash
 mlip-auto init
 ```
 
-### 2. Configure System
-Edit `input.yaml` to define your target system (e.g., Fe-Ni alloy) and computational parameters:
+### 2. Configure
+Edit `input.yaml` to define your target system (e.g., Al, FeNi):
 ```yaml
 target_system:
-  elements: ["Fe", "Ni"]
-  composition: {"Fe": 0.7, "Ni": 0.3}
-generator:
-  sqs:
-    enabled: true
-    supercell_size: [2, 2, 2]
-  distortion:
-    enabled: true
-    rattle_stdev: 0.05
+  name: "Aluminum"
+  elements: ["Al"]
+  composition: {"Al": 1.0}
+  crystal_structure: "fcc"
+
 dft:
-  pseudopotential_dir: "/path/to/upf"
-  ecutwfc: 40.0
-training:
-  cutoff: 5.0
-  b_basis_size: 200
-  batch_size: 16
-  max_num_epochs: 500
-inference_config:
-    active_engine: "eon"
-    eon:
-        job: "process_search"
-        temperature: 300.0
+  pseudopotential_dir: "./pseudos"
+  command: "pw.x"
 ```
 
-### 3. Validate Configuration
-Ensure your configuration is valid before running expensive calculations:
-```bash
-mlip-auto validate input.yaml
-```
-
-### 4. Initialize Database (Optional)
-Initialize the SQLite database (`mlip.db`):
-```bash
-mlip-auto db init --config input.yaml
-```
-
-### 5. Generate Structures
-Generate candidate structures based on your configuration:
-```bash
-mlip-auto generate input.yaml
-```
-
-### 6. Run Active Learning Loop
-Execute the autonomous pipeline:
+### 3. Run Workflow
+Launch the autonomous active learning loop:
 ```bash
 mlip-auto run loop --config input.yaml
 ```
 
-## Architecture
+### 4. Validation
+Validate the physical properties of your trained potential:
+```bash
+mlip-auto validate input.yaml --phonon --elastic --eos
+```
 
-The project is structured as follows:
+## Architecture
 
 ```ascii
 src/mlip_autopipec/
 ├── app.py                      # CLI Entry Point
 ├── config/                     # Configuration Schemas (Pydantic)
-├── data_models/                # Core Data Structures (Atoms, Candidates)
-├── generator/                  # Structure Generation (SQS, Defects, Strain)
-├── inference/                  # Dynamics & kMC (LAMMPS, EON)
-├── orchestration/              # Database & Workflow Management
-├── training/                   # Training Orchestration (Pacemaker Wrapper, Dataset)
-├── utils/                      # Logging & Utilities
-└── ...                         # Feature Modules (DFT, Training)
+├── generator/                  # Structure Generation (Random, SQS, Defects)
+├── dft/                        # DFT Oracle (Quantum Espresso)
+├── training/                   # Potential Training (Pacemaker/MACE)
+├── inference/                  # MD/kMC Inference (LAMMPS/EON)
+├── orchestration/              # Workflow Management
+└── validation/                 # Physics Validation Suite (Phonon, Elasticity, EOS)
 ```
 
 ## Roadmap
 
-- [x] **Cycle 01**: Core Framework, Config, Database.
-- [x] **Cycle 02**: Structure Generation.
-- [x] **Cycle 03**: DFT Oracle Interface.
-- [x] **Cycle 04**: Training Orchestration.
-- [x] **Cycle 05**: Inference & Active Learning (LAMMPS).
-- [x] **Cycle 06**: Active Learning Orchestrator.
-- [x] **Cycle 07**: Advanced Expansion (kMC) with EON.
+- [x] Core Framework & Configuration
+- [x] Structure Generation (MD/MC/Defects)
+- [x] DFT Oracle Interface
+- [x] Active Learning Orchestrator
+- [x] Validation Suite (Phonon, Elasticity, EOS)
+- [ ] Multi-node HPC Support (Slurm/PBS integration)
+- [ ] Advanced Phase Diagram Exploration

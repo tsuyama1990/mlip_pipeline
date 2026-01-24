@@ -45,6 +45,7 @@ class TargetSystem(BaseModel):
 
 class EmbeddingConfig(BaseModel):
     """Configuration for cluster embedding."""
+
     core_radius: float = Field(4.0, gt=0.0)
     buffer_width: float = Field(2.0, gt=0.0)
     model_config = ConfigDict(extra="forbid")
