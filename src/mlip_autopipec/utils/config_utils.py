@@ -3,8 +3,6 @@
 from pathlib import Path
 
 from mlip_autopipec.config.models import (
-    DFTConfig,
-    SystemConfig,
     MLIPConfig,
 )
 
@@ -31,4 +29,3 @@ def load_config(path: Path) -> MLIPConfig:
     """Load config helper using MLIPConfig"""
     # This might be redundant if core/services.py load_config is used, but for utils we keep it simple
     # Actually, config_utils was importing unused models. Fixing that.
-    pass

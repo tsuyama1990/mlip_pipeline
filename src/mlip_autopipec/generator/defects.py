@@ -86,7 +86,7 @@ class DefectStrategy:
             if count == 1:
                 # Generate all single vacancies
                 for i in range(n_atoms):
-                    new_atoms = atoms.copy() # type: ignore[no-untyped-call]
+                    new_atoms = atoms.copy()
                     del new_atoms[i]
                     new_atoms.info["config_type"] = "vacancy"
                     new_atoms.info["defect_index"] = i
@@ -95,7 +95,7 @@ class DefectStrategy:
                  # Randomly remove 'count' atoms once
                  # Use self.rng for determinism
                  indices = self.rng.choice(n_atoms, size=count, replace=False).tolist()
-                 new_atoms = atoms.copy() # type: ignore[no-untyped-call]
+                 new_atoms = atoms.copy()
                  # Delete in reverse order to preserve indices
                  for i in sorted(indices, reverse=True):
                      del new_atoms[i]
@@ -147,13 +147,13 @@ class DefectStrategy:
                  candidates = []
                  for vert in v.vertices:
                      # Map back to cell
-                     scaled = atoms.cell.scaled_positions(vert.reshape(1,3)) # type: ignore
+                     scaled = atoms.cell.scaled_positions(vert.reshape(1,3))
                      # wrap
                      scaled = scaled % 1.0
                      candidates.append(scaled.flatten())
 
             # Filter candidates
-            unique_candidates = []
+            unique_candidates: list[np.ndarray] = []
             for c in candidates:
                 # Check distance to existing atoms
                 pos = np.dot(c, atoms.get_cell())
@@ -161,15 +161,13 @@ class DefectStrategy:
                 D_vectors, D_scalar = get_distances(atoms.positions, pos.reshape(1, 3), cell=atoms.cell, pbc=atoms.pbc)
                 dists = D_scalar.flatten()
 
-                # Check min distance > 1.4A
-                if np.min(dists) > 1.4:
-                     # Check uniqueness against other candidates
-                     if not any(np.linalg.norm(uc - c) < 0.1 for uc in unique_candidates):
-                          unique_candidates.append(c)
+                # Check min distance > 1.4A and uniqueness against other candidates
+                if np.min(dists) > 1.4 and not any(np.linalg.norm(uc - c) < 0.1 for uc in unique_candidates):
+                    unique_candidates.append(c)
 
             # Limit number of interstitials per structure to avoid explosion
             for c in unique_candidates[:5]:
-                new_atoms = atoms.copy() # type: ignore[no-untyped-call]
+                new_atoms = atoms.copy()
                 new_atoms.append(element)
                 new_atoms.positions[-1] = np.dot(c, atoms.get_cell())
                 new_atoms.info["config_type"] = "interstitial"

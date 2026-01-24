@@ -4,12 +4,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Generator, Iterable
 from pathlib import Path
-from typing import Generator, Iterable, Iterator
 from uuid import uuid4
 
 from ase import Atoms
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTInputParams, DFTResult
@@ -23,7 +23,6 @@ class DFTFatalError(Exception):
 
 class DFTRetriableError(Exception):
     """Exception raised for errors that might be resolved by retrying (e.g. system glitches)."""
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +38,20 @@ class QERunner:
         """
         Validates and splits the command string safely.
         """
-        if any(char in command for char in [";", "&", "|", "`", "$"]):
+        # Block clearly dangerous shell characters
+        if any(char in command for char in [";", "&", "|", "`", "$", "(", ")", "<", ">"]):
              raise DFTFatalError("Command contains potentially unsafe shell characters.")
 
-        parts = shlex.split(command)
+        try:
+            parts = shlex.split(command)
+        except ValueError as e:
+            raise DFTFatalError(f"Command parsing failed: {e}")
+
         if not parts:
             raise DFTFatalError("Command is empty.")
 
         executable = parts[0]
+        # Ensure executable exists
         if not shutil.which(executable):
              raise DFTFatalError(f"Executable '{executable}' not found in PATH.")
 
@@ -64,7 +69,7 @@ class QERunner:
             return subprocess.run(
                 cmd,
                 check=False,
-                shell=False,
+                shell=False, # Explicitly disabled shell execution
                 cwd=str(cwd),
                 stdout=stdout_f,
                 stderr=subprocess.PIPE,

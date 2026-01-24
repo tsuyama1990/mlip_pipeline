@@ -1,3 +1,4 @@
+import contextlib
 import logging
 
 import numpy as np
@@ -67,7 +68,7 @@ class SQSStrategy:
                      # Last element gets the rest
                      count = n_atoms - current_count
                 else:
-                     count = int(round(frac * n_atoms))
+                     count = round(frac * n_atoms)
 
                 symbols.extend([elem] * count)
                 current_count += count
@@ -80,12 +81,9 @@ class SQSStrategy:
                     symbols.append(sorted_comp[0][0])
 
             # 3. Try icet if available
-            try:
+            with contextlib.suppress(ImportError):
                 import icet  # noqa: F401
                 # Placeholder for icet logic if implemented
-            except ImportError:
-                # Fallback to random shuffle
-                pass
 
             self.rng.shuffle(symbols)
             atoms.set_chemical_symbols(symbols)

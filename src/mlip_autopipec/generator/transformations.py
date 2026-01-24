@@ -24,10 +24,11 @@ def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
         GeneratorError: If matrix operations fail or inputs are invalid.
     """
     if not isinstance(strain_tensor, np.ndarray) or strain_tensor.shape != (3, 3):
-        raise GeneratorError("Strain tensor must be a 3x3 numpy array.")
+        msg = "Strain tensor must be a 3x3 numpy array."
+        raise GeneratorError(msg)
 
     try:
-        strained = atoms.copy() # type: ignore[no-untyped-call]
+        strained = atoms.copy()
         cell = strained.get_cell()
 
         # Deformation gradient F = I + epsilon
@@ -72,13 +73,14 @@ def apply_rattle(atoms: Atoms, sigma: float, rng: np.random.Generator | None = N
         GeneratorError: If the operation fails.
     """
     if sigma < 0:
-        raise GeneratorError("Rattle standard deviation (sigma) must be non-negative.")
+        msg = "Rattle standard deviation (sigma) must be non-negative."
+        raise GeneratorError(msg)
 
     if rng is None:
         rng = np.random.default_rng()
 
     try:
-        rattled = atoms.copy() # type: ignore[no-untyped-call]
+        rattled = atoms.copy()
 
         delta = rng.normal(0, sigma, atoms.positions.shape)
 
