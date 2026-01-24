@@ -6,7 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.models import DashboardData
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mlip_autopipec.config.schemas.common import TargetSystem
+from mlip_autopipec.config.schemas.core import RuntimeConfig, TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.config.schemas.exploration import ExplorerConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
@@ -11,16 +11,6 @@ from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.orchestration import WorkflowConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
-
-
-class RuntimeConfig(BaseModel):
-    """
-    Runtime environment configuration.
-    """
-    database_path: Path = Field(Path("mlip.db"), description="Path to SQLite database")
-    work_dir: Path = Field(Path("_work"), description="Scratch directory for calculations")
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class MLIPConfig(BaseModel):

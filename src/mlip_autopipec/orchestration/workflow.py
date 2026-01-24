@@ -3,8 +3,8 @@ import logging
 import time
 
 from mlip_autopipec.config.models import MLIPConfig, SystemConfig
-from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.orchestration.dashboard import Dashboard
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 from mlip_autopipec.orchestration.models import DashboardData, OrchestratorConfig, WorkflowState
 from mlip_autopipec.orchestration.phase_executor import PhaseExecutor

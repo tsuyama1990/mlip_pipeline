@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
-from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
 

@@ -8,9 +8,9 @@ from pathlib import Path
 
 from mlip_autopipec.config.factory import ConfigFactory
 from mlip_autopipec.config.models import SystemConfig
-from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.core.logging import setup_logging
 from mlip_autopipec.core.workspace import WorkspaceManager
+from mlip_autopipec.orchestration.database import DatabaseManager
+from mlip_autopipec.utils.logging import setup_logging
 from mlip_autopipec.workflow_manager import WorkflowManager
 
 logger = logging.getLogger(__name__)

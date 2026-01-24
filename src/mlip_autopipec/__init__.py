@@ -29,7 +29,7 @@ from mlip_autopipec.config.models import (
     MLIPConfig,
     SystemConfig,
 )
-from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 __all__ = [

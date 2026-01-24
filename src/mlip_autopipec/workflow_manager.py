@@ -7,10 +7,10 @@ from dask.distributed import Client, Future, as_completed
 from pydantic import ValidationError
 
 from mlip_autopipec.config.models import CheckpointState, SystemConfig
-from mlip_autopipec.core.database import DatabaseManager
 from mlip_autopipec.data_models.training_data import TrainingBatch
 from mlip_autopipec.modules.dft import DFTRunner
 from mlip_autopipec.modules.training import PacemakerTrainer
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.utils.dask_utils import get_dask_client
 
 logger = logging.getLogger(__name__)

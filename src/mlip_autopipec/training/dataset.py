@@ -10,7 +10,7 @@ from pathlib import Path
 from ase.io import write
 
 from mlip_autopipec.config.schemas.training import TrainingConfig
-from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.orchestration.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

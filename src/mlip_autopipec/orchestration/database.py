@@ -200,6 +200,8 @@ class DatabaseManager:
                 at = row.toatoms()
                 if hasattr(row, "key_value_pairs"):
                     at.info.update(row.key_value_pairs)
+                if hasattr(row, "data"):
+                    at.info.update(row.data)
                 atoms_list.append(at)
             return atoms_list
         except Exception as e:
@@ -219,7 +221,15 @@ class DatabaseManager:
         """
         try:
             rows = self._connection.select(selection=selection, **kwargs)
-            return [(row.id, row.toatoms()) for row in rows]
+            results = []
+            for row in rows:
+                at = row.toatoms()
+                if hasattr(row, "key_value_pairs"):
+                    at.info.update(row.key_value_pairs)
+                if hasattr(row, "data"):
+                    at.info.update(row.data)
+                results.append((row.id, at))
+            return results
         except Exception as e:
             logger.error(f"Failed to get entries: {e}")
             raise DatabaseError(f"Failed to get entries: {e}") from e

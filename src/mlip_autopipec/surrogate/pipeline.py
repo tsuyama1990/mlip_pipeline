@@ -4,7 +4,7 @@ import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
-from mlip_autopipec.core.database import DatabaseManager
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.surrogate.mace_wrapper import MaceWrapper
 from mlip_autopipec.surrogate.model_interface import ModelInterface
 from mlip_autopipec.surrogate.sampling import FarthestPointSampling

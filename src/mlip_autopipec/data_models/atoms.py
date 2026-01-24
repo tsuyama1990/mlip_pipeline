@@ -26,6 +26,13 @@ def validate_ase_atoms(v: Any) -> Atoms:
         if missing_methods:
              raise ValueError(f"Value must be an ASE Atoms object. Missing attributes: {missing}")
 
+    # Check shape for duck-typed objects too
+    if hasattr(v, "__len__") and hasattr(v, "positions"):
+        import numpy as np
+        pos = np.array(v.positions)
+        if len(v) > 0 and pos.shape != (len(v), 3):
+             raise ValueError("Malformed Atoms object: positions shape mismatch")
+
     return v
 
 ASEAtoms = Annotated[Any, BeforeValidator(validate_ase_atoms)]

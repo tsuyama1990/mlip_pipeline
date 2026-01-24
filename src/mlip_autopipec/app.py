@@ -4,7 +4,7 @@ Main CLI application for MLIP-AutoPipe.
 This module provides the command-line interface using `typer`.
 It supports:
 - Project initialization (`init`)
-- Configuration validation (`check-config`)
+- Configuration validation (`validate`)
 - Individual phase execution (`generate`, `select`, `train`)
 - Full loop execution (`run loop`)
 - Database management (`db init`)
@@ -18,10 +18,10 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from mlip_autopipec.core.database import DatabaseManager
-from mlip_autopipec.core.logging import setup_logging
 from mlip_autopipec.core.services import load_config
 from mlip_autopipec.generator import StructureBuilder
+from mlip_autopipec.orchestration.database import DatabaseManager
+from mlip_autopipec.utils.logging import setup_logging
 
 app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
 db_app = typer.Typer(help="Database management commands")
@@ -44,6 +44,7 @@ def init() -> None:
     # Template content
     template = {
         "target_system": {
+            "name": "FeNi System",
             "elements": ["Fe", "Ni"],
             "composition": {"Fe": 0.7, "Ni": 0.3},
             "crystal_structure": "fcc",
@@ -81,8 +82,8 @@ def init() -> None:
     console.print("[green]Initialized new project. Please edit input.yaml.[/green]")
 
 
-@app.command(name="check-config")
-def check_config(file: Path = typer.Argument(..., help="Path to config file")) -> None:
+@app.command(name="validate")
+def validate(file: Path = typer.Argument(..., help="Path to config file")) -> None:
     """Validate the configuration file."""
     setup_logging()
     try:
@@ -102,7 +103,7 @@ def generate(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),  # noqa: B008
+    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
 ) -> None:
     """Generate initial training structures."""
     setup_logging()
@@ -140,8 +141,8 @@ def select(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),  # noqa: B008
-    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),  # noqa: B008
+    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
+    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
 ) -> None:
     """Select diverse candidates using a surrogate model."""
     setup_logging()
@@ -176,7 +177,7 @@ def train(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),  # noqa: B008
+    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
 ) -> None:
     """Train a potential using Pacemaker."""
     setup_logging()
