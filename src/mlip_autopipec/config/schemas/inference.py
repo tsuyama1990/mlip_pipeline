@@ -37,14 +37,3 @@ class InferenceResult(BaseModel):
     uncertain_structures: list[Path]
     max_gamma_observed: float
     model_config = ConfigDict(extra="forbid")
-
-
-class EmbeddingConfig(BaseModel):
-    """Configuration for cluster embedding."""
-    core_radius: float = Field(4.0, gt=0.0)
-    buffer_width: float = Field(2.0, gt=0.0)
-    model_config = ConfigDict(extra="forbid")
-
-    @property
-    def box_size(self) -> float:
-        return 2 * (self.core_radius + self.buffer_width) + 2.0

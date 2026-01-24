@@ -1,9 +1,12 @@
-import pytest
 from types import GeneratorType
+
+import pytest
+
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.generator.builder import StructureBuilder
+
 
 @pytest.fixture
 def system_config() -> SystemConfig:

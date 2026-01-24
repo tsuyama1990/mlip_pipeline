@@ -1,6 +1,7 @@
 import logging
 import uuid
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -10,8 +11,8 @@ from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.generator.defects import DefectStrategy
-from mlip_autopipec.generator.sqs import SQSStrategy
 from mlip_autopipec.generator.distortions import DistortionStrategy
+from mlip_autopipec.generator.sqs import SQSStrategy
 
 logger = logging.getLogger(__name__)
 

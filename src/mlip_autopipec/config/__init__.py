@@ -10,7 +10,7 @@ It serves as the contract for all other modules, ensuring type safety and valida
 # I added EmbeddingConfig to models.py imports.
 # Let's see if I can import it.
 # Actually, better to only export what is really in models.py or what is needed.
-from mlip_autopipec.config.schemas.inference import EmbeddingConfig
+from mlip_autopipec.config.schemas.common import EmbeddingConfig
 
 from .models import (
     DFTConfig,

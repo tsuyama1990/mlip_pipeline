@@ -11,7 +11,8 @@
 *   **Robust Configuration**: Strictly validated YAML configuration using Pydantic schemas ensures fail-fast behavior.
 *   **Database Management**: Thread-safe, resilient interface to `ase.db` (SQLite) for storing structures and calculation results.
 *   **Structure Generation**: Physics-informed generator supporting supercells, random substitutions (SQS), lattice strain, thermal rattling, and point defects (vacancies/interstitials).
-*   **Self-Healing**: Automated recovery strategies for DFT convergence failures.
+*   **DFT Oracle**: Integrated Quantum Espresso runner with auto-recovery for convergence failures (e.g., mixing beta reduction).
+*   **Periodic Embedding**: Utilities for extracting local atomic environments from larger simulation cells for targeted re-calculation.
 *   **Active Learning Loop**: Autonomous cycle of generation, labeling, training, and validation.
 
 ## Requirements
@@ -101,6 +102,6 @@ src/mlip_autopipec/
 
 - [x] **Cycle 01**: Core Framework, Config, Database.
 - [x] **Cycle 02**: Structure Generation.
-- [ ] **Cycle 03**: DFT Oracle Interface.
+- [x] **Cycle 03**: DFT Oracle Interface.
 - [ ] **Cycle 04**: Training Orchestration.
 - [ ] **Cycle 05**: Inference & Active Learning.

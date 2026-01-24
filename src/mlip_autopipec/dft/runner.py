@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
 from pathlib import Path
 from uuid import uuid4
@@ -26,7 +27,19 @@ class DFTRetriableError(Exception):
 
 logger = logging.getLogger(__name__)
 
-class QERunner:
+class DFTRunner(ABC):
+    """
+    Abstract base class for DFT runners.
+    """
+    @abstractmethod
+    def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
+        """Runs the DFT calculation."""
+
+    @abstractmethod
+    def run_batch(self, atoms_iterable: Iterable[Atoms]) -> Generator[DFTResult, None, None]:
+        """Runs a batch of DFT calculations."""
+
+class QERunner(DFTRunner):
     """
     Orchestrates Quantum Espresso calculations with auto-recovery and efficient retries.
     """

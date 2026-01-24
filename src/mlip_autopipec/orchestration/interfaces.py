@@ -1,5 +1,6 @@
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
 from ase import Atoms
 
