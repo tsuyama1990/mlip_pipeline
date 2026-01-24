@@ -7,8 +7,8 @@ import logging
 import random
 from pathlib import Path
 
-from ase.io import write
 from ase import Atoms
+from ase.io import write
 
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.orchestration.database import DatabaseManager

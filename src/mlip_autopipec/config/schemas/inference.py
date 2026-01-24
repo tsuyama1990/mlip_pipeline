@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -11,6 +12,14 @@ class InferenceConfig(BaseModel):
     timestep: float = Field(1.0, gt=0.0, description="Timestep in fs")
     steps: int = Field(1000, gt=0, description="Number of MD steps")
     uncertainty_threshold: float = Field(5.0, gt=0.0, description="Max extrapolation grade before stop")
+
+    # New fields
+    ensemble: Literal["nvt", "npt"] = Field("nvt", description="MD Ensemble (nvt or npt)")
+    sampling_interval: int = Field(10, gt=0, description="Interval for thermo output and dumping")
+    use_zbl_baseline: bool = Field(True, description="Whether to use ZBL baseline (hybrid/overlay)")
+    zbl_inner_cutoff: float = Field(1.0, gt=0.0, description="Inner cutoff for ZBL switching")
+    zbl_outer_cutoff: float = Field(2.0, gt=0.0, description="Outer cutoff for ZBL switching")
+    restart_interval: int = Field(1000, gt=0, description="Interval for writing restart files")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -25,15 +34,4 @@ class InferenceConfig(BaseModel):
         if v is not None:
             if str(v).strip() == "":
                 raise ValueError("LAMMPS executable path cannot be empty.")
-            # Optional: Check if it's absolute or in path?
-            # shutil.which might fail if run in environment different from execution env.
-            # So we stick to basic validation.
         return v
-
-
-class InferenceResult(BaseModel):
-    succeeded: bool
-    final_structure: Path | None = None
-    uncertain_structures: list[Path]
-    max_gamma_observed: float
-    model_config = ConfigDict(extra="forbid")
