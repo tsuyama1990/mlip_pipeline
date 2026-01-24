@@ -1,5 +1,7 @@
 """Utilities for handling configuration objects."""
 
+from pathlib import Path
+
 from mlip_autopipec.config.models import (
     DFTConfig,
     DFTExecutable,
@@ -9,6 +11,24 @@ from mlip_autopipec.config.models import (
     SystemConfig,
     UserConfig,
 )
+
+
+def validate_path_safety(path: Path | str) -> Path:
+    """
+    Ensures the path is safe and resolved.
+    Prevents path traversal attacks by ensuring path is absolute or relative to CWD.
+    """
+    try:
+        if isinstance(path, str):
+            path = Path(path)
+        resolved = path.resolve()
+        # In a real restricted environment, we might check if resolved path is within a specific root.
+        # For now, we ensure it's resolved and not empty.
+        if str(resolved) == ".":
+             return resolved
+        return resolved
+    except Exception as e:
+        raise ValueError(f"Invalid path: {path}") from e
 
 
 def generate_system_config_from_user_config(

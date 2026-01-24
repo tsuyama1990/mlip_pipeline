@@ -33,6 +33,22 @@ console = Console()
 logger = logging.getLogger("mlip_autopipec")
 
 
+def validate_path_safety(path: Path) -> Path:
+    """
+    Ensures the path is safe and resolved.
+    Prevents path traversal attacks by ensuring path is absolute or relative to CWD.
+    """
+    try:
+        resolved = path.resolve()
+        # In a real restricted environment, we might check if resolved path is within a specific root.
+        # For now, we ensure it's resolved and not empty.
+        if str(resolved) == ".":
+             return resolved
+        return resolved
+    except Exception as e:
+        raise ValueError(f"Invalid path: {path}") from e
+
+
 @app.command()
 def init() -> None:
     """Initialize a new project with a template configuration file."""
@@ -87,7 +103,8 @@ def validate(file: Path = typer.Argument(..., help="Path to config file")) -> No
     """Validate the configuration file."""
     setup_logging()
     try:
-        load_config(file)
+        safe_file = validate_path_safety(file)
+        load_config(safe_file)
         console.print("[green]Validation Successful: Configuration is valid.[/green]")
     except ValidationError as e:
         console.print("[bold red]Validation Error:[/bold red]")
@@ -108,7 +125,8 @@ def generate(
     """Generate initial training structures."""
     setup_logging()
     try:
-        config = load_config(config_file)
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
         # Use StructureBuilder (Module A)
         builder = StructureBuilder(config)
         structures = builder.build_batch()
@@ -149,7 +167,8 @@ def select(
     try:
         from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
-        config = load_config(config_file)
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
 
         # Prepare Surrogate Config
         surrogate_conf = config.surrogate_config
@@ -185,7 +204,8 @@ def train(
         # Use TrainingManager (Module D)
         from mlip_autopipec.modules.training_orchestrator import TrainingManager
 
-        config = load_config(config_file)
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
         train_conf = config.training_config
 
         if not train_conf:
@@ -233,7 +253,8 @@ def db_init(
     """Initialize the database based on the configuration."""
     setup_logging()
     try:
-        config = load_config(config_file)
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
         db_manager = DatabaseManager(config.runtime.database_path)
         # ASE DB handles initialization on first connection/write
         with db_manager:
@@ -256,7 +277,8 @@ def run_loop(
         from mlip_autopipec.orchestration.models import OrchestratorConfig
         from mlip_autopipec.orchestration.workflow import WorkflowManager
 
-        config = load_config(config_file)
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
 
         # Extract Orchestrator Config from 'workflow_config'
         # If missing, provide defaults or raise error

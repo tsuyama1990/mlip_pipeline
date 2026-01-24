@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from typing import Generator, Iterable, Iterator
 from uuid import uuid4
 
 from ase import Atoms
@@ -164,6 +165,22 @@ class QERunner:
 
         logger.critical(f"Job {uid} failed completely after {attempt} attempts.")
         raise DFTFatalError(f"Job {uid} failed after {attempt} attempts. Last error: {last_error}")
+
+    def run_batch(self, atoms_iterable: Iterable[Atoms]) -> Generator[DFTResult, None, None]:
+        """
+        Processes a batch of atoms by consuming an iterable/generator.
+        This enables processing large datasets without pre-loading them.
+        """
+        for atoms in atoms_iterable:
+            try:
+                # Assuming atoms has info['id'] or generating a new UID
+                uid = atoms.info.get("id", str(uuid4()))
+                yield self.run(atoms, uid=str(uid))
+            except Exception as e:
+                logger.error(f"Failed to run DFT for structure {uid}: {e}")
+                # We yield a failed result or skip, depending on requirement.
+                # Here we skip but log error to keep the stream alive.
+                continue
 
     def _stage_pseudos(self, work_dir: Path, atoms: Atoms):
         """

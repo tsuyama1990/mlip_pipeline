@@ -34,6 +34,12 @@ class DFTConfig(BaseModel):
             raise ValueError(f"Pseudopotential directory does not exist: {v}")
         if not v.is_dir():
             raise ValueError(f"Pseudopotential path is not a directory: {v}")
+
+        # Check for UPF files
+        upf_files = list(v.glob("*.UPF")) + list(v.glob("*.upf"))
+        if not upf_files:
+            raise ValueError(f"No .UPF or .upf files found in pseudopotential directory: {v}")
+
         return v
 
     @field_validator("nspin")

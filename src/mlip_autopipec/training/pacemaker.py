@@ -8,8 +8,10 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Generator, Iterable
 
 import yaml
+from ase import Atoms
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.metrics import LogParser
@@ -37,6 +39,34 @@ class PacemakerWrapper:
         self.config = config
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    def prepare_data_from_stream(self, data_stream: Iterable[Atoms], output_filename: str) -> Path:
+        """
+        Streams atoms from a generator to a file on disk (extxyz).
+        Used to prepare training/test datasets without loading all into memory.
+        """
+        from ase.io import write
+        output_path = self.work_dir / output_filename
+
+        # ase.io.write supports writing multiple images.
+        # Ideally we stream-write. 'write' accepts a list, but we can pass an iterator
+        # if the format supports it or loop and append.
+        # ExtXYZ supports appending.
+
+        if output_path.exists():
+            output_path.unlink() # Start fresh
+
+        # Write first frame to initialize file? Or just append all.
+        # Actually ase.io.write handles iterables for some formats.
+        # Safest for memory is explicit loop if ASE doesn't fully stream write internally.
+
+        try:
+            write(str(output_path), data_stream, format="extxyz")
+        except Exception as e:
+            logger.error(f"Failed to stream write data to {output_path}: {e}")
+            raise
+
+        return output_path
 
     def generate_config(self) -> Path:
         """

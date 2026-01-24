@@ -41,13 +41,17 @@ class DFTResult(BaseModel):
     wall_time: float
     # Metadata for provenance
     parameters: dict[str, Any]
-    final_mixing_beta: float
+    final_mixing_beta: float | None = None  # Make optional if not always present
 
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("forces")
     @classmethod
     def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
+        if not forces:
+             # Depending on logic, empty forces might be valid for failed calc, but if succeeded=True it shouldn't.
+             # We won't enforce non-empty here unless we check succeeded.
+             return forces
         if not all(len(row) == 3 for row in forces):
             raise ValueError("Forces must have a shape of (N_atoms, 3).")
         return forces
@@ -56,6 +60,8 @@ class DFTResult(BaseModel):
     @classmethod
     def check_stress_shape(cls, stress: list[list[float]]) -> list[list[float]]:
         # SPEC says 3x3 array for DFTResult in Data Models section.
+        if not stress:
+            return stress
         if len(stress) != 3:
             raise ValueError("Stress tensor must be 3x3.")
         if not all(len(row) == 3 for row in stress):

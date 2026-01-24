@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Generator, Self
 
 import ase.db
 import numpy as np
@@ -182,9 +182,36 @@ class DatabaseManager:
             logger.error(f"Failed to update metadata for ID {id}: {e}")
             raise DatabaseError(f"Failed to update metadata: {e}") from e
 
+    def select(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
+        """
+        Generator that yields atoms objects matching selection.
+        This enables processing large datasets without loading everything into memory.
+
+        Args:
+            selection: Selection string.
+            **kwargs: Parameterized query arguments.
+
+        Yields:
+            ASE Atoms objects with populated info dictionary.
+        """
+        try:
+            # We assume ase.db.core.Database.select returns a generator or iterator
+            rows = self._connection.select(selection=selection, **kwargs)
+            for row in rows:
+                at = row.toatoms()
+                if hasattr(row, "key_value_pairs"):
+                    at.info.update(row.key_value_pairs)
+                if hasattr(row, "data"):
+                    at.info.update(row.data)
+                yield at
+        except Exception as e:
+            logger.error(f"Failed to select atoms: {e}")
+            raise DatabaseError(f"Failed to select atoms: {e}") from e
+
     def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
         """
         Retrieve atoms matching selection.
+        Warning: Loads all results into memory. Use select() for large datasets.
 
         Args:
             selection: Selection string.
@@ -193,24 +220,12 @@ class DatabaseManager:
         Returns:
             List of ASE Atoms objects with populated info dictionary.
         """
-        try:
-            rows = self._connection.select(selection=selection, **kwargs)
-            atoms_list = []
-            for row in rows:
-                at = row.toatoms()
-                if hasattr(row, "key_value_pairs"):
-                    at.info.update(row.key_value_pairs)
-                if hasattr(row, "data"):
-                    at.info.update(row.data)
-                atoms_list.append(at)
-            return atoms_list
-        except Exception as e:
-            logger.error(f"Failed to get atoms: {e}")
-            raise DatabaseError(f"Failed to get atoms: {e}") from e
+        return list(self.select(selection=selection, **kwargs))
 
     def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
         """
         Retrieve entries as (id, Atoms) tuples.
+        Warning: Loads all results into memory.
 
         Args:
             selection: Selection string.

@@ -21,31 +21,6 @@ class WorkflowManager:
     - Manage the high-level state machine (Generations and Phases).
     - Persist state to disk for resumption.
     - Delegate execution details to PhaseExecutor.
-
-    State Machine Diagram:
-    ----------------------
-
-          [START]
-             |
-             v
-          (IDLE) -------------------------> (DFT)
-             ^ (New Generation)               |
-             |                                | Execute DFT
-             |                                v
-        (INFERENCE) <------------------- (TRAINING)
-             |       Execute Inference        | Execute Training
-             |
-             +----[Uncertainty Detected]-----> (DFT) [Active Learning Loop]
-             |
-             v
-          [END] (Max Generations Reached)
-
-    Transitions:
-    - IDLE -> DFT: Initial Generation & Surrogate Selection.
-    - DFT -> TRAINING: Once DFT labels are acquired.
-    - TRAINING -> INFERENCE: Once a potential is trained.
-    - INFERENCE -> IDLE: If inference converges (low uncertainty). Increments generation.
-    - INFERENCE -> DFT: If high uncertainty detected (Active Learning). Stays in current generation.
     """
 
     def __init__(
@@ -64,21 +39,8 @@ class WorkflowManager:
             builder: Optional dependency injection for Builder.
             surrogate: Optional dependency injection for Surrogate.
         """
-        if isinstance(config, MLIPConfig):
-            # Adapt MLIPConfig to SystemConfig
-            self.config = SystemConfig(
-                target_system=config.target_system,
-                dft_config=config.dft,
-                working_dir=config.runtime.work_dir,
-                db_path=config.runtime.database_path,
-                workflow_config=config.workflow_config,
-                surrogate_config=config.surrogate_config,
-                training_config=config.training_config,
-                inference_config=config.inference_config,
-                generator_config=config.generator_config
-            )
-        else:
-            self.config = config
+        # Validate and Normalize Configuration via dedicated method
+        self.config = self._normalize_config(config)
 
         self.orch_config = orchestrator_config
         self.work_dir = self.config.working_dir
@@ -101,6 +63,28 @@ class WorkflowManager:
 
         # Phase Executor
         self.executor = PhaseExecutor(self)
+
+    @staticmethod
+    def _normalize_config(config: SystemConfig | MLIPConfig) -> SystemConfig:
+        """
+        Ensures strict type compliance by normalizing input config to SystemConfig.
+        """
+        if isinstance(config, MLIPConfig):
+            return SystemConfig(
+                target_system=config.target_system,
+                dft_config=config.dft,
+                working_dir=config.runtime.work_dir,
+                db_path=config.runtime.database_path,
+                workflow_config=config.workflow_config,
+                surrogate_config=config.surrogate_config,
+                training_config=config.training_config,
+                inference_config=config.inference_config,
+                generator_config=config.generator_config
+            )
+        if isinstance(config, SystemConfig):
+            return config
+
+        raise TypeError("Invalid configuration type provided to WorkflowManager.")
 
     def _load_state(self) -> WorkflowState:
         """Load or initialize workflow state."""
