@@ -82,15 +82,10 @@ class StructureBuilder:
 
             # 2. Distortions (Strain + Rattle)
             # This yields original + distorted structures lazily
-            # We wrap base_structures (list) into an iterator
-            distorted_stream = self.distortion_strategy.apply(iter(base_structures))
+            # We wrap base_structures (iterator) directly
+            distorted_stream = self.distortion_strategy.apply(base_structures)
 
             # 3. Defect Application Phase
-            # DefectStrategy.apply currently expects list, we need to adapt it or iterate
-            # Since defects might multiply structures, it's better if DefectStrategy supports streaming too.
-            # But for now, let's iterate and call apply on single items or refactor DefectStrategy.
-            # Refactoring DefectStrategy is cleaner. For now, let's wrap:
-
             primary_elem = next(iter(target.composition.keys()))
 
             def defect_generator(stream: Iterator[Atoms]) -> Iterator[Atoms]:
@@ -136,7 +131,7 @@ class StructureBuilder:
 
         yield from reservoir
 
-    def _generate_base(self, target: Any) -> list[Atoms]:
+    def _generate_base(self, target: Any) -> Iterator[Atoms]:
         """
         Generates base structures based on target type (bulk/molecule).
         """
@@ -149,19 +144,20 @@ class StructureBuilder:
              structure_type = "molecule"
 
         if structure_type == "bulk":
-            return self._generate_bulk_base(target)
-        if structure_type == "molecule":
+            yield from self._generate_bulk_base(target)
+        elif structure_type == "molecule":
             try:
                 mol = molecule(target.name)
-                return [mol]
+                yield mol
             except Exception:
                  logger.warning(f"Could not build molecule {target.name}")
-                 return []
+                 return
 
-        # Default fallback
-        return self._generate_bulk_base(target)
+        else:
+            # Default fallback
+            yield from self._generate_bulk_base(target)
 
-    def _generate_bulk_base(self, target: Any) -> list[Atoms]:
+    def _generate_bulk_base(self, target: Any) -> Iterator[Atoms]:
         """
         Generates base bulk structures.
 
@@ -171,11 +167,9 @@ class StructureBuilder:
         Args:
             target: The TargetSystem configuration.
 
-        Returns:
-            list[Atoms]: A list containing the base bulk structure(s).
+        Yields:
+            Atoms: The generated base bulk structure(s).
         """
-        structures = []
-
         # Heuristic: Take the first element from composition and use its bulk structure.
         primary_elem = next(iter(target.composition.keys()))
         try:
@@ -188,9 +182,7 @@ class StructureBuilder:
 
         if self.generator_config.sqs.enabled:
             sqs = self.sqs_strategy.generate(prim, target.composition)
-            structures.append(sqs)
+            yield sqs
         else:
             # Just primitive
-            structures.append(prim)
-
-        return structures
+            yield prim

@@ -49,7 +49,7 @@ src/mlip_autopipec/dft/recovery.py                       32     23    28%   33-4
 src/mlip_autopipec/dft/runner.py                        136    107    21%   35, 41-52, 62-75, 81-188, 195-204, 210-221, 229-230
 src/mlip_autopipec/exceptions.py                         25      7    72%   43-48, 51-52
 src/mlip_autopipec/generator/__init__.py                  5      0   100%
-src/mlip_autopipec/generator/builder.py                  91      5    95%   44-45, 108, 147, 162
+src/mlip_autopipec/generator/builder.py                  89      5    94%   44-45, 103, 142, 158
 src/mlip_autopipec/generator/defects.py                  83     10    88%   82, 106-109, 132, 177-180
 src/mlip_autopipec/generator/distortions.py              44      4    91%   69-70, 82-83
 src/mlip_autopipec/generator/sqs.py                      44      9    80%   55, 78-81, 93-96
@@ -106,5 +106,5 @@ src/mlip_autopipec/utils/logging.py                      11     11     0%   5-31
 src/mlip_autopipec/utils/resilience.py                   29     29     0%   6-93
 src/mlip_autopipec/utils/workflow_utils.py               32     32     0%   3-53
 -----------------------------------------------------------------------------------
-TOTAL                                                  3225   2251    30%
-============================== 30 passed in 6.64s ==============================
+TOTAL                                                  3223   2251    30%
+============================== 30 passed in 9.93s ==============================
