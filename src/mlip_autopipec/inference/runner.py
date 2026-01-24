@@ -59,6 +59,8 @@ class LammpsRunner:
         try:
             # 1. Prepare Inputs
             input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms, potential_path)
+            stdout_file = self.work_dir / "stdout.log"
+            stderr_file = self.work_dir / "stderr.log"
 
             # 2. Validate and Resolve Executable
             executable = self._resolve_executable()
@@ -73,14 +75,16 @@ class LammpsRunner:
             # 4. Run
             # shell=False is critical for security to prevent shell injection.
             # We strictly control the arguments list.
-            result = subprocess.run(  # noqa: S603
-                cmd,
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=self.work_dir,
-                shell=False
-            )
+            # We redirect stdout/stderr to files to prevent OOM on large outputs (Scalability).
+            with stdout_file.open("w") as f_out, stderr_file.open("w") as f_err:
+                result = subprocess.run(  # noqa: S603
+                    cmd,
+                    check=False,
+                    stdout=f_out,
+                    stderr=f_err,
+                    cwd=self.work_dir,
+                    shell=False
+                )
 
             # 5. Parse Output
             max_gamma, halted, halt_step = LogParser.parse(log_file)
@@ -94,7 +98,20 @@ class LammpsRunner:
             # If returncode != 0, it ONLY succeeds if halted=True (watchdog trigger).
             if result.returncode != 0 and not halted:
                 logger.error(f"LAMMPS failed with exit code {result.returncode}")
-                logger.error(f"Stderr: {result.stderr}")
+                # Log last few lines of stderr if available
+                if stderr_file.exists():
+                     try:
+                         # Read only last 1KB
+                         with stderr_file.open("rb") as f:
+                             try:
+                                 f.seek(-1024, os.SEEK_END)
+                             except OSError:
+                                 pass # File smaller than 1KB
+                             tail = f.read().decode("utf-8", errors="replace")
+                             logger.error(f"Stderr tail: {tail}")
+                     except Exception:
+                         pass
+
                 return InferenceResult(
                     succeeded=False,
                     max_gamma_observed=max_gamma,

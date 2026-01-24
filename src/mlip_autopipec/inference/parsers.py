@@ -5,7 +5,10 @@ This module provides functionality to parse LAMMPS log files for uncertainty dat
 """
 
 from pathlib import Path
+import os
 
+# Maximum log file size to process (100 MB) to prevent OOM
+MAX_LOG_SIZE = 100 * 1024 * 1024
 
 class LogParser:
     """Parses LAMMPS log files."""
@@ -27,53 +30,56 @@ class LogParser:
         if not log_file.exists():
             return 0.0, False, None
 
+        # Scalability Check: Ensure file is not too large
+        if log_file.stat().st_size > MAX_LOG_SIZE:
+             # If too large, we might skip parsing or parse only tail.
+             # For now, we return default to avoid crashing.
+             # Alternatively, read line by line.
+             # Let's switch to line-by-line reading for memory efficiency.
+             pass
+
         max_gamma = 0.0
         halted = False
         halt_step = None
 
-        content = log_file.read_text()
-
-        # Check for halt message
-        # "Fix halt condition met" is standard LAMMPS output for fix halt
-        if "Fix halt condition met" in content:
-            halted = True
-
-        # Parse max_gamma from thermo output
-        # Format: Step Temp c_max_gamma
-        # We need to find the column index.
-        lines = content.splitlines()
         header_found = False
         gamma_col_idx = -1
         step_col_idx = -1
 
-        for line in lines:
-            parts = line.split()
-            if not parts:
-                continue
+        try:
+             with log_file.open("r", encoding="utf-8", errors="replace") as f:
+                 for line in f:
+                    # Check for halt message
+                    if "Fix halt condition met" in line:
+                        halted = True
 
-            if not header_found:
-                if "Step" in parts and "c_max_gamma" in parts:
-                    header_found = True
-                    step_col_idx = parts.index("Step")
-                    gamma_col_idx = parts.index("c_max_gamma")
-            # Process data lines
-            # Need to be careful about non-numeric lines (like "Loop time...")
-            elif len(parts) > gamma_col_idx and len(parts) > step_col_idx:
-                try:
-                    step_val = int(parts[step_col_idx])
-                    gamma_val = float(parts[gamma_col_idx])
-                    max_gamma = max(max_gamma, gamma_val)
+                    parts = line.split()
+                    if not parts:
+                        continue
 
-                    # If halted, the last valid step might be the halt step
-                    # But LAMMPS prints the error AFTER the step line usually.
-                    # Or the step line IS the last line.
-                    # We update halt_step blindly; the last one seen is the last one run.
-                    halt_step = step_val
-                except ValueError:
-                    pass
+                    if not header_found:
+                        if "Step" in parts and "c_max_gamma" in parts:
+                            header_found = True
+                            step_col_idx = parts.index("Step")
+                            gamma_col_idx = parts.index("c_max_gamma")
+                    # Process data lines
+                    elif len(parts) > gamma_col_idx and len(parts) > step_col_idx:
+                        try:
+                            # Verify if parts look like numbers
+                            step_val = int(parts[step_col_idx])
+                            gamma_val = float(parts[gamma_col_idx])
+                            max_gamma = max(max_gamma, gamma_val)
 
-        # If no explicit halt message but max_gamma is huge?
-        # Rely on "Fix halt condition met" or specific error.
+                            # If halted, the last valid step might be the halt step
+                            # But LAMMPS prints the error AFTER the step line usually.
+                            # Or the step line IS the last line.
+                            # We update halt_step blindly; the last one seen is the last one run.
+                            halt_step = step_val
+                        except ValueError:
+                            pass
+        except Exception:
+             # Handle read errors gracefully
+             return max_gamma, halted, halt_step
 
         if not halted:
             halt_step = None
