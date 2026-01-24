@@ -91,11 +91,6 @@ class PacemakerWrapper:
         try:
             with config_path.open("w") as f:
                 yaml.dump(pacemaker_config, f)
-
-            # Verify YAML
-            with config_path.open("r") as f:
-                yaml.safe_load(f)
-
         except Exception as e:
             logger.error(f"Failed to generate valid Pacemaker config: {e}")
             raise
@@ -179,17 +174,12 @@ class PacemakerWrapper:
 
             if returncode != 0:
                 logger.error(f"Pacemaker failed with code {returncode}")
-                if log_path.exists():
-                    try:
-                        content = log_path.read_text()
-                        logger.error(f"Pacemaker Output:\n{content}")
-                    except Exception:
-                        pass
                 return TrainingResult(success=False)
 
             # 6. Process Output
             output_yace = self.work_dir / "output.yace"
 
+            # Fallback if specific file not found
             if not output_yace.exists():
                  yace_files = list(self.work_dir.glob("*.yace"))
                  if yace_files:
