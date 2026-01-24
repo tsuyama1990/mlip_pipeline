@@ -9,8 +9,8 @@ import yaml
 
 from mlip_autopipec.core.services import load_config
 from mlip_autopipec.generator import StructureBuilder
-from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.modules.training_orchestrator import TrainingManager
+from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.surrogate.candidate_manager import CandidateManager
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.utils.config_utils import validate_path_safety
@@ -76,7 +76,7 @@ class CLIHandler:
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
         builder = StructureBuilder(config)
-        structures = builder.build_batch()
+        structures = builder.build()
 
         console(f"Generated {len(structures)} structures.")
 

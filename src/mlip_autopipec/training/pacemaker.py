@@ -7,8 +7,8 @@ import logging
 import os
 import shutil
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Generator, Iterable
 
 import yaml
 from ase import Atoms

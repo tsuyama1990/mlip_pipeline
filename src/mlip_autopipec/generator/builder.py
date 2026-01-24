@@ -48,9 +48,10 @@ class StructureBuilder:
         self.sqs_strategy = SQSStrategy(self.generator_config.sqs, seed=self.generator_config.seed)
         self.defect_strategy = DefectStrategy(self.generator_config.defects, seed=self.generator_config.seed)
 
-    def build_batch(self) -> list[Atoms]:
+    def build(self) -> list[Atoms]:
         """
         Orchestrates the generation pipeline to produce a batch of structures.
+        Implements BuilderProtocol.
 
         The pipeline consists of the following steps:
         1.  **Base Generation**: Creates initial bulk or molecular structures. For alloys,
