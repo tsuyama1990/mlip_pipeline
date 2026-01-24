@@ -10,13 +10,14 @@
 
 *   **Robust Configuration**: Strictly validated YAML configuration using Pydantic schemas ensures fail-fast behavior.
 *   **Database Management**: Thread-safe, resilient interface to `ase.db` (SQLite) for storing structures and calculation results.
+*   **Structure Generation**: Physics-informed generator supporting supercells, random substitutions (SQS), lattice strain, thermal rattling, and point defects (vacancies/interstitials).
 *   **Self-Healing**: Automated recovery strategies for DFT convergence failures.
 *   **Active Learning Loop**: Autonomous cycle of generation, labeling, training, and validation.
 
 ## Requirements
 
 *   **Python**: 3.11+
-*   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `rich`, `pyyaml`.
+*   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `rich`, `pyyaml`, `scipy`.
 *   **External Engines**: Quantum Espresso, LAMMPS, Pacemaker.
 
 ## Installation
@@ -51,6 +52,13 @@ Edit `input.yaml` to define your target system (e.g., Fe-Ni alloy) and computati
 target_system:
   elements: ["Fe", "Ni"]
   composition: {"Fe": 0.7, "Ni": 0.3}
+generator:
+  sqs:
+    enabled: true
+    supercell_size: [2, 2, 2]
+  distortion:
+    enabled: true
+    rattle_stdev: 0.05
 dft:
   pseudopotential_dir: "/path/to/upf"
   ecutwfc: 40.0
@@ -68,6 +76,12 @@ Initialize the SQLite database (`mlip.db`):
 mlip-auto db init --config input.yaml
 ```
 
+### 5. Generate Structures
+Generate candidate structures based on your configuration:
+```bash
+mlip-auto generate input.yaml
+```
+
 ## Architecture
 
 The project is structured as follows:
@@ -77,15 +91,16 @@ src/mlip_autopipec/
 ├── app.py                      # CLI Entry Point
 ├── config/                     # Configuration Schemas (Pydantic)
 ├── data_models/                # Core Data Structures (Atoms, Candidates)
+├── generator/                  # Structure Generation (SQS, Defects, Strain)
 ├── orchestration/              # Database & Workflow Management
 ├── utils/                      # Logging & Utilities
-└── ...                         # Feature Modules (DFT, Training, Generator)
+└── ...                         # Feature Modules (DFT, Training)
 ```
 
 ## Roadmap
 
 - [x] **Cycle 01**: Core Framework, Config, Database.
-- [ ] **Cycle 02**: Structure Generation.
+- [x] **Cycle 02**: Structure Generation.
 - [ ] **Cycle 03**: DFT Oracle Interface.
 - [ ] **Cycle 04**: Training Orchestration.
 - [ ] **Cycle 05**: Inference & Active Learning.

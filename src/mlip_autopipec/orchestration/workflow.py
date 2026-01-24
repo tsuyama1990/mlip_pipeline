@@ -1,9 +1,8 @@
 import json
 import logging
 import time
-from uuid import UUID
 
-from dask.distributed import Client, Future, as_completed
+from dask.distributed import Client
 
 from mlip_autopipec.config.models import MLIPConfig, SystemConfig
 from mlip_autopipec.orchestration.dashboard import Dashboard

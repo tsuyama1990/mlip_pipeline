@@ -1,7 +1,8 @@
 import logging
 import sqlite3
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generator, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import ase.db
 import numpy as np

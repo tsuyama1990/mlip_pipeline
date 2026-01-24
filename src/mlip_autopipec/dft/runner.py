@@ -4,12 +4,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Generator, Iterable
 from pathlib import Path
-from typing import Generator, Iterable, Iterator
 from uuid import uuid4
 
 from ase import Atoms
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTInputParams, DFTResult
@@ -23,7 +23,6 @@ class DFTFatalError(Exception):
 
 class DFTRetriableError(Exception):
     """Exception raised for errors that might be resolved by retrying (e.g. system glitches)."""
-    pass
 
 logger = logging.getLogger(__name__)
 
