@@ -1,10 +1,8 @@
 [build-system]
-# Defines the build toolchain. We use setuptools.
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-# Package metadata and dependencies.
 name = "mlip_autopipec"
 version = "0.1.0"
 authors = [
@@ -21,40 +19,26 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    # --- Core Data Models & Validation ---
-    "pydantic", # Data validation and settings management using python type hints
-
-    # --- Scientific Computing ---
+    "pydantic",
     "numpy",
     "scipy>=1.17.0",
     "scikit-learn>=1.8.0",
     "pandas",
-    "numba>=0.59.0", # JIT compiler for Python
-
-    # --- Atomic Simulation Environment ---
-    "ase>=3.22.1", # Atomic Simulation Environment
-
-    # --- Machine Learning / Surrogate Models ---
-    "mace-torch", # MACE Foundation Model
-    "dscribe>=2.1.0", # Descriptors (SOAP, ACSF)
+    "numba>=0.59.0",
+    "ase>=3.22.1",
+    "mace-torch",
+    "dscribe>=2.1.0",
     "torch>=2.0.0",
-
-    # --- CLI & Output ---
-    "typer", # CLI building
-    "rich", # Terminal formatting
+    "typer",
+    "rich",
     "pyyaml",
-
-    # --- Distributed Computing ---
     "dask>=2023.1.0",
     "distributed",
-    "tenacity>=9.1.2", # Retrying library
-
-    # --- Visualization ---
+    "tenacity>=9.1.2",
     "plotly",
     "matplotlib",
-
-    # --- Utilities ---
-    "Jinja2", # Templating
+    "Jinja2",
+    "phonopy>=2.20.0",
 ]
 
 [project.urls]
@@ -62,7 +46,6 @@ dependencies = [
 "Bug Tracker" = "https://github.com/pypa/sampleproject/issues"
 
 [project.optional-dependencies]
-# Dependencies for development and testing
 dev = [
     "pytest",
     "pytest-cov>=7.0.0",
@@ -73,83 +56,50 @@ dev = [
 ]
 
 [tool.setuptools]
-# Discovery of packages
 packages = ["mlip_autopipec"]
+package-dir = {"" = "src"}
 
 [project.scripts]
-# CLI Entry Point: `mlip-auto` command runs `mlip_autopipec.app:app`
 mlip-auto = "mlip_autopipec.app:app"
 
 [tool.ruff]
-# Ruff Linter Configuration
 target-version = "py311"
 line-length = 100
 fix = true
 
 [tool.ruff.lint]
-# Selected rule sets for high code quality and security
 select = [
-    "F",    # Pyflakes (basic errors)
-    "E", "W", # pycodestyle (style)
-    "C90",  # mccabe (complexity check)
-    "I",    # isort (import organization)
-    "N",    # pep8-naming
-    "UP",   # pyupgrade
-    "YTT",  # flake8-2020
-    "ANN",  # flake8-annotations (strict typing)
-    "ASYNC",# flake8-async
-    "S",    # flake8-bandit (security checks)
-    "BLE",  # flake8-blind-except
-    "B",    # flake8-bugbear
-    "A",    # flake8-builtins
-    "C4",   # flake8-comprehensions
-    "DTZ",  # flake8-datetimez
-    "T10",  # flake8-debugger
-    "EM",   # flake8-errmsg
-    "ICN",  # flake8-import-conventions
-    "PIE",  # flake8-pie
-    "T20",  # flake8-print
-    "PT",   # flake8-pytest-style
-    "RET",  # flake8-return
-    "SIM",  # flake8-simplify
-    "TID",  # flake8-tidy-imports
-    "ARG",  # flake8-unused-arguments
-    "PTH",  # flake8-use-pathlib
-    "ERA",  # eradicate (commented code)
-    "PL",   # Pylint
-    "TRY",  # tryceratops (exceptions)
-    "RUF",  # Ruff-specific rules
+    "F", "E", "W", "C90", "I", "N", "UP", "YTT", "ANN", "ASYNC",
+    "S", "BLE", "B", "A", "C4", "DTZ", "T10", "EM", "ICN", "PIE",
+    "T20", "PT", "RET", "SIM", "TID", "ARG", "PTH", "ERA", "PL",
+    "TRY", "RUF",
 ]
-
 ignore = [
-    "ANN101", # Self type hint
-    "ANN002", # *args type hint
-    "ANN003", # **kwargs type hint
-    "ANN001", "ANN401", # Loose typing allowances
-    "ARG001", "ARG005", # Unused args
-    "PLR2004", # Magic values
-    "E501",   # Line length
-    "TRY003", # Long exception messages
-    "D",      # Docstrings (handled manually)
-    "ANN201", "N806", "PLC0415", "BLE001", "PT019", "RUF003", "ARG002", "RUF043", "RUF059", "PLR0913", "ANN202"
+    "ANN101", "ANN002", "ANN003", "ANN001", "ANN401", "ARG001", "ARG005",
+    "PLR2004", "E501", "TRY003", "D", "ANN201", "N806", "PLC0415",
+    "BLE001", "PT019", "RUF003", "ARG002", "RUF043", "RUF059", "PLR0913",
+    "ANN202"
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]  # Allow 'assert' in tests
+"tests/**/*.py" = ["S101"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10  # Enforce simple functions
+max-complexity = 10
 
 [tool.ruff.lint.flake8-annotations]
 suppress-dummy-args = true
 
 [tool.pytest.ini_options]
-# Pytest configuration
-addopts = "--cov=mlip_autopipec --cov-report=term-missing"
+addopts = "--cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.mypy]
-# Static Type Checking Configuration
 strict = true
 ignore_missing_imports = true
-plugins = ["pydantic.mypy"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+]
