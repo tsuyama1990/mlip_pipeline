@@ -1,132 +1,133 @@
-# Cycle 01 UAT: Foundation & Configuration
+# Cycle 01 User Acceptance Testing (UAT) Plan
 
 ## 1. Test Scenarios
 
-### Scenario 1.1: System Initialization
--   **Priority**: Critical
--   **Description**: A new user installs the package and wants to set up a new project. They should be able to generate a default configuration file template without needing to consult external documentation. This tests the "Zero-Human" onboarding experience. The goal is to ensure the barrier to entry is as low as possible.
--   **Pre-conditions**:
-    -   The user is in a clean, empty directory.
-    -   The `mlip-auto` package is installed and available in the `$PATH`.
-    -   Python 3.11+ is the active environment.
--   **Detailed Steps**:
-    1.  User opens a terminal window.
-    2.  User executes the command `mlip-auto init`.
-    3.  System checks for existing config files (e.g., `input.yaml`).
-    4.  System determines the file does not exist.
-    5.  System generates `input.yaml` from an internal template.
-    6.  System prints a success message: "Initialized new project. Please edit input.yaml."
-    7.  User runs `ls -l` to verify file existence and permissions.
-    8.  User opens `input.yaml` in a text editor.
-    9.  User verifies that the file contains commented-out placeholders for `target_system`, `dft`, `training`, and `inference` sections.
--   **Post-conditions**:
-    -   `input.yaml` exists in the current directory.
-    -   The file is a valid YAML file (not empty).
--   **Failure Modes**:
-    -   Permission denied (cannot write to directory).
-    -   File already exists (should prompt overwrite or fail).
+### Scenario ID: UAT-C01-001 - Project Initialization and Configuration Validation
 
-### Scenario 1.2: Configuration Validation (Success Path)
--   **Priority**: High
--   **Description**: The user has edited the `input.yaml` file with valid parameters for a real material (FeNi alloy). They want to confirm that the system accepts these parameters before launching any long-running jobs. This verifies the Pydantic schema validation logic.
--   **Pre-conditions**:
-    -   A valid `input.yaml` exists in the current directory.
-    -   The `pseudopotential_dir` path specified in the config actually exists on the filesystem.
--   **Detailed Steps**:
-    1.  User ensures `pseudopotential_dir` points to a real folder containing `.UPF` files.
-    2.  User executes `mlip-auto check-config input.yaml`.
-    3.  System loads the YAML file into a Python dictionary.
-    4.  System instantiates the `MLIPConfig` Pydantic model.
-    5.  System validates types (floats, strings) and physical constraints (cutoffs > 0).
-    6.  System prints a success message in green (using Rich): "Configuration is valid."
--   **Post-conditions**:
-    -   Exit code is 0.
-    -   No Python stack traces are visible to the user.
--   **Failure Modes**:
-    -   YAML syntax error (indentation).
-    -   Missing required fields.
+**Priority:** High
+**Description:**
+This scenario verifies that a new user, potentially a materials scientist with limited programming experience, can successfully initialise a new MLIP-AutoPipe project and validate their configuration file. The "Zero-Human" philosophy begins here: the system must guide the user through setup and prevent invalid configurations from ever starting a job.
 
-### Scenario 1.3: Configuration Validation (Failure Path - Logical Error)
--   **Priority**: High
--   **Description**: The user makes a semantic error in the configuration, such as setting a negative temperature or providing a non-existent path. The system must catch this *before* execution starts.
--   **Pre-conditions**:
-    -   `input.yaml` exists but contains `ecutwfc: -30.0` (physically impossible).
--   **Detailed Steps**:
-    1.  User executes `mlip-auto check-config input.yaml`.
-    2.  System parses the file.
-    3.  Pydantic validator triggers on the `ecutwfc` field.
-    4.  System catches the `ValidationError`.
-    5.  System prints a formatted error message: "Error in DFT Config: ecutwfc must be greater than 0."
-    6.  System exits with a non-zero status code.
--   **Post-conditions**:
-    -   Exit code is 1.
-    -   The error message clearly points to the specific field `dft.ecutwfc`.
--   **Failure Modes**:
-    -   System crashes with a raw traceback (Bad user experience).
-    -   System silently accepts the bad value (Dangerous).
+**User Story:**
+As a Researcher, I want to create a new project directory and generate a template configuration file so that I can easily specify my material system (e.g., Fe-Ni alloy) and simulation parameters. Once I have edited the file, I want to run a validation command to ensure I haven't made any typos or logical errors (like setting a negative cutoff energy), saving me from discovering these errors days later.
 
-### Scenario 1.4: Database Initialization
--   **Priority**: Critical
--   **Description**: The system must be able to create its persistence layer. This tests the integration with `ase.db` and SQLite.
--   **Pre-conditions**:
-    -   Valid config file present.
-    -   Write permissions in the directory.
--   **Detailed Steps**:
-    1.  User executes `mlip-auto db init`.
-    2.  System reads config to find `database_path` (default `mlip.db`).
-    3.  System initializes the `DatabaseManager`.
-    4.  System creates the SQLite file.
-    5.  System sets up initial metadata tables (if any schema migration is needed).
-    6.  User checks file size > 0 bytes using `ls -l`.
-    7.  User attempts to connect to it using `sqlite3 mlip.db ".tables"`.
--   **Post-conditions**:
-    -   The `.db` file is created.
-    -   It is a valid SQLite database.
--   **Failure Modes**:
-    -   Disk full.
-    -   Path is a directory, not a file.
+**Step-by-Step Walkthrough:**
+1.  **Installation**: The user installs the package (simulated via `pip install .` in the test environment).
+2.  **Directory Creation**: The user creates a folder `my_new_alloy`.
+3.  **Initialization**: The user runs `mlip-auto init`.
+    -   *Expectation*: The system creates a default `input.yaml` file. This file is not empty but contains commented-out examples and sensible defaults (e.g., standard QE flags).
+4.  **Configuration Editing**: The user edits `input.yaml`.
+    -   *Action*: They set `project_name` to "SuperAlloy".
+    -   *Action*: They intentionally make a mistake, setting `ecutwfc` to -50.0 to test the safety net.
+5.  **Validation (Fail)**: The user runs `mlip-auto validate`.
+    -   *Expectation*: The command fails with a clear, red-coloured error message: "Validation Error: 'ecutwfc' must be greater than or equal to 20.0 Ry."
+6.  **Correction**: The user fixes the value to 60.0.
+7.  **Validation (Success)**: The user runs `mlip-auto validate`.
+    -   *Expectation*: The system prints a green "Configuration Validated Successfully" message. It also prints a summary of the interpreted config (e.g., "DFT Engine: Quantum Espresso, Parallel Cores: 64") to confirm the parser understood the intent.
 
-## 2. Behaviour Definitions
+**Success Criteria:**
+-   The `init` command must generate a syntactically valid YAML file.
+-   The `validate` command must catch Type Errors (string vs float).
+-   The `validate` command must catch Value Errors (constraints like > 0).
+-   The error messages must be human-readable, not raw Python stack traces.
+
+### Scenario ID: UAT-C01-002 - Database Creation and Atomic Structure Persistence
+
+**Priority:** High
+**Description:**
+This scenario verifies the backend data management capability. While the user might not directly interact with the database via SQL, they need confidence that the system can store and retrieve atomic structures without data loss. This acts as a "sanity check" for the persistence layer.
+
+**User Story:**
+As a Power User or Developer, I want to verify that the underlying database correctly handles my atomic structures. I want to manually insert a test structure (e.g., a Copper crystal) into the system's database and verify that it is assigned a unique ID and the correct 'Pending' status. This ensures that when the massive generation loop starts in Cycle 02, the foundation is solid.
+
+**Step-by-Step Walkthrough:**
+1.  **Setup**: The user opens a Jupyter Notebook or a Python script in the project directory.
+2.  **Connection**: They import the `DatabaseManager` and point it to `mlip.db`.
+3.  **Structure Creation**: They use ASE to build a simple structure: `atoms = bulk('Cu', 'fcc', a=3.6)`.
+4.  **Insertion**: They call `db_manager.add_structure(atoms)`.
+    -   *Expectation*: The method returns an ID (integer). No errors are raised.
+5.  **Verification (Query)**: They query the database using `ase.db` or the manager's `get_structure(id)` method.
+    -   *Expectation*: The retrieved object matches the original `atoms` object (positions, cell, numbers).
+    -   *Expectation*: The `status` field in the database is automatically set to "pending".
+    -   *Expectation*: The `config_type` (if provided) is stored correctly.
+6.  **Concurrency Check (Optional)**: The user tries to write to the DB from two different notebook cells/terminals.
+    -   *Expectation*: The SQLite database handles the lock gracefully (waiting or succeeding), ensuring no corruption.
+
+**Success Criteria:**
+-   The `mlip.db` file is created on disk if it doesn't exist.
+-   Data round-trip (Write -> Read) preserves floating-point precision of atomic positions.
+-   Metadata columns (`status`, `created_at`) are populated automatically.
+
+## 2. Behavior Definitions (Gherkin)
 
 ```gherkin
 Feature: Configuration Management
-  As a computational scientist
-  I want to initialize and validate project configurations
-  So that I don't waste time running simulations with bad parameters that will crash later
+  As a User
+  I want to configure the pipeline using a simple YAML file
+  So that I can define my scientific goals without writing Python code
 
-  Scenario: User initializes a new project in an empty folder
-    Given the current directory is empty
+  Background:
+    Given I have installed the "mlip_autopipec" package
+    And I am in a clean project directory
+
+  Scenario: Initialize a new project configuration
     When I run the command "mlip-auto init"
     Then a file named "input.yaml" should be created in the current directory
-    And the file should contain a "target_system" section with "elements" and "composition"
-    And the file should contain a "dft" section with "ecutwfc"
+    And the file "input.yaml" should contain the key "dft"
+    And the file "input.yaml" should contain the key "training"
 
-  Scenario: User validates a syntactically correct configuration
-    Given a file "good_config.yaml" exists
-    And the file contains "elements: ['Fe', 'Ni']"
-    And the file contains "ecutwfc: 50.0"
-    And the file contains "pseudopotential_dir: /tmp"
-    When I run the command "mlip-auto check-config good_config.yaml"
-    Then the system exit code should be 0
-    And the standard output should contain "Validation Successful" in green text
+  Scenario: Validate a correct configuration
+    Given a file "input.yaml" exists with the following content:
+      """
+      project_name: "ValidProject"
+      dft:
+        command: "mpirun -np 4 pw.x"
+        pseudopotential_dir: "./sssp"
+        ecutwfc: 50.0
+      training:
+        potential_name: "my_pot"
+      """
+    When I run the command "mlip-auto validate"
+    Then the exit code should be 0
+    And the output should contain "Configuration Validated Successfully"
 
-  Scenario: User validates a configuration with logical errors (Negative Cutoff)
-    Given a file "bad_config.yaml" exists
-    And the file contains "ecutwfc: -100.0"
-    When I run the command "mlip-auto check-config bad_config.yaml"
-    Then the system exit code should be 1
-    And the standard output should contain "ensure this value is greater than 0"
-    And the error message should specify the field "dft.ecutwfc"
+  Scenario: Reject configuration with invalid types
+    Given a file "input.yaml" exists with the following content:
+      """
+      project_name: "BadTypeProject"
+      dft:
+        ecutwfc: "fifty"  # String instead of float
+      """
+    When I run the command "mlip-auto validate"
+    Then the exit code should be 1
+    And the output should contain "Input should be a valid number"
 
-Feature: Database Management
-  As a system administrator
-  I need to persist atomic structures in a structured format
-  So that I can train models later and query the data provenance
+  Scenario: Reject configuration with physical constraints violation
+    Given a file "input.yaml" exists with the following content:
+      """
+      project_name: "NegativeCutoff"
+      dft:
+        ecutwfc: -10.0  # Physically impossible
+      """
+    When I run the command "mlip-auto validate"
+    Then the exit code should be 1
+    And the output should contain "Input should be greater than or equal to 20"
 
-  Scenario: Initialize Database
-    Given a valid configuration file specifying "mlip.db"
-    When I run the command "mlip-auto db init"
-    Then a SQLite database file named "mlip.db" should be created
-    And the database should have 0 rows initially
-    And the database should allow connections via ase.db
+Feature: Database Persistence
+  As a System Component
+  I want to store atomic structures reliably
+  So that they can be processed by downstream workers
+
+  Scenario: Auto-initialization of Database
+    Given the file "mlip.db" does not exist
+    When I initialize the DatabaseManager with path "mlip.db"
+    And I perform a write operation
+    Then the file "mlip.db" should be created on the disk
+
+  Scenario: Storing an Atom with Status
+    Given I have a valid ASE Atoms object representing "NaCl"
+    When I add the structure to the database using DatabaseManager
+    Then the entry should be retrievable by its ID
+    And the stored "status" should be "pending"
+    And the stored "positions" should match the original atoms within 1e-8 tolerance
 ```

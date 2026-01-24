@@ -1,100 +1,102 @@
-# Cycle 02 UAT: Physics-Informed Generator
+# Cycle 02 User Acceptance Testing (UAT) Plan
 
 ## 1. Test Scenarios
 
-### Scenario 2.1: Generate SQS Alloy Structures
--   **Priority**: Critical
--   **Description**: The user needs to generate chemically disordered structures for an Fe-Ni alloy to train the model on mixing energies. This ensures that the potential is not biased towards ordered phases (like L1_0 or L1_2) if the real material is a random solid solution.
--   **Pre-conditions**:
-    -   A valid config with `target_system: {elements: [Fe, Ni], composition: {Fe: 0.5, Ni: 0.5}}`.
-    -   Config enables SQS: `generator: {sqs_enabled: true}`.
-    -   DB is initialized and writeable.
--   **Detailed Steps**:
-    1.  User executes `mlip-auto generate --n_structures 10`.
-    2.  System reads the config and identifies the target composition (50/50).
-    3.  System calculates the supercell size (e.g., 2x2x2 FCC -> 32 atoms).
-    4.  System attempts to import `icet`. If present, it runs the Monte Carlo SQS generation.
-    5.  System generates 10 unique SQS realizations (or copies if uniqueness is hard to guarantee for small cells).
-    6.  System saves the structures to the DB with `config_type='sqs'`.
-    7.  User inspects the DB using `mlip-auto db list`.
--   **Post-conditions**:
-    -   The database contains 10 new entries.
-    -   Each entry contains exactly 16 "Fe" and 16 "Ni" atoms.
-    -   The metadata field `sqs` is present in the database record.
--   **Failure Modes**:
-    -   Impossible stoichiometry (e.g., 50% of 31 atoms). System should round or raise error.
-    -   `icet` import failure (should fallback to random).
+### Scenario ID: UAT-C02-001 - "The Cold Start": Generating an Initial Dataset for Aluminum
 
-### Scenario 2.2: Apply Elastic Strain (Equation of State)
--   **Priority**: High
--   **Description**: The user wants to cover the Pressure-Volume curve (Equation of State). The generator should produce compressed and expanded versions of the same structure. This allows the potential to learn the bulk modulus.
--   **Pre-conditions**:
-    -   Config has `strain_range: [-0.10, 0.10]` (compression to expansion).
--   **Detailed Steps**:
-    1.  User executes `mlip-auto generate --n_structures 100`.
-    2.  System creates base structures.
-    3.  For each structure, System generates a random strain tensor $\epsilon$.
-    4.  System applies the transformation $v' = (I + \epsilon) v$.
-    5.  System saves the result.
-    6.  User queries the database for volumes: `ase db mlip.db --limit 0`.
-    7.  User plots a histogram of cell volumes.
--   **Post-conditions**:
-    -   The volumes are distributed roughly uniformly between $V_0 * 0.9^3$ and $V_0 * 1.1^3$.
-    -   The lattice angles may deviate from 90 degrees if shear was included.
--   **Failure Modes**:
-    -   Extreme strain leads to atom overlap (caught later by Surrogate).
+**Priority:** High
+**Description:**
+This scenario validates the core value proposition of Cycle 02: the ability to generate a diverse, physically relevant dataset from scratch. The user acts as a materials scientist starting a new project on Aluminum. They want to generate a "Cold Start" dataset containing strained cells, thermal snapshots, and vacancies to train the initial version of the potential. This test ensures that the `Generator` module works as expected and integrates with the `Database` (mocked or real).
 
-### Scenario 2.3: Defect Generation (Vacancy)
--   **Priority**: Medium
--   **Description**: The user wants to train the potential to recognize missing atoms (Vacancies). This is crucial for diffusion studies.
--   **Pre-conditions**:
-    -   Config has `defects: {vacancy_probability: 1.0, count: 1}`.
--   **Detailed Steps**:
-    1.  User executes `mlip-auto generate --n_structures 5`.
-    2.  System generates a 32-atom supercell.
-    3.  System randomly selects 1 index to delete.
-    4.  System deletes the atom.
-    5.  System saves the 31-atom structure to DB.
-    6.  User checks the number of atoms in each structure.
--   **Post-conditions**:
-    -   Generated structures have 31 atoms (assuming 1 vacancy).
-    -   `config_type` contains "vacancy".
--   **Failure Modes**:
-    -   Removing too many atoms (collapsing the cell).
+**User Story:**
+As a Computational Materials Scientist, I want to automatically generate 100+ diverse configurations of Aluminum, including expanded/compressed cells and vacancy defects, so that I can start training my MLIP without having to manually construct each geometry in a GUI tool like VESTA. I expect the system to handle the supercell creation and randomisation deterministically.
 
-## 2. Behaviour Definitions
+**Step-by-Step Walkthrough:**
+1.  **Configuration**: The user modifies `input.yaml` to target "Al" (FCC) and enables the generator module.
+    -   `target_system`: Al, fcc, a=4.05.
+    -   `generator.supercell`: [3, 3, 3] (108 atoms).
+    -   `generator.strain_variants`: 10.
+    -   `generator.rattle_variants`: 10.
+    -   `generator.include_defects`: True.
+2.  **Execution**: The user runs `mlip-auto generate`.
+    -   *Expectation*: The CLI displays a progress bar: "Generating structures...".
+3.  **Output Verification (CLI)**: The CLI reports: "Successfully generated 52 structures (1 Base + 10 Strain + 10 Rattle + 1 Vacancy + 30 Combinations)." (Exact number depends on logic).
+4.  **Visual Verification**: The user opens the database (or exported .xyz file) in a visualiser (Ovito).
+    -   *Action*: They inspect a "Rattle" structure.
+    -   *Observation*: Atoms are slightly displaced from perfect lattice sites.
+    -   *Action*: They inspect a "Vacancy" structure.
+    -   *Observation*: One atom is missing from the 108-atom grid.
+    -   *Action*: They inspect a "Strain" structure.
+    -   *Observation*: The cubic box is now slightly triclinic or rectangular.
+5.  **Clash Check**: The user runs a provided utility script to check minimal distances.
+    -   *Expectation*: No interatomic distance is less than 2.0 Angstroms (Al-Al bond is ~2.86). This confirms the generator didn't create "nuclear fusion" configurations.
+
+**Success Criteria:**
+-   The generator runs without crashing.
+-   The output structures span the requested parameter space (strain $\pm 5\%$, rattle $\sigma=0.1$).
+-   Defects are correctly identified (107 atoms instead of 108).
+-   All structures are tagged with correct `config_type` metadata.
+
+### Scenario ID: UAT-C02-002 - Deterministic Reproduction of Datasets
+
+**Priority:** Medium
+**Description:**
+Science requires reproducibility. This scenario ensures that if a user shares their `input.yaml` and `seed` with a colleague, the colleague generates the *exact same* atomic structures. This is critical for debugging and for validating results in publications.
+
+**User Story:**
+As a Researcher publishing a paper, I want to ensure that my dataset generation is deterministic. If I re-run the generation command with the same random seed, I must get bitwise-identical coordinates. This allows me to distribute my methodology without distributing gigabytes of structure files.
+
+**Step-by-Step Walkthrough:**
+1.  **Run A**: The user sets `seed: 12345` in `input.yaml` and runs `mlip-auto generate`.
+2.  **Snapshot A**: The user exports the result to `run_a.xyz`.
+3.  **Run B**: The user clears the database, ensures the config is identical, and runs `mlip-auto generate` again.
+4.  **Snapshot B**: The user exports the result to `run_b.xyz`.
+5.  **Comparison**: The user runs `diff run_a.xyz run_b.xyz`.
+    -   *Expectation*: The diff returns nothing (or only timestamp differences in headers). The coordinates and cell vectors must be identical to the last decimal place.
+6.  **Run C (Control)**: The user changes `seed: 67890` and runs `mlip-auto generate`.
+    -   *Expectation*: The resulting structures are statistically similar (same distribution) but the specific coordinates are different.
+
+**Success Criteria:**
+-   Run A and Run B produce identical outputs.
+-   Run C produces different outputs.
+-   This validates the correct propagation of the Random Number Generator (RNG) state throughout the `StructureBuilder`, `StrainGenerator`, and `RattleGenerator` classes.
+
+## 2. Behavior Definitions (Gherkin)
 
 ```gherkin
-Feature: Structure Generation
-  As a materials scientist
-  I want to generate physically diverse atomic structures
-  So that my machine learning model learns valid physics across the phase diagram
+Feature: Physics-Informed Structure Generation
+  As a User
+  I want to generate diverse atomic configurations
+  So that I can train a robust machine learning potential
 
-  Scenario: Generating a 50-50 Alloy SQS
-    Given a target system of Fe and Ni with 50-50 composition
-    And a supercell size of 32 atoms
-    When I run the generator command with "sqs_enabled=true"
-    Then the resulting structure should contain exactly 16 Fe atoms and 16 Ni atoms
-    And the structure config_type should be recorded as "sqs"
+  Background:
+    Given I have a configured "Al" system
+    And the "StructureBuilder" is initialized with a seed "42"
 
-  Scenario: Applying Hydrostatic Strain
-    Given a base unit cell of volume 100 A^3
-    And a requested strain range of +/- 10%
-    When the generator applies random strain
-    Then the resulting volume should be strictly between 72.9 and 133.1 A^3
-    And the lattice vectors should remain orthogonal (for pure hydrostatic strain)
+  Scenario: Generate Rattle Variants
+    When I request 5 rattle variants with sigma=0.1
+    Then I should receive 5 distinct Atoms objects
+    And each object should have the same cell dimensions as the primitive
+    And the maximum displacement of any atom should be approx 0.3 Angstroms (3 sigma)
+    And the `config_type` metadata should start with "rattle"
 
-  Scenario: Thermal Rattling
-    Given a perfect crystal structure
-    And a rattle standard deviation of 0.1 Angstrom
-    When the generator applies rattling
-    Then the atomic positions should deviate from the perfect lattice sites
-    But the cell vectors should remain unchanged (Volume is constant)
+  Scenario: Generate Strain Variants
+    When I request a strain variant with 5% expansion
+    Then the volume of the new cell should be roughly 1.15 times the original volume
+    And the fractional coordinates of atoms should remain constant
+    And the `config_type` metadata should be "strain_vol_expansion"
 
-  Scenario: Database Persistence and Provenance
-    Given an empty database
-    When I generate 100 structures
-    Then the database count should increase by 100
-    And each new record should have a unique UUID
-    And the generation tag should be 0 (Initial set)
+  Scenario: Generate Vacancy Defect
+    Given a supercell with 32 atoms
+    When I request vacancy generation
+    Then I should receive a list of structures
+    And each structure should have exactly 31 atoms
+    And the structure should preserve the cell dimensions of the supercell
+
+  Scenario: Prevent Atomic Clashes
+    Given I request a high-amplitude rattle (sigma=1.0)
+    And I have enabled the "minimal_distance_filter" with cutoff 1.5A
+    When the generator produces a structure with atoms closer than 1.0A
+    Then that structure should be discarded or regenerated
+    And the final list should only contain physically reasonable structures
 ```

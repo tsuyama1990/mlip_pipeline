@@ -1,95 +1,82 @@
-# Cycle 04 UAT: Automated DFT Factory
+# Cycle 04 User Acceptance Testing (UAT) Plan
 
 ## 1. Test Scenarios
 
-### Scenario 4.1: Successful Static Calculation
--   **Priority**: Critical
--   **Description**: Run a standard SCF calculation on a clean structure. This validates the happy path of the DFT factory.
--   **Pre-conditions**:
-    -   DB has 1 structure with `status="selected"`.
-    -   Quantum Espresso (`pw.x`) is installed or a valid mock is on the `$PATH`.
-    -   Pseudopotential files are present.
--   **Detailed Steps**:
-    1.  User executes `mlip-auto calculate`.
-    2.  System queries DB for pending tasks. Finds one.
-    3.  System creates a temporary directory `_work/calc_{uuid}`.
-    4.  System writes `pw.in` with correct atomic positions and species.
-    5.  System executes `pw.x < pw.in > pw.out`.
-    6.  Process returns exit code 0.
-    7.  System parses `pw.out`. Finds "JOB DONE". Extracts Energy (-1234.5 eV).
-    8.  System updates DB with `status="completed"`.
--   **Post-conditions**:
-    -   The structure in DB has valid float values for Energy and Forces.
-    -   The working directory is cleaned up (optional, depending on config).
--   **Failure Modes**:
-    -   `pw.x` not found.
-    -   Pseudopotential missing.
+### Scenario ID: UAT-C04-001 - The First Quantum Leap (Running a DFT Calculation)
 
-### Scenario 4.2: Convergence Failure Recovery (The "Ladder")
--   **Priority**: High
--   **Description**: Simulate a hard-to-converge system to verify the self-healing logic. This is the core value proposition of the "Factory".
--   **Pre-conditions**:
-    -   A structure known to be difficult (e.g., a slab with high spin).
-    -   Alternatively, use a Mock Runner that is programmed to fail the first 2 times.
--   **Detailed Steps**:
-    1.  System launches Attempt 1 (Default Params: `mixing_beta=0.7`).
-    2.  Mock Runner waits 1 second and returns success, but writes "convergence not achieved" to the output file.
-    3.  Parser reads output, raises `DFTConvergenceError`.
-    4.  System catches error. Logs "Convergence Error. Retrying with Strategy: REDUCE_MIXING".
-    5.  System launches Attempt 2 (Params: `mixing_beta=0.3`).
-    6.  Mock Runner writes "convergence not achieved" again.
-    7.  System catches error. Logs "Retrying with Strategy: CG_DIAGONALIZATION".
-    8.  System launches Attempt 3.
-    9.  Mock Runner writes "JOB DONE".
-    10. System marks task as successful.
--   **Post-conditions**:
-    -   The final status is `completed`.
-    -   The logs show the history of retries.
--   **Failure Modes**:
-    -   System gives up too early.
-    -   System gets stuck in an infinite loop.
+**Priority:** High
+**Description:**
+This is a critical milestone. We verify that the system can bridge the gap between the "Python World" (ASE atoms) and the "Fortran World" (Quantum Espresso). The user manually triggers a calculation for a specific structure and verifies that the results (Forces, Energy) are correctly stored in the database.
 
-### Scenario 4.3: Fatal Error Handling
--   **Priority**: Medium
--   **Description**: Some errors are unrecoverable (e.g., Segmentation Fault, Disk Full). The system must recognize these and stop wasting resources.
--   **Pre-conditions**:
-    -   Mock `pw.x` to return exit code 139 (Segfault).
--   **Detailed Steps**:
-    1.  System launches Attempt 1.
-    2.  Process crashes immediately with exit code 139.
-    3.  System determines this is not a convergence error.
-    4.  System marks structure as `failed`.
-    5.  System logs the stderr output for debugging.
--   **Post-conditions**:
-    -   Structure status is `failed`.
-    -   Pipeline proceeds to the next structure in the queue.
-    -   System does not hang.
+**User Story:**
+As a Researcher, I want to manually process a specific candidate structure (e.g., ID=1) to verify my DFT settings (pseudopotentials, cutoffs) are correct. I expect the system to generate the input file, run `pw.x`, and automatically save the results without me parsing text files manually.
 
-## 2. Behaviour Definitions
+**Step-by-Step Walkthrough:**
+1.  **Preparation**: The user ensures `pw.x` is in the path (or uses a mock). They have a database with 1 PENDING structure (e.g., Silicon).
+2.  **Configuration**: The user sets `dft.command: mpirun -np 4 pw.x`.
+3.  **Execution**: The user runs `mlip-auto run-job --id 1`.
+    -   *Expectation*: The CLI logs: "Starting job 1...", "Generating inputs...", "Running QE...", "Parsing results...".
+    -   *Expectation*: The process finishes with "Job 1 Completed Successfully."
+4.  **Verification (Database)**: The user inspects the database.
+    -   `status`: Changed from `Pending` to `Completed`.
+    -   `energy`: Should be present (approx -1000 eV).
+    -   `forces`: A (N,3) array should be stored.
+    -   `stress`: A (3,3) array should be stored.
+5.  **Verification (Files)**: The user checks the working directory.
+    -   *Expectation*: The temporary folder is gone (cleanup successful).
+
+**Success Criteria:**
+-   The status transition is correct.
+-   The numerical data is populated.
+-   No zombie processes are left running.
+
+### Scenario ID: UAT-C04-002 - Handling Invalid Pseudopotentials (Fail Fast)
+
+**Priority:** Medium
+**Description:**
+A common error is missing pseudopotential files. The system should detect this before launching the MPI process.
+
+**User Story:**
+As a User, I accidentally pointed `pseudopotential_dir` to an empty folder. I want the system to tell me immediately that it can't find "Si.upf" rather than crashing with a cryptic Fortran error inside the MPI runtime.
+
+**Step-by-Step Walkthrough:**
+1.  **Configuration**: User sets `dft.pseudopotential_dir` to `/tmp/empty`.
+2.  **Execution**: User runs `mlip-auto run-job --id 1`.
+3.  **Result**: The CLI prints a generic error or specific error.
+    -   *Expectation*: "Error: Pseudopotential for element 'Si' not found in /tmp/empty."
+4.  **Database State**:
+    -   *Expectation*: The job status remains `Pending` (or `Failed` with a clear reason), not stuck in `Running`.
+
+**Success Criteria:**
+-   Clear error message identifying the missing file.
+-   Graceful exit.
+
+## 2. Behavior Definitions (Gherkin)
 
 ```gherkin
-Feature: DFT Execution Factory
-  As an automated system
-  I want to run quantum mechanical calculations robustly
-  So that I can build a training dataset without human babysitting
+Feature: Automated DFT Execution
+  As a Compute Node
+  I want to execute Quantum Espresso calculations based on database entries
+  So that I can generate training data for the ML model
 
-  Scenario: Standard SCF Execution
-    Given a selected candidate structure
-    When the DFT Runner executes
-    Then a Quantum Espresso input file should be generated with "tprnfor=.true."
-    And the calculation should produce an output file
-    And the energy and forces should be extracted to the database
+  Background:
+    Given the database contains a structure with ID 100
+    And the structure is status "PENDING"
+    And the DFT configuration is valid
 
-  Scenario: Recovering from Convergence Failure
-    Given a calculation that fails to converge within 100 steps
-    When the runner detects the "convergence not achieved" message
-    Then it should NOT mark the task as failed
-    But it should generate a new input file with "mixing_beta" reduced
-    And it should restart the calculation
+  Scenario: Successful SCF Calculation
+    When I trigger the DFT runner for ID 100
+    Then the input file "pw.in" should be generated
+    And the command "pw.x" should be executed
+    And the output should be parsed
+    And the database entry 100 should have status "COMPLETED"
+    And the database entry 100 should contain "energy" and "forces"
 
-  Scenario: Handling Garbage Output
-    Given a calculation that finishes but prints NaN for forces
-    When the parser reads the output
-    Then it should raise a runtime error
-    And the result should be discarded to prevent poisoning the training set
+  Scenario: Automatic K-point Generation
+    Given a large supercell (10x10x10 Angstrom)
+    And a small primitive cell (3x3x3 Angstrom)
+    And a k-spacing of 0.2 1/Angstrom
+    When the input file is generated
+    Then the large supercell should have fewer k-points (e.g., 2x2x2)
+    And the small primitive cell should have more k-points (e.g., 6x6x6)
 ```

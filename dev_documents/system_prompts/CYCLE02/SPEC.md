@@ -1,141 +1,181 @@
-# Cycle 02 Specification: Physics-Informed Generator
+# Cycle 02 Specification: The Physics-Informed Generator (Module A)
 
 ## 1. Summary
 
-Cycle 02 focuses on **Module A: Generator**. In the context of machine learning potentials, the quality of the initial training data largely determines the final performance of the model. If we start with only ground-state structures (perfect crystals), the model will fail catastrophically when simulations heat up or deform (the "extrapolation" problem). Conversely, if we use purely random structures, the high energies will cause convergence issues in DFT and teach the model irrelevant high-energy physics.
+Cycle 02 focuses on the "Big Bang" of the MLIP-AutoPipe universe: **Structure Generation**. Before we can train a potential, we need data. And not just any data—we need physically relevant, diverse, and information-rich configurations. The goal of this cycle is to implement Module A (Physics-Informed Generator), which transforms the user's simple input (e.g., "Fe-Ni FCC") into thousands of candidate structures ready for evaluation.
 
-The goal of this cycle is to implement a "Physics-Informed" generation strategy. Instead of brute-force randomness, we use scientifically grounded algorithms:
-1.  **Special Quasirandom Structures (SQS)**: For alloys (e.g., Fe-Ni), we cannot simulate infinite randomness in a small box. SQS allows us to construct a small supercell (e.g., 32 atoms) that mathematically mimics the correlation functions of a perfectly random infinite alloy. This provides the "canonical" disordered state.
-2.  **Lattice Strain**: To teach the model about elasticity and pressure (Equation of State), we apply affine transformations to the simulation box. This includes isotropic compression/expansion and shear deformations.
-3.  **Atomic Rattling**: To simulate thermal vibrations (phonons), we displace atoms slightly from their equilibrium positions using Gaussian noise.
-4.  **Defect Engineering**: Real materials have defects. We programmatically introduce vacancies (removing atoms) and interstitials (inserting atoms) to ensure the potential learns about defect formation energies.
+We will implement three distinct generation strategies:
+1.  **Combinatorial Generation (SQS)**: For alloy systems, we cannot simulate every possible arrangement of atoms. We will use Special Quasirandom Structures (SQS) to generate small supercells that statistically mimic the random correlations of an infinite solid solution.
+2.  **Elastic & Thermal Perturbations**: A static crystal teaches the potential nothing about forces. We will implement a `StrainGenerator` to apply volumetric and shear strains (simulating high pressure and stress) and a `RattleGenerator` to apply Gaussian noise to atomic positions (simulating thermal vibrations). This ensures the potential learns the equation of state (EOS) and phonon properties.
+3.  **Defect Engineering**: Real materials have defects. We will implement a `DefectGenerator` that automatically injects vacancies, interstitials, and antisite defects into the supercells. This is crucial for training potentials that can accurately predict diffusion barriers and mechanical failure.
 
-By the end of this cycle, the system will be able to programmatically populate the database with thousands of these diverse, physically meaningful structures, ready for the Surrogate module (Cycle 03).
+By the end of this cycle, the system will be able to populate the database with a "Cold Start" dataset—thousands of `PENDING` structures—without requiring any DFT calculations yet.
 
 ## 2. System Architecture
 
-The focus is on the `generator` package and its integration with `data_models` and `config`.
+Files marked in **bold** are new or modified in this cycle.
 
-### File Structure
-**bold** files are to be created or modified.
+### 2.1. File Structure
 
-```
+```ascii
 mlip_autopipec/
-├── generator/
-│   ├── **__init__.py**
-│   ├── **builder.py**          # Main StructureBuilder Facade
-│   ├── **sqs.py**              # SQS Generation Logic (wraps icet/ase)
-│   ├── **transformations.py**  # Strain and Rattle logic
-│   └── **defects.py**          # Point defect generation
-├── data_models/
-│   └── **structure_enums.py**  # Enum for structure types (SQS, Defect, etc.)
-└── config/
-    └── schemas/
-        └── **generator.py**    # Config for generator parameters
+├── src/
+│   └── mlip_autopipec/
+│       ├── config/
+│       │   ├── models.py               # Updated with GeneratorConfig
+│       │   └── schemas/
+│       │       └── **generator.py**    # Generator Configuration Schema
+│       ├── **generator/**
+│       │   ├── **__init__.py**
+│       │   ├── **builder.py**          # Base Builder & SQS Logic
+│       │   ├── **transformations.py**  # Strain & Rattle Logic
+│       │   └── **defects.py**          # Point Defect Injection
+│       └── data_models/
+│           └── status.py               # JobStatus
+└── tests/
+    └── generator/
+        ├── **test_builder.py**
+        ├── **test_transformations.py**
+        └── **test_defects.py**
 ```
 
-### Data Dictionary
+### 2.2. Code Blueprints
 
-| Model Name | Field | Type | Description |
-| :--- | :--- | :--- | :--- |
-| **SQSConfig** | enabled | bool | If True, use SQS. If False, use random substitution. |
-| | supercell_size | List[int] | Dimensions of supercell (e.g., `[2, 2, 2]`). |
-| **DistortionConfig** | enabled | bool | If True, apply strain and rattle. |
-| | strain_range | Tuple[float, float] | Range of linear strain (e.g., `(-0.05, 0.05)`). |
-| | rattle_stdev | float | Standard deviation of Gaussian noise for thermal displacements (Angstrom). |
-| **DefectConfig** | enabled | bool | If True, apply defects. |
-| | vacancies | bool | Enable vacancy generation. |
-| | interstitials | bool | Enable interstitial generation. |
-| | interstitial_elements | List[str] | Elements to insert as interstitials (optional). |
-| **GeneratorConfig** | sqs | SQSConfig | SQS configuration. |
-| | distortion | DistortionConfig | Distortion configuration. |
-| | defects | DefectConfig | Defect configuration. |
-| | number_of_structures | int | Number of unique structures to generate per batch. |
-| **CandidateData** | atoms | ase.Atoms | The atomic structure. |
-| | config_type | str | Tag indicating origin (e.g., "sqs_strained"). |
-| | provenance | dict | Metadata (e.g., `{"strain": 0.02, "rattle": 0.1}`). |
+#### `src/mlip_autopipec/config/schemas/generator.py`
+Defines how many structures to generate and what distortions to apply.
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class GeneratorConfig(BaseModel):
+    supercell_size: List[int] = Field(default=[2, 2, 2], description="Supercell expansion matrix diagonal")
+    num_sqs: int = Field(default=5, description="Number of distinct SQS to generate per composition")
+    strain_range: tuple[float, float] = (-0.05, 0.05)
+    rattle_amplitude: float = 0.1
+    include_defects: bool = True
+```
+
+#### `src/mlip_autopipec/generator/transformations.py`
+Applies physical distortions to atoms.
+
+```python
+import numpy as np
+from ase import Atoms
+from copy import deepcopy
+
+def apply_strain(atoms: Atoms, strain_tensor: np.ndarray) -> Atoms:
+    """Applies a deformation gradient to the cell and positions."""
+    new_atoms = deepcopy(atoms)
+    deformation = np.eye(3) + strain_tensor
+    new_cell = np.dot(new_atoms.cell, deformation)
+    new_atoms.set_cell(new_cell, scale_atoms=True)
+    return new_atoms
+
+def apply_rattle(atoms: Atoms, stdev: float, rng: np.random.Generator) -> Atoms:
+    """Adds Gaussian noise to atomic positions."""
+    new_atoms = deepcopy(atoms)
+    noise = rng.normal(0, stdev, size=new_atoms.positions.shape)
+    new_atoms.positions += noise
+    return new_atoms
+```
+
+#### `src/mlip_autopipec/generator/defects.py`
+Injects point defects using Pymatgen (via adapter) or direct ASE manipulation.
+
+```python
+from ase import Atoms
+from typing import List
+
+class DefectGenerator:
+    def generate_vacancies(self, atoms: Atoms) -> List[Atoms]:
+        """Returns a list of atoms objects, each with one atom removed."""
+        candidates = []
+        for i in range(len(atoms)):
+            temp = atoms.copy()
+            del temp[i]
+            candidates.append(temp)
+        return candidates # In reality, we filter by symmetry
+```
 
 ## 3. Design Architecture
 
-### Configuration (`GeneratorConfig`)
-We add a new section to the Pydantic config in `config/schemas/generator.py`.
--   **SQSConfig**:
-    -   `enabled`: `bool`.
-    -   `supercell_size`: `List[int]` (e.g., `[2, 2, 2]`). Defines the size of the box relative to the primitive cell.
--   **DistortionConfig**:
-    -   `enabled`: `bool`.
-    -   `strain_range`: `Tuple[float, float]` (e.g., `(-0.05, 0.05)`). Min and max linear strain.
-    -   `rattle_stdev`: `float` (Angstroms). The standard deviation of the Gaussian noise.
--   **DefectConfig**:
-    -   `enabled`: `bool`.
-    -   `vacancies`: `bool`.
-    -   `interstitials`: `bool`.
-    -   `interstitial_elements`: `List[str]`.
--   **GeneratorConfig**:
-    -   Aggregates the above.
-    -   `number_of_structures`: `int`. How many structures to generate in a batch.
+### 3.1. Domain Concepts
 
-### Generation Strategy Pattern
-The `StructureBuilder` class acts as a Facade for various strategies. This allows us to plug in new generation methods (e.g., Interface generation) later without changing the core loop.
+1.  **The "Seed" Structure**: Generation always starts from a "primitive cell" (e.g., a 2-atom FCC unit cell provided by the user).
+2.  **The "Supercell" Expansion**: To capture disorder and defects, we must expand the primitive cell. A $2 \times 2 \times 2$ expansion of a 4-atom cubic cell yields 32 atoms. This is the "Working Unit" for DFT.
+    -   *Constraint*: The supercell must be large enough to avoid defect self-interaction (images seeing each other), but small enough to be computationally feasible ($< 200$ atoms usually).
+3.  **Compositional Enumeration**: For an alloy $A_x B_{1-x}$, we don't just generate $x$. We generate $x \pm \delta$.
+    -   *Design Choice*: We use `icet` (if available) or `ase.build.sqs` to find the best atomic ordering that matches the random correlation functions.
+4.  **Deterministic Randomness**: All generation logic must accept a `seed` or a `numpy.random.Generator` instance. This ensures that if we re-run the pipeline with the same config, we get the exact same set of structures. This is vital for debugging.
 
-1.  **`SQSStrategy` (Chemical Order)**:
-    -   **Algorithm**: If `icet` is installed, use `icet.tools.structure_generation.generate_sqs`. This minimizes the error between the cluster vector of the supercell and the target random vector.
-    -   **Fallback**: If `icet` is missing, create a supercell with the correct number of atoms (e.g., 16 Fe, 16 Ni), and use `numpy.random.shuffle` to swap positions.
-    -   **Input**: `Atoms` (primitive), `target_composition`.
-    -   **Output**: `Atoms` (supercell, chemically disordered).
+### 3.2. Consumers and Producers
 
-2.  **`StrainStrategy` (Elasticity)**:
-    -   **Algorithm**: $v' = (I + \epsilon) v$. Generate a strain tensor $\epsilon$.
-    -   **Hydrostatic**: $\epsilon_{xx} = \epsilon_{yy} = \epsilon_{zz} = \delta$. Off-diagonals are 0.
-    -   **Shear**: Off-diagonals are non-zero.
-    -   **Volume Preservation**: For pure shear, ensure $\det(I+\epsilon) = 1$.
-
-3.  **`DefectStrategy` (Topology)**:
-    -   **Vacancy**: Randomly select $N$ indices using `random.sample(range(len(atoms)), k=N)`. Create a new Atoms object excluding these indices.
-    -   **Interstitial**: Use Voronoi tessellation (via `scipy.spatial.Voronoi`) to find the vertices of the Wigner-Seitz cell (voids). Place an atom at the vertex with the largest distance to neighbors.
-
-### Data Flow
-1.  **User** runs `mlip-auto generate`.
-2.  **App** loads `GeneratorConfig`.
-3.  **`StructureBuilder`** initializes the base crystal structure (fcc/bcc) based on `TargetSystem`.
-4.  **`StructureBuilder`** loops $N$ times:
-    -   Clone the base structure.
-    -   Apply `SQSStrategy` (if alloy).
-    -   Apply `StrainStrategy` (randomly sample $\epsilon$ from range).
-    -   Apply `RattleStrategy` (randomly sample displacements).
-    -   (Optional) Apply `DefectStrategy` (with some probability).
-5.  **`StructureBuilder`** returns a list of `Atoms`.
-6.  **App** converts `Atoms` to `CandidateData` objects (adding metadata like `config_type="sqs_strained"` and `uuid`).
-7.  **`DatabaseManager`** saves them to SQLite.
+-   **Consumer**: `StructureBuilder` consumes `MLIPConfig` (specifically `generator` section) and the `target_system` definition.
+-   **Producer**: `StructureBuilder` produces a list of `ASEAtoms` objects. These are passed to the `DatabaseManager` (from Cycle 01) to be stored as `PENDING`.
+-   **Downstream**: In Cycle 03, the Surrogate will query these `PENDING` structures.
 
 ## 4. Implementation Approach
 
-1.  **Implement Strategies**:
-    -   Start with `transformations.py`. Implement `apply_strain(atoms, strain_tensor)` and `apply_rattle(atoms, sigma)`. These are pure functions. Use `atoms.set_cell(..., scale_atoms=True)` for strain.
-    -   Implement `defects.py`. Write a simple `create_vacancy(atoms, count=1)` function.
-    -   Implement `sqs.py`. Check for `icet` import. If `ImportError`, warn user and fall back to random shuffle.
-2.  **Build the Facade**:
-    -   Create `generator/builder.py`. The `StructureBuilder` class should take the config in `__init__`.
-    -   Method `build_batch() -> List[CandidateData]`. This manages the loop and applies the transformations sequentially. It generates unique IDs for each structure.
-3.  **Update Config**:
-    -   Add `generator` section to `config/models.py`. Ensure it's optional (default values provided).
-4.  **CLI Integration**:
-    -   Add `generate` command to `app.py`. It should call `builder.build_batch()` and then `db.save_candidates()`.
-    -   Add a flag `--dry-run` to print what would be generated without saving.
+### Step 1: Transformation Logic (The "Math" Layer)
+We start by implementing `transformations.py`. These are pure functions (no side effects).
+-   **Task**: Implement `apply_strain`. It should handle both isotropic expansion and shear strains. We need a helper to generate random strain tensors.
+-   **Task**: Implement `apply_rattle`. Simple Gaussian noise.
+
+### Step 2: Defect Logic
+We implement `defects.py`.
+-   **Task**: Implement `VacancyGenerator`. Iterate through unique Wyckoff sites (using `spglib` via ASE) to avoid generating identical vacancies in symmetric crystals.
+-   **Task**: Implement `InterstitialGenerator`. This is harder. We might need Voronoi tessellation to find voids, or use `pymatgen.analysis.defects`. For Cycle 02, a random insertion with a minimum distance check is a sufficient MVP.
+
+### Step 3: The Builder Orchestrator
+We implement `builder.py`.
+-   **Task**: Create `StructureBuilder` class.
+-   **Method**: `build_initial_set()`. This orchestrates the flow:
+    1.  Create Supercell.
+    2.  Apply SQS (if alloy).
+    3.  Generate variants:
+        -   5 Strain variants.
+        -   5 Rattle variants.
+        -   1 Vacancy variant.
+    4.  Return flattened list of Atoms.
+
+### Step 4: Integration with Config
+-   **Task**: Update `MLIPConfig` to include `GeneratorConfig`.
+-   **Task**: Ensure defaults are sensible (e.g., don't create 1000 rattle variants by default).
 
 ## 5. Test Strategy
 
-### Unit Testing
--   **Strain Transformation**: Create a unit cube (1x1x1). Apply 10% hydrostatic strain. Assert new volume is $1.1^3 \approx 1.331$. Assert angles are still 90 degrees.
--   **Shear Transformation**: Apply shear. Assert volume is roughly constant (for small strains) but angles change.
--   **Rattle**: Create a chain of atoms. Rattle with $\sigma=0.1$. Assert positions changed. Assert `norm(old - new)` is approx 0.1 (statistically).
--   **Vacancy**: Create 100 atoms. Apply 1 vacancy. Assert len is 99.
--   **SQS**: Generate an Fe50Ni50 structure. Verify atom counts are equal.
+### 5.1. Unit Testing Approach (Min 300 words)
+We verify the physical correctness of the transformations.
 
-### Integration Testing
--   **End-to-End Generation**:
-    -   Run `mlip-auto generate` with `n=10`.
-    -   Check DB count is 10.
-    -   Inspect metadata: `config_type` should be present and correct.
-    -   Check uniqueness: Generated structures should not be identical (check positions or simple hash).
-    -   Check persistence: Close and reopen DB, ensure data is still there.
+-   **Strain Test**:
+    -   Create a unit cube (1x1x1).
+    -   Apply 10% tensile strain in X.
+    -   Assert new cell vector is [1.1, 0, 0].
+    -   Assert volume increased by roughly 10%.
+-   **Rattle Test**:
+    -   Create a grid of atoms.
+    -   Apply rattle with $\sigma=0.1$.
+    -   Assert positions have changed.
+    -   Assert mean displacement is close to 0 (noise is centred).
+-   **Symmetry Test (Vacancy)**:
+    -   Create a perfect FCC crystal (all atoms equivalent).
+    -   Request vacancies.
+    -   Assert only **one** unique vacancy structure is returned (due to symmetry).
+-   **Reproducibility Test**:
+    -   Run `apply_rattle` with seed=42 twice.
+    -   Assert exact bitwise equality of positions.
+
+### 5.2. Integration Testing Approach (Min 300 words)
+We verify the pipeline from Config to List[Atoms].
+
+-   **Pipeline Flow**:
+    -   Define a `GeneratorConfig` with `num_sqs=2`, `strain_count=3`.
+    -   Instantiate `StructureBuilder`.
+    -   Call `build()`.
+    -   Assert returned list length = $2 \times (1 + 3) = 8$ (Base + Strains) - *Formula depends on exact logic*.
+-   **Physical Sanity Check**:
+    -   Check that no two atoms in the generated set are closer than 0.5 Angstroms (prevent nuclear fusion).
+    -   Check that cell volumes are within physically reasonable bounds (e.g., not compressed to density of black hole).
+-   **Metadata Check**:
+    -   Verify that each generated atom object has `info['config_type']` set (e.g., 'strain_0.05', 'vacancy_Fe'). This is crucial for tracking data provenance in the database later.
