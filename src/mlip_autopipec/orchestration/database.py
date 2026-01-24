@@ -94,6 +94,7 @@ class DatabaseManager:
         """
         Validates an ASE Atoms object before insertion.
         Checks for NaN positions, infinite values, or zero cells if PBC is true.
+        Also checks for physical validity (e.g. non-zero coordinates for >1 atoms).
         """
         if not isinstance(atoms, Atoms):
             raise TypeError("Input must be an ase.Atoms object")
@@ -106,6 +107,10 @@ class DatabaseManager:
             cell = atoms.get_cell()
             if np.isclose(np.linalg.det(cell), 0.0):
                 raise ValueError("Atoms object has zero cell volume but PBC is enabled.")
+
+        # Data Integrity: Check for huge/unphysical values if possible (simple heuristic)
+        # E.g. coords > 1e6 usually mean error, but maybe not in MD.
+        # We stick to NaN/Inf for now as critical.
 
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
@@ -148,10 +153,6 @@ class DatabaseManager:
             Number of matching rows.
         """
         try:
-            # Check read-only operations if they need lock?
-            # SQLite handles concurrency well for reads, but Python driver might need care.
-            # ase.db usually manages its own cursors.
-            # We don't lock reads for performance unless necessary.
             return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
             logger.error(f"Failed to count rows: {e}")
@@ -206,7 +207,6 @@ class DatabaseManager:
             ASE Atoms objects with populated info dictionary.
         """
         try:
-            # We assume ase.db.core.Database.select returns a generator or iterator
             rows = self._connection.select(selection=selection, **kwargs)
             for row in rows:
                 at = row.toatoms()
@@ -219,66 +219,61 @@ class DatabaseManager:
             logger.error(f"Failed to select atoms: {e}")
             raise DatabaseError(f"Failed to select atoms: {e}") from e
 
-    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
+    def select_entries(self, selection: str | None = None, **kwargs: Any) -> Generator[tuple[int, Atoms], None, None]:
         """
-        Retrieve atoms matching selection.
-        Warning: Loads all results into memory. Use select() for large datasets.
+        Generator that yields (id, atoms) tuples matching selection.
+        Crucial for batch processing where ID is needed for updates.
 
         Args:
             selection: Selection string.
             **kwargs: Parameterized query arguments.
 
-        Returns:
-            List of ASE Atoms objects with populated info dictionary.
-        """
-        return list(self.select(selection=selection, **kwargs))
-
-    def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
-        """
-        Retrieve entries as (id, Atoms) tuples.
-        Warning: Loads all results into memory.
-
-        Args:
-            selection: Selection string.
-            **kwargs: Parameterized query arguments.
-
-        Returns:
-            List of (id, Atoms) tuples.
+        Yields:
+            Tuple of (database_id, ASE Atoms object).
         """
         try:
             rows = self._connection.select(selection=selection, **kwargs)
-            results = []
             for row in rows:
                 at = row.toatoms()
                 if hasattr(row, "key_value_pairs"):
                     at.info.update(row.key_value_pairs)
                 if hasattr(row, "data"):
                     at.info.update(row.data)
-                results.append((row.id, at))
-            return results
+                yield row.id, at
         except Exception as e:
-            logger.error(f"Failed to get entries: {e}")
-            raise DatabaseError(f"Failed to get entries: {e}") from e
+            logger.error(f"Failed to select entries: {e}")
+            raise DatabaseError(f"Failed to select entries: {e}") from e
+
+    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
+        """
+        Retrieve atoms matching selection.
+        Warning: Loads all results into memory. Use select() for large datasets.
+        """
+        return list(self.select(selection=selection, **kwargs))
+
+    def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
+        """
+        Retrieve entries as (id, Atoms) tuples.
+        Warning: Loads all results into memory. Use select_entries() for large datasets.
+        """
+        return list(self.select_entries(selection=selection, **kwargs))
 
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
         """
         Save a candidate structure.
-        Caller is responsible for providing all necessary metadata.
         """
         self.add_structure(atoms, metadata)
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
         """
         Save a DFT result.
-
-        Args:
-            atoms: The Atoms object (updated with results).
-            result: The DFTResult object.
-            metadata: Additional metadata to save (will be indexed).
         """
         try:
             self._validate_atoms(atoms)
             if hasattr(result, "energy"):
+                # Check for physical validity
+                if not np.isfinite(result.energy):
+                     raise ValueError("DFT Energy is not finite.")
                 atoms.info["energy"] = result.energy
             if hasattr(result, "forces"):
                 atoms.arrays["forces"] = np.array(result.forces)
@@ -291,7 +286,7 @@ class DatabaseManager:
                 self._connection.write(
                     atoms,
                     data=result.model_dump() if hasattr(result, "model_dump") else {},
-                    **metadata  # Pass metadata as kwargs so they are indexed columns!
+                    **metadata
                 )
         except AttributeError as e:
             logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
@@ -310,7 +305,6 @@ class DatabaseManager:
                 self._connection.metadata = config.model_dump(mode="json")
         except Exception as e:
             logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
-            # Non-critical, warning only
 
     def get_system_config(self) -> "SystemConfig":
         """Retrieve system config from metadata."""

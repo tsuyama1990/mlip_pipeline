@@ -52,6 +52,9 @@ class SystemConfig(BaseModel):
     minimal: MinimalConfig | None = None
     target_system: TargetSystem | None = None
     dft_config: DFTConfig | None = None
+
+    # Use defaults but allow override.
+    # TODO: In future iterations, move these defaults to a global constants file.
     working_dir: Path = Path("_work")
     db_path: Path = Path("mlip.db")
     log_path: Path = Path("mlip.log")

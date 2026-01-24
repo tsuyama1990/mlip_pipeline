@@ -60,15 +60,28 @@ class QERunner(DFTRunner):
     def _validate_command(self, command: str) -> list[str]:
         """
         Validates and splits the command string safely.
+        Enforces strict security checks.
         """
-        if any(char in command for char in [";", "&", "|", "`", "$"]):
-             raise DFTFatalError("Command contains potentially unsafe shell characters.")
-
-        parts = shlex.split(command)
-        if not parts:
+        if not command:
             raise DFTFatalError("Command is empty.")
 
+        # Check for forbidden characters that might indicate shell injection attempts
+        # independent of shlex splitting.
+        forbidden = [";", "&", "|", "`", "$", "(", ")", "<", ">"]
+        if any(char in command for char in forbidden):
+             raise DFTFatalError("Command contains unsafe shell characters.")
+
+        try:
+            parts = shlex.split(command)
+        except ValueError as e:
+            raise DFTFatalError(f"Command string could not be parsed: {e}") from e
+
+        if not parts:
+            raise DFTFatalError("Command parses to empty list.")
+
         executable = parts[0]
+
+        # Verify executable exists
         if not shutil.which(executable):
              raise DFTFatalError(f"Executable '{executable}' not found in PATH.")
 
@@ -83,6 +96,7 @@ class QERunner(DFTRunner):
     )
     def _execute_subprocess_with_retry(self, cmd: list[str], cwd: Path, stdout_f, timeout: float) -> subprocess.CompletedProcess:
         try:
+            # STRICT SECURITY: shell=False is mandatory.
             return subprocess.run(
                 cmd,
                 check=False,

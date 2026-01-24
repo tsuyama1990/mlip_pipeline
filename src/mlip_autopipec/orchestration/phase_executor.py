@@ -1,8 +1,7 @@
-import itertools
 import logging
-from collections.abc import Iterable, Iterator
+import itertools
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, TypeVar, Iterable, Iterator
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.dft.runner import QERunner
@@ -57,7 +56,7 @@ class PhaseExecutor:
             batch_size = 100
             total_generated = 0
 
-            # self._builder.build() yields atoms
+            # Use chunked processing on the generator
             for candidate_batch in chunked(self._builder.build(), batch_size):
                 if self.config.surrogate_config:
                     if not self._surrogate:
@@ -86,60 +85,23 @@ class PhaseExecutor:
         try:
             batch_size = 50
 
-            # We process in chunks, but we need to fetch pending IDs first.
-            # Ideally we stream, but get_entries loads all.
-            # Let's count first.
-            pending_count = self.db.count("status=pending")
-            if pending_count == 0:
-                logger.warning("No pending atoms found for DFT.")
-                return
-
-            logger.info(f"Found {pending_count} pending atoms for DFT.")
-
-            # Process in batches using offset/limit if DB supports it or just fetch all IDs
-            # ase.db doesn't strictly support offset/limit in select easily for all backends.
-            # But we can assume for now we fetch all pending (metadata only would be better, but we need atoms).
-            # If dataset is huge (millions), this is still OOM risk.
-            # Improvement: generator-based processing.
-
-            # NOTE: self.db.select() yields generators.
-            # We can chunk the generator!
-
-            pending_generator = self.db.select("status=pending")
+            # Using new generator method select_entries to lazily fetch ID+Atoms
+            pending_entries = self.db.select_entries("status=pending")
 
             total_success = 0
+            processed_count = 0
 
             if self.config.dft_config:
                 runner = QERunner(self.config.dft_config)
 
-                for atoms_batch in chunked(pending_generator, batch_size):
-                    # We need IDs for these atoms to update them.
-                    # select() yields atoms with info populated.
-                    # We assumed info['id'] or similar is not guaranteed by select() unless we query it.
-                    # But wait, db.select yields rows usually, but my wrapper yields Atoms.
-                    # My wrapper: yields `row.toatoms()` and populates info.
-                    # Does `row.toatoms()` preserve ID? No.
-                    # Does my wrapper populate ID? Not explicitly in `select`.
-                    # `get_entries` does returns tuples.
+                for batch in chunked(pending_entries, batch_size):
+                    if not batch:
+                        continue
 
-                    # Refactor: We need the ID. Let's use get_entries but maybe we need a generator version of get_entries.
-                    # For now, let's just use `get_entries` but acknowledge it loads into memory.
-                    # To fix "Scalability", we should fix `get_entries` or `select` to return (id, atoms).
-
-                    # Let's trust `get_entries` is okay for "Audit" if dataset isn't millions.
-                    # Or better: Iterate over `self.db._connection.select(status='pending')` directly? No, encapsulation.
-
-                    # Let's use `get_entries` for now but chunk the LIST.
-                    # If pending_count is huge, we risk OOM here.
-                    # Ideally, DatabaseManager should have `select_entries`.
-                    pass
-
-                # Reverting to `get_entries` logic but chunked processing for DFT submission
-                entries = self.db.get_entries("status=pending")
-
-                for batch in chunked(entries, batch_size):
                     atoms_list = [at for _, at in batch]
                     ids = [i for i, _ in batch]
+
+                    logger.info(f"Submitting DFT batch of {len(atoms_list)} structures.")
 
                     futures = self.queue.submit_dft_batch(runner.run, atoms_list)
                     results = self.queue.wait_for_completion(futures)
@@ -162,7 +124,9 @@ class PhaseExecutor:
                         else:
                             logger.warning(f"DFT failed for atom ID {db_id}.")
 
-            logger.info(f"DFT Phase complete. Success: {total_success}/{pending_count}")
+                    processed_count += len(batch)
+
+            logger.info(f"DFT Phase complete. Processed: {processed_count}, Success: {total_success}")
 
         except Exception:
             logger.exception("DFT phase failed")
