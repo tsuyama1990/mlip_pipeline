@@ -6,7 +6,7 @@ from typing import Protocol
 
 from ase.atoms import Atoms
 
-from mlip_autopipec.config.schemas.inference import InferenceResult
+from mlip_autopipec.data_models.inference_models import InferenceResult
 
 
 class MDRunner(Protocol):

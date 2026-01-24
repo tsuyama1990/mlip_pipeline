@@ -1,6 +1,6 @@
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import subprocess
 
 import pytest
 import yaml
@@ -142,9 +142,8 @@ def test_train_exception(mock_run: MagicMock, mock_resolve: MagicMock, wrapper: 
     assert not result.success
 
 def test_resolve_executable_not_found(wrapper: PacemakerWrapper) -> None:
-    with patch("shutil.which", return_value=None):
-        with pytest.raises(FileNotFoundError):
-            wrapper._resolve_executable("missing_exe")
+    with patch("shutil.which", return_value=None), pytest.raises(FileNotFoundError):
+        wrapper._resolve_executable("missing_exe")
 
 def test_check_output(wrapper: PacemakerWrapper, tmp_path: Path) -> None:
     f = tmp_path / "test.yace"

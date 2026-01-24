@@ -46,12 +46,18 @@ class LammpsInputWriter:
         log_file = self.work_dir / "log.lammps"
         dump_file = self.work_dir / "dump.gamma"
 
-        # Write Data File
-        write(data_file, atoms, format="lammps-data")
+        # Determine elements order (sorted for consistency)
+        elements = sorted(set(atoms.get_chemical_symbols()))
+
+        # Write Data File with specific element order
+        write(data_file, atoms, format="lammps-data", specorder=elements)
 
         # Generate Input Script
         script_content = self.generator.generate(
-            atoms_file=data_file, potential_path=potential_path, dump_file=dump_file
+            atoms_file=data_file,
+            potential_path=potential_path,
+            dump_file=dump_file,
+            elements=elements
         )
 
         input_file.write_text(script_content)

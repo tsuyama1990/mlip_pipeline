@@ -5,16 +5,20 @@ Handles database querying and file export.
 
 import logging
 import random
+from collections.abc import Iterable
 from pathlib import Path
 
-from ase.io import write
 from ase import Atoms
+from ase.io import write
 
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
+
+# Constants
+DEFAULT_VALIDATION_RATIO = 0.1
 
 class DatasetBuilder:
     """
@@ -34,18 +38,19 @@ class DatasetBuilder:
         """
         self.db_manager = db_manager
 
-    def export_atoms(self, atoms_list: list[Atoms], output_path: Path) -> None:
+    def export_atoms(self, atoms_iterable: Iterable[Atoms], output_path: Path) -> None:
         """
-        Exports a list of atoms to ExtXYZ format.
+        Exports a collection of atoms to ExtXYZ format.
 
         Args:
-            atoms_list: List of ASE Atoms objects.
+            atoms_iterable: Iterable of ASE Atoms objects.
             output_path: Destination file path.
         """
         output_path = validate_path_safety(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
         try:
-            write(str(output_path), atoms_list, format="extxyz")
+            write(str(output_path), atoms_iterable, format="extxyz")
         except Exception as e:
             logger.error(f"Failed to export atoms to {output_path}: {e}")
             raise
@@ -84,7 +89,6 @@ class DatasetBuilder:
         count = 0
         train_count = 0
         test_count = 0
-        validation_ratio = 0.1
 
         try:
             # Use 'w' mode to start fresh
@@ -92,7 +96,7 @@ class DatasetBuilder:
                 # Streaming from DB generator
                 for atoms in self.db_manager.select(selection=query):
                     count += 1
-                    if rng.random() < validation_ratio:
+                    if rng.random() < DEFAULT_VALIDATION_RATIO:
                         write(f_test, atoms, format="extxyz")
                         test_count += 1
                     else:

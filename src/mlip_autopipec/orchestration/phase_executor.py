@@ -10,7 +10,6 @@ from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.inference.runner import LammpsRunner
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
-from mlip_autopipec.training.config_gen import TrainConfigGenerator
 from mlip_autopipec.training.dataset import DatasetBuilder
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
 from mlip_autopipec.utils.embedding import EmbeddingExtractor
