@@ -1,7 +1,10 @@
 import logging
+from pathlib import Path
+
+from ase import Atoms
+from ase.io import read
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
-from typing import Union
 from mlip_autopipec.inference.eon import EONWrapper
 from mlip_autopipec.inference.runner import LammpsRunner
 from mlip_autopipec.orchestration.phases.base import BasePhase
@@ -39,7 +42,7 @@ class InferencePhase(BasePhase):
                 return False
 
             # 3. Run Inference
-            runner: Union[LammpsRunner, EONWrapper]
+            runner: LammpsRunner | EONWrapper
             if self.config.inference_config.active_engine == "eon":
                 if not self.config.inference_config.eon:
                     logger.error("EON engine selected but no EON config provided.")
@@ -53,63 +56,7 @@ class InferencePhase(BasePhase):
             # 4. Check for Halt
             if result.uncertain_structures:
                 logger.info("High uncertainty detected. Extracting raw candidates...")
-                embedding_config = EmbeddingConfig()
-                extractor = EmbeddingExtractor(embedding_config)
-
-                from ase.io import read
-
-                extracted_count = 0
-                for dump_path in result.uncertain_structures:
-                    try:
-                        # Differentiate extraction based on engine
-                        if self.config.inference_config.active_engine == "eon":
-                            # EON produces .con files usually. Use auto-detect or explicit 'eon'
-                            frames = [read(dump_path)]
-                        else:
-                            frames = read(dump_path, index=":", format="lammps-dump-text")
-
-                        if not frames:
-                            continue
-
-                        frame = frames[-1]
-
-                        # Simplified: Re-assign symbols based on types if available (LAMMPS specific)
-                        if self.config.inference_config.active_engine == "lammps":
-                            species = sorted(set(start_atoms.get_chemical_symbols()))
-                            if 'type' in frame.arrays:
-                                types = frame.arrays['type']
-                                symbols = [species[t-1] for t in types]
-                                frame.set_chemical_symbols(symbols)
-
-                        # Logic for extraction:
-                        # For LAMMPS, we check per-atom gamma (c_gamma).
-                        # For EON, the whole structure is 'uncertain' usually (Saddle point high gamma).
-                        # The driver checks max_gamma.
-                        # If EON returns it, it's likely the whole structure we want to add.
-
-                        if 'c_gamma' in frame.arrays:
-                            gammas = frame.arrays['c_gamma']
-                            max_idx = int(gammas.argmax())
-                            extracted_atoms = extractor.extract(frame, max_idx)
-                        else:
-                            # For EON, we take the whole frame as candidate if explicit atom-wise gamma is missing
-                            # Or we should re-calculate? No, just add the structure.
-                            extracted_atoms = frame
-
-                        # Save as 'screening' status for Selection phase
-                        self.db.save_candidate(
-                            extracted_atoms,
-                            {
-                                "status": "screening",
-                                "generation": self.manager.state.cycle_index,
-                                "config_type": "active_learning"
-                            }
-                        )
-                        extracted_count += 1
-
-                    except Exception:
-                        logger.exception(f"Failed to process dump file {dump_path}")
-
+                extracted_count = self._process_uncertain_structures(result.uncertain_structures, start_atoms)
                 return extracted_count > 0
 
             logger.info("Inference finished without high uncertainty.")
@@ -118,3 +65,67 @@ class InferencePhase(BasePhase):
         except Exception:
             logger.exception("Inference phase failed")
             return False
+
+    def _process_uncertain_structures(self, dump_paths: list[Path], start_atoms: Atoms) -> int:
+        """
+        Extracts candidate structures from uncertainty dumps and saves them to DB.
+
+        Args:
+            dump_paths: List of paths to dump files.
+            start_atoms: The initial atoms object (used for species mapping in LAMMPS).
+
+        Returns:
+            Number of extracted candidates.
+        """
+        embedding_config = EmbeddingConfig()
+        extractor = EmbeddingExtractor(embedding_config)
+
+        extracted_count = 0
+
+        for dump_path in dump_paths:
+            try:
+                frame: Atoms | None = None
+
+                # Differentiate extraction based on engine
+                if self.config.inference_config and self.config.inference_config.active_engine == "eon":
+                     # EON produces single-frame .con files usually.
+                    frame = read(dump_path)
+                else:
+                    # LAMMPS: Read ONLY the last frame (index=-1) to avoid OOM
+                    frame = read(dump_path, index=-1, format="lammps-dump-text")
+
+                if frame is None:
+                    continue
+
+                # Simplified: Re-assign symbols based on types if available (LAMMPS specific)
+                if self.config.inference_config and self.config.inference_config.active_engine == "lammps":
+                    species = sorted(set(start_atoms.get_chemical_symbols()))
+                    if 'type' in frame.arrays:
+                        types = frame.arrays['type']
+                        symbols = [species[t-1] for t in types]
+                        frame.set_chemical_symbols(symbols)
+
+                # Logic for extraction
+                if 'c_gamma' in frame.arrays:
+                    gammas = frame.arrays['c_gamma']
+                    max_idx = int(gammas.argmax())
+                    extracted_atoms = extractor.extract(frame, max_idx)
+                else:
+                    # For EON, or if missing gamma, take the whole frame
+                    extracted_atoms = frame
+
+                # Save as 'screening' status for Selection phase
+                self.db.save_candidate(
+                    extracted_atoms,
+                    {
+                        "status": "screening",
+                        "generation": self.manager.state.cycle_index,
+                        "config_type": "active_learning"
+                    }
+                )
+                extracted_count += 1
+
+            except Exception:
+                logger.exception(f"Failed to process dump file {dump_path}")
+
+        return extracted_count

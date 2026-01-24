@@ -1,8 +1,11 @@
-import pytest
-from unittest.mock import patch
 from pathlib import Path
-from mlip_autopipec.config.schemas.inference import EONConfig
+from unittest.mock import patch
+
+import pytest
 from ase import Atoms
+
+from mlip_autopipec.config.schemas.inference import EONConfig
+
 
 @pytest.fixture
 def eon_config():
@@ -41,6 +44,24 @@ def test_eon_wrapper_write_config(eon_config, tmp_path):
     assert "job = process_search" in content
     assert "temperature = 400.0" in content
     assert "potential = pace_driver" in content
+
+def test_eon_wrapper_write_config_empty_params(eon_config, tmp_path):
+    eon_config.parameters = {}
+
+    try:
+        from mlip_autopipec.inference.eon import EONWrapper
+    except ImportError:
+        pytest.fail("EONWrapper not implemented")
+
+    wrapper = EONWrapper(eon_config, tmp_path)
+    wrapper._write_config()
+
+    config_file = tmp_path / "config.ini"
+    content = config_file.read_text()
+
+    # Ensure no extra params are written but file is valid
+    assert "potential = pace_driver" in content
+    assert "quiet" not in content
 
 @patch("subprocess.run")
 def test_eon_wrapper_run_success(mock_run, eon_config, tmp_path):
@@ -85,3 +106,23 @@ def test_eon_wrapper_run_halt(mock_run, eon_config, tmp_path):
     assert result.succeeded is True
     assert len(result.uncertain_structures) == 1
     assert result.uncertain_structures[0] == bad_structure_file
+
+@patch("subprocess.run")
+def test_eon_wrapper_run_failure(mock_run, eon_config, tmp_path):
+    try:
+        from mlip_autopipec.inference.eon import EONWrapper
+    except ImportError:
+        pytest.fail("EONWrapper not implemented")
+
+    # Simulate generic failure
+    mock_run.return_value.returncode = 1
+
+    wrapper = EONWrapper(eon_config, tmp_path)
+    atoms = Atoms("H2")
+    potential_path = Path("pot.yace")
+
+    with patch.object(wrapper, "_write_pos_con"):
+        result = wrapper.run(atoms, potential_path)
+
+    assert result.succeeded is False
+    assert result.uncertain_structures == []

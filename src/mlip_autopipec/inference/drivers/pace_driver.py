@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import sys
-import os
 import io
-import numpy as np
-from ase.io import read
-from pathlib import Path
+import os
+import sys
 from typing import Any
+
+from ase.io import read
+
 
 def get_potential_calculator(potential_path: str) -> Any:
     try:

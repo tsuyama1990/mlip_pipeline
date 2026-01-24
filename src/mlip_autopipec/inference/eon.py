@@ -16,16 +16,31 @@ logger = logging.getLogger(__name__)
 
 class EONWrapper:
     """
-    Wrapper for EON (kinetic Monte Carlo).
+    Wrapper for EON (Kinetic Monte Carlo) software.
+
+    This class manages the configuration, execution, and result parsing of EON simulations
+    integrated with the MLIP pipeline via a custom Python driver.
     """
 
-    def __init__(self, config: EONConfig, work_dir: Path):
+    def __init__(self, config: EONConfig, work_dir: Path) -> None:
+        """
+        Initialize the EON Wrapper.
+
+        Args:
+            config: EON configuration object containing executable path and parameters.
+            work_dir: Directory where EON simulation files will be generated and run.
+        """
         self.config = config
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
     def _write_config(self) -> None:
-        """Writes config.ini for EON."""
+        """
+        Writes the `config.ini` file required by EON.
+
+        The configuration includes job type, temperature, potential name, and any
+        additional parameters specified in the `EONConfig`.
+        """
         config_path = self.work_dir / "config.ini"
         with config_path.open("w") as f:
             f.write("[Main]\n")
@@ -38,18 +53,35 @@ class EONWrapper:
             # Write additional parameters
             if self.config.parameters:
                 for k, v in self.config.parameters.items():
-                    # If it's a dict/list, we might need specific formatting, but assume scalar
                     f.write(f"{k} = {v}\n")
 
     def _write_pos_con(self, atoms: Atoms) -> None:
-        """Writes initial structure to pos.con."""
+        """
+        Writes the initial atomic structure to `pos.con` in EON format.
+
+        Args:
+            atoms: The ASE Atoms object to write.
+        """
         pos_path = self.work_dir / "pos.con"
-        # ASE 'eon' format writer
         write(pos_path, atoms, format="eon")
 
     def run(self, atoms: Atoms, potential_path: Path) -> InferenceResult:
         """
-        Runs EON simulation.
+        Orchestrates the execution of an EON simulation.
+
+        Steps:
+        1. Writes configuration and structure files.
+        2. Generates the wrapper script for the potential driver (`pace_driver.py`).
+        3. Executes the EON binary.
+        4. Monitors the exit code for Halt signals (Code 100) indicating high uncertainty.
+
+        Args:
+            atoms: The starting atomic structure.
+            potential_path: Path to the .yace potential file to be used by the driver.
+
+        Returns:
+            InferenceResult: Object containing success status, observed gamma (uncertainty),
+            and paths to any uncertain structures found (if halted).
         """
         try:
             self._write_config()
@@ -71,7 +103,9 @@ class EONWrapper:
             # Prepare Environment
             env = os.environ.copy()
             env["PACE_POTENTIAL_PATH"] = str(potential_path.resolve())
-            env["PACE_GAMMA_THRESHOLD"] = str(self.config.parameters.get("uncertainty_threshold", 5.0))
+            # Default threshold if not in parameters
+            threshold = self.config.parameters.get("uncertainty_threshold", 5.0)
+            env["PACE_GAMMA_THRESHOLD"] = str(threshold)
 
             # Resolve EON Executable
             eon_exe = self.config.eon_executable
@@ -81,10 +115,6 @@ class EONWrapper:
                     eon_exe = Path(found)
 
             if not eon_exe:
-                # If mocked in tests, we might proceed, but here we raise
-                # We check if we are in a test environment? No, run logic should be strict.
-                # However, during tests we might not have eonclient.
-                # The test mocks subprocess.run so we assume eon_exe is found or we provide it in config.
                 msg = "EON executable not found"
                 raise RuntimeError(msg)
 
