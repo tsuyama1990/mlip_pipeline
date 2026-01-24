@@ -1,117 +1,163 @@
-# Cycle 06 Specification: Orchestration & Inference
+# Cycle 06 Specification: The Training Engine (Module D)
 
 ## 1. Summary
 
-Cycle 06 completes the automated loop. We implement **Module E: Inference** and the overarching **Workflow Orchestration**.
+Cycle 06 deals with the "Learning" part of Machine Learning. We assume that the database is now populated with high-quality DFT data (thanks to Cycles 01-05). Now, we must map this data to a functional form: the Atomic Cluster Expansion (ACE) potential.
 
-Now that we have a trained potential (from Cycle 05), we can run molecular dynamics (MD) simulations using LAMMPS. This is where the system actually "learns" about the material properties. However, a machine learning potential is only accurate near the data it was trained on. If the simulation explores a new phase (e.g., liquid) that was not in the training set, the potential's predictions become unreliable (garbage).
-
-To solve this, we implement **Active Learning (On-The-Fly Learning)**:
-1.  **Inference**: Run MD with the `.yace` potential.
-2.  **Uncertainty Quantification (UQ)**: At every step, we compute the "Extrapolation Grade" ($\gamma$). This metric tells us how "far" the current local atomic environment is from the basis set spanned by the training data. It is essentially a distance in descriptor space.
-3.  **Interruption**: If $\gamma > \text{Threshold}$ (e.g., 5.0), we pause the simulation. The potential is effectively saying "I don't know what's happening here."
-4.  **Extraction**: We cut out the cluster of atoms responsible for the high uncertainty.
-5.  **Feedback**: We send this cluster back to Cycle 04 (DFT). Once calculated, we re-train (Cycle 05), and the potential becomes smarter.
-
-This cycle also implements the `WorkflowManager`, the state machine that automates this entire Generate -> Select -> DFT -> Train -> Inference -> Extract loop.
+We integrate **Pacemaker**, a robust tool for training ACE potentials. The system must:
+1.  **Harvest Data**: Query the database for `COMPLETED` structures and export them to the `.extxyz` format required by Pacemaker, splitting them into training and validation sets.
+2.  **Configure Training**: Generate the complex `input.yaml` required by Pacemaker, setting hyperparameters like cutoff radius, basis size, and loss weights (Delta Learning).
+3.  **Execute & Monitor**: Run the training process, capture the logs, and parse the resulting metrics (RMSE for Energy and Forces).
+4.  **Versioning**: Save the resulting potential file (`output.yace`) with a version tag, allowing us to track the evolution of the potential over generations.
 
 ## 2. System Architecture
 
-### File Structure
-**bold** files are to be created or modified.
+Files marked in **bold** are new or modified in this cycle.
 
-```
+### 2.1. File Structure
+
+```ascii
 mlip_autopipec/
-├── inference/
-│   ├── **__init__.py**
-│   ├── **runner.py**           # LammpsRunner (MD Execution)
-│   ├── **uncertainty.py**      # Log Parser & Decision Logic
-│   └── **embedding.py**        # Structure Extraction Logic
-├── orchestration/
-│   ├── **__init__.py**
-│   ├── **workflow.py**         # The Main Loop (State Machine)
-│   ├── **task_queue.py**       # Dask Wrapper
-│   └── **dashboard.py**        # HTML Report
-└── app.py                      # Final 'run' command
+├── src/
+│   └── mlip_autopipec/
+│       ├── config/
+│       │   └── schemas/
+│       │       └── **training.py**     # Training Configuration Schema
+│       ├── **training/**
+│       │   ├── **__init__.py**
+│       │   ├── **dataset.py**          # Data Export Logic
+│       │   ├── **pacemaker.py**        # Wrapper for Pacemaker execution
+│       │   └── **metrics.py**          # Log parsing & RMSE extraction
+│       └── utils/
+│           └── **io.py**               # Helper for atomic file IO
+└── tests/
+    └── training/
+        ├── **test_dataset.py**
+        └── **test_pacemaker.py**
 ```
 
-### Data Dictionary
+### 2.2. Code Blueprints
 
-| Model Name | Field | Type | Description |
-| :--- | :--- | :--- | :--- |
-| **InferenceConfig** | temperature | float | MD temperature (K). |
-| | pressure | float | MD pressure (Bar). |
-| | timestep | float | Time step (fs). |
-| | steps | int | Number of MD steps. |
-| | uncertainty_threshold | float | Max gamma allowed before stop. |
-| **WorkflowState** | generation | int | Current active learning cycle index. |
-| | phase | str | "DFT", "TRAIN", "INFERENCE". |
-| | pending_tasks | List[str] | IDs of currently running jobs. |
-| **ExtractedStructure** | atoms | Atoms | The cluster. |
-| | center_atom_index | int | The atom with high uncertainty. |
-| | force_mask | List[bool] | True for core, False for buffer. |
+#### `src/mlip_autopipec/config/schemas/training.py`
+Defines the hyperparams.
 
-### Component Interaction
--   **`WorkflowManager`** holds **`WorkflowState`**.
--   **`WorkflowManager`** polls **`DatabaseManager`**.
--   **`LammpsRunner`** executes `lmp_serial`.
--   **`EmbeddingExtractor`** processes the `dump.lammpstrj`.
+```python
+from pydantic import BaseModel, Field
+
+class TrainingConfig(BaseModel):
+    cutoff: float = 5.0
+    test_fraction: float = 0.1
+    energy_weight: float = 1.0
+    force_weight: float = 100.0
+    stress_weight: float = 1.0
+    max_iter: int = 1000
+    ladder_step: list = [100, 0.1] # Decay details
+```
+
+#### `src/mlip_autopipec/training/dataset.py`
+Exports data for training.
+
+```python
+from mlip_autopipec.data_models.manager import DatabaseManager
+from ase.io import write
+
+class DatasetBuilder:
+    def __init__(self, db_manager: DatabaseManager):
+        self.db = db_manager
+
+    def build_dataset(self, output_dir: str, split: float = 0.1):
+        """
+        1. Query status='completed'.
+        2. Shuffle.
+        3. Split into train.xyz and test.xyz.
+        4. Write files ensuring specific format (energy/forces keys).
+        """
+        atoms_list = self.db.get_completed_atoms()
+        # shuffling and splitting logic
+        write(f"{output_dir}/train.xyz", train_set, format='extxyz')
+        write(f"{output_dir}/test.xyz", test_set, format='extxyz')
+```
+
+#### `src/mlip_autopipec/training/pacemaker.py`
+Runs the trainer.
+
+```python
+import subprocess
+from pathlib import Path
+
+class PacemakerWrapper:
+    def __init__(self, config: TrainingConfig):
+        self.config = config
+
+    def train(self, dataset_dir: str, output_dir: str):
+        """
+        1. Generate input.yaml for pacemaker.
+        2. Run `pacemaker input.yaml`.
+        3. Capture stdout to `train.log`.
+        """
+        self._write_input_yaml(dataset_dir, output_dir)
+        subprocess.run(["pacemaker", "input.yaml"], check=True)
+
+    def _write_input_yaml(self, dataset_dir, output_dir):
+        # Construct YAML structure matching Pacemaker docs
+        pass
+```
 
 ## 3. Design Architecture
 
-### Inference (`LammpsRunner`)
--   **Input**: `in.lammps`. Must load `pair_style pace`.
--   **Compute**: Use `compute extrapolation_grade` (custom compute in Pacemaker-LAMMPS plugin).
--   **Output**: `dump.lammpstrj` and `log.lammps`.
--   **Termination**: We can use LAMMPS's `fix halt` command to stop the simulation automatically if `c_gamma > threshold`. This avoids parsing logs in Python while LAMMPS runs, which is more robust.
+### 3.1. Domain Concepts
 
-### Embedding Extraction (`EmbeddingExtractor`)
--   **Concept**: We don't want to run DFT on the whole 1000-atom MD box. We want a small 50-atom cluster.
--   **Algorithm Steps**:
-    1.  **Read Dump**: Load the final frame where MD stopped.
-    2.  **Identify Center**: Find atom index $i$ where $\gamma_i = \max(\gamma)$.
-    3.  **Neighbor Search**: Use `ase.neighborlist` to find all atoms within $R = R_{cut} + R_{buffer}$.
-    4.  **Construct Cell**: Create a new `Atoms` object. If non-periodic (cluster), add vacuum. If periodic, adjust lattice vectors.
-    5.  **Force Masking**:
-        -   Define "Core" atoms: distance to center $< R_{cut}$. Mask = 1.
-        -   Define "Buffer" atoms: $R_{cut} <$ distance $< R_{buffer}$. Mask = 0.
-        -   Store mask in `atoms.arrays['force_mask']`.
-    6.  **Save**: Return `CandidateData` to be added to DB.
+1.  **Delta Learning**: To improve stability, we often fit $V_{total} = V_{ZBL} + V_{ACE}$. The `TrainingConfig` should support enabling/disabling the ZBL baseline.
+2.  **Fitting Weights**: Forces are typically weighted $10\times$ to $100\times$ higher than energy because there are $3N$ force components per 1 energy value, and forces determine the dynamics.
+3.  **Active Learning Iterations**: Each training run produces a potential "Generation N". We must store these distinct artifacts (e.g., `potentials/gen_01.yace`, `potentials/gen_02.yace`) to prevent overwriting.
 
-### Workflow Manager (`WorkflowManager`)
--   **States**: `IDLE`, `GENERATION`, `SELECTION`, `DFT`, `TRAINING`, `INFERENCE`.
--   **Logic Loop**:
-    1.  **Check DFT**: Are there pending DFT calculations? If yes, wait. If completed count > threshold -> Transition to `TRAINING`.
-    2.  **Check Training**: Is a new potential available? If yes -> Transition to `INFERENCE`.
-    3.  **Check Inference**: Did MD stop due to uncertainty?
-        -   Yes: Run `EmbeddingExtractor` -> Add new structure to DB (Status=`pending`) -> Transition to `DFT`.
-        -   No: MD finished successfully. Pipeline Converged? Or Increment Generation and restart?
--   **Concurrency**: Uses `TaskQueue` to submit jobs asynchronously. It doesn't block waiting for DFT.
+### 3.2. Consumers and Producers
+
+-   **Consumer**: `DatasetBuilder` consumes `COMPLETED` atoms from DB.
+-   **Producer**: `PacemakerWrapper` produces a `.yace` file (the potential) and a report (metrics).
 
 ## 4. Implementation Approach
 
-1.  **Lammps Runner**: Implement `run_md`. Ensure it writes `fix halt` command in the input script.
-2.  **Extractor**: Implement `extract_cluster`. This uses `ase.neighborlist`. Add a `force_mask` array to the `atoms.info`.
-3.  **Workflow**: Implement the `run_loop` method. It should be a `while True` loop with a `sleep(60)`. It queries the DB count of pending items to decide the state. It relies on the `TaskQueue` to fire-and-forget jobs.
-4.  **Dashboard**: A simple function that generates `status.html` with plots of RMSE and Candidate Counts over time.
+### Step 1: Data Export
+-   **Task**: Implement `DatasetBuilder`.
+-   **Detail**: Crucial point—Pacemaker expects specific keywords in the `.extxyz` file (e.g., `energy=...`, `forces=...`). ASE's default writer might put them in `info` or `arrays`. We must ensure mapping is correct so Pacemaker finds the labels.
+
+### Step 2: Config Generation
+-   **Task**: Implement `_write_input_yaml`.
+-   **Detail**: This involves translating our Pydantic `TrainingConfig` into the specific YAML hierarchy Pacemaker uses (`cutoff`, `b_basis`, `loss`, etc.).
+
+### Step 3: Execution Wrapper
+-   **Task**: Implement `PacemakerWrapper`.
+-   **Detail**: Use `subprocess`. Ensure we capture `stdout` to parse the RMSE later.
+
+### Step 4: Metric Parsing
+-   **Task**: Implement `LogParser`.
+-   **Detail**: Regex search the log file for `RMSE_E` and `RMSE_F` values at the final epoch.
 
 ## 5. Test Strategy
 
-### Unit Testing
--   **Extractor**:
-    -   Create a 3x3x3 supercell of Al.
-    -   Pick center atom. Extract neighbors within 4.0 A.
-    -   Verify the resulting Atoms object has correct number of atoms.
-    -   Verify `force_mask` is 1 for center, 0 for edge.
--   **Workflow State Logic**:
-    -   Mock the DB count.
-    -   If `pending_dft = 10`, `workflow.decide_next_step()` should return `DFT_EXECUTION`.
-    -   If `pending_dft = 0` and `new_potential = True`, return `INFERENCE`.
+### 5.1. Unit Testing Approach (Min 300 words)
 
-### Integration Testing
--   **Full Loop (Grand Test)**:
-    -   Start with 0 data.
-    -   Run `mlip-auto run` with a timeout of 10 minutes.
-    -   Mock the external binaries (return fake success).
-    -   Verify that the system moved from Generation -> DFT -> Training -> Inference -> Extraction.
-    -   Verify DB has entries with `config_type="active_learning"`.
+-   **YAML Generation**:
+    -   *Test*: Configure `TrainingConfig` with `cutoff=6.0`.
+    -   *Action*: Call `_write_input_yaml`.
+    -   *Assert*: The generated file contains `cutoff: 6.0`.
+-   **Data Splitting**:
+    -   *Test*: Mock DB returns 100 atoms. `split=0.1`.
+    -   *Action*: Run `build_dataset`.
+    -   *Assert*: `train.xyz` has 90 atoms, `test.xyz` has 10 atoms.
+    -   *Assert*: Intersection is empty (no data leakage).
+-   **Metric Parsing**:
+    -   *Test*: Feed a sample Pacemaker log file.
+    -   *Assert*: Returns correct RMSE values.
+
+### 5.2. Integration Testing Approach (Min 300 words)
+
+-   **Mock Training Run**:
+    -   Since running actual training takes minutes/hours, we verify the *setup*.
+    -   *Test*: Run `PacemakerWrapper.train()` but mock the `subprocess.run` to simple `touch output.yace`.
+    -   *Assert*: Input files were created, subprocess was called with correct args, and the wrapper detected the "successful" completion (by checking file existence).
+-   **End-to-End Data Flow**:
+    -   Insert 5 atoms into DB.
+    -   Run `DatasetBuilder`.
+    -   Verify the `.extxyz` file is readable by ASE and contains the expected energy/forces fields.
