@@ -9,6 +9,7 @@ These models are distinct from configuration schemas.
 from .dft_models import DFTErrorType, DFTResult
 from .inference_models import ExtractedStructure
 from .training_data import TrainingBatch, TrainingData
+from .validation import ValidationMetric, ValidationResult
 
 __all__ = [
     "DFTErrorType",
@@ -16,4 +17,6 @@ __all__ = [
     "ExtractedStructure",
     "TrainingBatch",
     "TrainingData",
+    "ValidationMetric",
+    "ValidationResult",
 ]

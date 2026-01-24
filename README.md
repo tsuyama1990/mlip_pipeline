@@ -17,6 +17,7 @@
 *   **Orchestration Engine**: Centralized state machine managing the Active Learning loop (Exploration -> Selection -> Calculation -> Training), complete with persistence and resumption capabilities.
 *   **Dashboard**: Real-time status reporting via HTML dashboard visualizing learning curves and database statistics.
 *   **Kinetic Monte Carlo (kMC)**: Integration with **EON** for long-timescale exploration of rare events (diffusion, reactions) with on-the-fly uncertainty detection.
+*   **Validation Suite**: Automated checks for Phonon stability, Elastic constants (Born criteria), and Equation of State (Bulk Modulus).
 
 ## Requirements
 
@@ -102,6 +103,12 @@ Execute the autonomous pipeline:
 mlip-auto run loop --config input.yaml
 ```
 
+### 7. Validate Potential (Physics)
+Run physics validation checks on the trained potential:
+```bash
+mlip-auto validate input.yaml --phonon --elastic --eos
+```
+
 ## Architecture
 
 The project is structured as follows:
@@ -128,3 +135,4 @@ src/mlip_autopipec/
 - [x] **Cycle 05**: Inference & Active Learning (LAMMPS).
 - [x] **Cycle 06**: Active Learning Orchestrator.
 - [x] **Cycle 07**: Advanced Expansion (kMC) with EON.
+- [x] **Cycle 08**: Validation Suite (Phonon, Elasticity, EOS) & Production Polish.
