@@ -34,7 +34,12 @@ class LogParser:
             logger.warning(f"Log file {log_path} does not exist.")
             return None
 
-        content = log_path.read_text()
+        try:
+            content = log_path.read_text()
+        except Exception as e:
+            logger.error(f"Failed to read log file {log_path}: {e}")
+            return None
+
         if not content.strip():
             return None
 

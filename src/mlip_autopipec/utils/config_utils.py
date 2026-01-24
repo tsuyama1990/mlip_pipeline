@@ -1,11 +1,13 @@
 """Utilities for handling configuration objects."""
 
+import logging
 from pathlib import Path
 
-from mlip_autopipec.config.models import (
-    MLIPConfig,
-)
+import yaml
 
+from mlip_autopipec.config.models import MLIPConfig
+
+logger = logging.getLogger(__name__)
 
 def validate_path_safety(path: Path | str) -> Path:
     """
@@ -26,6 +28,29 @@ def validate_path_safety(path: Path | str) -> Path:
 
 
 def load_config(path: Path) -> MLIPConfig:
-    """Load config helper using MLIPConfig"""
-    # This might be redundant if core/services.py load_config is used, but for utils we keep it simple
-    # Actually, config_utils was importing unused models. Fixing that.
+    """
+    Load config helper using MLIPConfig.
+
+    Args:
+        path: Path to the YAML configuration file.
+
+    Returns:
+        Validated MLIPConfig object.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {path}")
+
+    try:
+        with path.open("r") as f:
+            data = yaml.safe_load(f)
+
+        if not isinstance(data, dict):
+            raise ValueError("Configuration must be a dictionary.")
+
+        return MLIPConfig(**data)
+    except yaml.YAMLError as e:
+        logger.error(f"Failed to parse YAML: {e}")
+        raise ValueError(f"Invalid YAML file: {path}") from e
+    except Exception as e:
+        logger.error(f"Failed to load config: {e}")
+        raise ValueError(f"Invalid configuration: {e}") from e

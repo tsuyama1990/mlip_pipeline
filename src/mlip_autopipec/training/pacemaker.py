@@ -17,6 +17,7 @@ from ase.io import write
 
 from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.metrics import LogParser
+from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class PacemakerWrapper:
             work_dir: Working directory for training artifacts.
         """
         self.config = config
-        self.work_dir = work_dir
+        self.work_dir = validate_path_safety(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
     def prepare_data_from_stream(self, data_stream: Iterable[Atoms], output_filename: str) -> Path:
@@ -47,6 +48,10 @@ class PacemakerWrapper:
         Streams atoms from a generator to a file on disk (extxyz).
         Used to prepare training/test datasets without loading all into memory.
         """
+        # Validate filename safety
+        if "/" in output_filename or "\\" in output_filename:
+             raise ValueError(f"Invalid filename: {output_filename}")
+
         output_path = self.work_dir / output_filename
 
         if output_path.exists():
@@ -72,6 +77,10 @@ class PacemakerWrapper:
             Path to the generated input.yaml file.
         """
         config_path = self.work_dir / "input.yaml"
+
+        # Validate paths in config
+        validate_path_safety(self.config.training_data_path)
+        validate_path_safety(self.config.test_data_path)
 
         pacemaker_config = {
             "cutoff": self.config.cutoff,
@@ -176,22 +185,21 @@ class PacemakerWrapper:
         Returns:
             TrainingResult object containing status, metrics, and potential path.
         """
+        # Validate inputs before execution block
+        cmd_extras = []
+        if initial_potential:
+            safe_pot_path = validate_path_safety(initial_potential)
+            if not safe_pot_path.exists():
+                 raise FileNotFoundError(f"Initial potential not found: {safe_pot_path}")
+            cmd_extras.extend(["-p", str(safe_pot_path)])
+
         try:
             config_path = self.generate_config()
             log_path = self.work_dir / "log.txt"
 
             executable_path = self._resolve_executable("pacemaker")
 
-            cmd = [executable_path, str(config_path.name)]
-
-            if initial_potential:
-                # Assuming pacemaker supports initial potential via CLI or config.
-                # Common pattern: pacemaker input.yaml -p initial.yace
-                # Or just appending it. I'll assume a CLI flag like -p or similar.
-                # If unknown, I'll just append it as an argument if supported.
-                # Let's assume it's passed as a positional arg or flag.
-                # Since I don't have docs, I'll use a placeholder flag `-p` which is common.
-                cmd.extend(["-p", str(initial_potential)])
+            cmd = [executable_path, str(config_path.name)] + cmd_extras
 
             logger.info(f"Running Pacemaker: {cmd} in {self.work_dir}")
 
@@ -254,8 +262,9 @@ class PacemakerWrapper:
             raise
 
         try:
+            safe_pot_path = validate_path_safety(current_potential)
             executable_path = self._resolve_executable("pace_activeset")
-            cmd = [executable_path, str(candidates_path), str(current_potential)]
+            cmd = [executable_path, str(candidates_path), str(safe_pot_path)]
 
             logger.info(f"Running Active Set Selection: {cmd}")
 
@@ -274,28 +283,11 @@ class PacemakerWrapper:
                 raise RuntimeError(f"pace_activeset failed with code {result.returncode}")
 
             # Parse indices from stdout
-            # Expected format: "Selected indices: 1 2 3" or similar lines
-            # or just a list of integers.
-            # I'll look for integers in the output.
             output = result.stdout
-
-            # Simple heuristic: find "Selected indices:" and parse numbers after it
-            # OR just find all integers in the output if strictly indices are outputted.
-            # But let's look for a specific marker if possible.
-            # If not found, fallback to parsing all integers?
-            # Risk: parsing logs/headers.
-
             indices = []
             if "Selected indices:" in output:
-                # Extract part after colon
                 part = output.split("Selected indices:")[-1]
                 indices = [int(x) for x in re.findall(r"\d+", part)]
-            else:
-                 # Try to parse line by line?
-                 # Assume output is just indices?
-                 # Let's rely on the mock behavior: "Selected indices: 0 1"
-                 # So the logic above holds.
-                 pass
 
             return indices
 

@@ -33,7 +33,8 @@ def chunked(iterable: Iterable[T], size: int) -> Iterator[list[T]]:
 
 class PhaseExecutor:
     """
-    Handles the execution of individual workflow phases to decouple logic from WorkflowManager.
+    Handles the execution of individual workflow phases.
+    Decouples logic from WorkflowManager and allows for dependency injection.
     """
 
     def __init__(self, manager: "WorkflowManager") -> None:
@@ -46,6 +47,19 @@ class PhaseExecutor:
         self._builder: BuilderProtocol | None = manager.builder
         self._surrogate: SurrogateProtocol | None = manager.surrogate
 
+    def _create_qe_runner(self) -> QERunner:
+        if not self.config.dft_config:
+            raise ValueError("DFT configuration is missing.")
+        return QERunner(self.config.dft_config)
+
+    def _create_lammps_runner(self, work_dir: Path) -> LammpsRunner:
+        if not self.config.inference_config:
+            raise ValueError("Inference configuration is missing.")
+        return LammpsRunner(self.config.inference_config, work_dir)
+
+    def _create_pacemaker_wrapper(self, config: "TrainingConfig", work_dir: Path) -> PacemakerWrapper:
+        return PacemakerWrapper(config, work_dir)
+
     def execute_exploration(self) -> None:
         """Execute Phase A: Exploration."""
         logger.info("Phase A: Exploration")
@@ -53,11 +67,10 @@ class PhaseExecutor:
             if not self._builder:
                 self._builder = StructureBuilder(self.config)
 
-            # Use batch processing to avoid OOM with large generation
             batch_size = 100
             total_generated = 0
 
-            # Use chunked processing on the generator
+            # Chunked processing
             for candidate_batch in chunked(self._builder.build(), batch_size):
                 if self.config.surrogate_config:
                     if not self._surrogate:
@@ -85,15 +98,13 @@ class PhaseExecutor:
         logger.info("Phase B: DFT Labeling")
         try:
             batch_size = 50
-
-            # Using new generator method select_entries to lazily fetch ID+Atoms
             pending_entries = self.db.select_entries("status=pending")
 
             total_success = 0
             processed_count = 0
 
             if self.config.dft_config:
-                runner = QERunner(self.config.dft_config)
+                runner = self._create_qe_runner()
 
                 for batch in chunked(pending_entries, batch_size):
                     if not batch:
@@ -121,7 +132,7 @@ class PhaseExecutor:
                                 self.db.update_status(db_id, "labeled")
                                 total_success += 1
                             except Exception:
-                                logger.exception("Failed to save DFT result")
+                                logger.exception(f"Failed to save DFT result for ID {db_id}")
                         else:
                             logger.warning(f"DFT failed for atom ID {db_id}.")
 
@@ -142,19 +153,44 @@ class PhaseExecutor:
 
             dataset_builder = DatasetBuilder(self.db)
             # Use default if template_file is None
-            template_path = getattr(self.config.training_config, "template_file", None) or Path("input.yaml")
+            # template_path = getattr(self.config.training_config, "template_file", None) or Path("input.yaml")
 
-            config_gen = TrainConfigGenerator(template_path=template_path)
-            wrapper = PacemakerWrapper()
+            # Using self.manager.work_dir
+            logger.info("Exporting training data...")
+            dataset_builder.export(self.config.training_config, self.manager.work_dir)
 
-            result = wrapper.train(
-                self.config.training_config,
-                dataset_builder,
-                config_gen,
-                self.manager.work_dir,
-                self.manager.state.current_generation,
-            )
-            logger.info(f"Training complete. Potential at: {result.potential_path}")
+            logger.info("Initializing Pacemaker...")
+            wrapper = self._create_pacemaker_wrapper(self.config.training_config, self.manager.work_dir)
+
+            # Assuming previous generation's potential can be used as initial
+            initial_potential = None
+            prev_gen = self.manager.state.current_generation - 1
+            if prev_gen >= 0:
+                 prev_pot = self.manager.work_dir / "potentials" / f"generation_{prev_gen}.yace"
+                 if prev_pot.exists():
+                     initial_potential = prev_pot
+
+            logger.info(f"Starting training (Gen {self.manager.state.current_generation})...")
+            result = wrapper.train(initial_potential=initial_potential)
+
+            if result.success and result.potential_path:
+                logger.info(f"Training complete. Potential at: {result.potential_path}")
+                # Save potential to generation specific path
+                pot_dir = self.manager.work_dir / "potentials"
+                pot_dir.mkdir(exist_ok=True)
+                dest = pot_dir / f"generation_{self.manager.state.current_generation}.yace"
+
+                # Copy or move
+                try:
+                    import shutil
+                    shutil.copy2(result.potential_path, dest)
+                    # Also update 'current.yace' link/copy
+                    current = self.manager.work_dir / "current.yace"
+                    shutil.copy2(result.potential_path, current)
+                except Exception:
+                    logger.exception("Failed to save potential artifacts")
+            else:
+                logger.error("Training failed.")
 
         except Exception:
             logger.exception("Training phase failed")
@@ -173,26 +209,24 @@ class PhaseExecutor:
                 return False
 
             # 1. Locate Potential
-            potential_path = self.manager.work_dir / "potentials" / f"generation_{self.manager.state.current_generation}.yace"
-            if not potential_path.exists():
-                potential_path = self.manager.work_dir / "current.yace"
+            potential_path = self.manager.work_dir / "current.yace"
 
             if not potential_path.exists():
                 logger.error(f"Potential file not found at {potential_path}")
                 return False
 
             # 2. Select Structure for MD
-            # Pick a random completed structure
-            completed_atoms = self.db.get_atoms("status=training")
+            # Pick the last completed structure efficiently
+            # Using generator to avoid loading all into memory
+            last_atom_gen = self.db.select(selection="status=training", sort="-id", limit=1)
+            start_atoms = next(last_atom_gen, None)
 
-            if not completed_atoms:
+            if not start_atoms:
                 logger.warning("No structures available to start MD.")
                 return False
 
-            start_atoms = completed_atoms[-1] # Pick last one
-
             # 3. Run Inference
-            runner = LammpsRunner(self.config.inference_config, self.manager.work_dir / "inference")
+            runner = self._create_lammps_runner(self.manager.work_dir / "inference")
             result = runner.run(start_atoms, potential_path)
 
             # 4. Active Learning Logic
@@ -223,10 +257,8 @@ class PhaseExecutor:
                             gammas = frame.arrays['c_gamma']
                             max_idx = int(gammas.argmax())
 
-                            # returns ase.Atoms directly
                             extracted_atoms = extractor.extract(frame, max_idx)
 
-                            # Save to DB
                             self.db.save_candidate(
                                 extracted_atoms,
                                 {

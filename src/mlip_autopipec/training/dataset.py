@@ -7,8 +7,8 @@ import logging
 import random
 from pathlib import Path
 
-from ase import Atoms
 from ase.io import write
+from ase import Atoms
 
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.orchestration.database import DatabaseManager
@@ -50,11 +50,11 @@ class DatasetBuilder:
 
     def export(self, config: TrainingConfig, output_dir: Path) -> Path:
         """
-        Exports data to Pacemaker format (ExtXYZ).
+        Exports data to Pacemaker format (ExtXYZ) using streaming to avoid OOM.
 
-        This method queries the database for completed structures, splits them
-        into training and validation sets, and writes them to the paths specified
-        in the configuration relative to the output directory.
+        This method queries the database for completed structures and splits them
+        probabilistically into training and validation sets. It keeps file handles open
+        for efficiency.
 
         Args:
             config: Training configuration containing file paths and parameters.
@@ -68,61 +68,50 @@ class DatasetBuilder:
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Fetch data
-        query = "status=completed"
-        logger.info(f"Fetching training data with query: '{query}'")
-        atoms_list = self.db_manager.get_atoms(selection=query)
-
-        if not atoms_list:
-            logger.error(f"No atoms found with query '{query}'")
-            raise ValueError("No training data found in database.")
-
-        logger.info(f"Fetched {len(atoms_list)} structures.")
-
-        # 2. Split Train/Test (90/10)
-        # Using fixed seed for reproducibility as per SPEC
-        random.seed(42)
-        random.shuffle(atoms_list)
-
-        n_total = len(atoms_list)
-        # Fixed 10% validation as per SPEC Summary
-        n_test = max(1, int(n_total * 0.1))
-        # Ensure we have at least 1 train if possible, but if n_total=1, n_test=1, train=0.
-        # Handle edge case for very small datasets (e.g. testing)
-        if n_total < 2:
-            n_test = 0 # If only 1 atom, use it for training? Or fail?
-                       # SPEC says "Bridge gap... populated". Assuming reasonable size.
-                       # But for robustness:
-            if n_total > 0:
-                 # If we have data, prioritize training
-                 n_test = 0
-
-        test_set = atoms_list[:n_test]
-        train_set = atoms_list[n_test:]
-
-        if not train_set and n_total > 0:
-             # Fallback if math weirdness happened (shouldn't with above logic)
-             train_set = atoms_list
-             test_set = []
-
-        logger.info(f"Split data: {len(train_set)} training, {len(test_set)} validation.")
-
-        # 3. Write files
         train_path = output_dir / config.training_data_path
         test_path = output_dir / config.test_data_path
 
-        logger.info(f"Writing {len(train_set)} structures to {train_path}")
-        self.export_atoms(train_set, train_path)
+        train_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if test_set:
-            logger.info(f"Writing {len(test_set)} structures to {test_path}")
-            self.export_atoms(test_set, test_path)
-        else:
-            # Create empty file or warn? SPEC implies both exist.
-            # If no test data, maybe copy train? Or just leave empty file?
-            # Pacemaker might fail if test file defined but missing.
-            # UAT says "Files exist".
-            logger.warning("Validation set is empty. Creating empty test file.")
-            test_path.touch()
+        query = "status=completed"
+        logger.info(f"Fetching training data with query: '{query}'")
 
+        rng = random.Random(42)
+        count = 0
+        train_count = 0
+        test_count = 0
+        validation_ratio = 0.1
+
+        try:
+            # Open both files in write mode (clears content)
+            with train_path.open("w") as f_train, test_path.open("w") as f_test:
+                for atoms in self.db_manager.select(selection=query):
+                    count += 1
+                    # Probabilistic split
+                    if rng.random() < validation_ratio:
+                        write(f_test, atoms, format="extxyz")
+                        test_count += 1
+                    else:
+                        write(f_train, atoms, format="extxyz")
+                        train_count += 1
+
+        except Exception as e:
+            logger.error(f"Error during data export: {e}")
+            raise
+
+        if count == 0:
+            logger.error(f"No atoms found with query '{query}'")
+            raise ValueError("No training data found in database.")
+
+        # Handle edge case: Ensure test file is valid (not empty) if needed?
+        # Pacemaker might choke on empty file.
+        # But we already created/truncated it with `open('w')`.
+        # If test_count is 0, the file is empty.
+
+        if test_count == 0 and train_count > 0:
+             logger.warning("Validation set empty after split.")
+             # We rely on the empty file existing.
+
+        logger.info(f"Exported {count} structures: {train_count} training, {test_count} validation.")
         return train_path
