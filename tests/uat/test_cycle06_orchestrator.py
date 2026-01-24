@@ -50,11 +50,14 @@ def uat_config(tmp_path):
 
 def test_uat_full_cycle_simulation(uat_config, tmp_path):
     # 1. Setup mocks for runners
-    with patch("mlip_autopipec.orchestration.phase_executor.QERunner") as MockQERunner, \
-         patch("mlip_autopipec.orchestration.phase_executor.LammpsRunner") as MockLammpsRunner, \
-         patch("mlip_autopipec.orchestration.phase_executor.PacemakerWrapper") as MockPacemakerWrapper, \
-         patch("mlip_autopipec.orchestration.phase_executor.EmbeddingExtractor") as MockExtractor, \
-         patch("mlip_autopipec.orchestration.phase_executor.DatasetBuilder") as MockDatasetBuilder, \
+    # Note: We patch where the classes are IMPORTED/USED, which is now in sub-phases
+    with patch("mlip_autopipec.orchestration.phases.dft.QERunner") as MockQERunner, \
+         patch("mlip_autopipec.orchestration.phases.inference.LammpsRunner") as MockLammpsRunner, \
+         patch("mlip_autopipec.orchestration.phases.training.PacemakerWrapper") as MockPacemakerWrapper, \
+         patch("mlip_autopipec.orchestration.phases.selection.PacemakerWrapper") as MockSelectionPacemaker, \
+         patch("mlip_autopipec.orchestration.phases.inference.EmbeddingExtractor") as MockExtractor, \
+         patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder") as MockDatasetBuilder, \
+         patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue, \
          patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask:
 
         # Configure LammpsRunner to trigger Active Learning ONCE
@@ -79,12 +82,14 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         mock_qe = MockQERunner.return_value
         mock_qe.run.return_value = {"energy": -10.0, "forces": [[0,0,0]], "stress": [0]*6}
 
-        # Configure Pacemaker
+        # Configure Pacemaker (Training)
         mock_pacemaker = MockPacemakerWrapper.return_value
         mock_pacemaker.train.return_value.success = True
         mock_pacemaker.train.return_value.potential_path = tmp_path / "new.yace"
-        # Mock select_active_set to return all indices
-        mock_pacemaker.select_active_set.return_value = [0]
+
+        # Configure Pacemaker (Selection)
+        mock_sel_pacemaker = MockSelectionPacemaker.return_value
+        mock_sel_pacemaker.select_active_set.return_value = [0]
 
         # 2. Initialize WorkflowManager
         manager = WorkflowManager(uat_config, workflow_config=uat_config.workflow_config)

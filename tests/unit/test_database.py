@@ -27,10 +27,10 @@ def test_add_structure(db_path):
         assert uid == 1
         assert db.count() == 1
 
-        entry = db.get_entries()[0]
-        assert entry[0] == 1
-        assert len(entry[1]) == 2
-        assert entry[1].info["status"] == "pending"
+        entries = list(db.get_entries())
+        assert entries[0][0] == 1
+        assert len(entries[0][1]) == 2
+        assert entries[0][1].info["status"] == "pending"
 
 def test_update_status(db_path):
     atoms = Atoms('H')
@@ -38,8 +38,8 @@ def test_update_status(db_path):
         uid = db.add_structure(atoms, {"status": "pending"})
         db.update_status(uid, "running")
 
-        entry = db.get_entries()[0]
-        assert entry[1].info["status"] == "running"
+        entries = list(db.get_entries())
+        assert entries[0][1].info["status"] == "running"
 
 def test_validate_atoms_nan(db_path):
     atoms = Atoms('H', positions=[[float('nan'), 0, 0]])
@@ -70,7 +70,7 @@ def test_update_metadata(db_path):
         uid = db.add_structure(atoms, {"status": "pending"})
         db.update_metadata(uid, {"new_key": "value"})
 
-        entries = db.get_entries()
+        entries = list(db.get_entries())
         assert entries[0][1].info["new_key"] == "value"
 
 def test_get_atoms(db_path):
@@ -78,7 +78,7 @@ def test_get_atoms(db_path):
     with DatabaseManager(db_path) as db:
         db.add_structure(atoms, {"status": "pending", "foo": "bar"})
 
-        fetched = db.get_atoms(status="pending")
+        fetched = list(db.get_atoms(status="pending"))
         assert len(fetched) == 1
         assert fetched[0].info["foo"] == "bar"
         assert fetched[0].info["status"] == "pending"
@@ -88,7 +88,8 @@ def test_save_candidate(db_path):
     with DatabaseManager(db_path) as db:
         db.save_candidate(atoms, {"status": "pending", "source": "random"})
         assert db.count() == 1
-        assert db.get_atoms()[0].info["source"] == "random"
+        atoms_list = list(db.get_atoms())
+        assert atoms_list[0].info["source"] == "random"
 
 def test_save_dft_result(db_path):
     from pydantic import BaseModel
@@ -103,7 +104,7 @@ def test_save_dft_result(db_path):
         db.save_dft_result(atoms, result, {"status": "completed"})
 
         assert db.count() == 1
-        saved = db.get_atoms()[0]
+        saved = list(db.get_atoms())[0]
         assert saved.info["energy"] == -10.0
         # Forces are saved in 'data' blob, which is merged into info by our get_atoms
         assert np.allclose(saved.info["forces"], [[0.0, 0.0, 0.0]])
@@ -164,7 +165,7 @@ def test_get_atoms_error(db_path):
         db.connector._connection.select.side_effect = Exception("Select failed")
 
         with pytest.raises(DatabaseError) as exc:
-            db.get_atoms()
+            list(db.get_atoms()) # Must iterate to trigger error
         assert "Failed to select atoms" in str(exc.value)
 
 def test_get_entries_error(db_path):
@@ -173,7 +174,7 @@ def test_get_entries_error(db_path):
         db.connector._connection.select.side_effect = Exception("Select failed")
 
         with pytest.raises(DatabaseError) as exc:
-            db.get_entries()
+            list(db.get_entries()) # Must iterate to trigger error
         assert "Failed to select entries" in str(exc.value)
 
 def test_count_error(db_path):

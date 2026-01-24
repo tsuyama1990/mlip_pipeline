@@ -153,6 +153,9 @@ class DatabaseManager:
             Number of matching rows.
         """
         try:
+            # ase.db handles parameterized queries via kwargs.
+            # selection string is parsed by ase.db but can be vulnerable if constructed via f-strings externally.
+            # We rely on ase.db's internal handling but prefer kwargs.
             return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
             logger.error(f"Failed to count rows: {e}")
@@ -244,19 +247,19 @@ class DatabaseManager:
             logger.error(f"Failed to select entries: {e}")
             raise DatabaseError(f"Failed to select entries: {e}") from e
 
-    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> list[Atoms]:
+    def get_atoms(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
         """
         Retrieve atoms matching selection.
-        Warning: Loads all results into memory. Use select() for large datasets.
+        Returns a generator to avoid OOM on large datasets.
         """
-        return list(self.select(selection=selection, **kwargs))
+        return self.select(selection=selection, **kwargs)
 
-    def get_entries(self, selection: str | None = None, **kwargs: Any) -> list[tuple[int, Atoms]]:
+    def get_entries(self, selection: str | None = None, **kwargs: Any) -> Generator[tuple[int, Atoms], None, None]:
         """
         Retrieve entries as (id, Atoms) tuples.
-        Warning: Loads all results into memory. Use select_entries() for large datasets.
+        Returns a generator to avoid OOM on large datasets.
         """
-        return list(self.select_entries(selection=selection, **kwargs))
+        return self.select_entries(selection=selection, **kwargs)
 
     def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
         """
