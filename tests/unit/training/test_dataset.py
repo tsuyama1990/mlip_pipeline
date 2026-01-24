@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -80,3 +81,15 @@ def test_export_atoms_fail(mock_db_manager: MagicMock, tmp_path: Path) -> None:
 
     with pytest.raises(OSError):
         builder.export_atoms(atoms_list, output_path)
+
+
+def test_export_path_validation_fail(mock_db_manager: MagicMock, training_config: TrainingConfig, tmp_path: Path) -> None:
+    """Test export fails if paths are unsafe."""
+    # This requires validate_path_safety to raise.
+    # If we pass an absolute path outside CWD (if restricted) or just check it calls it.
+
+    # Let's mock validate_path_safety to raise
+    with patch("mlip_autopipec.training.dataset.validate_path_safety", side_effect=ValueError("Unsafe path")):
+        builder = DatasetBuilder(mock_db_manager)
+        with pytest.raises(ValueError, match="Unsafe path"):
+            builder.export(training_config, tmp_path)

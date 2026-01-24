@@ -12,6 +12,7 @@ from ase import Atoms
 
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.orchestration.database import DatabaseManager
+from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class DatasetBuilder:
             atoms_list: List of ASE Atoms objects.
             output_path: Destination file path.
         """
+        output_path = validate_path_safety(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             write(str(output_path), atoms_list, format="extxyz")
@@ -68,8 +70,9 @@ class DatasetBuilder:
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        train_path = output_dir / config.training_data_path
-        test_path = output_dir / config.test_data_path
+        # Validate paths
+        train_path = validate_path_safety(output_dir / config.training_data_path)
+        test_path = validate_path_safety(output_dir / config.test_data_path)
 
         train_path.parent.mkdir(parents=True, exist_ok=True)
         test_path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,11 +87,11 @@ class DatasetBuilder:
         validation_ratio = 0.1
 
         try:
-            # Open both files in write mode (clears content)
+            # Use 'w' mode to start fresh
             with train_path.open("w") as f_train, test_path.open("w") as f_test:
+                # Streaming from DB generator
                 for atoms in self.db_manager.select(selection=query):
                     count += 1
-                    # Probabilistic split
                     if rng.random() < validation_ratio:
                         write(f_test, atoms, format="extxyz")
                         test_count += 1
@@ -104,14 +107,8 @@ class DatasetBuilder:
             logger.error(f"No atoms found with query '{query}'")
             raise ValueError("No training data found in database.")
 
-        # Handle edge case: Ensure test file is valid (not empty) if needed?
-        # Pacemaker might choke on empty file.
-        # But we already created/truncated it with `open('w')`.
-        # If test_count is 0, the file is empty.
-
         if test_count == 0 and train_count > 0:
              logger.warning("Validation set empty after split.")
-             # We rely on the empty file existing.
 
         logger.info(f"Exported {count} structures: {train_count} training, {test_count} validation.")
         return train_path

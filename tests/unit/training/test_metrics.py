@@ -97,7 +97,5 @@ def test_parse_infinite(tmp_path: Path) -> None:
     log_file.write_text(log_content)
 
     parser = LogParser()
-    # Python float('inf') works, so we need to check if LogParser handles it
-    # LogParser checks math.isfinite
     with pytest.raises(ValueError, match="Training diverged"):
         parser.parse_file(log_file)
