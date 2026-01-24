@@ -1,85 +1,144 @@
-# MLIP-AutoPipe
+# MLIP Auto PiPEC: Automated Machine Learning Interatomic Potential Pipeline
 
-MLIP-AutoPipe is a project designed to provide a "Zero-Human" protocol for the autonomous generation of Machine Learning Interatomic Potentials (MLIPs). This system automates the entire MLIP lifecycle, from initial data generation to active learning and large-scale production simulations.
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## System Architecture
+**MLIP Auto PiPEC** is a fully automated, active-learning based system for generating state-of-the-art Machine Learning Interatomic Potentials (MLIPs). It democratizes access to high-accuracy atomic simulations by replacing manual, expert-driven workflows with a robust, "Zero-Config" autonomous pipeline that handles everything from initial structure generation to DFT calculations, training, and validation.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed diagram and module description.
+## Key Features
 
-## Dependencies
+*   **Zero-Config Workflow**: Go from chemical composition to a production-ready potential with a single `config.yaml`.
+*   **Active Learning**: Drastically reduces DFT costs by intelligently selecting only the most informative structures (D-Optimality) to label.
+*   **Physics-Informed Robustness**: Guarantees simulation stability in unexplored regions by enforcing core repulsion via Delta Learning (ACE + ZBL/LJ).
+*   **Self-Healing Oracle**: Automatically recovers from Quantum Espresso/DFT convergence failures by adjusting mixing parameters and algorithms.
+*   **Scalable Architecture**: Seamlessly transitions from local prototyping to HPC production runs using a modular, container-ready design.
 
-The project requires Python >= 3.11. Key dependencies include:
-- `ase`
-- `numpy`
-- `pydantic`
-- `dask`
-- `matplotlib`
-- `mace-torch`
-- `dscribe`
+## Architecture Overview
 
-See `pyproject.toml` for the full list and version constraints.
+The system operates as a closed loop where the **Orchestrator** manages the flow of data between the **Generator** (Explorer), **Oracle** (Labeler), **Trainer** (Learner), and **Inference Engine** (Validator).
 
-## Dependency Management
+```mermaid
+graph TD
+    User[User / Config] -->|Initializes| Orch[Orchestrator]
+    Orch -->|Manages| State[Workflow State & DB]
 
-We use `uv` for dependency management.
-- **Strict Versions**: All dependencies in `pyproject.toml` must have version constraints (e.g., `>=3.11`, `==1.0.0`).
-- **Locking**: `uv.lock` is the source of truth for reproducible installs.
-- **Updates**: Run `uv sync` to update the environment. Major dependency upgrades should be tested in a separate branch.
-- **Conflict Resolution**: If conflicts arise (e.g. `icet`), downgrade Python version constraints or pin specific package versions, but prefer `uv` resolution.
+    subgraph "Cycle 1: Exploration"
+        Orch -->|Request| Gen[Structure Generator]
+        Gen -->|MD/MC/Defects| Candidates[Candidate Structures]
+    end
 
-## Cycles
+    subgraph "Cycle 2: Oracle"
+        Orch -->|Select & Embed| DFT[DFT Oracle (QE/VASP)]
+        DFT -->|Forces & Energy| Dataset[Labeled Dataset]
+    end
 
-### Cycle 01: Core Framework & User Interface
-- **Strict Schema**: `MinimalConfig` & `SystemConfig`.
-- **Data Persistence**: `DatabaseManager` (ASE-db).
-- **CLI Initialization**.
+    subgraph "Cycle 3: Training"
+        Orch -->|Train| Trainer[Pacemaker Trainer]
+        Dataset --> Trainer
+        Trainer -->|Produces| Pot[Potential.yace]
+    end
 
-### Cycle 02: Automated DFT Factory
-- **Autonomous Execution**: `QERunner`.
-- **Auto-Recovery**: `RecoveryHandler`.
+    subgraph "Cycle 4: Inference & AL"
+        Orch -->|Deploy| MD[Dynamics Engine (LAMMPS/EON)]
+        Pot --> MD
+        MD -->|Uncertainty (Gamma)| Watchdog[Watchdog Monitor]
+        Watchdog -->|High Uncertainty| Halt[Halt & Recovery]
+        Halt -->|New Candidates| Gen
+    end
 
-### Cycle 03: Structure Generator
-- **Generators**: SQS, NMS, Defects.
-
-### Cycle 04: Surrogate Explorer
-- **Pre-screening**: MACE foundation model.
-- **Selection**: FPS on SOAP descriptors.
-
-### Cycle 05: Active Learning & Training
-- **Training**: Pacemaker integration.
-- **Physics**: ZBL baseline subtraction.
-
-### Cycle 06: Scalable Inference Engine (Part 1)
-- **MD**: LAMMPS integration.
-- **UQ**: Uncertainty monitoring.
-
-### Cycle 07: Scalable Inference Engine (Part 2)
-- **Extraction**: Periodic embedding of local clusters.
-- **Masking**: Force masking for training.
-
-### Cycle 08: Orchestration
-- **WorkflowManager**: State machine for autonomous operation.
-- **TaskQueue**: Distributed execution via Dask.
-- **Dashboard**: HTML monitoring interface.
-
-## Getting Started
-
-Create environment:
-```bash
-uv sync --extra dev
+    classDef module fill:#f9f,stroke:#333,stroke-width:2px;
+    class Orch,Gen,DFT,Trainer,MD module;
 ```
 
-Run:
+## Prerequisites
+
+*   **Python**: 3.11 or higher
+*   **Package Manager**: `uv` (recommended) or `pip`
+*   **External Engines**:
+    *   **Quantum Espresso** (`pw.x`) for DFT calculations
+    *   **LAMMPS** (`lmp_serial` or `lmp_mpi`) for MD simulations
+    *   **Pacemaker** (`pace_train`, `pace_activeset`) for training ACE potentials
+
+## Installation
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/your-org/mlip-autopipec.git
+    cd mlip-autopipec
+    ```
+
+2.  **Install Dependencies (using uv)**
+    ```bash
+    uv sync
+    ```
+    *Alternatively, using pip:*
+    ```bash
+    pip install .
+    ```
+
+3.  **Environment Setup**
+    Ensure external binaries are in your `$PATH` or configured in `config.yaml`.
+
+## Usage
+
+### Quick Start
+
+1.  **Initialize a Project**
+    Create a `config.yaml` defining your system (e.g., Aluminum):
+    ```yaml
+    system:
+      elements: ["Al"]
+    dft:
+      command: "mpirun -np 4 pw.x"
+    ```
+
+2.  **Run the Pipeline**
+    Launch the autonomous loop:
+    ```bash
+    mlip-auto run config.yaml
+    ```
+
+3.  **Monitor Progress**
+    The system will output logs to the console and save the workflow state to `mlip_state.json`. You can inspect the database:
+    ```bash
+    mlip-auto analyze mlip.db
+    ```
+
+## Development Workflow
+
+We follow a strict 8-Cycle development roadmap.
+
+### Running Tests
+Unit and integration tests are managed by `pytest`.
 ```bash
-# Initialize a new project
-mlip-auto init
-
-# Validate your configuration
-mlip-auto check-config input.yaml
-
-# Initialize the database
-mlip-auto db init
-
-# Run the pipeline (if implemented)
-mlip-auto run input.yaml
+pytest
 ```
+
+### Code Quality
+We enforce strict typing and style guidelines.
+```bash
+ruff check .
+mypy .
+```
+
+## Project Structure
+
+```ascii
+mlip_autopipec/
+├── app.py                      # CLI Entry Point
+├── config/                     # Configuration Schemas
+├── data_models/                # Pydantic Models (Atoms, State)
+├── generator/                  # Structure Generation (Adaptive Policy)
+├── dft/                        # DFT Oracle & Recovery
+├── training/                   # Pacemaker Wrapper
+├── inference/                  # LAMMPS & EON Interfaces
+├── orchestration/              # Active Learning Loop
+└── utils/                      # Logging & Helpers
+dev_documents/                  # Architecture & Specifications
+tests/                          # Test Suite
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
