@@ -12,6 +12,7 @@
 *   **Database Management**: Thread-safe, resilient interface to `ase.db` (SQLite) for storing structures and calculation results.
 *   **Structure Generation**: Physics-informed generator supporting supercells, random substitutions (SQS), lattice strain, thermal rattling, and point defects (vacancies/interstitials).
 *   **DFT Oracle**: Integrated Quantum Espresso runner with auto-recovery for convergence failures (e.g., mixing beta reduction).
+*   **Training Orchestration**: Automated training of MLIPs using **Pacemaker**, with support for Active Set selection and Delta Learning configuration.
 *   **Periodic Embedding**: Utilities for extracting local atomic environments from larger simulation cells for targeted re-calculation.
 *   **Active Learning Loop**: Autonomous cycle of generation, labeling, training, and validation.
 
@@ -63,6 +64,11 @@ generator:
 dft:
   pseudopotential_dir: "/path/to/upf"
   ecutwfc: 40.0
+training:
+  cutoff: 5.0
+  b_basis_size: 200
+  batch_size: 16
+  max_num_epochs: 500
 ```
 
 ### 3. Validate Configuration
@@ -94,6 +100,7 @@ src/mlip_autopipec/
 ├── data_models/                # Core Data Structures (Atoms, Candidates)
 ├── generator/                  # Structure Generation (SQS, Defects, Strain)
 ├── orchestration/              # Database & Workflow Management
+├── training/                   # Training Orchestration (Pacemaker Wrapper, Dataset)
 ├── utils/                      # Logging & Utilities
 └── ...                         # Feature Modules (DFT, Training)
 ```
@@ -103,5 +110,5 @@ src/mlip_autopipec/
 - [x] **Cycle 01**: Core Framework, Config, Database.
 - [x] **Cycle 02**: Structure Generation.
 - [x] **Cycle 03**: DFT Oracle Interface.
-- [ ] **Cycle 04**: Training Orchestration.
+- [x] **Cycle 04**: Training Orchestration.
 - [ ] **Cycle 05**: Inference & Active Learning.

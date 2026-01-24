@@ -7,6 +7,7 @@ import logging
 import random
 from pathlib import Path
 
+from ase import Atoms
 from ase.io import write
 
 from mlip_autopipec.config.schemas.training import TrainingConfig
@@ -31,6 +32,21 @@ class DatasetBuilder:
             db_manager: An initialized DatabaseManager instance.
         """
         self.db_manager = db_manager
+
+    def export_atoms(self, atoms_list: list[Atoms], output_path: Path) -> None:
+        """
+        Exports a list of atoms to ExtXYZ format.
+
+        Args:
+            atoms_list: List of ASE Atoms objects.
+            output_path: Destination file path.
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            write(str(output_path), atoms_list, format="extxyz")
+        except Exception as e:
+            logger.error(f"Failed to export atoms to {output_path}: {e}")
+            raise
 
     def export(self, config: TrainingConfig, output_dir: Path) -> Path:
         """
@@ -95,20 +111,12 @@ class DatasetBuilder:
         train_path = output_dir / config.training_data_path
         test_path = output_dir / config.test_data_path
 
-        # Ensure subdirectories exist
-        train_path.parent.mkdir(parents=True, exist_ok=True)
-        test_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Helper to clean/prep atoms for ExtXYZ if needed
-        # ASE ExtXYZ writer handles energy/forces if in atoms.info/arrays/calc
-        # DB `get_atoms` puts them in info/arrays.
-
         logger.info(f"Writing {len(train_set)} structures to {train_path}")
-        write(train_path, train_set, format="extxyz")
+        self.export_atoms(train_set, train_path)
 
         if test_set:
             logger.info(f"Writing {len(test_set)} structures to {test_path}")
-            write(test_path, test_set, format="extxyz")
+            self.export_atoms(test_set, test_path)
         else:
             # Create empty file or warn? SPEC implies both exist.
             # If no test data, maybe copy train? Or just leave empty file?

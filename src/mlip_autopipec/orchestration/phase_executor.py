@@ -1,7 +1,8 @@
-import logging
 import itertools
+import logging
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar, Iterable, Iterator
+from typing import TYPE_CHECKING, TypeVar
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.dft.runner import QERunner
