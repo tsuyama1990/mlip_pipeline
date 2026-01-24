@@ -43,9 +43,19 @@ class QERunner(DFTRunner):
     """
     Orchestrates Quantum Espresso calculations with auto-recovery and efficient retries.
     """
+    INPUT_FILE = "pw.in"
+    OUTPUT_FILE = "pw.out"
 
-    def __init__(self, config: DFTConfig):
+    def __init__(self, config: DFTConfig, parser_class: type[QEOutputParser] = QEOutputParser):
+        """
+        Initialize QERunner.
+
+        Args:
+            config: DFT Configuration.
+            parser_class: Class to use for parsing output (Dependency Injection).
+        """
         self.config = config
+        self.parser_class = parser_class
 
     def _validate_command(self, command: str) -> list[str]:
         """
@@ -116,14 +126,14 @@ class QERunner(DFTRunner):
                 work_dir = Path(tmpdir)
                 input_str = InputGenerator.create_input_string(atoms, current_params)
 
-                input_path = work_dir / "pw.in"
-                output_path = work_dir / "pw.out"
+                input_path = work_dir / self.INPUT_FILE
+                output_path = work_dir / self.OUTPUT_FILE
 
                 input_path.write_text(input_str)
                 self._stage_pseudos(work_dir, atoms)
 
                 start_time = time.time()
-                full_command = command_parts + ["-in", "pw.in"]
+                full_command = command_parts + ["-in", self.INPUT_FILE]
 
                 returncode = -999
                 stdout_content = ""
@@ -204,6 +214,7 @@ class QERunner(DFTRunner):
         """
         Processes a batch of atoms by consuming an iterable/generator.
         This enables processing large datasets without pre-loading them.
+        This method runs sequentially. For parallelism, use TaskQueue in orchestration.
         """
         for atoms in atoms_iterable:
             try:
@@ -237,7 +248,7 @@ class QERunner(DFTRunner):
         self, output_path: Path, uid: str, wall_time: float, params: dict, atoms: Atoms
     ) -> DFTResult:
         """
-        Parses pw.out using QEOutputParser.
+        Parses pw.out using the injected parser class.
         """
-        parser = QEOutputParser()
+        parser = self.parser_class()
         return parser.parse(output_path, uid, wall_time, params)

@@ -1,8 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 from ase import Atoms
-from mlip_autopipec.utils.embedding import EmbeddingExtractor
+
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
+from mlip_autopipec.utils.embedding import EmbeddingExtractor
+
 
 @pytest.fixture
 def embedding_config():

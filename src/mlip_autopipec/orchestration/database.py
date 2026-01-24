@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import threading
 from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
@@ -62,6 +63,7 @@ class DatabaseManager:
 
     This class manages data access and persistence operations.
     It implements the Context Manager protocol.
+    Thread-safe for write operations.
     """
 
     def __init__(self, db_path: Path) -> None:
@@ -72,6 +74,7 @@ class DatabaseManager:
             db_path: Path to the SQLite database file.
         """
         self.connector = DatabaseConnector(db_path)
+        self._lock = threading.Lock()
 
     def __enter__(self) -> Self:
         """Context manager entry. Ensures connection is ready."""
@@ -120,7 +123,8 @@ class DatabaseManager:
         """
         try:
             self._validate_atoms(atoms)
-            id = self._connection.write(atoms, **metadata)
+            with self._lock:
+                id = self._connection.write(atoms, **metadata)
             return id
         except ValueError as e:
             logger.error(f"Validation failed for atoms insertion: {e}")
@@ -144,6 +148,10 @@ class DatabaseManager:
             Number of matching rows.
         """
         try:
+            # Check read-only operations if they need lock?
+            # SQLite handles concurrency well for reads, but Python driver might need care.
+            # ase.db usually manages its own cursors.
+            # We don't lock reads for performance unless necessary.
             return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
             logger.error(f"Failed to count rows: {e}")
@@ -158,7 +166,8 @@ class DatabaseManager:
             status: New status string.
         """
         try:
-            self._connection.update(id, status=status)
+            with self._lock:
+                self._connection.update(id, status=status)
         except KeyError as e:
             logger.error(f"ID {id} not found during update_status: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
@@ -175,7 +184,8 @@ class DatabaseManager:
             data: Dictionary of key-value pairs to update.
         """
         try:
-            self._connection.update(id, **data)
+            with self._lock:
+                self._connection.update(id, **data)
         except KeyError as e:
             logger.error(f"ID {id} not found during update_metadata: {e}")
             raise DatabaseError(f"ID {id} not found: {e}") from e
@@ -277,11 +287,12 @@ class DatabaseManager:
 
             atoms.info.update(metadata)
 
-            self._connection.write(
-                atoms,
-                data=result.model_dump() if hasattr(result, "model_dump") else {},
-                **metadata  # Pass metadata as kwargs so they are indexed columns!
-            )
+            with self._lock:
+                self._connection.write(
+                    atoms,
+                    data=result.model_dump() if hasattr(result, "model_dump") else {},
+                    **metadata  # Pass metadata as kwargs so they are indexed columns!
+                )
         except AttributeError as e:
             logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
             raise DatabaseError(f"Invalid DFTResult object: {e}") from e
@@ -295,7 +306,8 @@ class DatabaseManager:
     def set_system_config(self, config: "SystemConfig") -> None:
         """Store system config in metadata."""
         try:
-            self._connection.metadata = config.model_dump(mode="json")
+            with self._lock:
+                self._connection.metadata = config.model_dump(mode="json")
         except Exception as e:
             logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
             # Non-critical, warning only
