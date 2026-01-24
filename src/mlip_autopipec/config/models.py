@@ -8,9 +8,9 @@ from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.config.schemas.exploration import ExplorerConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.config.schemas.orchestration import WorkflowConfig
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.config.schemas.workflow import WorkflowConfig
 
 
 class MLIPConfig(BaseModel):

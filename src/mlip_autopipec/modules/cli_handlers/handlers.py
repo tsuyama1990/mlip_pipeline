@@ -46,7 +46,8 @@ class CLIHandler:
                  "b_basis_size": 300,
                  "kappa": 0.5,
                  "kappa_f": 100.0,
-                 "max_iter": 100
+                 "max_iter": 100,
+                 "batch_size": 32
             },
             "inference_config": {
                 "lammps_executable": "/path/to/lmp",
@@ -158,15 +159,15 @@ class CLIHandler:
 
     @staticmethod
     def run_loop(config_file: Path) -> None:
-        from mlip_autopipec.orchestration.models import OrchestratorConfig
+        from mlip_autopipec.config.schemas.workflow import WorkflowConfig
         from mlip_autopipec.orchestration.workflow import WorkflowManager
 
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
 
-        wf_config = config.workflow_config if config.workflow_config else OrchestratorConfig()
+        wf_config = config.workflow_config if config.workflow_config else WorkflowConfig()
 
-        manager = WorkflowManager(config, wf_config)
+        manager = WorkflowManager(config, workflow_config=wf_config)
         manager.run()
 
         console("Workflow finished.")

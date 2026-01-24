@@ -13,9 +13,11 @@ mlip_autopipec/
 ├── data_models/
 │   └── state.py                # **WorkflowState Model**
 └── orchestration/
-    ├── loop.py                 # **WorkflowManager Class**
+    ├── workflow.py             # **WorkflowManager Class** (was loop.py)
     └── strategies.py           # **Active Learning Strategies**
 ```
+
+**Note**: `src/mlip_autopipec/orchestration/models.py` is deprecated and will be split into `data_models/state.py` and `config/schemas/workflow.py`.
 
 ## 3. Design Architecture
 
@@ -26,7 +28,7 @@ A Pydantic model serialized to JSON/YAML to track progress.
 - `latest_potential_path`: Path
 - `active_tasks`: List[IDs]
 
-### 3.2. Workflow Manager (`orchestration/loop.py`)
+### 3.2. Workflow Manager (`orchestration/workflow.py`)
 The main controller class.
 - `run()`: The entry point.
 - **Logic**:

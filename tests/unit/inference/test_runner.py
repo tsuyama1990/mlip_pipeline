@@ -1,10 +1,12 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.inference.runner import LammpsRunner
-from mlip_autopipec.data_models.inference_models import InferenceResult
+
 
 @pytest.fixture
 def mock_config(tmp_path):

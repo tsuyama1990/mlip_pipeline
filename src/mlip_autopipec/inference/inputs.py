@@ -5,7 +5,9 @@ This module provides the ScriptGenerator class for creating LAMMPS input scripts
 """
 
 from pathlib import Path
+
 from ase.data import atomic_numbers
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 
 

@@ -5,6 +5,7 @@ from ase import Atoms
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.parsers import QEOutputParser
+from mlip_autopipec.dft.recovery import DFTErrorType
 from mlip_autopipec.dft.runner import QERunner
 
 
@@ -94,12 +95,19 @@ def test_uat_03_03_auto_recovery(tmp_path):
 
             mock_run.side_effect = [fail, success]
 
-            with patch("mlip_autopipec.dft.runner.QEOutputParser") as mock_parser:
-                mock_parser.return_value.parse.return_value = DFTResult(
-                    uid="1", energy=0, forces=[[0,0,0]], stress=[[0,0,0],[0,0,0],[0,0,0]], succeeded=True, wall_time=1, parameters={}
-                )
+            # Patch RecoveryHandler to simulate detection of convergence error
+            with patch("mlip_autopipec.dft.runner.RecoveryHandler.analyze") as mock_analyze:
+                mock_analyze.side_effect = [DFTErrorType.CONVERGENCE_FAIL, DFTErrorType.NONE]
 
-                result = runner.run(atoms)
+                with patch("mlip_autopipec.dft.runner.QEOutputParser") as mock_parser:
+                    mock_parser.return_value.parse.return_value = DFTResult(
+                        uid="1", energy=0, forces=[[0,0,0]], stress=[[0,0,0],[0,0,0],[0,0,0]], succeeded=True, wall_time=1, parameters={}
+                    )
 
-                assert result.succeeded
-                assert mock_run.call_count == 2
+                    # Inject the mock parser class into the runner instance
+                    runner.parser_class = mock_parser
+
+                    result = runner.run(atoms)
+
+                    assert result.succeeded
+                    assert mock_run.call_count == 2

@@ -1,9 +1,12 @@
-import pytest
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 from ase import Atoms
-from unittest.mock import patch, MagicMock
+
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.inference.writer import LammpsInputWriter
+
 
 @pytest.fixture
 def mock_config():

@@ -5,11 +5,23 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.orchestration.database import DatabaseManager
-from mlip_autopipec.orchestration.models import DashboardData
 
 logger = logging.getLogger(__name__)
+
+
+class DashboardData(BaseModel):
+    """
+    Data structure for dashboard reporting.
+    """
+    generations: list[int] = Field(default_factory=list)
+    rmse_values: list[float] = Field(default_factory=list)
+    structure_counts: list[int] = Field(default_factory=list)
+    status: str = Field("Unknown")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class Dashboard:
@@ -71,7 +83,10 @@ class Dashboard:
 
         # RMSE Plot
         plt.subplot(2, 1, 1)
-        plt.plot(data.generations, data.rmse_values, "b-o", label="RMSE")
+        if len(data.generations) == len(data.rmse_values):
+            plt.plot(data.generations, data.rmse_values, "b-o", label="RMSE")
+        else:
+            logger.warning("Mismatch between generations and RMSE values. Skipping RMSE plot.")
         plt.ylabel("RMSE (eV/A)")
         plt.title("Learning Curve")
         plt.grid(True)
@@ -79,7 +94,10 @@ class Dashboard:
 
         # Structure Count Plot
         plt.subplot(2, 1, 2)
-        plt.plot(data.generations, data.structure_counts, "g-s", label="Structures")
+        if len(data.generations) == len(data.structure_counts):
+            plt.plot(data.generations, data.structure_counts, "g-s", label="Structures")
+        else:
+            logger.warning("Mismatch between generations and Structure counts. Skipping Count plot.")
         plt.xlabel("Generation")
         plt.ylabel("Count")
         plt.grid(True)

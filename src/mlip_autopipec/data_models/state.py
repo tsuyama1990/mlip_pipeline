@@ -1,0 +1,26 @@
+from enum import Enum
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class WorkflowPhase(str, Enum):
+    """
+    Enum representing the current phase of the active learning workflow.
+    """
+    EXPLORATION = "Exploration"
+    SELECTION = "Selection"
+    CALCULATION = "Calculation"
+    TRAINING = "Training"
+
+
+class WorkflowState(BaseModel):
+    """
+    Tracks the current state of the automated workflow.
+    """
+    cycle_index: int = Field(0, description="The current active learning cycle index (0-based).", ge=0)
+    current_phase: WorkflowPhase = Field(WorkflowPhase.EXPLORATION, description="Current phase of the workflow.")
+    latest_potential_path: Path | None = Field(None, description="Path to the latest potential file.")
+    active_tasks: list[str] = Field(default_factory=list, description="List of IDs for currently active tasks.")
+
+    model_config = ConfigDict(extra="forbid")

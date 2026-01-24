@@ -31,6 +31,7 @@ def test_target_system_invalid_element():
         )
 
 def test_dft_config_defaults(tmp_path):
+    (tmp_path / "fake.upf").touch()
     dft = DFTConfig(
         pseudopotential_dir=tmp_path,
         ecutwfc=30.0,
@@ -40,6 +41,7 @@ def test_dft_config_defaults(tmp_path):
     assert dft.nspin == 1
 
 def test_dft_config_validation(tmp_path):
+    (tmp_path / "fake.upf").touch()
     with pytest.raises(ValidationError) as exc:
         DFTConfig(
             pseudopotential_dir=tmp_path,
@@ -49,6 +51,7 @@ def test_dft_config_validation(tmp_path):
     assert "greater than 0" in str(exc.value)
 
 def test_dft_config_security(tmp_path):
+    (tmp_path / "fake.upf").touch()
     with pytest.raises(ValidationError) as exc:
         DFTConfig(
             pseudopotential_dir=tmp_path,
@@ -59,6 +62,7 @@ def test_dft_config_security(tmp_path):
     assert "unsafe shell characters" in str(exc.value)
 
 def test_mlip_config_full(tmp_path):
+    (tmp_path / "Al.upf").touch()
     config_data = {
         "target_system": {
             "elements": ["Al"],
