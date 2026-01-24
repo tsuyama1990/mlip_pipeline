@@ -16,12 +16,13 @@
 *   **Periodic Embedding**: Utilities for extracting local atomic environments from larger simulation cells for targeted re-calculation.
 *   **Orchestration Engine**: Centralized state machine managing the Active Learning loop (Exploration -> Selection -> Calculation -> Training), complete with persistence and resumption capabilities.
 *   **Dashboard**: Real-time status reporting via HTML dashboard visualizing learning curves and database statistics.
+*   **Kinetic Monte Carlo (kMC)**: Integration with **EON** for long-timescale exploration of rare events (diffusion, reactions) with on-the-fly uncertainty detection.
 
 ## Requirements
 
 *   **Python**: 3.11+
 *   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `rich`, `pyyaml`, `scipy`.
-*   **External Engines**: Quantum Espresso, LAMMPS, Pacemaker.
+*   **External Engines**: Quantum Espresso, LAMMPS, Pacemaker, EON.
 
 ## Installation
 
@@ -70,6 +71,11 @@ training:
   b_basis_size: 200
   batch_size: 16
   max_num_epochs: 500
+inference_config:
+    active_engine: "eon"
+    eon:
+        job: "process_search"
+        temperature: 300.0
 ```
 
 ### 3. Validate Configuration
@@ -106,6 +112,7 @@ src/mlip_autopipec/
 ├── config/                     # Configuration Schemas (Pydantic)
 ├── data_models/                # Core Data Structures (Atoms, Candidates)
 ├── generator/                  # Structure Generation (SQS, Defects, Strain)
+├── inference/                  # Dynamics & kMC (LAMMPS, EON)
 ├── orchestration/              # Database & Workflow Management
 ├── training/                   # Training Orchestration (Pacemaker Wrapper, Dataset)
 ├── utils/                      # Logging & Utilities
@@ -118,4 +125,6 @@ src/mlip_autopipec/
 - [x] **Cycle 02**: Structure Generation.
 - [x] **Cycle 03**: DFT Oracle Interface.
 - [x] **Cycle 04**: Training Orchestration.
-- [ ] **Cycle 05**: Inference & Active Learning.
+- [x] **Cycle 05**: Inference & Active Learning (LAMMPS).
+- [x] **Cycle 06**: Active Learning Orchestrator.
+- [x] **Cycle 07**: Advanced Expansion (kMC) with EON.
