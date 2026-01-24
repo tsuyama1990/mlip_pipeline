@@ -36,11 +36,23 @@ def init() -> None:
 
 
 @app.command(name="validate")
-def validate(file: Path = typer.Argument(..., help="Path to config file")) -> None:
-    """Validate the configuration file."""
+def validate(
+    file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),
+    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),
+    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),
+    eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),
+) -> None:
+    """
+    Validate configuration or run physics checks on the trained potential.
+    Default: Validate config.
+    With flags: Run specified physics validation (requires trained potential).
+    """
     setup_logging()
     try:
-        CLIHandler.validate_config(file)
+        if phonon or elastic or eos:
+            CLIHandler.run_physics_validation(file, phonon=phonon, elastic=elastic, eos=eos)
+        else:
+            CLIHandler.validate_config(file)
     except ValidationError as e:
         console.print("[bold red]Validation Error:[/bold red]")
         console.print(str(e))

@@ -27,11 +27,17 @@ Finalize the Typer app.
 - Commands: `init`, `run`, `validate`, `analyze`.
 - **Rich Integration**: Progress bars, status tables.
 
+#### Validate Command Overload
+The `validate` command will support two modes:
+1. **Config Validation**: `mlip-auto validate config.yaml` (default behavior if no physics flags are passed).
+2. **Physics Validation**: `mlip-auto validate config.yaml --phonon --elastic --eos` (runs physics checks).
+
 ## 4. Implementation Approach
 
 1.  **Validator**: Implement physics checks.
     - Use `ase.phonons` or `phonopy` API.
     - Use `ase.eos` for EOS.
+    - Implement `ValidationConfig` in schemas.
 2.  **CLI**: Connect `WorkflowManager` to the `mlip-auto run` command.
 3.  **Documentation**: Generate final API docs.
 

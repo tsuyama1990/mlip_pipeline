@@ -38,6 +38,7 @@ dependencies = [
     "plotly",
     "matplotlib",
     "Jinja2",
+    "phonopy>=2.20.0",
 ]
 
 [project.urls]
