@@ -1,13 +1,12 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from mlip_autopipec.orchestration.workflow import WorkflowManager
-from mlip_autopipec.config.models import SystemConfig, WorkflowConfig, TargetSystem, DFTConfig
-from mlip_autopipec.config.schemas.training import TrainingConfig
+import pytest
+
+from mlip_autopipec.config.models import DFTConfig, SystemConfig, TargetSystem, WorkflowConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.data_models.state import WorkflowPhase
-from mlip_autopipec.orchestration.phase_executor import PhaseExecutor
+from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 # UAT Scenario 06-01: Full Active Learning Cycle (Simulated)
 
@@ -115,3 +114,25 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
 
         # Verify Training called
         assert mock_pacemaker.train.call_count >= 1
+
+def test_workflow_error_handling(uat_config, tmp_path):
+    """
+    Scenario: Inference engine fails (crashes). Workflow should catch and ideally pause or retry.
+    Current logic: Logs exception and returns False/None, loop continues but might hit max generations.
+    We check if it handles it gracefully without crashing the whole process.
+    """
+    with patch("mlip_autopipec.orchestration.phases.inference.LammpsRunner") as MockLammpsRunner, \
+         patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask:
+
+        mock_lammps = MockLammpsRunner.return_value
+        mock_lammps.run.side_effect = Exception("Simulated LAMMPS Crash")
+
+        manager = WorkflowManager(uat_config, workflow_config=uat_config.workflow_config)
+
+        # Should not raise exception
+        manager.run()
+
+        # Cycle should advance or stop?
+        # If phase fails, `run_cycle` might catch it.
+        # Checking if execution completed cleanly (no uncaught exception)
+        pass

@@ -112,6 +112,15 @@ class DatabaseManager:
         # E.g. coords > 1e6 usually mean error, but maybe not in MD.
         # We stick to NaN/Inf for now as critical.
 
+        # Check for atom overlap (sanity check)
+        # A minimal distance < 0.1 Angstrom is likely an error/overlap in generation
+        if len(atoms) > 1:
+            # We don't want expensive O(N^2) here, but for small cells it's ok.
+            # Using ase.geometry or just a quick check if needed.
+            # However, for huge systems this is slow.
+            # We skip this for now to avoid Scalability issues in this method.
+            pass
+
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
         """
         Inserts an atom with metadata.
@@ -266,6 +275,30 @@ class DatabaseManager:
         Save a candidate structure.
         """
         self.add_structure(atoms, metadata)
+
+    def save_candidates(self, candidates: list[tuple[Atoms, dict[str, Any]]]) -> None:
+        """
+        Save multiple candidate structures in a single transaction (if possible).
+
+        Args:
+            candidates: List of tuples (atoms, metadata).
+        """
+        if not candidates:
+            return
+
+        try:
+            with self._lock:
+                # ase.db doesn't expose explicit transaction begin/commit easily for `write`.
+                # However, if we are in a sqlite context, we can try to wrap.
+                # But to stay safe with ase.db abstraction, we just iterate.
+                # Since we hold the lock, no other thread interrupts.
+                # Optimally, we would use self._connection.managed_connection if available.
+                for atoms, meta in candidates:
+                    self._validate_atoms(atoms)
+                    self._connection.write(atoms, **meta)
+        except Exception as e:
+            logger.error(f"Failed to save candidates batch: {e}")
+            raise DatabaseError(f"Failed to save candidates batch: {e}") from e
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
         """
