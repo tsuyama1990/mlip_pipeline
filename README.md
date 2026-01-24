@@ -4,61 +4,20 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**MLIP Auto PiPEC** is a fully automated, active-learning based system for generating state-of-the-art Machine Learning Interatomic Potentials (MLIPs). It democratizes access to high-accuracy atomic simulations by replacing manual, expert-driven workflows with a robust, "Zero-Config" autonomous pipeline that handles everything from initial structure generation to DFT calculations, training, and validation.
+**MLIP Auto PiPEC** is a fully automated, active-learning based system for generating state-of-the-art Machine Learning Interatomic Potentials (MLIPs). It democratizes access to high-accuracy atomic simulations by replacing manual, expert-driven workflows with a robust, "Zero-Config" autonomous pipeline.
 
-## Key Features
+## Features
 
-*   **Zero-Config Workflow**: Go from chemical composition to a production-ready potential with a single `config.yaml`.
-*   **Active Learning**: Drastically reduces DFT costs by intelligently selecting only the most informative structures (D-Optimality) to label.
-*   **Physics-Informed Robustness**: Guarantees simulation stability in unexplored regions by enforcing core repulsion via Delta Learning (ACE + ZBL/LJ).
-*   **Self-Healing Oracle**: Automatically recovers from Quantum Espresso/DFT convergence failures by adjusting mixing parameters and algorithms.
-*   **Scalable Architecture**: Seamlessly transitions from local prototyping to HPC production runs using a modular, container-ready design.
+*   **Robust Configuration**: Strictly validated YAML configuration using Pydantic schemas ensures fail-fast behavior.
+*   **Database Management**: Thread-safe, resilient interface to `ase.db` (SQLite) for storing structures and calculation results.
+*   **Self-Healing**: Automated recovery strategies for DFT convergence failures.
+*   **Active Learning Loop**: Autonomous cycle of generation, labeling, training, and validation.
 
-## Architecture Overview
+## Requirements
 
-The system operates as a closed loop where the **Orchestrator** manages the flow of data between the **Generator** (Explorer), **Oracle** (Labeler), **Trainer** (Learner), and **Inference Engine** (Validator).
-
-```mermaid
-graph TD
-    User[User / Config] -->|Initializes| Orch[Orchestrator]
-    Orch -->|Manages| State[Workflow State & DB]
-
-    subgraph "Cycle 1: Exploration"
-        Orch -->|Request| Gen[Structure Generator]
-        Gen -->|MD/MC/Defects| Candidates[Candidate Structures]
-    end
-
-    subgraph "Cycle 2: Oracle"
-        Orch -->|Select & Embed| DFT[DFT Oracle (QE/VASP)]
-        DFT -->|Forces & Energy| Dataset[Labeled Dataset]
-    end
-
-    subgraph "Cycle 3: Training"
-        Orch -->|Train| Trainer[Pacemaker Trainer]
-        Dataset --> Trainer
-        Trainer -->|Produces| Pot[Potential.yace]
-    end
-
-    subgraph "Cycle 4: Inference & AL"
-        Orch -->|Deploy| MD[Dynamics Engine (LAMMPS/EON)]
-        Pot --> MD
-        MD -->|Uncertainty (Gamma)| Watchdog[Watchdog Monitor]
-        Watchdog -->|High Uncertainty| Halt[Halt & Recovery]
-        Halt -->|New Candidates| Gen
-    end
-
-    classDef module fill:#f9f,stroke:#333,stroke-width:2px;
-    class Orch,Gen,DFT,Trainer,MD module;
-```
-
-## Prerequisites
-
-*   **Python**: 3.11 or higher
-*   **Package Manager**: `uv` (recommended) or `pip`
-*   **External Engines**:
-    *   **Quantum Espresso** (`pw.x`) for DFT calculations
-    *   **LAMMPS** (`lmp_serial` or `lmp_mpi`) for MD simulations
-    *   **Pacemaker** (`pace_train`, `pace_activeset`) for training ACE potentials
+*   **Python**: 3.11+
+*   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `rich`, `pyyaml`.
+*   **External Engines**: Quantum Espresso, LAMMPS, Pacemaker.
 
 ## Installation
 
@@ -68,77 +27,65 @@ graph TD
     cd mlip-autopipec
     ```
 
-2.  **Install Dependencies (using uv)**
+2.  **Install Dependencies**
+    Using `uv` (Recommended):
     ```bash
     uv sync
     ```
-    *Alternatively, using pip:*
+    Or using `pip`:
     ```bash
     pip install .
     ```
 
-3.  **Environment Setup**
-    Ensure external binaries are in your `$PATH` or configured in `config.yaml`.
-
 ## Usage
 
-### Quick Start
-
-1.  **Initialize a Project**
-    Create a `config.yaml` defining your system (e.g., Aluminum):
-    ```yaml
-    system:
-      elements: ["Al"]
-    dft:
-      command: "mpirun -np 4 pw.x"
-    ```
-
-2.  **Run the Pipeline**
-    Launch the autonomous loop:
-    ```bash
-    mlip-auto run config.yaml
-    ```
-
-3.  **Monitor Progress**
-    The system will output logs to the console and save the workflow state to `mlip_state.json`. You can inspect the database:
-    ```bash
-    mlip-auto analyze mlip.db
-    ```
-
-## Development Workflow
-
-We follow a strict 8-Cycle development roadmap.
-
-### Running Tests
-Unit and integration tests are managed by `pytest`.
+### 1. Initialize Project
+Create a template configuration file (`input.yaml`) with default settings:
 ```bash
-pytest
+mlip-auto init
 ```
 
-### Code Quality
-We enforce strict typing and style guidelines.
-```bash
-ruff check .
-mypy .
+### 2. Configure System
+Edit `input.yaml` to define your target system (e.g., Fe-Ni alloy) and computational parameters:
+```yaml
+target_system:
+  elements: ["Fe", "Ni"]
+  composition: {"Fe": 0.7, "Ni": 0.3}
+dft:
+  pseudopotential_dir: "/path/to/upf"
+  ecutwfc: 40.0
 ```
 
-## Project Structure
+### 3. Validate Configuration
+Ensure your configuration is valid before running expensive calculations:
+```bash
+mlip-auto validate input.yaml
+```
+
+### 4. Initialize Database (Optional)
+Initialize the SQLite database (`mlip.db`):
+```bash
+mlip-auto db init --config input.yaml
+```
+
+## Architecture
+
+The project is structured as follows:
 
 ```ascii
-mlip_autopipec/
+src/mlip_autopipec/
 ├── app.py                      # CLI Entry Point
-├── config/                     # Configuration Schemas
-├── data_models/                # Pydantic Models (Atoms, State)
-├── generator/                  # Structure Generation (Adaptive Policy)
-├── dft/                        # DFT Oracle & Recovery
-├── training/                   # Pacemaker Wrapper
-├── inference/                  # LAMMPS & EON Interfaces
-├── orchestration/              # Active Learning Loop
-└── utils/                      # Logging & Helpers
-dev_documents/                  # Architecture & Specifications
-tests/                          # Test Suite
+├── config/                     # Configuration Schemas (Pydantic)
+├── data_models/                # Core Data Structures (Atoms, Candidates)
+├── orchestration/              # Database & Workflow Management
+├── utils/                      # Logging & Utilities
+└── ...                         # Feature Modules (DFT, Training, Generator)
 ```
 
-## License
+## Roadmap
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- [x] **Cycle 01**: Core Framework, Config, Database.
+- [ ] **Cycle 02**: Structure Generation.
+- [ ] **Cycle 03**: DFT Oracle Interface.
+- [ ] **Cycle 04**: Training Orchestration.
+- [ ] **Cycle 05**: Inference & Active Learning.

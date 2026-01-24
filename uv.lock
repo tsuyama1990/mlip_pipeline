@@ -1034,6 +1034,12 @@ dev = [
     { name = "types-pyyaml" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "ase", specifier = ">=3.22.1" },
@@ -1063,6 +1069,12 @@ requires-dist = [
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.12.20250915" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+]
 
 [[package]]
 name = "mpmath"
