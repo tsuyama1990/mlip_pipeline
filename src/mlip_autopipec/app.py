@@ -48,6 +48,20 @@ def validate(
     """
     setup_logging()
     flags = {"phonon": phonon, "elastic": elastic, "eos": eos}
+
+    # If no flags are set, run standard config validation (Cycle 01 behavior)
+    if not any(flags.values()):
+        try:
+            CLIHandler.validate_config(file)
+            return
+        except ValidationError as e:
+            console.print("[bold red]Validation Error:[/bold red]")
+            console.print(str(e))
+            raise typer.Exit(code=1) from e
+        except Exception as e:
+            console.print(f"[bold red]Error:[/bold red] {e}")
+            raise typer.Exit(code=1) from e
+
     try:
         CLIHandler.validate_potential(file, flags)
     except ValidationError as e:

@@ -54,11 +54,16 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         patch(
             "mlip_autopipec.orchestration.phases.selection.PacemakerWrapper"
         ) as MockSelectionPacemaker,
-        patch("mlip_autopipec.orchestration.phases.inference.EmbeddingExtractor") as MockExtractor,
+            patch("mlip_autopipec.inference.processing.EmbeddingExtractor") as MockExtractor,
         patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder") as MockDatasetBuilder,
         patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue,
         patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask,
+        patch("mlip_autopipec.inference.processing.read") as mock_read,
     ):
+        # Configure Read
+        from ase import Atoms
+        mock_read.return_value = Atoms("Fe")
+
         # Configure LammpsRunner to trigger Active Learning ONCE
         mock_lammps = MockLammpsRunner.return_value
         # First call: Returns result with uncertain_structures (Halt)
@@ -82,10 +87,22 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         mock_qe = MockQERunner.return_value
         mock_qe.run.return_value = {"energy": -10.0, "forces": [[0, 0, 0]], "stress": [0] * 6}
 
+        # Configure TaskQueue to return DFT results
+        mock_task_queue = MockTaskQueue.return_value
+        from mlip_autopipec.data_models.dft_models import DFTResult
+        result_dft = DFTResult(
+            succeeded=True, energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0]*3]*3,
+            uid="123", wall_time=1.0, parameters={}
+        )
+        def dft_side_effect(atoms, config):
+            return [result_dft] * len(atoms)
+        mock_task_queue.submit_dft_batch.side_effect = dft_side_effect
+
         # Configure Pacemaker (Training)
         mock_pacemaker = MockPacemakerWrapper.return_value
         mock_pacemaker.train.return_value.success = True
         mock_pacemaker.train.return_value.potential_path = tmp_path / "new.yace"
+        (tmp_path / "new.yace").touch()
 
         # Configure Pacemaker (Selection)
         mock_sel_pacemaker = MockSelectionPacemaker.return_value
@@ -93,6 +110,16 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
 
         # 2. Initialize WorkflowManager
         manager = WorkflowManager(uat_config, workflow_config=uat_config.workflow_config)
+
+        # Ensure work directory and initial potential exist
+        manager.work_dir.mkdir(parents=True, exist_ok=True)
+        (manager.work_dir / "current.yace").touch()
+
+        # Seed DB with a training structure for Inference
+        from mlip_autopipec.orchestration.database import DatabaseManager
+        from ase import Atoms
+        with DatabaseManager(uat_config.db_path) as db:
+            db.add_structure(Atoms("Fe"), metadata={"status": "training"})
 
         # 3. Run
         manager.run()
@@ -111,7 +138,7 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
 
         # Verify DFT called
         # We had 1 uncertain structure -> 1 DFT calculation
-        assert mock_qe.run.call_count >= 1
+        assert mock_task_queue.submit_dft_batch.call_count >= 1
 
         # Verify Training called
         assert mock_pacemaker.train.call_count >= 1

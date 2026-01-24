@@ -63,9 +63,9 @@ class DFTConfig(BaseModel):
         Disallows unsafe characters and validates splitting with shlex.
         """
         # Strict check for shell control operators
-        if re.search(r"[;&|`$()]", v):
+        if re.search(r"[;&|`$()<>]", v):
             raise ValueError(
-                "Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked."
+                "Command contains unsafe shell characters: ; & | ` $ ( ) < >. Execution is blocked."
             )
 
         try:

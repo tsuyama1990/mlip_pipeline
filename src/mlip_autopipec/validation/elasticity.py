@@ -30,6 +30,9 @@ class ElasticityValidator:
         Returns:
             bool: True if stable.
         """
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+
         try:
             C = self.calculate_elastic_tensor(atoms, calculator)
         except Exception as e:

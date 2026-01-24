@@ -31,6 +31,9 @@ class PhononValidator:
         Returns:
             bool: True if stable (no imaginary modes), False otherwise.
         """
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+
         # Convert ASE Atoms to PhonopyAtoms
         unitcell = PhonopyAtoms(
             symbols=atoms.get_chemical_symbols(),

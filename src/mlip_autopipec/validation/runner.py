@@ -38,6 +38,9 @@ class ValidationRunner:
         Returns:
             bool: True if all enabled checks pass.
         """
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+
         if flags is None:
             flags = {}
 
@@ -147,6 +150,10 @@ class ValidationRunner:
         cmd = "lmp"
         if self.inference_config and self.inference_config.lammps_executable:
             cmd = str(self.inference_config.lammps_executable)
+
+        # Security check for shell injection
+        if any(char in cmd for char in [";", "|", "&", "`", "$", "(", ")", "<", ">"]):
+            raise ValueError(f"Security: Invalid characters detected in LAMMPS executable path: {cmd}")
 
         resolved = shutil.which(cmd)
         if resolved:

@@ -62,3 +62,12 @@ def test_phonon_validator_unstable(mock_phonopy):
 
     result = validator.validate(atoms, calculator)
     assert result is False
+
+
+def test_phonon_validator_invalid_input(mock_phonopy):
+    config = PhononConfig()
+    validator = PhononValidator(config)
+    calculator = MagicMock()
+
+    with pytest.raises(TypeError):
+        validator.validate("not_atoms", calculator)

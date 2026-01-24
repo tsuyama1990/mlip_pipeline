@@ -30,6 +30,9 @@ class EOSValidator:
         Returns:
             bool: True if Bulk Modulus > 0.
         """
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+
         volumes = []
         energies = []
 
