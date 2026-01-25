@@ -9,7 +9,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
     - **Write Tests Second**: Write tests based on the defined schemas (TDD).
     - **Implement Logic Last**: Implement the functions to satisfy the tests.
 2.  **PROOF OF WORK**: The remote CI system will NOT run heavy tests. **YOU are responsible for running tests in your local environment.**
-3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally. **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
+3.  **INCREMENTAL LINTING & TYPE CHECKING**: After creating or modifying EACH file, immediately run `uv run ruff check .`, `uv run ruff format .`, and `uv run mypy .` to fix issues incrementally.
+    - **SAFEGUARD**: If `ruff` or `mypy` checks fail because the tools are missing (e.g., "executable not found"), you **MUST INSTALL THEM** immediately using `uv add --dev ruff mypy` (or `uv pip install ruff mypy`) before proceeding.
+    - **DO NOT** wait until the end - this prevents massive conflicts and code collapse from accumulated linting errors.
 4.  **DEPENDENCY CONFLICT PROTOCOL (NO MOCKS ALLOWED)**:
     - **Trigger**: If `uv pip install` or `uv sync` fails due to version conflicts (e.g., `icet` not supporting Python 3.12).
     - **Action**: You are **AUTHORIZED** to downgrade the `requires-python` version in `pyproject.toml` (e.g., change `">=3.12"` to `">=3.10"`).
@@ -59,7 +61,9 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 ### 1. Phase 1: Blueprint Realization (Schema Implementation)
 **Before writing logic or tests, you MUST implement the Data Models.**
 - Read **Section 3: Design Architecture** in `SPEC.md` carefully.
-- Create the necessary Python files (e.g., `src/schemas.py`, `src/domain/models.py`) exactly as described.
+- **Modular Design**: Do NOT create a single massive file. Create a Python package `src/domain_models/`.
+- **Split Modules**: Create separate files for different domains (e.g., `src/domain_models/manifest.py`, `src/domain_models/config.py`).
+- **Export**: Expose main models in `src/domain_models/__init__.py` for cleaner imports.
 - **Requirements for Schemas**:
   - Use `pydantic.BaseModel`.
   - Enforce strict validation: `model_config = ConfigDict(extra="forbid")`.

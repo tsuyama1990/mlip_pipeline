@@ -27,3 +27,6 @@ mlip.log
 data/
 potentials/
 dev_documents/project_state.json
+
+# AC-CDD Configuration
+.ac_cdd/.env
