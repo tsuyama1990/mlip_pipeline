@@ -1,13 +1,16 @@
+from typing import Any
+from ase import Atoms
+from mlip_autopipec.orchestration.database import DatabaseManager
 
 class CandidateManager:
     """
     Manages candidate data persistence logic.
     Separates business logic (defaults, validation) from raw DB access.
     """
-    def __init__(self, db_manager):
+    def __init__(self, db_manager: DatabaseManager) -> None:
         self.db = db_manager
 
-    def create_candidate(self, atoms, metadata: dict = None):
+    def create_candidate(self, atoms: Atoms, metadata: dict[str, Any] | None = None) -> None:
         if metadata is None:
             metadata = {}
         # Apply defaults

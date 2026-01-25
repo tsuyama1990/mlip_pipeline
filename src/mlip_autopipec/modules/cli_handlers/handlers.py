@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 import yaml
 
+from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.core.services import load_config
 from mlip_autopipec.generator import StructureBuilder
 from mlip_autopipec.modules.training_orchestrator import TrainingManager
@@ -106,7 +107,7 @@ class CLIHandler:
         # Locate LAMMPS
         cmd = "lmp"
         if config.inference_config and config.inference_config.lammps_executable:
-             cmd = config.inference_config.lammps_executable
+             cmd = str(config.inference_config.lammps_executable)
 
         # Check if cmd exists
         if not shutil.which(cmd.split()[0]):
@@ -131,7 +132,7 @@ class CLIHandler:
             pair_coeff=[f"* * {potential_path.absolute()} {' '.join(elements)}"],
             keep_tmp_files=False,
             tmp_dir=config.runtime.work_dir / "tmp_validation"
-        )
+        )  # type: ignore[no-untyped-call]
         atoms.calc = calc
 
         # Run Validation
@@ -179,7 +180,10 @@ class CLIHandler:
     def generate_structures(config_file: Path, dry_run: bool) -> None:
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
-        builder = StructureBuilder(config)
+        sys_conf = SystemConfig(
+            target_system=config.target_system, generator_config=config.generator_config
+        )
+        builder = StructureBuilder(sys_conf)
         structures_iter = builder.build()
 
         count = 0

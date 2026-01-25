@@ -25,6 +25,24 @@ console = Console()
 logger = logging.getLogger("mlip_autopipec")
 
 
+@run_app.callback(invoke_without_command=True)
+def run_main(
+    ctx: typer.Context,
+    config_file: Path = typer.Option(  # noqa: B008
+        Path("input.yaml"), "--config", "-c", help="Config file"
+    ),
+) -> None:
+    """Execution commands. Default: Run the full workflow loop."""
+    if ctx.invoked_subcommand is None:
+        setup_logging()
+        try:
+            CLIHandler.run_loop(config_file)
+        except Exception as e:
+            console.print(f"[bold red]Workflow Failed:[/bold red] {e}")
+            logger.exception("Workflow failed")
+            raise typer.Exit(code=1) from e
+
+
 @app.command()
 def init() -> None:
     """Initialize a new project with a template configuration file."""

@@ -10,7 +10,7 @@
 
 ## Key Features
 
-*   **Zero-Config Automation**: A single `config.yaml` drives the entire pipeline—from initial structure generation to final potential deployment.
+*   **Zero-Config Automation**: A single `input.yaml` drives the entire pipeline—from initial structure generation to final potential deployment.
 *   **Active Learning (Data Efficiency)**: Reduces DFT costs by >90% using D-Optimality (Active Set) selection and real-time uncertainty monitoring ($\gamma$-watchdog).
 *   **Physics-Informed Robustness**: Enforces **Hybrid Potentials** (ACE + ZBL/LJ) to prevent physical violations (e.g., core collapse) and ensures stability via Phonon and Elasticity validation.
 *   **Self-Healing Oracle**: Automated DFT execution (Quantum Espresso) with built-in error recovery for SCF convergence failures.
@@ -22,7 +22,7 @@ PyAcemaker follows a Hub-and-Spoke architecture with a central **Orchestrator** 
 
 ```mermaid
 graph TD
-    User[User / Config.yaml] --> Orch(Orchestrator)
+    User[User / input.yaml] --> Orch(Orchestrator)
 
     subgraph "Core Loop (Active Learning)"
         Orch --> Dyn(Dynamics Engine<br/>LAMMPS / EON)
@@ -42,7 +42,7 @@ graph TD
 
 ## Prerequisites
 
-*   **Python**: 3.11 or higher
+*   **Python**: 3.10 or higher
 *   **Package Manager**: `uv` (recommended) or `pip`
 *   **External Tools**:
     *   **Quantum Espresso** (`pw.x`) for DFT calculations.
@@ -64,36 +64,36 @@ graph TD
     *Alternatively, with pip:* `pip install -e .`
 
 3.  **Set up environment**:
-    Copy the example environment file and configure paths to your executables.
-    ```bash
-    cp .env.example .env
-    # Edit .env to set PW_COMMAND, LMP_COMMAND, etc.
-    ```
+    Copy the example environment file (if available) or ensure `pw.x` and `lmp` are in your PATH.
 
 ## Usage
 
 ### Quick Start
 
 1.  **Initialize a project**:
-    Generate a default configuration file.
+    Generate a default configuration file (`input.yaml`).
     ```bash
     mlip-auto init
     ```
 
 2.  **Configure**:
-    Edit `config.yaml` to specify your target system (e.g., elements, crystal structure).
+    Edit `input.yaml` to specify your target system (e.g., elements, crystal structure) and paths to executables.
 
 3.  **Run the pipeline**:
+    Start the autonomous loop:
     ```bash
-    mlip-auto run --config config.yaml
+    mlip-auto run
+    ```
+    *Or explicitly:*
+    ```bash
+    mlip-auto run loop --config input.yaml
     ```
 
 4.  **Monitor**:
-    Open `report.html` in your browser to watch the active learning progress and validation metrics.
+    Open `report.html` (future feature) to watch the active learning progress and validation metrics.
+    Logs are written to `mlip.log`.
 
 ## Development Workflow
-
-This project follows the **AC-CDD** (Architecturally-Constrained Cycle-Driven Development) methodology.
 
 ### Running Tests
 We use `pytest` for unit and integration testing.
@@ -112,15 +112,12 @@ uv run mypy .
 
 ```ascii
 src/mlip_autopipec/
+├── app.py                  # CLI Entry Point
 ├── orchestration/          # Main workflow logic
-├── phases/                 # Workflow steps (DFT, Training, etc.)
-│   ├── dft/                # Oracle (Quantum Espresso)
-│   ├── training/           # Trainer (Pacemaker)
-│   ├── dynamics/           # MD Engine (LAMMPS)
-│   ├── selection/          # Active Learning Logic
-│   └── validation/         # Physics Validation
 ├── config/                 # Pydantic Schemas
-└── generator/              # Structure Generator
+├── data_models/            # Domain Models
+├── modules/                # CLI Handlers
+└── utils/                  # Utilities
 dev_documents/              # System Prompts & Specifications
 tests/                      # Test Suite
 ```
