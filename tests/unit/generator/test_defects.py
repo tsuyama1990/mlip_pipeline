@@ -27,8 +27,8 @@ def test_generate_vacancy_single(supercell: Atoms) -> None:
     # We call internal method directly to test logic
     vac_structures = strategy.generate_vacancies(supercell, count=1)
 
-    # Expect 8 structures (one for each atom removed)
-    assert len(vac_structures) == 8
+    # Expect 1 structure (symmetry reduced)
+    assert len(vac_structures) == 1
     for s in vac_structures:
         assert len(s) == 7
         assert s.info["config_type"] == "vacancy"
@@ -67,9 +67,6 @@ def test_apply_strategy(supercell: Atoms) -> None:
     results = strategy.apply([supercell], primary_element="Al")
 
     # Output should include original + vacancies + interstitials
-    # Original: 1
-    # Vacancies (single): 8
-    # Interstitials: > 0 (limited to 5 in implementation)
     n_int = len(strategy.generate_interstitials(supercell, "H"))
-    expected_total = 1 + 8 + n_int
+    expected_total = 1 + 1 + n_int
     assert len(results) == expected_total

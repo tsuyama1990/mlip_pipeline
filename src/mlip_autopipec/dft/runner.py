@@ -7,10 +7,11 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from ase import Atoms
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTInputParams, DFTResult
@@ -87,29 +88,43 @@ class QERunner(DFTRunner):
 
         return parts
 
-    # Use tenacity for exponential backoff on retriable system errors
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type(DFTRetriableError),
-        reraise=True
-    )
-    def _execute_subprocess_with_retry(self, cmd: list[str], cwd: Path, stdout_f, timeout: float) -> subprocess.CompletedProcess:
-        try:
-            # STRICT SECURITY: shell=False is mandatory.
-            return subprocess.run(
-                cmd,
-                check=False,
-                shell=False,
-                cwd=str(cwd),
-                stdout=stdout_f,
-                stderr=subprocess.PIPE,
-                timeout=timeout,
-                text=True,
-            )
-        except OSError as e:
-            # OS errors might be transient (e.g. file system blips), so we retry
-            raise DFTRetriableError(f"OS Error: {e}") from e
+    def _execute_subprocess_with_retry(
+        self, cmd: list[str], cwd: Path, stdout_f: Any, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        """
+        Executes subprocess with retries for transient system errors.
+        Uses configuration for retry delays.
+        """
+        # Use tenacity context manager to allow dynamic config
+        for attempt in Retrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(
+                multiplier=1,
+                min=self.config.retry_delay_min,
+                max=self.config.retry_delay_max,
+            ),
+            retry=retry_if_exception_type(DFTRetriableError),
+            reraise=True,
+        ):
+            with attempt:
+                try:
+                    # STRICT SECURITY: shell=False is mandatory.
+                    return subprocess.run(
+                        cmd,
+                        check=False,
+                        shell=False,
+                        cwd=str(cwd),
+                        stdout=stdout_f,
+                        stderr=subprocess.PIPE,
+                        timeout=timeout,
+                        text=True,
+                    )
+                except OSError as e:
+                    # OS errors might be transient (e.g. file system blips), so we retry
+                    raise DFTRetriableError(f"OS Error: {e}") from e
+
+        # Should be unreachable due to reraise=True
+        raise RuntimeError("Retrying loop failed without raising exception.")
 
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
         """
@@ -259,7 +274,7 @@ class QERunner(DFTRunner):
                     dst.symlink_to(src)
 
     def _parse_output(
-        self, output_path: Path, uid: str, wall_time: float, params: dict, atoms: Atoms
+        self, output_path: Path, uid: str, wall_time: float, params: dict[str, Any], atoms: Atoms
     ) -> DFTResult:
         """
         Parses pw.out using the injected parser class.

@@ -27,7 +27,11 @@ class SelectionPhase(BasePhase):
             logger.info(f"Screening {len(candidates)} candidates.")
 
             # 2. Initialize Strategy
-            potential_path = self.manager.state.latest_potential_path or (self.manager.work_dir / "current.yace")
+            potential_path = self.manager.state.latest_potential_path
+
+            if not potential_path:
+                logger.error("No potential available for Selection Phase.")
+                raise RuntimeError("Selection Phase requires a trained potential in state.")
 
             if not self.config.training_config:
                  logger.warning("No Training Config for Selection Strategy.")

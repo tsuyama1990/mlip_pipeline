@@ -9,7 +9,6 @@ from mlip_autopipec.orchestration.phases.base import BasePhase
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_POTENTIAL_FILENAME = "current.yace"
 INFERENCE_DIR_NAME = "inference"
 INFERENCE_EON_DIR_NAME = "inference_eon"
 
@@ -28,7 +27,13 @@ class InferencePhase(BasePhase):
                 return False
 
             # 1. Locate Potential
-            potential_path = self.manager.state.latest_potential_path or (self.manager.work_dir / DEFAULT_POTENTIAL_FILENAME)
+            potential_path = self.manager.state.latest_potential_path
+
+            if not potential_path:
+                logger.error("No potential available for Inference Phase.")
+                # We do NOT return False here silently because if we expected to run inference
+                # and can't find a potential, it's a configuration/state error.
+                raise RuntimeError("Inference Phase requires a trained potential in state.")
 
             if not potential_path.exists():
                 logger.error(f"Potential file not found at {potential_path}")

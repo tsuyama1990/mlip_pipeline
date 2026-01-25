@@ -92,13 +92,16 @@ class CLIHandler:
             return
 
         # Locate Potential
-        potential_path = Path("potential.yace")
-        if not potential_path.exists():
-            potential_path = config.runtime.work_dir / "potentials" / "potential.yace"
+        potential_path = config.runtime.work_dir / "potentials" / "potential.yace"
 
         if not potential_path.exists():
-             rich_console.print("[bold red]Error:[/bold red] Could not find 'potential.yace'. Please run training first.")
-             return
+             # Fallback to local if explicit
+             local_pot = Path("potential.yace")
+             if local_pot.exists():
+                 potential_path = local_pot
+             else:
+                 rich_console.print(f"[bold red]Error:[/bold red] Could not find potential at {potential_path} or potential.yace.")
+                 return
 
         # Locate LAMMPS
         cmd = "lmp"

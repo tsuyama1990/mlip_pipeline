@@ -1,15 +1,14 @@
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
+import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.models import DFTConfig, SystemConfig, TargetSystem, WorkflowConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
-from mlip_autopipec.orchestration.workflow import WorkflowManager
 from mlip_autopipec.orchestration.database import DatabaseManager
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 # UAT Scenario 06-01: Full Active Learning Cycle (Simulated)
 
@@ -119,6 +118,8 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
 
         # Run
         manager = WorkflowManager(uat_config, workflow_config=uat_config.workflow_config)
+        # Seed the state with an initial potential for the first inference cycle
+        manager.state.latest_potential_path = work_dir / "current.yace"
         manager.run()
 
         # Assertions
