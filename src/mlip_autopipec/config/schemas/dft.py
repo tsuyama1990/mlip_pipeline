@@ -25,6 +25,8 @@ class DFTConfig(BaseModel):
     recoverable: bool = Field(True, description="Enable auto-recovery")
     max_retries: int = Field(5, ge=0, description="Maximum number of retries")
     timeout: float = Field(3600.0, gt=0, description="Timeout in seconds")
+    retry_delay_min: float = Field(4.0, gt=0, description="Minimum retry delay (seconds)")
+    retry_delay_max: float = Field(10.0, gt=0, description="Maximum retry delay (seconds)")
 
     model_config = ConfigDict(extra="forbid")
 

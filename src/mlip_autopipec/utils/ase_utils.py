@@ -21,7 +21,8 @@ from ase.db import connect
 from ase.db.row import AtomsRow
 from pydantic import ValidationError
 
-from mlip_autopipec.config.models import DFTResult, TrainingData
+from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.data_models.training_data import TrainingData
 
 
 def save_dft_result(
@@ -116,5 +117,6 @@ def read_training_data(db_path: Path) -> list[AtomsObject]:
                 atoms.arrays["forces"] = np.array(validated_data.forces)
                 atoms_list.append(atoms)
             except ValidationError as e:
-                raise ValueError(f"Invalid data in database at row {row.id}: {e}") from e
+                msg = f"Invalid data in database at row {row.id}: {e}"
+                raise ValueError(msg) from e
     return atoms_list

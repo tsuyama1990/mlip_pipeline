@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from dask.distributed import Client, Future, LocalCluster, wait  # type: ignore
+from dask.distributed import Client, Future, LocalCluster, wait
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)

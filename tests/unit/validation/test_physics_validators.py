@@ -93,8 +93,6 @@ def test_elasticity_calculation(atoms):
 
     # We want to mock get_stress to simulate a material with C_11 = 100 GPa
     # Stress = C * Strain
-    # When we apply strain e_xx = +/- 0.01
-    # Stress s_xx = 100 * (+/- 0.01) = +/- 1.0 GPa
     # ASE stress is in eV/A^3. 1 GPa = 0.00624 eV/A^3.
     # So we need to return +/- 1.0 * 0.00624
 

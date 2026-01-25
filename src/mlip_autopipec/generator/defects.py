@@ -1,6 +1,8 @@
 import logging
+from collections.abc import Iterable
 
 import numpy as np
+import spglib
 from ase import Atoms
 from ase.geometry import get_distances
 from scipy.spatial import Voronoi
@@ -84,24 +86,39 @@ class DefectStrategy:
         try:
             # If structure is small, we can exhaustively generate all single vacancies
             if count == 1:
-                # Generate all single vacancies
-                for i in range(n_atoms):
+                # Use spglib to find symmetry-equivalent atoms for efficiency
+                # We need cell as (lattice, positions, numbers)
+                cell = (atoms.cell, atoms.get_scaled_positions(), atoms.numbers)
+                dataset = spglib.get_symmetry_dataset(cell, symprec=1e-5)
+
+                indices_to_remove: Iterable[int]
+                if dataset is None:
+                    # Fallback if symmetry analysis fails
+                    indices_to_remove = range(n_atoms)
+                else:
+                    equivalent_atoms = dataset["equivalent_atoms"]
+                    # Find unique representatives
+                    _, unique_indices = np.unique(equivalent_atoms, return_index=True)
+                    indices_to_remove = sorted(unique_indices)
+
+                # Generate vacancies for unique sites
+                for i in indices_to_remove:
                     new_atoms = atoms.copy()
                     del new_atoms[i]
                     new_atoms.info["config_type"] = "vacancy"
-                    new_atoms.info["defect_index"] = i
+                    new_atoms.info["defect_index"] = int(i)
                     results.append(new_atoms)
             else:
-                 # Randomly remove 'count' atoms once
-                 # Use self.rng for determinism
-                 indices = self.rng.choice(n_atoms, size=count, replace=False).tolist()
-                 new_atoms = atoms.copy()
-                 # Delete in reverse order to preserve indices
-                 for i in sorted(indices, reverse=True):
-                     del new_atoms[i]
-                 new_atoms.info["config_type"] = "vacancy"
-                 new_atoms.info["defect_indices"] = indices
-                 results.append(new_atoms)
+                # Randomly remove 'count' atoms once
+                # Use self.rng for determinism
+                indices = self.rng.choice(n_atoms, size=count, replace=False).tolist()
+                new_atoms = atoms.copy()
+                # Delete in reverse order to preserve indices
+                for i in sorted(indices, reverse=True):
+                    del new_atoms[i]
+                new_atoms.info["config_type"] = "vacancy"
+                new_atoms.info["defect_indices"] = indices
+                results.append(new_atoms)
 
         except Exception as e:
             msg = f"Vacancy generation failed: {e}"
@@ -154,15 +171,22 @@ class DefectStrategy:
 
             # Filter candidates
             unique_candidates: list[np.ndarray] = []
+            min_dist = self.config.interstitial_min_dist
+            cluster_cutoff = self.config.interstitial_cluster_cutoff
+
             for c in candidates:
                 # Check distance to existing atoms
                 pos = np.dot(c, atoms.get_cell())
 
-                D_vectors, D_scalar = get_distances(atoms.positions, pos.reshape(1, 3), cell=atoms.cell, pbc=atoms.pbc)
+                D_vectors, D_scalar = get_distances(
+                    atoms.positions, pos.reshape(1, 3), cell=atoms.cell, pbc=atoms.pbc
+                )
                 dists = D_scalar.flatten()
 
-                # Check min distance > 1.4A and uniqueness against other candidates
-                if np.min(dists) > 1.4 and not any(np.linalg.norm(uc - c) < 0.1 for uc in unique_candidates):
+                # Check min distance and uniqueness against other candidates
+                if np.min(dists) > min_dist and not any(
+                    np.linalg.norm(uc - c) < cluster_cutoff for uc in unique_candidates
+                ):
                     unique_candidates.append(c)
 
             # Limit number of interstitials per structure to avoid explosion

@@ -87,6 +87,7 @@ def retry(
 
                     logger.info("Retrying in %.2f seconds...", delay)
                     time.sleep(delay)
+            return None
 
         return wrapper
 

@@ -33,21 +33,19 @@ class ExplorationPhase(BasePhase):
 
             # Chunked processing to avoid OOM
             for candidate_batch in chunked(builder.build(), batch_size):
-                if self.config.surrogate_config:
-                    surrogate = self.manager.surrogate or SurrogatePipeline(self.config.surrogate_config)
-                    selected, _ = surrogate.run(candidate_batch)
-                    logger.info(f"Batch: Generated {len(candidate_batch)}, Selected {len(selected)}")
-                else:
-                    selected = candidate_batch
-
-                for atoms in selected:
+                for atoms in candidate_batch:
                     self.db.save_candidate(
                         atoms,
                         {"status": "pending", "generation": self.manager.state.cycle_index},
                     )
-                total_generated += len(selected)
+                total_generated += len(candidate_batch)
 
-            logger.info(f"Exploration complete. Total candidates saved: {total_generated}")
+            if self.config.surrogate_config:
+                logger.info("Running surrogate selection pipeline...")
+                surrogate = self.manager.surrogate or SurrogatePipeline(self.db, self.config.surrogate_config)
+                surrogate.run()
+
+            logger.info(f"Exploration complete. Total candidates generated: {total_generated}")
 
         except Exception:
             logger.exception("Exploration phase failed")

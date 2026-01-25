@@ -80,17 +80,11 @@ def test_script_generator_multiple_elements_zbl(basic_config, tmp_path):
     script = generator.generate(atoms_file, potential_path, dump_file, elements)
 
     assert "pair_style hybrid/overlay pace zbl" in script
-    # H-H (1-1)
     assert "pair_coeff 1 1 zbl 1 1" in script
-    # H-C (1-2)
     assert "pair_coeff 1 2 zbl 1 6" in script
-    # H-O (1-3)
     assert "pair_coeff 1 3 zbl 1 8" in script
-    # C-C (2-2)
     assert "pair_coeff 2 2 zbl 6 6" in script
-    # C-O (2-3)
     assert "pair_coeff 2 3 zbl 6 8" in script
-    # O-O (3-3)
     assert "pair_coeff 3 3 zbl 8 8" in script
 
 def test_invalid_ensemble(basic_config, tmp_path):

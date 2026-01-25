@@ -81,10 +81,6 @@ class ElasticityValidator:
 
         # Standard procedure:
         # For each strain component i in 0..5 (xx, yy, zz, yz, xz, xy):
-        #   Apply +/- delta strain
-        #   Measure stress sigma
-        #   C_ji = d_sigma_j / d_epsilon_i
-
         delta = self.config.max_distortion
 
         for i in range(6):

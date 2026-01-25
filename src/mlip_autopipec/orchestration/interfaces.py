@@ -14,7 +14,7 @@ class BuilderProtocol(Protocol):
 
 
 class SurrogateProtocol(Protocol):
-    def run(self, candidates: list[Atoms]) -> tuple[list[Atoms], Any]: ...
+    def run(self) -> None: ...
 
 
 class DFTRunnerProtocol(Protocol):

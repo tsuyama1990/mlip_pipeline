@@ -39,6 +39,12 @@ class DefectConfig(BaseModel):
     interstitial_elements: list[str] = Field(
         default_factory=list, description="List of elements to insert as interstitials."
     )
+    interstitial_min_dist: float = Field(
+        1.4, gt=0.0, description="Minimum distance between interstitial and other atoms (Angstrom)."
+    )
+    interstitial_cluster_cutoff: float = Field(
+        0.1, gt=0.0, description="Cutoff distance for clustering similar interstitial sites (Angstrom)."
+    )
     model_config = ConfigDict(extra="forbid")
 
 

@@ -11,24 +11,29 @@ from dask.distributed import Client, LocalCluster
 logger = logging.getLogger(__name__)
 
 
-def get_dask_client() -> Client:
+def get_dask_client(scheduler_address: str | None = None) -> Client:
     """
     Initializes and returns a Dask client.
 
     This function provides a standardized way to connect to a Dask cluster.
-    It checks for the `DASK_SCHEDULER_ADDRESS` environment variable. If the
-    variable is set, it connects to the specified Dask scheduler. This is
-    typical for an HPC or production environment. If the variable is not set,
-    it creates a `dask.distributed.LocalCluster` and connects to it. This is
-    useful for local development and testing, as it automatically sets up a
-    multi-worker cluster using the local machine's resources without requiring
-    any external setup.
+    It checks for the `DASK_SCHEDULER_ADDRESS` environment variable or uses
+    the provided `scheduler_address`. If a scheduler address is found,
+    it connects to the specified Dask scheduler. This is typical for an HPC
+    or production environment. If no address is provided, it creates a
+    `dask.distributed.LocalCluster` and connects to it. This is useful for
+    local development and testing, as it automatically sets up a multi-worker
+    cluster using the local machine's resources without requiring any external
+    setup.
+
+    Args:
+        scheduler_address: Optional address of the Dask scheduler.
 
     Returns:
         A Dask `Client` object connected to either a remote scheduler or a
         local cluster.
     """
-    scheduler_address = os.environ.get("DASK_SCHEDULER_ADDRESS")
+    if scheduler_address is None:
+        scheduler_address = os.environ.get("DASK_SCHEDULER_ADDRESS")
 
     if scheduler_address:
         logger.info(f"Connecting to Dask scheduler at: {scheduler_address}")

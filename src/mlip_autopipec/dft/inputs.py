@@ -46,7 +46,7 @@ class InputGenerator:
 
         # 4. Construct input data
         # Base settings
-        input_data = {
+        input_data: dict[str, dict[str, Any]] = {
             "control": {
                 "calculation": "scf",
                 "restart_mode": "from_scratch",
@@ -131,7 +131,12 @@ class InputGenerator:
             else:
                 k = int(np.ceil(2 * np.pi / (l * kspacing)))
             kpoints.append(max(1, k))
-        return tuple(kpoints)
+
+        if len(kpoints) != 3:
+             # Fallback for non-3D
+             return (1, 1, 1)
+
+        return (kpoints[0], kpoints[1], kpoints[2])
 
     @staticmethod
     def _determine_magnetism(atoms: Atoms) -> dict[str, Any]:
