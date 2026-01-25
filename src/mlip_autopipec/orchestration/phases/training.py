@@ -48,9 +48,6 @@ class TrainingPhase(BasePhase):
                 # Copy or move
                 try:
                     shutil.copy2(result.potential_path, dest)
-                    # Also update 'current.yace' link/copy
-                    current = self.manager.work_dir / "current.yace"
-                    shutil.copy2(result.potential_path, current)
                 except Exception:
                     logger.exception("Failed to save potential artifacts")
             else:

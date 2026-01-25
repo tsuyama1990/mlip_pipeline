@@ -118,6 +118,8 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
 
         # Run
         manager = WorkflowManager(uat_config, workflow_config=uat_config.workflow_config)
+        # Seed the state with an initial potential for the first inference cycle
+        manager.state.latest_potential_path = work_dir / "current.yace"
         manager.run()
 
         # Assertions
