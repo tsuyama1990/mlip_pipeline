@@ -1,169 +1,198 @@
-# System Architecture
+# System Architecture: PyAcemaker
 
 ## 1. Summary
 
-The **MLIP Auto PiPEC** (Machine Learning Interatomic Potentials - Automated Pipeline for Exascale Computing) is a comprehensive system designed to democratize the creation and operation of state-of-the-art Machine Learning Interatomic Potentials (MLIPs). Built around the **Pacemaker** (Atomic Cluster Expansion) engine, it aims to lower the barrier to entry for material scientists by automating the complex workflow of structure generation, First-Principles (DFT) calculation, potential training, and active learning validation.
+PyAcemaker is a cutting-edge, automated system designed to revolutionise the construction and operation of Machine Learning Interatomic Potentials (MLIPs). Built around the "Pacemaker" (Atomic Cluster Expansion) engine, this system addresses the significant barriers to entry in computational materials science by automating the complex workflow of potential generation. Traditionally, creating high-quality MLIPs required deep expertise in both data science and computational physics, involving manual iteration through structure generation, Density Functional Theory (DFT) calculations, training, and validation. This manual process is error-prone, time-consuming, and often leads to potentials that fail in "extrapolation" regions—configurations not represented in the training data.
 
-The system addresses the critical challenges in modern computational materials science: the "expert gap" required to build MLIPs, the inefficiency of random sampling, and the fragility of potentials in extrapolation regions. By implementing a closed-loop **Active Learning** cycle, the system autonomously explores chemical and structural spaces, detects high-uncertainty configurations, and refines the potential using a robust "Oracle" (DFT interface) and "Trainer" (Pacemaker wrapper).
-
-Key innovations include an **Adaptive Exploration Policy** that intelligently selects sampling strategies (MD vs. MC vs. Defects) based on material properties, and a **Physics-Informed Robustness** mechanism that enforces physical core repulsion (via Delta Learning with LJ/ZBL baselines) to prevent simulation crashes. The architecture is modular, container-ready, and orchestrated by a Python-based core that manages the lifecycle of data and computational jobs from local workstations to HPC environments.
+PyAcemaker solves these problems by providing a "Zero-Config" workflow. A user need only provide a single YAML configuration file, and the system autonomously manages the entire lifecycle of the potential. It employs an Active Learning cycle that iteratively explores the chemical and structural space, detects regions of high uncertainty, performs targeted DFT calculations, and refines the potential. This approach ensures that the potential is not only accurate but also robust, capable of handling rare events and high-energy configurations without catastrophic failure. By integrating physics-informed baselines (such as Lennard-Jones or ZBL potentials) and advanced sampling techniques (like Adaptive Kinetic Monte Carlo), PyAcemaker ensures that the resulting potentials are both data-efficient and physically sound. The system is architected to be modular and scalable, suitable for deployment on local workstations or High-Performance Computing (HPC) clusters, making state-of-the-art MLIP construction accessible to a broader range of researchers and engineers.
 
 ## 2. System Design Objectives
 
-### 2.1. Zero-Config Workflow
-*   **Goal**: Enable users to go from a chemical composition to a fully trained, production-ready potential with a single configuration file (`config.yaml`).
-*   **Constraint**: The system must infer reasonable defaults for hyperparameters (e.g., DFT cutoffs, MD temperatures) based on the input material system, minimizing the need for user intervention.
+The design of PyAcemaker is guided by several critical objectives, constraints, and success criteria, ensuring it meets the needs of modern materials research.
 
-### 2.2. Data Efficiency
-*   **Goal**: Achieve target accuracy (RMSE Energy < 1 meV/atom, Force < 0.05 eV/Å) with significantly fewer DFT calculations compared to random sampling.
-*   **Method**: Utilize **Active Learning** with D-Optimality (Active Set) selection to prioritize only the most informative structures for labeling.
+### Goals
 
-### 2.3. Physics-Informed Robustness
-*   **Goal**: Ensure simulations never fail due to non-physical forces (e.g., lack of core repulsion) in unexplored regions.
-*   **Method**: Implement Delta Learning where the ML model learns the residual difference from a physical baseline (Lennard-Jones or ZBL), guaranteeing physical behavior at short interatomic distances.
+1.  **Democratisation of MLIP Construction**: The primary goal is to lower the barrier to entry. Users with minimal programming experience should be able to generate state-of-the-art potentials. The system abstracts away the complexities of DFT parameter tuning, training hyperparameter optimisation, and validation protocols.
+2.  **Zero-Config Automation**: The system must operate autonomously from a single input file. It should handle error recovery (e.g., DFT convergence failures), resource management, and workflow orchestration without human intervention.
+3.  **Data Efficiency**: Unlike brute-force approaches that generate vast amounts of redundant data, PyAcemaker aims to achieve high accuracy (Energy RMSE < 1 meV/atom, Force RMSE < 0.05 eV/Å) with a minimal number of DFT calculations. This is achieved through active learning strategies that select only the most informative structures for training.
+4.  **Physical Robustness**: A critical flaw in many ML potentials is non-physical behaviour in extrapolation regions (e.g., lack of core repulsion). This system must guarantee physical safety by enforcing physics-informed baselines (Delta Learning) and rigorous validation checks (Phonon stability, Elastic constants).
+5.  **Scalability**: The architecture must support scaling from simple unit cells to complex supercells with defects, and from short MD runs to long-timescale kMC simulations.
 
-### 2.4. Scalability and Extensibility
-*   **Goal**: Support a seamless transition from small-scale testing to massive production runs.
-*   **Constraint**: The architecture must support distinct execution backends (Local vs. Slurm/PBS) and integrate with external solvers (LAMMPS for MD, EON for kMC) without tight coupling.
+### Constraints
+
+*   **Computational Resources**: DFT calculations are expensive. The system must optimise resource usage by using "Periodic Embedding" to calculate forces only for relevant atoms in a local environment, rather than entire large supercells.
+*   **Software Dependencies**: The system relies on external engines like Quantum Espresso, LAMMPS, and Pacemaker. It must interface with these tools robustly, handling version differences and execution environments (e.g., via Docker/Singularity).
+*   **Security**: As an automated system executing external commands, it must be secured against injection attacks and ensure safe handling of file paths and process execution.
+
+### Success Criteria
+
+*   **Automation Level**: Complete execution of the active learning loop without manual intervention.
+*   **Accuracy**: Achievement of target RMSE values on hold-out test sets.
+*   **Stability**: No "segmentation faults" during MD simulations due to unphysical potential behaviour.
+*   **Usability**: A clear, comprehensive dashboard that allows users to monitor the progress and quality of the potential generation in real-time.
 
 ## 3. System Architecture
 
-The system follows a hub-and-spoke architecture where the central **Orchestrator** coordinates specialized modules.
+The system is designed as a set of loosely coupled modules orchestrated by a central controller. This modularity ensures maintainability and allows for individual components to be upgraded or replaced without affecting the whole system.
+
+### Components
+
+1.  **Orchestrator**: The "Brain" of the system. It manages the active learning loop, tracks the state of the workflow, and coordinates data flow between other modules. It decides when to explore, when to train, and when to validate.
+2.  **Structure Generator (Explorer)**: The "Explorer". It proposes new atomic configurations. Unlike simple random sampling, it uses an "Adaptive Exploration Policy" to intelligently sample the configuration space using MD, MC, or defect generation based on the material's properties.
+3.  **Oracle**: The "Wise Man". It performs DFT calculations to label the proposed structures. It includes a "Self-Healing" mechanism to automatically fix convergence errors and a "Periodic Embedding" feature to efficient calculation of local forces.
+4.  **Trainer**: The "Learner". It wraps the Pacemaker engine to train the ACE potential. It manages the dataset, applies Delta Learning with physical baselines, and optimises the "Active Set" of training data to prevent redundancy.
+5.  **Dynamics Engine**: The "Executor". It runs MD or kMC simulations using the trained potential. It features an "Uncertainty Watchdog" that halts the simulation if the potential encounters a configuration with high uncertainty ($\gamma$ value), triggering a learning update.
+6.  **Validator**: The "Gatekeeper". It performs rigorous physics-based tests (Phonons, Elasticity, EOS) to ensure the potential is not just numerically accurate but physically meaningful.
+
+### Data Flow
+
+The data flows in a cyclical manner:
+1.  **Exploration**: The Dynamics Engine or Structure Generator creates new structures.
+2.  **Detection**: High-uncertainty structures are identified.
+3.  **Selection**: Representative structures are selected and prepared (Periodic Embedding).
+4.  **Calculation**: The Oracle calculates energy and forces (Labels).
+5.  **Refinement**: The Trainer updates the potential with the new data.
+6.  **Deployment**: The new potential is deployed back to the Dynamics Engine.
+
+### Diagram
 
 ```mermaid
 graph TD
-    User[User / Config] -->|Initializes| Orch[Orchestrator]
-    Orch -->|Manages| State[Workflow State & DB]
+    User[User Configuration] --> Orch[Orchestrator]
+    Orch --> SG[Structure Generator]
+    Orch --> DE[Dynamics Engine<br/>(LAMMPS/EON)]
+    Orch --> Oracle[Oracle<br/>(DFT/QE)]
+    Orch --> Trainer[Trainer<br/>(Pacemaker)]
+    Orch --> Valid[Validator]
 
-    subgraph "Cycle 1: Exploration"
-        Orch -->|Request| Gen[Structure Generator]
-        Gen -->|MD/MC/Defects| Candidates[Candidate Structures]
+    subgraph "Active Learning Loop"
+        SG -->|Candidates| Oracle
+        DE -->|Halted Structures| Oracle
+        Oracle -->|Labelled Data| Trainer
+        Trainer -->|Potential.yace| DE
+        Trainer -->|Potential.yace| Valid
     end
 
-    subgraph "Cycle 2: Oracle"
-        Orch -->|Select & Embed| DFT[DFT Oracle (QE/VASP)]
-        DFT -->|Forces & Energy| Dataset[Labeled Dataset]
-    end
-
-    subgraph "Cycle 3: Training"
-        Orch -->|Train| Trainer[Pacemaker Trainer]
-        Dataset --> Trainer
-        Trainer -->|Produces| Pot[Potential.yace]
-    end
-
-    subgraph "Cycle 4: Inference & AL"
-        Orch -->|Deploy| MD[Dynamics Engine (LAMMPS/EON)]
-        Pot --> MD
-        MD -->|Uncertainty (Gamma)| Watchdog[Watchdog Monitor]
-        Watchdog -->|High Uncertainty| Halt[Halt & Recovery]
-        Halt -->|New Candidates| Gen
-    end
-
-    classDef module fill:#f9f,stroke:#333,stroke-width:2px;
-    class Orch,Gen,DFT,Trainer,MD module;
+    Valid -->|Pass/Fail| Orch
+    DE -->|Uncertainty Metric| Orch
 ```
-
-### Component Interaction Flow
-1.  **Exploration**: The `Structure Generator` creates initial structures or the `Dynamics Engine` explores phase space via MD/kMC.
-2.  **Detection**: The `Watchdog` monitors the extrapolation grade ($\gamma$). If $\gamma >$ Threshold, the simulation halts.
-3.  **Selection**: High-uncertainty structures are extracted. The system applies **Periodic Embedding** to cut out local clusters into valid supercells.
-4.  **Labeling**: The `DFT Oracle` computes exact forces and energies for these new structures, employing auto-recovery for convergence failures.
-5.  **Refinement**: The `Trainer` updates the potential using the new data, applying Active Set optimization to keep the model compact.
-6.  **Deployment**: The new potential is hot-swapped into the `Dynamics Engine` to resume simulation.
 
 ## 4. Design Architecture
 
-The system is designed with strict separation of concerns, utilizing **Pydantic** for robust data validation and **Type Hints** for code clarity.
+The system is implemented in Python, leveraging strict type hinting (Pydantic) for configuration and data management. This ensures robustness and clarity in the codebase.
 
-### 4.1. File Structure
+### File Structure
 
 ```ascii
-mlip_autopipec/
-├── app.py                      # CLI Entry Point (Typer)
-├── config/                     # Configuration Management
-│   ├── models.py               # Aggregated Pydantic Models
-│   └── schemas/                # Individual Module Schemas
-│       ├── dft.py
-│       ├── training.py
-│       └── ...
-├── data_models/                # Core Domain Objects
-│   ├── atoms.py                # ASE Atoms Wrappers/Validators
-│   └── workflow.py             # State Management Models
-├── generator/                  # Structure Generation
-│   ├── builder.py
-│   └── policies.py             # Adaptive Exploration Logic
-├── dft/                        # Oracle Module
-│   ├── runner.py               # Abstract Runner & Implementations
-│   ├── qe.py                   # Quantum Espresso Interface
-│   └── recovery.py             # Error Handling Strategies
-├── training/                   # Training Module
-│   ├── pacemaker.py            # Pacemaker Wrapper
-│   └── dataset.py              # Data Splitting & Preprocessing
-├── inference/                  # Dynamics Module
-│   ├── lammps.py               # LAMMPS Runner
-│   ├── eon.py                  # EON (kMC) Wrapper
-│   └── watchdog.py             # Uncertainty Monitoring
-├── orchestration/              # Workflow Management
-│   ├── loop.py                 # Active Learning Loop Logic
-│   └── database.py             # ASE DB Interface
-└── utils/
-    ├── logging.py
-    └── embedding.py            # Periodic Embedding Logic
+src/
+├── mlip_autopipec/
+│   ├── app.py                  # Entry point (CLI)
+│   ├── orchestrator.py         # Central control logic
+│   ├── config/                 # Pydantic Configuration Models
+│   │   ├── __init__.py
+│   │   ├── main_config.py
+│   │   └── module_configs.py
+│   ├── generator/              # Structure Generation
+│   │   ├── policy.py
+│   │   └── defects.py
+│   ├── dft/                    # Oracle (DFT)
+│   │   ├── runner.py
+│   │   ├── input_gen.py
+│   │   └── embedding.py
+│   ├── training/               # Trainer (Pacemaker)
+│   │   ├── wrapper.py
+│   │   └── dataset.py
+│   ├── inference/              # Dynamics Engine
+│   │   ├── lammps_runner.py
+│   │   ├── eon_wrapper.py
+│   │   └── watchdog.py
+│   ├── validation/             # Validation Suite
+│   │   ├── phonons.py
+│   │   ├── elastic.py
+│   │   └── eos.py
+│   └── utils/
+│       ├── logging_setup.py
+│       └── helpers.py
 ```
 
-### 4.2. Core Data Models
-*   **`MLIPConfig`**: The root configuration object, validated against strict schemas to prevent runtime errors due to misconfiguration.
-*   **`WorkflowState`**: A serializable state object tracking the current cycle, iteration, and status of the pipeline, ensuring resumability.
-*   **`CandidateStructure`**: Represents an atomic structure with metadata (origin, uncertainty score, status).
+### Data Models
+
+The system relies heavily on Pydantic models to define interfaces.
+
+*   **GlobalConfig**: The root configuration object, validated against the user's YAML input.
+*   **StructureData**: A standard wrapper around ASE Atoms objects, including metadata about their origin (e.g., "exploration", "halted") and their calculated properties.
+*   **PotentialState**: Tracks the versioning of potentials, their training metrics, and validation status.
+*   **WorkflowStatus**: Manages the state of the active learning loop, including current iteration, active module, and error counts.
+
+### Key Class Definitions
+
+*   `Orchestrator`: Singleton class that initialises modules and runs the main loop.
+*   `QERunner`: Manages Quantum Espresso execution, including input file generation and error handling/retries.
+*   `PacemakerWrapper`: Encapsulates `pace_train` and `pace_activeset` commands, managing file I/O for these external tools.
+*   `LammpsRunner`: Handles LAMMPS execution, specifically managing the `fix halt` logic and parsing log files for uncertainty data.
 
 ## 5. Implementation Plan
 
-The development is divided into 8 sequential cycles to ensure steady progress and testability.
+The development is divided into 8 sequential cycles, each building upon the previous one.
 
-### **Cycle 01: Core Framework & Configuration**
-*   **Goal**: Establish the project skeleton, configuration system, and database interfaces.
-*   **Features**: Pydantic schemas for `config.yaml`, logging setup, `DatabaseManager` (ASE db wrapper), and Abstract Base Classes for Runners.
-
-### **Cycle 02: Structure Generation (Explorer)**
-*   **Goal**: Implement the engine for creating atomic structures.
-*   **Features**: `StructureGenerator` class, random/heuristic sampling strategies, and the framework for the **Adaptive Exploration Policy** (determining MD/MC ratios).
-
-### **Cycle 03: Oracle Interface & Data Prep**
-*   **Goal**: Build the interface to First-Principles codes.
-*   **Features**: `QERunner` (Quantum Espresso), `InputGenerator` with auto-k-spacing, `RecoveryHandler` for SCF convergence errors, and **Periodic Embedding** utilities for cluster cutout.
-
-### **Cycle 04: Training Orchestration**
-*   **Goal**: Automate the Pacemaker training process.
-*   **Features**: `PacemakerWrapper`, `DatasetBuilder` (formatting ASE atoms for Pacemaker), Delta Learning configuration (LJ/ZBL), and Active Set selection commands.
-
-### **Cycle 05: Inference Engine (MD)**
-*   **Goal**: Enable MD simulations with on-the-fly uncertainty monitoring.
-*   **Features**: `LammpsRunner`, `MDInterface`, Hybrid Potential setup (`pair_style hybrid/overlay`), and `Watchdog` logic (`fix halt` integration).
-
-### **Cycle 06: Active Learning Orchestrator**
-*   **Goal**: Connect the components into a self-healing loop.
-*   **Features**: `WorkflowManager` implementing the "Exploration -> Halt -> Embed -> Train -> Resume" cycle, and state persistence logic.
-
-### **Cycle 07: Advanced Expansion (kMC)**
-*   **Goal**: Extend capabilities to long timescales.
-*   **Features**: `EONWrapper` for Kinetic Monte Carlo, integration of kMC events into the active learning loop, and advanced defect sampling strategies.
-
-### **Cycle 08: Validation Suite & Production Release**
-*   **Goal**: Ensure scientific accuracy and system polish.
-*   **Features**: `Validator` suite (Phonon, Elasticity, EOS checks), final CLI (`mlip-auto`) polish, end-to-end integration tests, and documentation.
+*   **CYCLE01: Architecture Skeleton & Configuration**
+    *   Set up the project structure, logging, and error handling.
+    *   Define all Pydantic configuration models (`GlobalConfig`, `DFTConfig`, `TrainingConfig`, etc.).
+    *   Implement the basic `Orchestrator` class with a mock loop to verify flow control.
+*   **CYCLE02: Oracle (DFT Automation)**
+    *   Implement `QERunner` and `DFTManager`.
+    *   Develop input generation logic (SSSP, k-spacing).
+    *   Implement the "Self-Healing" logic for DFT convergence failures.
+    *   Implement "Periodic Embedding" for cutting out local environments.
+*   **CYCLE03: Trainer (Pacemaker Integration)**
+    *   Implement `PacemakerWrapper`.
+    *   Develop logic for Delta Learning (LJ/ZBL baseline setup).
+    *   Implement dataset management and "Active Set" optimisation (`pace_activeset`).
+*   **CYCLE04: Dynamics Engine (LAMMPS Inference)**
+    *   Implement `LammpsRunner`.
+    *   Develop the `pair_style hybrid/overlay` input generation.
+    *   Implement the Uncertainty Watchdog (Log parsing for `fix halt`).
+    *   Implement logic to extract halted structures.
+*   **CYCLE05: Active Learning Strategy (Selection & DB)**
+    *   Connect the Dynamics Engine and Oracle via the selection logic.
+    *   Implement "Local D-Optimality Selection" (selecting best candidates from halted structures).
+    *   Implement a lightweight database or file-system manager for tracking structures and their states.
+*   **CYCLE06: Validation Suite**
+    *   Implement `Validator` class.
+    *   Develop `PhononValidator` (using Phonopy).
+    *   Develop `ElasticValidator` (Born criteria).
+    *   Develop `EOSValidator` (Birch-Murnaghan).
+    *   Implement the "Gatekeeper" logic (Pass/Fail/Conditional).
+*   **CYCLE07: Advanced Exploration (EON & Generator)**
+    *   Implement `EONWrapper` for kMC support.
+    *   Implement `StructureGenerator` with "Adaptive Exploration Policies".
+    *   Implement defect and strain engineering logic.
+*   **CYCLE08: Full Loop Integration & Reporting**
+    *   Final integration of all modules into the `Orchestrator`.
+    *   Implement the CLI entry point (`mlip-auto run`).
+    *   Develop the Dashboard/Reporting module (HTML report generation).
+    *   Final End-to-End testing and documentation.
 
 ## 6. Test Strategy
 
-### 6.1. Unit Testing
-*   **Framework**: `pytest`
-*   **Scope**: Every individual module (Validator, Generator, Runner) must have unit tests.
-*   **Mocking**: External binaries (QE, LAMMPS, Pacemaker) will be mocked using `unittest.mock` to test Python logic without requiring heavy computation.
+A rigorous testing strategy is essential for a system that automates scientific calculations.
 
-### 6.2. Integration Testing
-*   **Scope**: Interaction between modules (e.g., Generator -> Database -> Trainer).
-*   **Data**: Use lightweight "dummy" potentials and tiny systems (e.g., 2-atom cells) to verify data flow without long wait times.
+### Unit Testing
+*   **Scope**: Individual functions and classes (e.g., input file generators, parsers, config validators).
+*   **Tools**: `pytest` with `pytest-cov`.
+*   **Approach**: Mock external dependencies (Quantum Espresso, LAMMPS, Pacemaker) to test logic without running heavy calculations. Verify that Pydantic models correctly reject invalid configurations.
 
-### 6.3. User Acceptance Testing (UAT)
-*   **Format**: Jupyter Notebooks and CLI dry-runs.
-*   **Scenarios**: Defined for each cycle (e.g., "Generate 10 structures from config", "Recover from a failed DFT run").
-*   **Criteria**: Successful execution of the workflow step and correct state updates in the database.
+### Integration Testing
+*   **Scope**: Interaction between modules (e.g., Orchestrator -> DFTManager, Trainer -> Dataset).
+*   **Approach**: Use lightweight mocks for the physics engines but test the file I/O and data flow between the Python modules. Ensure that a "halted" structure from the mocked Dynamics Engine is correctly passed to the Oracle and then to the Trainer.
+
+### End-to-End (E2E) Testing
+*   **Scope**: The entire workflow from `config.yaml` to a trained potential.
+*   **Approach**:
+    *   **Dry Run**: A mode where all external commands are printed/logged but not executed, verifying the command construction.
+    *   **Toy System**: Run the full loop on a very simple system (e.g., Silicon unit cell) with very loose convergence criteria to ensure the pipeline finishes in a reasonable time on the CI/CD environment or local developer machine.
+    *   **Regression Tests**: Ensure that changes in the code do not degrade the performance (RMSE) on a standard dataset.
+
+### Validation Tests (Scientific Correctness)
+*   **Scope**: The physical validity of the output.
+*   **Approach**: This is part of the system's runtime logic (Cycle 06) but also serves as a test of the system's effectiveness. We verify that the system creates potentials that respect fundamental physics (positive bulk modulus, stable phonons for stable structures).
