@@ -1,3 +1,33 @@
+[project]
+name = "mlip-autopipec"
+version = "0.1.0"
+description = "Automated Machine Learning Interatomic Potential Pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+    "typer>=0.9",
+    "pyyaml",
+    "rich",
+    "ase",
+    "numpy",
+    "tenacity",
+    "dask[distributed]",
+    "spglib>=2.7.0",
+    "pandas>=2.3.3",
+    "matplotlib>=3.10.8",
+    "plotly>=6.5.2",
+    "mace-torch>=0.3.14",
+    "phonopy>=2.47.1",
+]
+
+[project.scripts]
+mlip-auto = "mlip_autopipec.app:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
@@ -79,3 +109,13 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.14",
+    "types-pyyaml>=6.0.12.20250915",
+]

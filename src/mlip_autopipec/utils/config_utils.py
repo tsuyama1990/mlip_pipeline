@@ -24,7 +24,8 @@ def validate_path_safety(path: Path | str) -> Path:
              return resolved
         return resolved
     except Exception as e:
-        raise ValueError(f"Invalid path: {path}") from e
+        msg = f"Invalid path: {path}"
+        raise ValueError(msg) from e
 
 
 def load_config(path: Path) -> MLIPConfig:
@@ -38,19 +39,30 @@ def load_config(path: Path) -> MLIPConfig:
         Validated MLIPConfig object.
     """
     if not path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {path}")
+        msg = f"Configuration file not found: {path}"
+        raise FileNotFoundError(msg)
+
+    # Security/Scalability: Check file size to prevent OOM/DoS
+    # Limit to 10MB (generous for config)
+    MAX_CONFIG_SIZE = 10 * 1024 * 1024
+    if path.stat().st_size > MAX_CONFIG_SIZE:
+        msg = f"Configuration file too large ({path.stat().st_size} bytes). Max: {MAX_CONFIG_SIZE}"
+        raise ValueError(msg)
 
     try:
         with path.open("r") as f:
             data = yaml.safe_load(f)
 
         if not isinstance(data, dict):
-            raise ValueError("Configuration must be a dictionary.")
+            msg = "Configuration must be a dictionary."
+            raise ValueError(msg)
 
         return MLIPConfig(**data)
     except yaml.YAMLError as e:
-        logger.error(f"Failed to parse YAML: {e}")
-        raise ValueError(f"Invalid YAML file: {path}") from e
+        logger.exception("Failed to parse YAML")
+        msg = f"Invalid YAML file: {path}"
+        raise ValueError(msg) from e
     except Exception as e:
-        logger.error(f"Failed to load config: {e}")
-        raise ValueError(f"Invalid configuration: {e}") from e
+        logger.exception("Failed to load config")
+        msg = f"Invalid configuration: {e}"
+        raise ValueError(msg) from e

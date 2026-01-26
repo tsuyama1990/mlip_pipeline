@@ -4,107 +4,173 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 36 items
+collected 176 items
 
-tests/e2e/test_cycle01.py ....                                           [ 11%]
-tests/unit/test_atoms.py ....                                            [ 22%]
-tests/unit/test_config.py .......                                        [ 41%]
-tests/unit/test_database.py .....................                        [100%]
+tests/e2e/test_cycle01.py ......                                         [  3%]
+tests/uat/test_cycle02_structure_gen.py ...                              [  5%]
+tests/uat/test_cycle03_oracle.py ...                                     [  6%]
+tests/uat/test_cycle06_orchestrator.py .                                 [  7%]
+tests/unit/dft/test_inputs.py ....                                       [  9%]
+tests/unit/dft/test_parsers.py ....                                      [ 11%]
+tests/unit/dft/test_recovery.py ....                                     [ 14%]
+tests/unit/dft/test_runner.py ....                                       [ 16%]
+tests/unit/dft/test_security.py ..                                       [ 17%]
+tests/unit/generator/test_builder.py ....                                [ 19%]
+tests/unit/generator/test_coverage.py ......                             [ 23%]
+tests/unit/generator/test_defects.py .....                               [ 26%]
+tests/unit/generator/test_schemas.py ......                              [ 29%]
+tests/unit/generator/test_sqs.py ..                                      [ 30%]
+tests/unit/generator/test_transformations.py ....                        [ 32%]
+tests/unit/inference/test_eon_schema.py ...                              [ 34%]
+tests/unit/inference/test_eon_wrapper.py ......                          [ 38%]
+tests/unit/inference/test_inference_inputs.py .....                      [ 40%]
+tests/unit/inference/test_pace_driver.py ..                              [ 42%]
+tests/unit/inference/test_parsers.py ....                                [ 44%]
+tests/unit/inference/test_runner.py ...                                  [ 46%]
+tests/unit/inference/test_schemas.py .....                               [ 48%]
+tests/unit/inference/test_writer.py .                                    [ 49%]
+tests/unit/orchestration/test_db_manager.py ..                           [ 50%]
+tests/unit/orchestration/test_state.py ...                               [ 52%]
+tests/unit/orchestration/test_strategies.py ..                           [ 53%]
+tests/unit/orchestration/test_workflow.py ..                             [ 54%]
+tests/unit/test_atoms.py ....                                            [ 56%]
+tests/unit/test_cli_validation.py ...                                    [ 58%]
+tests/unit/test_config.py .......                                        [ 62%]
+tests/unit/test_database.py .....................                        [ 74%]
+tests/unit/test_feedback_fixes.py ....                                   [ 76%]
+tests/unit/training/test_dataset.py .                                    [ 77%]
+tests/unit/training/test_metrics.py .......                              [ 81%]
+tests/unit/training/test_pacemaker.py .............                      [ 88%]
+tests/unit/training/test_schemas.py .....                                [ 91%]
+tests/unit/utils/test_embedding.py ...                                   [ 93%]
+tests/unit/validation/test_physics_validators.py ......                  [ 96%]
+tests/unit/validation/test_schemas.py ....../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:495: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.2/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+                             [100%]
 
+=============================== warnings summary ===============================
+tests/uat/test_cycle02_structure_gen.py::test_scenario_02_02_defect_introduction
+tests/unit/generator/test_defects.py::test_generate_vacancy_single
+tests/unit/generator/test_defects.py::test_apply_strategy
+  /app/.venv/lib/python3.12/site-packages/spglib/spg.py:438: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error(_throw)
+
+tests/uat/test_cycle02_structure_gen.py::test_scenario_02_02_defect_introduction
+tests/unit/generator/test_defects.py::test_generate_vacancy_single
+tests/unit/generator/test_defects.py::test_apply_strategy
+  /app/src/mlip_autopipec/generator/defects.py:99: DeprecationWarning: dict interface is deprecated. Use attribute interface instead
+    equivalent_atoms = dataset["equivalent_atoms"]
+
+tests/uat/test_cycle06_orchestrator.py::test_uat_full_cycle_simulation
+tests/unit/orchestration/test_workflow.py::test_workflow_run_loop
+  /app/src/mlip_autopipec/orchestration/dashboard.py:93: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+    plt.legend()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
-Name                                                  Stmts   Miss  Cover   Missing
------------------------------------------------------------------------------------
-src/mlip_autopipec/__init__.py                            4      0   100%
-src/mlip_autopipec/app.py                               142     89    37%   41-42, 96-98, 109-136, 148-172, 183-224, 242-244, 254-273, 277
-src/mlip_autopipec/config/__init__.py                     3      0   100%
-src/mlip_autopipec/config/factory.py                     37     37     0%   1-62
-src/mlip_autopipec/config/models.py                      51      0   100%
-src/mlip_autopipec/config/schemas/core.py                37      2    95%   28, 33
-src/mlip_autopipec/config/schemas/dft.py                 38      3    92%   34, 36, 43
-src/mlip_autopipec/config/schemas/exploration.py          5      0   100%
-src/mlip_autopipec/config/schemas/generator.py           26      0   100%
-src/mlip_autopipec/config/schemas/inference.py           30      2    93%   27, 50
-src/mlip_autopipec/config/schemas/orchestration.py        6      0   100%
-src/mlip_autopipec/config/schemas/surrogate.py            8      0   100%
-src/mlip_autopipec/config/schemas/training.py            38      6    84%   33-34, 36-37, 47-48
-src/mlip_autopipec/core/__init__.py                       0      0   100%
-src/mlip_autopipec/core/services.py                      11      2    82%   24, 30
-src/mlip_autopipec/core/workspace.py                     13     13     0%   1-25
-src/mlip_autopipec/data/__init__.py                       0      0   100%
-src/mlip_autopipec/data/database.py                      23     23     0%   7-73
-src/mlip_autopipec/data_models/__init__.py                4      0   100%
-src/mlip_autopipec/data_models/atoms.py                  21      1    95%   15
-src/mlip_autopipec/data_models/candidate.py              10     10     0%   1-19
-src/mlip_autopipec/data_models/dft_models.py             47      8    83%   51-53, 59-63
-src/mlip_autopipec/data_models/inference_models.py       24      7    71%   28-35
-src/mlip_autopipec/data_models/structure_enums.py         9      9     0%   1-11
-src/mlip_autopipec/data_models/training_data.py          59     32    46%   29-33, 41-60, 65-76, 90-95
-src/mlip_autopipec/dft/__init__.py                        0      0   100%
-src/mlip_autopipec/dft/constants.py                       3      0   100%
-src/mlip_autopipec/dft/inputs.py                         70     54    23%   30-114, 122-134, 141-149, 156-163
-src/mlip_autopipec/dft/parsers.py                        32     24    25%   27, 53-99
-src/mlip_autopipec/dft/recovery.py                       32     23    28%   33-40, 49-78
-src/mlip_autopipec/dft/runner.py                        122     99    19%   30, 36-47, 53-166, 172-183, 191-192
-src/mlip_autopipec/exceptions.py                         25     13    48%   43-48, 51-52, 59-60, 63-66
-src/mlip_autopipec/generator/__init__.py                  5      0   100%
-src/mlip_autopipec/generator/builder.py                 117     96    18%   40-49, 72-103, 106-109, 112-117, 123-142, 157-176, 191-235
-src/mlip_autopipec/generator/defects.py                  84     71    15%   29-30, 43-63, 79-111, 127-184
-src/mlip_autopipec/generator/sqs.py                      45     35    22%   29-30, 49-100
-src/mlip_autopipec/generator/transformations.py          46     38    17%   26-56, 74-98
-src/mlip_autopipec/inference/__init__.py                  9      0   100%
-src/mlip_autopipec/inference/analysis.py                 44     39    11%   22, 34-88
-src/mlip_autopipec/inference/embedding.py                44     32    27%   30, 43-49, 53-59, 72-88, 100-130
-src/mlip_autopipec/inference/inputs.py                   19     14    26%   14, 18-71
-src/mlip_autopipec/inference/interfaces.py                5      0   100%
-src/mlip_autopipec/inference/masking.py                  33     29    12%   23-76
-src/mlip_autopipec/inference/runner.py                   82     67    18%   35-38, 51-104, 114-136, 142-175
-src/mlip_autopipec/inference/uq.py                       23     17    26%   9, 16-38
-src/mlip_autopipec/inference/writer.py                   20     12    40%   27-29, 42-59
-src/mlip_autopipec/modules/__init__.py                    0      0   100%
-src/mlip_autopipec/modules/config_generator.py           15     15     0%   3-74
-src/mlip_autopipec/modules/descriptors.py                31     31     0%   3-62
-src/mlip_autopipec/modules/dft.py                        67     67     0%   6-189
-src/mlip_autopipec/modules/exploration.py                51     51     0%   7-130
-src/mlip_autopipec/modules/explorer.py                   46     46     0%   3-90
-src/mlip_autopipec/modules/generator.py                  72     72     0%   3-203
-src/mlip_autopipec/modules/inference.py                 136    136     0%   7-333
-src/mlip_autopipec/modules/screening.py                  41     41     0%   3-68
-src/mlip_autopipec/modules/training_orchestrator.py      22     22     0%   5-73
-src/mlip_autopipec/monitoring/__init__.py                 0      0   100%
-src/mlip_autopipec/monitoring/dashboard.py               63     63     0%   1-115
-src/mlip_autopipec/orchestration/__init__.py              5      0   100%
-src/mlip_autopipec/orchestration/dashboard.py            47     33    30%   31-34, 45-55, 67-95, 108-110
-src/mlip_autopipec/orchestration/database.py            159     20    87%   49-51, 95, 130-132, 162-163, 179-180, 270-271, 273-274, 283-284, 298-300
-src/mlip_autopipec/orchestration/interfaces.py            9      0   100%
-src/mlip_autopipec/orchestration/models.py               18      0   100%
-src/mlip_autopipec/orchestration/phase_executor.py      129    109    16%   28-35, 39-64, 68-110, 114-137, 146-225
-src/mlip_autopipec/orchestration/task_queue.py           74     60    19%   29-52, 69-77, 96-124, 139-141, 147-151
-src/mlip_autopipec/orchestration/workflow.py             74     56    24%   67-103, 107-113, 117, 123-139, 143-165, 169-179
-src/mlip_autopipec/surrogate/__init__.py                  5      0   100%
-src/mlip_autopipec/surrogate/candidate_manager.py        14     14     0%   2-22
-src/mlip_autopipec/surrogate/descriptors.py              30     30     0%   1-84
-src/mlip_autopipec/surrogate/mace_client.py              62     62     0%   1-146
-src/mlip_autopipec/surrogate/mace_wrapper.py             53     46    13%   11-13, 19-34, 40-61, 67-105
-src/mlip_autopipec/surrogate/model_interface.py           8      0   100%
-src/mlip_autopipec/surrogate/pipeline.py                100     84    16%   16-22, 32-53, 56-61, 64-65, 68-115, 118-155
-src/mlip_autopipec/surrogate/sampling.py                 19     14    26%   7, 19-43
-src/mlip_autopipec/training/__init__.py                   4      0   100%
-src/mlip_autopipec/training/config_gen.py                16     10    38%   12-14, 32-46
-src/mlip_autopipec/training/dataset.py                   45     35    22%   33, 53-120
-src/mlip_autopipec/training/metrics.py                   35     27    23%   33-71
-src/mlip_autopipec/training/pacemaker.py                 93     77    17%   37-39, 52-92, 104, 108-129, 135-148, 160-209
-src/mlip_autopipec/training/physics.py                   39     28    28%   43-109
-src/mlip_autopipec/utils/__init__.py                      0      0   100%
-src/mlip_autopipec/utils/ase_utils.py                    42     42     0%   12-120
-src/mlip_autopipec/utils/config_utils.py                  7      7     0%   3-38
-src/mlip_autopipec/utils/dask_utils.py                   12     12     0%   6-43
-src/mlip_autopipec/utils/data_loader.py                  15     15     0%   5-39
-src/mlip_autopipec/utils/logging.py                      11      4    64%   24-29
-src/mlip_autopipec/utils/resilience.py                   29     29     0%   6-93
-src/mlip_autopipec/utils/workflow_utils.py               32     32     0%   3-53
-src/mlip_autopipec/workflow_manager.py                  106    106     0%   1-191
------------------------------------------------------------------------------------
-TOTAL                                                  3342   2403    28%
-============================== 36 passed in 7.95s ==============================
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               4      0   100%
+src/mlip_autopipec/app.py                                   91     45    51%   38-45, 53-55, 77-79, 93-98, 110-116, 127-133, 146-148, 158-164, 168
+src/mlip_autopipec/config/__init__.py                        3      0   100%
+src/mlip_autopipec/config/factory.py                        37     37     0%   1-62
+src/mlip_autopipec/config/models.py                         54      0   100%
+src/mlip_autopipec/config/schemas/common.py                 38     19    50%   15-20, 25-43, 54
+src/mlip_autopipec/config/schemas/core.py                   37      2    95%   28, 33
+src/mlip_autopipec/config/schemas/dft.py                    50      6    88%   37, 39, 52, 69-71
+src/mlip_autopipec/config/schemas/exploration.py             5      0   100%
+src/mlip_autopipec/config/schemas/generator.py              28      0   100%
+src/mlip_autopipec/config/schemas/inference.py              42      1    98%   60
+src/mlip_autopipec/config/schemas/surrogate.py               8      0   100%
+src/mlip_autopipec/config/schemas/training.py               40      2    95%   49-50
+src/mlip_autopipec/config/schemas/validation.py             20      0   100%
+src/mlip_autopipec/config/schemas/workflow.py                6      0   100%
+src/mlip_autopipec/core/__init__.py                          0      0   100%
+src/mlip_autopipec/core/services.py                          5      0   100%
+src/mlip_autopipec/core/workspace.py                        13     13     0%   1-25
+src/mlip_autopipec/data_models/__init__.py                   5      0   100%
+src/mlip_autopipec/data_models/atoms.py                     21      1    95%   15
+src/mlip_autopipec/data_models/candidate.py                 10     10     0%   1-19
+src/mlip_autopipec/data_models/dft_models.py                51      5    90%   54, 56, 64, 66, 68
+src/mlip_autopipec/data_models/inference_models.py          24      7    71%   28-35
+src/mlip_autopipec/data_models/state.py                     14      0   100%
+src/mlip_autopipec/data_models/structure_enums.py            9      9     0%   1-11
+src/mlip_autopipec/data_models/training_data.py             59     32    46%   29-33, 41-60, 65-76, 90-95
+src/mlip_autopipec/data_models/validation.py                15      0   100%
+src/mlip_autopipec/dft/__init__.py                           0      0   100%
+src/mlip_autopipec/dft/constants.py                          3      0   100%
+src/mlip_autopipec/dft/inputs.py                            72      8    89%   33, 81-85, 130, 137, 167
+src/mlip_autopipec/dft/parsers.py                           32      2    94%   58, 78
+src/mlip_autopipec/dft/recovery.py                          32      4    88%   72-78
+src/mlip_autopipec/dft/runner.py                           154     45    71%   67, 77-78, 81, 122-127, 183-199, 211-213, 219, 222-225, 234-240, 248-257, 274
+src/mlip_autopipec/exceptions.py                            25      7    72%   43-48, 51-52
+src/mlip_autopipec/generator/__init__.py                     5      0   100%
+src/mlip_autopipec/generator/builder.py                     90      5    94%   45-46, 104, 143, 159
+src/mlip_autopipec/generator/defects.py                     94     11    88%   84, 97, 123-126, 149, 201-204
+src/mlip_autopipec/generator/distortions.py                 43      4    91%   68-69, 81-82
+src/mlip_autopipec/generator/sqs.py                         44      9    80%   55, 78-81, 93-96
+src/mlip_autopipec/generator/transformations.py             48      5    90%   47-49, 51, 94
+src/mlip_autopipec/inference/__init__.py                     8      0   100%
+src/mlip_autopipec/inference/analysis.py                    44     39    11%   22, 34-88
+src/mlip_autopipec/inference/drivers/pace_driver.py         51     31    39%   11-15, 47-85, 88
+src/mlip_autopipec/inference/eon.py                         72     10    86%   65-66, 113-115, 118-119, 166-168
+src/mlip_autopipec/inference/inputs.py                      35      0   100%
+src/mlip_autopipec/inference/interfaces.py                   5      0   100%
+src/mlip_autopipec/inference/masking.py                     33     29    12%   23-76
+src/mlip_autopipec/inference/parsers.py                     41      3    93%   38, 79-81
+src/mlip_autopipec/inference/processing.py                  40      8    80%   45, 51, 57-59, 69, 78-79
+src/mlip_autopipec/inference/runner.py                      82     26    68%   94, 100-115, 127, 135-137, 159-160, 164-165, 173-176
+src/mlip_autopipec/inference/uq.py                          23     17    26%   9, 16-38
+src/mlip_autopipec/inference/writer.py                      21      0   100%
+src/mlip_autopipec/modules/__init__.py                       0      0   100%
+src/mlip_autopipec/modules/cli_handlers/handlers.py        171    123    28%   72-171, 181-204, 208-221, 225-256, 269-280
+src/mlip_autopipec/modules/training_orchestrator.py         22     12    45%   43-45, 60-73
+src/mlip_autopipec/monitoring/__init__.py                    0      0   100%
+src/mlip_autopipec/monitoring/dashboard.py                  63     63     0%   1-115
+src/mlip_autopipec/orchestration/__init__.py                 7      0   100%
+src/mlip_autopipec/orchestration/dashboard.py               57      3    95%   80, 87, 100
+src/mlip_autopipec/orchestration/database.py               180     25    86%   51-53, 100, 140-142, 181-182, 199-200, 283, 295-297, 308, 324-325, 327-328, 338-339, 352-354
+src/mlip_autopipec/orchestration/interfaces.py              10      0   100%
+src/mlip_autopipec/orchestration/phase_executor.py          23      1    96%   27
+src/mlip_autopipec/orchestration/phases/base.py             10      0   100%
+src/mlip_autopipec/orchestration/phases/dft.py              36      6    83%   26, 47-48, 52, 58-59
+src/mlip_autopipec/orchestration/phases/exploration.py      34     16    53%   26-51
+src/mlip_autopipec/orchestration/phases/inference.py        53     16    70%   26-27, 33-36, 39-40, 47-48, 55-59, 86-88
+src/mlip_autopipec/orchestration/phases/selection.py        37      9    76%   21-22, 33-34, 37-39, 58, 62-63
+src/mlip_autopipec/orchestration/phases/training.py         39     10    74%   16-17, 31-33, 51-57
+src/mlip_autopipec/orchestration/strategies.py              27      1    96%   48
+src/mlip_autopipec/orchestration/task_queue.py              74     60    19%   29-52, 69-77, 96-124, 139-141, 147-151
+src/mlip_autopipec/orchestration/workflow.py                90     11    88%   77, 90, 95-99, 124-125, 169-170
+src/mlip_autopipec/surrogate/__init__.py                     5      0   100%
+src/mlip_autopipec/surrogate/candidate_manager.py           40     30    25%   14, 17-23, 29-35, 42-80
+src/mlip_autopipec/surrogate/descriptors.py                 30     30     0%   1-84
+src/mlip_autopipec/surrogate/mace_client.py                 62     62     0%   1-146
+src/mlip_autopipec/surrogate/mace_wrapper.py                53     46    13%   11-13, 19-34, 40-61, 67-105
+src/mlip_autopipec/surrogate/model_interface.py              8      0   100%
+src/mlip_autopipec/surrogate/pipeline.py                   100     84    16%   16-22, 32-53, 57-62, 65-66, 69-116, 119-156
+src/mlip_autopipec/surrogate/sampling.py                    19     14    26%   7, 19-43
+src/mlip_autopipec/training/__init__.py                      4      0   100%
+src/mlip_autopipec/training/config_gen.py                   16     16     0%   1-46
+src/mlip_autopipec/training/dataset.py                      53     33    38%   54-56, 76-118
+src/mlip_autopipec/training/metrics.py                      39      3    92%   39-41
+src/mlip_autopipec/training/pacemaker.py                   143     40    72%   49-60, 131-132, 136-138, 146-150, 186-187, 194-197, 207-215, 224-226, 248-249, 262-264
+src/mlip_autopipec/training/physics.py                      39     28    28%   43-109
+src/mlip_autopipec/utils/__init__.py                         0      0   100%
+src/mlip_autopipec/utils/ase_utils.py                       44     44     0%   12-122
+src/mlip_autopipec/utils/config_utils.py                    39     11    72%   24, 26-28, 49-50, 57-58, 62-64
+src/mlip_autopipec/utils/dask_utils.py                      13      8    38%   35-48
+src/mlip_autopipec/utils/data_loader.py                     15     15     0%   5-39
+src/mlip_autopipec/utils/embedding.py                       46      0   100%
+src/mlip_autopipec/utils/logging.py                         11      4    64%   24-29
+src/mlip_autopipec/utils/resilience.py                      30     30     0%   6-94
+src/mlip_autopipec/utils/workflow_utils.py                  32     32     0%   3-53
+src/mlip_autopipec/validation/__init__.py                    0      0   100%
+src/mlip_autopipec/validation/elasticity.py                 49      3    94%   28, 69-70
+src/mlip_autopipec/validation/eos.py                        31      3    90%   29, 97-98
+src/mlip_autopipec/validation/phonon.py                     36      7    81%   30, 60-73, 116-117
+src/mlip_autopipec/validation/runner.py                     24      3    88%   33, 43-44
+--------------------------------------------------------------------------------------
+TOTAL                                                     3700   1354    63%
+======================= 176 passed, 8 warnings in 52.58s =======================
