@@ -1,6 +1,8 @@
 from pathlib import Path
+
 from mlip_autopipec.config.models import MLIPConfig
 from mlip_autopipec.utils.config_utils import load_config as _load_config_impl
+
 
 def load_config(path: Path) -> MLIPConfig:
     """

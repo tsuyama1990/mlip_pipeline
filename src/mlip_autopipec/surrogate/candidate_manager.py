@@ -1,6 +1,9 @@
-from typing import Any, Iterable
 import logging
+from collections.abc import Iterable
+from typing import Any
+
 from ase import Atoms
+
 from mlip_autopipec.orchestration.database import DatabaseManager
 
 logger = logging.getLogger(__name__)

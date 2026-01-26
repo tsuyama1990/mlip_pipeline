@@ -1,9 +1,11 @@
 import os
 import shutil
 from pathlib import Path
-from typer.testing import CliRunner
-from mlip_autopipec.app import app
+
 import yaml
+from typer.testing import CliRunner
+
+from mlip_autopipec.app import app
 
 runner = CliRunner()
 
@@ -67,7 +69,7 @@ def test_cycle01_uat():
 
         print(f"File size: {large_file.stat().st_size}")
         result = runner.invoke(app, ["validate", str(large_file)])
-        print(f"Large File Result Output: {result.stdout}")
+
         assert result.exit_code != 0
         # We strictly want the size error now
         assert "too large" in result.stdout
