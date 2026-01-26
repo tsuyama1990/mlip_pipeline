@@ -145,6 +145,11 @@ class DatabaseManager:
         """
         Counts rows matching selection.
 
+        Security Note:
+            The `selection` argument is a query string parsed by ase.db.
+            Do not construct it using f-strings with untrusted user input to avoid injection risks.
+            Prefer using `kwargs` for exact value matches (e.g., status="pending").
+
         Args:
             selection: Raw selection string (use with caution).
             **kwargs: Parameterized selection criteria (preferred).

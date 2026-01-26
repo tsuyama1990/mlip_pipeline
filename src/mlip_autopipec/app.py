@@ -24,12 +24,14 @@ app.add_typer(run_app, name="run")
 console = Console()
 logger = logging.getLogger("mlip_autopipec")
 
+DEFAULT_CONFIG_FILE = Path("input.yaml")
+
 
 @run_app.callback(invoke_without_command=True)
 def run_main(
     ctx: typer.Context,
     config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
+        DEFAULT_CONFIG_FILE, "--config", "-c", help="Config file"
     ),
 ) -> None:
     """Execution commands. Default: Run the full workflow loop."""
@@ -55,7 +57,7 @@ def init() -> None:
 
 @app.command(name="validate")
 def validate(
-    file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),
+    file: Path = typer.Argument(DEFAULT_CONFIG_FILE, help="Path to config file"),
     phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),
     elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),
     eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),
@@ -83,7 +85,7 @@ def validate(
 @app.command()
 def generate(
     config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
+        DEFAULT_CONFIG_FILE, "--config", "-c", help="Config file"
     ),
     dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
 ) -> None:
@@ -99,7 +101,7 @@ def generate(
 @app.command()
 def select(
     config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
+        DEFAULT_CONFIG_FILE, "--config", "-c", help="Config file"
     ),
     n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
     model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
@@ -117,7 +119,7 @@ def select(
 @app.command()
 def train(
     config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
+        DEFAULT_CONFIG_FILE, "--config", "-c", help="Config file"
     ),
     prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
 ) -> None:
@@ -134,7 +136,7 @@ def train(
 @db_app.command(name="init")
 def db_init(
     config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Path to config file"
+        DEFAULT_CONFIG_FILE, "--config", "-c", help="Path to config file"
     ),
 ) -> None:
     """Initialize the database based on the configuration."""
@@ -149,7 +151,7 @@ def db_init(
 @run_app.command(name="loop")
 def run_loop(
     config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
+        DEFAULT_CONFIG_FILE, "--config", "-c", help="Config file"
     ),
 ) -> None:
     """Run the full autonomous loop (Generation -> DFT -> Training -> Inference)."""

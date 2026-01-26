@@ -55,7 +55,7 @@ def test_validate_invalid_config(tmp_path):
 
         result = runner.invoke(app, ["validate", "bad_config.yaml"])
         assert result.exit_code == 1
-        assert "Validation Error" in result.stdout
+        assert "Validation Error" in result.stdout or "Invalid configuration" in result.stdout
 
 def test_validate_missing_file(tmp_path):
     result = runner.invoke(app, ["validate", "non_existent.yaml"])

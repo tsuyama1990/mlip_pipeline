@@ -73,7 +73,7 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                                     Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                               4      0   100%
-src/mlip_autopipec/app.py                                   90     42    53%   36-43, 51-53, 91-96, 108-114, 125-131, 144-146, 156-162, 166
+src/mlip_autopipec/app.py                                   91     45    51%   38-45, 53-55, 77-79, 93-98, 110-116, 127-133, 146-148, 158-164, 168
 src/mlip_autopipec/config/__init__.py                        3      0   100%
 src/mlip_autopipec/config/factory.py                        37     37     0%   1-62
 src/mlip_autopipec/config/models.py                         54      0   100%
@@ -88,7 +88,7 @@ src/mlip_autopipec/config/schemas/training.py               40      2    95%   4
 src/mlip_autopipec/config/schemas/validation.py             20      0   100%
 src/mlip_autopipec/config/schemas/workflow.py                6      0   100%
 src/mlip_autopipec/core/__init__.py                          0      0   100%
-src/mlip_autopipec/core/services.py                         11      1    91%   30
+src/mlip_autopipec/core/services.py                          5      0   100%
 src/mlip_autopipec/core/workspace.py                        13     13     0%   1-25
 src/mlip_autopipec/data_models/__init__.py                   5      0   100%
 src/mlip_autopipec/data_models/atoms.py                     21      1    95%   15
@@ -131,7 +131,7 @@ src/mlip_autopipec/monitoring/__init__.py                    0      0   100%
 src/mlip_autopipec/monitoring/dashboard.py                  63     63     0%   1-115
 src/mlip_autopipec/orchestration/__init__.py                 7      0   100%
 src/mlip_autopipec/orchestration/dashboard.py               57      3    95%   80, 87, 100
-src/mlip_autopipec/orchestration/database.py               180     25    86%   51-53, 100, 140-142, 176-177, 194-195, 278, 290-292, 303, 319-320, 322-323, 333-334, 347-349
+src/mlip_autopipec/orchestration/database.py               180     25    86%   51-53, 100, 140-142, 181-182, 199-200, 283, 295-297, 308, 324-325, 327-328, 338-339, 352-354
 src/mlip_autopipec/orchestration/interfaces.py              10      0   100%
 src/mlip_autopipec/orchestration/phase_executor.py          23      1    96%   27
 src/mlip_autopipec/orchestration/phases/base.py             10      0   100%
@@ -144,7 +144,7 @@ src/mlip_autopipec/orchestration/strategies.py              27      1    96%   4
 src/mlip_autopipec/orchestration/task_queue.py              74     60    19%   29-52, 69-77, 96-124, 139-141, 147-151
 src/mlip_autopipec/orchestration/workflow.py                90     11    88%   77, 90, 95-99, 124-125, 169-170
 src/mlip_autopipec/surrogate/__init__.py                     5      0   100%
-src/mlip_autopipec/surrogate/candidate_manager.py           17     11    35%   11, 14-25
+src/mlip_autopipec/surrogate/candidate_manager.py           40     30    25%   14, 17-23, 29-35, 42-80
 src/mlip_autopipec/surrogate/descriptors.py                 30     30     0%   1-84
 src/mlip_autopipec/surrogate/mace_client.py                 62     62     0%   1-146
 src/mlip_autopipec/surrogate/mace_wrapper.py                53     46    13%   11-13, 19-34, 40-61, 67-105
@@ -159,7 +159,7 @@ src/mlip_autopipec/training/pacemaker.py                   143     40    72%   4
 src/mlip_autopipec/training/physics.py                      39     28    28%   43-109
 src/mlip_autopipec/utils/__init__.py                         0      0   100%
 src/mlip_autopipec/utils/ase_utils.py                       44     44     0%   12-122
-src/mlip_autopipec/utils/config_utils.py                    35     22    37%   24, 26-28, 41-61
+src/mlip_autopipec/utils/config_utils.py                    39     11    72%   24, 26-28, 49-50, 57-58, 62-64
 src/mlip_autopipec/utils/dask_utils.py                      13      8    38%   35-48
 src/mlip_autopipec/utils/data_loader.py                     15     15     0%   5-39
 src/mlip_autopipec/utils/embedding.py                       46      0   100%
@@ -172,5 +172,5 @@ src/mlip_autopipec/validation/eos.py                        31      3    90%   2
 src/mlip_autopipec/validation/phonon.py                     36      7    81%   30, 60-73, 116-117
 src/mlip_autopipec/validation/runner.py                     24      3    88%   33, 43-44
 --------------------------------------------------------------------------------------
-TOTAL                                                     3678   1344    63%
-======================= 176 passed, 8 warnings in 53.29s =======================
+TOTAL                                                     3700   1354    63%
+======================= 176 passed, 8 warnings in 52.58s =======================

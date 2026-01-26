@@ -42,6 +42,13 @@ def load_config(path: Path) -> MLIPConfig:
         msg = f"Configuration file not found: {path}"
         raise FileNotFoundError(msg)
 
+    # Security/Scalability: Check file size to prevent OOM/DoS
+    # Limit to 10MB (generous for config)
+    MAX_CONFIG_SIZE = 10 * 1024 * 1024
+    if path.stat().st_size > MAX_CONFIG_SIZE:
+        msg = f"Configuration file too large ({path.stat().st_size} bytes). Max: {MAX_CONFIG_SIZE}"
+        raise ValueError(msg)
+
     try:
         with path.open("r") as f:
             data = yaml.safe_load(f)
