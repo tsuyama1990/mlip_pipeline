@@ -1,11 +1,11 @@
-import pytest
-from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock
-from mlip_autopipec.app import app
-from mlip_autopipec.data_models.dft_models import DFTResult
-from mlip_autopipec.config.schemas.dft import DFTConfig
+from unittest.mock import patch
+
 from ase import Atoms
-from pathlib import Path
+from typer.testing import CliRunner
+
+from mlip_autopipec.app import app
+from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.data_models.dft_models import DFTResult
 
 runner = CliRunner()
 
@@ -31,10 +31,8 @@ def test_run_dft_success(mock_read, mock_load, MockRunner, tmp_path):
 
     mock_runner_instance = MockRunner.return_value
     mock_runner_instance.run.return_value = DFTResult(
-        energy=-10.0,
-        forces=[[0.0, 0.0, 0.0]],
-        stress=None,
-        converged=True
+        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True, converged=True, wall_time=1.0, parameters={}
     )
 
     result = runner.invoke(app, ["run-dft", "--config", str(config_file), "--structure", str(struct_file)])
@@ -63,10 +61,9 @@ def test_run_dft_failure(mock_read, mock_load, MockRunner, tmp_path):
 
     mock_runner_instance = MockRunner.return_value
     mock_runner_instance.run.return_value = DFTResult(
-        energy=0.0,
-        forces=[],
-        converged=False,
-        error_message="SCF failed"
+        uid="test", energy=0.0, forces=[], stress=[], succeeded=False,
+        converged=False, error_message="SCF failed",
+        wall_time=0.0, parameters={}
     )
 
     result = runner.invoke(app, ["run-dft", "--config", str(config_file), "--structure", str(struct_file)])

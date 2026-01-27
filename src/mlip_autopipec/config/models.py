@@ -33,6 +33,8 @@ class MLIPConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
+# Alias for backward compatibility or clarity
+UserInputConfig = MLIPConfig
 
 # --- Compatibility / Legacy Models ---
 

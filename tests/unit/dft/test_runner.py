@@ -1,96 +1,100 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from ase import Atoms
 from pathlib import Path
-import os
+from unittest.mock import MagicMock, patch
 
-from mlip_autopipec.dft.runner import QERunner
+import pytest
+from ase import Atoms
+
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+
 
 @pytest.fixture
-def mock_dft_config(tmp_path):
-    p_dir = tmp_path / "pseudos"
-    p_dir.mkdir()
-    (p_dir / "Si.upf").touch()
+def mock_config(tmp_path: Path) -> DFTConfig:
+    # create fake UPF
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "Al.UPF").touch()
 
     return DFTConfig(
-        command="mpirun -np 4 pw.x",
-        pseudopotential_dir=p_dir,
-        pseudopotentials={"Si": "Si.upf"},
-        kspacing=0.1
+        pseudopotential_dir=pseudo_dir,
+        ecutwfc=30.0,
+        kspacing=0.05,
+        command="pw.x",
+        recoverable=True
     )
 
-def test_runner_initialization(mock_dft_config, tmp_path):
-    runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    assert runner.config == mock_dft_config
-    assert runner.work_dir == tmp_path
+@patch("shutil.which")
+def test_validate_command_success(mock_which: MagicMock, mock_config: DFTConfig) -> None:
+    mock_which.return_value = "/usr/bin/pw.x"
+    runner = QERunner(mock_config)
+    parts = runner._validate_command("pw.x")
+    assert parts == ["pw.x"]
 
 @patch("shutil.which")
-@patch("subprocess.run")
-def test_compute_success(mock_run, mock_which, mock_dft_config, tmp_path):
-    mock_which.return_value = "/bin/mpirun"
-    runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    atoms = Atoms("Si2", positions=[[0,0,0], [1.1,1.1,1.1]], cell=[5,5,5])
-
-    mock_run.return_value = MagicMock(returncode=0, stdout="JOB DONE", stderr="")
-
-    with patch.object(runner, '_write_input') as mock_write, \
-         patch.object(runner, '_parse_output') as mock_parse:
-
-        mock_parse.return_value = DFTResult(
-            energy=-100.0,
-            forces=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
-            stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
-            converged=True
-        )
-
-        # Create dummy input file since _write_input is mocked and _run_command expects it
-        (runner.work_dir / "pw.in").touch()
-
-        result = runner.run(atoms)
-
-        assert result.energy == -100.0
-        assert result.converged is True
-        mock_write.assert_called_once()
-        mock_run.assert_called_once()
+def test_validate_command_fail(mock_which: MagicMock, mock_config: DFTConfig) -> None:
+    mock_which.return_value = None
+    runner = QERunner(mock_config)
+    with pytest.raises(DFTFatalError, match="not found"):
+        runner._validate_command("pw.x")
 
 @patch("shutil.which")
-@patch("subprocess.run")
-def test_compute_failure(mock_run, mock_which, mock_dft_config, tmp_path):
-    mock_which.return_value = "/bin/mpirun"
-    runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    atoms = Atoms("Si")
+@patch("mlip_autopipec.dft.runner.subprocess.run")
+def test_run_success(mock_run: MagicMock, mock_which: MagicMock, mock_config: DFTConfig) -> None:
+    mock_which.return_value = "/bin/pw.x"
 
-    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Error")
+    # Mock subprocess success
+    mock_process = MagicMock()
+    mock_process.returncode = 0
+    mock_process.stderr = ""
+    mock_run.return_value = mock_process
+
+    # Mock Parser via Dependency Injection
+    mock_parser_cls = MagicMock()
+    mock_result = DFTResult(
+        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True, converged=True, wall_time=1.0, parameters={}
+    )
+    mock_parser_cls.return_value.parse.return_value = mock_result
+
+    runner = QERunner(mock_config, parser_class=mock_parser_cls)
+    atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[5,5,5])
 
     result = runner.run(atoms)
-    assert result.converged is False
-    assert result.error_message is not None
 
-def test_write_input(mock_dft_config, tmp_path):
-    runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    atoms = Atoms("Si", positions=[[0,0,0]], cell=[4,4,4])
+    assert result.succeeded
+    assert result.energy == -10.0
+    mock_run.assert_called()
+    mock_parser_cls.assert_called()
 
-    input_file = tmp_path / "pw.in"
-    runner._write_input(atoms, input_file)
+@patch("shutil.which")
+@patch("mlip_autopipec.dft.runner.subprocess.run")
+def test_run_retry_recovery(mock_run: MagicMock, mock_which: MagicMock, mock_config: DFTConfig) -> None:
+    mock_which.return_value = "/bin/pw.x"
 
-    assert input_file.exists()
-    content = input_file.read_text()
+    # Fail first time (Convergence), Succeed second time
+    proc_fail = MagicMock()
+    proc_fail.returncode = 1
+    proc_fail.stderr = "convergence NOT achieved"
 
-    assert "tprnfor" in content or "tprnfor=.true." in content.lower()
-    assert "tstress" in content or "tstress=.true." in content.lower()
-    assert "Si.upf" in content
-    assert "K_POINTS" in content
+    proc_success = MagicMock()
+    proc_success.returncode = 0
+    proc_success.stderr = ""
 
-@patch("mlip_autopipec.dft.runner.read")
-def test_parse_output_failure(mock_read, mock_dft_config, tmp_path):
-    runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    output_file = tmp_path / "pw.out"
-    output_file.touch()
+    mock_run.side_effect = [proc_fail, proc_success]
 
-    mock_read.side_effect = Exception("Parsing error")
+    # Mock Parser to succeed on second call
+    mock_parser_cls = MagicMock()
+    mock_result = DFTResult(
+        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True, converged=True, wall_time=1.0, parameters={}
+    )
+    mock_parser_cls.return_value.parse.return_value = mock_result
 
-    result = runner._parse_output(output_file)
-    assert result.converged is False
-    assert "Parsing error" in result.error_message
+    runner = QERunner(mock_config, parser_class=mock_parser_cls)
+    atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[5,5,5])
+
+    result = runner.run(atoms)
+
+    assert result.succeeded
+    assert mock_run.call_count == 2

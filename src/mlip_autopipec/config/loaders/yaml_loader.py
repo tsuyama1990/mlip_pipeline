@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Type, TypeVar, Union
+from typing import TypeVar
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -38,19 +38,21 @@ class ConfigLoader:
             log.error(f"Configuration validation failed for {config_path}")
             raise ValueError(f"Configuration validation failed: {e}") from e
 
-def load_config(path: Union[str, Path], model: Type[T]) -> T:
+def load_config(path: str | Path, model: type[T]) -> T:
     """
     Load a YAML configuration file and validate it against a Pydantic model.
     Adapter for simple usage.
     """
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {path}")
+        msg = f"Config file not found: {path}"
+        raise FileNotFoundError(msg)
 
-    with open(path, "r") as f:
+    with path.open("r") as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict):
-        raise ValueError(f"Config file {path} must contain a dictionary")
+        msg = f"Config file {path} must contain a dictionary"
+        raise ValueError(msg)
 
     return model(**data)

@@ -38,9 +38,9 @@ def init() -> None:
 @app.command(name="validate")
 def validate(
     file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),  # noqa: B008
-    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),  # noqa: B008
-    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),  # noqa: B008
-    eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),  # noqa: B008
+    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),
+    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),
+    eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),
 ) -> None:
     """
     Validate configuration or run physics checks on the trained potential.
@@ -152,6 +152,7 @@ def run_dft(
     """Run a DFT calculation on a single structure."""
     try:
         from ase import Atoms
+
         from mlip_autopipec.config.loaders.yaml_loader import load_config
         from mlip_autopipec.config.schemas.dft import DFTConfig
         from mlip_autopipec.dft.runner import QERunner
@@ -164,10 +165,7 @@ def run_dft(
         # type: ignore[no-untyped-call]
         atoms_read = read(structure_path)
 
-        if isinstance(atoms_read, list):
-             atoms = atoms_read[0]
-        else:
-             atoms = atoms_read
+        atoms = atoms_read[0] if isinstance(atoms_read, list) else atoms_read
 
         if not isinstance(atoms, Atoms):
             console.print("[bold red]Error:[/bold red] Invalid structure file.")
