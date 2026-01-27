@@ -1,124 +1,69 @@
 # PyAcemaker: Automated MLIP Construction System
 
-![Status](https://img.shields.io/badge/Status-Development-orange)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
 
-**PyAcemaker** is a comprehensive, "Zero-Config" software system designed to democratise the creation of "State-of-the-Art" Machine Learning Interatomic Potentials (MLIP). By automating the complex loop of structure generation, Quantum Mechanical calculations (DFT), model training (ACE), and validation, it allows materials scientists to generate robust potentials with minimal human effort and computational cost.
+PyAcemaker is a "Zero-Config" workflow that automates the construction of Machine Learning Interatomic Potentials (MLIP) using the Atomic Cluster Expansion (ACE) framework.
 
----
+## Overview
 
-## Key Features
+### What is PyAcemaker?
+PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges the gap between high-accuracy Density Functional Theory (DFT) and large-scale Molecular Dynamics (MD) by automating the tedious cycles of structure generation, calculation, training, and verification.
 
--   **Zero-Config Workflow**: Automates the entire pipeline from a single YAML configuration file. No manual scripting required.
--   **Active Learning Efficiency**: Uses uncertainty quantification to select only the most informative structures, reducing DFT costs by >90% compared to random sampling.
--   **Physics-Informed Robustness**: Enforces physical safety (core repulsion) via Hybrid Potentials (ACE + ZBL), preventing simulation crashes in unknown regions.
--   **Self-Healing Oracle**: Automatically detects and corrects DFT convergence failures, ensuring a reliable stream of training data.
--   **Scalable Dynamics**: seamlessly integrates with LAMMPS for MD and EON for Adaptive Kinetic Monte Carlo (aKMC) to explore vast time and length scales.
+### Why use it?
+- **Automated**: Handles the entire pipeline from active learning to potential fitting.
+- **Data Efficient**: Uses active learning to select only the most informative structures, reducing DFT costs.
+- **Robust**: Incorporates physical baselines (ZBL/LJ) and self-healing mechanisms.
 
-## Architecture Overview
+## Features
+- **Core Framework**: Robust configuration management and CLI.
+- **DFT Oracle**: Automated interface to Quantum Espresso with error recovery.
+- **CLI Commands**: Easy-to-use commands for initialization, DFT execution, and validation.
 
-PyAcemaker orchestrates a set of specialized modules to drive the Active Learning Cycle.
+## Requirements
+- Python 3.11 or higher
+- Quantum Espresso (`pw.x`) installed and in PATH (for DFT calculations)
+- `uv` package manager (recommended)
 
-```mermaid
-graph TD
-    User[User Config (YAML)] --> Orch{Orchestrator}
-    Orch -->|1. Explore| Gen[Structure Generator]
-    Orch -->|1. Explore| Dyn[Dynamics Engine]
+## Installation
 
-    Dyn -->|Halt on High Uncertainty| Orch
-    Gen -->|Candidate Structures| Orch
-
-    Orch -->|2. Select| Trainer[Trainer / Active Set]
-    Trainer -->|Selected Candidates| Oracle[Oracle (DFT)]
-
-    Oracle -->|3. Compute (Energy/Forces)| DB[(Database)]
-    DB --> Trainer
-
-    Trainer -->|4. Train| Pot[Potential (YACE)]
-    Pot -->|5. Validate| Val[Validator]
-
-    Val -- Pass --> Orch
-    Val -- Fail --> Gen
-
-    Dyn -.->|Uses| Pot
+```bash
+git clone https://github.com/your-org/mlip-autopipec.git
+cd mlip-autopipec
+uv sync
 ```
-
-## Prerequisites
-
--   **Python 3.11+**
--   **uv** (Modern Python package manager)
--   **Quantum Espresso** (`pw.x`) - For DFT calculations.
--   **LAMMPS** (`lmp`) - For MD simulations (must be compiled with `USER-PACE`).
--   **Pacemaker** - For training ACE potentials.
-
-## Installation & Setup
-
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/your-org/pyacemaker.git
-    cd pyacemaker
-    ```
-
-2.  **Install dependencies**:
-    We use `uv` for fast and reliable dependency management.
-    ```bash
-    uv sync
-    ```
-
-3.  **Configure Environment**:
-    Copy the example configuration and adjust paths to your local binaries.
-    ```bash
-    cp config.example.yaml config.yaml
-    # Edit config.yaml to set paths for pw.x, lmp, etc.
-    ```
 
 ## Usage
 
-### Running the Active Learning Loop
-To start an autonomous potential generation campaign:
-
+### 1. Initialize Project
+Create a new project with a template configuration:
 ```bash
-uv run mlip-auto run-loop --config config.yaml
+uv run mlip-auto init
+```
+This creates `input.yaml`. Edit it to specify your target system and DFT parameters.
+
+### 2. Validate Configuration
+Ensure your configuration is valid:
+```bash
+uv run mlip-auto validate input.yaml
 ```
 
-### Validating a Potential
-To run the physics validation suite on an existing potential:
-
+### 3. Run DFT Calculation (Single Structure)
+Run a DFT calculation on a specific structure file (e.g., `.cif`, `.xyz`):
 ```bash
-uv run mlip-auto validate --potential potentials/my_potential.yace
+uv run mlip-auto run-dft --config input.yaml --structure my_structure.cif
 ```
 
-## Development Workflow
-
-This project follows the AC-CDD (Architect-Coder-Cycle-Driven Development) methodology.
-
-### Running Tests
+### 4. Run Full Loop (Coming Soon)
 ```bash
-uv run pytest
+uv run mlip-auto run loop --config input.yaml
 ```
 
-### Linting and Formatting
-We enforce strict code quality using `ruff` and `mypy`.
-```bash
-uv run ruff check .
-uv run mypy .
-```
-
-## Project Structure
-
+## Architecture
 ```ascii
 mlip_autopipec/
-├── config/              # Pydantic schemas for configuration
-├── orchestration/       # Main loop logic (The Brain)
-├── generator/           # Structure generation (The Explorer)
-├── dft/                 # Quantum Espresso wrapper (The Oracle)
-├── trainer/             # Pacemaker wrapper (The Learner)
-├── dynamics/            # LAMMPS/EON interface (The Runner)
-├── validation/          # Physics checks (The Judge)
-└── app.py               # CLI Entry point
+├── config/        # Pydantic schemas and loaders
+├── dft/           # Quantum Espresso runner and error handling
+├── app.py         # CLI entry point
+└── ...
 ```
-
-## License
-
-This project is licensed under the MIT License.

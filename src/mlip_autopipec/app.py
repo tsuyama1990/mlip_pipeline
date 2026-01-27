@@ -37,10 +37,10 @@ def init() -> None:
 
 @app.command(name="validate")
 def validate(
-    file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),
-    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),
-    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),
-    eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),
+    file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),  # noqa: B008
+    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),  # noqa: B008
+    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),  # noqa: B008
+    eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),  # noqa: B008
 ) -> None:
     """
     Validate configuration or run physics checks on the trained potential.
@@ -142,6 +142,58 @@ def run_loop(
         console.print(f"[bold red]Workflow Failed:[/bold red] {e}")
         logger.exception("Workflow failed")
         raise typer.Exit(code=1) from e
+
+
+@app.command(name="run-dft")
+def run_dft(
+    config_path: Path = typer.Option(..., "--config", "-c", help="Path to DFT configuration YAML"),  # noqa: B008
+    structure_path: Path = typer.Option(..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"),  # noqa: B008
+) -> None:
+    """Run a DFT calculation on a single structure."""
+    try:
+        from ase import Atoms
+        from mlip_autopipec.config.loaders.yaml_loader import load_config
+        from mlip_autopipec.config.schemas.dft import DFTConfig
+        from mlip_autopipec.dft.runner import QERunner
+
+        console.print(f"Loading config from {config_path}...")
+        config = load_config(config_path, DFTConfig)
+
+        console.print(f"Loading structure from {structure_path}...")
+        from ase.io import read
+        # type: ignore[no-untyped-call]
+        atoms_read = read(structure_path)
+
+        if isinstance(atoms_read, list):
+             atoms = atoms_read[0]
+        else:
+             atoms = atoms_read
+
+        if not isinstance(atoms, Atoms):
+            console.print("[bold red]Error:[/bold red] Invalid structure file.")
+            raise typer.Exit(code=1)
+
+        work_dir = Path("dft_work") / structure_path.stem
+        runner = QERunner(config=config, work_dir=work_dir)
+
+        console.print(f"Running DFT calculation in {work_dir}...")
+        result = runner.run(atoms)
+
+        if result.converged:
+            console.print("[bold green]DFT Calculation Successful![/bold green]")
+            console.print(f"Energy: {result.energy} eV")
+            forces = result.forces
+            max_f = max(max(abs(f) for f in force) for force in forces) if forces else 0.0
+            console.print(f"Max Force Component: {max_f} eV/A")
+            console.print(f"Output saved to {work_dir}")
+        else:
+            console.print("[bold red]DFT Calculation Failed.[/bold red]")
+            console.print(f"Error: {result.error_message}")
+            raise typer.Exit(code=1)
+
+    except Exception as e:
+        console.print(f"[bold red]An error occurred:[/bold red] {e}")
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

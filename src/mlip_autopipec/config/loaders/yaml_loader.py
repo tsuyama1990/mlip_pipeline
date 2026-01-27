@@ -1,13 +1,15 @@
 import logging
 from pathlib import Path
+from typing import Type, TypeVar, Union
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from mlip_autopipec.config.models import UserInputConfig
 
 log = logging.getLogger(__name__)
 
+T = TypeVar("T", bound=BaseModel)
 
 class ConfigLoader:
     """Loads and validates user configuration."""
@@ -16,16 +18,6 @@ class ConfigLoader:
     def load_user_config(config_path: Path) -> UserInputConfig:
         """
         Reads a YAML file and validates it against UserInputConfig.
-
-        Args:
-            config_path: Path to the YAML file.
-
-        Returns:
-            Validated UserInputConfig object.
-
-        Raises:
-            FileNotFoundError: If file doesn't exist.
-            ValueError: If YAML parsing fails or data is invalid.
         """
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -45,3 +37,20 @@ class ConfigLoader:
         except ValidationError as e:
             log.error(f"Configuration validation failed for {config_path}")
             raise ValueError(f"Configuration validation failed: {e}") from e
+
+def load_config(path: Union[str, Path], model: Type[T]) -> T:
+    """
+    Load a YAML configuration file and validate it against a Pydantic model.
+    Adapter for simple usage.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError(f"Config file {path} must contain a dictionary")
+
+    return model(**data)
