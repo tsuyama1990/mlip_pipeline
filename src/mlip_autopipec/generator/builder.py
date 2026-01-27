@@ -181,8 +181,15 @@ class StructureBuilder:
             )
             prim = bulk("Fe")
 
+        if not isinstance(prim, Atoms):
+            msg = f"Generated primitive is not an Atoms object: {type(prim)}"
+            raise GeneratorError(msg)
+
         if self.generator_config.sqs.enabled:
             sqs = self.sqs_strategy.generate(prim, target.composition)
+            if not isinstance(sqs, Atoms):
+                msg = f"Generated SQS is not an Atoms object: {type(sqs)}"
+                raise GeneratorError(msg)
             yield sqs
         else:
             # Just primitive

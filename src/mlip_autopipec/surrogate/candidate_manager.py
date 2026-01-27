@@ -8,6 +8,11 @@ class CandidateManager:
         self.db = db_manager
 
     def create_candidate(self, atoms, metadata: dict = None):
+        from ase import Atoms
+        if not isinstance(atoms, Atoms):
+            msg = f"Expected ase.Atoms object, got {type(atoms)}"
+            raise TypeError(msg)
+
         if metadata is None:
             metadata = {}
         # Apply defaults

@@ -87,7 +87,8 @@ class WorkflowManager:
             )
         if isinstance(config, SystemConfig):
             return config
-        raise TypeError("Invalid configuration type provided to WorkflowManager.")
+        msg = "Invalid configuration type provided to WorkflowManager."
+        raise TypeError(msg)
 
     def _load_state(self) -> WorkflowState:
         """Load or initialize workflow state."""
@@ -109,10 +110,14 @@ class WorkflowManager:
         """
         logger.info("Starting Workflow Manager...")
         try:
-            print(f"DEBUG: Entering run loop. Cycle: {self.state.cycle_index}, Max: {self.workflow_config.max_generations}")
+            logger.debug(
+                f"Entering run loop. Cycle: {self.state.cycle_index}, Max: {self.workflow_config.max_generations}"
+            )
             while self.state.cycle_index < self.workflow_config.max_generations:
-                print(f"DEBUG: Inside loop. Cycle: {self.state.cycle_index}")
-                logger.info(f"--- Cycle {self.state.cycle_index} | Phase: {self.state.current_phase.value} ---")
+                logger.debug(f"Inside loop. Cycle: {self.state.cycle_index}")
+                logger.info(
+                    f"--- Cycle {self.state.cycle_index} | Phase: {self.state.current_phase.value} ---"
+                )
 
                 self._dispatch_phase()
                 self._update_dashboard()
@@ -131,15 +136,13 @@ class WorkflowManager:
     def _dispatch_phase(self) -> None:
         """Dispatch execution to the appropriate phase handler based on state."""
         phase = self.state.current_phase
-        # print(f"DEBUG: Dispatching phase {phase} (type: {type(phase)})")
-        # print(f"DEBUG: Expected {WorkflowPhase.EXPLORATION} (type: {type(WorkflowPhase.EXPLORATION)})")
 
         if phase == WorkflowPhase.EXPLORATION:
             # Run Inference/MD to explore and find uncertain structures
             # Returns True if halted (high uncertainty found), False otherwise
-            print(f"DEBUG: Calling execute_inference on {self.executor}")
+            logger.debug(f"Calling execute_inference on {self.executor}")
             halted = self.executor.execute_inference()
-            print(f"DEBUG: execute_inference returned {halted}")
+            logger.debug(f"execute_inference returned {halted}")
             if halted:
                 logger.info("Exploration halted due to high uncertainty. Transitioning to Selection.")
                 self.state.current_phase = WorkflowPhase.SELECTION

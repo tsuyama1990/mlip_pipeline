@@ -7,11 +7,14 @@ It acts as a facade, delegating business logic to handlers.
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import typer
+import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.modules.cli_handlers.handlers import CLIHandler
 from mlip_autopipec.utils.logging import setup_logging
 
@@ -144,21 +147,53 @@ def run_loop(
         raise typer.Exit(code=1) from e
 
 
+def _load_dft_config(path: Path) -> tuple[DFTConfig, Path]:
+    """Helper to load DFT config from full MLIP config or standalone DFT config."""
+    if not path.exists():
+        msg = f"Config file not found: {path}"
+        raise FileNotFoundError(msg)
+
+    with path.open("r") as f:
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        msg = "Config must be a dictionary"
+        raise ValueError(msg)
+
+    work_dir = Path("dft_work") # Default
+
+    if "dft" in data:
+        # It's likely an MLIPConfig
+        dft_config = DFTConfig(**data["dft"])
+        if "runtime" in data and "work_dir" in data["runtime"]:
+             work_dir = Path(data["runtime"]["work_dir"])
+    else:
+        # Assume standalone
+        dft_config = DFTConfig(**data)
+
+    return dft_config, work_dir
+
+def _handle_error(msg: str) -> None:
+    """Helper to print error and exit, abstracting raise."""
+    console.print(f"[bold red]Error:[/bold red] {msg}")
+    raise typer.Exit(code=1)
+
 @app.command(name="run-dft")
 def run_dft(
     config_path: Path = typer.Option(..., "--config", "-c", help="Path to DFT configuration YAML"),  # noqa: B008
     structure_path: Path = typer.Option(..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"),  # noqa: B008
+    work_dir: Path = typer.Option(None, "--work-dir", "-w", help="Override working directory"), # noqa: B008
 ) -> None:
     """Run a DFT calculation on a single structure."""
     try:
         from ase import Atoms
-
-        from mlip_autopipec.config.loaders.yaml_loader import load_config
-        from mlip_autopipec.config.schemas.dft import DFTConfig
         from mlip_autopipec.dft.runner import QERunner
 
         console.print(f"Loading config from {config_path}...")
-        config = load_config(config_path, DFTConfig)
+        config, config_work_dir = _load_dft_config(config_path)
+
+        # Determine actual work dir
+        base_work_dir = work_dir if work_dir else config_work_dir
 
         console.print(f"Loading structure from {structure_path}...")
         from ase.io import read
@@ -168,13 +203,13 @@ def run_dft(
         atoms = atoms_read[0] if isinstance(atoms_read, list) else atoms_read
 
         if not isinstance(atoms, Atoms):
-            console.print("[bold red]Error:[/bold red] Invalid structure file.")
-            raise typer.Exit(code=1)
+            _handle_error("Invalid structure file.")
 
-        work_dir = Path("dft_work") / structure_path.stem
-        runner = QERunner(config=config, work_dir=work_dir)
+        # Ensure unique work dir for structure
+        run_work_dir = base_work_dir / structure_path.stem
+        runner = QERunner(config=config, work_dir=run_work_dir)
 
-        console.print(f"Running DFT calculation in {work_dir}...")
+        console.print(f"Running DFT calculation in {run_work_dir}...")
         result = runner.run(atoms)
 
         if result.converged:
@@ -183,15 +218,14 @@ def run_dft(
             forces = result.forces
             max_f = max(max(abs(f) for f in force) for force in forces) if forces else 0.0
             console.print(f"Max Force Component: {max_f} eV/A")
-            console.print(f"Output saved to {work_dir}")
+            console.print(f"Output saved to {run_work_dir}")
         else:
             console.print("[bold red]DFT Calculation Failed.[/bold red]")
-            console.print(f"Error: {result.error_message}")
-            raise typer.Exit(code=1)
+            _handle_error(f"Error: {result.error_message}")
 
     except Exception as e:
         console.print(f"[bold red]An error occurred:[/bold red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":
