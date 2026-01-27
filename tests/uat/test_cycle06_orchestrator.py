@@ -53,22 +53,21 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
     (work_dir / "current.yace").touch()
     (tmp_path / "new.yace").touch()
 
-    print(f"DEBUG: Test DB Path: {uat_config.db_path}")
     with DatabaseManager(uat_config.db_path) as db:
         atoms = Atoms("Fe", positions=[[0, 0, 0]], cell=[2.5, 2.5, 2.5], pbc=True)
         db.add_structure(atoms, {"status": "training"})
         assert db.count() == 1
         assert db.count(selection="status=training") == 1
 
-    with patch("mlip_autopipec.orchestration.phases.dft.QERunner") as MockQERunner, \
+    with patch("mlip_autopipec.orchestration.phases.dft.QERunner"), \
          patch("mlip_autopipec.orchestration.phases.inference.LammpsRunner") as MockLammpsRunner, \
          patch("mlip_autopipec.orchestration.phases.training.PacemakerWrapper") as MockPacemakerWrapper, \
          patch("mlip_autopipec.orchestration.phases.selection.PacemakerWrapper") as MockSelectionPacemaker, \
          patch("mlip_autopipec.inference.processing.EmbeddingExtractor") as MockExtractor, \
          patch("mlip_autopipec.inference.processing.read") as mock_ase_read, \
-         patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder") as MockDatasetBuilder, \
+         patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder"), \
          patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue, \
-         patch("mlip_autopipec.orchestration.workflow.get_dask_client") as mock_dask:
+         patch("mlip_autopipec.orchestration.workflow.get_dask_client"):
 
         # Configure LammpsRunner
         mock_lammps = MockLammpsRunner.return_value
@@ -92,7 +91,6 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         mock_extractor.extract.return_value = Atoms("Fe", positions=[[0,0,0]], cell=[5,5,5], pbc=True)
 
         # Configure DFT Runner (Wait, Phase uses TaskQueue!)
-        mock_qe = MockQERunner.return_value
         dft_res = MagicMock(energy=-10.0, forces=[[0,0,0]], stress=[[0]*3]*3)
 
         # Configure TaskQueue
@@ -125,8 +123,6 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         # Assertions
         assert manager.state.cycle_index == 2
 
-        print(f"DEBUG: Lammps Class Calls: {MockLammpsRunner.call_count}")
-        print(f"DEBUG: Lammps Run Calls: {mock_lammps.run.call_count}")
 
         assert mock_lammps.run.call_count == 2
 

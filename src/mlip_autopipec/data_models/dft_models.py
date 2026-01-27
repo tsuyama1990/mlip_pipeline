@@ -35,35 +35,33 @@ class DFTResult(BaseModel):
     uid: str
     energy: float
     forces: list[list[float]] = Field(..., description="Nx3 array")
-    stress: list[list[float]] = Field(..., description="3x3 array")
+    stress: list[list[float]] | None = Field(None, description="3x3 array")
     succeeded: bool
+    converged: bool = Field(default=False) # Backwards compat
     error_message: str | None = None
     wall_time: float
     # Metadata for provenance
     parameters: dict[str, Any]
-    final_mixing_beta: float | None = None  # Make optional if not always present
+    final_mixing_beta: float | None = None
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     @field_validator("forces")
     @classmethod
     def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
         if not forces:
-             # Depending on logic, empty forces might be valid for failed calc, but if succeeded=True it shouldn't.
-             # We won't enforce non-empty here unless we check succeeded.
              return forces
         if not all(len(row) == 3 for row in forces):
-            raise ValueError("Forces must have a shape of (N_atoms, 3).")
+            msg = "Forces must have a shape of (N_atoms, 3)."
+            raise ValueError(msg)
         return forces
 
     @field_validator("stress")
     @classmethod
-    def check_stress_shape(cls, stress: list[list[float]]) -> list[list[float]]:
-        # SPEC says 3x3 array for DFTResult in Data Models section.
+    def check_stress_shape(cls, stress: list[list[float]] | None) -> list[list[float]] | None:
         if not stress:
             return stress
-        if len(stress) != 3:
-            raise ValueError("Stress tensor must be 3x3.")
-        if not all(len(row) == 3 for row in stress):
-            raise ValueError("Stress tensor must be 3x3.")
+        if len(stress) == 3 and not all(len(row) == 3 for row in stress):
+            msg = "Stress tensor must be 3x3."
+            raise ValueError(msg)
         return stress

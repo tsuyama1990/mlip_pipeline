@@ -55,7 +55,7 @@ class InferenceConfig(BaseModel):
         Actual existence check is runtime dependent (e.g. remote nodes),
         but we can check if it's a valid path structure.
         """
-        if v is not None:
-            if str(v).strip() == "":
-                raise ValueError("LAMMPS executable path cannot be empty.")
+        if v is not None and str(v).strip() == "":
+            msg = "LAMMPS executable path cannot be empty."
+            raise ValueError(msg)
         return v

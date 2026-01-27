@@ -1,5 +1,5 @@
 def main():
-    print("Hello from mlip-pipeline!")
+    pass
 
 
 if __name__ == "__main__":

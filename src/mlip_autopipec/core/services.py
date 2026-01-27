@@ -21,12 +21,14 @@ def load_config(path: Path) -> MLIPConfig:
         yaml.YAMLError: If the file is not valid YAML.
     """
     if not path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {path}")
+        msg = f"Configuration file not found: {path}"
+        raise FileNotFoundError(msg)
 
-    with open(path) as f:
+    with path.open() as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict):
-        raise ValueError("Configuration file must contain a dictionary.")
+        msg = "Configuration file must contain a dictionary."
+        raise TypeError(msg)
 
     return MLIPConfig.model_validate(data)

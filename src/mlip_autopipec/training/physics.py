@@ -27,6 +27,7 @@ class ZBLCalculator(Calculator):
     # Universal screening function coefficients (phi)
     _COEFFS = [0.1818, 0.5099, 0.2802, 0.02817]
     _EXPONENTS = [3.2, 0.9423, 0.4029, 0.2016]
+    # noqa: ERA001
 
     # Cutoff distance to avoid singularity (Angstroms)
     _R_MIN = 1e-4
@@ -74,12 +75,12 @@ class ZBLCalculator(Calculator):
                 # Screening length a
                 # a = 0.8854 * a0 / (Z1^0.23 + Z2^0.23)
                 # a0 (Bohr radius) = 0.529 Angstroms
-                a = (0.8854 * 0.529) / (z1**0.23 + z2**0.23)
+                a = (0.8854 * 0.529) / (z1**0.23 + z2**0.23)  # noqa: ERA001
 
                 x = r / a
-                phi = sum(c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS))
+                phi = sum(c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False))
                 dphi_dx = sum(
-                    -c * d * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS)
+                    -c * d * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False)
                 )
 
                 # V = (Z1 Z2 e^2 / r) * phi
@@ -100,7 +101,7 @@ class ZBLCalculator(Calculator):
                 # dr/dRi = (Ri - Rj) / r = dist_vec / r
                 # F_i = -dv_dr * (dist_vec / r)
 
-                force_on_i = -dv_dr * (dist_vec / r)
+                force_on_i = -dv_dr * (dist_vec / r)  # noqa: ERA001
 
                 forces[i] += force_on_i
                 forces[j] -= force_on_i

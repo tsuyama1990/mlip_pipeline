@@ -1,52 +1,24 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Annotated
+
+from ase.data import chemical_symbols
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 
-class TargetSystem(BaseModel):
-    name: str = Field("System", description="Name of the target system")
-    elements: list[str] = Field(..., description="List of chemical symbols")
-    composition: dict[str, float] = Field(..., description="Atomic fractions")
-    crystal_structure: str | None = Field(None, description="Base structure (e.g., 'fcc')")
+def validate_element(v: str) -> str:
+    if v not in chemical_symbols:
+        msg = f"Invalid chemical symbol: {v}"
+        raise ValueError(msg)
+    return v
 
+Element = Annotated[str, AfterValidator(validate_element)]
+
+class CommonConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    @field_validator("elements")
-    @classmethod
-    def validate_elements(cls, elements: list[str]) -> list[str]:
-        from ase.data import chemical_symbols
-
-        for symbol in elements:
-            if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
-        return elements
-
-    @field_validator("composition")
-    @classmethod
-    def validate_composition(cls, composition: dict[str, float]) -> dict[str, float]:
-        if not composition:
-            raise ValueError("Composition cannot be empty.")
-
-        # Check values range
-        for sym, frac in composition.items():
-            if not (0.0 <= frac <= 1.0):
-                raise ValueError(f"Composition fraction for {sym} must be between 0.0 and 1.0.")
-
-        total = sum(composition.values())
-        if not (0.99999 <= total <= 1.00001):
-            raise ValueError(f"Composition fractions must sum to 1.0 (got {total}).")
-
-        from ase.data import chemical_symbols
-
-        for symbol in composition:
-            if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol in composition.")
-
-        return composition
-
 
 class EmbeddingConfig(BaseModel):
     """Configuration for cluster embedding."""
-    core_radius: float = Field(4.0, gt=0.0)
-    buffer_width: float = Field(2.0, gt=0.0)
+    core_radius: float = Field(default=4.0, gt=0.0)
+    buffer_width: float = Field(default=2.0, gt=0.0)
     model_config = ConfigDict(extra="forbid")
 
     @property

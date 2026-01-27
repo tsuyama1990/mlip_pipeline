@@ -33,7 +33,8 @@ class InferencePhase(BasePhase):
                 logger.error("No potential available for Inference Phase.")
                 # We do NOT return False here silently because if we expected to run inference
                 # and can't find a potential, it's a configuration/state error.
-                raise RuntimeError("Inference Phase requires a trained potential in state.")
+                msg = "Inference Phase requires a trained potential in state."
+                raise RuntimeError(msg)
 
             if not potential_path.exists():
                 logger.error(f"Potential file not found at {potential_path}")

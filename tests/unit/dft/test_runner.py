@@ -52,13 +52,13 @@ def test_run_success(mock_run: MagicMock, mock_which: MagicMock, mock_config: DF
     # Mock Parser via Dependency Injection
     mock_parser_cls = MagicMock()
     mock_result = DFTResult(
-        uid="test", energy=-10.0, forces=[[0,0,0]], stress=[[0,0,0],[0,0,0],[0,0,0]],
-        succeeded=True, wall_time=1.0, parameters={}
+        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True, converged=True, wall_time=1.0, parameters={}
     )
     mock_parser_cls.return_value.parse.return_value = mock_result
 
     runner = QERunner(mock_config, parser_class=mock_parser_cls)
-    atoms = Atoms("Al", positions=[[0,0,0]])
+    atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[5,5,5])
 
     result = runner.run(atoms)
 
@@ -86,13 +86,13 @@ def test_run_retry_recovery(mock_run: MagicMock, mock_which: MagicMock, mock_con
     # Mock Parser to succeed on second call
     mock_parser_cls = MagicMock()
     mock_result = DFTResult(
-        uid="test", energy=-10.0, forces=[[0,0,0]], stress=[[0,0,0],[0,0,0],[0,0,0]],
-        succeeded=True, wall_time=1.0, parameters={}
+        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True, converged=True, wall_time=1.0, parameters={}
     )
     mock_parser_cls.return_value.parse.return_value = mock_result
 
     runner = QERunner(mock_config, parser_class=mock_parser_cls)
-    atoms = Atoms("Al", positions=[[0,0,0]])
+    atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[5,5,5])
 
     result = runner.run(atoms)
 

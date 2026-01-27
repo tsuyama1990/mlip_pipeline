@@ -53,9 +53,11 @@ class QEOutputParser:
         try:
             content = output_path.read_text(errors="replace")
             if "JOB DONE" not in content:
-                 raise Exception("QE output missing 'JOB DONE' marker.")
+                 msg = "QE output missing 'JOB DONE' marker."
+                 raise Exception(msg)
         except FileNotFoundError:
-             raise Exception(f"Output file not found: {output_path}")
+             msg = f"Output file not found: {output_path}"
+             raise Exception(msg)
 
         try:
             # ase.io.read returns Atoms object
@@ -69,13 +71,15 @@ class QEOutputParser:
 
             # Check for NaN/Inf in forces
             if np.isnan(forces).any() or np.isinf(forces).any():
-                raise ValueError("Forces contain NaN or Inf values.")
+                msg = "Forces contain NaN or Inf values."
+                raise ValueError(msg)
 
             stress = atoms_out.get_stress(voigt=False)  # Get 3x3 tensor
 
             # Check for NaN/Inf in stress
             if np.isnan(stress).any() or np.isinf(stress).any():
-                raise ValueError("Stress contains NaN or Inf values.")
+                msg = "Stress contains NaN or Inf values."
+                raise ValueError(msg)
 
             if hasattr(forces, "tolist"):
                 forces = forces.tolist()
@@ -96,4 +100,5 @@ class QEOutputParser:
             )
         except Exception as e:
             # If ASE fails, it means calculation didn't finish or crashed
-            raise Exception(f"Failed to parse output: {e}") from e
+            msg = f"Failed to parse output: {e}"
+            raise Exception(msg) from e

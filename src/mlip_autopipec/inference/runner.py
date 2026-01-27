@@ -3,6 +3,7 @@ Runs inference (LAMMPS) simulations using the trained potential.
 Detects uncertainty and aborts if necessary.
 """
 
+import contextlib
 import logging
 import os
 import shutil
@@ -51,10 +52,12 @@ class LammpsRunner:
         """
         # Validate inputs
         if not isinstance(atoms, Atoms):
-            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+            msg = f"Expected ase.Atoms object, got {type(atoms)}"
+            raise TypeError(msg)
 
         if not potential_path.exists():
-            raise FileNotFoundError(f"Potential file not found: {potential_path}")
+            msg = f"Potential file not found: {potential_path}"
+            raise FileNotFoundError(msg)
 
         try:
             # 1. Prepare Inputs
@@ -103,14 +106,12 @@ class LammpsRunner:
                      try:
                          # Read only last 1KB
                          with stderr_file.open("rb") as f:
-                             try:
+                             with contextlib.suppress(OSError):
                                  f.seek(-1024, os.SEEK_END)
-                             except OSError:
-                                 pass # File smaller than 1KB
                              tail = f.read().decode("utf-8", errors="replace")
                              logger.error(f"Stderr tail: {tail}")
-                     except Exception:
-                         pass
+                     except Exception as e:
+                         logger.warning(f"Failed to read stderr tail: {e}")
 
                 return InferenceResult(
                     succeeded=False,

@@ -31,7 +31,8 @@ class SelectionPhase(BasePhase):
 
             if not potential_path:
                 logger.error("No potential available for Selection Phase.")
-                raise RuntimeError("Selection Phase requires a trained potential in state.")
+                msg = "Selection Phase requires a trained potential in state."
+                raise RuntimeError(msg)
 
             if not self.config.training_config:
                  logger.warning("No Training Config for Selection Strategy.")
@@ -39,7 +40,7 @@ class SelectionPhase(BasePhase):
                  selected_indices = range(len(candidates))
             else:
                  pacemaker = PacemakerWrapper(self.config.training_config, self.manager.work_dir)
-                 strategy = GammaSelectionStrategy(pacemaker, EmbeddingConfig()) # Using default embedding config
+                 GammaSelectionStrategy(pacemaker, EmbeddingConfig()) # Using default embedding config
 
                  # Since GammaSelectionStrategy uses PacemakerWrapper.select_active_set which works on file,
                  # and returns indices relative to the input list.

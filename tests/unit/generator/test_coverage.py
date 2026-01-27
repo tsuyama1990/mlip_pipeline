@@ -60,7 +60,8 @@ def test_builder_bulk_fallback() -> None:
 
     def bulk_side_effect(name, *args, **kwargs):
         if name == "Al":
-            raise Exception("Bulk fail")
+            msg = "Bulk fail"
+            raise Exception(msg)
         return Atoms("Fe", positions=[[0,0,0]], cell=[2,2,2], pbc=True)
 
     with patch("mlip_autopipec.generator.builder.bulk", side_effect=bulk_side_effect):

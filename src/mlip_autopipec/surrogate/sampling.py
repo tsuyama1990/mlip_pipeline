@@ -3,7 +3,7 @@ from scipy.spatial.distance import cdist  # type: ignore
 
 
 class FarthestPointSampling:
-    def __init__(self, n_samples: int):
+    def __init__(self, n_samples: int) -> None:
         self.n_samples = n_samples
 
     def select(self, descriptors: np.ndarray) -> list[int]:

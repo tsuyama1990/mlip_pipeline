@@ -18,29 +18,34 @@ class TargetSystem(BaseModel):
 
         for symbol in elements:
             if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol.")
+                msg = f"'{symbol}' is not a valid chemical symbol."
+                raise ValueError(msg)
         return elements
 
     @field_validator("composition")
     @classmethod
     def validate_composition(cls, composition: dict[str, float]) -> dict[str, float]:
         if not composition:
-            raise ValueError("Composition cannot be empty.")
+            msg = "Composition cannot be empty."
+            raise ValueError(msg)
 
         # Check values range
         for sym, frac in composition.items():
             if not (0.0 <= frac <= 1.0):
-                raise ValueError(f"Composition fraction for {sym} must be between 0.0 and 1.0.")
+                msg = f"Composition fraction for {sym} must be between 0.0 and 1.0."
+                raise ValueError(msg)
 
         total = sum(composition.values())
         if not (0.99999 <= total <= 1.00001):
-            raise ValueError(f"Composition fractions must sum to 1.0 (got {total}).")
+            msg = f"Composition fractions must sum to 1.0 (got {total})."
+            raise ValueError(msg)
 
         from ase.data import chemical_symbols
 
         for symbol in composition:
             if symbol not in chemical_symbols:
-                raise ValueError(f"'{symbol}' is not a valid chemical symbol in composition.")
+                msg = f"'{symbol}' is not a valid chemical symbol in composition."
+                raise ValueError(msg)
 
         return composition
 

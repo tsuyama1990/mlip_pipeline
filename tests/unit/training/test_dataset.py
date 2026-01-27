@@ -8,8 +8,7 @@ from mlip_autopipec.training.dataset import DatasetBuilder
 
 @pytest.fixture
 def mock_db_manager():
-    manager = MagicMock()
-    return manager
+    return MagicMock()
 
 def test_export_atoms_iterable(mock_db_manager, tmp_path):
     builder = DatasetBuilder(mock_db_manager)
@@ -17,8 +16,7 @@ def test_export_atoms_iterable(mock_db_manager, tmp_path):
 
     # Verify it accepts generator
     def atom_gen():
-        for a in atoms_list:
-            yield a
+        yield from atoms_list
 
     output = tmp_path / "test.xyz"
     builder.export_atoms(atom_gen(), output)

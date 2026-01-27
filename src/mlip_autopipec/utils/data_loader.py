@@ -32,8 +32,8 @@ def load_sssp_data(sssp_data_path: Path) -> dict[str, Any]:
         with sssp_data_path.open() as f:
             return json.load(f)
     except FileNotFoundError:
-        logger.error(f"SSSP data file not found at: {sssp_data_path}")
+        logger.exception(f"SSSP data file not found at: {sssp_data_path}")
         raise
     except json.JSONDecodeError:
-        logger.error(f"Error decoding SSSP data file: {sssp_data_path}")
+        logger.exception(f"Error decoding SSSP data file: {sssp_data_path}")
         raise

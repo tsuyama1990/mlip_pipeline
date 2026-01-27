@@ -27,11 +27,13 @@ class ExtractedStructure(BaseModel):
     def validate_atoms(cls, v: Any) -> Any:
         try:
             from ase import Atoms
-        except ImportError:
-            raise ValueError("ASE not installed.")
+        except ImportError as e:
+            msg = "ASE not installed."
+            raise ValueError(msg) from e
 
         if not isinstance(v, Atoms):
-            raise TypeError("Field 'atoms' must be an ase.Atoms object.")
+            msg = "Field 'atoms' must be an ase.Atoms object."
+            raise TypeError(msg)
         return v
 
 

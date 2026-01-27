@@ -17,7 +17,7 @@ class CandidateProcessor:
     Encapsulates logic for handling different engine outputs (LAMMPS vs EON).
     """
 
-    def __init__(self, config: InferenceConfig):
+    def __init__(self, config: InferenceConfig) -> None:
         self.config = config
         self.embedding_config = EmbeddingConfig()
         self.extractor = EmbeddingExtractor(self.embedding_config)

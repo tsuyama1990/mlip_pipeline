@@ -52,7 +52,7 @@ class DatasetBuilder:
         try:
             write(str(output_path), atoms_iterable, format="extxyz")
         except Exception as e:
-            logger.error(f"Failed to export atoms to {output_path}: {e}")
+            logger.exception(f"Failed to export atoms to {output_path}: {e}")
             raise
 
     def export(self, config: TrainingConfig, output_dir: Path) -> Path:
@@ -104,12 +104,13 @@ class DatasetBuilder:
                         train_count += 1
 
         except Exception as e:
-            logger.error(f"Error during data export: {e}")
+            logger.exception(f"Error during data export: {e}")
             raise
 
         if count == 0:
             logger.error(f"No atoms found with query '{query}'")
-            raise ValueError("No training data found in database.")
+            msg = "No training data found in database."
+            raise ValueError(msg)
 
         if test_count == 0 and train_count > 0:
              logger.warning("Validation set empty after split.")
