@@ -53,6 +53,7 @@ dev = [
     "mypy",
     "pytest-mock",
     "types-pyyaml>=6.0.12.20250915",
+    "ruff>=0.14.14",
 ]
 
 [tool.setuptools]
@@ -91,7 +92,7 @@ max-complexity = 10
 suppress-dummy-args = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-report=term-missing"
+addopts = "--cov=dev_src --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.mypy]
