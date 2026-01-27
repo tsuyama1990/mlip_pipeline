@@ -61,7 +61,9 @@ class LammpsRunner:
 
         try:
             # 1. Prepare Inputs
-            input_file, data_file, log_file, dump_file = self.writer.write_inputs(atoms, potential_path)
+            input_file, data_file, log_file, dump_file = self.writer.write_inputs(
+                atoms, potential_path
+            )
             stdout_file = self.work_dir / "stdout.log"
             stderr_file = self.work_dir / "stderr.log"
 
@@ -81,12 +83,7 @@ class LammpsRunner:
             # We redirect stdout/stderr to files to prevent OOM on large outputs (Scalability).
             with stdout_file.open("w") as f_out, stderr_file.open("w") as f_err:
                 result = subprocess.run(  # noqa: S603
-                    cmd,
-                    check=False,
-                    stdout=f_out,
-                    stderr=f_err,
-                    cwd=self.work_dir,
-                    shell=False
+                    cmd, check=False, stdout=f_out, stderr=f_err, cwd=self.work_dir, shell=False
                 )
 
             # 5. Parse Output
@@ -103,20 +100,18 @@ class LammpsRunner:
                 logger.error(f"LAMMPS failed with exit code {result.returncode}")
                 # Log last few lines of stderr if available
                 if stderr_file.exists():
-                     try:
-                         # Read only last 1KB
-                         with stderr_file.open("rb") as f:
-                             with contextlib.suppress(OSError):
-                                 f.seek(-1024, os.SEEK_END)
-                             tail = f.read().decode("utf-8", errors="replace")
-                             logger.error(f"Stderr tail: {tail}")
-                     except Exception as e:
-                         logger.warning(f"Failed to read stderr tail: {e}")
+                    try:
+                        # Read only last 1KB
+                        with stderr_file.open("rb") as f:
+                            with contextlib.suppress(OSError):
+                                f.seek(-1024, os.SEEK_END)
+                            tail = f.read().decode("utf-8", errors="replace")
+                            logger.error(f"Stderr tail: {tail}")
+                    except Exception as e:
+                        logger.warning(f"Failed to read stderr tail: {e}")
 
                 return InferenceResult(
-                    succeeded=False,
-                    max_gamma_observed=max_gamma,
-                    uncertain_structures=[]
+                    succeeded=False, max_gamma_observed=max_gamma, uncertain_structures=[]
                 )
 
             uncertain_structures = []
@@ -130,16 +125,12 @@ class LammpsRunner:
             return InferenceResult(
                 succeeded=True,
                 max_gamma_observed=max_gamma,
-                uncertain_structures=uncertain_structures
+                uncertain_structures=uncertain_structures,
             )
 
         except Exception:
             logger.exception("An unexpected error occurred during LAMMPS execution")
-            return InferenceResult(
-                succeeded=False,
-                max_gamma_observed=0.0,
-                uncertain_structures=[]
-            )
+            return InferenceResult(succeeded=False, max_gamma_observed=0.0, uncertain_structures=[])
 
     def _resolve_executable(self) -> str:
         """
@@ -157,27 +148,27 @@ class LammpsRunner:
                     break
 
             if not raw_path:
-                 msg = "LAMMPS executable not specified and not found in PATH."
-                 raise RuntimeError(msg)
+                msg = "LAMMPS executable not specified and not found in PATH."
+                raise RuntimeError(msg)
 
         # Check blacklist characters if path was provided
         if any(char in raw_path for char in [";", "|", "&", "`", "$", "(", ")"]):
-             msg = f"Security: Invalid characters detected in executable path: {raw_path}"
-             raise ValueError(msg)
+            msg = f"Security: Invalid characters detected in executable path: {raw_path}"
+            raise ValueError(msg)
 
         executable = shutil.which(raw_path)
         if not executable:
             # If path is absolute/relative but not in PATH
             p = Path(raw_path)
-            if p.exists() and p.is_file(): # Ensure it is a file
-                 # Ensure executable permission
-                 if not os.access(p, os.X_OK):
-                     msg = f"File at {p} is not executable."
-                     raise ValueError(msg)
-                 executable = str(p.resolve())
+            if p.exists() and p.is_file():  # Ensure it is a file
+                # Ensure executable permission
+                if not os.access(p, os.X_OK):
+                    msg = f"File at {p} is not executable."
+                    raise ValueError(msg)
+                executable = str(p.resolve())
             else:
-                 msg = f"LAMMPS executable '{raw_path}' not found in PATH or is not a valid file."
-                 logger.error(msg)
-                 raise RuntimeError(msg)
+                msg = f"LAMMPS executable '{raw_path}' not found in PATH or is not a valid file."
+                logger.error(msg)
+                raise RuntimeError(msg)
 
         return executable

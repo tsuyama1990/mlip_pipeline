@@ -12,8 +12,8 @@ def validate_ase_atoms(v: Any) -> Atoms:
     if isinstance(v, Atoms):
         # Basic integrity check
         if len(v) > 0 and v.positions.shape != (len(v), 3):
-             msg = "Malformed Atoms object: positions shape mismatch"
-             raise ValueError(msg)
+            msg = "Malformed Atoms object: positions shape mismatch"
+            raise ValueError(msg)
         return v
 
     # Duck typing fallback
@@ -25,17 +25,19 @@ def validate_ase_atoms(v: Any) -> Atoms:
         # Check for getter methods as fallback (some ASE-like objects might use methods)
         missing_methods = [f"get_{attr}" for attr in missing if not hasattr(v, f"get_{attr}")]
         if missing_methods:
-             msg = f"Value must be an ASE Atoms object. Missing attributes: {missing}"
-             raise ValueError(msg)
+            msg = f"Value must be an ASE Atoms object. Missing attributes: {missing}"
+            raise ValueError(msg)
 
     # Check shape for duck-typed objects too
     if hasattr(v, "__len__") and hasattr(v, "positions"):
         import numpy as np
+
         pos = np.array(v.positions)
         if len(v) > 0 and pos.shape != (len(v), 3):
-             msg = "Malformed Atoms object: positions shape mismatch"
-             raise ValueError(msg)
+            msg = "Malformed Atoms object: positions shape mismatch"
+            raise ValueError(msg)
 
     return v
+
 
 ASEAtoms = Annotated[Any, BeforeValidator(validate_ase_atoms)]

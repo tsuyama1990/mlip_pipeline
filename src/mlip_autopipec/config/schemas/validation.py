@@ -41,6 +41,8 @@ class ValidationConfig(BaseModel):
     eos: EOSConfig = Field(default_factory=EOSConfig)
 
     # Global settings
-    fail_on_instability: bool = Field(False, description="Whether to raise error if instability detected")
+    fail_on_instability: bool = Field(
+        False, description="Whether to raise error if instability detected"
+    )
 
     model_config = ConfigDict(extra="forbid")

@@ -11,6 +11,7 @@ class DFTErrorType(str, Enum):
     UNKNOWN = "UNKNOWN"
     NONE = "NONE"
 
+
 class RecoveryHandler:
     """
     Analyzes DFT output/error logs and suggests recovery strategies.

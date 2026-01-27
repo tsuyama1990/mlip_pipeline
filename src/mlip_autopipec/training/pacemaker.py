@@ -21,6 +21,7 @@ from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
 
+
 class PacemakerWrapper:
     """
     Wraps Pacemaker training process.
@@ -44,8 +45,8 @@ class PacemakerWrapper:
         Streams atoms from a generator to a file on disk (extxyz).
         """
         if "/" in output_filename or "\\" in output_filename:
-             msg = f"Invalid filename: {output_filename}"
-             raise ValueError(msg)
+            msg = f"Invalid filename: {output_filename}"
+            raise ValueError(msg)
 
         output_path = self.work_dir / output_filename
 
@@ -71,22 +72,17 @@ class PacemakerWrapper:
             "cutoff": self.config.cutoff,
             "data": {
                 "filename": self.config.training_data_path,
-                "test_filename": self.config.test_data_path
+                "test_filename": self.config.test_data_path,
             },
             "fit": {
-                "loss": {
-                    "kappa": self.config.kappa,
-                    "kappa_f": self.config.kappa_f
-                },
+                "loss": {"kappa": self.config.kappa, "kappa_f": self.config.kappa_f},
                 "optimizer": {
                     "max_iter": self.config.max_num_epochs,
-                    "batch_size": self.config.batch_size
-                }
+                    "batch_size": self.config.batch_size,
+                },
             },
-            "b_basis": {
-                "size": self.config.b_basis_size
-            },
-            "ladder_step": self.config.ladder_step
+            "b_basis": {"size": self.config.b_basis_size},
+            "ladder_step": self.config.ladder_step,
         }
 
         try:
@@ -124,7 +120,7 @@ class PacemakerWrapper:
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     check=False,
-                    shell=False
+                    shell=False,
                 )
             return result.returncode
 
@@ -142,13 +138,13 @@ class PacemakerWrapper:
         """Resolves the executable path and performs security checks."""
         executable = shutil.which(name)
         if not executable:
-             msg = f"Executable '{name}' not found in PATH."
-             raise FileNotFoundError(msg)
+            msg = f"Executable '{name}' not found in PATH."
+            raise FileNotFoundError(msg)
 
         p = Path(executable)
         if not (p.exists() and p.is_file() and os.access(p, os.X_OK)):
-             msg = f"Found {name} at {executable} but it is not a valid executable."
-             raise ValueError(msg)
+            msg = f"Found {name} at {executable} but it is not a valid executable."
+            raise ValueError(msg)
 
         return executable
 
@@ -161,8 +157,8 @@ class PacemakerWrapper:
         if initial_potential:
             safe_pot_path = validate_path_safety(initial_potential)
             if not safe_pot_path.exists():
-                 msg = f"Initial potential not found: {safe_pot_path}"
-                 raise FileNotFoundError(msg)
+                msg = f"Initial potential not found: {safe_pot_path}"
+                raise FileNotFoundError(msg)
             cmd_extras.extend(["-p", str(safe_pot_path)])
 
         try:
@@ -195,19 +191,17 @@ class PacemakerWrapper:
             output_yace = self.work_dir / "output.yace"
 
             if not output_yace.exists():
-                 yace_files = list(self.work_dir.glob("*.yace"))
-                 if yace_files:
-                     yace_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-                     output_yace = yace_files[0]
+                yace_files = list(self.work_dir.glob("*.yace"))
+                if yace_files:
+                    yace_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                    output_yace = yace_files[0]
 
             if self.check_output(output_yace):
-                 parser = LogParser()
-                 metrics = parser.parse_file(log_path)
-                 return TrainingResult(
-                     success=True,
-                     potential_path=str(output_yace),
-                     metrics=metrics
-                 )
+                parser = LogParser()
+                metrics = parser.parse_file(log_path)
+                return TrainingResult(
+                    success=True, potential_path=str(output_yace), metrics=metrics
+                )
             logger.error("No valid .yace output found.")
             return TrainingResult(success=False)
 
@@ -218,7 +212,9 @@ class PacemakerWrapper:
             logger.exception("Training failed with unexpected error")
             return TrainingResult(success=False)
 
-    def select_active_set(self, candidates: list[Atoms], current_potential: str | Path) -> list[int]:
+    def select_active_set(
+        self, candidates: list[Atoms], current_potential: str | Path
+    ) -> list[int]:
         """
         Selects active set from candidates using the current potential.
         """
@@ -241,12 +237,7 @@ class PacemakerWrapper:
             logger.info(f"Running Active Set Selection: {cmd}")
 
             result = subprocess.run(
-                cmd,
-                cwd=self.work_dir,
-                capture_output=True,
-                text=True,
-                check=False,
-                shell=False
+                cmd, cwd=self.work_dir, capture_output=True, text=True, check=False, shell=False
             )
 
             if result.returncode != 0:
@@ -263,8 +254,8 @@ class PacemakerWrapper:
             return indices
 
         except FileNotFoundError:
-             logger.exception("pace_activeset executable not found.")
-             raise
+            logger.exception("pace_activeset executable not found.")
+            raise
         except Exception:
             logger.exception("Active set selection failed")
             raise

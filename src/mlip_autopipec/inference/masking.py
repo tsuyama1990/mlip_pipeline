@@ -40,9 +40,7 @@ class ForceMasker:
                 vol = abs(cell.volume)
                 if vol < 1e-6:
                     msg = f"Atoms object has zero or near-zero cell volume ({vol}) with PBC enabled: {pbc}"
-                    raise ValueError(
-                        msg
-                    )
+                    raise ValueError(msg)
 
                 # Check for orthogonal cell for fast path
                 # L = box dimensions

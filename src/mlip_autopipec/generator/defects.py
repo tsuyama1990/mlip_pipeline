@@ -145,29 +145,29 @@ class DefectStrategy:
         try:
             # Let's try Voronoi if enough points, otherwise fallback
             if len(atoms) < 4:
-                 # Fallback to simple fractional coordinates
-                 candidates = [
-                     np.array([0.5, 0.5, 0.5]),
-                     np.array([0.25, 0.25, 0.25]),
-                     np.array([0.75, 0.75, 0.75]),
-                     np.array([0.5, 0.0, 0.0]),
-                     np.array([0.0, 0.5, 0.0]),
-                     np.array([0.0, 0.0, 0.5]),
-                     np.array([0.5, 0.25, 0.0]),
-                     np.array([0.5, 0.75, 0.0]),
-                     np.array([0.0, 0.5, 0.25]),
-                     np.array([0.25, 0.0, 0.5]),
-                 ]
+                # Fallback to simple fractional coordinates
+                candidates = [
+                    np.array([0.5, 0.5, 0.5]),
+                    np.array([0.25, 0.25, 0.25]),
+                    np.array([0.75, 0.75, 0.75]),
+                    np.array([0.5, 0.0, 0.0]),
+                    np.array([0.0, 0.5, 0.0]),
+                    np.array([0.0, 0.0, 0.5]),
+                    np.array([0.5, 0.25, 0.0]),
+                    np.array([0.5, 0.75, 0.0]),
+                    np.array([0.0, 0.5, 0.25]),
+                    np.array([0.25, 0.0, 0.5]),
+                ]
             else:
-                 # Voronoi
-                 v = Voronoi(atoms.positions)
-                 candidates = []
-                 for vert in v.vertices:
-                     # Map back to cell
-                     scaled = atoms.cell.scaled_positions(vert.reshape(1,3))
-                     # wrap
-                     scaled = scaled % 1.0
-                     candidates.append(scaled.flatten())
+                # Voronoi
+                v = Voronoi(atoms.positions)
+                candidates = []
+                for vert in v.vertices:
+                    # Map back to cell
+                    scaled = atoms.cell.scaled_positions(vert.reshape(1, 3))
+                    # wrap
+                    scaled = scaled % 1.0
+                    candidates.append(scaled.flatten())
 
             # Filter candidates
             unique_candidates: list[np.ndarray] = []
@@ -199,8 +199,8 @@ class DefectStrategy:
                 results.append(new_atoms)
 
         except Exception as e:
-             msg = f"Interstitial generation failed: {e}"
-             logger.error(msg, exc_info=True)
-             raise GeneratorError(msg) from e
+            msg = f"Interstitial generation failed: {e}"
+            logger.error(msg, exc_info=True)
+            raise GeneratorError(msg) from e
 
         return results

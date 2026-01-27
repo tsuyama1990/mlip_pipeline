@@ -13,7 +13,7 @@ def test_training_config_valid() -> None:
         kappa_f=0.5,
         max_num_epochs=500,
         batch_size=32,
-        ladder_step=[10, 20]
+        ladder_step=[10, 20],
     )
     assert config.cutoff == 5.0
     assert config.b_basis_size == 100
@@ -23,13 +23,7 @@ def test_training_config_valid() -> None:
 
 def test_training_config_defaults() -> None:
     """Test default values."""
-    config = TrainingConfig(
-        cutoff=5.0,
-        b_basis_size=100,
-        kappa=0.5,
-        kappa_f=0.5,
-        batch_size=32
-    )
+    config = TrainingConfig(cutoff=5.0, b_basis_size=100, kappa=0.5, kappa_f=0.5, batch_size=32)
     assert config.training_data_path == "data/train.xyz"
     assert config.test_data_path == "data/test.xyz"
     assert config.max_num_epochs == 1000
@@ -44,7 +38,7 @@ def test_training_config_invalid_cutoff() -> None:
             b_basis_size=100,
             kappa=0.5,
             kappa_f=0.5,
-            batch_size=32
+            batch_size=32,
         )
 
     with pytest.raises(ValidationError):
@@ -53,20 +47,14 @@ def test_training_config_invalid_cutoff() -> None:
             b_basis_size=100,
             kappa=0.5,
             kappa_f=0.5,
-            batch_size=32
+            batch_size=32,
         )
 
 
 def test_training_config_invalid_basis() -> None:
     """Test invalid basis size."""
     with pytest.raises(ValidationError):
-        TrainingConfig(
-            cutoff=5.0,
-            b_basis_size=0,
-            kappa=0.5,
-            kappa_f=0.5,
-            batch_size=32
-        )
+        TrainingConfig(cutoff=5.0, b_basis_size=0, kappa=0.5, kappa_f=0.5, batch_size=32)
 
 
 def test_training_config_extra_forbid() -> None:
@@ -78,5 +66,5 @@ def test_training_config_extra_forbid() -> None:
             kappa=0.5,
             kappa_f=0.5,
             batch_size=32,
-            extra_field="invalid"
+            extra_field="invalid",
         )

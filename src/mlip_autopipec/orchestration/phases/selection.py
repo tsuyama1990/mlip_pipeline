@@ -7,6 +7,7 @@ from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
 logger = logging.getLogger(__name__)
 
+
 class SelectionPhase(BasePhase):
     def execute(self) -> None:
         """
@@ -35,19 +36,21 @@ class SelectionPhase(BasePhase):
                 raise RuntimeError(msg)
 
             if not self.config.training_config:
-                 logger.warning("No Training Config for Selection Strategy.")
-                 # Fallback: select all if no training config (can't run pacemaker)
-                 selected_indices = range(len(candidates))
+                logger.warning("No Training Config for Selection Strategy.")
+                # Fallback: select all if no training config (can't run pacemaker)
+                selected_indices = range(len(candidates))
             else:
-                 pacemaker = PacemakerWrapper(self.config.training_config, self.manager.work_dir)
-                 GammaSelectionStrategy(pacemaker, EmbeddingConfig()) # Using default embedding config
+                pacemaker = PacemakerWrapper(self.config.training_config, self.manager.work_dir)
+                GammaSelectionStrategy(
+                    pacemaker, EmbeddingConfig()
+                )  # Using default embedding config
 
-                 # Since GammaSelectionStrategy uses PacemakerWrapper.select_active_set which works on file,
-                 # and returns indices relative to the input list.
-                 # I can rely on list order preservation.
+                # Since GammaSelectionStrategy uses PacemakerWrapper.select_active_set which works on file,
+                # and returns indices relative to the input list.
+                # I can rely on list order preservation.
 
-                 indices = pacemaker.select_active_set(candidates, potential_path)
-                 selected_indices = set(indices)
+                indices = pacemaker.select_active_set(candidates, potential_path)
+                selected_indices = set(indices)
 
             # 3. Update Status
             selected_count = 0
@@ -58,7 +61,9 @@ class SelectionPhase(BasePhase):
                 else:
                     self.db.update_status(db_id, "rejected")
 
-            logger.info(f"Selection complete. Selected: {selected_count}, Rejected: {len(candidates) - selected_count}")
+            logger.info(
+                f"Selection complete. Selected: {selected_count}, Rejected: {len(candidates) - selected_count}"
+            )
 
         except Exception:
             logger.exception("Selection phase failed")

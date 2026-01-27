@@ -10,6 +10,7 @@ class DFTConfig(BaseModel):
     """
     Configuration for Density Functional Theory calculations.
     """
+
     # Required fields
     pseudopotential_dir: Path = Field(description="Directory containing .UPF files")
 
@@ -33,8 +34,12 @@ class DFTConfig(BaseModel):
     retry_delay_max: float = Field(default=10.0, gt=0, description="Maximum retry delay")
 
     # Cycle 01 compatibility
-    pseudopotentials: dict[str, str] = Field(default_factory=dict, description="Mapping of element symbol to filename")
-    scf_params: dict[str, Any] = Field(default_factory=dict, description="Override parameters for QE input")
+    pseudopotentials: dict[str, str] = Field(
+        default_factory=dict, description="Mapping of element symbol to filename"
+    )
+    scf_params: dict[str, Any] = Field(
+        default_factory=dict, description="Override parameters for QE input"
+    )
 
     model_config = ConfigDict(extra="forbid")
 

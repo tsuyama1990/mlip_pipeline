@@ -16,6 +16,7 @@ class DashboardData(BaseModel):
     """
     Data structure for dashboard reporting.
     """
+
     generations: list[int] = Field(default_factory=list)
     rmse_values: list[float] = Field(default_factory=list)
     structure_counts: list[int] = Field(default_factory=list)
@@ -97,7 +98,9 @@ class Dashboard:
         if len(data.generations) == len(data.structure_counts):
             plt.plot(data.generations, data.structure_counts, "g-s", label="Structures")
         else:
-            logger.warning("Mismatch between generations and Structure counts. Skipping Count plot.")
+            logger.warning(
+                "Mismatch between generations and Structure counts. Skipping Count plot."
+            )
         plt.xlabel("Generation")
         plt.ylabel("Count")
         plt.grid(True)

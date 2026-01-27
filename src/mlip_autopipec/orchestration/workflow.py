@@ -83,7 +83,7 @@ class WorkflowManager:
                 surrogate_config=config.surrogate_config,
                 training_config=config.training_config,
                 inference_config=config.inference_config,
-                generator_config=config.generator_config
+                generator_config=config.generator_config,
             )
         if isinstance(config, SystemConfig):
             return config
@@ -144,7 +144,9 @@ class WorkflowManager:
             halted = self.executor.execute_inference()
             logger.debug(f"execute_inference returned {halted}")
             if halted:
-                logger.info("Exploration halted due to high uncertainty. Transitioning to Selection.")
+                logger.info(
+                    "Exploration halted due to high uncertainty. Transitioning to Selection."
+                )
                 self.state.current_phase = WorkflowPhase.SELECTION
             else:
                 logger.info("Exploration finished without halting. System Converged.")

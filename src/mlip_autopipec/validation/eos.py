@@ -37,9 +37,7 @@ class EOSValidator:
             # Generate volume scaling factors
             # strain_max is max volumetric strain e.g. 0.1 means +/- 10% volume
             scale_factors = np.linspace(
-                1.0 - self.config.strain_max,
-                1.0 + self.config.strain_max,
-                self.config.num_points
+                1.0 - self.config.strain_max, 1.0 + self.config.strain_max, self.config.num_points
             )
 
             for s in scale_factors:
@@ -47,7 +45,7 @@ class EOSValidator:
                 temp.calc = atoms.calc
 
                 # Scale volume by s -> linear scale by s^(1/3)
-                linear_scale = s**(1/3)
+                linear_scale = s ** (1 / 3)
                 temp.set_cell(atoms.get_cell() * linear_scale, scale_atoms=True)
 
                 energies.append(temp.get_potential_energy())
@@ -68,35 +66,14 @@ class EOSValidator:
             passed = B_GPa > 0.0
 
             metrics = [
-                ValidationMetric(
-                    name="bulk_modulus",
-                    value=B_GPa,
-                    unit="GPa",
-                    passed=passed
-                ),
-                ValidationMetric(
-                    name="equilibrium_volume",
-                    value=v0_fit,
-                    unit="A^3",
-                    passed=True
-                ),
-                ValidationMetric(
-                    name="min_energy",
-                    value=e0_fit,
-                    unit="eV",
-                    passed=True
-                )
+                ValidationMetric(name="bulk_modulus", value=B_GPa, unit="GPa", passed=passed),
+                ValidationMetric(name="equilibrium_volume", value=v0_fit, unit="A^3", passed=True),
+                ValidationMetric(name="min_energy", value=e0_fit, unit="eV", passed=True),
             ]
 
-            return ValidationResult(
-                module="eos",
-                passed=passed,
-                metrics=metrics
-            )
+            return ValidationResult(module="eos", passed=passed, metrics=metrics)
 
         except Exception as e:
             return ValidationResult(
-                module="eos",
-                passed=False,
-                error=f"EOS calculation failed: {e!s}"
+                module="eos", passed=False, error=f"EOS calculation failed: {e!s}"
             )

@@ -30,3 +30,5 @@ dev_documents/project_state.json
 
 # AC-CDD Configuration
 .ac_cdd/.env
+_work_dft/
+tmp/

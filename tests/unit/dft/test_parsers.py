@@ -21,18 +21,14 @@ def test_parser_success(tmp_path):
     out_file = tmp_path / "pw.out"
     out_file.write_text("JOB DONE")
 
-    result = parser.parse(
-        out_file,
-        uid="test-1",
-        wall_time=10.0,
-        params={"ecutwfc": 30}
-    )
+    result = parser.parse(out_file, uid="test-1", wall_time=10.0, params={"ecutwfc": 30})
 
     assert result.succeeded
     assert result.energy == -123.456
     assert result.forces == [[0.0, 0.0, 0.1]]
     assert result.parameters["ecutwfc"] == 30
     mock_reader.assert_called_once()
+
 
 def test_parser_incomplete_file(tmp_path):
     out_file = tmp_path / "pw.out"
@@ -43,6 +39,7 @@ def test_parser_incomplete_file(tmp_path):
     with pytest.raises(Exception, match="missing 'JOB DONE'"):
         parser.parse(out_file, "uid", 1.0, {})
 
+
 def test_parser_ase_failure(tmp_path):
     out_file = tmp_path / "pw.out"
     out_file.write_text("JOB DONE")
@@ -52,6 +49,7 @@ def test_parser_ase_failure(tmp_path):
 
     with pytest.raises(Exception, match="Failed to parse output"):
         parser.parse(out_file, "uid", 1.0, {})
+
 
 def test_parser_nan_forces(tmp_path):
     mock_atoms = MagicMock(spec=Atoms)

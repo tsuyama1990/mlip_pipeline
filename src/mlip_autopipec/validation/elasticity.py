@@ -45,32 +45,21 @@ class ElasticityValidator:
             passed = min_eig > 0.0
 
             metrics = [
-                ValidationMetric(
-                    name="min_eigenvalue",
-                    value=min_eig,
-                    unit="GPa",
-                    passed=passed
-                ),
+                ValidationMetric(name="min_eigenvalue", value=min_eig, unit="GPa", passed=passed),
                 ValidationMetric(
                     name="C_matrix_flattened",
-                    value=C_matrix.flatten().tolist(), # Store as list
+                    value=C_matrix.flatten().tolist(),  # Store as list
                     unit="GPa",
                     passed=True,
-                    details={"shape": [6, 6]}
-                )
+                    details={"shape": [6, 6]},
+                ),
             ]
 
-            return ValidationResult(
-                module="elastic",
-                passed=passed,
-                metrics=metrics
-            )
+            return ValidationResult(module="elastic", passed=passed, metrics=metrics)
 
         except Exception as e:
             return ValidationResult(
-                module="elastic",
-                passed=False,
-                error=f"Elasticity calculation failed: {e!s}"
+                module="elastic", passed=False, error=f"Elasticity calculation failed: {e!s}"
             )
 
     def _calculate_stiffness_matrix(self, atoms: Atoms) -> np.ndarray:

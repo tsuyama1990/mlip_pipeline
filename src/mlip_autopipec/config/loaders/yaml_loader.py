@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
+
 class ConfigLoader:
     """Loads and validates user configuration."""
 
@@ -41,6 +42,7 @@ class ConfigLoader:
             log.exception(f"Configuration validation failed for {config_path}")
             msg = f"Configuration validation failed: {e}"
             raise ValueError(msg) from e
+
 
 def load_config(path: str | Path, model: type[T]) -> T:
     """
