@@ -61,7 +61,8 @@ class DFTResult(BaseModel):
     def check_stress_shape(cls, stress: list[list[float]] | None) -> list[list[float]] | None:
         if not stress:
             return stress
-        # Allow 6 (Voigt) or 9 (3x3 flattened) or 3x3
-        # But we want to standardize if possible.
-        # For now just check it's a list.
+        if len(stress) == 3:
+            if not all(len(row) == 3 for row in stress):
+                msg = "Stress tensor must be 3x3."
+                raise ValueError(msg)
         return stress

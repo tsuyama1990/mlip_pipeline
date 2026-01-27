@@ -16,11 +16,15 @@ class DFTConfig(BaseModel):
     # Optional/Default fields
     ecutwfc: float = Field(60.0, gt=0, description="Wavefunction cutoff energy (Ry)")
     kspacing: float = Field(0.05, gt=0, description="Inverse K-point density (1/A)")
-    command: str = Field("pw.x", description="Command to run Quantum Espresso")
+    command: str = Field(
+        "pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')"
+    )
     nspin: int = Field(1, description="Spin polarization (1=off, 2=on)")
     mixing_beta: float = Field(0.7, ge=0.0, le=1.0, description="SCF Mixing parameter")
     diagonalization: Literal["david", "cg"] = Field("david", description="Solver")
-    smearing: Literal["mv", "mp", "fd"] = Field("mv", description="Smearing type")
+    smearing: Literal["mv", "mp", "fd"] = Field(
+        "mv", description="Smearing type ('mv', 'mp', 'fd')"
+    )
     degauss: float = Field(0.02, gt=0, description="Smearing width (Ry)")
     recoverable: bool = Field(True, description="Enable auto-recovery")
     max_retries: int = Field(5, ge=0, description="Maximum number of retries")

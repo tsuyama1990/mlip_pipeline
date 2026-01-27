@@ -59,60 +59,6 @@ class QERunner(DFTRunner):
         if self.work_dir:
             self.work_dir.mkdir(parents=True, exist_ok=True)
 
-    def _validate_command(self, command: str) -> list[str]:
-        if not command:
-            msg = "Command is empty."
-            raise DFTFatalError(msg)
-
-        forbidden = [";", "&", "|", "`", "$", "(", ")", "<", ">"]
-        if any(char in command for char in forbidden):
-             msg = "Command contains unsafe shell characters."
-             raise DFTFatalError(msg)
-
-        try:
-            parts = shlex.split(command)
-        except ValueError as e:
-            msg = f"Command string could not be parsed: {e}"
-            raise DFTFatalError(msg) from e
-
-        if not parts:
-            msg = "Command parses to empty list."
-            raise DFTFatalError(msg)
-
-        executable = parts[0]
-        if not shutil.which(executable):
-             msg = f"Executable '{executable}' not found in PATH."
-             raise DFTFatalError(msg)
-
-        return parts
-
-    def _execute_subprocess_with_retry(
-        self, cmd: list[str], cwd: Path, stdout_f: Any, timeout: float
-    ) -> subprocess.CompletedProcess[str]:
-        for attempt in Retrying(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=2, max=10),
-            retry=retry_if_exception_type(DFTRetriableError),
-            reraise=True,
-        ):
-            with attempt:
-                try:
-                    return subprocess.run(
-                        cmd,
-                        check=False,
-                        shell=False,
-                        cwd=str(cwd),
-                        stdout=stdout_f,
-                        stderr=subprocess.PIPE,
-                        timeout=timeout,
-                        text=True,
-                    )
-                except OSError as e:
-                    msg = f"OS Error: {e}"
-                    raise DFTRetriableError(msg) from e
-        msg = "Retrying loop failed."
-        raise RuntimeError(msg)
-
     def run(self, atoms: Atoms, uid: str | None = None) -> DFTResult:
         if uid is None:
             uid = str(uuid4())
@@ -139,9 +85,6 @@ class QERunner(DFTRunner):
                 work_dir = Path(tmpdir)
 
                 # Input Generation
-                # We use the InputGenerator from dft/inputs.py if available,
-                # but fall back to internal _write_input logic if needed to match Simple runner.
-                # Here we use InputGenerator as it's more robust.
                 try:
                     input_str = InputGenerator.create_input_string(atoms, current_params)
                 except Exception as e:
@@ -221,6 +164,60 @@ class QERunner(DFTRunner):
             converged=False, error_message=f"{msg} Last error: {last_error}",
             wall_time=0.0, parameters={}
         )
+
+    def _validate_command(self, command: str) -> list[str]:
+        if not command:
+            msg = "Command is empty."
+            raise DFTFatalError(msg)
+
+        forbidden = [";", "&", "|", "`", "$", "(", ")", "<", ">"]
+        if any(char in command for char in forbidden):
+             msg = "Command contains unsafe shell characters."
+             raise DFTFatalError(msg)
+
+        try:
+            parts = shlex.split(command)
+        except ValueError as e:
+            msg = f"Command string could not be parsed: {e}"
+            raise DFTFatalError(msg) from e
+
+        if not parts:
+            msg = "Command parses to empty list."
+            raise DFTFatalError(msg)
+
+        executable = parts[0]
+        if not shutil.which(executable):
+             msg = f"Executable '{executable}' not found in PATH."
+             raise DFTFatalError(msg)
+
+        return parts
+
+    def _execute_subprocess_with_retry(
+        self, cmd: list[str], cwd: Path, stdout_f: Any, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        for attempt in Retrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type(DFTRetriableError),
+            reraise=True,
+        ):
+            with attempt:
+                try:
+                    return subprocess.run(
+                        cmd,
+                        check=False,
+                        shell=False,
+                        cwd=str(cwd),
+                        stdout=stdout_f,
+                        stderr=subprocess.PIPE,
+                        timeout=timeout,
+                        text=True,
+                    )
+                except OSError as e:
+                    msg = f"OS Error: {e}"
+                    raise DFTRetriableError(msg) from e
+        msg = "Retrying loop failed."
+        raise RuntimeError(msg)
 
     def run_batch(self, atoms_iterable: Iterable[Atoms]) -> Generator[DFTResult, None, None]:
         for atoms in atoms_iterable:
