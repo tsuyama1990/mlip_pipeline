@@ -39,8 +39,9 @@ class ForceMasker:
                 # Explicit check for cell volume to ensure it's a valid periodic box
                 vol = abs(cell.volume)
                 if vol < 1e-6:
+                    msg = f"Atoms object has zero or near-zero cell volume ({vol}) with PBC enabled: {pbc}"
                     raise ValueError(
-                        f"Atoms object has zero or near-zero cell volume ({vol}) with PBC enabled: {pbc}"
+                        msg
                     )
 
                 # Check for orthogonal cell for fast path
@@ -54,7 +55,8 @@ class ForceMasker:
                         if pbc[i]:
                             # Robustness: Check for zero division
                             if abs(L[i]) < 1e-9:
-                                raise ValueError(f"Cell dimension {i} is zero but PBC is enabled.")
+                                msg = f"Cell dimension {i} is zero but PBC is enabled."
+                                raise ValueError(msg)
                             diff[:, i] = diff[:, i] - np.round(diff[:, i] / L[i]) * L[i]
                 else:
                     # Fallback to ASE's find_mic for non-orthogonal cells
@@ -73,4 +75,5 @@ class ForceMasker:
         except ValueError:
             raise
         except Exception as e:
-            raise RuntimeError(f"Failed to apply force mask: {e!s}") from e
+            msg = f"Failed to apply force mask: {e!s}"
+            raise RuntimeError(msg) from e

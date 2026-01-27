@@ -14,23 +14,23 @@ class DFTConfig(BaseModel):
     pseudopotential_dir: Path = Field(description="Directory containing .UPF files")
 
     # Optional/Default fields
-    ecutwfc: float = Field(60.0, gt=0, description="Wavefunction cutoff energy (Ry)")
-    kspacing: float = Field(0.05, gt=0, description="Inverse K-point density (1/A)")
+    ecutwfc: float = Field(default=60.0, gt=0, description="Wavefunction cutoff energy (Ry)")
+    kspacing: float = Field(default=0.05, gt=0, description="Inverse K-point density (1/A)")
     command: str = Field(
-        "pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')"
+        default="pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')"
     )
-    nspin: int = Field(1, description="Spin polarization (1=off, 2=on)")
-    mixing_beta: float = Field(0.7, ge=0.0, le=1.0, description="SCF Mixing parameter")
-    diagonalization: Literal["david", "cg"] = Field("david", description="Solver")
+    nspin: int = Field(default=1, description="Spin polarization (1=off, 2=on)")
+    mixing_beta: float = Field(default=0.7, ge=0.0, le=1.0, description="SCF Mixing parameter")
+    diagonalization: Literal["david", "cg"] = Field(default="david", description="Solver")
     smearing: Literal["mv", "mp", "fd"] = Field(
-        "mv", description="Smearing type ('mv', 'mp', 'fd')"
+        default="mv", description="Smearing type ('mv', 'mp', 'fd')"
     )
-    degauss: float = Field(0.02, gt=0, description="Smearing width (Ry)")
-    recoverable: bool = Field(True, description="Enable auto-recovery")
-    max_retries: int = Field(5, ge=0, description="Maximum number of retries")
-    timeout: float = Field(3600.0, gt=0, description="Timeout in seconds")
-    retry_delay_min: float = Field(4.0, gt=0, description="Minimum retry delay")
-    retry_delay_max: float = Field(10.0, gt=0, description="Maximum retry delay")
+    degauss: float = Field(default=0.02, gt=0, description="Smearing width (Ry)")
+    recoverable: bool = Field(default=True, description="Enable auto-recovery")
+    max_retries: int = Field(default=5, ge=0, description="Maximum number of retries")
+    timeout: float = Field(default=3600.0, gt=0, description="Timeout in seconds")
+    retry_delay_min: float = Field(default=4.0, gt=0, description="Minimum retry delay")
+    retry_delay_max: float = Field(default=10.0, gt=0, description="Maximum retry delay")
 
     # Cycle 01 compatibility
     pseudopotentials: dict[str, str] = Field(default_factory=dict, description="Mapping of element symbol to filename")
@@ -47,6 +47,13 @@ class DFTConfig(BaseModel):
         if not v.is_dir():
             msg = f"Pseudopotential path is not a directory: {v}"
             raise ValueError(msg)
+
+        # Check for UPF files (case-insensitive)
+        upf_files = list(v.glob("*.[uU][pP][fF]"))
+        if not upf_files:
+            msg = f"No .UPF files found in pseudopotential directory: {v}"
+            raise ValueError(msg)
+
         return v
 
     @field_validator("nspin")

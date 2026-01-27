@@ -12,7 +12,7 @@ from mlip_autopipec.surrogate.sampling import FarthestPointSampling
 logger = logging.getLogger(__name__)
 
 class SurrogatePipeline:
-    def __init__(self, db_manager: DatabaseManager, config: SurrogateConfig, model: ModelInterface | None = None):
+    def __init__(self, db_manager: DatabaseManager, config: SurrogateConfig, model: ModelInterface | None = None) -> None:
         self.db_manager = db_manager
         self.config = config
         self.model = model
@@ -73,15 +73,18 @@ class SurrogatePipeline:
 
         # Assume model is loaded
         if not self.model:
-             raise RuntimeError("Model not initialized")
+             msg = "Model not initialized"
+             raise RuntimeError(msg)
 
         energies, forces_list = self.model.compute_energy_forces(atoms_list)
 
         # Validate shapes
         if len(energies) != len(atoms_list):
-            raise RuntimeError(f"Energy array length {len(energies)} mismatches atoms list {len(atoms_list)}")
+            msg = f"Energy array length {len(energies)} mismatches atoms list {len(atoms_list)}"
+            raise RuntimeError(msg)
         if len(forces_list) != len(atoms_list):
-             raise RuntimeError(f"Forces array length {len(forces_list)} mismatches atoms list {len(atoms_list)}")
+             msg = f"Forces array length {len(forces_list)} mismatches atoms list {len(atoms_list)}"
+             raise RuntimeError(msg)
 
         valid_indices = []
         rejected_ids = []
@@ -92,7 +95,8 @@ class SurrogatePipeline:
             if forces.shape != (n_atoms, 3):
                  # Log error but maybe skip structure? Or fail?
                  # If model returns wrong shape, it's critical.
-                 raise RuntimeError(f"Forces shape {forces.shape} invalid for {n_atoms} atoms at index {idx}")
+                 msg = f"Forces shape {forces.shape} invalid for {n_atoms} atoms at index {idx}"
+                 raise RuntimeError(msg)
 
             max_force = np.max(np.linalg.norm(forces, axis=1))
             energy = float(energies[idx])
@@ -127,12 +131,14 @@ class SurrogatePipeline:
             logger.info("Computing descriptors...")
 
             if not self.model:
-                 raise RuntimeError("Model not initialized")
+                 msg = "Model not initialized"
+                 raise RuntimeError(msg)
 
             descriptors = self.model.compute_descriptors(valid_atoms)
             # Validate descriptors
             if len(descriptors) != len(valid_atoms):
-                 raise RuntimeError("Descriptor count mismatch")
+                 msg = "Descriptor count mismatch"
+                 raise RuntimeError(msg)
 
             fps = FarthestPointSampling(n_samples=n_samples)
             selected_indices_local = fps.select(descriptors)

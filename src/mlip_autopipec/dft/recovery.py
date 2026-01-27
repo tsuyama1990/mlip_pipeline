@@ -54,11 +54,22 @@ class RecoveryHandler:
         new_params = current_params.copy()
 
         if error_type == DFTErrorType.CONVERGENCE_FAIL:
-            # Reduce mixing beta
             beta = new_params.get("mixing_beta", 0.7)
-            new_params["mixing_beta"] = max(0.1, beta * 0.5)
-            # Increase electron steps
-            new_params["electron_maxstep"] = new_params.get("electron_maxstep", 100) + 100
+            diag = new_params.get("diagonalization", "david")
+
+            # Strategy 1: Reduce Beta if high
+            if beta > 0.3:
+                new_params["mixing_beta"] = 0.3
+                return new_params
+
+            # Strategy 2: Switch diagonalization if beta is low but diag is david
+            if diag == "david":
+                new_params["diagonalization"] = "cg"
+                return new_params
+
+            # Strategy 3: Increase Temperature (Smearing)
+            degauss = new_params.get("degauss", 0.02)
+            new_params["degauss"] = degauss + 0.01
             return new_params
 
         if error_type == DFTErrorType.DIAGONALIZATION_ERROR:

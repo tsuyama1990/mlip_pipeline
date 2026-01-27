@@ -39,18 +39,21 @@ class DatabaseConnector:
             self._connection.count()
             return self._connection
         except OSError as e:
-            logger.error(f"FileSystem error initializing database at {self.db_path}: {e}")
+            logger.exception("FileSystem error initializing database")
+            msg = f"FileSystem error initializing database at {self.db_path}: {e}"
             raise DatabaseError(
-                f"FileSystem error initializing database at {self.db_path}: {e}"
+                msg
             ) from e
         except sqlite3.DatabaseError as e:
-            logger.error(f"File at {self.db_path} is not a valid SQLite database: {e}")
+            logger.exception("File is not a valid SQLite database")
+            msg = f"File at {self.db_path} is not a valid SQLite database: {e}"
             raise DatabaseError(
-                f"File at {self.db_path} is not a valid SQLite database: {e}"
+                msg
             ) from e
         except Exception as e:
-            logger.error(f"Failed to initialize database: {e}")
-            raise DatabaseError(f"Failed to initialize database: {e}") from e
+            logger.exception("Failed to initialize database")
+            msg = f"Failed to initialize database: {e}"
+            raise DatabaseError(msg) from e
 
     def close(self) -> None:
         """Closes the active connection."""
@@ -97,16 +100,19 @@ class DatabaseManager:
         Also checks for physical validity (e.g. non-zero coordinates for >1 atoms).
         """
         if not isinstance(atoms, Atoms):
-            raise TypeError("Input must be an ase.Atoms object")
+            msg = "Input must be an ase.Atoms object"
+            raise TypeError(msg)
 
         positions = atoms.get_positions()
         if np.any(np.isnan(positions)) or np.any(np.isinf(positions)):
-            raise ValueError("Atoms object contains NaN or Inf in positions.")
+            msg = "Atoms object contains NaN or Inf in positions."
+            raise ValueError(msg)
 
         if atoms.pbc.any():
             cell = atoms.get_cell()
             if np.isclose(np.linalg.det(cell), 0.0):
-                raise ValueError("Atoms object has zero cell volume but PBC is enabled.")
+                msg = "Atoms object has zero cell volume but PBC is enabled."
+                raise ValueError(msg)
 
         # Data Integrity: Check for huge/unphysical values if possible (simple heuristic)
         # E.g. coords > 1e6 usually mean error, but maybe not in MD.
@@ -129,17 +135,19 @@ class DatabaseManager:
         try:
             self._validate_atoms(atoms)
             with self._lock:
-                id = self._connection.write(atoms, **metadata)
-            return id
+                return self._connection.write(atoms, **metadata)
         except ValueError as e:
-            logger.error(f"Validation failed for atoms insertion: {e}")
-            raise DatabaseError(f"Invalid Atoms object: {e}") from e
+            logger.exception("Validation failed for atoms insertion")
+            msg = f"Invalid Atoms object: {e}"
+            raise DatabaseError(msg) from e
         except KeyError as e:
-            logger.error(f"Invalid key in metadata during add_structure: {e}")
-            raise DatabaseError(f"Invalid key in metadata: {e}") from e
+            logger.exception("Invalid key in metadata during add_structure")
+            msg = f"Invalid key in metadata: {e}"
+            raise DatabaseError(msg) from e
         except Exception as e:
-            logger.error(f"Failed to add structure: {e}")
-            raise DatabaseError(f"Failed to add structure: {e}") from e
+            logger.exception("Failed to add structure")
+            msg = f"Failed to add structure: {e}"
+            raise DatabaseError(msg) from e
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
         """
@@ -158,8 +166,9 @@ class DatabaseManager:
             # We rely on ase.db's internal handling but prefer kwargs.
             return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
-            logger.error(f"Failed to count rows: {e}")
-            raise DatabaseError(f"Failed to count rows: {e}") from e
+            logger.exception("Failed to count rows")
+            msg = f"Failed to count rows: {e}"
+            raise DatabaseError(msg) from e
 
     def update_status(self, id: int, status: str) -> None:
         """
@@ -173,11 +182,13 @@ class DatabaseManager:
             with self._lock:
                 self._connection.update(id, status=status)
         except KeyError as e:
-            logger.error(f"ID {id} not found during update_status: {e}")
-            raise DatabaseError(f"ID {id} not found: {e}") from e
+            logger.exception("ID not found during update_status")
+            msg = f"ID {id} not found: {e}"
+            raise DatabaseError(msg) from e
         except Exception as e:
-            logger.error(f"Failed to update status for ID {id}: {e}")
-            raise DatabaseError(f"Failed to update status: {e}") from e
+            logger.exception("Failed to update status")
+            msg = f"Failed to update status: {e}"
+            raise DatabaseError(msg) from e
 
     def update_metadata(self, id: int, data: dict[str, Any]) -> None:
         """
@@ -191,11 +202,13 @@ class DatabaseManager:
             with self._lock:
                 self._connection.update(id, **data)
         except KeyError as e:
-            logger.error(f"ID {id} not found during update_metadata: {e}")
-            raise DatabaseError(f"ID {id} not found: {e}") from e
+            logger.exception("ID not found during update_metadata")
+            msg = f"ID {id} not found: {e}"
+            raise DatabaseError(msg) from e
         except Exception as e:
-            logger.error(f"Failed to update metadata for ID {id}: {e}")
-            raise DatabaseError(f"Failed to update metadata: {e}") from e
+            logger.exception("Failed to update metadata")
+            msg = f"Failed to update metadata: {e}"
+            raise DatabaseError(msg) from e
 
     def select(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
         """
@@ -219,8 +232,9 @@ class DatabaseManager:
                     at.info.update(row.data)
                 yield at
         except Exception as e:
-            logger.error(f"Failed to select atoms: {e}")
-            raise DatabaseError(f"Failed to select atoms: {e}") from e
+            logger.exception("Failed to select atoms")
+            msg = f"Failed to select atoms: {e}"
+            raise DatabaseError(msg) from e
 
     def select_entries(self, selection: str | None = None, **kwargs: Any) -> Generator[tuple[int, Atoms], None, None]:
         """
@@ -244,8 +258,9 @@ class DatabaseManager:
                     at.info.update(row.data)
                 yield row.id, at
         except Exception as e:
-            logger.error(f"Failed to select entries: {e}")
-            raise DatabaseError(f"Failed to select entries: {e}") from e
+            logger.exception("Failed to select entries")
+            msg = f"Failed to select entries: {e}"
+            raise DatabaseError(msg) from e
 
     def get_atoms(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
         """
@@ -288,8 +303,9 @@ class DatabaseManager:
                     self._validate_atoms(atoms)
                     self._connection.write(atoms, **meta)
         except Exception as e:
-            logger.error(f"Failed to save candidates batch: {e}")
-            raise DatabaseError(f"Failed to save candidates batch: {e}") from e
+            logger.exception("Failed to save candidates batch")
+            msg = f"Failed to save candidates batch: {e}"
+            raise DatabaseError(msg) from e
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
         """
@@ -300,7 +316,8 @@ class DatabaseManager:
             if hasattr(result, "energy"):
                 # Check for physical validity
                 if not np.isfinite(result.energy):
-                     raise ValueError("DFT Energy is not finite.")
+                     msg = "DFT Energy is not finite."
+                     raise ValueError(msg)
                 atoms.info["energy"] = result.energy
             if hasattr(result, "forces"):
                 atoms.arrays["forces"] = np.array(result.forces)
@@ -316,20 +333,23 @@ class DatabaseManager:
                     **metadata
                 )
         except AttributeError as e:
-            logger.error(f"Invalid DFTResult object passed to save_dft_result: {e}")
-            raise DatabaseError(f"Invalid DFTResult object: {e}") from e
+            logger.exception("Invalid DFTResult object passed to save_dft_result")
+            msg = f"Invalid DFTResult object: {e}"
+            raise DatabaseError(msg) from e
         except ValueError as e:
-            logger.error(f"Validation failed for atoms insertion in save_dft_result: {e}")
-            raise DatabaseError(f"Invalid Atoms object: {e}") from e
+            logger.exception("Validation failed for atoms insertion in save_dft_result")
+            msg = f"Invalid Atoms object: {e}"
+            raise DatabaseError(msg) from e
         except Exception as e:
-            logger.error(f"Failed to save DFT result: {e}")
-            raise DatabaseError(f"Failed to save DFT result: {e}") from e
+            logger.exception("Failed to save DFT result")
+            msg = f"Failed to save DFT result: {e}"
+            raise DatabaseError(msg) from e
 
     def set_system_config(self, config: "SystemConfig") -> None:
         """Store system config in metadata."""
         try:
             with self._lock:
-                self._connection.metadata = config.model_dump(mode="json")
+                self._connection.metadata = config.model_dump(mode="json")  # type: ignore
         except Exception as e:
             logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
 
@@ -342,8 +362,10 @@ class DatabaseManager:
         try:
             return SystemConfig.model_validate(self._connection.metadata)
         except ValidationError as e:
-            logger.error(f"Stored SystemConfig in database is invalid: {e}")
-            raise DatabaseError(f"Stored SystemConfig is invalid: {e}") from e
+            logger.exception("Stored SystemConfig in database is invalid")
+            msg = f"Stored SystemConfig is invalid: {e}"
+            raise DatabaseError(msg) from e
         except Exception as e:
-            logger.error(f"Error retrieving SystemConfig from database: {e}")
-            raise DatabaseError(f"No SystemConfig found or error retrieving: {e}") from e
+            logger.exception("Error retrieving SystemConfig from database")
+            msg = f"No SystemConfig found or error retrieving: {e}"
+            raise DatabaseError(msg) from e

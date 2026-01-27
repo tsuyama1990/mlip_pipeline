@@ -7,7 +7,6 @@ It acts as a facade, delegating business logic to handlers.
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import typer
 import yaml
@@ -187,6 +186,7 @@ def run_dft(
     """Run a DFT calculation on a single structure."""
     try:
         from ase import Atoms
+
         from mlip_autopipec.dft.runner import QERunner
 
         console.print(f"Loading config from {config_path}...")
@@ -218,7 +218,6 @@ def run_dft(
             forces = result.forces
             max_f = max(max(abs(f) for f in force) for force in forces) if forces else 0.0
             console.print(f"Max Force Component: {max_f} eV/A")
-            console.print(f"Output saved to {run_work_dir}")
         else:
             console.print("[bold red]DFT Calculation Failed.[/bold red]")
             _handle_error(f"Error: {result.error_message}")

@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -41,15 +42,14 @@ class TaskQueue:
             logger.info(f"Dask Client initialized: {self.client}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize Dask client/cluster: {e}")
+            logger.exception(f"Failed to initialize Dask client/cluster: {e}")
             if self.cluster:
-                try:
+                with contextlib.suppress(Exception):
                     self.cluster.close()
-                except Exception:
-                    pass
             self.cluster = None
             self.client = None
-            raise RuntimeError(f"TaskQueue initialization failed: {e}") from e
+            msg = f"TaskQueue initialization failed: {e}"
+            raise RuntimeError(msg) from e
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def submit_dft_batch(
@@ -67,13 +67,14 @@ class TaskQueue:
             List of Dask Futures representing the submitted tasks.
         """
         if not self.client:
-            raise RuntimeError("Dask Client is not initialized.")
+            msg = "Dask Client is not initialized."
+            raise RuntimeError(msg)
 
         try:
             logger.info(f"Submitting {len(items)} tasks to Dask.")
             return self.client.map(func, items, **kwargs)
         except Exception as e:
-            logger.error(f"Failed to submit batch: {e}")
+            logger.exception(f"Failed to submit batch: {e}")
             raise
 
     def wait_for_completion(
@@ -94,13 +95,14 @@ class TaskQueue:
             Failed tasks result in None.
         """
         if not self.client:
-            raise RuntimeError("Dask Client is not initialized.")
+            msg = "Dask Client is not initialized."
+            raise RuntimeError(msg)
 
         logger.info(f"Waiting for {len(futures)} tasks to complete...")
         try:
             wait(futures, timeout=timeout)
         except Exception as e:
-            logger.error(f"Error during dask wait: {e}")
+            logger.exception(f"Error during dask wait: {e}")
             # We don't raise here, we check individual futures status below
 
         results = []
@@ -137,7 +139,8 @@ class TaskQueue:
             Dask Future.
         """
         if not self.client:
-            raise RuntimeError("Dask Client is not initialized.")
+            msg = "Dask Client is not initialized."
+            raise RuntimeError(msg)
         return self.client.submit(func, *args, **kwargs)
 
     def shutdown(self) -> None:

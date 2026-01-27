@@ -6,7 +6,8 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.models import MinimalConfig, SystemConfig, TargetSystem
-from mlip_autopipec.orchestration.database import DatabaseError, DatabaseManager
+from mlip_autopipec.exceptions import DatabaseError
+from mlip_autopipec.orchestration.database import DatabaseManager
 
 
 @pytest.fixture
@@ -104,7 +105,7 @@ def test_save_dft_result(db_path):
         db.save_dft_result(atoms, result, {"status": "completed"})
 
         assert db.count() == 1
-        saved = list(db.get_atoms())[0]
+        saved = next(iter(db.get_atoms()))
         assert saved.info["energy"] == -10.0
         # Forces are saved in 'data' blob, which is merged into info by our get_atoms
         assert np.allclose(saved.info["forces"], [[0.0, 0.0, 0.0]])

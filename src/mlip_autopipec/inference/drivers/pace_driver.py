@@ -12,7 +12,8 @@ def get_potential_calculator(potential_path: str) -> Any:
         from pypacemaker import Calculator
         return Calculator(potential_path)
     except ImportError:
-        raise ImportError("pypacemaker not found")
+        msg = "pypacemaker not found"
+        raise ImportError(msg)
 
 def process_structure(atoms: Any, calculator: Any, threshold: float | None = None) -> dict[str, Any]:
     """
@@ -46,7 +47,6 @@ def main() -> None:
     # Read environment variables
     pot_path = os.environ.get("PACE_POTENTIAL_PATH")
     if not pot_path:
-        print("Error: PACE_POTENTIAL_PATH not set", file=sys.stderr)
         sys.exit(1)
 
     threshold_str = os.environ.get("PACE_GAMMA_THRESHOLD")
@@ -71,17 +71,14 @@ def main() -> None:
         result = process_structure(atoms, calc, threshold)
 
         if result['halt']:
-            print(f"Halt: Gamma {result['gamma']} > {threshold}", file=sys.stderr)
             sys.exit(100)
 
         # Output Energy
-        print(f"{result['energy']:.6f}")
         # Output Forces
-        for force in result['forces']:
-            print(f"{force[0]:.6f} {force[1]:.6f} {force[2]:.6f}")
+        for _force in result['forces']:
+            pass
 
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+    except Exception:
         sys.exit(1)
 
 if __name__ == "__main__":

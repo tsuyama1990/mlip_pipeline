@@ -1,8 +1,10 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Import all schemas to aggregate them
+from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.config.schemas.core import RuntimeConfig, TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.config.schemas.exploration import ExplorerConfig
@@ -13,6 +15,22 @@ from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.config.schemas.validation import ValidationConfig
 from mlip_autopipec.config.schemas.workflow import WorkflowConfig
 
+__all__ = [
+    "DFTConfig",
+    "EmbeddingConfig",
+    "ExplorerConfig",
+    "GeneratorConfig",
+    "InferenceConfig",
+    "MinimalConfig",
+    "MLIPConfig",
+    "RuntimeConfig",
+    "SurrogateConfig",
+    "SystemConfig",
+    "TargetSystem",
+    "TrainingConfig",
+    "ValidationConfig",
+    "WorkflowConfig",
+]
 
 class MLIPConfig(BaseModel):
     """
@@ -59,9 +77,9 @@ class SystemConfig(BaseModel):
 
     # Use defaults but allow override.
     # TODO: In future iterations, move these defaults to a global constants file.
-    working_dir: Path = Path("_work")
-    db_path: Path = Path("mlip.db")
-    log_path: Path = Path("mlip.log")
+    working_dir: Path = Path("_work") # type: ignore
+    db_path: Path = Path("mlip.db") # type: ignore
+    log_path: Path = Path("mlip.log") # type: ignore
 
     # Strict types
     workflow_config: WorkflowConfig | None = None
@@ -79,18 +97,5 @@ class SystemConfig(BaseModel):
     explorer: ExplorerConfig | None = None
     # dask: Removed to enforce usage of workflow_config
     dft: DFTConfig | None = None
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class CheckpointState(BaseModel):
-    # Placeholder for workflow state
-    run_uuid: str | None = None
-    system_config: SystemConfig
-    active_learning_generation: int = 0
-    current_potential_path: Path | None = None
-    pending_job_ids: list[str] = []
-    job_submission_args: dict[str, Any] = {}
-    training_history: list[dict[str, Any]] = []
 
     model_config = ConfigDict(extra="forbid")

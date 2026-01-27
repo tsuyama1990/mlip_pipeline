@@ -55,7 +55,7 @@ class DFTCalculationError(MLIPError):
 class GeneratorError(MLIPError):
     """Raised when structure generation fails."""
 
-    def __init__(self, message: str, context: dict[str, Any] | None = None):
+    def __init__(self, message: str, context: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.context = context or {}
 

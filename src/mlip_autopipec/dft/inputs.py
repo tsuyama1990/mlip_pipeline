@@ -126,10 +126,7 @@ class InputGenerator:
         lengths = np.linalg.norm(cell, axis=1)
         kpoints = []
         for l in lengths:
-            if l < 1e-6:
-                k = 1
-            else:
-                k = int(np.ceil(2 * np.pi / (l * kspacing)))
+            k = 1 if l < 1e-06 else int(np.ceil(2 * np.pi / (l * kspacing)))
             kpoints.append(max(1, k))
 
         if len(kpoints) != 3:

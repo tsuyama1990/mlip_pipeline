@@ -7,7 +7,7 @@ class MaceWrapper:
     """
     Wrapper for MACE model to compute energy, forces, and descriptors.
     """
-    def __init__(self, model_type: str = "mace_mp"):
+    def __init__(self, model_type: str = "mace_mp") -> None:
         self.model_type = model_type
         self.model = None
         self.device = "cpu"
@@ -29,9 +29,11 @@ class MaceWrapper:
                 # We need to map 'cuda' to 'cuda' or 'cpu'.
                 self.model = MACECalculator(model_paths=model_path, device=device, default_dtype="float32")
             except ImportError:
-                 raise ImportError("mace-torch is not installed.")
+                 msg = "mace-torch is not installed."
+                 raise ImportError(msg)
             except Exception as e:
-                 raise RuntimeError(f"Failed to load MACE model: {e}")
+                 msg = f"Failed to load MACE model: {e}"
+                 raise RuntimeError(msg)
 
     def compute_energy_forces(self, atoms_list: list[Atoms]) -> tuple[np.ndarray, list[np.ndarray]]:
         """
@@ -44,7 +46,8 @@ class MaceWrapper:
             return energies, forces_list
 
         if self.model is None:
-            raise RuntimeError("Model not loaded. Call load_model() first.")
+            msg = "Model not loaded. Call load_model() first."
+            raise RuntimeError(msg)
 
         energies = []
         forces_list = []
@@ -74,13 +77,14 @@ class MaceWrapper:
             # Fallback if dscribe missing (should not happen per lock file)
             # Use simple features: Volume + flattened positions (bad but structurally relevant)
             # Or just fail.
-            raise ImportError("dscribe is required for descriptors.")
+            msg = "dscribe is required for descriptors."
+            raise ImportError(msg)
 
         # Determine species
         species = set()
         for at in atoms_list:
             species.update(at.get_chemical_symbols())
-        species = sorted(list(species))
+        species = sorted(species)
 
         if not species:
             return np.zeros((len(atoms_list), 1))

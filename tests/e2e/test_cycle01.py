@@ -112,10 +112,7 @@ def test_oracle_flow(MockParser, mock_run, mock_which, tmp_path):
 
     mock_which.return_value = "/bin/pw.x"
 
-    print(f"DEBUG: MockParser type: {type(MockParser)}")
-    print(f"DEBUG: MockParser: {MockParser}")
     runner = QERunner(config=config, work_dir=tmp_path, parser_class=MockParser)
-    print(f"DEBUG: runner.parser_class: {runner.parser_class}")
     atoms = Atoms("Si", positions=[[0,0,0]], cell=[5,5,5], pbc=True)
 
     # Mock subprocess success

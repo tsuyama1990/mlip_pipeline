@@ -4,10 +4,10 @@ class CandidateManager:
     Manages candidate data persistence logic.
     Separates business logic (defaults, validation) from raw DB access.
     """
-    def __init__(self, db_manager):
+    def __init__(self, db_manager) -> None:
         self.db = db_manager
 
-    def create_candidate(self, atoms, metadata: dict = None):
+    def create_candidate(self, atoms, metadata: dict | None = None):
         from ase import Atoms
         if not isinstance(atoms, Atoms):
             msg = f"Expected ase.Atoms object, got {type(atoms)}"

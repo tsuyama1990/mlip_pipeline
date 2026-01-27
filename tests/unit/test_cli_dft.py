@@ -15,14 +15,26 @@ runner = CliRunner()
 def test_run_dft_success(mock_read, mock_load, MockRunner, tmp_path):
     # Setup
     config_file = tmp_path / "config.yaml"
-    config_file.touch()
+
+    # Create valid UPF dir
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "Si.upf").touch()
+
+    # Write valid YAML for standalone DFT config
+    config_file.write_text(f"""
+command: "pw.x"
+pseudopotential_dir: "{pseudo_dir}"
+ecutwfc: 30.0
+kspacing: 0.1
+""")
     struct_file = tmp_path / "struct.xyz"
     struct_file.touch()
 
     # Return real DFTConfig
     mock_load.return_value = DFTConfig(
         command="pw.x",
-        pseudopotential_dir=tmp_path,
+        pseudopotential_dir=pseudo_dir,
         pseudopotentials={"Si": "Si.upf"},
         kspacing=0.1
     )
@@ -37,7 +49,6 @@ def test_run_dft_success(mock_read, mock_load, MockRunner, tmp_path):
 
     result = runner.invoke(app, ["run-dft", "--config", str(config_file), "--structure", str(struct_file)])
 
-    print(result.stdout)
     assert result.exit_code == 0
     assert "DFT Calculation Successful" in result.stdout
     assert "Energy: -10.0 eV" in result.stdout
@@ -47,13 +58,22 @@ def test_run_dft_success(mock_read, mock_load, MockRunner, tmp_path):
 @patch("ase.io.read")
 def test_run_dft_failure(mock_read, mock_load, MockRunner, tmp_path):
     config_file = tmp_path / "config.yaml"
-    config_file.touch()
+
+    # Create valid UPF dir
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "Si.upf").touch()
+
+    config_file.write_text(f"""
+command: "pw.x"
+pseudopotential_dir: "{pseudo_dir}"
+""")
     struct_file = tmp_path / "struct.xyz"
     struct_file.touch()
 
     mock_load.return_value = DFTConfig(
         command="pw.x",
-        pseudopotential_dir=tmp_path,
+        pseudopotential_dir=pseudo_dir,
         pseudopotentials={"Si": "Si.upf"},
         kspacing=0.1
     )
@@ -76,13 +96,22 @@ def test_run_dft_failure(mock_read, mock_load, MockRunner, tmp_path):
 @patch("ase.io.read")
 def test_run_dft_invalid_atoms(mock_read, mock_load, tmp_path):
     config_file = tmp_path / "config.yaml"
-    config_file.touch()
+
+    # Create valid UPF dir
+    pseudo_dir = tmp_path / "pseudos"
+    pseudo_dir.mkdir()
+    (pseudo_dir / "Si.upf").touch()
+
+    config_file.write_text(f"""
+command: "pw.x"
+pseudopotential_dir: "{pseudo_dir}"
+""")
     struct_file = tmp_path / "struct.xyz"
     struct_file.touch()
 
     mock_load.return_value = DFTConfig(
         command="pw.x",
-        pseudopotential_dir=tmp_path,
+        pseudopotential_dir=pseudo_dir,
         pseudopotentials={"Si": "Si.upf"},
         kspacing=0.1
     )

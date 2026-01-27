@@ -37,7 +37,7 @@ class LogParser:
         try:
             content = log_path.read_text()
         except Exception as e:
-            logger.error(f"Failed to read log file {log_path}: {e}")
+            logger.exception(f"Failed to read log file {log_path}: {e}")
             return None
 
         if not content.strip():
@@ -60,7 +60,8 @@ class LogParser:
         # Check for NaN (case insensitive)
         if "nan" in last_rmse_e_str.lower() or "nan" in last_rmse_f_str.lower():
             logger.error("Training diverged: NaN detected in metrics.")
-            raise ValueError("Training diverged (NaN in metrics)")
+            msg = "Training diverged (NaN in metrics)"
+            raise ValueError(msg)
 
         try:
             rmse_e = float(last_rmse_e_str)
@@ -71,7 +72,8 @@ class LogParser:
 
         if not math.isfinite(rmse_e) or not math.isfinite(rmse_f):
              logger.error("Training diverged: Infinite metrics.")
-             raise ValueError("Training diverged (Infinite metrics)")
+             msg = "Training diverged (Infinite metrics)"
+             raise ValueError(msg)
 
         return TrainingMetrics(
             epoch=last_epoch,

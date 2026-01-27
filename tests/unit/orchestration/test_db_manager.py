@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.orchestration.database import DatabaseError, DatabaseManager
+from mlip_autopipec.exceptions import DatabaseError
+from mlip_autopipec.orchestration.database import DatabaseManager
 
 
 @pytest.fixture

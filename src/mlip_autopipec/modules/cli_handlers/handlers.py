@@ -106,7 +106,7 @@ class CLIHandler:
         # Locate LAMMPS
         cmd = "lmp"
         if config.inference_config and config.inference_config.lammps_executable:
-             cmd = config.inference_config.lammps_executable
+             cmd = str(config.inference_config.lammps_executable)
 
         # Check if cmd exists
         if not shutil.which(cmd.split()[0]):
@@ -177,9 +177,18 @@ class CLIHandler:
 
     @staticmethod
     def generate_structures(config_file: Path, dry_run: bool) -> None:
+        from mlip_autopipec.config.models import SystemConfig
+
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
-        builder = StructureBuilder(config)
+
+        # Convert MLIPConfig to SystemConfig for StructureBuilder compatibility
+        sys_config = SystemConfig(
+            target_system=config.target_system,
+            generator_config=config.generator_config
+        )
+
+        builder = StructureBuilder(sys_config)
         structures_iter = builder.build()
 
         count = 0

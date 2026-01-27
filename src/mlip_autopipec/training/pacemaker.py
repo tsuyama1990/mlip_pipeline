@@ -44,7 +44,8 @@ class PacemakerWrapper:
         Streams atoms from a generator to a file on disk (extxyz).
         """
         if "/" in output_filename or "\\" in output_filename:
-             raise ValueError(f"Invalid filename: {output_filename}")
+             msg = f"Invalid filename: {output_filename}"
+             raise ValueError(msg)
 
         output_path = self.work_dir / output_filename
 
@@ -54,7 +55,7 @@ class PacemakerWrapper:
         try:
             write(str(output_path), data_stream, format="extxyz")
         except Exception as e:
-            logger.error(f"Failed to stream write data to {output_path}: {e}")
+            logger.exception(f"Failed to stream write data to {output_path}: {e}")
             raise
 
         return output_path
@@ -97,7 +98,7 @@ class PacemakerWrapper:
                 yaml.safe_load(f)
 
         except Exception as e:
-            logger.error(f"Failed to generate valid Pacemaker config: {e}")
+            logger.exception(f"Failed to generate valid Pacemaker config: {e}")
             raise
 
         logger.info(f"Generated Pacemaker config at {config_path}")
@@ -128,7 +129,7 @@ class PacemakerWrapper:
             return result.returncode
 
         except subprocess.TimeoutExpired:
-            logger.error("Execution timed out.")
+            logger.exception("Execution timed out.")
             return -1
         except subprocess.SubprocessError as e:
             logger.exception(f"Subprocess execution failed: {e}")
@@ -141,11 +142,13 @@ class PacemakerWrapper:
         """Resolves the executable path and performs security checks."""
         executable = shutil.which(name)
         if not executable:
-             raise FileNotFoundError(f"Executable '{name}' not found in PATH.")
+             msg = f"Executable '{name}' not found in PATH."
+             raise FileNotFoundError(msg)
 
         p = Path(executable)
         if not (p.exists() and p.is_file() and os.access(p, os.X_OK)):
-             raise ValueError(f"Found {name} at {executable} but it is not a valid executable.")
+             msg = f"Found {name} at {executable} but it is not a valid executable."
+             raise ValueError(msg)
 
         return executable
 
@@ -158,7 +161,8 @@ class PacemakerWrapper:
         if initial_potential:
             safe_pot_path = validate_path_safety(initial_potential)
             if not safe_pot_path.exists():
-                 raise FileNotFoundError(f"Initial potential not found: {safe_pot_path}")
+                 msg = f"Initial potential not found: {safe_pot_path}"
+                 raise FileNotFoundError(msg)
             cmd_extras.extend(["-p", str(safe_pot_path)])
 
         try:
@@ -170,7 +174,7 @@ class PacemakerWrapper:
             executable_path = self._resolve_executable("pacemaker")
 
             # 4. Construct Command
-            cmd = [executable_path, str(config_path.name)] + cmd_extras
+            cmd = [executable_path, str(config_path.name), *cmd_extras]
 
             logger.info(f"Running Pacemaker: {cmd} in {self.work_dir}")
 
@@ -222,13 +226,14 @@ class PacemakerWrapper:
         try:
             write(str(candidates_path), candidates, format="extxyz")
         except Exception as e:
-            logger.error(f"Failed to write candidates: {e}")
+            logger.exception(f"Failed to write candidates: {e}")
             raise
 
         try:
             safe_pot_path = validate_path_safety(current_potential)
             if not safe_pot_path.exists():
-                raise FileNotFoundError(f"Potential file not found: {safe_pot_path}")
+                msg = f"Potential file not found: {safe_pot_path}"
+                raise FileNotFoundError(msg)
 
             executable_path = self._resolve_executable("pace_activeset")
             cmd = [executable_path, str(candidates_path), str(safe_pot_path)]
@@ -246,7 +251,8 @@ class PacemakerWrapper:
 
             if result.returncode != 0:
                 logger.error(f"Active set selection failed: {result.stderr}")
-                raise RuntimeError(f"pace_activeset failed with code {result.returncode}")
+                msg = f"pace_activeset failed with code {result.returncode}"
+                raise RuntimeError(msg)
 
             output = result.stdout
             indices = []
@@ -257,7 +263,7 @@ class PacemakerWrapper:
             return indices
 
         except FileNotFoundError:
-             logger.error("pace_activeset executable not found.")
+             logger.exception("pace_activeset executable not found.")
              raise
         except Exception:
             logger.exception("Active set selection failed")
