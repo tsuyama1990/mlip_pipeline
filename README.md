@@ -1,138 +1,132 @@
-# MLIP Auto PiPEC: Automated Machine Learning Interatomic Potential Pipeline
+# PyAcemaker: Automated MLIP Construction System
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**MLIP Auto PiPEC** is a fully automated, active-learning based system for generating state-of-the-art Machine Learning Interatomic Potentials (MLIPs). It democratizes access to high-accuracy atomic simulations by replacing manual, expert-driven workflows with a robust, "Zero-Config" autonomous pipeline.
+**PyAcemaker** is a "Zero-Config" automated system for constructing State-of-the-Art Machine Learning Interatomic Potentials (MLIP). By leveraging the **Pacemaker** (Atomic Cluster Expansion) engine and an intelligent **Active Learning** loop, it democratises access to high-accuracy atomistic simulations, allowing users to generate robust potentials without deep expertise in computational physics.
 
-## Features
+## Key Features
 
-*   **Robust Configuration**: Strictly validated YAML configuration using Pydantic schemas ensures fail-fast behavior.
-*   **Database Management**: Thread-safe, resilient interface to `ase.db` (SQLite) for storing structures and calculation results.
-*   **Structure Generation**: Physics-informed generator supporting supercells, random substitutions (SQS), lattice strain, thermal rattling, and point defects (vacancies/interstitials).
-*   **DFT Oracle**: Integrated Quantum Espresso runner with auto-recovery for convergence failures (e.g., mixing beta reduction).
-*   **Training Orchestration**: Automated training of MLIPs using **Pacemaker**, with support for Active Set selection and Delta Learning configuration.
-*   **Periodic Embedding**: Utilities for extracting local atomic environments from larger simulation cells for targeted re-calculation.
-*   **Orchestration Engine**: Centralized state machine managing the Active Learning loop (Exploration -> Selection -> Calculation -> Training), complete with persistence and resumption capabilities.
-*   **Dashboard**: Real-time status reporting via HTML dashboard visualizing learning curves and database statistics.
-*   **Kinetic Monte Carlo (kMC)**: Integration with **EON** for long-timescale exploration of rare events (diffusion, reactions) with on-the-fly uncertainty detection.
-*   **Validation Suite**: Automated checks for Phonon stability, Elastic constants (Born criteria), and Equation of State (Bulk Modulus).
+-   **Zero-Config Workflow**: From a single `config.yaml`, the system handles structure generation, DFT calculations, training, and validation autonomously.
+-   **Data Efficiency**: Uses Active Learning and D-Optimality to achieve production-level accuracy with **1/10th of the DFT cost** of random sampling.
+-   **Physics-Informed Robustness**: Guarantees simulation stability by enforcing physical baselines (ZBL/LJ) and monitoring extrapolation grades ($\gamma$) in real-time.
+-   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures, ensuring the pipeline never stalls due to numerical instability.
+-   **Multi-Scale Exploration**: Integrates MD (LAMMPS) and kMC (EON) to explore both fast thermal vibrations and slow rare events.
 
-## Requirements
+## Architecture Overview
 
-*   **Python**: 3.11+
-*   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `rich`, `pyyaml`, `scipy`.
-*   **External Engines**: Quantum Espresso, LAMMPS, Pacemaker, EON.
+PyAcemaker follows a modular architecture orchestrated by a central Python controller.
 
-## Installation
+```mermaid
+graph TD
+    User[User / Config] --> Orch[Orchestrator]
 
-1.  **Clone the Repository**
+    subgraph "Core Loop"
+        Orch --> SG[Structure Generator]
+        Orch --> DE[Dynamics Engine]
+
+        SG -->|Candidates| DB[(Database)]
+        DE -->|High Uncertainty Structures| DB
+
+        DB -->|Selected Structures| Oracle[Oracle (DFT)]
+        Oracle -->|Labelled Data| DB
+
+        DB -->|Training Set| Trainer[Trainer (Pacemaker)]
+        Trainer -->|Potential (yace)| Val[Validator]
+
+        Val -- Pass --> DE
+        Val -- Fail --> SG
+    end
+```
+
+## Prerequisites
+
+-   **Python 3.11+**
+-   **uv** (Recommended for dependency management)
+-   **Quantum Espresso** (`pw.x`) installed and accessible in `$PATH`.
+-   **LAMMPS** (with USER-PACE package installed).
+-   **Pacemaker** library.
+
+## Installation & Setup
+
+1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-org/mlip-autopipec.git
-    cd mlip-autopipec
+    git clone https://github.com/your-org/mlip_autopipec.git
+    cd mlip_autopipec
     ```
 
-2.  **Install Dependencies**
-    Using `uv` (Recommended):
+2.  **Install dependencies using `uv`:**
     ```bash
     uv sync
     ```
-    Or using `pip`:
+    Alternatively, using pip:
     ```bash
-    pip install .
+    pip install -e .[dev]
     ```
+
+3.  **Configure Environment:**
+    Copy the example configuration:
+    ```bash
+    cp config.example.yaml config.yaml
+    ```
+    Edit `config.yaml` to point to your pseudopotential directory and executables.
 
 ## Usage
 
-### 1. Initialize Project
-Create a template configuration file (`input.yaml`) with default settings:
+### Quick Start
+
+To start a new potential generation project:
+
 ```bash
-mlip-auto init
+# Initialize the project
+uv run mlip-auto init --name "Silicon_Project"
+
+# Validate configuration
+uv run mlip-auto validate
+
+# Run the automated pipeline
+uv run mlip-auto run
 ```
 
-### 2. Configure System
-Edit `input.yaml` to define your target system (e.g., Fe-Ni alloy) and computational parameters:
-```yaml
-target_system:
-  elements: ["Fe", "Ni"]
-  composition: {"Fe": 0.7, "Ni": 0.3}
-generator:
-  sqs:
-    enabled: true
-    supercell_size: [2, 2, 2]
-  distortion:
-    enabled: true
-    rattle_stdev: 0.05
-dft:
-  pseudopotential_dir: "/path/to/upf"
-  ecutwfc: 40.0
-training:
-  cutoff: 5.0
-  b_basis_size: 200
-  batch_size: 16
-  max_num_epochs: 500
-inference_config:
-    active_engine: "eon"
-    eon:
-        job: "process_search"
-        temperature: 300.0
+### Monitoring
+
+The system generates a `report.html` in the project directory, updating in real-time with training curves, validation metrics (Phonon/EOS), and active learning status.
+
+## Development Workflow
+
+We follow the **AC-CDD** (Active Cycle - Component Driven Development) methodology.
+
+1.  **Running Tests:**
+    ```bash
+    uv run pytest
+    ```
+
+2.  **Linting & Formatting:**
+    This project enforces strict code quality.
+    ```bash
+    uv run ruff check .
+    uv run mypy .
+    ```
+
+## Project Structure
+
+```text
+.
+├── src/
+│   └── mlip_autopipec/
+│       ├── config/         # Pydantic Schemas
+│       ├── dft/            # Oracle & QE Interface
+│       ├── dynamics/       # LAMMPS & EON Runners
+│       ├── generator/      # Structure Generation
+│       ├── orchestration/  # Workflow Logic
+│       ├── training/       # Pacemaker Wrapper
+│       └── validation/     # Physics Checks
+├── dev_documents/          # System Architecture & Specs
+├── tests/                  # Pytest Suite
+└── pyproject.toml          # Dependencies & Linter Config
 ```
 
-### 3. Validate Configuration
-Ensure your configuration is valid before running expensive calculations:
-```bash
-mlip-auto validate input.yaml
-```
+## License
 
-### 4. Initialize Database (Optional)
-Initialize the SQLite database (`mlip.db`):
-```bash
-mlip-auto db init --config input.yaml
-```
-
-### 5. Generate Structures
-Generate candidate structures based on your configuration:
-```bash
-mlip-auto generate input.yaml
-```
-
-### 6. Run Active Learning Loop
-Execute the autonomous pipeline:
-```bash
-mlip-auto run loop --config input.yaml
-```
-
-### 7. Validate Potential (Physics)
-Run physics validation checks on the trained potential:
-```bash
-mlip-auto validate input.yaml --phonon --elastic --eos
-```
-
-## Architecture
-
-The project is structured as follows:
-
-```ascii
-src/mlip_autopipec/
-├── app.py                      # CLI Entry Point
-├── config/                     # Configuration Schemas (Pydantic)
-├── data_models/                # Core Data Structures (Atoms, Candidates)
-├── generator/                  # Structure Generation (SQS, Defects, Strain)
-├── inference/                  # Dynamics & kMC (LAMMPS, EON)
-├── orchestration/              # Database & Workflow Management
-├── training/                   # Training Orchestration (Pacemaker Wrapper, Dataset)
-├── utils/                      # Logging & Utilities
-└── ...                         # Feature Modules (DFT, Training)
-```
-
-## Roadmap
-
-- [x] **Cycle 01**: Core Framework, Config, Database.
-- [x] **Cycle 02**: Structure Generation.
-- [x] **Cycle 03**: DFT Oracle Interface.
-- [x] **Cycle 04**: Training Orchestration.
-- [x] **Cycle 05**: Inference & Active Learning (LAMMPS).
-- [x] **Cycle 06**: Active Learning Orchestrator.
-- [x] **Cycle 07**: Advanced Expansion (kMC) with EON.
-- [x] **Cycle 08**: Validation Suite (Phonon, Elasticity, EOS) & Production Polish.
+This project is licensed under the MIT License.
