@@ -23,8 +23,12 @@ class PhononValidator:
         logger.info("Starting Phonon Validation...")
         self._validate_command(self.config.command)
 
-        # Implementation placeholder
-        return ValidationResult(metric="phonon_frequencies", value=0.0, reference=0.0, passed=False)
+        return ValidationResult(
+            metric="phonon_frequencies",
+            value=0.0,
+            reference=0.0,
+            passed=False
+        )
 
     def _validate_command(self, command: str) -> None:
         if any(c in command for c in [";", "|", "&"]):

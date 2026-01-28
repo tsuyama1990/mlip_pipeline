@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -53,35 +54,35 @@ class LammpsRunner:
                     cwd=self.work_dir,
                     stdout=f_out,
                     stderr=f_err,
-                    check=False,  # We handle return code manually
-                    shell=False,
+                    check=False,
+                    shell=False
                 )
 
             # 3. Parse Results
             if process.returncode != 0:
-                # Log stderr content for debugging
                 stderr_content = ""
                 if stderr_file.exists():
-                    # Read only last 1KB safely
-                    with contextlib.suppress(OSError):
-                        with open(stderr_file, "rb") as f:
-                            f.seek(-1024, 2)  # Seek from end
-                            stderr_content = f.read().decode("utf-8", errors="replace")
+                     with contextlib.suppress(OSError):
+                         with open(stderr_file, "rb") as f:
+                             f.seek(-1024, 2)
+                             stderr_content = f.read().decode("utf-8", errors="replace")
 
-                logger.warning(
-                    f"LAMMPS failed for {uid} with code {process.returncode}. Stderr: {stderr_content}"
-                )
+                logger.warning(f"LAMMPS failed for {uid} with code {process.returncode}. Stderr: {stderr_content}")
                 return InferenceResult(
                     uid=uid,
                     success=False,
-                    error_message=f"Process exited with code {process.returncode}",
+                    error_message=f"Process exited with code {process.returncode}"
                 )
 
             # Parse log file for gamma/uncertainty
             max_gamma, halted, step = LammpsLogParser.parse(log_file)
 
             return InferenceResult(
-                uid=uid, success=True, max_gamma=max_gamma, halted=halted, halt_step=step
+                uid=uid,
+                success=True,
+                max_gamma=max_gamma,
+                halted=halted,
+                halt_step=step
             )
 
         except Exception as e:
@@ -90,21 +91,16 @@ class LammpsRunner:
 
     def _write_inputs(self, atoms: Atoms, potential_path: Path, uid: str) -> None:
         """Writes data file and input script."""
-        # Write data file
         data_file = self.work_dir / f"{uid}.data"
-        # Type check ignore because external lib
         # type: ignore[no-untyped-call]
         atoms.write(str(data_file), format="lammps-data")
 
-        # Write input script
         input_script = self.work_dir / f"{uid}.in"
         content = self._generate_input_script(data_file.name, potential_path, uid)
         input_script.write_text(content)
 
     def _generate_input_script(self, data_file: str, potential_path: Path, uid: str) -> str:
-        """Generates LAMMPS input script content."""
-        # This is a simplified template. In real impl, use jinja2 or config params.
-        # Use abs path for potential if needed, or symlink
+        # Simplified template
         return f"""
         units metal
         atom_style atomic
@@ -131,7 +127,7 @@ class LammpsRunner:
 
         # Security: basic validation
         if ";" in exe or "|" in exe:
-            raise ValueError("Unsafe characters in LAMMPS command")
+             raise ValueError("Unsafe characters in LAMMPS command")
 
         parts = shlex.split(exe)
         parts.extend(["-in", f"{uid}.in", "-log", f"{uid}.log"])

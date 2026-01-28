@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class ElasticityValidator:
     """
-    Validates Elastic Constants (C11, C12, C44, etc).
+    Validates Elastic Constants.
     """
 
     def __init__(self, config: ElasticConfig, work_dir: Path):
@@ -21,5 +21,15 @@ class ElasticityValidator:
 
     def validate(self, atoms: Atoms, potential_path: Path) -> ValidationResult:
         logger.info("Starting Elasticity Validation...")
-        # Placeholder
-        return ValidationResult(metric="C11", value=0.0, reference=0.0, passed=False)
+        self._validate_command(self.config.command)
+
+        return ValidationResult(
+            metric="C11",
+            value=0.0,
+            reference=0.0,
+            passed=False
+        )
+
+    def _validate_command(self, command: str) -> None:
+        if any(c in command for c in [";", "|", "&"]):
+            raise ValueError("Unsafe command characters detected")

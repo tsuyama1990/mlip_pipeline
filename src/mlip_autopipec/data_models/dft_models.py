@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -16,12 +17,15 @@ class DFTResult(BaseModel):
         # Basic check that inner lists have length 3
         for i, f in enumerate(forces):
             if len(f) != 3:
-                raise ValueError(f"Force vector at index {i} must be length 3, got {len(f)}")
+                msg = f"Force vector at index {i} must be length 3, got {len(f)}"
+                raise ValueError(msg)
         return forces
 
     @field_validator("stress")
     @classmethod
-    def check_stress_shape(cls, stress: list[list[float]] | None) -> list[list[float]] | None:
+    def check_stress_shape(
+        cls, stress: list[list[float]] | None
+    ) -> list[list[float]] | None:
         if stress is None:
             return None
 
@@ -30,14 +34,16 @@ class DFTResult(BaseModel):
         if len(stress) == 3:
             for row in stress:
                 if len(row) != 3:
-                    raise ValueError("Stress tensor rows must be length 3.")
+                    msg = "Stress tensor rows must be length 3."
+                    raise ValueError(msg)
         # If it's Voigt (6,) - but Type hint says List[List], so we expect matrix.
         # If user passes empty list (which happened in tests), handle it?
         if len(stress) == 0:
-            return None
+             return None
 
         if len(stress) != 3:
-            # Could be Voigt notation passed as list of lists? Unlikely.
-            # Strict 3x3 enforcement
-            raise ValueError("Stress tensor must be 3x3.")
+             # Could be Voigt notation passed as list of lists? Unlikely.
+             # Strict 3x3 enforcement
+             msg = "Stress tensor must be 3x3."
+             raise ValueError(msg)
         return stress

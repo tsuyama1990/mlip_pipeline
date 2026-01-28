@@ -55,10 +55,8 @@ class DatasetBuilder:
         test_path = output_path.parent / "test.xyz"
 
         # Clean up existing
-        if train_path.exists():
-            train_path.unlink()
-        if test_path.exists():
-            test_path.unlink()
+        if train_path.exists(): train_path.unlink()
+        if test_path.exists(): test_path.unlink()
 
         logger.info(f"Exporting dataset to {train_path} and {test_path} (Ratio: {test_ratio})")
 
@@ -69,13 +67,8 @@ class DatasetBuilder:
 
         # Open files for streaming write
         try:
-            # We use ase.io.write with append=True or a specialized streamer.
-            # ASE 'extxyz' supports appending.
-            # However, opening and closing file for every atom is slow.
-            # Better to keep handle open, but ASE write accepts filename or file object.
-            # Let's try passing file objects.
-
-            with open(train_path, "w") as f_train, open(test_path, "w") as f_test:
+             # We use ase.io.write with file handles
+             with open(train_path, "w") as f_train, open(test_path, "w") as f_test:
                 for atoms in self.fetch_data(query):
                     count += 1
                     if rng.random() < test_ratio:
@@ -90,9 +83,9 @@ class DatasetBuilder:
             raise
 
         if count == 0:
-            raise ValueError("No training data found in database.")
+             raise ValueError("No training data found in database.")
 
         if test_count == 0 and train_count > 0:
-            logger.warning("Test set is empty. Consider increasing test_ratio or data size.")
+             logger.warning("Test set is empty. Consider increasing test_ratio or data size.")
 
         logger.info(f"Export complete. Total: {count}, Train: {train_count}, Test: {test_count}")

@@ -81,30 +81,32 @@ def test_run_command_failure(mock_which, mock_run, mock_dft_config, tmp_path):
 
 def test_write_input(mock_dft_config, tmp_path):
     runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    atoms = Atoms("Si", positions=[[0, 0, 0]], cell=[4, 4, 4])
+    atoms = Atoms("Si", positions=[[0,0,0]], cell=[4,4,4])
 
     input_file = tmp_path / "pw.in"
 
     with patch("mlip_autopipec.dft.runner.write") as mock_write:
-        runner._write_input(atoms, input_file)
-        mock_write.assert_called_once()
-        call_kwargs = mock_write.call_args[1]
-        assert call_kwargs["format"] == "espresso-in"
-        assert call_kwargs["input_data"]["system"]["ecutwfc"] == 30.0
+         runner._write_input(atoms, input_file)
+         mock_write.assert_called_once()
+         call_kwargs = mock_write.call_args[1]
+         assert call_kwargs["format"] == "espresso-in"
+         assert call_kwargs["input_data"]["system"]["ecutwfc"] == 30.0
 
 
 @patch("mlip_autopipec.dft.runner.QERunner._run_command")
 @patch("mlip_autopipec.dft.runner.QERunner._write_input")
 @patch("mlip_autopipec.dft.runner.QERunner._parse_output")
 @patch("mlip_autopipec.dft.runner.QERunner._stage_pseudos")
-def test_run_integration(
-    mock_stage, mock_parse, mock_write, mock_run_cmd, mock_dft_config, tmp_path
-):
+def test_run_integration(mock_stage, mock_parse, mock_write, mock_run_cmd, mock_dft_config, tmp_path):
     runner = QERunner(config=mock_dft_config, work_dir=tmp_path)
-    atoms = Atoms("Si", positions=[[0, 0, 0]], cell=[4, 4, 4])
+    atoms = Atoms("Si", positions=[[0,0,0]], cell=[4,4,4])
 
     mock_run_cmd.return_value = (True, "")
-    mock_parse.return_value = DFTResult(energy=-10.0, forces=[[0.0, 0.0, 0.0]], converged=True)
+    mock_parse.return_value = DFTResult(
+        energy=-10.0,
+        forces=[[0.0, 0.0, 0.0]],
+        converged=True
+    )
 
     result = runner.run(atoms)
 

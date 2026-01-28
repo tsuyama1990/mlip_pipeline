@@ -6,7 +6,6 @@ from mlip_autopipec.orchestration.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-
 class CandidateManager:
     def __init__(self, db_manager: DatabaseManager) -> None:
         self.db = db_manager

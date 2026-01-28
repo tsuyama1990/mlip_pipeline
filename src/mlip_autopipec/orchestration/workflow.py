@@ -19,12 +19,10 @@ class WorkflowManager:
         self.state_file = state_file or (work_dir / "state.json")
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize DB
         # Use config value for db path, not hardcoded
         self.db_path = self.work_dir / self.config.runtime.database_path
         self.db_manager = DatabaseManager(self.db_path)
 
-        # Initialize State
         self.state = self._load_state()
 
     def _load_state(self) -> WorkflowState:
@@ -44,26 +42,18 @@ class WorkflowManager:
         while self.state.cycle_index < max_cycles:
             logger.info(f"Starting Cycle {self.state.cycle_index}")
 
-            # 1. Generation Phase
             self.run_generation()
-
-            # 2. DFT Phase
             self.run_dft()
-
-            # 3. Training Phase
             self.run_training()
 
             self.state.cycle_index += 1
             self.save_state()
 
     def run_generation(self):
-        # Implementation placeholder
         pass
 
     def run_dft(self):
-        # Implementation placeholder
         pass
 
     def run_training(self):
-        # Implementation placeholder
         pass

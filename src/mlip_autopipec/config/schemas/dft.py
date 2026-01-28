@@ -30,30 +30,35 @@ class DFTConfig(BaseModel):
     degauss: float = Field(0.02, gt=0, description="Smearing width (Ry)")
     recoverable: bool = Field(True, description="Enable auto-recovery")
     max_retries: int = Field(5, ge=0, description="Maximum number of retries")
-    pseudopotentials: dict[str, str] | None = Field(None, description="Map of element to filename")
+    pseudopotentials: dict[str, str] | None = Field(
+        None, description="Map of element to filename"
+    )
 
     @field_validator("pseudopotential_dir")
     @classmethod
     def validate_pseudo_dir(cls, v: Path) -> Path:
         if not v.exists():
-            raise ValueError(f"Pseudopotential directory {v} does not exist")
+            msg = f"Pseudopotential directory {v} does not exist"
+            raise ValueError(msg)
         # Check for at least one UPF file
         if not list(v.glob("*.UPF")) and not list(v.glob("*.upf")):
-            raise ValueError(f"No .UPF files found in {v}")
+            msg = f"No .UPF files found in {v}"
+            raise ValueError(msg)
         return v
 
     @field_validator("command")
     @classmethod
     def validate_command_security(cls, v: str) -> str:
         if re.search(r"[;&|`$()]", v):
-            raise ValueError(
-                "Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked."
-            )
+            msg = "Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked."
+            raise ValueError(msg)
 
         try:
             parts = shlex.split(v)
             if not parts:
-                raise ValueError("Command cannot be empty")
+                msg = "Command cannot be empty"
+                raise ValueError(msg)
         except ValueError as e:
-            raise ValueError(f"Command string is invalid: {e}") from e
+            msg = f"Command string is invalid: {e}"
+            raise ValueError(msg) from e
         return v

@@ -22,9 +22,7 @@ class DFTFatalError(Exception):
 
 
 class QERunner:
-    def __init__(
-        self, config: DFTConfig, work_dir: Path, parser_class: type[BaseDFTParser] = QEOutputParser
-    ):
+    def __init__(self, config: DFTConfig, work_dir: Path, parser_class: type[BaseDFTParser] = QEOutputParser):
         """
         Args:
             config: DFT Configuration object.
@@ -56,7 +54,7 @@ class QERunner:
                 energy=0.0,
                 forces=[],
                 converged=False,
-                error_message=f"Input generation failed: {e}",
+                error_message=f"Input generation failed: {e}"
             )
 
         # 2. Run with Retries
@@ -72,9 +70,9 @@ class QERunner:
             success, error_msg = self._run_command(input_path, output_path)
 
             if success:
-                # 3. Parse Output
-                # Calculate walltime if possible, for now 0.0
-                return self._parse_output(output_path, uid, 0.0, params, atoms)
+                 # 3. Parse Output
+                 # Calculate walltime if possible, for now 0.0
+                 return self._parse_output(output_path, uid, 0.0, params, atoms)
 
             # Handle Failure
             logger.warning(f"DFT Attempt {attempt} failed: {error_msg}")
@@ -96,7 +94,7 @@ class QERunner:
                 self._write_input(atoms, input_path, params_override=params)
 
             except DFTRetriableError:
-                continue  # Retry with same params? No, that's infinite loop.
+                continue # Retry with same params? No, that's infinite loop.
                 # If get_strategy raises DFTRetriableError, it means we can't recover
                 break
             except Exception as e:
@@ -107,7 +105,7 @@ class QERunner:
             energy=0.0,
             forces=[],
             converged=False,
-            error_message=f"Failed after {attempt} attempts. Last error: {error_msg}",
+            error_message=f"Failed after {attempt} attempts. Last error: {error_msg}"
         )
 
     def _validate_command(self, command: str) -> list[str]:
@@ -116,32 +114,33 @@ class QERunner:
         """
         forbidden = [";", "&", "|", "`", "$", "(", ")"]
         if any(char in command for char in forbidden):
-            raise DFTFatalError("Command contains unsafe shell characters.")
+            msg = "Command contains unsafe shell characters."
+            raise DFTFatalError(msg)
 
         try:
             parts = shlex.split(command)
             if not parts:
-                raise DFTFatalError("Command is empty")
+                msg = "Command is empty"
+                raise DFTFatalError(msg)
             return parts
         except ValueError as e:
-            raise DFTFatalError(f"Invalid command string: {e}") from e
+            msg = f"Invalid command string: {e}"
+            raise DFTFatalError(msg) from e
 
     def _run_command(self, input_path: Path, output_path: Path) -> tuple[bool, str]:
         if not self.config.command:
-            return False, "Command is empty"
+             return False, "Command is empty"
 
         parts = self._validate_command(self.config.command)
         executable = parts[0]
 
         # Verify executable exists
         if not shutil.which(executable):
-            raise DFTFatalError(f"Executable '{executable}' not found in PATH.")
+            msg = f"Executable '{executable}' not found in PATH."
+            raise DFTFatalError(msg)
 
         # Prepare command
-        cmd = parts + [
-            "-in",
-            str(input_path.name),
-        ]  # standard QE usage often is `pw.x < pw.in > pw.out` or `pw.x -in pw.in`
+        cmd = parts + ["-in", str(input_path.name)] # standard QE usage often is `pw.x < pw.in > pw.out` or `pw.x -in pw.in`
         # But QE standard is often `pw.x -input pw.in` or stdin redirection.
         # Let's assume standard redirection logic is handled by caller or we use stdin/stdout
 
@@ -155,8 +154,8 @@ class QERunner:
                     stderr=subprocess.PIPE,
                     cwd=self.work_dir,
                     check=True,
-                    timeout=3600,  # 1 hour timeout hardcoded for now, or from config
-                    shell=False,  # SECURITY
+                    timeout=3600, # 1 hour timeout hardcoded for now, or from config
+                    shell=False # SECURITY
                 )
             return True, ""
         except subprocess.CalledProcessError as e:
@@ -175,22 +174,22 @@ class QERunner:
 
         # Helper to extract dict from params
         input_data = {
-            "control": {
-                "calculation": "scf",
-                "restart_mode": "from_scratch",
-                "pseudo_dir": str(self.config.pseudopotential_dir),
-                "outdir": "./",
-                "tprnfor": True,
-                "tstress": True,
+            'control': {
+                'calculation': 'scf',
+                'restart_mode': 'from_scratch',
+                'pseudo_dir': str(self.config.pseudopotential_dir),
+                'outdir': './',
+                'tprnfor': True,
+                'tstress': True,
             },
-            "system": {
-                "ecutwfc": params.get("ecutwfc", 60.0),
-                "smearing": params.get("smearing", "mv"),
-                "degauss": params.get("degauss", 0.02),
+            'system': {
+                'ecutwfc': params.get('ecutwfc', 60.0),
+                'smearing': params.get('smearing', 'mv'),
+                'degauss': params.get('degauss', 0.02),
             },
-            "electrons": {
-                "diagonalization": params.get("diagonalization", "david"),
-            },
+             'electrons': {
+                'diagonalization': params.get('diagonalization', 'david'),
+            }
         }
 
         # Add input_data to atoms object for ase.io.write
@@ -206,7 +205,7 @@ class QERunner:
             format="espresso-in",
             input_data=input_data,
             pseudopotentials=self.config.pseudopotentials,
-            kspacing=params.get("kspacing", 0.05),
+            kspacing=params.get('kspacing', 0.05),
         )
 
     def _stage_pseudos(self, work_dir: Path, atoms: Atoms):
@@ -214,7 +213,7 @@ class QERunner:
         Symlinks required pseudopotentials to the working directory.
         """
         if not self.config.pseudopotentials:
-            return
+             return
 
         symbols = set(atoms.get_chemical_symbols())
         for sym in symbols:

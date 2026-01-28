@@ -13,7 +13,10 @@ from mlip_autopipec.orchestration.workflow import WorkflowManager
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler("mlip_pipeline.log")],
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("mlip_pipeline.log")
+    ]
 )
 logger = logging.getLogger("mlip_app")
 
@@ -23,34 +26,23 @@ app = typer.Typer(
     add_completion=False,
 )
 
-
 @app.command()
 def run(
-    config: Annotated[
-        Path,
-        typer.Option(
-            "--config",
-            "-c",
-            help="Path to the configuration YAML file.",
-            exists=True,
-            dir_okay=False,
-            readable=True,
-        ),
-    ],
-    work_dir: Annotated[
-        Path,
-        typer.Option(
-            "--work-dir",
-            "-w",
-            help="Working directory for artifacts.",
-            file_okay=False,
-            writable=True,
-        ),
-    ] = Path("workspace"),
-    state: Annotated[
-        Path | None,
-        typer.Option("--state", "-s", help="Path to a workflow state file to resume from."),
-    ] = None,
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to the configuration YAML file.",
+        exists=True, dir_okay=False, readable=True
+    )],
+    work_dir: Annotated[Path, typer.Option(
+        "--work-dir", "-w",
+        help="Working directory for artifacts.",
+        file_okay=False,
+        writable=True
+    )] = Path("workspace"),
+    state: Annotated[Path | None, typer.Option(
+        "--state", "-s",
+        help="Path to a workflow state file to resume from."
+    )] = None,
 ):
     """
     Starts the automated active learning cycle.
@@ -61,7 +53,11 @@ def run(
         user_config = load_config(config, UserInputConfig)
 
         # Initialize Workflow Manager
-        manager = WorkflowManager(config=user_config, work_dir=work_dir, state_file=state)
+        manager = WorkflowManager(
+            config=user_config,
+            work_dir=work_dir,
+            state_file=state
+        )
 
         # Run Workflow
         logger.info("Starting Workflow...")
@@ -72,12 +68,13 @@ def run(
         logger.exception("Workflow failed.")
         raise typer.Exit(code=1)
 
-
 @app.command()
 def validate(
-    config: Annotated[
-        Path, typer.Option("--config", "-c", help="Path to configuration file", exists=True)
-    ],
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to configuration file",
+        exists=True
+    )],
     phonon: bool = typer.Option(False, help="Run phonon validation"),
     elastic: bool = typer.Option(False, help="Run elasticity validation"),
     eos: bool = typer.Option(False, help="Run EOS validation"),
@@ -91,11 +88,10 @@ def validate(
         logger.exception("Validation failed")
         raise typer.Exit(code=1)
 
-
 @app.command()
 def run_dft(
     config: Annotated[Path, typer.Option(help="Path to config file")],
-    structure: Annotated[Path, typer.Option(help="Path to structure file (.xyz, .cif)")],
+    structure: Annotated[Path, typer.Option(help="Path to structure file (.xyz, .cif)")]
 ):
     """
     Runs a single DFT calculation for a structure (Utility).
@@ -106,12 +102,13 @@ def run_dft(
         logger.exception("DFT Calculation failed")
         raise typer.Exit(code=1)
 
-
 @app.command()
 def run_cycle_02(
-    config: Annotated[
-        Path, typer.Option("--config", "-c", help="Path to configuration YAML", exists=True)
-    ],
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to configuration YAML",
+        exists=True
+    )],
 ):
     """
     Executes Cycle 02 Pipeline: Generation -> DFT -> DB -> Training (One-Shot).
@@ -121,7 +118,6 @@ def run_cycle_02(
     except Exception:
         logger.exception("Cycle 02 pipeline failed")
         raise typer.Exit(code=1)
-
 
 if __name__ == "__main__":
     app()
