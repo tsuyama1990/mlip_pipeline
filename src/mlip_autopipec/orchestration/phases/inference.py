@@ -53,6 +53,8 @@ class InferencePhase(BasePhase):
             runner: LammpsRunner | EONWrapper
             work_dir: Path
 
+            uid = f"inf_cycle_{self.manager.state.cycle_index}"
+
             if self.config.inference_config.active_engine == "eon":
                 if not self.config.inference_config.eon:
                     logger.error("EON engine selected but no EON config provided.")
@@ -63,7 +65,10 @@ class InferencePhase(BasePhase):
                 work_dir = self.manager.work_dir / INFERENCE_DIR_NAME
                 runner = LammpsRunner(self.config.inference_config, work_dir)
 
-            result = runner.run(start_atoms, potential_path)
+            if isinstance(runner, LammpsRunner):
+                result = runner.run(start_atoms, potential_path, uid)
+            else:
+                result = runner.run(start_atoms, potential_path)
 
             # 4. Check for Halt
             if result.uncertain_structures:
@@ -73,13 +78,20 @@ class InferencePhase(BasePhase):
                 candidates = processor.extract_candidates(result.uncertain_structures, start_atoms)
 
                 # Enrich metadata with generation
-                final_candidates = []
+                atoms_list = []
                 for atoms, meta in candidates:
                     meta["generation"] = self.manager.state.cycle_index
-                    final_candidates.append((atoms, meta))
+                    # We merge meta into atoms.info or handle in save_candidates
+                    # save_candidates usually takes list[Atoms] and kwargs
+                    atoms.info.update(meta)
+                    atoms_list.append(atoms)
 
-                if final_candidates:
-                    self.db.save_candidates(final_candidates)
+                if atoms_list:
+                    self.db.save_candidates(
+                        atoms_list,
+                        cycle_index=self.manager.state.cycle_index,
+                        method="active_learning_halt"
+                    )
                     return True
 
             logger.info("Inference finished without high uncertainty.")

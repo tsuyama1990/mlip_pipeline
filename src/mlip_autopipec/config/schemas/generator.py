@@ -64,6 +64,7 @@ class GeneratorConfig(BaseModel):
     number_of_structures: int = Field(
         default=10, description="Number of unique structures to generate per batch."
     )
+    batch_size: int = Field(default=100, gt=0, description="Batch size for processing/saving.")
     seed: int | None = Field(default=None, description="Random seed for deterministic generation.")
 
     model_config = ConfigDict(extra="forbid")

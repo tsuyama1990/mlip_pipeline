@@ -147,10 +147,10 @@ class CLIHandler:
         atoms.calc = calc
 
         # Run Validation
-        runner = ValidationRunner(config.validation_config)
+        runner = ValidationRunner(config.validation_config, work_dir=config.runtime.work_dir / "validation")
 
         with rich_console.status("[bold green]Running Physics Validation..."):
-            results = runner.run(atoms, modules)
+            results = runner.run(atoms, potential_path, modules)
 
         # Report Results
         table = Table(title=f"Validation Results ({primary})")
@@ -211,10 +211,10 @@ class CLIHandler:
             return
 
         with DatabaseManager(config.runtime.database_path) as db:
-            cm = CandidateManager(db)
             for atoms in structures_iter:
                 metadata = atoms.info.copy()
-                cm.create_candidate(atoms, metadata)
+                metadata["status"] = "pending"
+                db.add_structure(atoms, metadata)
                 count += 1
 
         console(f"Generated and saved {count} structures to {config.runtime.database_path}")
@@ -256,7 +256,7 @@ class CLIHandler:
                 from mlip_autopipec.training.dataset import DatasetBuilder
 
                 builder = DatasetBuilder(db)
-                builder.export(train_conf, work_dir)
+                builder.export(train_conf, str(work_dir / "training_data.xyz"))
                 console(f"Data preparation complete in {work_dir}")
                 return
 

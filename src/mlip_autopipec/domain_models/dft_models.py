@@ -45,7 +45,7 @@ class DFTResult(BaseModel):
     parameters: dict[str, Any]
     final_mixing_beta: float | None = None
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     @field_validator("forces")
     @classmethod

@@ -34,3 +34,4 @@ _work_dft/
 tmp/
 mlip_pipeline.log
 .coverage
+build/

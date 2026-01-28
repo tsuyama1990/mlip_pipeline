@@ -1,8 +1,10 @@
 import logging
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 from ase import Atoms
+from ase.io import write
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
@@ -51,9 +53,21 @@ class GammaSelectionStrategy(SelectionStrategy):
 
         # 1. Active Set Selection (Downsampling)
         try:
-            indices = self.pacemaker.select_active_set(candidates, potential_path)
-            selected_atoms = [candidates[i] for i in indices]
-            logger.info(f"Active Set Selection: Reduced {len(candidates)} -> {len(selected_atoms)}")
+            # pace_activeset expects a file path, not list of atoms
+            with tempfile.NamedTemporaryFile(suffix=".xyz", mode="w", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+                # ase.io.write handles list of atoms
+                # type: ignore
+                write(str(tmp_path), candidates)
+
+            try:
+                indices = self.pacemaker.select_active_set(tmp_path, potential_path)
+                selected_atoms = [candidates[i] for i in indices]
+                logger.info(f"Active Set Selection: Reduced {len(candidates)} -> {len(selected_atoms)}")
+            finally:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+
         except Exception:
             logger.exception("Active set selection failed. Falling back to all candidates.")
             return candidates
