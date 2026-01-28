@@ -18,6 +18,8 @@
 *   **DFT Automation:** Robust execution of Quantum Espresso calculations with error recovery.
 *   **Physics Validation:** Integrated suite for validating potentials against Phonons, Elastic Constants, and EOS (Equation of State).
 *   **Scalable Data Management:** SQLite-based storage with streaming support for large datasets.
+*   **Adaptive Exploration Policy:** Intelligent switching between Molecular Dynamics (MD) and Kinetic Monte Carlo (kMC/EON) based on learning progress.
+*   **Long-Timescale Dynamics:** Integration with EON for rare-event sampling and finding reaction barriers.
 *   **Surrogate Modeling:** Support for MACE and other surrogate models for pre-screening.
 *   **Safety & Security:** Input validation and secure execution of external commands.
 
@@ -50,7 +52,7 @@ pip install .
 Create a new project with a default configuration file:
 
 ```bash
-mlip-runner init
+mlip-auto init
 ```
 
 Edit `input.yaml` to match your system requirements (elements, composition, DFT settings).
@@ -60,7 +62,7 @@ Edit `input.yaml` to match your system requirements (elements, composition, DFT 
 Validate an existing potential:
 
 ```bash
-mlip-runner validate input.yaml --potential my_potential.yace --phonon --elastic --eos
+mlip-auto validate input.yaml --potential my_potential.yace --phonon --elastic --eos
 ```
 
 ### 3. Run Full Loop
@@ -68,7 +70,7 @@ mlip-runner validate input.yaml --potential my_potential.yace --phonon --elastic
 Execute the continuous active learning loop:
 
 ```bash
-mlip-runner run-loop input.yaml
+mlip-auto run-loop input.yaml
 ```
 
 ### 4. Run One-Shot Cycle
@@ -76,7 +78,7 @@ mlip-runner run-loop input.yaml
 Run a single generation cycle (Generation -> DFT -> Train):
 
 ```bash
-mlip-runner run-cycle-02 input.yaml
+mlip-auto run-cycle-02 input.yaml
 ```
 
 ## Architecture
@@ -86,8 +88,8 @@ src/mlip_autopipec/
 ├── config/           # Pydantic schemas and configuration loading
 ├── dft/              # DFT execution and parsing (Quantum Espresso)
 ├── domain_models/    # Core data models (Atoms, Results, State)
-├── generator/        # Structure generation (Random, SQS, Defects)
-├── inference/        # MD inference (LAMMPS, EON)
+├── generator/        # Structure generation and Adaptive Policy
+├── inference/        # Dynamics engine (LAMMPS, EON)
 ├── monitoring/       # Dashboard and metrics
 ├── orchestration/    # Workflow management and phases
 ├── surrogate/        # Surrogate models (MACE)
