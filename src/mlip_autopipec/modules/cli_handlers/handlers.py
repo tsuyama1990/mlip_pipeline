@@ -7,6 +7,8 @@ from pathlib import Path
 
 import typer
 import yaml
+from ase import Atoms
+from ase.io import read
 
 from mlip_autopipec.core.services import load_config
 from mlip_autopipec.dft.runner import QERunner
@@ -14,7 +16,6 @@ from mlip_autopipec.generator import StructureBuilder
 from mlip_autopipec.modules.training_orchestrator import TrainingManager
 from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.workflow import WorkflowManager
-from mlip_autopipec.surrogate.candidate_manager import CandidateManager
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.utils.config_utils import validate_path_safety
 
@@ -45,6 +46,12 @@ class CLIHandler:
                 "nspin": 2,
             },
             "runtime": {"database_path": "mlip.db", "work_dir": "_work"},
+            "validation_config": {
+                "phonon": {"enabled": True},
+                "elastic": {"enabled": True},
+                "eos": {"enabled": True},
+                "fail_on_instability": False
+            },
             "training_config": {
                 "cutoff": 5.0,
                 "b_basis_size": 300,
@@ -69,12 +76,14 @@ class CLIHandler:
 
     @staticmethod
     def run_physics_validation(
-        config_file: Path, phonon: bool = False, elastic: bool = False, eos: bool = False
+        config_file: Path,
+        potential: Path | None = None,
+        structure: Path | None = None,
+        phonon: bool = False,
+        elastic: bool = False,
+        eos: bool = False,
     ) -> None:
-        import shutil
-
         from ase.build import bulk
-        from ase.calculators.lammpsrun import LAMMPS
         from rich.console import Console
         from rich.table import Table
 
@@ -94,13 +103,14 @@ class CLIHandler:
             modules.append("eos")
 
         if not modules:
-            rich_console.print(
-                "[yellow]No validation modules selected. Use --phonon, --elastic, or --eos.[/yellow]"
-            )
-            return
+            # If no specific flags, run all enabled in config?
+            # Or assume the user wants default suite.
+            # Spec says "run the validation suite".
+            # If user provides flags, they select. If none, run all.
+            modules = ["phonon", "elastic", "eos"]
 
         # Locate Potential
-        potential_path = config.runtime.work_dir / "potentials" / "potential.yace"
+        potential_path = potential or config.runtime.work_dir / "potentials" / "potential.yace"
 
         if not potential_path.exists():
             # Fallback to local if explicit
@@ -109,51 +119,46 @@ class CLIHandler:
                 potential_path = local_pot
             else:
                 rich_console.print(
-                    f"[bold red]Error:[/bold red] Could not find potential at {potential_path} or potential.yace."
+                    f"[bold red]Error:[/bold red] Could not find potential at {potential_path}."
                 )
                 return
 
-        # Locate LAMMPS
-        cmd = "lmp"
-        if config.inference_config and config.inference_config.lammps_executable:
-            cmd = str(config.inference_config.lammps_executable)
-
-        # Check if cmd exists
-        if not shutil.which(cmd.split()[0]):
-            rich_console.print(
-                f"[bold red]Error:[/bold red] LAMMPS executable '{cmd}' not found in PATH."
-            )
-            return
-
         # Setup Structure
-        # Use primary element bulk for validation as a baseline
-        elements = config.target_system.elements
-        primary = elements[0]
-        try:
-            atoms = bulk(primary, crystalstructure=config.target_system.crystal_structure or "fcc")
-        except Exception:
-            atoms = bulk(primary)  # Fallback
-
-        # Setup Calculator
-        # Using pace pair style
-        calc = LAMMPS(
-            command=cmd,
-            specorder=elements,
-            pair_style="pace",
-            pair_coeff=[f"* * {potential_path.absolute()} {' '.join(elements)}"],
-            keep_tmp_files=False,
-            tmp_dir=config.runtime.work_dir / "tmp_validation",
-        )
-        atoms.calc = calc
+        if structure and structure.exists():
+            try:
+                atoms = read(structure)
+                # Handle list return
+                if isinstance(atoms, list):
+                    atoms = atoms[0]
+            except Exception as e:
+                rich_console.print(f"[bold red]Error:[/bold red] Failed to read structure: {e}")
+                return
+        else:
+            # Use primary element bulk for validation as a baseline
+            elements = config.target_system.elements
+            primary = elements[0]
+            try:
+                atoms = bulk(primary, crystalstructure=config.target_system.crystal_structure or "fcc")
+            except Exception:
+                atoms = bulk(primary)  # Fallback
 
         # Run Validation
         runner = ValidationRunner(config.validation_config, work_dir=config.runtime.work_dir / "validation")
 
+        rich_console.print(f"[bold]Validating potential:[/bold] {potential_path}")
+        rich_console.print(f"[bold]Structure:[/bold] {atoms.get_chemical_formula()}")
+
         with rich_console.status("[bold green]Running Physics Validation..."):
-            results = runner.run(atoms, potential_path, modules)
+            try:
+                results = runner.run(atoms, potential_path, modules)
+            except Exception as e:
+                rich_console.print(f"[bold red]Validation Execution Failed:[/bold red] {e}")
+                import traceback
+                traceback.print_exc()
+                return
 
         # Report Results
-        table = Table(title=f"Validation Results ({primary})")
+        table = Table(title="Validation Results")
         table.add_column("Module", style="cyan")
         table.add_column("Metric", style="magenta")
         table.add_column("Value")
@@ -180,6 +185,17 @@ class CLIHandler:
                 table.add_row(res.module, metric.name, val_str, status)
 
         rich_console.print(table)
+
+        # Determine global success
+        failed = any(not r.passed for r in results)
+        if failed and config.validation_config.fail_on_instability:
+             rich_console.print("[bold red]Validation FAILED (Instability Detected)[/bold red]")
+             raise typer.Exit(code=1)
+        if failed:
+             rich_console.print("[bold yellow]Validation Completed with Failures (Warning)[/bold yellow]")
+        else:
+             rich_console.print("[bold green]Validation PASSED[/bold green]")
+
 
     @staticmethod
     def validate_config(file: Path) -> None:
@@ -330,7 +346,6 @@ class CLIHandler:
 
     @staticmethod
     def run_dft_calc(config_file: Path, structure_path: Path) -> None:
-        from ase import Atoms
         from ase.io import read
 
         safe_config = validate_path_safety(config_file)

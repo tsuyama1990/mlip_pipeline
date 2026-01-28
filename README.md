@@ -14,6 +14,7 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
 - **Automated**: Handles the entire pipeline from active learning to potential fitting.
 - **Data Efficient**: Uses active learning to select only the most informative structures, reducing DFT costs.
 - **Robust**: Incorporates physical baselines (ZBL/LJ) and self-healing mechanisms.
+- **Physics-Aware**: Validates potentials against Phonon, Elastic, and EOS criteria.
 
 ## Features
 - **Active Learning Loop**: Autonomous cycle of Exploration (MD) -> Detection (Uncertainty) -> Selection (D-Optimality) -> Calculation (DFT) -> Refinement (Training).
@@ -24,14 +25,19 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
   - Hybrid/Overlay potentials (ACE + ZBL/LJ) for safety.
   - On-the-fly uncertainty monitoring (`compute pace`).
   - Automatic halting on high uncertainty.
+- **Physics Validation**:
+  - **Phonon**: Checks dynamical stability (imaginary frequencies).
+  - **Elastic**: Calculates stiffness matrix and checks mechanical stability.
+  - **EOS**: Fits Equation of State and checks thermodynamic behavior.
+  - **Reporting**: Generates HTML reports with Pass/Fail metrics.
 - **One-Shot Training**: Pipeline to generate, calculate, and train a potential in one go.
-- **CLI Commands**: Easy-to-use commands for initialization, DFT execution, and validation.
 
 ## Requirements
 - Python 3.11 or higher
 - Quantum Espresso (`pw.x`) installed and in PATH (for DFT calculations)
 - LAMMPS (`lmp` or similar) installed and in PATH (for MD simulations)
 - Pacemaker (`pacemaker`, `pace_activeset`) installed and in PATH (for training and selection)
+- Phonopy (for phonon validation)
 - `uv` package manager (recommended)
 
 ## Installation
@@ -57,18 +63,17 @@ Ensure your configuration is valid:
 uv run mlip-auto validate --config input.yaml
 ```
 
-### 3. Run DFT Calculation (Single Structure)
+### 3. Run Physics Validation
+Validate a potential against physical criteria:
+```bash
+uv run mlip-auto validate --config input.yaml --potential my_pot.yace --phonon --elastic --eos
+```
+
+### 4. Run DFT Calculation (Single Structure)
 Run a DFT calculation on a specific structure file (e.g., `.cif`, `.xyz`):
 ```bash
 uv run mlip-auto run-dft --config input.yaml --structure my_structure.cif
 ```
-
-### 4. Run One-Shot Training
-Execute the generation, calculation, and training pipeline:
-```bash
-uv run mlip-auto run-cycle-02 --config input.yaml
-```
-Use `--mock-dft` to simulate DFT calculations for testing or if `pw.x` is unavailable.
 
 ### 5. Run Active Learning Loop
 Execute the full autonomous active learning loop:
@@ -85,6 +90,7 @@ mlip_autopipec/
 ├── inference/     # Dynamics Engine (LAMMPS/EON) and Uncertainty
 ├── orchestration/ # Workflow management and active learning loop
 ├── surrogate/     # Candidate selection and active learning logic
+├── validation/    # Physics validation suite (Phonon, Elastic, EOS)
 ├── app.py         # CLI entry point
 └── ...
 ```

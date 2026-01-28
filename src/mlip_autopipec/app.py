@@ -103,6 +103,16 @@ def validate(
         help="Path to configuration file",
         exists=True
     )],
+    potential: Annotated[Path | None, typer.Option(
+        "--potential", "-p",
+        help="Override potential path",
+        exists=True
+    )] = None,
+    structure: Annotated[Path | None, typer.Option(
+        "--structure", "-s",
+        help="Override structure path",
+        exists=True
+    )] = None,
     phonon: bool = typer.Option(False, help="Run phonon validation"),
     elastic: bool = typer.Option(False, help="Run elasticity validation"),
     eos: bool = typer.Option(False, help="Run EOS validation"),
@@ -110,12 +120,20 @@ def validate(
     """
     Runs physics validation (Phonon, Elastic, EOS).
     If no flags are provided, validates the configuration file schema.
+    If flags OR potential/structure are provided, runs physics validation.
     """
     try:
-        if not (phonon or elastic or eos):
+        if not (phonon or elastic or eos or potential or structure):
             CLIHandler.validate_config(config)
         else:
-            CLIHandler.run_physics_validation(config, phonon=phonon, elastic=elastic, eos=eos)
+            CLIHandler.run_physics_validation(
+                config,
+                potential=potential,
+                structure=structure,
+                phonon=phonon,
+                elastic=elastic,
+                eos=eos
+            )
     except Exception:
         logger.exception("Validation failed")
         raise typer.Exit(code=1)
