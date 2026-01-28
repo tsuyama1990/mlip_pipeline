@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -146,5 +147,12 @@ class LammpsRunner:
              raise ValueError(msg)
 
         parts = shlex.split(exe_str)
+        executable = parts[0]
+
+        # Verify executable exists
+        if not shutil.which(executable):
+            msg = f"Executable '{executable}' not found in PATH."
+            raise ValueError(msg)
+
         parts.extend(["-in", f"{uid}.in", "-log", f"{uid}.log"])
         return parts

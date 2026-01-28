@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 from ase import Atoms
 
@@ -26,7 +26,8 @@ def test_gamma_selection_strategy():
     assert selected[0].get_chemical_symbols() == ["H"]
     assert selected[1].get_chemical_symbols() == ["Li"]
 
-    mock_pacemaker.select_active_set.assert_called_once_with(candidates, potential_path)
+    # The strategy writes candidates to a temp file and passes the path
+    mock_pacemaker.select_active_set.assert_called_once_with(ANY, potential_path)
 
 
 def test_gamma_selection_strategy_fallback():

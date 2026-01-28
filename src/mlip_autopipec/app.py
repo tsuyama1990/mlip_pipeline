@@ -11,12 +11,13 @@ from mlip_autopipec.modules.cli_handlers.handlers import CLIHandler
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 # Configure logging
+log_file = os.getenv("MLIP_LOG_FILE", "mlip_pipeline.log")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("mlip_pipeline.log")
+        logging.FileHandler(log_file)
     ]
 )
 logger = logging.getLogger("mlip_app")
