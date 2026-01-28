@@ -2,6 +2,7 @@
 Module for parsing Quantum Espresso output files.
 """
 
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,25 @@ from ase.io import read as ase_read
 from mlip_autopipec.domain_models.dft_models import DFTResult
 
 
-class QEOutputParser:
+class BaseDFTParser(ABC):
+    """
+    Abstract base class for DFT output parsers.
+    """
+
+    @abstractmethod
+    def parse(
+        self,
+        output_path: Path,
+        uid: str,
+        wall_time: float,
+        params: dict[str, Any],
+    ) -> DFTResult:
+        """
+        Parses the DFT output file into a `DFTResult` object.
+        """
+
+
+class QEOutputParser(BaseDFTParser):
     """
     Parses a Quantum Espresso output file into a `DFTResult` object.
     """
@@ -94,6 +113,7 @@ class QEOutputParser:
                 forces=forces,
                 stress=stress,
                 succeeded=True,
+                converged=True,
                 wall_time=wall_time,
                 parameters=params,
                 final_mixing_beta=final_beta,

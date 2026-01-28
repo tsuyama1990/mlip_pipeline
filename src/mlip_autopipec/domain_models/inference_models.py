@@ -41,11 +41,16 @@ class InferenceResult(BaseModel):
     """
     Result from an inference run (e.g. LAMMPS MD).
     """
-
+    uid: str = Field(..., description="Unique Identifier for the task")
     succeeded: bool = Field(..., description="Whether the simulation completed successfully")
+    error_message: str | None = Field(None, description="Error message if failed")
+
     max_gamma_observed: float = Field(
         0.0, description="Maximum extrapolation grade (gamma) observed"
     )
+    halted: bool = Field(False, description="Whether the simulation halted due to uncertainty")
+    halt_step: int | None = Field(None, description="Step at which simulation halted")
+
     uncertain_structures: list[Path] = Field(
         default_factory=list,
         description="List of paths to dump files containing uncertain structures",

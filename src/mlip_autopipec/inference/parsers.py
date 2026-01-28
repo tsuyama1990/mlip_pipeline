@@ -10,7 +10,7 @@ from pathlib import Path
 MAX_LOG_SIZE = 100 * 1024 * 1024
 
 
-class LogParser:
+class LammpsLogParser:
     """Parses LAMMPS log files."""
 
     @staticmethod

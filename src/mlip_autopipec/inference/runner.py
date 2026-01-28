@@ -7,7 +7,7 @@ from pathlib import Path
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.data_models.inference_models import InferenceResult
+from mlip_autopipec.domain_models.inference_models import InferenceResult
 from mlip_autopipec.inference.parsers import LammpsLogParser
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class LammpsRunner:
                 logger.warning(f"LAMMPS failed for {uid} with code {process.returncode}. Stderr: {stderr_content}")
                 return InferenceResult(
                     uid=uid,
-                    success=False,
+                    succeeded=False,
                     error_message=f"Process exited with code {process.returncode}"
                 )
 
@@ -79,15 +79,15 @@ class LammpsRunner:
 
             return InferenceResult(
                 uid=uid,
-                success=True,
-                max_gamma=max_gamma,
+                succeeded=True,
+                max_gamma_observed=max_gamma,
                 halted=halted,
                 halt_step=step
             )
 
         except Exception as e:
             logger.exception(f"Unexpected error in LammpsRunner for {uid}")
-            return InferenceResult(uid=uid, success=False, error_message=str(e))
+            return InferenceResult(uid=uid, succeeded=False, error_message=str(e))
 
     def _write_inputs(self, atoms: Atoms, potential_path: Path, uid: str) -> None:
         """Writes data file and input script."""
@@ -116,19 +116,21 @@ class LammpsRunner:
         timestep {self.config.timestep}
         fix 1 all nvt temp {self.config.temperature} {self.config.temperature} 0.1
 
-        run {self.config.n_steps}
+        run {self.config.steps}
         """
 
     def _build_command(self, uid: str) -> list[str]:
         """Builds the execution command."""
-        exe = self.config.lammps_command
+        exe = self.config.lammps_executable
         if not exe:
-            raise ValueError("LAMMPS command not configured")
+            raise ValueError("LAMMPS executable not configured")
+
+        exe_str = str(exe)
 
         # Security: basic validation
-        if ";" in exe or "|" in exe:
+        if ";" in exe_str or "|" in exe_str:
              raise ValueError("Unsafe characters in LAMMPS command")
 
-        parts = shlex.split(exe)
+        parts = shlex.split(exe_str)
         parts.extend(["-in", f"{uid}.in", "-log", f"{uid}.log"])
         return parts

@@ -2,10 +2,10 @@ from pathlib import Path
 
 import jinja2
 
-from mlip_autopipec.config.schemas.training import TrainConfig
+from mlip_autopipec.config.schemas.training import TrainingConfig
 
 
-class TrainConfigGenerator:
+class PacemakerConfigGenerator:
     """Generates Pacemaker configuration files."""
 
     def __init__(self, template_path: Path) -> None:
@@ -15,7 +15,7 @@ class TrainConfigGenerator:
             raise FileNotFoundError(msg)
 
     def generate(
-        self, config: TrainConfig, data_path: Path, output_path: Path, elements: list[str]
+        self, config: TrainingConfig, data_path: Path, output_path: Path, elements: list[str]
     ) -> Path:
         """
         Generates input.yaml for Pacemaker.

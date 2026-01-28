@@ -4,8 +4,8 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+from mlip_autopipec.domain_models.dft_models import DFTResult
 
 
 @pytest.fixture
@@ -103,9 +103,13 @@ def test_run_integration(mock_stage, mock_parse, mock_write, mock_run_cmd, mock_
 
     mock_run_cmd.return_value = (True, "")
     mock_parse.return_value = DFTResult(
+        uid="test_uid",
         energy=-10.0,
         forces=[[0.0, 0.0, 0.0]],
-        converged=True
+        converged=True,
+        succeeded=True,
+        wall_time=1.0,
+        parameters={}
     )
 
     result = runner.run(atoms)

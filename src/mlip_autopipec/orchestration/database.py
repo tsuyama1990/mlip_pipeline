@@ -6,15 +6,13 @@ from typing import Any
 
 import numpy as np
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from ase.db import connect
 
-from mlip_autopipec.config.schemas.core import SystemConfig
+from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.exceptions import DatabaseError
 
 logger = logging.getLogger(__name__)
-
-
-class DatabaseError(Exception):
-    """Custom exception for database operations."""
 
 
 class DatabaseManager:
@@ -34,6 +32,7 @@ class DatabaseManager:
         """Initializes the database connection."""
         try:
             self._connection = connect(str(self.db_path))
+            # Test connection
             self._connection.count()
         except Exception as e:
              logger.exception(f"Failed to initialize database at {self.db_path}")
@@ -43,6 +42,8 @@ class DatabaseManager:
         pass
 
     def __enter__(self):
+        if self._connection is None:
+            self._initialize()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -64,6 +65,8 @@ class DatabaseManager:
 
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any] | None = None) -> int:
         metadata = metadata or {}
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             self._validate_atoms(atoms)
             with self._lock:
@@ -74,6 +77,8 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to add structure: {e}") from e
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
@@ -81,6 +86,8 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to count rows: {e}") from e
 
     def update_status(self, row_id: int, status: str) -> None:
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             with self._lock:
                 self._connection.update(row_id, status=status)
@@ -89,6 +96,8 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to update status: {e}") from e
 
     def update_metadata(self, row_id: int, data: dict[str, Any]) -> None:
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             with self._lock:
                 self._connection.update(row_id, **data)
@@ -100,6 +109,8 @@ class DatabaseManager:
         """
         Streams atoms objects matching the selection.
         """
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             for row in self._connection.select(selection=selection, **kwargs):
                 at = row.toatoms()
@@ -116,6 +127,8 @@ class DatabaseManager:
         """
         Streams (id, Atoms) tuples.
         """
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             for row in self._connection.select(selection=selection, **kwargs):
                 at = row.toatoms()
@@ -132,6 +145,8 @@ class DatabaseManager:
 
     def save_candidates(self, candidates: list[Atoms], cycle_index: int, method: str) -> None:
         meta = {"cycle": cycle_index, "origin": method, "status": "candidate", "converged": False}
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             with self._lock:
                 for atoms in candidates:
@@ -146,20 +161,35 @@ class DatabaseManager:
             if not np.isfinite(result.energy):
                 raise ValueError("DFT Energy is not finite.")
 
+            # Store energy in info fallback
             atoms.info["energy"] = result.energy
 
+            forces = None
             if hasattr(result, "forces") and result.forces is not None:
-                f = np.array(result.forces)
-                if f.shape != (len(atoms), 3):
-                    raise ValueError(f"Forces shape mismatch: {f.shape} vs ({len(atoms)}, 3)")
-                atoms.new_array("forces", f)
+                forces = np.array(result.forces)
+                if forces.shape != (len(atoms), 3):
+                    raise ValueError(f"Forces shape mismatch: {forces.shape} vs ({len(atoms)}, 3)")
+                # atoms.new_array("forces", f) # This adds to arrays, but calc is better
 
+            stress = None
             if hasattr(result, "stress") and result.stress is not None:
-                s = np.array(result.stress)
-                atoms.info["stress"] = s
+                stress = np.array(result.stress)
+                atoms.info["stress"] = stress
+
+            # Attach SinglePointCalculator to properly save results
+            # Note: ASE SinglePointCalculator expects energy, forces, stress, magmoms
+            # Stress must be Voigt or full 3x3? SPC usually handles it.
+            calc = SinglePointCalculator(
+                atoms,
+                energy=result.energy,
+                forces=forces,
+                stress=stress
+            )
+            atoms.calc = calc
 
             meta = metadata.copy()
             meta["converged"] = result.converged
+
             if not result.converged:
                 meta["error"] = result.error_message
 
@@ -170,14 +200,19 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to save DFT result: {e}") from e
 
     def set_system_config(self, config: "SystemConfig") -> None:
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             with self._lock:
-                self._connection.metadata = config.model_dump()
+                # Use mode='json' to serialize Paths to strings
+                self._connection.metadata = config.model_dump(mode='json')
         except Exception as e:
             logger.exception("Failed to set system config")
             raise DatabaseError(f"Failed to set system config: {e}") from e
 
     def get_system_config(self) -> "SystemConfig":
+        if self._connection is None:
+             raise DatabaseError("Database not connected")
         try:
             return SystemConfig.model_validate(self._connection.metadata)
         except Exception as e:

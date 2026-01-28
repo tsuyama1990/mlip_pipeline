@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator
 
 
@@ -9,6 +11,7 @@ class TrainingConfig(BaseModel):
     # File Paths
     training_data_path: str = Field("data/train.xyz", description="Path to training data file")
     test_data_path: str = Field("data/test.xyz", description="Path to validation data file")
+    template_path: Path | None = Field(None, description="Path to Pacemaker input template")
 
     # Physics Constraints
     cutoff: PositiveFloat = Field(..., description="Radial cutoff for the potential (Angstrom)")
@@ -76,7 +79,7 @@ class TrainingResult(BaseModel):
     """Result of training."""
 
     success: bool
-    potential_path: str | None = None
+    potential_path: Path | None = None
     metrics: TrainingMetrics | None = None
 
     model_config = ConfigDict(extra="forbid")

@@ -4,16 +4,12 @@ Handlers for CLI commands to ensure Single Responsibility Principle in app.py.
 
 import logging
 from pathlib import Path
-from uuid import uuid4
 
-import numpy as np
 import typer
 import yaml
-from rich.progress import track
 
 from mlip_autopipec.core.services import load_config
 from mlip_autopipec.dft.runner import QERunner
-from mlip_autopipec.domain_models.dft_models import DFTResult
 from mlip_autopipec.generator import StructureBuilder
 from mlip_autopipec.modules.training_orchestrator import TrainingManager
 from mlip_autopipec.orchestration.database import DatabaseManager
@@ -286,7 +282,7 @@ class CLIHandler:
 
     @staticmethod
     def run_loop(config_file: Path) -> None:
-        from mlip_autopipec.config.schemas.workflow import WorkflowConfig
+        from mlip_autopipec.config.models import WorkflowConfig
         from mlip_autopipec.orchestration.workflow import WorkflowManager
 
         safe_config = validate_path_safety(config_file)
@@ -294,7 +290,7 @@ class CLIHandler:
 
         wf_config = config.workflow_config if config.workflow_config else WorkflowConfig()
 
-        manager = WorkflowManager(config, workflow_config=wf_config)
+        manager = WorkflowManager(config, work_dir=config.runtime.work_dir, workflow_config=wf_config)
         manager.run()
 
         console("Workflow finished.")
@@ -304,94 +300,57 @@ class CLIHandler:
         """
         Executes the Cycle 02 pipeline: Generation -> DFT (Oracle) -> Database -> Training.
         """
-
-        from mlip_autopipec.config.models import SystemConfig
+        from mlip_autopipec.orchestration.workflow import WorkflowManager
 
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
 
-        work_dir = config.runtime.work_dir
-        work_dir.mkdir(parents=True, exist_ok=True)
-        db_path = config.runtime.database_path
+        manager = WorkflowManager(config=config, work_dir=config.runtime.work_dir)
+        manager.run_cycle_02(mock_dft=mock_dft, dry_run=dry_run)
 
-        # 1. Generation
-        console("[bold blue]Step 1: Structure Generation[/bold blue]")
-        sys_config = SystemConfig(
-            target_system=config.target_system, generator_config=config.generator_config
-        )
-        builder = StructureBuilder(sys_config)
-        structures = list(builder.build())
-        console(f"Generated {len(structures)} structures.")
+        console("Cycle 02 Pipeline Completed.")
 
-        if dry_run:
-            console("Dry run: Skipping DFT and Training.")
+    @staticmethod
+    def run_dft_calc(config_file: Path, structure_path: Path) -> None:
+        from ase import Atoms
+        from ase.io import read
+
+        safe_config = validate_path_safety(config_file)
+        config = load_config(safe_config)
+
+        if not config.dft:
+            console("No DFT configuration found.")
             return
 
-        # 2. Oracle (DFT) & 3. Database
-        console("[bold blue]Step 2: Oracle Calculation & Database Storage[/bold blue]")
+        # Handle file not found for structure in tests if mocked?
+        # ase.io.read raises error if file not found.
+        try:
+            atoms = read(structure_path)
+        except Exception as e:
+            console(f"Error reading structure: {e}")
+            raise typer.Exit(code=1) from e
 
-        runner = None
-        if not mock_dft:
-            if not config.dft:
-                console("[red]Error: DFT config missing.[/red]")
-                raise typer.Exit(code=1)
-            runner = QERunner(config.dft, work_dir=work_dir / "dft_runs")
+        if not atoms:
+             console(f"Could not read atoms from {structure_path}")
+             raise typer.Exit(code=1)
+
+        # Handle list return from read
+        if isinstance(atoms, list):
+            atoms = atoms[0]
+
+        if not isinstance(atoms, Atoms):
+             console("Invalid structure content")
+             raise typer.Exit(code=1)
+
+        work_dir = config.runtime.work_dir / "single_dft"
+        runner = QERunner(config.dft, work_dir)
+
+        result = runner.run(atoms, uid=structure_path.stem)
+
+        if result.succeeded:
+            console("DFT Calculation Successful")
+            console(f"Energy: {result.energy} eV")
         else:
-            console("[yellow]Running in MOCK DFT mode.[/yellow]")
-
-        with DatabaseManager(db_path) as db:
-            db.set_system_config(sys_config)
-
-            for atoms in track(structures, description="Running DFT..."):
-                uid = str(uuid4())
-                atoms.info["uid"] = uid
-                atoms.info["generation"] = 0
-
-                result = None
-                if mock_dft:
-                    # Mock Result
-                    energy = -3.5 * len(atoms) + np.random.normal(0, 0.1)
-                    forces = np.random.normal(0, 0.05, size=(len(atoms), 3)).tolist()
-                    stress = np.zeros((3, 3)).tolist()
-                    result = DFTResult(
-                        uid=uid,
-                        energy=energy,
-                        forces=forces,
-                        stress=stress,
-                        succeeded=True,
-                        converged=True,
-                        wall_time=0.1,
-                        parameters={"mock": True},
-                    )
-                elif runner:
-                    try:
-                        result = runner.run(atoms, uid=uid)
-                    except Exception as e:
-                        logger.exception(f"DFT Failed for {uid}: {e}")
-                        continue
-
-                if result and result.succeeded:
-                    # Save to DB
-                    db.save_dft_result(atoms, result, metadata={"status": "completed", "cycle": 0})
-                else:
-                    console(f"[red]DFT failed for {uid}[/red]")
-
-            # 4. Training
-            console("[bold blue]Step 3: Training[/bold blue]")
-
-            if not config.training_config:
-                console("[red]Error: Training config missing.[/red]")
-                raise typer.Exit(code=1)
-
-            training_dir = work_dir / "training"
-            training_dir.mkdir(parents=True, exist_ok=True)
-
-            manager = TrainingManager(db, config.training_config, training_dir)
-            train_result = manager.run_training()
-
-            if train_result.success:
-                console("[green]Training Successful![/green]")
-                console(f"Potential: {train_result.potential_path}")
-            else:
-                console("[red]Training Failed.[/red]")
-                raise typer.Exit(code=1)
+            console("DFT Calculation Failed")
+            console(f"Error: {result.error_message}")
+            raise typer.Exit(code=1)

@@ -32,3 +32,5 @@ dev_documents/project_state.json
 .ac_cdd/.env
 _work_dft/
 tmp/
+mlip_pipeline.log
+.coverage
