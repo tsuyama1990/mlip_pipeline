@@ -45,6 +45,12 @@ class DefectStrategy:
         if not self.config.enabled:
             return structures
 
+        # Validate input structures
+        for s in structures:
+            if not isinstance(s, Atoms):
+                msg = f"Input structure is not an Atoms object: {type(s)}"
+                raise TypeError(msg)
+
         new_structures = list(structures)
 
         # Determine interstitial elements
@@ -78,6 +84,10 @@ class DefectStrategy:
         Returns:
             list[Atoms]: List of structures with vacancies.
         """
+        if not isinstance(atoms, Atoms):
+            msg = f"Input structure is not an Atoms object: {type(atoms)}"
+            raise TypeError(msg)
+
         results = []
         n_atoms = len(atoms)
         if n_atoms <= count:
@@ -141,6 +151,10 @@ class DefectStrategy:
         Returns:
             list[Atoms]: List of structures with an interstitial atom inserted.
         """
+        if not isinstance(atoms, Atoms):
+            msg = f"Input structure is not an Atoms object: {type(atoms)}"
+            raise TypeError(msg)
+
         results = []
         try:
             # Let's try Voronoi if enough points, otherwise fallback

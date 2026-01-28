@@ -1,212 +1,123 @@
-"""
-Main CLI application for MLIP-AutoPipe.
-
-This module provides the command-line interface using `typer`.
-It acts as a facade, delegating business logic to handlers.
-"""
-
 import logging
 from pathlib import Path
+from typing import Annotated
 
 import typer
-from pydantic import ValidationError
-from rich.console import Console
 
-from mlip_autopipec.config.loaders.yaml_loader import load_dft_config_helper
+from mlip_autopipec.config.loaders.yaml_loader import load_config
+from mlip_autopipec.config.schemas.core import UserInputConfig
 from mlip_autopipec.modules.cli_handlers.handlers import CLIHandler
-from mlip_autopipec.utils.logging import setup_logging
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 
-app = typer.Typer(help="MLIP-AutoPipe: Zero-Human Machine Learning Interatomic Potentials")
-db_app = typer.Typer(help="Database management commands")
-run_app = typer.Typer(help="Execution commands")
-app.add_typer(db_app, name="db")
-app.add_typer(run_app, name="run")
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("mlip_pipeline.log")
+    ]
+)
+logger = logging.getLogger("mlip_app")
 
-console = Console()
-logger = logging.getLogger("mlip_autopipec")
-
+app = typer.Typer(
+    name="mlip-auto",
+    help="Automated Machine Learning Interatomic Potential Creation (Cycle 02)",
+    add_completion=False,
+)
 
 @app.command()
-def init() -> None:
-    """Initialize a new project with a template configuration file."""
+def run(
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to the configuration YAML file.",
+        exists=True, dir_okay=False, readable=True
+    )],
+    work_dir: Annotated[Path, typer.Option(
+        "--work-dir", "-w",
+        help="Working directory for artifacts.",
+        file_okay=False,
+        writable=True
+    )] = Path("workspace"),
+    state: Annotated[Path | None, typer.Option(
+        "--state", "-s",
+        help="Path to a workflow state file to resume from."
+    )] = None,
+):
+    """
+    Starts the automated active learning cycle.
+    """
     try:
-        CLIHandler.init_project()
-    except Exception as e:
-        console.print(f"[bold red]Init Failed:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
+        # Load Configuration
+        logger.info(f"Loading configuration from {config}")
+        user_config = load_config(config, UserInputConfig)
 
+        # Initialize Workflow Manager
+        manager = WorkflowManager(
+            config=user_config,
+            work_dir=work_dir,
+            state_file=state
+        )
 
-@app.command(name="validate")
+        # Run Workflow
+        logger.info("Starting Workflow...")
+        manager.run()
+        logger.info("Workflow Completed Successfully.")
+
+    except Exception:
+        logger.exception("Workflow failed.")
+        raise typer.Exit(code=1)
+
+@app.command()
 def validate(
-    file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),  # noqa: B008
-    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),
-    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),
-    eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),
-) -> None:
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to configuration file",
+        exists=True
+    )],
+    phonon: bool = typer.Option(False, help="Run phonon validation"),
+    elastic: bool = typer.Option(False, help="Run elasticity validation"),
+    eos: bool = typer.Option(False, help="Run EOS validation"),
+):
     """
-    Validate configuration or run physics checks on the trained potential.
-    Default: Validate config.
-    With flags: Run specified physics validation (requires trained potential).
+    Runs physics validation (Phonon, Elastic, EOS).
     """
-    setup_logging()
     try:
-        if phonon or elastic or eos:
-            CLIHandler.run_physics_validation(file, phonon=phonon, elastic=elastic, eos=eos)
-        else:
-            CLIHandler.validate_config(file)
-    except ValidationError as e:
-        console.print("[bold red]Validation Error:[/bold red]")
-        console.print(str(e))
-        raise typer.Exit(code=1) from e
-    except Exception as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-
+        CLIHandler.run_physics_validation(config, phonon, elastic, eos)
+    except Exception:
+        logger.exception("Validation failed")
+        raise typer.Exit(code=1)
 
 @app.command()
-def generate(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
-) -> None:
-    """Generate initial training structures."""
-    setup_logging()
-    try:
-        CLIHandler.generate_structures(config_file, dry_run)
-    except Exception as e:
-        console.print(f"[bold red]Generation Failed:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-
-
-@app.command()
-def select(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    n_samples: int = typer.Option(
-        None, "--n", help="Number of samples to select (overrides config)"
-    ),
-    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
-) -> None:
-    """Select diverse candidates using a surrogate model."""
-    setup_logging()
-    try:
-        CLIHandler.select_candidates(config_file, n_samples, model_type)
-    except Exception as e:
-        console.print(f"[bold red]Selection Failed:[/bold red] {e}")
-        logger.exception("Selection failed")
-        raise typer.Exit(code=1) from e
-
-
-@app.command()
-def train(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    prepare_only: bool = typer.Option(
-        False, "--prepare-only", help="Only prepare data, do not train"
-    ),
-) -> None:
-    """Train a potential using Pacemaker."""
-    setup_logging()
-    try:
-        CLIHandler.train_potential(config_file, prepare_only)
-    except Exception as e:
-        console.print(f"[bold red]Training Failed:[/bold red] {e}")
-        logger.exception("Training failed")
-        raise typer.Exit(code=1) from e
-
-
-@db_app.command(name="init")
-def db_init(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Path to config file"
-    ),
-) -> None:
-    """Initialize the database based on the configuration."""
-    setup_logging()
-    try:
-        CLIHandler.init_db(config_file)
-    except Exception as e:
-        console.print(f"[bold red]Database Error:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-
-
-@run_app.command(name="loop")
-def run_loop(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-) -> None:
-    """Run the full autonomous loop (Generation -> DFT -> Training -> Inference)."""
-    setup_logging()
-    try:
-        CLIHandler.run_loop(config_file)
-    except Exception as e:
-        console.print(f"[bold red]Workflow Failed:[/bold red] {e}")
-        logger.exception("Workflow failed")
-        raise typer.Exit(code=1) from e
-
-
-def _handle_error(msg: str) -> None:
-    """Helper to print error and exit, abstracting raise."""
-    console.print(f"[bold red]Error:[/bold red] {msg}")
-    raise typer.Exit(code=1)
-
-
-@app.command(name="run-dft")
 def run_dft(
-    config_path: Path = typer.Option(..., "--config", "-c", help="Path to DFT configuration YAML"),  # noqa: B008
-    structure_path: Path = typer.Option(  # noqa: B008
-        ..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"
-    ),
-    work_dir: Path = typer.Option(None, "--work-dir", "-w", help="Override working directory"),  # noqa: B008
-) -> None:
-    """Run a DFT calculation on a single structure."""
+    config: Annotated[Path, typer.Option(help="Path to config file")],
+    structure: Annotated[Path, typer.Option(help="Path to structure file (.xyz, .cif)")]
+):
+    """
+    Runs a single DFT calculation for a structure (Utility).
+    """
     try:
-        from ase import Atoms
+        CLIHandler.run_dft_calc(config, structure)
+    except Exception:
+        logger.exception("DFT Calculation failed")
+        raise typer.Exit(code=1)
 
-        from mlip_autopipec.dft.runner import QERunner
-
-        console.print(f"Loading config from {config_path}...")
-        config, config_work_dir = load_dft_config_helper(config_path)
-
-        # Determine actual work dir
-        base_work_dir = work_dir if work_dir else config_work_dir
-
-        console.print(f"Loading structure from {structure_path}...")
-        from ase.io import read
-
-        # type: ignore[no-untyped-call]
-        atoms_read = read(structure_path)
-
-        atoms = atoms_read[0] if isinstance(atoms_read, list) else atoms_read
-
-        if not isinstance(atoms, Atoms):
-            _handle_error("Invalid structure file.")
-
-        # Ensure unique work dir for structure
-        run_work_dir = base_work_dir / structure_path.stem
-        runner = QERunner(config=config, work_dir=run_work_dir)
-
-        console.print(f"Running DFT calculation in {run_work_dir}...")
-        result = runner.run(atoms)
-
-        if result.converged:
-            console.print("[bold green]DFT Calculation Successful![/bold green]")
-            console.print(f"Energy: {result.energy} eV")
-            forces = result.forces
-            max_f = max(max(abs(f) for f in force) for force in forces) if forces else 0.0
-            console.print(f"Max Force Component: {max_f} eV/A")
-        else:
-            console.print("[bold red]DFT Calculation Failed.[/bold red]")
-            _handle_error(f"Error: {result.error_message}")
-
-    except Exception as e:
-        console.print(f"[bold red]An error occurred:[/bold red] {e}")
-        raise typer.Exit(code=1) from e
-
+@app.command()
+def run_cycle_02(
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to configuration YAML",
+        exists=True
+    )],
+):
+    """
+    Executes Cycle 02 Pipeline: Generation -> DFT -> DB -> Training (One-Shot).
+    """
+    try:
+        CLIHandler.run_cycle_02(config)
+    except Exception:
+        logger.exception("Cycle 02 pipeline failed")
+        raise typer.Exit(code=1)
 
 if __name__ == "__main__":
     app()

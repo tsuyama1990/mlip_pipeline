@@ -18,6 +18,8 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
 ## Features
 - **Core Framework**: Robust configuration management and CLI.
 - **DFT Oracle**: Automated interface to Quantum Espresso with error recovery.
+- **Structure Generation**: Physics-informed generator (SQS, defects, distortions).
+- **One-Shot Training**: Pipeline to generate, calculate, and train a potential in one go.
 - **CLI Commands**: Easy-to-use commands for initialization, DFT execution, and validation.
 
 ## Requirements
@@ -54,7 +56,14 @@ Run a DFT calculation on a specific structure file (e.g., `.cif`, `.xyz`):
 uv run mlip-auto run-dft --config input.yaml --structure my_structure.cif
 ```
 
-### 4. Run Full Loop (Coming Soon)
+### 4. Run One-Shot Training
+Execute the generation, calculation, and training pipeline:
+```bash
+uv run mlip-auto run cycle-02 --config input.yaml
+```
+Use `--mock-dft` to simulate DFT calculations for testing or if `pw.x` is unavailable.
+
+### 5. Run Full Loop
 ```bash
 uv run mlip-auto run loop --config input.yaml
 ```

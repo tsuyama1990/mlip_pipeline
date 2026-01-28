@@ -33,10 +33,17 @@ def test_ase_atoms_duck_typing():
         def __len__(self) -> int:
             return 1
 
-        def get_positions(self): return self.positions
-        def get_cell(self): return self.cell
-        def get_atomic_numbers(self): return self.numbers
-        def get_pbc(self): return self.pbc
+        def get_positions(self):
+            return self.positions
+
+        def get_cell(self):
+            return self.cell
+
+        def get_atomic_numbers(self):
+            return self.numbers
+
+        def get_pbc(self):
+            return self.pbc
 
     mock = MockAtoms()
     ta = TypeAdapter(ASEAtoms)
@@ -52,7 +59,7 @@ def test_ase_atoms_shape_mismatch():
 
         @property
         def positions(self):
-            return np.array([[0, 0, 0], [1, 1, 1]]) # 2 atoms
+            return np.array([[0, 0, 0], [1, 1, 1]])  # 2 atoms
 
         @property
         def cell(self):
@@ -60,15 +67,22 @@ def test_ase_atoms_shape_mismatch():
 
         @property
         def numbers(self):
-            return [1] # 1 atom - mismatch
+            return [1]  # 1 atom - mismatch
 
         def __len__(self) -> int:
             return 1
 
-        def get_positions(self): return self.positions
-        def get_cell(self): return self.cell
-        def get_atomic_numbers(self): return self.numbers
-        def get_pbc(self): return [True]*3
+        def get_positions(self):
+            return self.positions
+
+        def get_cell(self):
+            return self.cell
+
+        def get_atomic_numbers(self):
+            return self.numbers
+
+        def get_pbc(self):
+            return [True] * 3
 
     ta = TypeAdapter(ASEAtoms)
     # The validator raises ValueError wrapped in ValidationError
