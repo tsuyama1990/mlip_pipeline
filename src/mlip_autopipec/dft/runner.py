@@ -184,7 +184,7 @@ class QERunner:
                     check=True,
                     timeout=self.config.timeout,
                     shell=False # SECURITY
-                ) # noqa: S603
+                )
             return True, ""
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if e.stderr else "Unknown error"
