@@ -1,11 +1,13 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
+
+import pytest
 from ase import Atoms
-from mlip_autopipec.orchestration.phases.validation import ValidationPhase
+
+from mlip_autopipec.config.schemas.validation import ValidationConfig
 from mlip_autopipec.domain_models.state import WorkflowState
 from mlip_autopipec.domain_models.validation import ValidationResult
-from mlip_autopipec.config.schemas.validation import ValidationConfig
+from mlip_autopipec.orchestration.phases.validation import ValidationPhase
+
 
 @pytest.fixture
 def mock_manager(tmp_path):

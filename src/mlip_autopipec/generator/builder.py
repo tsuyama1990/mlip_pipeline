@@ -1,4 +1,5 @@
 import logging
+import uuid
 from collections.abc import Generator
 
 import numpy as np
@@ -25,6 +26,8 @@ class StructureBuilder:
         """
         Generates structures.
         """
+        rng = np.random.default_rng(self.config.seed)
+
         logger.info("Building base structures...")
 
         generated_count = 0
@@ -52,6 +55,7 @@ class StructureBuilder:
 
         # Yield base
         base_atoms.info["config_type"] = "base"
+        base_atoms.info["uuid"] = str(uuid.uuid4())
 
         if self._validate(base_atoms):
             yield base_atoms
@@ -66,14 +70,14 @@ class StructureBuilder:
             strains = np.linspace(dist_conf.strain_range[0], dist_conf.strain_range[1], dist_conf.n_strain_steps)
 
             for eps in strains:
-                if abs(eps) < 1e-6:
-                    continue
-
                 strain_tensor = np.eye(3) * eps
                 try:
                     strained = apply_strain(base_atoms, strain_tensor)
                     strained.info["config_type"] = "strain_vol"
-                    if self._validate(strained):
+                    strained.info["uuid"] = str(uuid.uuid4())
+
+                    # Only yield pure strain if it is non-zero (avoid duplicating base)
+                    if abs(eps) >= 1e-6 and self._validate(strained):
                         yield strained
                         generated_count += 1
 
@@ -82,7 +86,8 @@ class StructureBuilder:
 
                     if dist_conf.rattle_stdev > 0:
                         for _ in range(dist_conf.n_rattle_steps):
-                            rattled = apply_rattle(strained, dist_conf.rattle_stdev)
+                            rattled = apply_rattle(strained, dist_conf.rattle_stdev, rng=rng)
+                            rattled.info["uuid"] = str(uuid.uuid4())
                             if self._validate(rattled):
                                 yield rattled
                                 generated_count += 1
@@ -100,6 +105,7 @@ class StructureBuilder:
             # We skip the first one if it's just the base (depends on impl).
             # Usually apply returns list of modified structures.
             for atoms in defect_structures:
+                atoms.info["uuid"] = str(uuid.uuid4())
                 if self._validate(atoms):
                     yield atoms
                     generated_count += 1
