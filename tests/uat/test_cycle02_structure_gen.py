@@ -2,7 +2,12 @@ import numpy as np
 
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
-from mlip_autopipec.config.schemas.generator import DefectConfig, DistortionConfig, GeneratorConfig
+from mlip_autopipec.config.schemas.generator import (
+    DefectConfig,
+    DistortionConfig,
+    GeneratorConfig,
+    SQSConfig,
+)
 from mlip_autopipec.generator.builder import StructureBuilder
 
 
@@ -17,7 +22,7 @@ def test_scenario_02_01_bulk_generation() -> None:
 
     # Enable SQS to get supercell, even for pure element
     gen_config = GeneratorConfig(
-        sqs={"enabled": True, "supercell_size": [2, 2, 2]},
+        sqs=SQSConfig(enabled=True, supercell_size=[2, 2, 2]),
         distortion=DistortionConfig(
             enabled=True,
             rattle_stdev=0.1,
@@ -54,8 +59,8 @@ def test_scenario_02_02_defect_introduction() -> None:
 
     # Enable SQS to get supercell of 8 atoms (2x2x2 primitive)
     gen_config = GeneratorConfig(
-        sqs={"enabled": True, "supercell_size": [2, 2, 2]},
-        distortion={"enabled": False},
+        sqs=SQSConfig(enabled=True, supercell_size=[2, 2, 2]),
+        distortion=DistortionConfig(enabled=False),
         defects=DefectConfig(enabled=True, vacancies=True, interstitials=False),
         number_of_structures=10,
         seed=123,
@@ -86,7 +91,7 @@ def test_scenario_02_03_reproducibility() -> None:
     )
 
     gen_config = GeneratorConfig(
-        sqs={"enabled": True, "supercell_size": [2, 2, 2]},
+        sqs=SQSConfig(enabled=True, supercell_size=[2, 2, 2]),
         distortion=DistortionConfig(enabled=True, rattle_stdev=0.05),
         number_of_structures=5,
         seed=42,

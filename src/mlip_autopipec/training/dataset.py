@@ -8,6 +8,7 @@ import random
 from collections.abc import Iterable
 from pathlib import Path
 
+import numpy as np
 from ase import Atoms
 from ase.io import write
 
@@ -51,7 +52,9 @@ class DatasetBuilder:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            write(str(output_path), atoms_iterable, format="extxyz")
+            with output_path.open("w") as f:
+                for atoms in atoms_iterable:
+                    write(f, atoms, format="extxyz")
         except Exception as e:
             logger.exception(f"Failed to export atoms to {output_path}: {e}")
             raise
@@ -96,6 +99,10 @@ class DatasetBuilder:
             with train_path.open("w") as f_train, test_path.open("w") as f_test:
                 # Streaming from DB generator
                 for atoms in self.db_manager.select(selection=query):
+                    # Fix stress if it is a list (retrieved from JSON data)
+                    if "stress" in atoms.info and isinstance(atoms.info["stress"], list):
+                        atoms.info["stress"] = np.array(atoms.info["stress"])
+
                     count += 1
                     if rng.random() < DEFAULT_VALIDATION_RATIO:
                         write(f_test, atoms, format="extxyz")

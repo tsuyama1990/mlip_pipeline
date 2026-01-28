@@ -149,6 +149,28 @@ def run_loop(
         raise typer.Exit(code=1) from e
 
 
+@run_app.command(name="cycle-02")
+def run_cycle_02(
+    config_file: Path = typer.Option(  # noqa: B008
+        Path("input.yaml"), "--config", "-c", help="Config file"
+    ),
+    mock_dft: bool = typer.Option(
+        True, "--mock-dft/--real-dft", help="Use mock DFT (random numbers) or real QERunner"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Dry run (only generation)"
+    ),
+) -> None:
+    """Run Cycle 02: One-Shot Pipeline (Gen -> DFT -> Train)."""
+    setup_logging()
+    try:
+        CLIHandler.run_cycle_02(config_file, mock_dft=mock_dft, dry_run=dry_run)
+    except Exception as e:
+        console.print(f"[bold red]Cycle 02 Failed:[/bold red] {e}")
+        logger.exception("Cycle 02 failed")
+        raise typer.Exit(code=1) from e
+
+
 def _handle_error(msg: str) -> None:
     """Helper to print error and exit, abstracting raise."""
     console.print(f"[bold red]Error:[/bold red] {msg}")

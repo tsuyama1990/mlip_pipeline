@@ -54,7 +54,9 @@ class PacemakerWrapper:
             output_path.unlink()
 
         try:
-            write(str(output_path), data_stream, format="extxyz")
+            with output_path.open("w") as f:
+                for atoms in data_stream:
+                    write(f, atoms, format="extxyz")
         except Exception as e:
             logger.exception(f"Failed to stream write data to {output_path}: {e}")
             raise

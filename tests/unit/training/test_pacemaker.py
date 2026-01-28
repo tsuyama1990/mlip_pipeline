@@ -18,7 +18,7 @@ def training_config() -> TrainingConfig:
         kappa=0.4,
         kappa_f=0.6,
         batch_size=32,
-        max_num_epochs=100,
+        max_iter=100,  # Use alias to satisfy strict mypy
         ladder_step=[10, 50],
     )
 

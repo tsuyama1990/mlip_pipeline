@@ -6,21 +6,22 @@ Cycle 02 expands the system to include the "Structure Generator" and "Trainer" m
 
 ## 2. System Architecture
 
-Files to be added/modified (in bold):
+Files added/modified (reflecting current codebase):
 
 ```ascii
 mlip_autopipec/
 ├── config/
 │   └── schemas/
-│       ├── **generator.py**   # Structure generation settings
-│       └── **training.py**    # Pacemaker settings
-├── **generator/**
-│   ├── **__init__.py**
-│   └── **structure.py**       # StructureGenerator class
-├── **trainer/**
-│   ├── **__init__.py**
-│   ├── **pacemaker.py**       # PacemakerWrapper class
-│   └── **database.py**        # DatabaseManager class
+│       ├── generator.py       # Structure generation settings
+│       └── training.py        # Pacemaker settings
+├── generator/
+│   ├── __init__.py
+│   └── builder.py             # StructureBuilder class (replaces StructureGenerator)
+├── training/
+│   ├── __init__.py
+│   └── pacemaker.py           # PacemakerWrapper class
+├── orchestration/
+│   └── database.py            # DatabaseManager class (centralized location)
 └── app.py
 ```
 
@@ -28,61 +29,64 @@ mlip_autopipec/
 
 ### 3.1 Structure Generator
 
-**`StructureGenerator` (in `generator/structure.py`)**
--   **Responsibilities**: create atomic structures for the initial training set.
+**`StructureBuilder` (in `generator/builder.py`)**
+-   **Responsibilities**: create atomic structures for the initial training set using various strategies (SQS, Distortions, Defects).
 -   **Methods**:
-    -   `generate_initial_set(element: str, count: int) -> List[Atoms]`: Creates randomized dimers, trimers, and bulk unit cells with random perturbations (Rattling) to cover basic phase space.
+    -   `build() -> Iterator[Atoms]`: Orchestrates the generation pipeline (Base -> Distortions -> Defects).
 
 ### 3.2 Database Manager
 
-**`DatabaseManager` (in `trainer/database.py`)**
--   **Responsibilities**: Persistence of training data.
+**`DatabaseManager` (in `orchestration/database.py`)**
+-   **Responsibilities**: Persistence of training data and DFT results.
 -   **Design**:
-    -   Stores data as a compressed Pickle file (`.pckl.gzip`) compatible with Pacemaker, or an ASE database (`.db`).
-    -   Ensures no duplicate structures (basic fingerprinting).
-    -   Validates data integrity (no NaNs in forces) before saving.
+    -   Wraps `ase.db` (SQLite) for storing atomic structures and metadata.
+    -   Ensures type safety and data integrity (no NaNs).
+    -   Thread-safe context manager.
 
 ### 3.3 Trainer (Pacemaker Wrapper)
 
-**`PacemakerWrapper` (in `trainer/pacemaker.py`)**
--   **Responsibilities**: Interface with the `pacemaker` Python package or CLI.
+**`PacemakerWrapper` (in `training/pacemaker.py`)**
+-   **Responsibilities**: Interface with the `pacemaker` CLI.
 -   **Methods**:
-    -   `train(dataset_path: Path, config: TrainingConfig) -> Path`: Executes `pace_train`.
-    -   It must automatically generate the `input.yaml` required by Pacemaker based on `TrainingConfig`.
+    -   `train(initial_potential: Path | None) -> TrainingResult`: Executes `pacemaker` training command.
+    -   `generate_config() -> Path`: Automatically generates `input.yaml` from `TrainingConfig`.
 
 ### 3.4 Configuration
 
-**`TrainingConfig` (in `schemas/training.py`)**
--   Fields: `cutoff`, `order` (ACE order), `batch_size`, `max_epochs`.
+**`TrainingConfig` (in `config/schemas/training.py`)**
+-   Fields: `cutoff`, `b_basis_size`, `kappa`, `kappa_f`, `max_iter`, `batch_size`.
 
 ## 4. Implementation Approach
 
 1.  **Structure Generator**:
-    -   Implement logic to generate `ase.Atoms`. Use `ase.build.bulk` and `ase.Atoms(positions=...)` for clusters.
-    -   Apply random thermal noise (displacement) to create variety.
+    -   Use `StructureBuilder` to generate `ase.Atoms` based on `SystemConfig`.
+    -   Leverage `SQSStrategy`, `DistortionStrategy`, and `DefectStrategy`.
 
 2.  **Database Manager**:
-    -   Implement `save_dataset(atoms_list: List[Atoms], path: Path)`.
-    -   Implement `load_dataset(path: Path) -> List[Atoms]`.
+    -   Use `DatabaseManager` to store generated structures and subsequent DFT results.
+    -   Implement `save_dft_result(atoms, result, metadata)`.
 
 3.  **Pacemaker Integration**:
-    -   Since Pacemaker is executed via CLI tools (`pace_train`), use `subprocess` or direct library calls if available and stable.
-    -   Ensure the `potential.yace` file is correctly located after training.
+    -   Use `PacemakerWrapper` to execute training.
+    -   Ensure `pacemaker` binary is called safely via `subprocess`.
 
 4.  **Integration (App)**:
     -   Add `mlip-auto run-cycle-02` command.
-    -   Logic: Generator -> Oracle (Mock/Real) -> DB -> Trainer.
+    -   **Pipeline Logic**:
+        1.  **Generation**: Generate structures using `StructureBuilder`.
+        2.  **Oracle**: Run DFT (or Mock DFT) using `QERunner`.
+        3.  **Storage**: Save results to DB using `DatabaseManager`.
+        4.  **Training**: Train potential using `PacemakerWrapper` on the data in DB.
 
 ## 5. Test Strategy
 
 ### 5.1 Unit Testing
--   **Generator**: Call `generate_initial_set`. Verify the returned list has the requested number of structures. Verify structures are valid `ase.Atoms`.
--   **Database**: Save a list of atoms. Load it back. Assert `positions` and `forces` are identical.
+-   **Generator**: `StructureBuilder` tests covering all strategies.
+-   **Database**: `DatabaseManager` tests for CRUD operations and validation.
+-   **Trainer**: `PacemakerWrapper` tests for config generation and subprocess calls (mocked).
 
 ### 5.2 Integration Testing
 -   **Training Loop**:
-    1.  Generate 10 dummy structures.
-    2.  Assign fake Energy/Forces to them.
-    3.  Save to DB.
-    4.  Call `PacemakerWrapper.train`.
-    5.  Assert that a `*.yace` file is created and is not empty.
+    -   Mock `QERunner` to return dummy energies/forces.
+    -   Mock `PacemakerWrapper` execution to simulate successful training.
+    -   Verify the full flow: Generation -> DB -> Training -> Success.
