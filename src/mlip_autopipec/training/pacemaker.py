@@ -3,19 +3,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from mlip_autopipec.config.schemas.training import TrainingConfig
+from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
 from mlip_autopipec.training.config_gen import PacemakerConfigGenerator
 
 logger = logging.getLogger(__name__)
-
-
-class TrainingResult:
-    def __init__(
-        self, success: bool, potential_path: Path | None = None, metrics: dict | None = None
-    ):
-        self.success = success
-        self.potential_path = potential_path
-        self.metrics = metrics or {}
 
 
 class PacemakerWrapper:
@@ -67,15 +58,15 @@ class PacemakerWrapper:
             # 5. Check Output
             potential_file = self.work_dir / "output_potential.yace"  # Hypothetical
             if potential_file.exists():
-                return TrainingResult(True, potential_file)
-            return TrainingResult(False)
+                return TrainingResult(success=True, potential_path=potential_file)
+            return TrainingResult(success=False)
 
         except subprocess.CalledProcessError:
             logger.exception("Pacemaker process failed")
-            return TrainingResult(False)
+            return TrainingResult(success=False)
         except Exception:
             logger.exception("Training failed")
-            return TrainingResult(False)
+            return TrainingResult(success=False)
 
     def _resolve_executable(self, name: str) -> str:
         # Security: Validate name doesn't contain path separators if we expect it in PATH

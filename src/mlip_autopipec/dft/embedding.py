@@ -1,4 +1,5 @@
 import logging
+
 import numpy as np
 from ase import Atoms
 from ase.geometry import get_distances

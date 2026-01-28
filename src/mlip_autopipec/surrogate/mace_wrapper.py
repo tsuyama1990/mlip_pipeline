@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 from ase import Atoms
 
@@ -9,7 +11,7 @@ class MaceWrapper:
 
     def __init__(self, model_type: str = "mace_mp") -> None:
         self.model_type = model_type
-        self.model = None
+        self.model: Any = None
         self.device = "cpu"
 
     def load_model(self, model_path: str, device: str) -> None:
@@ -52,8 +54,8 @@ class MaceWrapper:
             msg = "Model not loaded. Call load_model() first."
             raise RuntimeError(msg)
 
-        energies = []
-        forces_list = []
+        energies_list: list[float] = []
+        forces_list_result: list[np.ndarray] = []
 
         # TODO: Implement batching for MACE
         for atoms in atoms_list:
@@ -61,10 +63,10 @@ class MaceWrapper:
             # type: ignore
             at = atoms.copy()
             at.calc = self.model
-            energies.append(at.get_potential_energy())
-            forces_list.append(at.get_forces())
+            energies_list.append(at.get_potential_energy())
+            forces_list_result.append(at.get_forces())
 
-        return np.array(energies), forces_list
+        return np.array(energies_list), forces_list_result
 
     def compute_descriptors(self, atoms_list: list[Atoms]) -> np.ndarray:
         """
@@ -105,7 +107,8 @@ class MaceWrapper:
         # dscribe supports batching
         descriptors = soap.create(atoms_list, n_jobs=1)  # type: ignore
 
-        # Ensure it's 2D array
+        # Ensure it's 2D (dscribe might return 1D if single sample and flat output, though usually it respects batch)
+        # If features is 1D, reshape to (1, -1)
         if descriptors.ndim == 1:
             descriptors = descriptors.reshape(1, -1)
 

@@ -1,25 +1,16 @@
 """
-Module for physics-based calculations.
-Currently implements the ZBL (Ziegler-Biersack-Littmark) potential for short-range repulsion.
+Physics-based logic for training and data processing (e.g. ZBL).
 """
-
-import logging
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.calculator import Calculator, all_changes
-
-logger = logging.getLogger(__name__)
+from ase.calculators.calculator import Calculator
 
 
 class ZBLCalculator(Calculator):
     """
-    Calculates ZBL (Ziegler-Biersack-Littmark) baseline energy and forces.
-
-    This acts as a screened Coulomb potential for short-range repulsion.
-    V(r) = (Z1*Z2*e^2/r) * phi(r/a)
-
-    The universal screening function phi(x) is approximated by a sum of 4 exponentials.
+    ASE Calculator implementing the Ziegler-Biersack-Littmark (ZBL) repulsive potential.
+    Used for short-range repulsion in training data augmentation.
     """
 
     implemented_properties = ["energy", "forces"]
@@ -29,43 +20,37 @@ class ZBLCalculator(Calculator):
     _EXPONENTS = [3.2, 0.9423, 0.4029, 0.2016]
 
     # Cutoff distance to avoid singularity (Angstroms)
-    _R_MIN = 1e-4
+    # ZBL is usually short range (< 2.0 A)
+    _CUTOFF = 6.0
 
-    def calculate(self, atoms: Atoms, properties=None, system_changes=all_changes):
-        """
-        Performs the ZBL calculation.
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-        Args:
-            atoms: ASE Atoms object.
-            properties: List of properties to calculate (default: energy, forces).
-            system_changes: List of changes (positions, numbers, cell, pbc).
-        """
+    def calculate(self, atoms: Atoms | None = None, properties=None, system_changes=None): # type: ignore[override]
         super().calculate(atoms, properties, system_changes)
 
+        if self.atoms is None:
+            msg = "Calculator has no atoms attached."
+            raise ValueError(msg)
+
+        positions = self.atoms.get_positions()
+        numbers = self.atoms.get_atomic_numbers()
+        n_atoms = len(self.atoms)
+
         energy = 0.0
-        forces = np.zeros((len(atoms), 3))
+        forces = np.zeros((n_atoms, 3))
 
-        # Simple N^2 loop for pairwise interactions
-        # Note: In production, this should be optimized (neighbor list).
-        # However, ZBL is short-ranged and typically only significant for very close pairs.
-
-        positions = atoms.get_positions()
-        numbers = atoms.get_atomic_numbers()
-
-        # Constants
-        # e^2 in eV*Angstrom = 14.3996
-        KE2 = 14.3996
-
-        for i in range(len(atoms)):
-            for j in range(i + 1, len(atoms)):
+        # Naive N^2 loop - suitable only for small clusters/validation
+        # For production, use optimized C/Fortran implementation (like LAMMPS pair_zbl)
+        for i in range(n_atoms):
+            for j in range(i + 1, n_atoms):
                 dist_vec = positions[i] - positions[j]
-                r = np.linalg.norm(dist_vec)
+                r_val = float(np.linalg.norm(dist_vec))
 
-                if r < self._R_MIN:
-                    logger.warning(
-                        f"Atoms {i} (Z={numbers[i]}) and {j} (Z={numbers[j]}) are too close (r={r:.2e} A). "
-                        "Skipping ZBL interaction to avoid singularity."
-                    )
+                # Use max to avoid singularity
+                r = max(r_val, 1e-3)
+
+                if r > self._CUTOFF:
                     continue
 
                 z1 = numbers[i]
@@ -77,19 +62,20 @@ class ZBLCalculator(Calculator):
                 a = (0.8854 * 0.529) / (z1**0.23 + z2**0.23)
 
                 x = r / a
-                phi = sum(
-                    c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False)
-                )
+                phi = sum(c * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False))
                 dphi_dx = sum(
-                    -c * d * np.exp(-d * x)
-                    for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False)
+                    -c * d * np.exp(-d * x) for c, d in zip(self._COEFFS, self._EXPONENTS, strict=False)
                 )
 
-                # V = (Z1 Z2 e^2 / r) * phi
-                coulomb = (z1 * z2 * KE2) / r
-                v_pair = coulomb * phi
+                # Energy
+                # V(r) = (1/4pi eps0) * Z1*Z2*e^2/r * phi(r/a)
+                # In atomic units (Hartree?), or eV?
+                # ASE uses eV and Angstroms.
+                # Coulomb constant k_e * e^2 = 14.3996 eV * A
+                ke_e2 = 14.3996
 
-                energy += v_pair
+                v_r = (ke_e2 * z1 * z2 / r) * phi
+                energy += v_r
 
                 # Forces
                 # F = -dV/dr
@@ -97,7 +83,7 @@ class ZBLCalculator(Calculator):
                 # dV/dr = -K/r^2 * phi + K/r * (1/a) * dphi/dx
                 #       = - (V/r) + (K/r) * (1/a) * dphi_dx
 
-                dv_dr = -v_pair / r + (coulomb / a) * dphi_dx
+                dv_dr = - (v_r / r) + (ke_e2 * z1 * z2 / r) * (1 / a) * dphi_dx
 
                 # Force on i = -grad_i V = - (dV/dr * dr/dRi)
                 # dr/dRi = (Ri - Rj) / r = dist_vec / r

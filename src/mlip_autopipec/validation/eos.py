@@ -39,12 +39,14 @@ class EOSValidator:
             return ValidationResult(
                 module="eos",
                 passed=False,
-                metrics=[metric]
+                metrics=[metric],
+                error=None
             )
 
         except Exception as e:
             return ValidationResult(
                 module="eos",
                 passed=False,
-                error=str(e)
+                error=str(e),
+                metrics=[]
             )

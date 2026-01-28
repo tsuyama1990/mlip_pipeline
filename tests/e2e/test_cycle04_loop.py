@@ -1,11 +1,11 @@
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 
-from mlip_autopipec.config.models import UserInputConfig, WorkflowConfig, TargetSystem, DFTConfig
-from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.models import UserInputConfig, WorkflowConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
+from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.domain_models.state import WorkflowPhase, WorkflowState
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 
@@ -41,7 +41,7 @@ def test_workflow_resume(mock_config, tmp_path):
 
     # Mock Phases
     with patch("mlip_autopipec.orchestration.workflow.ExplorationPhase") as MockExploration, \
-         patch("mlip_autopipec.orchestration.workflow.SelectionPhase") as MockSelection, \
+         patch("mlip_autopipec.orchestration.workflow.SelectionPhase"), \
          patch("mlip_autopipec.orchestration.workflow.DFTPhase") as MockDFT, \
          patch("mlip_autopipec.orchestration.workflow.TrainingPhase") as MockTraining:
 

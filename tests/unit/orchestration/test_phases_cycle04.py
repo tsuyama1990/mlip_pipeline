@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.config.models import UserInputConfig, WorkflowConfig, TargetSystem, DFTConfig
-from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.models import UserInputConfig, WorkflowConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
+from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.domain_models.inference_models import InferenceResult
@@ -70,7 +70,8 @@ def test_exploration_phase_active_learning(mock_manager):
             halted=True,
             max_gamma_observed=10.0,
             halt_step=100,
-            uncertain_structures=[Path("/path/to/halted.dump")]
+            uncertain_structures=[Path("/path/to/halted.dump")],
+            error_message=None
         )
 
         # Mock seed structure retrieval
@@ -106,8 +107,6 @@ def test_exploration_phase_active_learning(mock_manager):
             # However, our mock generator only yields 1 item.
             # So run should be called 1 time.
 
-            # Debugging: Print call count
-            print(f"Call count: {runner_instance.run.call_count}")
             assert runner_instance.run.call_count >= 1
 
         # Verify halted structure added to state

@@ -18,6 +18,12 @@ def mock_config(tmp_path: Path) -> DFTConfig:
         kspacing=0.05,
         command="pw.x",
         recoverable=True,
+        nspin=None,
+        diagonalization="david",
+        smearing="mv",
+        degauss=0.02,
+        max_retries=5,
+        pseudopotentials=None,
     )
 
 

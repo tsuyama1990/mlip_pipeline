@@ -147,10 +147,10 @@ class CLIHandler:
         atoms.calc = calc
 
         # Run Validation
-        runner = ValidationRunner(config.validation_config)
+        runner = ValidationRunner(config.validation_config, config.runtime.work_dir)
 
         with rich_console.status("[bold green]Running Physics Validation..."):
-            results = runner.run(atoms, modules)
+            results = runner.run(atoms, potential_path, modules)
 
         # Report Results
         table = Table(title=f"Validation Results ({primary})")
@@ -256,8 +256,12 @@ class CLIHandler:
                 from mlip_autopipec.training.dataset import DatasetBuilder
 
                 builder = DatasetBuilder(db)
-                builder.export(train_conf, work_dir)
-                console(f"Data preparation complete in {work_dir}")
+                # Ensure training_data_path points to a location relative to current dir or absolute
+                # DatasetBuilder.export uses parent dir of output_path.
+                # So we pass path to train.xyz, and it will use that dir.
+                output_path = Path(train_conf.training_data_path)
+                builder.export(output_path)
+                console(f"Data preparation complete in {output_path.parent}")
                 return
 
             result = manager.run_training()

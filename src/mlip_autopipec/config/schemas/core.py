@@ -4,10 +4,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TargetSystem(BaseModel):
-    name: str = Field("System", description="Name of the target system")
+    name: str = Field(default="System", description="Name of the target system")
     elements: list[str] = Field(..., description="List of chemical symbols")
     composition: dict[str, float] = Field(..., description="Atomic fractions")
-    crystal_structure: str | None = Field(None, description="Base structure (e.g., 'fcc')")
+    crystal_structure: str | None = Field(default=None, description="Base structure (e.g., 'fcc')")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -55,8 +55,8 @@ class RuntimeConfig(BaseModel):
     Runtime environment configuration.
     """
 
-    database_path: Path = Field(Path("mlip.db"), description="Path to SQLite database")
-    work_dir: Path = Field(Path("_work"), description="Scratch directory for calculations")
-    log_path: Path = Field(Path("mlip.log"), description="Path to log file")
+    database_path: Path = Field(default=Path("mlip.db"), description="Path to SQLite database")
+    work_dir: Path = Field(default=Path("_work"), description="Scratch directory for calculations")
+    log_path: Path = Field(default=Path("mlip.log"), description="Path to log file")
 
     model_config = ConfigDict(extra="forbid")

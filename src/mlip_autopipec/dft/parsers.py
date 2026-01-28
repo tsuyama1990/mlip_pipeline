@@ -114,6 +114,7 @@ class QEOutputParser(BaseDFTParser):
                 stress=stress,
                 succeeded=True,
                 converged=True,
+                error_message=None,
                 wall_time=wall_time,
                 parameters=params,
                 final_mixing_beta=final_beta,

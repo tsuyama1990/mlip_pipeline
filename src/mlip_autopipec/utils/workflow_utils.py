@@ -14,9 +14,14 @@ from mlip_autopipec.config.models import SystemConfig
 
 def setup_dask_client(config: SystemConfig) -> Client:
     """Set up and return a Dask client."""
-    if config.dask.scheduler_address:
-        logging.info("Connecting to Dask scheduler at: %s", config.dask.scheduler_address)
-        return Client(config.dask.scheduler_address)
+    scheduler_address = None
+    if config.workflow_config:
+        scheduler_address = config.workflow_config.dask_scheduler_address
+
+    if scheduler_address:
+        logging.info("Connecting to Dask scheduler at: %s", scheduler_address)
+        return Client(scheduler_address)
+
     logging.info("No Dask scheduler specified, starting a local cluster.")
     cluster = LocalCluster()
     return Client(cluster)

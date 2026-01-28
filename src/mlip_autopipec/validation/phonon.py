@@ -35,11 +35,13 @@ class PhononValidator:
             return ValidationResult(
                 module="phonon",
                 passed=False,
-                metrics=[metric]
+                metrics=[metric],
+                error=None
             )
         except Exception as e:
             return ValidationResult(
                 module="phonon",
                 passed=False,
-                error=str(e)
+                error=str(e),
+                metrics=[]
             )

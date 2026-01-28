@@ -6,8 +6,8 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from mlip_autopipec.domain_models.candidate import CandidateConfig
 from mlip_autopipec.dft.embedding import ClusterEmbedder
+from mlip_autopipec.domain_models.candidate import CandidateConfig
 from mlip_autopipec.generator.transformations import apply_rattle
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
