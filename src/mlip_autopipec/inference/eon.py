@@ -140,6 +140,7 @@ class EONWrapper:
                     uncertain_structures=[],
                     halted=False,
                     halt_step=None,
+                    error_message=None,
                 )
 
             if result.returncode == 100:
@@ -158,6 +159,7 @@ class EONWrapper:
                     uncertain_structures=uncertain_structures,
                     halted=True,
                     halt_step=None,
+                    error_message=None,
                 )
 
             logger.error(f"EON failed with code {result.returncode}")

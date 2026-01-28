@@ -272,7 +272,7 @@ class CLIHandler:
                 from mlip_autopipec.training.dataset import DatasetBuilder
 
                 builder = DatasetBuilder(db)
-                builder.export(train_conf, str(work_dir / "training_data.xyz"))
+                builder.export(output_path=work_dir / "training_data.xyz")
                 console(f"Data preparation complete in {work_dir}")
                 return
 

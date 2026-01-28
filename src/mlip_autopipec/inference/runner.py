@@ -99,7 +99,8 @@ class LammpsRunner:
                 max_gamma_observed=max_gamma,
                 halted=halted,
                 halt_step=step,
-                uncertain_structures=uncertain_structures
+                uncertain_structures=uncertain_structures,
+                error_message=None,
             )
 
         except Exception as e:

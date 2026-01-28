@@ -46,12 +46,12 @@ class ValidationConfig(BaseModel):
     eos: EOSConfig = Field(default_factory=lambda: EOSConfig())
 
     reference_data: dict[str, Any] | None = Field(
-        None, description="Optional reference data (DFT/Exp) for comparison"
+        default=None, description="Optional reference data (DFT/Exp) for comparison"
     )
 
     # Global settings
     fail_on_instability: bool = Field(
-        False, description="Whether to raise error if instability detected"
+        default=False, description="Whether to raise error if instability detected"
     )
 
     model_config = ConfigDict(extra="forbid")

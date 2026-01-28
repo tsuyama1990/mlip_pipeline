@@ -55,7 +55,7 @@ class DescriptorCalculator:
         # Check periodicity from the first atom
         is_periodic = False
         if atoms_list and hasattr(atoms_list[0], "pbc"):
-            is_periodic = np.any(atoms_list[0].pbc)
+            is_periodic = bool(np.any(atoms_list[0].pbc))
 
         try:
             self._soap = SOAP(

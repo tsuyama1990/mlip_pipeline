@@ -42,13 +42,13 @@ class MLIPConfig(BaseModel):
 
     target_system: TargetSystem
     dft: DFTConfig
-    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
-    generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
-    surrogate_config: SurrogateConfig = Field(default_factory=SurrogateConfig)
+    runtime: RuntimeConfig = Field(default_factory=lambda: RuntimeConfig())
+    generator_config: GeneratorConfig = Field(default_factory=lambda: GeneratorConfig())
+    surrogate_config: SurrogateConfig = Field(default_factory=lambda: SurrogateConfig())
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
     validation_config: ValidationConfig = Field(
-        default_factory=ValidationConfig, alias="validation"
+        default_factory=lambda: ValidationConfig(), alias="validation"
     )
 
     # Added for Orchestration
@@ -94,7 +94,7 @@ class SystemConfig(BaseModel):
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
     validation_config: ValidationConfig | None = None
-    generator_config: GeneratorConfig = Field(default_factory=GeneratorConfig)
+    generator_config: GeneratorConfig = Field(default_factory=lambda: GeneratorConfig())
 
     # Legacy aliases - Typed as specific configs where possible, but kept optional for backward compat
     # We remove 'Any' usage.

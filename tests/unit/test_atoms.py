@@ -1,3 +1,4 @@
+# mypy: disable-error-code="misc"
 from typing import ClassVar
 
 import numpy as np

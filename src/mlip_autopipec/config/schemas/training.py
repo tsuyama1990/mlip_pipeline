@@ -9,9 +9,9 @@ class TrainingConfig(BaseModel):
     """
 
     # File Paths
-    training_data_path: str = Field("data/train.xyz", description="Path to training data file")
-    test_data_path: str = Field("data/test.xyz", description="Path to validation data file")
-    template_path: Path | None = Field(None, description="Path to Pacemaker input template")
+    training_data_path: str = Field(default="data/train.xyz", description="Path to training data file")
+    test_data_path: str = Field(default="data/test.xyz", description="Path to validation data file")
+    template_path: Path | None = Field(default=None, description="Path to Pacemaker input template")
 
     # Physics Constraints
     cutoff: PositiveFloat = Field(..., description="Radial cutoff for the potential (Angstrom)")
@@ -23,7 +23,7 @@ class TrainingConfig(BaseModel):
 
     # Optimization
     max_num_epochs: PositiveInt = Field(
-        1000, alias="max_iter", description="Maximum training epochs"
+        default=1000, alias="max_iter", description="Maximum training epochs"
     )
     batch_size: PositiveInt = Field(..., description="Batch size for training")
     ladder_step: list[int] = Field(
@@ -71,6 +71,7 @@ class TrainingMetrics(BaseModel):
     epoch: int = Field(..., ge=0, description="Current epoch")
     rmse_energy: float = Field(..., ge=0.0, description="Energy error (meV/atom)")
     rmse_force: float = Field(..., ge=0.0, description="Force error (eV/A)")
+    generation: int = Field(default=0, ge=0, description="Cycle/Generation index")
 
     model_config = ConfigDict(extra="forbid")
 
