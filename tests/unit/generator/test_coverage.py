@@ -48,7 +48,8 @@ def test_builder_bulk_fallback():
     with patch("mlip_autopipec.generator.builder.bulk") as mock_bulk:
         def side_effect(element, structure=None, **kwargs):
             if structure == "invalid_struct":
-                raise ValueError("Invalid")
+                msg = "Invalid"
+                raise ValueError(msg)
             return Atoms("Al", positions=[[0, 0, 0]], cell=[4, 4, 4], pbc=True)
 
         mock_bulk.side_effect = side_effect

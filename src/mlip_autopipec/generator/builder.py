@@ -77,10 +77,9 @@ class StructureBuilder:
                     strained.info["uuid"] = str(uuid.uuid4())
 
                     # Only yield pure strain if it is non-zero (avoid duplicating base)
-                    if abs(eps) >= 1e-6:
-                        if self._validate(strained):
-                            yield strained
-                            generated_count += 1
+                    if abs(eps) >= 1e-6 and self._validate(strained):
+                        yield strained
+                        generated_count += 1
 
                     if generated_count >= limit:
                         return

@@ -50,6 +50,7 @@ class DFTConfig(BaseModel):
     @field_validator("command")
     @classmethod
     def validate_command_security(cls, v: str) -> str:
+        # Security check for unsafe characters
         if re.search(r"[;&|`$()]", v):
             msg = "Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked."
             raise ValueError(msg)
