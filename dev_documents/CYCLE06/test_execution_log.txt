@@ -1,0 +1,69 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 170 items
+
+tests/e2e/test_cycle01.py .......                                        [  4%]
+tests/e2e/test_run_cycle.py ..                                           [  5%]
+tests/uat/test_cycle02_full_pipeline.py .                                [  5%]
+tests/uat/test_cycle02_structure_gen.py ...                              [  7%]
+tests/uat/test_cycle03_oracle.py .                                       [  8%]
+tests/uat/test_cycle06_orchestrator.py .                                 [  8%]
+tests/unit/dft/test_inputs.py ....                                       [ 11%]
+tests/unit/dft/test_parsers.py ....                                      [ 13%]
+tests/unit/dft/test_recovery.py ....                                     [ 15%]
+tests/unit/dft/test_runner.py ......                                     [ 19%]
+tests/unit/dft/test_security.py ..                                       [ 20%]
+tests/unit/generator/test_builder.py ....                                [ 22%]
+tests/unit/generator/test_coverage.py ....                               [ 25%]
+tests/unit/generator/test_defects.py .                                   [ 25%]
+tests/unit/generator/test_schemas.py ......                              [ 29%]
+tests/unit/generator/test_sqs.py ..                                      [ 30%]
+tests/unit/generator/test_transformations.py ....                        [ 32%]
+tests/unit/inference/test_eon_schema.py ...                              [ 34%]
+tests/unit/inference/test_eon_wrapper.py ......                          [ 38%]
+tests/unit/inference/test_inference_inputs.py .....                      [ 41%]
+tests/unit/inference/test_lammps_runner.py ..                            [ 42%]
+tests/unit/inference/test_pace_driver.py ..                              [ 43%]
+tests/unit/inference/test_parsers.py ....                                [ 45%]
+tests/unit/inference/test_runner.py ..                                   [ 47%]
+tests/unit/inference/test_schemas.py .....                               [ 50%]
+tests/unit/inference/test_writer.py .                                    [ 50%]
+tests/unit/orchestration/test_db_manager.py ..                           [ 51%]
+tests/unit/orchestration/test_state.py ...                               [ 53%]
+tests/unit/orchestration/test_strategies.py ..                           [ 54%]
+tests/unit/orchestration/test_validation_phase.py ..                     [ 55%]
+tests/unit/orchestration/test_workflow.py .....                          [ 58%]
+tests/unit/orchestration/test_workflow_state.py ..                       [ 60%]
+tests/unit/surrogate/test_candidate_manager.py .                         [ 60%]
+tests/unit/test_atoms.py ....                                            [ 62%]
+tests/unit/test_cli_dft.py ....                                          [ 65%]
+tests/unit/test_cli_validation.py ...                                    [ 67%]
+tests/unit/test_config.py .....                                          [ 70%]
+tests/unit/test_database.py .................                            [ 80%]
+tests/unit/test_feedback_fixes.py ....                                   [ 82%]
+tests/unit/training/test_dataset.py .                                    [ 82%]
+tests/unit/training/test_metrics.py .......                              [ 87%]
+tests/unit/training/test_pacemaker.py ..                                 [ 88%]
+tests/unit/training/test_pacemaker_selection.py ..                       [ 89%]
+tests/unit/training/test_schemas.py .                                    [ 90%]
+tests/unit/utils/test_embedding.py .                                     [ 90%]
+tests/unit/validation/test_physics_validators.py ...                     [ 92%]
+tests/unit/validation/test_report.py .                                   [ 92%]
+tests/unit/validation/test_runner.py ...                                 [ 94%]
+tests/unit/validation/test_schemas.py .........                          [100%]
+
+=============================== warnings summary ===============================
+tests/uat/test_cycle02_structure_gen.py::test_scenario_02_02_defect_introduction
+  /app/.venv/lib/python3.12/site-packages/spglib/spg.py:438: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error(_throw)
+
+tests/uat/test_cycle02_structure_gen.py::test_scenario_02_02_defect_introduction
+  /app/src/mlip_autopipec/generator/defects.py:109: DeprecationWarning: dict interface is deprecated. Use attribute interface instead
+    equivalent_atoms = dataset["equivalent_atoms"]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 170 passed, 2 warnings in 4.31s ========================

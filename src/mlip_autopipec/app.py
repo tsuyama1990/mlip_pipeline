@@ -28,8 +28,31 @@ app = typer.Typer(
     add_completion=False,
 )
 
+db_app = typer.Typer(name="db", help="Database management commands.")
+app.add_typer(db_app, name="db")
+
 # Constants
 DEFAULT_WORK_DIR = Path(os.getenv("MLIP_WORK_DIR", "workspace"))
+
+@app.command()
+def init():
+    """
+    Initializes a new project with a default configuration file.
+    """
+    CLIHandler.init_project()
+
+@db_app.command("init")
+def init_db(
+    config: Annotated[Path, typer.Option(
+        "--config", "-c",
+        help="Path to the configuration YAML file.",
+        exists=True
+    )]
+):
+    """
+    Initialize the database.
+    """
+    CLIHandler.init_db(config)
 
 @app.command()
 def run(
