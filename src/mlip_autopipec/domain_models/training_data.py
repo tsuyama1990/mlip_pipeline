@@ -1,9 +1,9 @@
 # This module defines the schemas for Training Data.
 import math
-from typing import Any
 
-from ase import Atoms
 from pydantic import BaseModel, ConfigDict, field_validator
+
+from mlip_autopipec.domain_models.atoms import ASEAtoms
 
 # Type alias for Matrix3x3 (List of 3 Lists of 3 floats)
 Vector3D = list[float]
@@ -87,16 +87,5 @@ class TrainingBatch(BaseModel):
     Schema for a batch of training data exported to Pacemaker.
     """
 
-    atoms_list: list["Atoms"]  # Forward reference to ASE Atoms
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
-
-    @field_validator("atoms_list")
-    @classmethod
-    def validate_atoms_list(cls, v: list[Any]) -> list[Any]:
-        if not v:
-            return v
-        # Basic check
-        if not hasattr(v[0], "get_positions"):
-            msg = "Items in atoms_list do not appear to be ASE Atoms objects."
-            raise ValueError(msg)
-        return v
+    atoms_list: list[ASEAtoms]
+    model_config = ConfigDict(extra="forbid")

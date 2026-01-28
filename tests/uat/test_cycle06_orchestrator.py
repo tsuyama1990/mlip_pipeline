@@ -72,7 +72,7 @@ def test_uat_full_cycle_simulation(uat_config, tmp_path):
         ) as MockSelectionPacemaker,
         patch("mlip_autopipec.inference.processing.EmbeddingExtractor") as MockExtractor,
         patch("mlip_autopipec.inference.processing.read") as mock_proc_read,
-        patch("mlip_autopipec.surrogate.candidate_manager.read") as mock_cm_read,
+        patch("mlip_autopipec.orchestration.candidate_processing.read") as mock_cm_read,
         patch("mlip_autopipec.orchestration.phases.training.DatasetBuilder"),
         patch("mlip_autopipec.orchestration.workflow.TaskQueue") as MockTaskQueue,
     ):
