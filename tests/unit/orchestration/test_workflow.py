@@ -10,7 +10,7 @@ from mlip_autopipec.config.models import (
 )
 from mlip_autopipec.config.schemas.core import RuntimeConfig
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.domain_models.state import WorkflowState
+from mlip_autopipec.domain_models.state import WorkflowPhase, WorkflowState
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 
@@ -105,3 +105,29 @@ def test_run_loop(mock_db, mock_tq, mock_config):
     assert manager.run_cycle.call_count == 2
     assert manager.state.cycle_index == 2
     mock_tq.return_value.shutdown.assert_called_once()
+
+@patch("mlip_autopipec.orchestration.workflow.TrainingPhase")
+@patch("mlip_autopipec.orchestration.workflow.DFTPhase")
+@patch("mlip_autopipec.orchestration.workflow.SelectionPhase")
+@patch("mlip_autopipec.orchestration.workflow.ExplorationPhase")
+@patch("mlip_autopipec.orchestration.workflow.TaskQueue")
+@patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
+def test_resume_from_selection(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_config):
+    """Test resumption from Selection phase."""
+    manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
+    manager.state.cycle_index = 1
+    manager.state.latest_potential_path = Path("fake.yace")
+    # Set state to SELECTION
+    manager.state.current_phase = WorkflowPhase.SELECTION
+
+    manager.run_cycle()
+
+    # Exploration should be SKIPPED
+    mock_exp.assert_not_called()
+
+    # Selection should run
+    mock_sel.assert_called_with(manager)
+
+    # Rest should run
+    mock_dft.assert_called()
+    mock_train.assert_called()

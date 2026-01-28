@@ -57,6 +57,7 @@ class WorkflowManager:
             while self.state.cycle_index < max_cycles:
                 self.run_cycle()
                 self.state.cycle_index += 1
+                self.state.current_phase = WorkflowPhase.EXPLORATION
                 self.save_state()
 
             logger.info("Workflow Completed.")
@@ -72,26 +73,43 @@ class WorkflowManager:
         cycle = self.state.cycle_index
         logger.info(f"=== Starting Cycle {cycle} ===")
 
+        phases = [
+            WorkflowPhase.EXPLORATION,
+            WorkflowPhase.SELECTION,
+            WorkflowPhase.CALCULATION,
+            WorkflowPhase.TRAINING,
+        ]
+
+        try:
+            # Ensure we map string to enum if needed
+            current_phase_enum = WorkflowPhase(self.state.current_phase)
+            start_idx = list(phases).index(current_phase_enum)
+        except ValueError:
+            start_idx = 0
+
         # Phase A: Exploration
-        self.state.current_phase = WorkflowPhase.EXPLORATION
-        self.save_state()
-        ExplorationPhase(self).execute()
+        if start_idx <= 0:
+            self.state.current_phase = WorkflowPhase.EXPLORATION
+            self.save_state()
+            ExplorationPhase(self).execute()
 
         # Phase B: Selection
-        # Only run selection if we have a potential to select with (Active Learning)
-        if cycle > 0 and self.state.latest_potential_path:
+        if start_idx <= 1 and cycle > 0 and self.state.latest_potential_path:
+            # Only run selection if we have a potential to select with (Active Learning)
             self.state.current_phase = WorkflowPhase.SELECTION
             self.save_state()
             SelectionPhase(self).execute()
 
         # Phase C: Calculation (DFT)
-        self.state.current_phase = WorkflowPhase.CALCULATION
-        self.save_state()
-        DFTPhase(self).execute()
+        if start_idx <= 2:
+            self.state.current_phase = WorkflowPhase.CALCULATION
+            self.save_state()
+            DFTPhase(self).execute()
 
         # Phase D: Training
-        self.state.current_phase = WorkflowPhase.TRAINING
-        self.save_state()
-        TrainingPhase(self).execute()
+        if start_idx <= 3:
+            self.state.current_phase = WorkflowPhase.TRAINING
+            self.save_state()
+            TrainingPhase(self).execute()
 
         logger.info(f"=== Cycle {cycle} Completed ===")

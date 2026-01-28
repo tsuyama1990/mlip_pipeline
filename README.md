@@ -16,6 +16,7 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
 - **Robust**: Incorporates physical baselines (ZBL/LJ) and self-healing mechanisms.
 
 ## Features
+- **Active Learning Loop**: Autonomous cycle of Exploration (MD) -> Detection (Uncertainty) -> Selection (D-Optimality) -> Calculation (DFT) -> Refinement (Training).
 - **Core Framework**: Robust configuration management and CLI.
 - **DFT Oracle**: Automated interface to Quantum Espresso with error recovery.
 - **Structure Generation**: Physics-informed generator (SQS, defects, distortions).
@@ -30,6 +31,7 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
 - Python 3.11 or higher
 - Quantum Espresso (`pw.x`) installed and in PATH (for DFT calculations)
 - LAMMPS (`lmp` or similar) installed and in PATH (for MD simulations)
+- Pacemaker (`pacemaker`, `pace_activeset`) installed and in PATH (for training and selection)
 - `uv` package manager (recommended)
 
 ## Installation
@@ -52,7 +54,7 @@ This creates `input.yaml`. Edit it to specify your target system and DFT paramet
 ### 2. Validate Configuration
 Ensure your configuration is valid:
 ```bash
-uv run mlip-auto validate input.yaml
+uv run mlip-auto validate --config input.yaml
 ```
 
 ### 3. Run DFT Calculation (Single Structure)
@@ -64,14 +66,16 @@ uv run mlip-auto run-dft --config input.yaml --structure my_structure.cif
 ### 4. Run One-Shot Training
 Execute the generation, calculation, and training pipeline:
 ```bash
-uv run mlip-auto run cycle-02 --config input.yaml
+uv run mlip-auto run-cycle-02 --config input.yaml
 ```
 Use `--mock-dft` to simulate DFT calculations for testing or if `pw.x` is unavailable.
 
-### 5. Run Full Loop
+### 5. Run Active Learning Loop
+Execute the full autonomous active learning loop:
 ```bash
-uv run mlip-auto run loop --config input.yaml
+uv run mlip-auto run-loop --config input.yaml
 ```
+This will run multiple cycles, exploring with MD and selecting uncertain structures for DFT refinement.
 
 ## Architecture
 ```ascii
@@ -79,6 +83,8 @@ mlip_autopipec/
 ├── config/        # Pydantic schemas and loaders
 ├── dft/           # Quantum Espresso runner and error handling
 ├── inference/     # Dynamics Engine (LAMMPS/EON) and Uncertainty
+├── orchestration/ # Workflow management and active learning loop
+├── surrogate/     # Candidate selection and active learning logic
 ├── app.py         # CLI entry point
 └── ...
 ```
