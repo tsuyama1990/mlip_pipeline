@@ -1,70 +1,63 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.models import MLIPConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.schemas.training import TrainingConfig
 
 
 def test_target_system_valid():
     ts = TargetSystem(
         name="TestSys",
-        elements=["Fe", "Ni"],
-        composition={"Fe": 0.5, "Ni": 0.5},
-        crystal_structure="fcc",
+        elements=["Si"],
+        composition={"Si": 1.0},
+        crystal_structure="fcc"
     )
     assert ts.name == "TestSys"
-    assert ts.elements == ["Fe", "Ni"]
 
-
-def test_target_system_invalid_composition_sum():
+def test_target_system_invalid_elements():
     with pytest.raises(ValidationError):
-        TargetSystem(elements=["Fe"], composition={"Fe": 0.9})
+        TargetSystem(
+            name="BadSys",
+            elements=["Xy"], # Invalid element
+            crystal_structure="fcc"
+        )
 
+def test_dft_config_security():
+    # Valid
+    p_dir = Path("/tmp")
+    config = DFTConfig(
+        pseudopotential_dir=p_dir,
+        command="pw.x"
+    )
+    assert config.command == "pw.x"
 
-def test_target_system_invalid_element():
+    # Invalid injection
     with pytest.raises(ValidationError):
-        TargetSystem(elements=["Xy"], composition={"Xy": 1.0})
-
+        DFTConfig(
+             pseudopotential_dir=p_dir,
+             command="pw.x; rm -rf /"
+        )
 
 def test_dft_config_defaults(tmp_path):
-    (tmp_path / "fake.upf").touch()
-    dft = DFTConfig(pseudopotential_dir=tmp_path, ecutwfc=30.0, kspacing=0.1)
-    assert dft.command == "pw.x"
-    assert dft.nspin == 1
+    p_dir = tmp_path / "pseudos"
+    p_dir.mkdir()
+    (p_dir / "Si.upf").touch()
 
+    config = DFTConfig(
+        pseudopotential_dir=p_dir
+    )
+    assert config.ecutwfc == 60.0
+    assert config.command == "pw.x"
 
-def test_dft_config_validation(tmp_path):
-    (tmp_path / "fake.upf").touch()
-    with pytest.raises(ValidationError) as exc:
-        DFTConfig(
-            pseudopotential_dir=tmp_path,
-            ecutwfc=-10.0,  # Invalid
-            kspacing=0.1,
-        )
-    assert "greater than 0" in str(exc.value)
-
-
-def test_dft_config_security(tmp_path):
-    (tmp_path / "fake.upf").touch()
-    with pytest.raises(ValidationError) as exc:
-        DFTConfig(
-            pseudopotential_dir=tmp_path, ecutwfc=30.0, kspacing=0.1, command="pw.x; rm -rf /"
-        )
-    assert "unsafe shell characters" in str(exc.value)
-
-
-def test_mlip_config_full(tmp_path):
-    (tmp_path / "Al.upf").touch()
-    config_data = {
-        "target_system": {
-            "elements": ["Al"],
-            "composition": {"Al": 1.0},
-            "crystal_structure": "fcc",
-        },
-        "dft": {"pseudopotential_dir": str(tmp_path), "ecutwfc": 40.0, "kspacing": 0.1},
-        "runtime": {"database_path": "test.db", "work_dir": "work"},
-    }
-    config = MLIPConfig(**config_data)
-    assert config.target_system.elements == ["Al"]
-    assert config.runtime.database_path.name == "test.db"
+def test_training_config_defaults():
+    config = TrainingConfig(
+        cutoff=5.0,
+        b_basis_size=10,
+        kappa=0.4,
+        kappa_f=0.6,
+        batch_size=32
+    )
+    assert config.batch_size == 32

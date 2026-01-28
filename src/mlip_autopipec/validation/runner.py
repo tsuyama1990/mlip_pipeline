@@ -28,6 +28,10 @@ class ValidationRunner:
         Returns:
             List of ValidationResult objects.
         """
+        if not isinstance(atoms, Atoms):
+            msg = f"Expected ase.Atoms object, got {type(atoms)}"
+            raise TypeError(msg)
+
         results = []
         if modules is None:
             modules = ["phonon", "elastic", "eos"]
