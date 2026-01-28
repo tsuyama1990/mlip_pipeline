@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ase.data import atomic_numbers
 
-from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig, BaselinePotential
 
 
 class ScriptGenerator:
@@ -42,9 +42,9 @@ class ScriptGenerator:
         elements_str = " ".join(elements)
 
         potential_lines = []
-        if self.config.use_zbl_baseline:
+        if self.config.baseline_potential == BaselinePotential.ZBL:
             potential_lines.append(
-                f"pair_style hybrid/overlay pace zbl {self.config.zbl_inner_cutoff} {self.config.zbl_outer_cutoff}"
+                f"pair_style hybrid/overlay pace {self.config.zbl_inner_cutoff} {self.config.zbl_outer_cutoff} zbl {self.config.zbl_inner_cutoff} {self.config.zbl_outer_cutoff}"
             )
             potential_lines.append(f"pair_coeff * * pace {potential_path.resolve()} {elements_str}")
 
@@ -55,7 +55,13 @@ class ScriptGenerator:
                     if j >= i:
                         z2 = atomic_numbers[el2]
                         potential_lines.append(f"pair_coeff {i} {j} zbl {z1} {z2}")
-        else:
+
+        elif self.config.baseline_potential == BaselinePotential.LJ:
+             potential_lines.append("pair_style hybrid/overlay pace 10.0 lj/cut 10.0")
+             potential_lines.append(f"pair_coeff * * pace {potential_path.resolve()} {elements_str}")
+             potential_lines.append("pair_coeff * * lj/cut 1.0 1.0")
+
+        else: # None
             potential_lines.append("pair_style pace")
             potential_lines.append(f"pair_coeff * * {potential_path.resolve()} {elements_str}")
 
@@ -76,25 +82,25 @@ class ScriptGenerator:
             f"timestep {self.config.timestep}",
             "",
             "# Compute Gamma (Extrapolation Grade)",
-            "compute pace all pace",
-            # c_pace[1] is assumed to be gamma based on previous implementation
-            "compute max_gamma all reduce max c_pace[1]",
-            "variable gamma_val equal c_max_gamma",
+            f"compute gamma all pace {potential_path.resolve()} {elements_str}",
+            "variable max_gamma equal max(c_gamma)",
             "",
             "# Thermo output",
-            "thermo_style custom step temp press pe c_max_gamma",
+            "thermo_style custom step temp press pe v_max_gamma",
             f"thermo {self.config.sampling_interval}",
             "",
             "# Restart",
             f"restart {self.config.restart_interval} restart.*",
             "",
             "# Dump high uncertainty configurations",
-            f"dump my_dump all custom {self.config.sampling_interval} {dump_file.resolve()} id type x y z fx fy fz c_pace[1]",
-            f"dump_modify my_dump thresh c_pace[1] > {self.config.uncertainty_threshold}",
+            f"dump my_dump all custom {self.config.sampling_interval} {dump_file.resolve()} id type x y z fx fy fz c_gamma",
+            f"dump_modify my_dump thresh c_gamma > {self.config.uncertainty_threshold}",
+            # Note: dump_modify thresh usually requires per-atom value. c_gamma is per-atom.
+
             "",
             "# Watchdog Halt",
             # Halt if max gamma exceeds threshold
-            f"fix halter all halt {self.config.sampling_interval} v_gamma_val > {self.config.uncertainty_threshold} error hard",
+            f"fix watchdog all halt {self.config.sampling_interval} v_max_gamma > {self.config.uncertainty_threshold} error hard",
             "",
             "# Run",
             fix_cmd,

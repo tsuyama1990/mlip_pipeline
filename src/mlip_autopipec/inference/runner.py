@@ -8,6 +8,7 @@ from ase import Atoms
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig
 from mlip_autopipec.domain_models.inference_models import InferenceResult
+from mlip_autopipec.inference.inputs import ScriptGenerator
 from mlip_autopipec.inference.parsers import LammpsLogParser
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,8 @@ class LammpsRunner:
         """
         # Validate inputs
         if not isinstance(atoms, Atoms):
-            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
+            msg = f"Expected ase.Atoms object, got {type(atoms)}"
+            raise TypeError(msg)
 
         if not potential_path.exists():
             msg = f"Potential file not found: {potential_path}"
@@ -59,7 +61,11 @@ class LammpsRunner:
                 )
 
             # 3. Parse Results
-            if process.returncode != 0:
+            # Check for halt in logs first
+            max_gamma, halted, step = LammpsLogParser.parse(log_file)
+
+            # If failed (non-zero return) AND not halted, it's a real crash
+            if process.returncode != 0 and not halted:
                 stderr_content = ""
                 if stderr_file.exists():
                      with contextlib.suppress(OSError):
@@ -74,15 +80,23 @@ class LammpsRunner:
                     error_message=f"Process exited with code {process.returncode}"
                 )
 
-            # Parse log file for gamma/uncertainty
-            max_gamma, halted, step = LammpsLogParser.parse(log_file)
+            # If returncode != 0 but halted, it is a SUCCESSFUL detection of uncertainty.
+            # We treat this as succeeded=True, halted=True.
+
+            # Determine uncertain structures
+            uncertain_structures = []
+            if halted:
+                dump_file = self.work_dir / f"{uid}.dump"
+                if dump_file.exists():
+                    uncertain_structures.append(dump_file)
 
             return InferenceResult(
                 uid=uid,
                 succeeded=True,
                 max_gamma_observed=max_gamma,
                 halted=halted,
-                halt_step=step
+                halt_step=step,
+                uncertain_structures=uncertain_structures
             )
 
         except Exception as e:
@@ -95,41 +109,30 @@ class LammpsRunner:
         # type: ignore[no-untyped-call]
         atoms.write(str(data_file), format="lammps-data")
 
+        # type: ignore[no-untyped-call]
+        elements = sorted(set(atoms.get_chemical_symbols()))
+
+        script_gen = ScriptGenerator(self.config)
+        dump_file = self.work_dir / f"{uid}.dump"
+
+        content = script_gen.generate(data_file, potential_path, dump_file, elements)
+
         input_script = self.work_dir / f"{uid}.in"
-        content = self._generate_input_script(data_file.name, potential_path, uid)
         input_script.write_text(content)
-
-    def _generate_input_script(self, data_file: str, potential_path: Path, uid: str) -> str:
-        # Simplified template
-        return f"""
-        units metal
-        atom_style atomic
-        boundary p p p
-        read_data {data_file}
-        pair_style pace
-        pair_coeff * * {potential_path.absolute()} Al
-
-        thermo 10
-        thermo_style custom step temp pe ke etotal press
-
-        # MD settings from config
-        timestep {self.config.timestep}
-        fix 1 all nvt temp {self.config.temperature} {self.config.temperature} 0.1
-
-        run {self.config.steps}
-        """
 
     def _build_command(self, uid: str) -> list[str]:
         """Builds the execution command."""
         exe = self.config.lammps_executable
         if not exe:
-            raise ValueError("LAMMPS executable not configured")
+            msg = "LAMMPS executable not configured"
+            raise ValueError(msg)
 
         exe_str = str(exe)
 
         # Security: basic validation
         if ";" in exe_str or "|" in exe_str:
-             raise ValueError("Unsafe characters in LAMMPS command")
+             msg = "Unsafe characters in LAMMPS command"
+             raise ValueError(msg)
 
         parts = shlex.split(exe_str)
         parts.extend(["-in", f"{uid}.in", "-log", f"{uid}.log"])

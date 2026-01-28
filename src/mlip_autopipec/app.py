@@ -81,9 +81,13 @@ def validate(
 ):
     """
     Runs physics validation (Phonon, Elastic, EOS).
+    If no flags are provided, validates the configuration file schema.
     """
     try:
-        CLIHandler.run_physics_validation(config, phonon, elastic, eos)
+        if not (phonon or elastic or eos):
+            CLIHandler.validate_config(config)
+        else:
+            CLIHandler.run_physics_validation(config, phonon=phonon, elastic=elastic, eos=eos)
     except Exception:
         logger.exception("Validation failed")
         raise typer.Exit(code=1)

@@ -22,8 +22,9 @@ class ElasticityValidator:
     def validate(self, atoms: Atoms, potential_path: Path) -> ValidationResult:
         logger.info("Starting Elasticity Validation...")
         try:
-            self._validate_command(self.config.command)
+            # Logic to calculate elastic constants would go here using atoms.calc
 
+            # Dummy implementation for now
             metric = ValidationMetric(
                 name="C11",
                 value=0.0,
@@ -43,7 +44,3 @@ class ElasticityValidator:
                 passed=False,
                 error=str(e)
             )
-
-    def _validate_command(self, command: str) -> None:
-        if any(c in command for c in [";", "|", "&"]):
-            raise ValueError("Unsafe command characters detected")

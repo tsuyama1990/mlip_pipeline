@@ -19,12 +19,17 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
 - **Core Framework**: Robust configuration management and CLI.
 - **DFT Oracle**: Automated interface to Quantum Espresso with error recovery.
 - **Structure Generation**: Physics-informed generator (SQS, defects, distortions).
+- **Dynamics Engine (LAMMPS)**:
+  - Hybrid/Overlay potentials (ACE + ZBL/LJ) for safety.
+  - On-the-fly uncertainty monitoring (`compute pace`).
+  - Automatic halting on high uncertainty.
 - **One-Shot Training**: Pipeline to generate, calculate, and train a potential in one go.
 - **CLI Commands**: Easy-to-use commands for initialization, DFT execution, and validation.
 
 ## Requirements
 - Python 3.11 or higher
 - Quantum Espresso (`pw.x`) installed and in PATH (for DFT calculations)
+- LAMMPS (`lmp` or similar) installed and in PATH (for MD simulations)
 - `uv` package manager (recommended)
 
 ## Installation
@@ -73,6 +78,7 @@ uv run mlip-auto run loop --config input.yaml
 mlip_autopipec/
 ├── config/        # Pydantic schemas and loaders
 ├── dft/           # Quantum Espresso runner and error handling
+├── inference/     # Dynamics Engine (LAMMPS/EON) and Uncertainty
 ├── app.py         # CLI entry point
 └── ...
 ```

@@ -1,24 +1,24 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.config.schemas.inference import InferenceConfig, BaselinePotential
 
 
 def test_inference_config_defaults():
     config = InferenceConfig()
     assert config.ensemble == "nvt"
-    assert config.use_zbl_baseline is True
+    assert config.baseline_potential == BaselinePotential.ZBL
     assert config.uncertainty_threshold == 5.0
     assert config.sampling_interval == 10
 
 
 def test_inference_config_valid():
     config = InferenceConfig(
-        ensemble="npt", steps=5000, temperature=1000.0, pressure=10.0, use_zbl_baseline=False
+        ensemble="npt", steps=5000, temperature=1000.0, pressure=10.0, baseline_potential=BaselinePotential.NONE
     )
     assert config.ensemble == "npt"
     assert config.steps == 5000
-    assert not config.use_zbl_baseline
+    assert config.baseline_potential == BaselinePotential.NONE
 
 
 def test_inference_config_invalid_ensemble():

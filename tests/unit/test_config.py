@@ -25,9 +25,13 @@ def test_target_system_invalid_elements():
             crystal_structure="fcc"
         )
 
-def test_dft_config_security():
+def test_dft_config_security(tmp_path):
+    # Setup valid pseudo dir
+    p_dir = tmp_path / "pseudos"
+    p_dir.mkdir()
+    (p_dir / "Si.upf").touch()
+
     # Valid
-    p_dir = Path("/tmp")
     config = DFTConfig(
         pseudopotential_dir=p_dir,
         command="pw.x"
