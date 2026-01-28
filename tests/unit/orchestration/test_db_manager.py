@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from ase import Atoms
@@ -33,7 +33,7 @@ def test_select_entries_generator(db_manager: DatabaseManager) -> None:
     mock_conn.select.return_value = iter([row1, row2])
 
     # Patch _connection
-    db_manager._connection = mock_conn
+    db_manager._connection = mock_conn  # type: ignore
 
     gen = db_manager.select_entries()
 

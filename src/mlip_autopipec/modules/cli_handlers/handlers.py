@@ -312,9 +312,9 @@ class CLIHandler:
         console("Workflow finished.")
 
     @staticmethod
-    def run_cycle_02(config_file: Path, mock_dft: bool = False, dry_run: bool = False) -> None:
+    def run_cycle_02(config_file: Path, dry_run: bool = False) -> None:
         """
-        Executes the Cycle 02 pipeline: Generation -> DFT (Oracle) -> Database -> Training.
+        Executes the Cycle 02 pipeline: Generation -> DFT (Oracle) -> Database -> Training -> Validation.
         """
         from mlip_autopipec.config.models import WorkflowConfig
         from mlip_autopipec.domain_models.state import WorkflowPhase
@@ -330,9 +330,6 @@ class CLIHandler:
         config.workflow_config.max_generations = 1
 
         manager = WorkflowManager(config=config, work_dir=config.runtime.work_dir)
-
-        if mock_dft:
-            console("[WARNING] mock_dft flag is deprecated in new architecture.")
 
         if dry_run:
             console("Dry Run: Executing Exploration Only.")

@@ -38,13 +38,14 @@ def test_workflow_manager_initialization(mock_db, mock_tq, mock_config):
     mock_tq.assert_called()
 
 
+@patch("mlip_autopipec.orchestration.workflow.ValidationPhase")
 @patch("mlip_autopipec.orchestration.workflow.TrainingPhase")
 @patch("mlip_autopipec.orchestration.workflow.DFTPhase")
 @patch("mlip_autopipec.orchestration.workflow.SelectionPhase")
 @patch("mlip_autopipec.orchestration.workflow.ExplorationPhase")
 @patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
-def test_run_cycle_0(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_config):
+def test_run_cycle_0(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_val, mock_config):
     """Test Cycle 0 execution (Cold Start) - Selection skipped."""
     manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
 
@@ -63,14 +64,18 @@ def test_run_cycle_0(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train,
     mock_train.assert_called_with(manager)
     mock_train.return_value.execute.assert_called_once()
 
+    mock_val.assert_called_with(manager)
+    mock_val.return_value.execute.assert_called_once()
 
+
+@patch("mlip_autopipec.orchestration.workflow.ValidationPhase")
 @patch("mlip_autopipec.orchestration.workflow.TrainingPhase")
 @patch("mlip_autopipec.orchestration.workflow.DFTPhase")
 @patch("mlip_autopipec.orchestration.workflow.SelectionPhase")
 @patch("mlip_autopipec.orchestration.workflow.ExplorationPhase")
 @patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
-def test_run_cycle_1_with_potential(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_config):
+def test_run_cycle_1_with_potential(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_val, mock_config):
     """Test Cycle 1 execution (Active Learning) - Selection included."""
     manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
     manager.state.cycle_index = 1
@@ -90,6 +95,9 @@ def test_run_cycle_1_with_potential(mock_db, mock_tq, mock_exp, mock_sel, mock_d
     mock_train.assert_called_with(manager)
     mock_train.return_value.execute.assert_called_once()
 
+    mock_val.assert_called_with(manager)
+    mock_val.return_value.execute.assert_called_once()
+
 
 @patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
@@ -106,13 +114,14 @@ def test_run_loop(mock_db, mock_tq, mock_config):
     assert manager.state.cycle_index == 2
     mock_tq.return_value.shutdown.assert_called_once()
 
+@patch("mlip_autopipec.orchestration.workflow.ValidationPhase")
 @patch("mlip_autopipec.orchestration.workflow.TrainingPhase")
 @patch("mlip_autopipec.orchestration.workflow.DFTPhase")
 @patch("mlip_autopipec.orchestration.workflow.SelectionPhase")
 @patch("mlip_autopipec.orchestration.workflow.ExplorationPhase")
 @patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
-def test_resume_from_selection(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_config):
+def test_resume_from_selection(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_val, mock_config):
     """Test resumption from Selection phase."""
     manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
     manager.state.cycle_index = 1
@@ -131,3 +140,4 @@ def test_resume_from_selection(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, m
     # Rest should run
     mock_dft.assert_called()
     mock_train.assert_called()
+    mock_val.assert_called()

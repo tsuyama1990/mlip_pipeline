@@ -160,14 +160,13 @@ def run_cycle_02(
         help="Path to configuration YAML",
         exists=True
     )],
-    mock_dft: bool = typer.Option(False, help="[Deprecated] Use unit tests for mocking."),
     dry_run: bool = typer.Option(False, help="Run only structure generation (Exploration phase)."),
 ):
     """
-    Executes Cycle 02 Pipeline: Generation -> DFT (Oracle) -> Database -> Training (One-Shot).
+    Executes Cycle 02 Pipeline: Generation -> DFT (Oracle) -> Database -> Training -> Validation (One-Shot).
     """
     try:
-        CLIHandler.run_cycle_02(config, mock_dft=mock_dft, dry_run=dry_run)
+        CLIHandler.run_cycle_02(config, dry_run=dry_run)
     except Exception:
         logger.exception("Cycle 02 pipeline failed")
         raise typer.Exit(code=1)
