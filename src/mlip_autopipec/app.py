@@ -85,7 +85,9 @@ def select(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    n_samples: int = typer.Option(None, "--n", help="Number of samples to select (overrides config)"),
+    n_samples: int = typer.Option(
+        None, "--n", help="Number of samples to select (overrides config)"
+    ),
     model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
 ) -> None:
     """Select diverse candidates using a surrogate model."""
@@ -103,7 +105,9 @@ def train(
     config_file: Path = typer.Option(  # noqa: B008
         Path("input.yaml"), "--config", "-c", help="Config file"
     ),
-    prepare_only: bool = typer.Option(False, "--prepare-only", help="Only prepare data, do not train"),
+    prepare_only: bool = typer.Option(
+        False, "--prepare-only", help="Only prepare data, do not train"
+    ),
 ) -> None:
     """Train a potential using Pacemaker."""
     setup_logging()
@@ -159,29 +163,33 @@ def _load_dft_config(path: Path) -> tuple[DFTConfig, Path]:
         msg = "Config must be a dictionary"
         raise ValueError(msg)
 
-    work_dir = Path("dft_work") # Default
+    work_dir = Path("dft_work")  # Default
 
     if "dft" in data:
         # It's likely an MLIPConfig
         dft_config = DFTConfig(**data["dft"])
         if "runtime" in data and "work_dir" in data["runtime"]:
-             work_dir = Path(data["runtime"]["work_dir"])
+            work_dir = Path(data["runtime"]["work_dir"])
     else:
         # Assume standalone
         dft_config = DFTConfig(**data)
 
     return dft_config, work_dir
 
+
 def _handle_error(msg: str) -> None:
     """Helper to print error and exit, abstracting raise."""
     console.print(f"[bold red]Error:[/bold red] {msg}")
     raise typer.Exit(code=1)
 
+
 @app.command(name="run-dft")
 def run_dft(
     config_path: Path = typer.Option(..., "--config", "-c", help="Path to DFT configuration YAML"),  # noqa: B008
-    structure_path: Path = typer.Option(..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"),  # noqa: B008
-    work_dir: Path = typer.Option(None, "--work-dir", "-w", help="Override working directory"), # noqa: B008
+    structure_path: Path = typer.Option(
+        ..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"
+    ),
+    work_dir: Path = typer.Option(None, "--work-dir", "-w", help="Override working directory"),  # noqa: B008
 ) -> None:
     """Run a DFT calculation on a single structure."""
     try:
@@ -197,6 +205,7 @@ def run_dft(
 
         console.print(f"Loading structure from {structure_path}...")
         from ase.io import read
+
         # type: ignore[no-untyped-call]
         atoms_read = read(structure_path)
 

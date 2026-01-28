@@ -49,10 +49,12 @@ class TargetSystem(BaseModel):
 
         return composition
 
+
 class RuntimeConfig(BaseModel):
     """
     Runtime environment configuration.
     """
+
     database_path: Path = Field(Path("mlip.db"), description="Path to SQLite database")
     work_dir: Path = Field(Path("_work"), description="Scratch directory for calculations")
     log_path: Path = Field(Path("mlip.log"), description="Path to log file")

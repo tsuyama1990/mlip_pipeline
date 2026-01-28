@@ -6,6 +6,7 @@ from mlip_autopipec.orchestration.phases.exploration import chunked
 
 logger = logging.getLogger(__name__)
 
+
 class DFTPhase(BasePhase):
     def execute(self) -> None:
         """Execute Phase B: DFT Labeling."""
@@ -53,7 +54,9 @@ class DFTPhase(BasePhase):
 
                     processed_count += len(batch)
 
-            logger.info(f"DFT Phase complete. Processed: {processed_count}, Success: {total_success}")
+            logger.info(
+                f"DFT Phase complete. Processed: {processed_count}, Success: {total_success}"
+            )
 
         except Exception:
             logger.exception("DFT phase failed")

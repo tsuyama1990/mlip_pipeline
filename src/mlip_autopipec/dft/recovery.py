@@ -1,15 +1,8 @@
 import re
-from enum import Enum
 from typing import Any, ClassVar
 
+from mlip_autopipec.data_models.dft_models import DFTErrorType
 
-class DFTErrorType(str, Enum):
-    CONVERGENCE_FAIL = "CONVERGENCE_FAIL"
-    DIAGONALIZATION_ERROR = "DIAGONALIZATION_ERROR"
-    MAX_CPU_TIME = "MAX_CPU_TIME"
-    OOM_KILL = "OOM_KILL"
-    UNKNOWN = "UNKNOWN"
-    NONE = "NONE"
 
 class RecoveryHandler:
     """

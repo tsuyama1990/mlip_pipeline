@@ -17,8 +17,9 @@ def mock_config(tmp_path: Path) -> DFTConfig:
         ecutwfc=30.0,
         kspacing=0.05,
         command="pw.x",
-        recoverable=True
+        recoverable=True,
     )
+
 
 @patch("shutil.which")
 def test_validate_command_forbidden_chars(mock_which: MagicMock, mock_config: DFTConfig) -> None:
@@ -33,12 +34,13 @@ def test_validate_command_forbidden_chars(mock_which: MagicMock, mock_config: DF
         "pw.x `whoami`",
         "pw.x $(ls)",
         "pw.x > output",
-        "pw.x < input"
+        "pw.x < input",
     ]
 
     for cmd in injections:
         with pytest.raises(DFTFatalError, match="unsafe shell characters"):
             runner._validate_command(cmd)
+
 
 @patch("shutil.which")
 def test_validate_command_valid_args(mock_which: MagicMock, mock_config: DFTConfig) -> None:

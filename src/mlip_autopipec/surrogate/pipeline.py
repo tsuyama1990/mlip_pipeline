@@ -11,8 +11,14 @@ from mlip_autopipec.surrogate.sampling import FarthestPointSampling
 
 logger = logging.getLogger(__name__)
 
+
 class SurrogatePipeline:
-    def __init__(self, db_manager: DatabaseManager, config: SurrogateConfig, model: ModelInterface | None = None) -> None:
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        config: SurrogateConfig,
+        model: ModelInterface | None = None,
+    ) -> None:
         self.db_manager = db_manager
         self.config = config
         self.model = model
@@ -65,7 +71,9 @@ class SurrogatePipeline:
         if self.model:
             self.model.load_model(self.config.model_path, self.config.device)
 
-    def _prescreen_candidates(self, ids: list[int], atoms_list: list[Atoms]) -> tuple[list[int], list[int]]:
+    def _prescreen_candidates(
+        self, ids: list[int], atoms_list: list[Atoms]
+    ) -> tuple[list[int], list[int]]:
         logger.info("Computing energy and forces...")
 
         if not atoms_list:
@@ -73,8 +81,8 @@ class SurrogatePipeline:
 
         # Assume model is loaded
         if not self.model:
-             msg = "Model not initialized"
-             raise RuntimeError(msg)
+            msg = "Model not initialized"
+            raise RuntimeError(msg)
 
         energies, forces_list = self.model.compute_energy_forces(atoms_list)
 
@@ -83,8 +91,8 @@ class SurrogatePipeline:
             msg = f"Energy array length {len(energies)} mismatches atoms list {len(atoms_list)}"
             raise RuntimeError(msg)
         if len(forces_list) != len(atoms_list):
-             msg = f"Forces array length {len(forces_list)} mismatches atoms list {len(atoms_list)}"
-             raise RuntimeError(msg)
+            msg = f"Forces array length {len(forces_list)} mismatches atoms list {len(atoms_list)}"
+            raise RuntimeError(msg)
 
         valid_indices = []
         rejected_ids = []
@@ -93,24 +101,23 @@ class SurrogatePipeline:
             # Validate forces shape for individual atom
             n_atoms = len(atoms_list[idx])
             if forces.shape != (n_atoms, 3):
-                 # Log error but maybe skip structure? Or fail?
-                 # If model returns wrong shape, it's critical.
-                 msg = f"Forces shape {forces.shape} invalid for {n_atoms} atoms at index {idx}"
-                 raise RuntimeError(msg)
+                # Log error but maybe skip structure? Or fail?
+                # If model returns wrong shape, it's critical.
+                msg = f"Forces shape {forces.shape} invalid for {n_atoms} atoms at index {idx}"
+                raise RuntimeError(msg)
 
             max_force = np.max(np.linalg.norm(forces, axis=1))
             energy = float(energies[idx])
 
-            meta = {
-                "mace_energy": energy,
-                "mace_max_force": float(max_force)
-            }
+            meta = {"mace_energy": energy, "mace_max_force": float(max_force)}
 
             current_id = ids[idx]
             self.db_manager.update_metadata(current_id, meta)
 
             if max_force > self.config.force_threshold:
-                logger.debug(f"Rejecting structure {current_id}: Max force {max_force:.2f} > {self.config.force_threshold}")
+                logger.debug(
+                    f"Rejecting structure {current_id}: Max force {max_force:.2f} > {self.config.force_threshold}"
+                )
                 rejected_ids.append(current_id)
                 self.db_manager.update_status(current_id, "rejected")
             else:
@@ -119,7 +126,9 @@ class SurrogatePipeline:
         logger.info(f"Rejected {len(rejected_ids)} structures due to high forces.")
         return valid_indices, rejected_ids
 
-    def _select_and_update(self, valid_indices: list[int], ids: list[int], atoms_list: list[Atoms]) -> None:
+    def _select_and_update(
+        self, valid_indices: list[int], ids: list[int], atoms_list: list[Atoms]
+    ) -> None:
         valid_atoms = [atoms_list[i] for i in valid_indices]
         valid_ids = [ids[i] for i in valid_indices]
 
@@ -127,24 +136,28 @@ class SurrogatePipeline:
         selected_valid_indices = set()
 
         if n_samples < len(valid_atoms):
-            logger.info(f"Selecting {n_samples} structures from {len(valid_atoms)} valid candidates.")
+            logger.info(
+                f"Selecting {n_samples} structures from {len(valid_atoms)} valid candidates."
+            )
             logger.info("Computing descriptors...")
 
             if not self.model:
-                 msg = "Model not initialized"
-                 raise RuntimeError(msg)
+                msg = "Model not initialized"
+                raise RuntimeError(msg)
 
             descriptors = self.model.compute_descriptors(valid_atoms)
             # Validate descriptors
             if len(descriptors) != len(valid_atoms):
-                 msg = "Descriptor count mismatch"
-                 raise RuntimeError(msg)
+                msg = "Descriptor count mismatch"
+                raise RuntimeError(msg)
 
             fps = FarthestPointSampling(n_samples=n_samples)
             selected_indices_local = fps.select(descriptors)
             selected_valid_indices = set(selected_indices_local)
         else:
-            logger.info(f"Selecting all {len(valid_atoms)} valid candidates (requested {self.config.n_samples}).")
+            logger.info(
+                f"Selecting all {len(valid_atoms)} valid candidates (requested {self.config.n_samples})."
+            )
             selected_valid_indices = set(range(len(valid_atoms)))
 
         selected_count = 0

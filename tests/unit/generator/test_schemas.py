@@ -14,11 +14,13 @@ def test_sqs_config_defaults() -> None:
     assert config.enabled is True
     assert config.supercell_size == [2, 2, 2]
 
+
 def test_distortion_config_defaults() -> None:
     config = DistortionConfig()
     assert config.enabled is True
     assert config.strain_range == (-0.05, 0.05)
     assert config.rattle_stdev == 0.01
+
 
 def test_defect_config_defaults() -> None:
     config = DefectConfig()
@@ -26,6 +28,7 @@ def test_defect_config_defaults() -> None:
     assert config.vacancies is False
     assert config.interstitials is False
     assert config.interstitial_elements == []
+
 
 def test_generator_config_defaults() -> None:
     config = GeneratorConfig()
@@ -35,9 +38,11 @@ def test_generator_config_defaults() -> None:
     assert config.number_of_structures == 10
     assert config.seed is None
 
+
 def test_extra_fields_forbidden() -> None:
     with pytest.raises(ValidationError):
         GeneratorConfig(extra_field="invalid")  # type: ignore[call-arg]
+
 
 def test_types_validation() -> None:
     with pytest.raises(ValidationError):

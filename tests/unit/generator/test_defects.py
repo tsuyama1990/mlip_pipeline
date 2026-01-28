@@ -12,12 +12,14 @@ def supercell() -> Atoms:
     # repeat((2, 2, 2)) -> 1 * 8 = 8 atoms
     return bulk("Al", "fcc", a=4.05).repeat((2, 2, 2))
 
+
 def test_defects_disabled_by_default(supercell: Atoms) -> None:
     config = DefectConfig(enabled=False)
     strategy = DefectStrategy(config)
     results = strategy.apply([supercell])
     assert len(results) == 1
     assert results[0] == supercell
+
 
 def test_generate_vacancy_single(supercell: Atoms) -> None:
     # Strategy with vacancy enabled
@@ -34,6 +36,7 @@ def test_generate_vacancy_single(supercell: Atoms) -> None:
         assert s.info["config_type"] == "vacancy"
         assert "defect_index" in s.info
 
+
 def test_generate_vacancy_multiple(supercell: Atoms) -> None:
     config = DefectConfig(enabled=True, vacancies=True)
     strategy = DefectStrategy(config)
@@ -46,6 +49,7 @@ def test_generate_vacancy_multiple(supercell: Atoms) -> None:
     assert vac_structures[0].info["config_type"] == "vacancy"
     assert len(vac_structures[0].info["defect_indices"]) == 2
 
+
 def test_generate_interstitials(supercell: Atoms) -> None:
     config = DefectConfig(enabled=True, interstitials=True, interstitial_elements=["H"])
     strategy = DefectStrategy(config)
@@ -55,12 +59,15 @@ def test_generate_interstitials(supercell: Atoms) -> None:
     # Voronoi should find some sites.
     assert len(int_structures) > 0
     for s in int_structures:
-        assert len(s) == 9 # 8 + 1
+        assert len(s) == 9  # 8 + 1
         assert s.symbols[-1] == "H"
         assert s.info["config_type"] == "interstitial"
 
+
 def test_apply_strategy(supercell: Atoms) -> None:
-    config = DefectConfig(enabled=True, vacancies=True, interstitials=True, interstitial_elements=["H"])
+    config = DefectConfig(
+        enabled=True, vacancies=True, interstitials=True, interstitial_elements=["H"]
+    )
     strategy = DefectStrategy(config)
 
     # Input list of 1 structure

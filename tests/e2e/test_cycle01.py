@@ -14,6 +14,7 @@ from mlip_autopipec.dft.runner import QERunner
 
 runner = CliRunner()
 
+
 def test_init_creates_template(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         result = runner.invoke(app, ["init"])
@@ -26,6 +27,7 @@ def test_init_creates_template(tmp_path):
         assert "target_system" in data
         assert "dft" in data
 
+
 def test_init_existing_file(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         # Create dummy file
@@ -33,6 +35,7 @@ def test_init_existing_file(tmp_path):
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
         assert "input.yaml already exists" in result.stdout
+
 
 def test_validate_valid_config(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -55,20 +58,23 @@ def test_validate_valid_config(tmp_path):
         assert result.exit_code == 0
         assert "Validation Successful" in result.stdout
 
+
 def test_validate_invalid_config(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         with Path("bad_config.yaml").open("w") as f:
-            f.write("target_system: []\n") # Invalid type
+            f.write("target_system: []\n")  # Invalid type
 
         result = runner.invoke(app, ["validate", "bad_config.yaml"])
         assert result.exit_code == 1
         assert "Validation Error" in result.stdout
+
 
 def test_validate_missing_file(tmp_path):
     result = runner.invoke(app, ["validate", "non_existent.yaml"])
     assert result.exit_code == 1
     # Error message might vary depending on OS error or my code, but usually "Error"
     assert "Error" in result.stdout or "No such file" in result.stdout
+
 
 def test_db_init(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -91,10 +97,11 @@ def test_db_init(tmp_path):
         assert "Database initialized" in result.stdout
         assert Path("mlip.db").exists()
 
+
 @patch("shutil.which")
 @patch("subprocess.run")
 @patch("mlip_autopipec.dft.runner.QEOutputParser")
-def test_oracle_flow(MockParser, mock_run, mock_which, tmp_path):
+def test_oracle_flow(mock_parser_class, mock_run, mock_which, tmp_path):
     """
     Scenario: Run a static calculation on Silicon (Mocked)
     """
@@ -104,16 +111,13 @@ def test_oracle_flow(MockParser, mock_run, mock_which, tmp_path):
     (p_dir / "Si.upf").touch()
 
     config = DFTConfig(
-        command="pw.x",
-        pseudopotential_dir=p_dir,
-        pseudopotentials={"Si": "Si.upf"},
-        kspacing=0.1
+        command="pw.x", pseudopotential_dir=p_dir, kspacing=0.1
     )
 
     mock_which.return_value = "/bin/pw.x"
 
-    runner = QERunner(config=config, work_dir=tmp_path, parser_class=MockParser)
-    atoms = Atoms("Si", positions=[[0,0,0]], cell=[5,5,5], pbc=True)
+    runner = QERunner(config=config, work_dir=tmp_path, parser_class=mock_parser_class)
+    atoms = Atoms("Si", positions=[[0, 0, 0]], cell=[5, 5, 5], pbc=True)
 
     # Mock subprocess success
     mock_process = MagicMock(returncode=0)
@@ -121,16 +125,16 @@ def test_oracle_flow(MockParser, mock_run, mock_which, tmp_path):
     mock_run.return_value = mock_process
 
     # Mock Parser
-    mock_parser_instance = MockParser.return_value
+    mock_parser_instance = mock_parser_class.return_value
     mock_parser_instance.parse.return_value = DFTResult(
         uid="test",
         energy=-135.0,
         forces=[[0.0, 0.0, 0.0]],
-        stress=np.zeros((3,3)).tolist(),
+        stress=np.zeros((3, 3)).tolist(),
         succeeded=True,
         converged=True,
         wall_time=1.0,
-        parameters={}
+        parameters={},
     )
 
     # WHEN I run compute

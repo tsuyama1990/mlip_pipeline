@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,8 +20,8 @@ __all__ = [
     "ExplorerConfig",
     "GeneratorConfig",
     "InferenceConfig",
-    "MinimalConfig",
     "MLIPConfig",
+    "MinimalConfig",
     "RuntimeConfig",
     "SurrogateConfig",
     "SystemConfig",
@@ -32,11 +31,13 @@ __all__ = [
     "WorkflowConfig",
 ]
 
+
 class MLIPConfig(BaseModel):
     """
     Root configuration object for MLIP-AutoPipe.
     Aggregates all module configurations.
     """
+
     target_system: TargetSystem
     dft: DFTConfig
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
@@ -44,12 +45,15 @@ class MLIPConfig(BaseModel):
     surrogate_config: SurrogateConfig = Field(default_factory=SurrogateConfig)
     training_config: TrainingConfig | None = None
     inference_config: InferenceConfig | None = None
-    validation_config: ValidationConfig = Field(default_factory=ValidationConfig, alias="validation")
+    validation_config: ValidationConfig = Field(
+        default_factory=ValidationConfig, alias="validation"
+    )
 
     # Added for Orchestration
     workflow_config: WorkflowConfig | None = Field(None, alias="workflow")
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
 
 # Alias for backward compatibility or clarity
 UserInputConfig = MLIPConfig
@@ -77,9 +81,9 @@ class SystemConfig(BaseModel):
 
     # Use defaults but allow override.
     # TODO: In future iterations, move these defaults to a global constants file.
-    working_dir: Path = Path("_work") # type: ignore
-    db_path: Path = Path("mlip.db") # type: ignore
-    log_path: Path = Path("mlip.log") # type: ignore
+    working_dir: Path = Path("_work")  # type: ignore
+    db_path: Path = Path("mlip.db")  # type: ignore
+    log_path: Path = Path("mlip.log")  # type: ignore
 
     # Strict types
     workflow_config: WorkflowConfig | None = None

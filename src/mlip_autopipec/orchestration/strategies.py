@@ -35,7 +35,9 @@ class GammaSelectionStrategy(SelectionStrategy):
     Selection strategy based on extrapolation grade (Gamma) and Pacemaker's active set selection.
     """
 
-    def __init__(self, pacemaker_wrapper: PacemakerWrapper, embedding_config: EmbeddingConfig) -> None:
+    def __init__(
+        self, pacemaker_wrapper: PacemakerWrapper, embedding_config: EmbeddingConfig
+    ) -> None:
         self.pacemaker = pacemaker_wrapper
         self.embedding_config = embedding_config
         self.extractor = EmbeddingExtractor(embedding_config)

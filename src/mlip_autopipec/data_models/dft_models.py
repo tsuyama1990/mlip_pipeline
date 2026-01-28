@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class DFTErrorType(str, Enum):
@@ -14,54 +14,54 @@ class DFTErrorType(str, Enum):
 
 
 class DFTInputParams(BaseModel):
-    """
-    Structured parameters for DFT input generation.
-    """
-    kspacing: float | None = None
-    k_density: float | None = None  # Legacy/Alias support
-    ecutwfc: float = 60.0
-    ecutrho: float | None = None
-    mixing_beta: float = 0.7
-    electron_maxstep: int = 100
-    diagonalization: Literal["david", "cg"] = "david"
-    smearing: Literal["mv", "mp", "fd"] = "mv"
-    degauss: float = 0.02
-    input_data: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    """Parameters for generating DFT input files."""
 
     model_config = ConfigDict(extra="forbid")
 
+    ecutwfc: float = Field(..., gt=0, description="Wavefunction cutoff (Ry).")
+    ecutrho: float | None = Field(default=None, description="Charge density cutoff (Ry).")
+    kspacing: float = Field(..., gt=0, description="K-point spacing (1/A).")
+    k_density: float | None = Field(default=None, description="Legacy parameter for K-point density (1/A).")
+    smearing: str = Field(default="mp", description="Smearing method.")
+    degauss: float = Field(default=0.02, ge=0, description="Smearing width (Ry).")
+    mixing_beta: float = Field(default=0.7, gt=0, le=1.0, description="Mixing beta.")
+    diagonalization: str = Field(default="david", description="Diagonalization method.")
+    electron_maxstep: int = Field(default=100, gt=0, description="Max SCF steps.")
+    input_data: dict[str, Any] = Field(default_factory=dict, description="Override parameters for input sections.")
+
 
 class DFTResult(BaseModel):
-    uid: str
-    energy: float
-    forces: list[list[float]] = Field(..., description="Nx3 array")
-    stress: list[list[float]] | None = Field(None, description="3x3 array")
-    succeeded: bool
-    converged: bool = Field(default=False) # Backwards compat
-    error_message: str | None = None
-    wall_time: float
-    # Metadata for provenance
-    parameters: dict[str, Any]
-    final_mixing_beta: float | None = None
+    """Result of a DFT calculation."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
-    @field_validator("forces")
-    @classmethod
-    def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
-        if not forces:
-             return forces
-        if not all(len(row) == 3 for row in forces):
-            msg = "Forces must have a shape of (N_atoms, 3)."
-            raise ValueError(msg)
-        return forces
+    uid: str = Field(..., description="Unique identifier for the calculation.")
+    energy: float = Field(..., description="Total energy (eV).")
+    forces: list[list[float]] = Field(..., description="Forces on atoms (eV/A).")
+    stress: list[list[float]] = Field(..., description="Stress tensor (eV/A^3).")
+    succeeded: bool = Field(..., description="Whether the calculation finished successfully.")
+    converged: bool = Field(..., description="Whether the SCF cycle converged.")
+    error_message: str | None = Field(default=None, description="Error message if failed.")
+    wall_time: float = Field(..., ge=0, description="Execution time in seconds.")
+    parameters: dict[str, Any] = Field(default_factory=dict, description="Input parameters used.")
+    final_mixing_beta: float | None = Field(default=None, description="Final mixing beta used.")
 
-    @field_validator("stress")
-    @classmethod
-    def check_stress_shape(cls, stress: list[list[float]] | None) -> list[list[float]] | None:
-        if not stress:
-            return stress
-        if len(stress) == 3 and not all(len(row) == 3 for row in stress):
-            msg = "Stress tensor must be 3x3."
-            raise ValueError(msg)
-        return stress
+    @model_validator(mode="after")
+    def check_shapes(self) -> "DFTResult":
+        # Validate Forces Shape (N x 3)
+        if self.forces:
+            for f in self.forces:
+                if len(f) != 3:
+                    msg = "Each force vector must have 3 components."
+                    raise ValueError(msg)
+
+        # Validate Stress Shape (3 x 3)
+        if self.stress:
+            if len(self.stress) != 3:
+                msg = "Stress tensor must be 3x3."
+                raise ValueError(msg)
+            for row in self.stress:
+                if len(row) != 3:
+                    msg = "Stress tensor rows must have 3 components."
+                    raise ValueError(msg)
+        return self

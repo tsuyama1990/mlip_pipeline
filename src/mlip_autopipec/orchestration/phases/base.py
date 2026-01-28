@@ -4,10 +4,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from mlip_autopipec.orchestration.workflow import WorkflowManager
 
+
 class BasePhase(ABC):
     """
     Abstract base class for workflow phases.
     """
+
     def __init__(self, manager: "WorkflowManager") -> None:
         self.manager = manager
         self.config = manager.config

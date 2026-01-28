@@ -9,6 +9,7 @@ from mlip_autopipec.orchestration.phases.training import TrainingPhase
 if TYPE_CHECKING:
     from mlip_autopipec.orchestration.workflow import WorkflowManager
 
+
 class PhaseExecutor:
     """
     Facade for executing workflow phases.

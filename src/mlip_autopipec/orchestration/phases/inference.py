@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 INFERENCE_DIR_NAME = "inference"
 INFERENCE_EON_DIR_NAME = "inference_eon"
 
+
 class InferencePhase(BasePhase):
     def execute(self) -> bool:
         """

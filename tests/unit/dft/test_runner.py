@@ -1,100 +1,79 @@
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import subprocess
+from unittest.mock import patch
 
 import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.runner import DFTFatalError, QERunner
 
 
 @pytest.fixture
-def mock_config(tmp_path: Path) -> DFTConfig:
-    # create fake UPF
+def mock_dft_config(tmp_path):
     pseudo_dir = tmp_path / "pseudos"
     pseudo_dir.mkdir()
-    (pseudo_dir / "Al.UPF").touch()
-
+    (pseudo_dir / "H.UPF").touch()
     return DFTConfig(
-        pseudopotential_dir=pseudo_dir,
-        ecutwfc=30.0,
-        kspacing=0.05,
         command="pw.x",
-        recoverable=True
+        pseudopotential_dir=pseudo_dir,
+        work_dir=tmp_path / "work",
+        timeout=10,
+        recoverable=True,
+        max_retries=1,
     )
 
-@patch("shutil.which")
-def test_validate_command_success(mock_which: MagicMock, mock_config: DFTConfig) -> None:
-    mock_which.return_value = "/usr/bin/pw.x"
-    runner = QERunner(mock_config)
-    parts = runner._validate_command("pw.x")
-    assert parts == ["pw.x"]
 
-@patch("shutil.which")
-def test_validate_command_fail(mock_which: MagicMock, mock_config: DFTConfig) -> None:
-    mock_which.return_value = None
-    runner = QERunner(mock_config)
-    with pytest.raises(DFTFatalError, match="not found"):
-        runner._validate_command("pw.x")
+@pytest.fixture
+def runner(mock_dft_config):
+    return QERunner(config=mock_dft_config)
 
-@patch("shutil.which")
-@patch("mlip_autopipec.dft.runner.subprocess.run")
-def test_run_success(mock_run: MagicMock, mock_which: MagicMock, mock_config: DFTConfig) -> None:
-    mock_which.return_value = "/bin/pw.x"
 
-    # Mock subprocess success
-    mock_process = MagicMock()
-    mock_process.returncode = 0
-    mock_process.stderr = ""
-    mock_run.return_value = mock_process
+def test_validate_command_valid(runner):
+    with patch("shutil.which", return_value="/usr/bin/pw.x"):
+        cmd = runner._validate_command("pw.x -np 4")
+        assert cmd == ["pw.x", "-np", "4"]
 
-    # Mock Parser via Dependency Injection
-    mock_parser_cls = MagicMock()
-    mock_result = DFTResult(
-        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
-        succeeded=True, converged=True, wall_time=1.0, parameters={}
-    )
-    mock_parser_cls.return_value.parse.return_value = mock_result
 
-    runner = QERunner(mock_config, parser_class=mock_parser_cls)
-    atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[5,5,5])
+def test_validate_command_injection(runner):
+    with pytest.raises(DFTFatalError, match="unsafe shell characters"):
+        runner._validate_command("pw.x; rm -rf /")
 
-    result = runner.run(atoms)
 
-    assert result.succeeded
-    assert result.energy == -10.0
-    mock_run.assert_called()
-    mock_parser_cls.assert_called()
+def test_validate_command_not_found(runner):
+    with patch("shutil.which", return_value=None):
+        with pytest.raises(DFTFatalError, match="not found"):
+            runner._validate_command("invalid_cmd")
 
-@patch("shutil.which")
-@patch("mlip_autopipec.dft.runner.subprocess.run")
-def test_run_retry_recovery(mock_run: MagicMock, mock_which: MagicMock, mock_config: DFTConfig) -> None:
-    mock_which.return_value = "/bin/pw.x"
 
-    # Fail first time (Convergence), Succeed second time
-    proc_fail = MagicMock()
-    proc_fail.returncode = 1
-    proc_fail.stderr = "convergence NOT achieved"
+def test_stage_pseudos(runner, mock_dft_config, tmp_path):
+    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1]])
+    work_dir = tmp_path / "job_work"
+    work_dir.mkdir()
 
-    proc_success = MagicMock()
-    proc_success.returncode = 0
-    proc_success.stderr = ""
+    # Mock SSSP constants
+    with patch.dict(
+        "mlip_autopipec.dft.constants.SSSP_EFFICIENCY_1_1", {"H": "H.UPF"}, clear=True
+    ):
+        runner._stage_pseudos(work_dir, atoms)
 
-    mock_run.side_effect = [proc_fail, proc_success]
+    assert (work_dir / "H.UPF").exists()
+    assert (work_dir / "H.UPF").is_symlink()
 
-    # Mock Parser to succeed on second call
-    mock_parser_cls = MagicMock()
-    mock_result = DFTResult(
-        uid="test", energy=-10.0, forces=[[0.0, 0.0, 0.0]], stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
-        succeeded=True, converged=True, wall_time=1.0, parameters={}
-    )
-    mock_parser_cls.return_value.parse.return_value = mock_result
 
-    runner = QERunner(mock_config, parser_class=mock_parser_cls)
-    atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[5,5,5])
+@patch("subprocess.run")
+def test_execute_subprocess_success(mock_run, runner, tmp_path):
+    mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    with open(tmp_path / "stdout", "w") as f:
+        runner._execute_subprocess_with_retry(["ls"], tmp_path, f, 10.0)
+    assert mock_run.call_count == 1
 
-    result = runner.run(atoms)
 
-    assert result.succeeded
+@patch("subprocess.run")
+def test_execute_subprocess_retry(mock_run, runner, tmp_path):
+    # First fail with OSError, then success
+    mock_run.side_effect = [OSError("Resource busy"), subprocess.CompletedProcess([], 0, "", "")]
+
+    with open(tmp_path / "stdout", "w") as f:
+        runner._execute_subprocess_with_retry(["ls"], tmp_path, f, 10.0)
+
     assert mock_run.call_count == 2

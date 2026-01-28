@@ -53,11 +53,11 @@ class QEOutputParser:
         try:
             content = output_path.read_text(errors="replace")
             if "JOB DONE" not in content:
-                 msg = "QE output missing 'JOB DONE' marker."
-                 raise Exception(msg)
+                msg = "QE output missing 'JOB DONE' marker."
+                raise Exception(msg)
         except FileNotFoundError:
-             msg = f"Output file not found: {output_path}"
-             raise Exception(msg)
+            msg = f"Output file not found: {output_path}"
+            raise Exception(msg)
 
         try:
             # ase.io.read returns Atoms object
@@ -94,6 +94,7 @@ class QEOutputParser:
                 forces=forces,
                 stress=stress,
                 succeeded=True,
+                converged=True,
                 wall_time=wall_time,
                 parameters=params,
                 final_mixing_beta=final_beta,

@@ -1,6 +1,7 @@
 """
 Handlers for CLI commands to ensure Single Responsibility Principle in app.py.
 """
+
 import logging
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
 console = typer.echo
+
 
 class CLIHandler:
     @staticmethod
@@ -42,23 +44,20 @@ class CLIHandler:
             },
             "runtime": {"database_path": "mlip.db", "work_dir": "_work"},
             "training_config": {
-                 "cutoff": 5.0,
-                 "b_basis_size": 300,
-                 "kappa": 0.5,
-                 "kappa_f": 100.0,
-                 "max_iter": 100,
-                 "batch_size": 32
+                "cutoff": 5.0,
+                "b_basis_size": 300,
+                "kappa": 0.5,
+                "kappa_f": 100.0,
+                "max_iter": 100,
+                "batch_size": 32,
             },
             "inference_config": {
                 "lammps_executable": "/path/to/lmp",
                 "temperature": 1000.0,
                 "steps": 10000,
-                "uncertainty_threshold": 10.0
+                "uncertainty_threshold": 10.0,
             },
-            "workflow": {
-                "max_generations": 5,
-                "workers": 4
-            }
+            "workflow": {"max_generations": 5, "workers": 4},
         }
 
         with open(input_file, "w") as f:
@@ -67,7 +66,9 @@ class CLIHandler:
         console("Initialized new project. Please edit input.yaml.")
 
     @staticmethod
-    def run_physics_validation(config_file: Path, phonon: bool = False, elastic: bool = False, eos: bool = False) -> None:
+    def run_physics_validation(
+        config_file: Path, phonon: bool = False, elastic: bool = False, eos: bool = False
+    ) -> None:
         import shutil
 
         from ase.build import bulk
@@ -83,44 +84,53 @@ class CLIHandler:
 
         # Determine modules
         modules = []
-        if phonon: modules.append("phonon")
-        if elastic: modules.append("elastic")
-        if eos: modules.append("eos")
+        if phonon:
+            modules.append("phonon")
+        if elastic:
+            modules.append("elastic")
+        if eos:
+            modules.append("eos")
 
         if not modules:
-            rich_console.print("[yellow]No validation modules selected. Use --phonon, --elastic, or --eos.[/yellow]")
+            rich_console.print(
+                "[yellow]No validation modules selected. Use --phonon, --elastic, or --eos.[/yellow]"
+            )
             return
 
         # Locate Potential
         potential_path = config.runtime.work_dir / "potentials" / "potential.yace"
 
         if not potential_path.exists():
-             # Fallback to local if explicit
-             local_pot = Path("potential.yace")
-             if local_pot.exists():
-                 potential_path = local_pot
-             else:
-                 rich_console.print(f"[bold red]Error:[/bold red] Could not find potential at {potential_path} or potential.yace.")
-                 return
+            # Fallback to local if explicit
+            local_pot = Path("potential.yace")
+            if local_pot.exists():
+                potential_path = local_pot
+            else:
+                rich_console.print(
+                    f"[bold red]Error:[/bold red] Could not find potential at {potential_path} or potential.yace."
+                )
+                return
 
         # Locate LAMMPS
         cmd = "lmp"
         if config.inference_config and config.inference_config.lammps_executable:
-             cmd = str(config.inference_config.lammps_executable)
+            cmd = str(config.inference_config.lammps_executable)
 
         # Check if cmd exists
         if not shutil.which(cmd.split()[0]):
-             rich_console.print(f"[bold red]Error:[/bold red] LAMMPS executable '{cmd}' not found in PATH.")
-             return
+            rich_console.print(
+                f"[bold red]Error:[/bold red] LAMMPS executable '{cmd}' not found in PATH."
+            )
+            return
 
         # Setup Structure
         # Use primary element bulk for validation as a baseline
         elements = config.target_system.elements
         primary = elements[0]
         try:
-            atoms = bulk(primary, crystalstructure=config.target_system.crystal_structure or 'fcc')
+            atoms = bulk(primary, crystalstructure=config.target_system.crystal_structure or "fcc")
         except Exception:
-            atoms = bulk(primary) # Fallback
+            atoms = bulk(primary)  # Fallback
 
         # Setup Calculator
         # Using pace pair style
@@ -130,7 +140,7 @@ class CLIHandler:
             pair_style="pace",
             pair_coeff=[f"* * {potential_path.absolute()} {' '.join(elements)}"],
             keep_tmp_files=False,
-            tmp_dir=config.runtime.work_dir / "tmp_validation"
+            tmp_dir=config.runtime.work_dir / "tmp_validation",
         )
         atoms.calc = calc
 
@@ -158,7 +168,7 @@ class CLIHandler:
                 if isinstance(val, float):
                     val_str = f"{val:.4f}"
                 elif isinstance(val, list):
-                    val_str = "Array" # Simplify large arrays
+                    val_str = "Array"  # Simplify large arrays
                 else:
                     val_str = str(val)
 
@@ -184,8 +194,7 @@ class CLIHandler:
 
         # Convert MLIPConfig to SystemConfig for StructureBuilder compatibility
         sys_config = SystemConfig(
-            target_system=config.target_system,
-            generator_config=config.generator_config
+            target_system=config.target_system, generator_config=config.generator_config
         )
 
         builder = StructureBuilder(sys_config)
@@ -243,6 +252,7 @@ class CLIHandler:
 
             if prepare_only:
                 from mlip_autopipec.training.dataset import DatasetBuilder
+
                 builder = DatasetBuilder(db)
                 builder.export(train_conf, work_dir)
                 console(f"Data preparation complete in {work_dir}")
