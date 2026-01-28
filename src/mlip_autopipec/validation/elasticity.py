@@ -3,7 +3,7 @@ from ase import Atoms
 from ase.units import GPa
 
 from mlip_autopipec.config.schemas.validation import ElasticConfig
-from mlip_autopipec.data_models.validation import ValidationMetric, ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 
 
 class ElasticityValidator:

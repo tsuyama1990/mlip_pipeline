@@ -4,7 +4,7 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from mlip_autopipec.config.schemas.validation import PhononConfig
-from mlip_autopipec.data_models.validation import ValidationMetric, ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 
 
 class PhononValidator:

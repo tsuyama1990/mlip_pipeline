@@ -9,11 +9,10 @@ import logging
 from pathlib import Path
 
 import typer
-import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
-from mlip_autopipec.config.schemas.dft import DFTConfig
+from mlip_autopipec.config.loaders.yaml_loader import load_dft_config_helper
 from mlip_autopipec.modules.cli_handlers.handlers import CLIHandler
 from mlip_autopipec.utils.logging import setup_logging
 
@@ -150,33 +149,6 @@ def run_loop(
         raise typer.Exit(code=1) from e
 
 
-def _load_dft_config(path: Path) -> tuple[DFTConfig, Path]:
-    """Helper to load DFT config from full MLIP config or standalone DFT config."""
-    if not path.exists():
-        msg = f"Config file not found: {path}"
-        raise FileNotFoundError(msg)
-
-    with path.open("r") as f:
-        data = yaml.safe_load(f)
-
-    if not isinstance(data, dict):
-        msg = "Config must be a dictionary"
-        raise ValueError(msg)
-
-    work_dir = Path("dft_work")  # Default
-
-    if "dft" in data:
-        # It's likely an MLIPConfig
-        dft_config = DFTConfig(**data["dft"])
-        if "runtime" in data and "work_dir" in data["runtime"]:
-            work_dir = Path(data["runtime"]["work_dir"])
-    else:
-        # Assume standalone
-        dft_config = DFTConfig(**data)
-
-    return dft_config, work_dir
-
-
 def _handle_error(msg: str) -> None:
     """Helper to print error and exit, abstracting raise."""
     console.print(f"[bold red]Error:[/bold red] {msg}")
@@ -186,7 +158,7 @@ def _handle_error(msg: str) -> None:
 @app.command(name="run-dft")
 def run_dft(
     config_path: Path = typer.Option(..., "--config", "-c", help="Path to DFT configuration YAML"),  # noqa: B008
-    structure_path: Path = typer.Option(
+    structure_path: Path = typer.Option(  # noqa: B008
         ..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"
     ),
     work_dir: Path = typer.Option(None, "--work-dir", "-w", help="Override working directory"),  # noqa: B008
@@ -198,7 +170,7 @@ def run_dft(
         from mlip_autopipec.dft.runner import QERunner
 
         console.print(f"Loading config from {config_path}...")
-        config, config_work_dir = _load_dft_config(config_path)
+        config, config_work_dir = load_dft_config_helper(config_path)
 
         # Determine actual work dir
         base_work_dir = work_dir if work_dir else config_work_dir

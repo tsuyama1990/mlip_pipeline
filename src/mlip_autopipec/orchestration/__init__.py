@@ -1,5 +1,5 @@
 from mlip_autopipec.config.schemas.workflow import WorkflowConfig
-from mlip_autopipec.data_models.state import WorkflowState
+from mlip_autopipec.domain_models.state import WorkflowState
 
 from .dashboard import Dashboard, DashboardData
 from .task_queue import TaskQueue

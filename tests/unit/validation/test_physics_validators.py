@@ -11,7 +11,7 @@ from mlip_autopipec.config.schemas.validation import (
     PhononConfig,
     ValidationConfig,
 )
-from mlip_autopipec.data_models.validation import ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationResult
 from mlip_autopipec.validation.elasticity import ElasticityValidator
 from mlip_autopipec.validation.eos import EOSValidator
 from mlip_autopipec.validation.phonon import PhononValidator

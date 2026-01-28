@@ -1,5 +1,5 @@
-from mlip_autopipec.data_models.dft_models import DFTErrorType
 from mlip_autopipec.dft.recovery import RecoveryHandler
+from mlip_autopipec.domain_models.dft_models import DFTErrorType
 
 
 def test_analyze_convergence_fail():

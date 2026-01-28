@@ -14,10 +14,10 @@ from ase import Atoms
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.data_models.dft_models import DFTInputParams, DFTResult
 from mlip_autopipec.dft.inputs import InputGenerator
 from mlip_autopipec.dft.parsers import QEOutputParser
 from mlip_autopipec.dft.recovery import RecoveryHandler
+from mlip_autopipec.domain_models.dft_models import DFTInputParams, DFTResult
 
 
 class DFTFatalError(Exception):

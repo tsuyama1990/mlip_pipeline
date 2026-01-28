@@ -1,4 +1,4 @@
-from mlip_autopipec.data_models.state import WorkflowPhase, WorkflowState
+from mlip_autopipec.domain_models.state import WorkflowPhase, WorkflowState
 
 
 def test_workflow_state_initialization():

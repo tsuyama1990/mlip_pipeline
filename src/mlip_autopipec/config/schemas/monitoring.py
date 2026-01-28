@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, RootModel
 
-from .training import TrainingRunMetrics
+from .training import TrainingMetrics
 
 
 class DatasetComposition(RootModel[dict[str, int]]):
@@ -13,6 +13,6 @@ class DashboardData(BaseModel):
     current_generation: int
     completed_calcs: int
     pending_calcs: int
-    training_history: list[TrainingRunMetrics]
+    training_history: list[TrainingMetrics]
     dataset_composition: DatasetComposition
     model_config = ConfigDict(extra="forbid")

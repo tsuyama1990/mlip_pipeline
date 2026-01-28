@@ -4,7 +4,7 @@ from typing import Any, Protocol
 
 from ase import Atoms
 
-from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.domain_models.dft_models import DFTResult
 
 # Define Protocols for loose coupling (DIP)
 

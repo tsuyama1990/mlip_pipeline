@@ -38,7 +38,7 @@ class SelectionPhase(BasePhase):
             if not self.config.training_config:
                 logger.warning("No Training Config for Selection Strategy.")
                 # Fallback: select all if no training config (can't run pacemaker)
-                selected_indices = range(len(candidates))
+                selected_indices = set(range(len(candidates)))
             else:
                 pacemaker = PacemakerWrapper(self.config.training_config, self.manager.work_dir)
                 GammaSelectionStrategy(

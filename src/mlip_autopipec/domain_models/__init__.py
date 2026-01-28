@@ -1,5 +1,5 @@
 """
-Data Models Module.
+Domain Models Module.
 
 This module defines the core data structures used to exchange information
 between pipeline stages (e.g. DFT results, Training data, Extracted structures).

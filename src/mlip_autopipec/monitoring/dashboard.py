@@ -8,26 +8,27 @@ import plotly.express as px
 from ase.db import connect as ase_db_connect
 from jinja2 import Environment, FileSystemLoader, TemplateError
 
-from mlip_autopipec.config.models import CheckpointState, DashboardData
+from mlip_autopipec.config.models import DashboardData
+from mlip_autopipec.domain_models.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
 
 def _gather_data(project_dir: Path) -> DashboardData:
     """Gathers data from checkpoint and ASE database."""
-    checkpoint_path = project_dir / "checkpoint.json"
+    checkpoint_path = project_dir / "workflow_state.json"
     if not checkpoint_path.exists():
         msg = f"Checkpoint file not found: {checkpoint_path}"
         raise FileNotFoundError(msg)
 
     with checkpoint_path.open() as f:
         state_data = json.load(f)
-        state = CheckpointState.model_validate(state_data)
+        state = WorkflowState.model_validate(state_data)
 
     # Count structures in DB
-    db_path = state.system_config.training_config.data_source_db
-    if not db_path.is_absolute():
-        db_path = project_dir / db_path
+    # TODO: WorkflowState does not store config. Need to load config separately.
+    # db_path = state.system_config.training_config.data_source_db
+    db_path = project_dir / "mlip.db"  # Default assumption
 
     dataset_composition: Counter[str] = Counter()
     completed_calcs = 0
@@ -42,11 +43,11 @@ def _gather_data(project_dir: Path) -> DashboardData:
         logger.warning(f"Database not found at {db_path}. Assuming 0 completed calculations.")
 
     return DashboardData(
-        project_name=state.system_config.project_name,
-        current_generation=state.active_learning_generation,
+        project_name="MLIP Project",  # Placeholder
+        current_generation=state.cycle_index,
         completed_calcs=completed_calcs,
-        pending_calcs=len(state.pending_job_ids),
-        training_history=state.training_history,
+        pending_calcs=len(state.active_tasks),
+        training_history=[],  # Placeholder: state doesn't have history yet
         dataset_composition=dict(dataset_composition),
     )
 

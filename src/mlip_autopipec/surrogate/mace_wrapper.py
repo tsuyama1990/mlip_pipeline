@@ -87,14 +87,14 @@ class MaceWrapper:
         species = set()
         for at in atoms_list:
             species.update(at.get_chemical_symbols())
-        species = sorted(species)
+        sorted_species = sorted(species)
 
-        if not species:
+        if not sorted_species:
             return np.zeros((len(atoms_list), 1))
 
         # SOAP Parameters
         soap = SOAP(
-            species=species,
+            species=sorted_species,
             periodic=True,
             rcut=5.0,
             nmax=4,

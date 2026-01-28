@@ -5,7 +5,7 @@ import pytest
 from ase import Atoms
 from pydantic import TypeAdapter, ValidationError
 
-from mlip_autopipec.data_models.atoms import ASEAtoms
+from mlip_autopipec.domain_models.atoms import ASEAtoms
 
 
 def test_ase_atoms_valid():

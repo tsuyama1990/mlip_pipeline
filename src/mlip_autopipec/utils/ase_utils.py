@@ -21,8 +21,8 @@ from ase.db import connect
 from ase.db.row import AtomsRow
 from pydantic import ValidationError
 
-from mlip_autopipec.data_models.dft_models import DFTResult
-from mlip_autopipec.data_models.training_data import TrainingData
+from mlip_autopipec.domain_models.dft_models import DFTResult
+from mlip_autopipec.domain_models.training_data import TrainingData
 
 
 def save_dft_result(
