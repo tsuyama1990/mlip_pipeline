@@ -40,7 +40,8 @@ class PacemakerWrapper:
             # Config generator expects data path.
 
             # 2. Generate Config
-            PacemakerConfigGenerator(self.config.template_path)
+            if self.config.template_path:
+                PacemakerConfigGenerator(self.config.template_path)
             # Render input.yaml
 
             # 3. Resolve Executable

@@ -22,6 +22,7 @@ class CandidateManager:
         # Validation logic
         pos = atoms.get_positions()
         if np.isnan(pos).any() or np.isinf(pos).any():
-             raise ValueError("Atoms object contains NaN or Inf in positions.")
+             msg = "Atoms object contains NaN or Inf in positions."
+             raise ValueError(msg)
 
         self.db.save_candidates([atoms], 0, "generation")

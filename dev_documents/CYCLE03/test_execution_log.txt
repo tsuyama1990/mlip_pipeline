@@ -52,7 +52,7 @@ tests/unit/validation/test_schemas.py ......                             [100%]
 =================================== FAILURES ===================================
 __________________________ test_init_creates_template __________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_init_creates_template0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_init_creates_template0')
 
     def test_init_creates_template(tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -64,7 +64,7 @@ E            +  where 2 = <Result SystemExit(2)>.exit_code
 tests/e2e/test_cycle01.py:21: AssertionError
 ___________________________ test_init_existing_file ____________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_init_existing_file0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_init_existing_file0')
 
     def test_init_existing_file(tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -78,7 +78,7 @@ E            +  where 2 = <Result SystemExit(2)>.exit_code
 tests/e2e/test_cycle01.py:36: AssertionError
 __________________________ test_validate_valid_config __________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_validate_valid_config0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_validate_valid_config0')
 
     def test_validate_valid_config(tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -110,7 +110,7 @@ E       FileNotFoundError: [Errno 2] No such file or directory: 'input.yaml'
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/pathlib.py:1013: FileNotFoundError
 _________________________ test_validate_invalid_config _________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_validate_invalid_config0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_validate_invalid_config0')
 
     def test_validate_invalid_config(tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -125,7 +125,7 @@ E            +  where 2 = <Result SystemExit(2)>.exit_code
 tests/e2e/test_cycle01.py:68: AssertionError
 __________________________ test_validate_missing_file __________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_validate_missing_file0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_validate_missing_file0')
 
     def test_validate_missing_file(tmp_path):
         result = runner.invoke(app, ["validate", "non_existent.yaml"])
@@ -136,7 +136,7 @@ E        +  where 2 = <Result SystemExit(2)>.exit_code
 tests/e2e/test_cycle01.py:74: AssertionError
 _________________________________ test_db_init _________________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_db_init0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_db_init0')
 
     def test_db_init(tmp_path):
         with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -167,7 +167,7 @@ E       FileNotFoundError: [Errno 2] No such file or directory: 'input.yaml'
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/pathlib.py:1013: FileNotFoundError
 _______________________ test_run_cycle_02_full_pipeline ________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_run_cycle_02_full_pipelin0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_run_cycle_02_full_pipelin0')
 
     def test_run_cycle_02_full_pipeline(tmp_path):
         runner = CliRunner()
@@ -302,7 +302,7 @@ tests/uat/test_cycle02_structure_gen.py:115: KeyError
 ________________________ test_uat_full_cycle_simulation ________________________
 
 uat_config = SystemConfig(minimal=None, target_system=TargetSystem(name='UAT System', elements=['Fe'], composition={'Fe': 1.0}, cry...st=1.4, interstitial_cluster_cutoff=0.1), number_of_structures=10, seed=None), generator=None, explorer=None, dft=None)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_uat_full_cycle_simulation0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_uat_full_cycle_simulation0')
 
     def test_uat_full_cycle_simulation(uat_config, tmp_path):
         work_dir = uat_config.working_dir
@@ -340,7 +340,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7fc142e339b0>
+self = <unittest.mock._patch object at 0x7f36d1e85070>
 
     def get_original(self):
         target = self.getter()
@@ -389,7 +389,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7fc142f76cc0>
+self = <unittest.mock._patch object at 0x7f36d1e045f0>
 
     def get_original(self):
         target = self.getter()
@@ -433,7 +433,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7fc142eff170>
+self = <unittest.mock._patch object at 0x7f36d1e87710>
 
     def get_original(self):
         target = self.getter()
@@ -534,7 +534,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7fc143142330>
+self = <unittest.mock._patch object at 0x7f36d1e8cb60>
 
     def get_original(self):
         target = self.getter()
@@ -557,7 +557,7 @@ self = <unittest.mock._patch object at 0x7fc143142330>
 >           raise AttributeError(
                 "%s does not have the attribute %r" % (target, name)
             )
-E           AttributeError: <mlip_autopipec.generator.builder.StructureBuilder object at 0x7fc143143560> does not have the attribute '_generate_base'
+E           AttributeError: <mlip_autopipec.generator.builder.StructureBuilder object at 0x7f36d1e8fb90> does not have the attribute '_generate_base'
 
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1437: AttributeError
 _______________________ test_defect_strategy_validation ________________________
@@ -576,7 +576,7 @@ _______________________ test_defect_strategy_validation ________________________
 tests/unit/generator/test_defects.py:16:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.generator.defects.DefectStrategy object at 0x7fc142ee43e0>
+self = <mlip_autopipec.generator.defects.DefectStrategy object at 0x7f36d1e87650>
 structures = Atoms(symbols='Al', pbc=True, cell=[4.0, 4.0, 4.0])
 primary_element = None
 
@@ -604,7 +604,7 @@ E               TypeError: Input structure is not an Atoms object: <class 'ase.a
 src/mlip_autopipec/generator/defects.py:52: TypeError
 ________________________ test_select_entries_generator _________________________
 
-db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e45940>
+db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1cf2210>
 
     def test_select_entries_generator(db_manager: DatabaseManager) -> None:
         # Mock connection and select
@@ -635,7 +635,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                       ^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <unittest.mock._patch object at 0x7fc142e36b10>
+self = <unittest.mock._patch object at 0x7f36d1d5dd30>
 
     def get_original(self):
         target = self.getter()
@@ -658,42 +658,45 @@ self = <unittest.mock._patch object at 0x7fc142e36b10>
 >           raise AttributeError(
                 "%s does not have the attribute %r" % (target, name)
             )
-E           AttributeError: <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e45940> does not have the attribute 'connector'
+E           AttributeError: <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1cf2210> does not have the attribute 'connector'
 
 /home/jules/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py:1437: AttributeError
 _____________________ test_add_structure_validation_error ______________________
 
-self = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e361e0>
+self = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1d72a20>
 atoms = Atoms(symbols='H', pbc=False), metadata = {}
 
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any] | None = None) -> int:
         metadata = metadata or {}
         if self._connection is None:
-             raise DatabaseError("Database not connected")
+             msg = "Database not connected"
+             raise DatabaseError(msg)
         try:
 >           self._validate_atoms(atoms)
 
-src/mlip_autopipec/orchestration/database.py:71:
+src/mlip_autopipec/orchestration/database.py:77:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e361e0>
+self = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1d72a20>
 atoms = Atoms(symbols='H', pbc=False)
 
     def _validate_atoms(self, atoms: Atoms) -> None:
         """Validates Atoms object integrity before insertion."""
         if not isinstance(atoms, Atoms):
-            raise TypeError("Input must be an ase.Atoms object")
+            msg = "Input must be an ase.Atoms object"
+            raise TypeError(msg)
 
         positions = atoms.get_positions()
         if np.any(np.isnan(positions)) or np.any(np.isinf(positions)):
->           raise ValueError("Atoms object contains NaN or Inf in positions.")
+            msg = "Atoms object contains NaN or Inf in positions."
+>           raise ValueError(msg)
 E           ValueError: Atoms object contains NaN or Inf in positions.
 
-src/mlip_autopipec/orchestration/database.py:59: ValueError
+src/mlip_autopipec/orchestration/database.py:63: ValueError
 
 The above exception was the direct cause of the following exception:
 
-db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e361e0>
+db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1d72a20>
 
     def test_add_structure_validation_error(db_manager: DatabaseManager) -> None:
         atoms = Atoms("H")
@@ -705,13 +708,14 @@ db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x
 tests/unit/orchestration/test_db_manager.py:54:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-self = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e361e0>
+self = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1d72a20>
 atoms = Atoms(symbols='H', pbc=False), metadata = {}
 
     def add_structure(self, atoms: Atoms, metadata: dict[str, Any] | None = None) -> int:
         metadata = metadata or {}
         if self._connection is None:
-             raise DatabaseError("Database not connected")
+             msg = "Database not connected"
+             raise DatabaseError(msg)
         try:
             self._validate_atoms(atoms)
             with self._lock:
@@ -719,14 +723,15 @@ atoms = Atoms(symbols='H', pbc=False), metadata = {}
             return row_id
         except Exception as e:
             logger.exception(f"Failed to add structure: {e}")
->           raise DatabaseError(f"Failed to add structure: {e}") from e
+            msg = f"Failed to add structure: {e}"
+>           raise DatabaseError(msg) from e
 E           mlip_autopipec.exceptions.DatabaseError: Failed to add structure: Atoms object contains NaN or Inf in positions.
 
-src/mlip_autopipec/orchestration/database.py:77: DatabaseError
+src/mlip_autopipec/orchestration/database.py:84: DatabaseError
 
 During handling of the above exception, another exception occurred:
 
-db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7fc142e361e0>
+db_manager = <mlip_autopipec.orchestration.database.DatabaseManager object at 0x7f36d1d72a20>
 
     def test_add_structure_validation_error(db_manager: DatabaseManager) -> None:
         atoms = Atoms("H")
@@ -740,12 +745,12 @@ E         Actual message: 'Failed to add structure: Atoms object contains NaN or
 
 tests/unit/orchestration/test_db_manager.py:53: AssertionError
 ------------------------------ Captured log call -------------------------------
-ERROR    mlip_autopipec.orchestration.database:database.py:76 Failed to add structure: Atoms object contains NaN or Inf in positions.
+ERROR    mlip_autopipec.orchestration.database:database.py:82 Failed to add structure: Atoms object contains NaN or Inf in positions.
 Traceback (most recent call last):
-  File "/app/src/mlip_autopipec/orchestration/database.py", line 71, in add_structure
+  File "/app/src/mlip_autopipec/orchestration/database.py", line 77, in add_structure
     self._validate_atoms(atoms)
-  File "/app/src/mlip_autopipec/orchestration/database.py", line 59, in _validate_atoms
-    raise ValueError("Atoms object contains NaN or Inf in positions.")
+  File "/app/src/mlip_autopipec/orchestration/database.py", line 63, in _validate_atoms
+    raise ValueError(msg)
 ValueError: Atoms object contains NaN or Inf in positions.
 =============================== warnings summary ===============================
 tests/uat/test_cycle02_structure_gen.py::test_scenario_02_02_defect_introduction
@@ -763,7 +768,7 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                                     Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                               4      0   100%
-src/mlip_autopipec/app.py                                   48     19    60%   50-69, 91-93, 120-124, 127
+src/mlip_autopipec/app.py                                   50     19    62%   54-73, 95-97, 124-128, 131
 src/mlip_autopipec/config/__init__.py                       12      0   100%
 src/mlip_autopipec/config/factory.py                        37     37     0%   1-62
 src/mlip_autopipec/config/loaders/__init__.py                2      0   100%
@@ -792,7 +797,7 @@ src/mlip_autopipec/dft/runner.py                           124     41    67%   5
 src/mlip_autopipec/domain_models/__init__.py                 5      0   100%
 src/mlip_autopipec/domain_models/atoms.py                   36      9    75%   29-30, 41-45, 50-51, 62
 src/mlip_autopipec/domain_models/candidate.py               10     10     0%   1-19
-src/mlip_autopipec/domain_models/dft_models.py              58      8    86%   56-57, 64, 74-78
+src/mlip_autopipec/domain_models/dft_models.py              63     11    83%   57-58, 65, 75-83
 src/mlip_autopipec/domain_models/inference_models.py        30      9    70%   28-37
 src/mlip_autopipec/domain_models/state.py                   14      0   100%
 src/mlip_autopipec/domain_models/structure_enums.py          9      9     0%   1-11
@@ -800,7 +805,7 @@ src/mlip_autopipec/domain_models/training_data.py           68     41    40%   2
 src/mlip_autopipec/domain_models/validation.py              15      0   100%
 src/mlip_autopipec/exceptions.py                            25      8    68%   43-48, 51-52, 65
 src/mlip_autopipec/generator/__init__.py                     5      0   100%
-src/mlip_autopipec/generator/builder.py                     71     10    86%   84-85, 98-107
+src/mlip_autopipec/generator/builder.py                     81      8    90%   87-88, 106-107, 112-113, 119-120
 src/mlip_autopipec/generator/defects.py                    104     54    48%   46, 59, 67-69, 88-89, 94, 107, 124-136, 154-220
 src/mlip_autopipec/generator/distortions.py                 43     43     0%   1-82
 src/mlip_autopipec/generator/sqs.py                         44      9    80%   55, 78-83, 95-98
@@ -824,7 +829,7 @@ src/mlip_autopipec/monitoring/__init__.py                    0      0   100%
 src/mlip_autopipec/monitoring/dashboard.py                  64     64     0%   1-118
 src/mlip_autopipec/orchestration/__init__.py                 7      0   100%
 src/mlip_autopipec/orchestration/dashboard.py               57     37    35%   44-47, 58-68, 80-116, 129-131
-src/mlip_autopipec/orchestration/database.py               159     27    83%   46, 55, 69, 81, 90, 100, 113, 121-122, 131, 137-139, 149, 155-157, 162, 171, 204, 209-211, 215, 218-220
+src/mlip_autopipec/orchestration/database.py               185     45    76%   37, 48, 57-58, 74-75, 88-89, 99-100, 111-112, 126-127, 136-138, 147-148, 154-157, 168-169, 175-178, 183-184, 193-194, 225-226, 231-234, 238-239, 242-245
 src/mlip_autopipec/orchestration/interfaces.py              10     10     0%   1-30
 src/mlip_autopipec/orchestration/phase_executor.py          23     23     0%   1-47
 src/mlip_autopipec/orchestration/phases/base.py             10      4    60%   14-17
@@ -835,9 +840,9 @@ src/mlip_autopipec/orchestration/phases/selection.py        38     30    21%   1
 src/mlip_autopipec/orchestration/phases/training.py         39     31    21%   14-58
 src/mlip_autopipec/orchestration/strategies.py              27      1    96%   50
 src/mlip_autopipec/orchestration/task_queue.py              77     62    19%   30-52, 69-78, 97-126, 141-144, 150-154
-src/mlip_autopipec/orchestration/workflow.py                89     51    43%   41-42, 46-47, 51-57, 80-146
+src/mlip_autopipec/orchestration/workflow.py                93     55    41%   41-42, 46-47, 51-57, 80-151
 src/mlip_autopipec/surrogate/__init__.py                     5      0   100%
-src/mlip_autopipec/surrogate/candidate_manager.py           13      6    54%   11, 14-22
+src/mlip_autopipec/surrogate/candidate_manager.py           19     11    42%   12, 15-28
 src/mlip_autopipec/surrogate/descriptors.py                 31     31     0%   1-85
 src/mlip_autopipec/surrogate/mace_client.py                 66     66     0%   1-150
 src/mlip_autopipec/surrogate/mace_wrapper.py                57     50    12%   11-13, 19-39, 45-67, 73-112
@@ -846,9 +851,9 @@ src/mlip_autopipec/surrogate/pipeline.py                   106     90    15%   2
 src/mlip_autopipec/surrogate/sampling.py                    19     14    26%   7, 19-45
 src/mlip_autopipec/training/__init__.py                      4      0   100%
 src/mlip_autopipec/training/config_gen.py                   17      9    47%   14-15, 33-47
-src/mlip_autopipec/training/dataset.py                      48      7    85%   38, 41, 81-83, 86, 89
+src/mlip_autopipec/training/dataset.py                      51     10    80%   38, 41, 59, 61, 88-90, 93-94, 97
 src/mlip_autopipec/training/metrics.py                      41      3    93%   40-42
-src/mlip_autopipec/training/pacemaker.py                    51     18    65%   65-72, 77, 84-103
+src/mlip_autopipec/training/pacemaker.py                    60     24    60%   56-57, 71-78, 83-84, 88-89, 96-116
 src/mlip_autopipec/training/physics.py                      39     28    28%   43-112
 src/mlip_autopipec/utils/__init__.py                         0      0   100%
 src/mlip_autopipec/utils/ase_utils.py                       44     44     0%   12-122
@@ -861,11 +866,11 @@ src/mlip_autopipec/utils/resilience.py                      30     30     0%   6
 src/mlip_autopipec/utils/workflow_utils.py                  32     32     0%   3-53
 src/mlip_autopipec/validation/__init__.py                    0      0   100%
 src/mlip_autopipec/validation/elasticity.py                 18      2    89%   41-42
-src/mlip_autopipec/validation/eos.py                        25     25     0%   1-57
-src/mlip_autopipec/validation/phonon.py                     22     22     0%   1-49
+src/mlip_autopipec/validation/eos.py                        19     19     0%   1-46
+src/mlip_autopipec/validation/phonon.py                     18     18     0%   1-41
 src/mlip_autopipec/validation/runner.py                     27     27     0%   1-54
 --------------------------------------------------------------------------------------
-TOTAL                                                     3595   1782    50%
+TOTAL                                                     3650   1809    50%
 =========================== short test summary info ============================
 FAILED tests/e2e/test_cycle01.py::test_init_creates_template - assert 2 == 0
 FAILED tests/e2e/test_cycle01.py::test_init_existing_file - assert 2 == 0
@@ -884,4 +889,4 @@ FAILED tests/unit/generator/test_coverage.py::test_builder_critical_failure
 FAILED tests/unit/generator/test_defects.py::test_defect_strategy_validation
 FAILED tests/unit/orchestration/test_db_manager.py::test_select_entries_generator
 FAILED tests/unit/orchestration/test_db_manager.py::test_add_structure_validation_error
-================= 17 failed, 134 passed, 2 warnings in 10.23s ==================
+================= 17 failed, 134 passed, 2 warnings in 11.34s ==================
