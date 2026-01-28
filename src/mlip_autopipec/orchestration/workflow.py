@@ -57,6 +57,8 @@ class WorkflowManager:
             while self.state.cycle_index < max_cycles:
                 self.run_cycle()
                 self.state.cycle_index += 1
+                # Reset phase for the next cycle
+                self.state.current_phase = WorkflowPhase.EXPLORATION
                 self.save_state()
 
             logger.info("Workflow Completed.")
@@ -72,26 +74,48 @@ class WorkflowManager:
         cycle = self.state.cycle_index
         logger.info(f"=== Starting Cycle {cycle} ===")
 
+        # Determine start point based on state (Resume capability)
+        phases = [
+            WorkflowPhase.EXPLORATION,
+            WorkflowPhase.SELECTION,
+            WorkflowPhase.CALCULATION,
+            WorkflowPhase.TRAINING,
+        ]
+        try:
+            current_idx = phases.index(self.state.current_phase)
+        except ValueError:
+            current_idx = 0
+
         # Phase A: Exploration
-        self.state.current_phase = WorkflowPhase.EXPLORATION
-        self.save_state()
-        ExplorationPhase(self).execute()
+        if current_idx <= 0:
+            self.state.current_phase = WorkflowPhase.EXPLORATION
+            self.save_state()
+            ExplorationPhase(self).execute()
+        else:
+            logger.info("Skipping Exploration Phase (Resuming).")
 
         # Phase B: Selection
         # Only run selection if we have a potential to select with (Active Learning)
         if cycle > 0 and self.state.latest_potential_path:
-            self.state.current_phase = WorkflowPhase.SELECTION
-            self.save_state()
-            SelectionPhase(self).execute()
+            if current_idx <= 1:
+                self.state.current_phase = WorkflowPhase.SELECTION
+                self.save_state()
+                SelectionPhase(self).execute()
+            else:
+                logger.info("Skipping Selection Phase (Resuming).")
 
         # Phase C: Calculation (DFT)
-        self.state.current_phase = WorkflowPhase.CALCULATION
-        self.save_state()
-        DFTPhase(self).execute()
+        if current_idx <= 2:
+            self.state.current_phase = WorkflowPhase.CALCULATION
+            self.save_state()
+            DFTPhase(self).execute()
+        else:
+            logger.info("Skipping Calculation Phase (Resuming).")
 
         # Phase D: Training
-        self.state.current_phase = WorkflowPhase.TRAINING
-        self.save_state()
-        TrainingPhase(self).execute()
+        if current_idx <= 3:
+            self.state.current_phase = WorkflowPhase.TRAINING
+            self.save_state()
+            TrainingPhase(self).execute()
 
         logger.info(f"=== Cycle {cycle} Completed ===")

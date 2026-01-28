@@ -129,5 +129,41 @@ def run_cycle_02(
         logger.exception("Cycle 02 pipeline failed")
         raise typer.Exit(code=1)
 
+
+@app.command(name="run-loop")
+def run_loop(
+    config: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to the configuration YAML file.",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ],
+    work_dir: Annotated[
+        Path,
+        typer.Option(
+            "--work-dir",
+            "-w",
+            help="Working directory for artifacts.",
+            file_okay=False,
+            writable=True,
+        ),
+    ] = DEFAULT_WORK_DIR,
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", "-s", help="Path to a workflow state file to resume from."),
+    ] = None,
+) -> None:
+    """
+    Executes the full Active Learning Loop (Cycle 04).
+    Aliases to 'run'.
+    """
+    run(config, work_dir, state)
+
+
 if __name__ == "__main__":
     app()

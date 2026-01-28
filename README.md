@@ -23,6 +23,8 @@ PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges 
   - Hybrid/Overlay potentials (ACE + ZBL/LJ) for safety.
   - On-the-fly uncertainty monitoring (`compute pace`).
   - Automatic halting on high uncertainty.
+- **Active Learning Loop**: Autonomous cycle of Exploration (MD), Selection (D-Optimality), Calculation (DFT), and Training.
+- **Resume Capability**: Seamlessly continues interrupted workflows from state checkpoints.
 - **One-Shot Training**: Pipeline to generate, calculate, and train a potential in one go.
 - **CLI Commands**: Easy-to-use commands for initialization, DFT execution, and validation.
 
@@ -52,7 +54,7 @@ This creates `input.yaml`. Edit it to specify your target system and DFT paramet
 ### 2. Validate Configuration
 Ensure your configuration is valid:
 ```bash
-uv run mlip-auto validate input.yaml
+uv run mlip-auto validate --config input.yaml
 ```
 
 ### 3. Run DFT Calculation (Single Structure)
@@ -61,16 +63,25 @@ Run a DFT calculation on a specific structure file (e.g., `.cif`, `.xyz`):
 uv run mlip-auto run-dft --config input.yaml --structure my_structure.cif
 ```
 
-### 4. Run One-Shot Training
-Execute the generation, calculation, and training pipeline:
+### 4. Run One-Shot Training (Cycle 02)
+Execute the generation, calculation, and training pipeline once:
 ```bash
-uv run mlip-auto run cycle-02 --config input.yaml
+uv run mlip-auto run-cycle-02 --config input.yaml
 ```
 Use `--mock-dft` to simulate DFT calculations for testing or if `pw.x` is unavailable.
 
-### 5. Run Full Loop
+### 5. Run Active Learning Loop
+Execute the full autonomous active learning loop (Cycle 04):
 ```bash
-uv run mlip-auto run loop --config input.yaml
+uv run mlip-auto run-loop --config input.yaml
+```
+or simply:
+```bash
+uv run mlip-auto run --config input.yaml
+```
+To resume from a previous state:
+```bash
+uv run mlip-auto run-loop --config input.yaml --state workspace/state.json
 ```
 
 ## Architecture
@@ -79,6 +90,7 @@ mlip_autopipec/
 ├── config/        # Pydantic schemas and loaders
 ├── dft/           # Quantum Espresso runner and error handling
 ├── inference/     # Dynamics Engine (LAMMPS/EON) and Uncertainty
+├── orchestration/ # Workflow management, state, and phases
 ├── app.py         # CLI entry point
 └── ...
 ```

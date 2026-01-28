@@ -61,14 +61,50 @@ class ExplorationPhase(BasePhase):
                 # Active Learning Exploration
                 logger.info(f"Cycle {cycle}: Running Active Learning Exploration")
 
-                if self.config.surrogate_config:
+                # Check for MD Engine (LammpsRunner)
+                if self.config.inference_config:
+                    from mlip_autopipec.inference.runner import LammpsRunner
+
+                    potential_path = self.manager.state.latest_potential_path
+                    if not potential_path or not potential_path.exists():
+                        logger.error("No potential found for Active Learning.")
+                        return
+
+                    logger.info("Starting MD Exploration with LAMMPS...")
+                    md_dir = self.manager.work_dir / f"md_cycle_{cycle}"
+                    runner = LammpsRunner(self.config.inference_config, md_dir)
+
+                    # Generate seeds using StructureBuilder
+                    sys_config = SystemConfig(
+                        target_system=self.config.target_system,
+                        generator_config=self.config.generator_config
+                    )
+                    builder = getattr(self.manager, "builder", None) or StructureBuilder(sys_config)
+
+                    # Generate a few seeds (e.g., 5)
+                    # Use islice to limit the generator
+                    seeds = list(itertools.islice(builder.build(), 5))
+
+                    for i, atoms in enumerate(seeds):
+                        uid = f"c{cycle}_md_{i}"
+                        result = runner.run(atoms, potential_path, uid)
+
+                        if result.halted:
+                            logger.info(f"MD halted for {uid}. Capturing uncertain structures.")
+                            for dump in result.uncertain_structures:
+                                if dump.exists():
+                                    self.manager.state.halted_structures.append(dump)
+
+                    self.manager.save_state()
+
+                elif self.config.surrogate_config:
                     logger.info("Running surrogate selection pipeline...")
                     surrogate = getattr(self.manager, "surrogate", None) or SurrogatePipeline(
                         self.db, self.config.surrogate_config
                     )
                     surrogate.run()
                 else:
-                    logger.warning("No surrogate config or MD engine defined for Active Learning.")
+                    logger.warning("No inference config (MD) or surrogate config defined for Active Learning.")
 
         except Exception:
             logger.exception("Exploration phase failed")

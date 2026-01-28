@@ -93,6 +93,8 @@ class PacemakerWrapper:
         """
         Runs pace_activeset to select structures.
         """
+        import re
+
         exe = self._resolve_executable("pace_activeset")
 
         # Validate paths
@@ -103,12 +105,18 @@ class PacemakerWrapper:
         cmd = [exe, "-d", str(candidates_path), "-p", str(current_potential)]
 
         try:
-            subprocess.run(
+            result = subprocess.run(
                 cmd, cwd=self.work_dir, capture_output=True, text=True, check=True, shell=False
             )
 
-            # Parse indices from stdout (Mock logic here)
-            # In reality, parse result.stdout
+            # Parse indices from stdout
+            # Look for line: "Selected indices: 0 1 5 ..."
+            match = re.search(r"Selected indices:\s*([\d\s]+)", result.stdout)
+            if match:
+                indices_str = match.group(1)
+                return [int(i) for i in indices_str.split()]
+
+            logger.warning(f"Could not parse indices from pace_activeset output: {result.stdout}")
             return []
 
         except subprocess.CalledProcessError:

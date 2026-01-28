@@ -29,6 +29,13 @@ class WorkflowState(BaseModel):
     latest_potential_path: Path | None = Field(
         default=None, description="Path to the latest potential file."
     )
+    dataset_path: Path | None = Field(
+        default=None, description="Path to the current training dataset."
+    )
+    halted_structures: list[Path] = Field(
+        default_factory=list,
+        description="List of paths to structure dumps halted during exploration.",
+    )
     active_tasks: list[str] = Field(
         default_factory=list, description="List of IDs for currently active tasks."
     )
