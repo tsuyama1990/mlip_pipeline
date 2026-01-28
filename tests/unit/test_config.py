@@ -58,6 +58,9 @@ def test_mlip_config_full(tmp_path):
     (tmp_path / "Al.upf").touch()
     config_data = {
         "target_system": {
+            "name": "Al System", # REQUIRED field was missing in test_config.py causing validation error? No, name is optional/default? Wait, checking TargetSystem.
+            # Looking at schemas/core.py: name: str = Field(..., description="System name") -> REQUIRED.
+            # So I must provide it.
             "elements": ["Al"],
             "composition": {"Al": 1.0},
             "crystal_structure": "fcc",

@@ -98,6 +98,7 @@ class DatasetBuilder:
             # Use 'w' mode to start fresh
             with train_path.open("w") as f_train, test_path.open("w") as f_test:
                 # Streaming from DB generator
+                # select() yields one atoms object at a time, ensuring we don't load all into memory
                 for atoms in self.db_manager.select(selection=query):
                     # Fix stress if it is a list (retrieved from JSON data)
                     if "stress" in atoms.info and isinstance(atoms.info["stress"], list):

@@ -26,6 +26,11 @@ class PhononValidator:
         Returns:
             ValidationResult containing stability metrics.
         """
+        if not isinstance(atoms, Atoms):
+            return ValidationResult(
+                module="phonon", passed=False, error=f"Expected ase.Atoms object, got {type(atoms)}"
+            )
+
         if atoms.calc is None:
             return ValidationResult(
                 module="phonon", passed=False, error="Atoms object has no calculator attached."

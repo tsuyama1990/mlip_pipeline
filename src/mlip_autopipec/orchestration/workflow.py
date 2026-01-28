@@ -102,6 +102,8 @@ class WorkflowManager:
 
     def _save_state(self) -> None:
         """Persist state to disk."""
+        if not self.work_dir.exists():
+            self.work_dir.mkdir(parents=True, exist_ok=True)
         self.state_file.write_text(self.state.model_dump_json(indent=2))
 
     def run(self) -> None:

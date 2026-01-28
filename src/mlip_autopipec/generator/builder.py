@@ -101,7 +101,11 @@ class StructureBuilder:
             defect_stream = defect_generator(distorted_stream)
 
             # 4. Final Metadata Tagging & 5. Sampling
-            yield from self._sample_results(self._tag_metadata_stream(defect_stream, target.name))
+            for s in self._sample_results(self._tag_metadata_stream(defect_stream, target.name)):
+                if not isinstance(s, Atoms):
+                    msg = f"Generated object is not an Atoms object: {type(s)}"
+                    raise GeneratorError(msg)
+                yield s
 
         except Exception as e:
             if isinstance(e, GeneratorError):

@@ -38,9 +38,9 @@ def init() -> None:
 
 @app.command(name="validate")
 def validate(
-    file: Path = typer.Argument(Path("input.yaml"), help="Path to config file"),  # noqa: B008
-    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),
-    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),
+    file: Path = typer.Argument(..., help="Path to config file"),  # noqa: B008
+    phonon: bool = typer.Option(False, "--phonon", help="Run phonon validation"),  # noqa: B008
+    elastic: bool = typer.Option(False, "--elastic", help="Run elasticity validation"),  # noqa: B008
     eos: bool = typer.Option(False, "--eos", help="Run EOS validation"),
 ) -> None:
     """
@@ -65,10 +65,8 @@ def validate(
 
 @app.command()
 def generate(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),
+    config_file: Path = typer.Option(..., "--config", "-c", help="Config file"),  # noqa: B008
+    dry_run: bool = typer.Option(False, help="Dry run without saving to DB"),  # noqa: B008
 ) -> None:
     """Generate initial training structures."""
     setup_logging()
@@ -81,13 +79,11 @@ def generate(
 
 @app.command()
 def select(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    n_samples: int = typer.Option(
+    config_file: Path = typer.Option(..., "--config", "-c", help="Config file"),  # noqa: B008
+    n_samples: int = typer.Option(  # noqa: B008
         None, "--n", help="Number of samples to select (overrides config)"
     ),
-    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),
+    model_type: str = typer.Option(None, "--model", help="Model type (overrides config)"),  # noqa: B008
 ) -> None:
     """Select diverse candidates using a surrogate model."""
     setup_logging()
@@ -101,10 +97,8 @@ def select(
 
 @app.command()
 def train(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    prepare_only: bool = typer.Option(
+    config_file: Path = typer.Option(..., "--config", "-c", help="Config file"),  # noqa: B008
+    prepare_only: bool = typer.Option(  # noqa: B008
         False, "--prepare-only", help="Only prepare data, do not train"
     ),
 ) -> None:
@@ -120,9 +114,7 @@ def train(
 
 @db_app.command(name="init")
 def db_init(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Path to config file"
-    ),
+    config_file: Path = typer.Option(..., "--config", "-c", help="Path to config file"),  # noqa: B008
 ) -> None:
     """Initialize the database based on the configuration."""
     setup_logging()
@@ -135,9 +127,7 @@ def db_init(
 
 @run_app.command(name="loop")
 def run_loop(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
+    config_file: Path = typer.Option(..., "--config", "-c", help="Config file"),  # noqa: B008
 ) -> None:
     """Run the full autonomous loop (Generation -> DFT -> Training -> Inference)."""
     setup_logging()
@@ -151,13 +141,11 @@ def run_loop(
 
 @run_app.command(name="cycle-02")
 def run_cycle_02(
-    config_file: Path = typer.Option(  # noqa: B008
-        Path("input.yaml"), "--config", "-c", help="Config file"
-    ),
-    mock_dft: bool = typer.Option(
+    config_file: Path = typer.Option(..., "--config", "-c", help="Config file"),  # noqa: B008
+    mock_dft: bool = typer.Option(  # noqa: B008
         True, "--mock-dft/--real-dft", help="Use mock DFT (random numbers) or real QERunner"
     ),
-    dry_run: bool = typer.Option(
+    dry_run: bool = typer.Option(  # noqa: B008
         False, "--dry-run", help="Dry run (only generation)"
     ),
 ) -> None:

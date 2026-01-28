@@ -24,6 +24,11 @@ class ElasticityValidator:
         Returns:
             ValidationResult with C_ij and stability check.
         """
+        if not isinstance(atoms, Atoms):
+            return ValidationResult(
+                module="elastic", passed=False, error=f"Expected ase.Atoms object, got {type(atoms)}"
+            )
+
         if atoms.calc is None:
             return ValidationResult(
                 module="elastic", passed=False, error="Atoms object has no calculator attached."

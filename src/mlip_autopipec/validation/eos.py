@@ -25,6 +25,11 @@ class EOSValidator:
         Returns:
             ValidationResult with Bulk Modulus.
         """
+        if not isinstance(atoms, Atoms):
+            return ValidationResult(
+                module="eos", passed=False, error=f"Expected ase.Atoms object, got {type(atoms)}"
+            )
+
         if atoms.calc is None:
             return ValidationResult(
                 module="eos", passed=False, error="Atoms object has no calculator attached."

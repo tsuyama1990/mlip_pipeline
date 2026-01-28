@@ -34,12 +34,12 @@ class DFTInputParams(BaseModel):
 
 class DFTResult(BaseModel):
     uid: str
-    energy: float
-    forces: list[list[float]] = Field(..., description="Nx3 array")
-    stress: list[list[float]] | None = Field(None, description="3x3 array")
+    energy: float = Field(..., description="Potential energy in eV")
+    forces: list[list[float]] = Field(..., description="Forces on atoms in eV/A (Nx3)")
+    stress: list[list[float]] | None = Field(None, description="Stress tensor (3x3) in eV/A^3")
     succeeded: bool
-    converged: bool = Field(default=False)  # Backwards compat
-    error_message: str | None = None
+    converged: bool = Field(default=False, description="Whether the calculation converged")
+    error_message: str | None = Field(None, description="Error message if failed")
     wall_time: float
     # Metadata for provenance
     parameters: dict[str, Any]
@@ -60,9 +60,21 @@ class DFTResult(BaseModel):
     @field_validator("stress")
     @classmethod
     def check_stress_shape(cls, stress: list[list[float]] | None) -> list[list[float]] | None:
-        if not stress:
+        if stress is None:
             return stress
-        if len(stress) == 3 and not all(len(row) == 3 for row in stress):
-            msg = "Stress tensor must be 3x3."
-            raise ValueError(msg)
+        # If stress is empty list, treat as None or invalid?
+        # Tests send stress=[] for failed cases or where irrelevant.
+        if not stress:
+            return None
+
+        # ASE stress can be 6 (Voigt) or 3x3.
+        # We enforce 3x3 here as per schema requirements for consistency.
+        if len(stress) == 3:
+            if not all(len(row) == 3 for row in stress):
+                msg = "Stress tensor must be 3x3."
+                raise ValueError(msg)
+        elif len(stress) not in (3, 6, 9): # Basic check
+             msg = "Stress must be 3x3 matrix or 6-component vector."
+             raise ValueError(msg)
+
         return stress

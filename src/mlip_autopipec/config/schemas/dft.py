@@ -73,7 +73,7 @@ class DFTConfig(BaseModel):
     @classmethod
     def validate_command_security(cls, v: str) -> str:
         if re.search(r"[;&|`$()]", v):
-            msg = "Command contains unsafe shell characters"
+            msg = "Command contains unsafe shell characters: ; & | ` $ ( ). Execution is blocked."
             raise ValueError(msg)
         try:
             parts = shlex.split(v)
