@@ -66,7 +66,7 @@ class EONWrapper:
         pos_path = self.work_dir / "pos.con"
         write(pos_path, atoms, format="eon")
 
-    def run(self, atoms: Atoms, potential_path: Path) -> InferenceResult:
+    def run(self, atoms: Atoms, potential_path: Path, uid: str = "eon_run") -> InferenceResult:
         """
         Orchestrates the execution of an EON simulation.
 
@@ -79,6 +79,7 @@ class EONWrapper:
         Args:
             atoms: The starting atomic structure.
             potential_path: Path to the .yace potential file to be used by the driver.
+            uid: Unique Identifier for the run.
 
         Returns:
             InferenceResult: Object containing success status, observed gamma (uncertainty),
@@ -133,7 +134,7 @@ class EONWrapper:
             # Check Exit Codes
             if result.returncode == 0:
                 return InferenceResult(
-                    succeeded=True, max_gamma_observed=0.0, uncertain_structures=[]
+                    uid=uid, succeeded=True, max_gamma_observed=0.0, uncertain_structures=[]
                 )
 
             if result.returncode == 100:
@@ -146,14 +147,23 @@ class EONWrapper:
                     uncertain_structures.append(bad_struct)
 
                 return InferenceResult(
+                    uid=uid,
                     succeeded=True,  # Halted is a valid "outcome" for AL
                     max_gamma_observed=999.0,  # Indicator
                     uncertain_structures=uncertain_structures,
                 )
 
             logger.error(f"EON failed with code {result.returncode}")
-            return InferenceResult(succeeded=False, max_gamma_observed=0.0, uncertain_structures=[])
+            return InferenceResult(
+                uid=uid, succeeded=False, max_gamma_observed=0.0, uncertain_structures=[]
+            )
 
-        except Exception:
+        except Exception as e:
             logger.exception("EON run failed")
-            return InferenceResult(succeeded=False, max_gamma_observed=0.0, uncertain_structures=[])
+            return InferenceResult(
+                uid=uid,
+                succeeded=False,
+                error_message=str(e),
+                max_gamma_observed=0.0,
+                uncertain_structures=[],
+            )

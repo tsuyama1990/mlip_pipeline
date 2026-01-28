@@ -170,7 +170,7 @@ def test_system_config(db_path):
 def test_connect_error(db_path):
     with patch("mlip_autopipec.orchestration.database.connect", side_effect=Exception("Connection failed")):
         with pytest.raises(DatabaseError, match="Failed to initialize"):
-             with DatabaseManager(db_path) as db:
+             with DatabaseManager(db_path):
                  pass
 
 def test_add_structure_error(db_path):

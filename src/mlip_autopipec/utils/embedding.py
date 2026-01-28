@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -11,10 +12,11 @@ class EmbeddingExtractor:
     Extracts embeddings/descriptors from atoms.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, config: Any = None):
+        self.config = config
 
     def extract(self, atoms: Atoms) -> np.ndarray:
         if not isinstance(atoms, Atoms):
-            raise TypeError("Expected Atoms object")
+            msg = "Expected Atoms object"
+            raise TypeError(msg)
         return np.zeros((len(atoms), 10))

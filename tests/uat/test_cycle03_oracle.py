@@ -21,11 +21,11 @@ class TestCycle03Oracle(unittest.TestCase):
     def test_oracle_dft_convergence_check(self):
         """UAT-03-01: Oracle verifies DFT convergence."""
         # 1. Setup atoms
-        atoms = Atoms("Al", positions=[[0, 0, 0]], cell=[4, 4, 4], pbc=True)
+        Atoms("Al", positions=[[0, 0, 0]], cell=[4, 4, 4], pbc=True)
 
         with (
             patch("shutil.which", return_value="/bin/pw.x"),
-            patch("mlip_autopipec.dft.runner.subprocess.run") as mock_run,
+            patch("mlip_autopipec.dft.runner.subprocess.run"),
         ):
             # 1. Fail with convergence
             fail = MagicMock()

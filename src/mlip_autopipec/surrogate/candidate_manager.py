@@ -1,5 +1,6 @@
 import logging
 
+import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.orchestration.database import DatabaseManager
@@ -15,8 +16,13 @@ class CandidateManager:
             metadata = {}
 
         if not isinstance(atoms, Atoms):
-            raise TypeError(f"Expected ase.Atoms, got {type(atoms)}")
+            msg = f"Expected ase.Atoms, got {type(atoms)}"
+            raise TypeError(msg)
 
-        # Validation logic...
+        # Validation logic
+        pos = atoms.get_positions()
+        if np.isnan(pos).any() or np.isinf(pos).any():
+             msg = "Atoms object contains NaN or Inf in positions."
+             raise ValueError(msg)
 
         self.db.save_candidates([atoms], 0, "generation")

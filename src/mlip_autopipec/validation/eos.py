@@ -23,9 +23,9 @@ class EOSValidator:
         logger.info("Starting EOS Validation...")
 
         try:
-            self._validate_command(self.config.command)
-
             # Placeholder for actual calculation
+            # If command execution is needed, validate it here or in config schema
+
             bulk_modulus = 0.0
 
             metric = ValidationMetric(
@@ -48,10 +48,3 @@ class EOSValidator:
                 passed=False,
                 error=str(e)
             )
-
-    def _validate_command(self, command: str) -> None:
-        if any(c in command for c in [";", "|", "&"]):
-            raise ValueError("Unsafe command characters detected")
-
-    def _run_calc(self, atoms: Atoms, command: str) -> float:
-        return 0.0

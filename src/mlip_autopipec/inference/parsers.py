@@ -23,7 +23,7 @@ class LammpsLogParser:
 
         Returns:
             Tuple of (max_gamma, halted, halt_step).
-            max_gamma: The maximum c_max_gamma observed.
+            max_gamma: The maximum gamma observed.
             halted: True if the simulation was halted due to uncertainty.
             halt_step: The step at which it halted (or None).
         """
@@ -33,9 +33,6 @@ class LammpsLogParser:
         # Scalability Check: Ensure file is not too large
         if log_file.stat().st_size > MAX_LOG_SIZE:
             # If too large, we might skip parsing or parse only tail.
-            # For now, we return default to avoid crashing.
-            # Alternatively, read line by line.
-            # Let's switch to line-by-line reading for memory efficiency.
             pass
 
         max_gamma = 0.0
@@ -50,6 +47,7 @@ class LammpsLogParser:
             with log_file.open("r", encoding="utf-8", errors="replace") as f:
                 for line in f:
                     # Check for halt message
+                    # Common messages: "Fix halt condition met", "ERROR: Fix halt condition met"
                     if "Fix halt condition met" in line:
                         halted = True
 
@@ -58,24 +56,33 @@ class LammpsLogParser:
                         continue
 
                     if not header_found:
-                        if "Step" in parts and "c_max_gamma" in parts:
-                            header_found = True
-                            step_col_idx = parts.index("Step")
-                            gamma_col_idx = parts.index("c_max_gamma")
+                        # Look for header line. We support both c_max_gamma (old) and v_max_gamma (new)
+                        if "Step" in parts:
+                            if "v_max_gamma" in parts:
+                                header_found = True
+                                step_col_idx = parts.index("Step")
+                                gamma_col_idx = parts.index("v_max_gamma")
+                            elif "c_max_gamma" in parts:
+                                header_found = True
+                                step_col_idx = parts.index("Step")
+                                gamma_col_idx = parts.index("c_max_gamma")
+                            elif "max_gamma" in parts:
+                                header_found = True
+                                step_col_idx = parts.index("Step")
+                                gamma_col_idx = parts.index("max_gamma")
+
                     # Process data lines
-                    elif len(parts) > gamma_col_idx and len(parts) > step_col_idx:
+                    elif header_found and len(parts) > gamma_col_idx and len(parts) > step_col_idx:
                         try:
                             # Verify if parts look like numbers
                             step_val = int(parts[step_col_idx])
                             gamma_val = float(parts[gamma_col_idx])
                             max_gamma = max(max_gamma, gamma_val)
 
-                            # If halted, the last valid step might be the halt step
-                            # But LAMMPS prints the error AFTER the step line usually.
-                            # Or the step line IS the last line.
-                            # We update halt_step blindly; the last one seen is the last one run.
+                            # Keep updating halt_step to the latest valid step seen
                             halt_step = step_val
                         except ValueError:
+                            # Not a data line (maybe "Loop time...")
                             pass
         except Exception:
             # Handle read errors gracefully

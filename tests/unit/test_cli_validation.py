@@ -10,7 +10,8 @@ runner = CliRunner()
 @patch("mlip_autopipec.modules.cli_handlers.handlers.CLIHandler.validate_config")
 def test_validate_config_mode(mock_validate_config):
     # Default behavior: config validation
-    result = runner.invoke(app, ["validate", "input.yaml"])
+    # Must use --config option
+    result = runner.invoke(app, ["validate", "--config", "input.yaml"])
     assert result.exit_code == 0
     mock_validate_config.assert_called_once()
 
@@ -18,7 +19,7 @@ def test_validate_config_mode(mock_validate_config):
 @patch("mlip_autopipec.modules.cli_handlers.handlers.CLIHandler.run_physics_validation")
 def test_validate_physics_mode_phonon(mock_physics_validation):
     # With flags: physics validation
-    result = runner.invoke(app, ["validate", "input.yaml", "--phonon"])
+    result = runner.invoke(app, ["validate", "--config", "input.yaml", "--phonon"])
     assert result.exit_code == 0
     mock_physics_validation.assert_called_once()
     # Check arguments
@@ -32,7 +33,7 @@ def test_validate_physics_mode_phonon(mock_physics_validation):
 
 @patch("mlip_autopipec.modules.cli_handlers.handlers.CLIHandler.run_physics_validation")
 def test_validate_physics_mode_all(mock_physics_validation):
-    result = runner.invoke(app, ["validate", "input.yaml", "--phonon", "--elastic", "--eos"])
+    result = runner.invoke(app, ["validate", "--config", "input.yaml", "--phonon", "--elastic", "--eos"])
     assert result.exit_code == 0
     args, kwargs = mock_physics_validation.call_args
     assert kwargs["phonon"] is True

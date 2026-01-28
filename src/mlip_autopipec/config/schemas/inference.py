@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
@@ -13,6 +14,13 @@ DEFAULT_INTERVAL = 10
 DEFAULT_ZBL_INNER = 1.0
 DEFAULT_ZBL_OUTER = 2.0
 DEFAULT_RESTART_INTERVAL = 1000
+
+
+class BaselinePotential(str, Enum):
+    """Enumeration of supported baseline potentials."""
+    ZBL = "ZBL"
+    LJ = "LJ"
+    NONE = "None"
 
 
 class EONConfig(BaseModel):
@@ -48,7 +56,11 @@ class InferenceConfig(BaseModel):
     sampling_interval: int = Field(
         DEFAULT_INTERVAL, gt=0, description="Interval for thermo output and dumping"
     )
-    use_zbl_baseline: bool = Field(True, description="Whether to use ZBL baseline (hybrid/overlay)")
+
+    baseline_potential: BaselinePotential = Field(
+        BaselinePotential.ZBL, description="Baseline potential to use (hybrid/overlay)"
+    )
+
     zbl_inner_cutoff: float = Field(
         DEFAULT_ZBL_INNER, gt=0.0, description="Inner cutoff for ZBL switching"
     )
