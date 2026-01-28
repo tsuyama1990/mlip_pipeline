@@ -45,10 +45,22 @@ class CandidateProcessor:
                 # Differentiate extraction based on engine
                 if self.config.active_engine == "eon":
                     # EON produces single-frame .con files usually.
-                    frame = read(dump_path)
+                    # We ensure we get a single Atoms object by taking the last one if multiple are returned
+                    res = read(dump_path, index=-1)
+                    if isinstance(res, list):
+                        # Should not happen with index=-1, but just in case of weird return type
+                        if res:
+                            frame = res[-1]
+                    elif isinstance(res, Atoms):
+                        frame = res
                 else:
                     # LAMMPS: Read ONLY the last frame (index=-1) to avoid OOM
-                    frame = read(dump_path, index=-1, format="lammps-dump-text")
+                    res = read(dump_path, index=-1, format="lammps-dump-text")
+                    if isinstance(res, list):
+                         if res:
+                             frame = res[-1]
+                    elif isinstance(res, Atoms):
+                        frame = res
 
                 if frame is None:
                     continue

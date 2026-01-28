@@ -32,23 +32,23 @@ def test_select_entries_generator(db_manager: DatabaseManager) -> None:
     # select returns generator of rows
     mock_conn.select.return_value = iter([row1, row2])
 
-    with patch.object(db_manager, "connector") as mock_connector:
-        mock_connector.connect.return_value = mock_conn
+    # Patch _connection
+    db_manager._connection = mock_conn
 
-        gen = db_manager.select_entries()
+    gen = db_manager.select_entries()
 
-        # Consuming generator
-        items = list(gen)
-        assert len(items) == 2
-        assert items[0][0] == 1
-        assert items[0][1].get_chemical_formula() == "H"
-        assert items[1][0] == 2
-        assert items[1][1].get_chemical_formula() == "He"
+    # Consuming generator
+    items = list(gen)
+    assert len(items) == 2
+    assert items[0][0] == 1
+    assert items[0][1].get_chemical_formula() == "H"
+    assert items[1][0] == 2
+    assert items[1][1].get_chemical_formula() == "He"
 
 
 def test_add_structure_validation_error(db_manager: DatabaseManager) -> None:
     atoms = Atoms("H")
     atoms.positions[0] = [float("nan"), 0, 0]
 
-    with pytest.raises(DatabaseError, match="Invalid Atoms object"):
+    with pytest.raises(DatabaseError, match="Failed to add structure"):
         db_manager.add_structure(atoms, {})

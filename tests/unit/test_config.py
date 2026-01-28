@@ -21,7 +21,7 @@ def test_target_system_invalid_elements():
         TargetSystem(
             name="BadSys",
             elements=["Xy"], # Invalid element
-            crystal_structure="fcc"
+            composition={"Xy": 1.0}
         )
 
 def test_dft_config_security(tmp_path):

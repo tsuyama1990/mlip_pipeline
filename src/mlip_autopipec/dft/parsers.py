@@ -117,6 +117,7 @@ class QEOutputParser(BaseDFTParser):
                 wall_time=wall_time,
                 parameters=params,
                 final_mixing_beta=final_beta,
+                error_message=None,
             )
         except Exception as e:
             # If ASE fails, it means calculation didn't finish or crashed

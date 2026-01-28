@@ -24,13 +24,16 @@ def base_config(tmp_path):
     )
 
 
+@patch("shutil.which")
 @patch("mlip_autopipec.inference.runner.ScriptGenerator")
 @patch("mlip_autopipec.inference.runner.subprocess.run")
 @patch("mlip_autopipec.inference.runner.LammpsLogParser")
-def test_run_halted_execution(mock_parser, mock_run, mock_script_gen, base_config, mock_atoms, tmp_path):
+def test_run_halted_execution(mock_parser, mock_run, mock_script_gen, mock_which, base_config, mock_atoms, tmp_path):
     # Setup
     potential_path = tmp_path / "pot.yace"
     potential_path.touch()
+
+    mock_which.return_value = "/bin/lmp"
 
     # Mock Script Generator
     mock_script_gen_instance = mock_script_gen.return_value
@@ -55,12 +58,15 @@ def test_run_halted_execution(mock_parser, mock_run, mock_script_gen, base_confi
     mock_script_gen_instance.generate.assert_called()
 
 
+@patch("shutil.which")
 @patch("mlip_autopipec.inference.runner.ScriptGenerator")
 @patch("mlip_autopipec.inference.runner.subprocess.run")
 @patch("mlip_autopipec.inference.runner.LammpsLogParser")
-def test_run_normal_execution(mock_parser, mock_run, mock_script_gen, base_config, mock_atoms, tmp_path):
+def test_run_normal_execution(mock_parser, mock_run, mock_script_gen, mock_which, base_config, mock_atoms, tmp_path):
     potential_path = tmp_path / "pot.yace"
     potential_path.touch()
+
+    mock_which.return_value = "/bin/lmp"
 
     mock_script_gen.return_value.generate.return_value = "mock_script"
 

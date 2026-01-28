@@ -57,6 +57,7 @@ class QERunner:
                 error_message=f"Command validation failed: {e}",
                 wall_time=0.0,
                 parameters=self.config.model_dump(),
+                stress=None,
             )
 
         try:
@@ -71,6 +72,7 @@ class QERunner:
                 error_message=f"Input generation failed: {e}",
                 wall_time=0.0,
                 parameters=self.config.model_dump(),
+                stress=None,
             )
 
         # 2. Run with Retries
@@ -95,6 +97,7 @@ class QERunner:
                     error_message=f"Fatal execution error: {e}",
                     wall_time=0.0,
                     parameters=params,
+                    stress=None,
                 )
 
             if success:
@@ -134,6 +137,7 @@ class QERunner:
             error_message=f"Failed after {attempt} attempts. Last error: {error_msg}",
             wall_time=0.0,
             parameters=params,
+            stress=None,
         )
 
     def _validate_command(self, command: str) -> list[str]:

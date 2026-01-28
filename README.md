@@ -1,90 +1,103 @@
-# PyAcemaker: Automated MLIP Construction System
+# PyAcemaker (MLIP-AutoPipe)
 
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.12-blue.svg)
 
-PyAcemaker is a "Zero-Config" workflow that automates the construction of Machine Learning Interatomic Potentials (MLIP) using the Atomic Cluster Expansion (ACE) framework.
+> **PyAcemaker**: A Python-based Automated ACE Maker for constructing Machine Learning Interatomic Potentials.
 
 ## Overview
 
-### What is PyAcemaker?
-PyAcemaker democratizes the creation of state-of-the-art potentials. It bridges the gap between high-accuracy Density Functional Theory (DFT) and large-scale Molecular Dynamics (MD) by automating the tedious cycles of structure generation, calculation, training, and verification.
+**What:** PyAcemaker is an end-to-end pipeline for automating the generation of Machine Learning Interatomic Potentials (MLIPs), specifically Atomic Cluster Expansion (ACE) potentials.
 
-### Why use it?
-- **Automated**: Handles the entire pipeline from active learning to potential fitting.
-- **Data Efficient**: Uses active learning to select only the most informative structures, reducing DFT costs.
-- **Robust**: Incorporates physical baselines (ZBL/LJ) and self-healing mechanisms.
+**Why:** Creating robust MLIPs requires complex workflows involving structure generation, DFT calculations, active learning, and model training. PyAcemaker streamlines this process into a unified, reproducible, and scalable pipeline.
 
 ## Features
-- **Active Learning Loop**: Autonomous cycle of Exploration (MD) -> Detection (Uncertainty) -> Selection (D-Optimality) -> Calculation (DFT) -> Refinement (Training).
-- **Core Framework**: Robust configuration management and CLI.
-- **DFT Oracle**: Automated interface to Quantum Espresso with error recovery.
-- **Structure Generation**: Physics-informed generator (SQS, defects, distortions).
-- **Dynamics Engine (LAMMPS)**:
-  - Hybrid/Overlay potentials (ACE + ZBL/LJ) for safety.
-  - On-the-fly uncertainty monitoring (`compute pace`).
-  - Automatic halting on high uncertainty.
-- **One-Shot Training**: Pipeline to generate, calculate, and train a potential in one go.
-- **CLI Commands**: Easy-to-use commands for initialization, DFT execution, and validation.
+
+*   **Automated Workflow:** Orchestrates the entire lifecycle from structure generation to potential training.
+*   **Active Learning:** Intelligent selection of training configurations to minimize DFT cost.
+*   **DFT Automation:** Robust execution of Quantum Espresso calculations with error recovery.
+*   **Physics Validation:** Integrated suite for validating potentials against Phonons, Elastic Constants, and EOS (Equation of State).
+*   **Scalable Data Management:** SQLite-based storage with streaming support for large datasets.
+*   **Surrogate Modeling:** Support for MACE and other surrogate models for pre-screening.
+*   **Safety & Security:** Input validation and secure execution of external commands.
 
 ## Requirements
-- Python 3.11 or higher
-- Quantum Espresso (`pw.x`) installed and in PATH (for DFT calculations)
-- LAMMPS (`lmp` or similar) installed and in PATH (for MD simulations)
-- Pacemaker (`pacemaker`, `pace_activeset`) installed and in PATH (for training and selection)
-- `uv` package manager (recommended)
+
+*   Python >= 3.12
+*   Quantum Espresso (`pw.x`)
+*   LAMMPS (`lmp`)
+*   Pacemaker
+*   EON (optional, for specific sampling)
 
 ## Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/your-org/mlip-autopipec.git
 cd mlip-autopipec
+
+# Install dependencies using uv (recommended)
 uv sync
+
+# Or using pip
+pip install .
 ```
 
 ## Usage
 
 ### 1. Initialize Project
-Create a new project with a template configuration:
-```bash
-uv run mlip-auto init
-```
-This creates `input.yaml`. Edit it to specify your target system and DFT parameters.
 
-### 2. Validate Configuration
-Ensure your configuration is valid:
+Create a new project with a default configuration file:
+
 ```bash
-uv run mlip-auto validate --config input.yaml
+mlip-runner init
 ```
 
-### 3. Run DFT Calculation (Single Structure)
-Run a DFT calculation on a specific structure file (e.g., `.cif`, `.xyz`):
+Edit `input.yaml` to match your system requirements (elements, composition, DFT settings).
+
+### 2. Run Validation
+
+Validate an existing potential:
+
 ```bash
-uv run mlip-auto run-dft --config input.yaml --structure my_structure.cif
+mlip-runner validate input.yaml --potential my_potential.yace --phonon --elastic --eos
 ```
 
-### 4. Run One-Shot Training
-Execute the generation, calculation, and training pipeline:
-```bash
-uv run mlip-auto run-cycle-02 --config input.yaml
-```
-Use `--mock-dft` to simulate DFT calculations for testing or if `pw.x` is unavailable.
+### 3. Run Full Loop
 
-### 5. Run Active Learning Loop
-Execute the full autonomous active learning loop:
+Execute the continuous active learning loop:
+
 ```bash
-uv run mlip-auto run-loop --config input.yaml
+mlip-runner run-loop input.yaml
 ```
-This will run multiple cycles, exploring with MD and selecting uncertain structures for DFT refinement.
+
+### 4. Run One-Shot Cycle
+
+Run a single generation cycle (Generation -> DFT -> Train):
+
+```bash
+mlip-runner run-cycle-02 input.yaml
+```
 
 ## Architecture
-```ascii
-mlip_autopipec/
-├── config/        # Pydantic schemas and loaders
-├── dft/           # Quantum Espresso runner and error handling
-├── inference/     # Dynamics Engine (LAMMPS/EON) and Uncertainty
-├── orchestration/ # Workflow management and active learning loop
-├── surrogate/     # Candidate selection and active learning logic
-├── app.py         # CLI entry point
-└── ...
+
 ```
+src/mlip_autopipec/
+├── config/           # Pydantic schemas and configuration loading
+├── dft/              # DFT execution and parsing (Quantum Espresso)
+├── domain_models/    # Core data models (Atoms, Results, State)
+├── generator/        # Structure generation (Random, SQS, Defects)
+├── inference/        # MD inference (LAMMPS, EON)
+├── monitoring/       # Dashboard and metrics
+├── orchestration/    # Workflow management and phases
+├── surrogate/        # Surrogate models (MACE)
+├── training/         # Potential training (Pacemaker)
+├── utils/            # Utilities (Logging, ASE helpers)
+└── validation/       # Physics validation suite
+```
+
+## Roadmap
+
+*   Advanced Sampling Strategies (e.g., genetic algorithms).
+*   Support for additional DFT codes (VASP, ABINIT).
+*   Enhanced Web Dashboard for real-time monitoring.

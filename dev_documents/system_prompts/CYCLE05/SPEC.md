@@ -15,10 +15,11 @@ mlip_autopipec/
 │       └── **validation.py**  # Validation thresholds (e.g., max error %)
 ├── **validation/**
 │   ├── **__init__.py**
-│   ├── **phonons.py**         # Phonopy wrapper
-│   ├── **elastic.py**         # Elastic constant calculator
+│   ├── **phonon.py**          # Phonopy wrapper
+│   ├── **elasticity.py**      # Elastic constant calculator
 │   ├── **eos.py**             # Birch-Murnaghan fitter
-│   └── **report.py**          # HTML report generator
+│   ├── **report.py**          # HTML report generator
+│   └── **utils.py**           # Utilities (e.g., calculator loading)
 └── orchestration/
     └── ...
 ```
@@ -28,16 +29,26 @@ mlip_autopipec/
 ### 3.1 Validation Config
 
 **`ValidationConfig` (in `schemas/validation.py`)**
--   **Fields**:
-    -   `phonon_check`: bool
-    -   `elastic_check`: bool
-    -   `eos_check`: bool
-    -   `elastic_tolerance`: float (e.g., 0.15 for 15% error vs DFT)
+-   **Structure**:
+    -   `phonon`: `PhononConfig`
+        -   `enabled`: bool (default True)
+        -   `supercell_matrix`: list[int]
+        -   `displacement`: float
+        -   `symprec`: float
+    -   `elastic`: `ElasticConfig`
+        -   `enabled`: bool (default True)
+        -   `num_points`: int
+        -   `max_distortion`: float
+    -   `eos`: `EOSConfig`
+        -   `enabled`: bool (default True)
+        -   `num_points`: int
+        -   `strain_max`: float
     -   `reference_data`: Dict (Optional experimental/DFT values for comparison)
+    -   `fail_on_instability`: bool
 
 ### 3.2 Phonon Check
 
-**`PhononCheck` (in `validation/phonons.py`)**
+**`PhononValidator` (in `validation/phonon.py`)**
 -   **Responsibilities**:
     -   Calculate force constants using finite displacement (via Phonopy or internal logic).
     -   Calculate phonon band structure.
@@ -45,16 +56,16 @@ mlip_autopipec/
 
 ### 3.3 Elastic Check
 
-**`ElasticCheck` (in `validation/elastic.py`)**
+**`ElasticityValidator` (in `validation/elasticity.py`)**
 -   **Responsibilities**:
-    -   Apply small strains to the unit cell.
+    -   Apply strains to the unit cell.
     -   Calculate stress tensor.
     -   Fit to obtain Elastic Matrix ($C_{ij}$).
     -   **Criteria**: Check Born Stability Criteria (e.g., $C_{11}-C_{12} > 0$). Compare Bulk Modulus ($B$) with reference.
 
 ### 3.4 EOS Check
 
-**`EOSCheck` (in `validation/eos.py`)**
+**`EOSValidator` (in `validation/eos.py`)**
 -   **Responsibilities**:
     -   Calculate Energy vs Volume curve.
     -   Fit Birch-Murnaghan equation.
@@ -62,20 +73,25 @@ mlip_autopipec/
 
 ## 4. Implementation Approach
 
-1.  **Phonopy Integration**:
+1.  **Calculator Loading**:
+    -   Implement `load_calculator` in `utils.py`.
+    -   Support `.yace` via `pypacemaker` (if available).
+    -   Support `.model` via `mace-torch`.
+
+2.  **Phonopy Integration**:
     -   Use `phonopy` library if available.
     -   Generate supercells with `phonopy.structure.atoms.PhonopyAtoms` (converted from ASE).
-    -   Calculate forces using the ACE potential.
+    -   Calculate forces using the ACE/MACE potential.
     -   Feed forces back to Phonopy to get eigenvalues.
 
-2.  **Elasticity**:
-    -   Use `ase.constraints.StrainFilter` or custom implementation.
+3.  **Elasticity**:
+    -   Use `ase.filters.StrainFilter` or custom implementation.
     -   Apply $\pm \delta$ strain for 6 Voigt components.
 
-3.  **Report Generation**:
+4.  **Report Generation**:
     -   Use `jinja2` and `matplotlib`/`plotly`.
     -   Create a standalone HTML file containing:
-        -   Parity Plots (Energy/Force).
+        -   Parity Plots (Energy/Force) - if reference data available.
         -   Phonon Band Structure Plot.
         -   EOS Plot.
         -   Table of elastic constants.
@@ -85,12 +101,12 @@ mlip_autopipec/
 
 ### 5.1 Unit Testing
 -   **EOS Fit**: Provide exact data from an EOS equation. Verify the fitter recovers the parameters.
--   **Stability Logic**: Provide a $C_{ij}$ matrix that violates Born criteria. Verify `ElasticCheck` returns `False`.
+-   **Stability Logic**: Provide a $C_{ij}$ matrix that violates Born criteria. Verify `ElasticityValidator` returns `False`.
 
 ### 5.2 Integration Testing
 -   **Validation Pipeline**:
-    -   Train a "Good" potential (e.g., on perfect crystal data).
-    -   Train a "Bad" potential (e.g., on random noise).
+    -   Train/Load a "Good" potential.
+    -   Train/Load a "Bad" potential.
     -   Run Validator on both.
     -   Assert "Good" potential passes.
     -   Assert "Bad" potential fails (likely due to imaginary phonons or bad EOS).

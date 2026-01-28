@@ -32,11 +32,10 @@ class DatabaseManager:
         """Initializes the database connection."""
         try:
             self._connection = connect(str(self.db_path))
-            # Test connection
             if self._connection:
                 self._connection.count()
         except Exception as e:
-             logger.exception(f"Failed to initialize database at {self.db_path}")
+             logger.exception("Failed to initialize database")
              msg = f"Failed to initialize database: {e}"
              raise DatabaseError(msg) from e
 
@@ -79,7 +78,7 @@ class DatabaseManager:
                 row_id = self._connection.write(atoms, **metadata)
             return row_id
         except Exception as e:
-            logger.exception(f"Failed to add structure: {e}")
+            logger.exception("Failed to add structure")
             msg = f"Failed to add structure: {e}"
             raise DatabaseError(msg) from e
 
@@ -102,8 +101,8 @@ class DatabaseManager:
             with self._lock:
                 self._connection.update(row_id, status=status)
         except Exception as e:
-            logger.exception(f"Failed to update status for ID {row_id}")
-            msg = f"Failed to update status: {e}"
+            logger.exception("Failed to update status")
+            msg = f"Failed to update status for ID {row_id}: {e}"
             raise DatabaseError(msg) from e
 
     def update_metadata(self, row_id: int, data: dict[str, Any]) -> None:
@@ -114,8 +113,8 @@ class DatabaseManager:
             with self._lock:
                 self._connection.update(row_id, **data)
         except Exception as e:
-            logger.exception(f"Failed to update metadata for ID {row_id}")
-            msg = f"Failed to update metadata: {e}"
+            logger.exception("Failed to update metadata")
+            msg = f"Failed to update metadata for ID {row_id}: {e}"
             raise DatabaseError(msg) from e
 
     def select(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
