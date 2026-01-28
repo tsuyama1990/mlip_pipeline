@@ -1,54 +1,71 @@
-import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 from ase import Atoms
 
-# We test the logic that will be in pace_driver
-# We assume the module will expose a `process_structure` function.
+from mlip_autopipec.inference.drivers import pace_driver
 
 
-def test_driver_execution_success():
-    # Mocking the dependencies
+# We need to mock sys.exit to prevent test exit
+@pytest.fixture
+def mock_sys_exit():
+    with patch("sys.exit") as mock:
+        yield mock
+
+@patch("mlip_autopipec.inference.drivers.pace_driver.read")
+@patch("mlip_autopipec.inference.drivers.pace_driver.get_calculator")
+@patch("pathlib.Path.exists")
+@patch("os.environ.get")
+def test_driver_execution_success(mock_env, mock_exists, mock_get_calc, mock_read, mock_sys_exit, capsys):
+    # Setup
+    mock_exists.return_value = True
+    mock_env.side_effect = lambda k: "pot.yace" if k == "PACE_POTENTIAL_PATH" else None
+
+    mock_atoms = MagicMock(spec=Atoms)
+    mock_atoms.get_potential_energy.return_value = -10.0
+    mock_atoms.get_forces.return_value = np.array([[0.1, 0.2, 0.3]])
+    mock_read.return_value = mock_atoms
+
     mock_calc = MagicMock()
-    mock_calc.get_potential_energy.return_value = -100.0
-    mock_calc.get_forces.return_value = np.zeros((2, 3))
-    # Mocking extra results (gamma)
-    mock_calc.results = {"gamma": 2.0}
+    # We allow get_gamma to exist and return 0.5
+    mock_calc.get_gamma.return_value = 0.5
 
-    with patch.dict(sys.modules, {"pypacemaker": MagicMock()}):
-        try:
-            from mlip_autopipec.inference.drivers.pace_driver import process_structure
-        except ImportError:
-            pytest.fail("Module not implemented yet")
+    mock_get_calc.return_value = mock_calc
 
-        # Use real Atoms object to ensure get_potential_energy delegates to calc
-        atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+    # Run
+    pace_driver.run_driver()
 
-        # Test Case: Gamma < Threshold
-        result = process_structure(atoms, mock_calc, threshold=5.0)
+    # Verify stdout
+    captured = capsys.readouterr()
+    assert "-10.000000" in captured.out
+    assert "0.100000 0.200000 0.300000" in captured.out
 
-        assert result["energy"] == -100.0
-        assert result["forces"].shape == (2, 3)
-        assert result["gamma"] == 2.0
-        assert result["halt"] is False
+    mock_sys_exit.assert_not_called()
 
+@patch("mlip_autopipec.inference.drivers.pace_driver.read")
+@patch("mlip_autopipec.inference.drivers.pace_driver.get_calculator")
+@patch("pathlib.Path.exists")
+@patch("os.environ.get")
+def test_driver_execution_halt(mock_env, mock_exists, mock_get_calc, mock_read, mock_sys_exit, capsys):
+    # Setup
+    mock_exists.return_value = True
+    # Return threshold
+    mock_env.side_effect = lambda k: "pot.yace" if k == "PACE_POTENTIAL_PATH" else ("5.0" if k == "PACE_GAMMA_THRESHOLD" else None)
 
-def test_driver_execution_halt():
+    mock_atoms = MagicMock(spec=Atoms)
+    mock_atoms.get_potential_energy.return_value = -10.0
+    mock_atoms.get_forces.return_value = np.array([[0.0, 0.0, 0.0]])
+    mock_read.return_value = mock_atoms
+
     mock_calc = MagicMock()
-    mock_calc.results = {"gamma": 10.0}
-    mock_calc.get_potential_energy.return_value = -50.0
+    mock_calc.get_gamma.return_value = 10.0 # High gamma
+    mock_get_calc.return_value = mock_calc
 
-    with patch.dict(sys.modules, {"pypacemaker": MagicMock()}):
-        try:
-            from mlip_autopipec.inference.drivers.pace_driver import process_structure
-        except ImportError:
-            pytest.fail("Module not implemented yet")
+    # Run
+    pace_driver.run_driver()
 
-        atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+    captured = capsys.readouterr()
+    assert "Halt: Gamma 10.0" in captured.err
 
-        # Test Case: Gamma > Threshold
-        result = process_structure(atoms, mock_calc, threshold=5.0)
-        assert result["halt"] is True
-        assert result["gamma"] == 10.0
+    mock_sys_exit.assert_called_with(100)

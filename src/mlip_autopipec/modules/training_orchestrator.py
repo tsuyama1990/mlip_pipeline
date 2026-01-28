@@ -63,7 +63,8 @@ class TrainingManager:
             # 1. Export Data
             builder = DatasetBuilder(self.db_manager)
             data_path = self.work_dir / "training_data.xyz"
-            builder.export(self.config, str(data_path))
+            # Argument name for DatasetBuilder.export is output_path
+            builder.export(output_path=data_path)
 
             # 2. Run Pacemaker
             wrapper = PacemakerWrapper(self.config, self.work_dir)

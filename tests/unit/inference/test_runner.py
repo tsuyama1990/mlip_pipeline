@@ -20,12 +20,15 @@ def mock_atoms():
     return Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]], cell=[10, 10, 10], pbc=True)
 
 
+@patch("shutil.which")
 @patch("mlip_autopipec.inference.runner.subprocess.run")
 @patch("mlip_autopipec.inference.runner.LammpsLogParser")
-def test_runner_success(mock_parser, mock_run, mock_config, mock_atoms, tmp_path):
+def test_runner_success(mock_parser, mock_run, mock_which, mock_config, mock_atoms, tmp_path):
     # Setup mocks
     mock_run.return_value.returncode = 0
     mock_parser.parse.return_value = (1.5, False, None)
+
+    mock_which.return_value = "/bin/lmp"
 
     # Mock existence of potential
     potential_path = tmp_path / "pot.yace"

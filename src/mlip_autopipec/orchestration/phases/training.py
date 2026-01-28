@@ -26,7 +26,8 @@ class TrainingPhase(BasePhase):
             dataset_builder = DatasetBuilder(self.db)
 
             logger.info("Exporting training data...")
-            dataset_builder.export(self.config.training_config, str(training_dir))
+            # Use a dummy filename so dataset_builder puts train/test xyz files in training_dir
+            dataset_builder.export(output_path=training_dir / "dataset.xyz")
 
             logger.info("Initializing Pacemaker...")
             wrapper = PacemakerWrapper(self.config.training_config, training_dir)

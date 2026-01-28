@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -25,7 +26,7 @@ class MaceClient:
             config: A SurrogateConfig object containing model parameters and thresholds.
         """
         self.config = config
-        self.model = None
+        self.model: Any = None
         self.device = config.device
 
     def _load_model(self) -> None:

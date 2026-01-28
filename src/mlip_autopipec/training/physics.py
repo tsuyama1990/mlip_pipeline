@@ -31,7 +31,7 @@ class ZBLCalculator(Calculator):
     # Cutoff distance to avoid singularity (Angstroms)
     _R_MIN = 1e-4
 
-    def calculate(self, atoms: Atoms, properties=None, system_changes=all_changes):
+    def calculate(self, atoms: Atoms | None = None, properties=None, system_changes=all_changes):
         """
         Performs the ZBL calculation.
 
@@ -41,6 +41,16 @@ class ZBLCalculator(Calculator):
             system_changes: List of changes (positions, numbers, cell, pbc).
         """
         super().calculate(atoms, properties, system_changes)
+
+        # If atoms is not set in super().calculate or passed, we can't proceed
+        # However, super().calculate handles setting self.atoms if passed.
+        # So we can use self.atoms.
+
+        if self.atoms is None:
+             msg = "Atoms object not attached to calculator."
+             raise ValueError(msg)
+
+        atoms = self.atoms
 
         energy = 0.0
         forces = np.zeros((len(atoms), 3))

@@ -1,7 +1,5 @@
 import logging
-from typing import Any
 
-import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
