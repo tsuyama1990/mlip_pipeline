@@ -49,13 +49,7 @@ class PacemakerWrapper:
             executable = self._resolve_executable("pacemaker")
 
             # 4. Run Training
-            # Security: shell=False
             cmd = [executable, "input.yaml"]
-
-            # Validate command construction (basic check since we build it)
-            if not isinstance(executable, str): # Should be covered by resolve
-                 msg = "Invalid executable path"
-                 raise ValueError(msg)
 
             with (
                 open(self.work_dir / "stdout.log", "w") as f_out,
@@ -66,9 +60,12 @@ class PacemakerWrapper:
                 )
 
             # 5. Check Output
-            potential_file = self.work_dir / "output_potential.yace"  # Hypothetical
+            potential_file = self.work_dir / "output_potential.yace"
             if potential_file.exists():
+                logger.info(f"Training successful. Potential: {potential_file}")
                 return TrainingResult(True, potential_file)
+
+            logger.error("Training finished but potential file not found.")
             return TrainingResult(False)
 
         except subprocess.CalledProcessError:

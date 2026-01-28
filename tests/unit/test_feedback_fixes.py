@@ -4,6 +4,7 @@ import pytest
 from ase import Atoms
 from pydantic import ValidationError
 
+from mlip_autopipec.domain_models.structure_enums import CandidateStatus
 from mlip_autopipec.orchestration.database import DatabaseManager
 
 
@@ -16,10 +17,10 @@ def test_select_generator(db_path):
     atoms = Atoms("H")
     with DatabaseManager(db_path) as db:
         for i in range(5):
-            db.add_structure(atoms, {"status": "pending", "id_val": i})
+            db.add_structure(atoms, {"status": CandidateStatus.PENDING.value, "id_val": i})
 
         # Test iterator
-        gen = db.select(status="pending")
+        gen = db.select(status=CandidateStatus.PENDING.value)
         results = list(gen)
         assert len(results) == 5
         assert isinstance(results[0], Atoms)

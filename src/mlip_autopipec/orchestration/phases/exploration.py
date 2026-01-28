@@ -41,8 +41,7 @@ class ExplorationPhase(BasePhase):
                 # Allow injection or default
                 builder = getattr(self.manager, "builder", None) or StructureBuilder(sys_config)
 
-                # TODO: Move batch_size to config
-                batch_size = 100
+                batch_size = self.config.generator_config.batch_size
                 total_generated = 0
 
                 # Chunked processing to avoid OOM

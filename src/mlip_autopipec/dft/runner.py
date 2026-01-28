@@ -178,7 +178,7 @@ class QERunner:
                     stderr=subprocess.PIPE,
                     cwd=self.work_dir,
                     check=True,
-                    timeout=3600, # 1 hour timeout hardcoded for now, or from config
+                    timeout=self.config.timeout,
                     shell=False # SECURITY
                 )
             return True, ""

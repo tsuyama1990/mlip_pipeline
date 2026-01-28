@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.domain_models.atoms import ASEAtoms
+from mlip_autopipec.domain_models.structure_enums import CandidateStatus
 
 
 class CandidateData(BaseModel):
@@ -13,8 +14,7 @@ class CandidateData(BaseModel):
     atoms: ASEAtoms = Field(..., description="ASE Atoms object")
     config_type: str = Field(..., description="Tag indicating origin")
     provenance: dict[str, Any] = Field(default_factory=dict, description="Metadata")
-    # Updated status pattern to include 'screening' and 'rejected' for Active Learning
-    status: str = Field("pending", pattern="^(pending|training|failed|screening|rejected)$")
+    status: CandidateStatus = Field(CandidateStatus.PENDING, description="Workflow status")
     generation: int = Field(0, ge=0)
 
     model_config = ConfigDict(extra="forbid")

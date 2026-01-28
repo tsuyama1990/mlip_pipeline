@@ -64,8 +64,10 @@ class CandidateProcessor:
                 # Logic for extraction
                 extracted_atoms: Atoms
                 if "c_gamma" in frame.arrays:
+                    # gamma extraction
                     gammas = frame.arrays["c_gamma"]
                     max_idx = int(gammas.argmax())
+                    # EmbeddingExtractor.extract(atoms, center_idx)
                     extracted_atoms = self.extractor.extract(frame, max_idx)
                 else:
                     # For EON, or if missing gamma, take the whole frame

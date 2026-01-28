@@ -5,10 +5,10 @@ Module for training orchestration.
 import logging
 from pathlib import Path
 
-from mlip_autopipec.config.schemas.training import TrainingConfig, TrainingResult
+from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.training.dataset import DatasetBuilder
-from mlip_autopipec.training.pacemaker import PacemakerWrapper
+from mlip_autopipec.training.pacemaker import PacemakerWrapper, TrainingResult
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,8 @@ class TrainingManager:
 
             # 1. Export Data
             builder = DatasetBuilder(self.db_manager)
-            builder.export(self.config, self.work_dir)
+            data_path = self.work_dir / "training_data.xyz"
+            builder.export(self.config, str(data_path))
 
             # 2. Run Pacemaker
             wrapper = PacemakerWrapper(self.config, self.work_dir)

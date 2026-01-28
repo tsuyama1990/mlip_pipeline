@@ -9,3 +9,12 @@ class StructureType(str, Enum):
     INTERSTITIAL = "interstitial"
     BASE = "base"
     MOLECULE = "molecule"
+
+
+class CandidateStatus(str, Enum):
+    PENDING = "pending"
+    TRAINING = "training"
+    FAILED = "failed"
+    SCREENING = "screening"
+    REJECTED = "rejected"
+    COMPLETED = "completed"

@@ -60,7 +60,8 @@ class SurrogatePipeline:
 
     def _fetch_pending_entries(self) -> list[tuple[int, Atoms]]:
         # Consume generator to list
-        entries = list(self.db_manager.get_entries(selection="status=pending"))
+        # Fix: use select_entries
+        entries = list(self.db_manager.select_entries(selection="status=pending"))
         if not entries:
             logger.info("No pending structures found.")
             return []

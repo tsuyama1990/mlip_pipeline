@@ -30,6 +30,7 @@ class DFTConfig(BaseModel):
     degauss: float = Field(0.02, gt=0, description="Smearing width (Ry)")
     recoverable: bool = Field(True, description="Enable auto-recovery")
     max_retries: int = Field(5, ge=0, description="Maximum number of retries")
+    timeout: int = Field(3600, gt=0, description="Timeout in seconds for DFT calculation")
     pseudopotentials: dict[str, str] | None = Field(
         None, description="Map of element to filename"
     )
