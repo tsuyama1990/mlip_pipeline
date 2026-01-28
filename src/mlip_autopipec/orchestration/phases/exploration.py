@@ -5,8 +5,8 @@ from typing import TypeVar
 
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.generator.builder import StructureBuilder
+from mlip_autopipec.inference.runner import LammpsRunner
 from mlip_autopipec.orchestration.phases.base import BasePhase
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +61,53 @@ class ExplorationPhase(BasePhase):
                 # Active Learning Exploration
                 logger.info(f"Cycle {cycle}: Running Active Learning Exploration")
 
-                if self.config.surrogate_config:
-                    logger.info("Running surrogate selection pipeline...")
-                    surrogate = getattr(self.manager, "surrogate", None) or SurrogatePipeline(
-                        self.db, self.config.surrogate_config
+                # Check for necessary configs
+                if not self.config.inference_config:
+                    msg = "Inference config missing for Active Learning."
+                    raise ValueError(msg)
+
+                if not self.config.training_config:
+                    msg = "Training config missing for Active Learning selection."
+                    raise ValueError(msg)
+
+                # Initialize Runner
+                work_dir = self.manager.work_dir / f"exploration_gen_{cycle}"
+                runner = LammpsRunner(self.config.inference_config, work_dir)
+
+                potential_path = self.manager.state.latest_potential_path
+                if not potential_path:
+                    msg = "No potential available for exploration."
+                    raise RuntimeError(msg)
+
+                # Get starting structures
+                initial_structures = list(self.db.get_atoms(selection="converged=True", limit=5))
+                if not initial_structures:
+                    logger.info("No converged structures found. Generating new ones.")
+                    sys_config = SystemConfig(
+                        target_system=self.config.target_system,
+                        generator_config=self.config.generator_config
                     )
-                    surrogate.run()
-                else:
-                    logger.warning("No surrogate config or MD engine defined for Active Learning.")
+                    builder = StructureBuilder(sys_config)
+                    try:
+                        initial_structures = next(chunked(builder.build(), 5))
+                    except StopIteration:
+                        logger.warning("Builder produced no structures.")
+                        initial_structures = []
+
+                logger.info(f"Starting MD on {len(initial_structures)} structures.")
+
+                for i, atoms in enumerate(initial_structures):
+                    uid = f"md_{cycle}_{i}"
+                    result = runner.run(atoms, potential_path, uid)
+
+                    if result.halted:
+                        logger.info(f"MD halted for {uid} at step {result.halt_step}. Queuing for selection...")
+                        for dump_path in result.uncertain_structures:
+                            self.manager.state.halted_structures.append(dump_path)
+                        self.manager.save_state()
+
+                    elif not result.succeeded:
+                        logger.warning(f"MD failed for {uid}: {result.error_message}")
 
         except Exception:
             logger.exception("Exploration phase failed")

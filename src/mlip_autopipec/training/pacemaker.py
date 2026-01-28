@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import shutil
 import subprocess
@@ -100,16 +101,41 @@ class PacemakerWrapper:
             msg = f"Candidates file {candidates_path} not found"
             raise FileNotFoundError(msg)
 
+        if not current_potential.exists():
+            msg = f"Potential file {current_potential} not found"
+            raise FileNotFoundError(msg)
+
         cmd = [exe, "-d", str(candidates_path), "-p", str(current_potential)]
 
         try:
-            subprocess.run(
+            result = subprocess.run(
                 cmd, cwd=self.work_dir, capture_output=True, text=True, check=True, shell=False
             )
 
-            # Parse indices from stdout (Mock logic here)
-            # In reality, parse result.stdout
-            return []
+            final_indices = []
+            recording = False
+            for line in result.stdout.splitlines():
+                if "Selected structure indices:" in line:
+                    recording = True
+                    # Check if indices are on the same line
+                    content = line.split("Selected structure indices:")[1].strip()
+                    if content:
+                        with contextlib.suppress(ValueError):
+                            final_indices.extend([int(x) for x in content.split()])
+                    continue
+
+                if recording:
+                    # Attempt to parse subsequent lines as indices until we fail
+                    try:
+                        nums = [int(x) for x in line.split()]
+                        if not nums:
+                            continue
+                        final_indices.extend(nums)
+                    except ValueError:
+                        # Stop recording if we hit non-integer line (e.g. "Done.")
+                        break
+
+            return final_indices
 
         except subprocess.CalledProcessError:
             logger.exception("Active set selection failed")
