@@ -66,4 +66,4 @@ tests/uat/test_cycle02_structure_gen.py::test_scenario_02_02_defect_introduction
     equivalent_atoms = dataset["equivalent_atoms"]
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================= 170 passed, 2 warnings in 7.11s ========================
+======================= 170 passed, 2 warnings in 9.37s ========================
