@@ -28,8 +28,13 @@ class TestPhononValidator:
     def test_phonon_pass(self, dummy_atoms, work_dir):
         # Manual patching to ensure it works
         original_phonopy = mlip_autopipec.validation.phonon.Phonopy
+        original_phonopy_atoms = mlip_autopipec.validation.phonon.PhonopyAtoms
+
         mock_phonopy_cls = MagicMock()
+        mock_phonopy_atoms_cls = MagicMock()
+
         mlip_autopipec.validation.phonon.Phonopy = mock_phonopy_cls
+        mlip_autopipec.validation.phonon.PhonopyAtoms = mock_phonopy_atoms_cls
 
         try:
             # Mock dependencies
@@ -67,11 +72,17 @@ class TestPhononValidator:
                 assert result.metrics[0].name == "min_frequency"
         finally:
             mlip_autopipec.validation.phonon.Phonopy = original_phonopy
+            mlip_autopipec.validation.phonon.PhonopyAtoms = original_phonopy_atoms
 
     def test_phonon_fail_imaginary(self, dummy_atoms, work_dir):
         original_phonopy = mlip_autopipec.validation.phonon.Phonopy
+        original_phonopy_atoms = mlip_autopipec.validation.phonon.PhonopyAtoms
+
         mock_phonopy_cls = MagicMock()
+        mock_phonopy_atoms_cls = MagicMock()
+
         mlip_autopipec.validation.phonon.Phonopy = mock_phonopy_cls
+        mlip_autopipec.validation.phonon.PhonopyAtoms = mock_phonopy_atoms_cls
 
         try:
             with patch("mlip_autopipec.validation.phonon.load_calculator") as mock_load_calc:
@@ -102,6 +113,7 @@ class TestPhononValidator:
                 assert result.passed is False
         finally:
              mlip_autopipec.validation.phonon.Phonopy = original_phonopy
+             mlip_autopipec.validation.phonon.PhonopyAtoms = original_phonopy_atoms
 
 
 class TestElasticityValidator:

@@ -4,8 +4,8 @@ from pathlib import Path
 
 from ase.io import write
 
+from mlip_autopipec.orchestration.candidate_processing import CandidateManager
 from mlip_autopipec.orchestration.phases.base import BasePhase
-from mlip_autopipec.surrogate.candidate_manager import CandidateManager
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.surrogate.candidate_manager import CandidateManager
+from mlip_autopipec.orchestration.candidate_processing import CandidateManager
 
 
 @pytest.fixture
@@ -37,8 +37,8 @@ def test_process_halted_flow(manager, mock_pacemaker, tmp_path):
     with patch.object(manager, "_extract_cluster", return_value=atoms) as mock_extract, \
          patch.object(manager, "_perturb_structure", return_value=[atoms, atoms]) as mock_perturb, \
          patch.object(manager, "_embed_structure", return_value=atoms) as mock_embed, \
-         patch("mlip_autopipec.surrogate.candidate_manager.write"), \
-         patch("mlip_autopipec.surrogate.candidate_manager.tempfile.NamedTemporaryFile") as mock_tmp:
+         patch("mlip_autopipec.orchestration.candidate_processing.write"), \
+         patch("mlip_autopipec.orchestration.candidate_processing.tempfile.NamedTemporaryFile") as mock_tmp:
 
         # Mock select_active_set to return index 0
         mock_pacemaker.select_active_set.return_value = [0]

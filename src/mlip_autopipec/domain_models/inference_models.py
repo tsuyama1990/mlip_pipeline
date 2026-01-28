@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
+
+from mlip_autopipec.domain_models.atoms import ASEAtoms
 
 
 class ExtractedStructure(BaseModel):
@@ -15,26 +16,12 @@ class ExtractedStructure(BaseModel):
         mask_radius: The radius used for force masking (core radius).
     """
 
-    atoms: Any = Field(..., description="The ASE Atoms object")
+    atoms: ASEAtoms = Field(..., description="The ASE Atoms object")
     origin_uuid: str = Field(..., description="UUID of the original MD frame")
     origin_index: int = Field(..., description="Index of the focal atom in original frame")
     mask_radius: float = Field(..., description="Radius used for force masking")
 
     model_config = ConfigDict(extra="forbid")
-
-    @field_validator("atoms")
-    @classmethod
-    def validate_atoms(cls, v: Any) -> Any:
-        try:
-            from ase import Atoms
-        except ImportError as e:
-            msg = "ASE not installed."
-            raise ValueError(msg) from e
-
-        if not isinstance(v, Atoms):
-            msg = "Field 'atoms' must be an ase.Atoms object."
-            raise TypeError(msg)
-        return v
 
 
 class InferenceResult(BaseModel):

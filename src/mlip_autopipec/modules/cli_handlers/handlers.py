@@ -16,7 +16,6 @@ from mlip_autopipec.generator import StructureBuilder
 from mlip_autopipec.modules.training_orchestrator import TrainingManager
 from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.workflow import WorkflowManager
-from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.utils.config_utils import validate_path_safety
 
 logger = logging.getLogger(__name__)
@@ -234,23 +233,6 @@ class CLIHandler:
                 count += 1
 
         console(f"Generated and saved {count} structures to {config.runtime.database_path}")
-
-    @staticmethod
-    def select_candidates(config_file: Path, n_samples: int | None, model_type: str | None) -> None:
-        safe_config = validate_path_safety(config_file)
-        config = load_config(safe_config)
-        surrogate_conf = config.surrogate_config
-
-        if n_samples is not None:
-            surrogate_conf.n_samples = n_samples
-        if model_type is not None:
-            surrogate_conf.model_type = model_type
-
-        with DatabaseManager(config.runtime.database_path) as db:
-            pipeline = SurrogatePipeline(db, surrogate_conf)
-            pipeline.run()
-
-        console("Selection complete.")
 
     @staticmethod
     def train_potential(config_file: Path, prepare_only: bool) -> None:
