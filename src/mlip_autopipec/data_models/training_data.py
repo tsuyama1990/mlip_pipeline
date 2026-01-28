@@ -27,8 +27,8 @@ class TrainingData(BaseModel):
     @classmethod
     def check_energy_finite(cls, v: float) -> float:
         if not isinstance(v, float):
-             msg = f"Energy must be a float, got {type(v)}"
-             raise ValueError(msg)
+            msg = f"Energy must be a float, got {type(v)}"
+            raise ValueError(msg)
         if not math.isfinite(v):
             msg = f"Energy value {v} is not finite."
             raise ValueError(msg)
@@ -50,9 +50,7 @@ class TrainingData(BaseModel):
                 raise ValueError(msg)
             if len(row) != 3:
                 msg = f"Force vector at index {i} must have exactly 3 components (got {len(row)})."
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
         # Check for NaN or Infinity
         for i, row in enumerate(v):

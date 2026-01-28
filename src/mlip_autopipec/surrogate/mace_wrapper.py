@@ -1,4 +1,3 @@
-
 import numpy as np
 from ase import Atoms
 
@@ -7,6 +6,7 @@ class MaceWrapper:
     """
     Wrapper for MACE model to compute energy, forces, and descriptors.
     """
+
     def __init__(self, model_type: str = "mace_mp") -> None:
         self.model_type = model_type
         self.model = None
@@ -23,17 +23,20 @@ class MaceWrapper:
         if self.model_type == "mace_mp":
             try:
                 from mace.calculators import MACECalculator
+
                 # MACECalculator expects model_paths (plural)
                 # It handles "medium", "large" etc. if they are mapped, or paths.
                 # We assume model_path is passed correctly.
                 # We need to map 'cuda' to 'cuda' or 'cpu'.
-                self.model = MACECalculator(model_paths=model_path, device=device, default_dtype="float32")
+                self.model = MACECalculator(
+                    model_paths=model_path, device=device, default_dtype="float32"
+                )
             except ImportError:
-                 msg = "mace-torch is not installed."
-                 raise ImportError(msg)
+                msg = "mace-torch is not installed."
+                raise ImportError(msg)
             except Exception as e:
-                 msg = f"Failed to load MACE model: {e}"
-                 raise RuntimeError(msg)
+                msg = f"Failed to load MACE model: {e}"
+                raise RuntimeError(msg)
 
     def compute_energy_forces(self, atoms_list: list[Atoms]) -> tuple[np.ndarray, list[np.ndarray]]:
         """
@@ -96,11 +99,11 @@ class MaceWrapper:
             rcut=5.0,
             nmax=4,
             lmax=4,
-            average="inner" # Global descriptor (average over sites)
+            average="inner",  # Global descriptor (average over sites)
         )
 
         # dscribe supports batching
-        descriptors = soap.create(atoms_list, n_jobs=1) # type: ignore
+        descriptors = soap.create(atoms_list, n_jobs=1)  # type: ignore
 
         # Ensure it's 2D array
         if descriptors.ndim == 1:

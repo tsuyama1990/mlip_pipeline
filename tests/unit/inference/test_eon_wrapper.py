@@ -14,8 +14,9 @@ def eon_config():
         job="process_search",
         temperature=400.0,
         pot_name="pace_driver",
-        parameters={"quiet": True}
+        parameters={"quiet": True},
     )
+
 
 def test_eon_wrapper_init(eon_config, tmp_path):
     try:
@@ -26,6 +27,7 @@ def test_eon_wrapper_init(eon_config, tmp_path):
     wrapper = EONWrapper(eon_config, tmp_path)
     assert wrapper.config == eon_config
     assert wrapper.work_dir == tmp_path
+
 
 def test_eon_wrapper_write_config(eon_config, tmp_path):
     try:
@@ -45,6 +47,7 @@ def test_eon_wrapper_write_config(eon_config, tmp_path):
     assert "temperature = 400.0" in content
     assert "potential = pace_driver" in content
 
+
 def test_eon_wrapper_write_config_empty_params(eon_config, tmp_path):
     eon_config.parameters = {}
 
@@ -63,6 +66,7 @@ def test_eon_wrapper_write_config_empty_params(eon_config, tmp_path):
     assert "potential = pace_driver" in content
     assert "quiet" not in content
 
+
 @patch("subprocess.run")
 def test_eon_wrapper_run_success(mock_run, eon_config, tmp_path):
     try:
@@ -73,7 +77,7 @@ def test_eon_wrapper_run_success(mock_run, eon_config, tmp_path):
     mock_run.return_value.returncode = 0
 
     wrapper = EONWrapper(eon_config, tmp_path)
-    atoms = Atoms("H2", positions=[[0,0,0], [1,0,0]])
+    atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
     potential_path = Path("pot.yace")
 
     with patch.object(wrapper, "_write_pos_con"):
@@ -81,6 +85,7 @@ def test_eon_wrapper_run_success(mock_run, eon_config, tmp_path):
 
     assert result.succeeded is True
     assert result.max_gamma_observed < eon_config.parameters.get("uncertainty_threshold", 5.0)
+
 
 @patch("subprocess.run")
 def test_eon_wrapper_run_halt(mock_run, eon_config, tmp_path):
@@ -106,6 +111,7 @@ def test_eon_wrapper_run_halt(mock_run, eon_config, tmp_path):
     assert result.succeeded is True
     assert len(result.uncertain_structures) == 1
     assert result.uncertain_structures[0] == bad_structure_file
+
 
 @patch("subprocess.run")
 def test_eon_wrapper_run_failure(mock_run, eon_config, tmp_path):

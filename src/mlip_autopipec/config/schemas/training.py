@@ -5,6 +5,7 @@ class TrainingConfig(BaseModel):
     """
     Configuration for Pacemaker training.
     """
+
     # File Paths
     training_data_path: str = Field("data/train.xyz", description="Path to training data file")
     test_data_path: str = Field("data/test.xyz", description="Path to validation data file")
@@ -18,9 +19,13 @@ class TrainingConfig(BaseModel):
     kappa_f: PositiveFloat = Field(..., description="Weight for Force loss")
 
     # Optimization
-    max_num_epochs: PositiveInt = Field(1000, alias="max_iter", description="Maximum training epochs")
+    max_num_epochs: PositiveInt = Field(
+        1000, alias="max_iter", description="Maximum training epochs"
+    )
     batch_size: PositiveInt = Field(..., description="Batch size for training")
-    ladder_step: list[int] = Field(default_factory=list, description="Ladder steps for hierarchical training")
+    ladder_step: list[int] = Field(
+        default_factory=list, description="Ladder steps for hierarchical training"
+    )
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -59,6 +64,7 @@ class TrainingMetrics(BaseModel):
     """
     Metrics extracted from training logs.
     """
+
     epoch: int = Field(..., ge=0, description="Current epoch")
     rmse_energy: float = Field(..., ge=0.0, description="Energy error (meV/atom)")
     rmse_force: float = Field(..., ge=0.0, description="Force error (eV/A)")
@@ -68,6 +74,7 @@ class TrainingMetrics(BaseModel):
 
 class TrainingResult(BaseModel):
     """Result of training."""
+
     success: bool
     potential_path: str | None = None
     metrics: TrainingMetrics | None = None

@@ -50,9 +50,9 @@ class SQSStrategy:
         try:
             # 1. Create Supercell
             if isinstance(self.config.supercell_size, list):
-                 P = np.diag(self.config.supercell_size)
+                P = np.diag(self.config.supercell_size)
             else:
-                 P = self.config.supercell_size
+                P = self.config.supercell_size
 
             atoms = make_supercell(prim_cell, P)
             n_atoms = len(atoms)
@@ -65,17 +65,19 @@ class SQSStrategy:
 
             for i, (elem, frac) in enumerate(sorted_comp):
                 if i == len(sorted_comp) - 1:
-                     # Last element gets the rest
-                     count = n_atoms - current_count
+                    # Last element gets the rest
+                    count = n_atoms - current_count
                 else:
-                     count = round(frac * n_atoms)
+                    count = round(frac * n_atoms)
 
                 symbols.extend([elem] * count)
                 current_count += count
 
             # Ensure exact length
             if len(symbols) != n_atoms:
-                logger.warning(f"SQS symbol count mismatch: {len(symbols)} vs {n_atoms}. Truncating/Filling.")
+                logger.warning(
+                    f"SQS symbol count mismatch: {len(symbols)} vs {n_atoms}. Truncating/Filling."
+                )
                 symbols = symbols[:n_atoms]
                 while len(symbols) < n_atoms:
                     symbols.append(sorted_comp[0][0])

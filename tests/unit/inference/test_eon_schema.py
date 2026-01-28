@@ -11,6 +11,7 @@ def test_eon_config_defaults():
     assert config.pot_name == "pace_driver"
     assert config.parameters == {}
 
+
 def test_eon_config_validation():
     # Test valid
     config = EONConfig(temperature=500.0, job="saddle_search")
@@ -24,6 +25,7 @@ def test_eon_config_validation():
     # Test invalid job
     with pytest.raises(ValidationError):
         EONConfig(job="invalid_job")
+
 
 def test_inference_config_integration():
     # Default should have active_engine="lammps" and eon=None

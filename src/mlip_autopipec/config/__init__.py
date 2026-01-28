@@ -6,6 +6,7 @@ It serves as the contract for all other modules, ensuring type safety and valida
 """
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
+
 # Import things that are used in models.py or schemas
 from mlip_autopipec.config.schemas.core import RuntimeConfig, TargetSystem
 from mlip_autopipec.config.schemas.dft import DFTConfig

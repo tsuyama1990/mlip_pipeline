@@ -10,21 +10,21 @@ from mlip_autopipec.inference.runner import LammpsRunner
 
 @pytest.fixture
 def mock_config(tmp_path):
-    return InferenceConfig(
-        lammps_executable=tmp_path / "lmp",
-        steps=100,
-        uncertainty_threshold=5.0
-    )
+    return InferenceConfig(lammps_executable=tmp_path / "lmp", steps=100, uncertainty_threshold=5.0)
+
 
 @pytest.fixture
 def mock_atoms():
     return Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
 
+
 @patch("mlip_autopipec.inference.runner.subprocess.run")
 @patch("mlip_autopipec.inference.runner.shutil.which")
 @patch("mlip_autopipec.inference.runner.LammpsInputWriter")
 @patch("mlip_autopipec.inference.runner.LogParser")
-def test_runner_success(mock_parser, mock_writer, mock_which, mock_run, mock_config, mock_atoms, tmp_path):
+def test_runner_success(
+    mock_parser, mock_writer, mock_which, mock_run, mock_config, mock_atoms, tmp_path
+):
     # Setup mocks
     mock_which.return_value = "/usr/bin/lmp"
     mock_run.return_value.returncode = 0
@@ -50,6 +50,7 @@ def test_runner_success(mock_parser, mock_writer, mock_which, mock_run, mock_con
     assert result.max_gamma_observed == 1.5
     assert len(result.uncertain_structures) == 0
 
+
 def test_runner_input_validation(mock_config, tmp_path):
     runner = LammpsRunner(mock_config, tmp_path)
     with pytest.raises(TypeError):
@@ -58,6 +59,7 @@ def test_runner_input_validation(mock_config, tmp_path):
     atoms = Atoms("H")
     with pytest.raises(FileNotFoundError):
         runner.run(atoms, Path("nonexistent.yace"))
+
 
 @patch("mlip_autopipec.inference.runner.shutil.which")
 def test_runner_executable_resolution(mock_which, mock_config, tmp_path):

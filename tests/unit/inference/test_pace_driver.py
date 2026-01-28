@@ -8,6 +8,7 @@ from ase import Atoms
 # We test the logic that will be in pace_driver
 # We assume the module will expose a `process_structure` function.
 
+
 def test_driver_execution_success():
     # Mocking the dependencies
     mock_calc = MagicMock()
@@ -23,15 +24,16 @@ def test_driver_execution_success():
             pytest.fail("Module not implemented yet")
 
         # Use real Atoms object to ensure get_potential_energy delegates to calc
-        atoms = Atoms("H2", positions=[[0,0,0], [1,0,0]])
+        atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
 
         # Test Case: Gamma < Threshold
         result = process_structure(atoms, mock_calc, threshold=5.0)
 
-        assert result['energy'] == -100.0
-        assert result['forces'].shape == (2, 3)
-        assert result['gamma'] == 2.0
-        assert result['halt'] is False
+        assert result["energy"] == -100.0
+        assert result["forces"].shape == (2, 3)
+        assert result["gamma"] == 2.0
+        assert result["halt"] is False
+
 
 def test_driver_execution_halt():
     mock_calc = MagicMock()
@@ -44,9 +46,9 @@ def test_driver_execution_halt():
         except ImportError:
             pytest.fail("Module not implemented yet")
 
-        atoms = Atoms("H2", positions=[[0,0,0], [1,0,0]])
+        atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
 
         # Test Case: Gamma > Threshold
         result = process_structure(atoms, mock_calc, threshold=5.0)
-        assert result['halt'] is True
-        assert result['gamma'] == 10.0
+        assert result["halt"] is True
+        assert result["gamma"] == 10.0

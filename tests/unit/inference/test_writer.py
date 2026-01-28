@@ -12,6 +12,7 @@ from mlip_autopipec.inference.writer import LammpsInputWriter
 def mock_config():
     return InferenceConfig()
 
+
 def test_writer_creates_files(mock_config, tmp_path):
     writer = LammpsInputWriter(mock_config, tmp_path)
     atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])

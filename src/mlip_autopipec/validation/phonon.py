@@ -28,9 +28,7 @@ class PhononValidator:
         """
         if atoms.calc is None:
             return ValidationResult(
-                module="phonon",
-                passed=False,
-                error="Atoms object has no calculator attached."
+                module="phonon", passed=False, error="Atoms object has no calculator attached."
             )
 
         try:
@@ -38,15 +36,15 @@ class PhononValidator:
             unitcell = PhonopyAtoms(
                 symbols=atoms.get_chemical_symbols(),
                 cell=atoms.get_cell(),
-                scaled_positions=atoms.get_scaled_positions()
+                scaled_positions=atoms.get_scaled_positions(),
             )
 
             # 2. Initialize Phonopy
             phonon = Phonopy(
                 unitcell,
                 supercell_matrix=self.config.supercell_matrix,
-                factor=1.0, # Default VASP-like factor
-                symprec=self.config.symprec
+                factor=1.0,  # Default VASP-like factor
+                symprec=self.config.symprec,
             )
 
             # 3. Generate displacements
@@ -58,10 +56,7 @@ class PhononValidator:
             for sc in supercells:
                 # Convert back to ASE
                 sc_ase = Atoms(
-                    symbols=sc.symbols,
-                    scaled_positions=sc.scaled_positions,
-                    cell=sc.cell,
-                    pbc=True
+                    symbols=sc.symbols, scaled_positions=sc.scaled_positions, cell=sc.cell, pbc=True
                 )
 
                 # Attach calculator (Reuse the one from input atoms)
@@ -81,7 +76,7 @@ class PhononValidator:
             mesh_density = [20, 20, 20]
             phonon.run_mesh(mesh=mesh_density)
             mesh_dict = phonon.get_mesh_dict()
-            frequencies = mesh_dict['frequencies']  # Shape: (num_qpoints, num_bands)
+            frequencies = mesh_dict["frequencies"]  # Shape: (num_qpoints, num_bands)
 
             # 7. Analyze results
             min_freq = float(np.min(frequencies))
@@ -98,24 +93,14 @@ class PhononValidator:
                     value=min_freq,
                     unit="THz",
                     passed=passed,
-                    details={"tolerance": TOLERANCE}
+                    details={"tolerance": TOLERANCE},
                 ),
-                ValidationMetric(
-                    name="is_stable",
-                    value=passed,
-                    passed=passed
-                )
+                ValidationMetric(name="is_stable", value=passed, passed=passed),
             ]
 
-            return ValidationResult(
-                module="phonon",
-                passed=passed,
-                metrics=metrics
-            )
+            return ValidationResult(module="phonon", passed=passed, metrics=metrics)
 
         except Exception as e:
             return ValidationResult(
-                module="phonon",
-                passed=False,
-                error=f"Phonon calculation failed: {e!s}"
+                module="phonon", passed=False, error=f"Phonon calculation failed: {e!s}"
             )

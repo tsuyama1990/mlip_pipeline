@@ -17,6 +17,7 @@ class DFTInputParams(BaseModel):
     """
     Structured parameters for DFT input generation.
     """
+
     kspacing: float | None = None
     k_density: float | None = None  # Legacy/Alias support
     ecutwfc: float = 60.0
@@ -37,7 +38,7 @@ class DFTResult(BaseModel):
     forces: list[list[float]] = Field(..., description="Nx3 array")
     stress: list[list[float]] | None = Field(None, description="3x3 array")
     succeeded: bool
-    converged: bool = Field(default=False) # Backwards compat
+    converged: bool = Field(default=False)  # Backwards compat
     error_message: str | None = None
     wall_time: float
     # Metadata for provenance
@@ -50,7 +51,7 @@ class DFTResult(BaseModel):
     @classmethod
     def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
         if not forces:
-             return forces
+            return forces
         if not all(len(row) == 3 for row in forces):
             msg = "Forces must have a shape of (N_atoms, 3)."
             raise ValueError(msg)

@@ -10,6 +10,7 @@ from mlip_autopipec.training.dataset import DatasetBuilder
 def mock_db_manager():
     return MagicMock()
 
+
 def test_export_atoms_iterable(mock_db_manager, tmp_path):
     builder = DatasetBuilder(mock_db_manager)
     atoms_list = [Atoms("H"), Atoms("He")]

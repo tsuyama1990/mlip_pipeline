@@ -20,15 +20,13 @@ def mock_config(tmp_path):
     return SystemConfig(
         target_system=TargetSystem(name="Test", elements=["Fe"], composition={"Fe": 1.0}),
         dft_config=DFTConfig(
-            pseudopotential_dir=tmp_path,
-            ecutwfc=30,
-            kspacing=0.05,
-            command="pw.x"
+            pseudopotential_dir=tmp_path, ecutwfc=30, kspacing=0.05, command="pw.x"
         ),
         workflow_config=WorkflowConfig(max_generations=2),
         working_dir=tmp_path / "_work",
-        db_path=tmp_path / "mlip.db"
+        db_path=tmp_path / "mlip.db",
     )
+
 
 @patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
@@ -39,6 +37,7 @@ def test_workflow_manager_initialization(mock_dask, mock_executor, mock_db, mock
     assert isinstance(manager.state, WorkflowState)
     assert manager.state.cycle_index == 0
     assert manager.state.current_phase == WorkflowPhase.EXPLORATION
+
 
 @patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")

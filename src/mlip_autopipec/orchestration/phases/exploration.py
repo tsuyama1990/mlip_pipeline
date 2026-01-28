@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+
 def chunked(iterable: Iterable[T], size: int) -> Iterator[list[T]]:
     """Yield successive chunks from iterable."""
     it = iter(iterable)
@@ -19,6 +20,7 @@ def chunked(iterable: Iterable[T], size: int) -> Iterator[list[T]]:
         if not chunk:
             break
         yield chunk
+
 
 class ExplorationPhase(BasePhase):
     def execute(self) -> None:
@@ -42,7 +44,9 @@ class ExplorationPhase(BasePhase):
 
             if self.config.surrogate_config:
                 logger.info("Running surrogate selection pipeline...")
-                surrogate = self.manager.surrogate or SurrogatePipeline(self.db, self.config.surrogate_config)
+                surrogate = self.manager.surrogate or SurrogatePipeline(
+                    self.db, self.config.surrogate_config
+                )
                 surrogate.run()
 
             logger.info(f"Exploration complete. Total candidates generated: {total_generated}")

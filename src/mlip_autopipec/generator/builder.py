@@ -47,8 +47,12 @@ class StructureBuilder:
 
         self.rng = np.random.default_rng(self.generator_config.seed)
         self.sqs_strategy = SQSStrategy(self.generator_config.sqs, seed=self.generator_config.seed)
-        self.defect_strategy = DefectStrategy(self.generator_config.defects, seed=self.generator_config.seed)
-        self.distortion_strategy = DistortionStrategy(self.generator_config.distortion, seed=self.generator_config.seed)
+        self.defect_strategy = DefectStrategy(
+            self.generator_config.defects, seed=self.generator_config.seed
+        )
+        self.distortion_strategy = DistortionStrategy(
+            self.generator_config.distortion, seed=self.generator_config.seed
+        )
 
     def build(self) -> Iterator[Atoms]:
         """
@@ -106,7 +110,9 @@ class StructureBuilder:
             logger.error(msg, exc_info=True)
             raise GeneratorError(msg, context={"target": target.name}) from e
 
-    def _tag_metadata_stream(self, structures: Iterator[Atoms], target_name: str) -> Iterator[Atoms]:
+    def _tag_metadata_stream(
+        self, structures: Iterator[Atoms], target_name: str
+    ) -> Iterator[Atoms]:
         for s in structures:
             if "uuid" not in s.info:
                 s.info["uuid"] = str(uuid.uuid4())
@@ -136,13 +142,13 @@ class StructureBuilder:
         """
         Generates base structures based on target type (bulk/molecule).
         """
-        structure_type = "bulk" # Default
+        structure_type = "bulk"  # Default
         if target.crystal_structure:
             structure_type = "bulk"
         elif hasattr(target, "structure_type") and target.structure_type:
             structure_type = target.structure_type
         elif "molecule" in target.name.lower():
-             structure_type = "molecule"
+            structure_type = "molecule"
 
         if structure_type == "bulk":
             yield from self._generate_bulk_base(target)
@@ -151,8 +157,8 @@ class StructureBuilder:
                 mol = molecule(target.name)
                 yield mol
             except Exception:
-                 logger.warning(f"Could not build molecule {target.name}")
-                 return
+                logger.warning(f"Could not build molecule {target.name}")
+                return
 
         else:
             # Default fallback
@@ -174,7 +180,7 @@ class StructureBuilder:
         # Heuristic: Take the first element from composition and use its bulk structure.
         primary_elem = next(iter(target.composition.keys()))
         try:
-            prim = bulk(primary_elem, crystalstructure=target.crystal_structure or 'fcc')
+            prim = bulk(primary_elem, crystalstructure=target.crystal_structure or "fcc")
         except Exception as e:
             logger.warning(
                 f"Could not build bulk for {primary_elem}: {e}. Falling back to 'Fe' bcc."

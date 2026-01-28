@@ -10,12 +10,16 @@ from ase.io import read
 def get_potential_calculator(potential_path: str) -> Any:
     try:
         from pypacemaker import Calculator
+
         return Calculator(potential_path)
     except ImportError:
         msg = "pypacemaker not found"
         raise ImportError(msg)
 
-def process_structure(atoms: Any, calculator: Any, threshold: float | None = None) -> dict[str, Any]:
+
+def process_structure(
+    atoms: Any, calculator: Any, threshold: float | None = None
+) -> dict[str, Any]:
     """
     Calculates energy, forces and uncertainty (gamma).
     Returns dict with results and halt flag.
@@ -30,18 +34,14 @@ def process_structure(atoms: Any, calculator: Any, threshold: float | None = Non
     # Adjust based on exact pypacemaker API
     results = getattr(calculator, "results", {})
     if "gamma" in results:
-         gamma = results["gamma"]
+        gamma = results["gamma"]
 
     halt = False
     if threshold is not None and gamma > float(threshold):
         halt = True
 
-    return {
-        "energy": energy,
-        "forces": forces,
-        "gamma": gamma,
-        "halt": halt
-    }
+    return {"energy": energy, "forces": forces, "gamma": gamma, "halt": halt}
+
 
 def main() -> None:
     # Read environment variables
@@ -61,7 +61,7 @@ def main() -> None:
 
         # Try 'eon' format first, then auto
         try:
-            atoms = read(f, format='eon')
+            atoms = read(f, format="eon")
         except Exception:
             f.seek(0)
             atoms = read(f)
@@ -70,16 +70,17 @@ def main() -> None:
 
         result = process_structure(atoms, calc, threshold)
 
-        if result['halt']:
+        if result["halt"]:
             sys.exit(100)
 
         # Output Energy
         # Output Forces
-        for _force in result['forces']:
+        for _force in result["forces"]:
             pass
 
     except Exception:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

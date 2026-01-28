@@ -10,13 +10,17 @@ def validate_element(v: str) -> str:
         raise ValueError(msg)
     return v
 
+
 Element = Annotated[str, AfterValidator(validate_element)]
+
 
 class CommonConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+
 class EmbeddingConfig(BaseModel):
     """Configuration for cluster embedding."""
+
     core_radius: float = Field(default=4.0, gt=0.0)
     buffer_width: float = Field(default=2.0, gt=0.0)
     model_config = ConfigDict(extra="forbid")

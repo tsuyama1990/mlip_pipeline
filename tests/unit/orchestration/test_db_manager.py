@@ -12,6 +12,7 @@ from mlip_autopipec.orchestration.database import DatabaseManager
 def db_manager(tmp_path: Path) -> DatabaseManager:
     return DatabaseManager(tmp_path / "test.db")
 
+
 def test_select_entries_generator(db_manager: DatabaseManager) -> None:
     # Mock connection and select
     mock_conn = MagicMock()
@@ -43,6 +44,7 @@ def test_select_entries_generator(db_manager: DatabaseManager) -> None:
         assert items[0][1].get_chemical_formula() == "H"
         assert items[1][0] == 2
         assert items[1][1].get_chemical_formula() == "He"
+
 
 def test_add_structure_validation_error(db_manager: DatabaseManager) -> None:
     atoms = Atoms("H")
