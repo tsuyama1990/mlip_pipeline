@@ -1,59 +1,35 @@
-"""
-Runs inference (LAMMPS) simulations using the trained potential.
-Detects uncertainty and aborts if necessary.
-"""
-
 import contextlib
 import logging
-import os
-import shutil
 import subprocess
 from pathlib import Path
 
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.domain_models.inference_models import InferenceResult
-from mlip_autopipec.inference.parsers import LogParser
-from mlip_autopipec.inference.writer import LammpsInputWriter
+from mlip_autopipec.data_models.inference_models import InferenceResult
+from mlip_autopipec.inference.parsers import LammpsLogParser
 
 logger = logging.getLogger(__name__)
 
 
 class LammpsRunner:
     """
-    Orchestrates LAMMPS simulations.
-    Handles input generation, execution, and output parsing (especially uncertainty).
+    Handles execution of LAMMPS MD simulations.
+    Ensures input validation and security.
     """
 
-    def __init__(self, config: InferenceConfig, work_dir: Path) -> None:
-        """
-        Initialize the runner.
-
-        Args:
-            config: Inference configuration.
-            work_dir: Directory to run simulations in.
-        """
+    def __init__(self, config: InferenceConfig, work_dir: Path):
         self.config = config
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
-        self.writer = LammpsInputWriter(config, work_dir)
 
-    def run(self, atoms: Atoms, potential_path: Path) -> InferenceResult:
+    def run(self, atoms: Atoms, potential_path: Path, uid: str) -> InferenceResult:
         """
-        Run a LAMMPS simulation.
-
-        Args:
-            atoms: The starting structure.
-            potential_path: Path to the .yace potential file.
-
-        Returns:
-            InferenceResult object containing success status, max uncertainty, and dump files.
+        Runs LAMMPS simulation for a single structure.
         """
         # Validate inputs
         if not isinstance(atoms, Atoms):
-            msg = f"Expected ase.Atoms object, got {type(atoms)}"
-            raise TypeError(msg)
+            raise TypeError(f"Expected ase.Atoms object, got {type(atoms)}")
 
         if not potential_path.exists():
             msg = f"Potential file not found: {potential_path}"
@@ -61,114 +37,102 @@ class LammpsRunner:
 
         try:
             # 1. Prepare Inputs
-            input_file, data_file, log_file, dump_file = self.writer.write_inputs(
-                atoms, potential_path
-            )
-            stdout_file = self.work_dir / "stdout.log"
-            stderr_file = self.work_dir / "stderr.log"
+            self._write_inputs(atoms, potential_path, uid)
 
-            # 2. Validate and Resolve Executable
-            executable = self._resolve_executable()
+            # 2. Execute LAMMPS
+            log_file = self.work_dir / f"{uid}.log"
+            stdout_file = self.work_dir / f"{uid}.stdout"
+            stderr_file = self.work_dir / f"{uid}.stderr"
 
-            # 3. Build Command (Whitelist approach: only allow fixed flag structure)
-            # cmd structure: [executable, "-in", input_file_name]
-            # No user-provided shell strings are passed directly.
-            cmd = [str(executable), "-in", str(input_file.name)]
+            cmd = self._build_command(uid)
 
-            logger.info(f"Starting LAMMPS execution: {' '.join(cmd)}")
-
-            # 4. Run
-            # shell=False is critical for security to prevent shell injection.
-            # We strictly control the arguments list.
-            # We redirect stdout/stderr to files to prevent OOM on large outputs (Scalability).
-            with stdout_file.open("w") as f_out, stderr_file.open("w") as f_err:
-                result = subprocess.run(
-                    cmd, check=False, stdout=f_out, stderr=f_err, cwd=self.work_dir, shell=False
+            # Security: Ensure shell=False
+            with open(stdout_file, "w") as f_out, open(stderr_file, "w") as f_err:
+                process = subprocess.run(
+                    cmd,
+                    cwd=self.work_dir,
+                    stdout=f_out,
+                    stderr=f_err,
+                    check=False,  # We handle return code manually
+                    shell=False,
                 )
 
-            # 5. Parse Output
-            max_gamma, halted, halt_step = LogParser.parse(log_file)
-            logger.info(f"Max Gamma observed: {max_gamma}")
-
-            if halted:
-                logger.warning(f"Simulation halted at step {halt_step} due to high uncertainty.")
-
-            # Determine success
-            # If returncode is 0, it succeeded.
-            # If returncode != 0, it ONLY succeeds if halted=True (watchdog trigger).
-            if result.returncode != 0 and not halted:
-                logger.error(f"LAMMPS failed with exit code {result.returncode}")
-                # Log last few lines of stderr if available
+            # 3. Parse Results
+            if process.returncode != 0:
+                # Log stderr content for debugging
+                stderr_content = ""
                 if stderr_file.exists():
-                    try:
-                        # Read only last 1KB
-                        with stderr_file.open("rb") as f:
-                            with contextlib.suppress(OSError):
-                                f.seek(-1024, os.SEEK_END)
-                            tail = f.read().decode("utf-8", errors="replace")
-                            logger.error(f"Stderr tail: {tail}")
-                    except Exception as e:
-                        logger.warning(f"Failed to read stderr tail: {e}")
+                    # Read only last 1KB safely
+                    with contextlib.suppress(OSError):
+                        with open(stderr_file, "rb") as f:
+                            f.seek(-1024, 2)  # Seek from end
+                            stderr_content = f.read().decode("utf-8", errors="replace")
 
+                logger.warning(
+                    f"LAMMPS failed for {uid} with code {process.returncode}. Stderr: {stderr_content}"
+                )
                 return InferenceResult(
-                    succeeded=False, max_gamma_observed=max_gamma, uncertain_structures=[]
+                    uid=uid,
+                    success=False,
+                    error_message=f"Process exited with code {process.returncode}",
                 )
 
-            uncertain_structures = []
-            if (
-                max_gamma > self.config.uncertainty_threshold
-                and dump_file.exists()
-                and dump_file.stat().st_size > 0
-            ):
-                uncertain_structures.append(dump_file)
+            # Parse log file for gamma/uncertainty
+            max_gamma, halted, step = LammpsLogParser.parse(log_file)
 
             return InferenceResult(
-                succeeded=True,
-                max_gamma_observed=max_gamma,
-                uncertain_structures=uncertain_structures,
+                uid=uid, success=True, max_gamma=max_gamma, halted=halted, halt_step=step
             )
 
-        except Exception:
-            logger.exception("An unexpected error occurred during LAMMPS execution")
-            return InferenceResult(succeeded=False, max_gamma_observed=0.0, uncertain_structures=[])
+        except Exception as e:
+            logger.exception(f"Unexpected error in LammpsRunner for {uid}")
+            return InferenceResult(uid=uid, success=False, error_message=str(e))
 
-    def _resolve_executable(self) -> str:
+    def _write_inputs(self, atoms: Atoms, potential_path: Path, uid: str) -> None:
+        """Writes data file and input script."""
+        # Write data file
+        data_file = self.work_dir / f"{uid}.data"
+        # Type check ignore because external lib
+        # type: ignore[no-untyped-call]
+        atoms.write(str(data_file), format="lammps-data")
+
+        # Write input script
+        input_script = self.work_dir / f"{uid}.in"
+        content = self._generate_input_script(data_file.name, potential_path, uid)
+        input_script.write_text(content)
+
+    def _generate_input_script(self, data_file: str, potential_path: Path, uid: str) -> str:
+        """Generates LAMMPS input script content."""
+        # This is a simplified template. In real impl, use jinja2 or config params.
+        # Use abs path for potential if needed, or symlink
+        return f"""
+        units metal
+        atom_style atomic
+        boundary p p p
+        read_data {data_file}
+        pair_style pace
+        pair_coeff * * {potential_path.absolute()} Al
+
+        thermo 10
+        thermo_style custom step temp pe ke etotal press
+
+        # MD settings from config
+        timestep {self.config.timestep}
+        fix 1 all nvt temp {self.config.temperature} {self.config.temperature} 0.1
+
+        run {self.config.n_steps}
         """
-        Resolves the LAMMPS executable path and performs security checks.
-        If config.lammps_executable is None, attempts to find 'lmp' or 'lmp_serial' in PATH.
-        """
-        raw_path = str(self.config.lammps_executable) if self.config.lammps_executable else None
 
-        if not raw_path:
-            # Fallback to standard names
-            for name in ["lmp", "lmp_serial", "lmp_mpi"]:
-                found = shutil.which(name)
-                if found:
-                    raw_path = found
-                    break
+    def _build_command(self, uid: str) -> list[str]:
+        """Builds the execution command."""
+        exe = self.config.lammps_command
+        if not exe:
+            raise ValueError("LAMMPS command not configured")
 
-            if not raw_path:
-                msg = "LAMMPS executable not specified and not found in PATH."
-                raise RuntimeError(msg)
+        # Security: basic validation
+        if ";" in exe or "|" in exe:
+            raise ValueError("Unsafe characters in LAMMPS command")
 
-        # Check blacklist characters if path was provided
-        if any(char in raw_path for char in [";", "|", "&", "`", "$", "(", ")"]):
-            msg = f"Security: Invalid characters detected in executable path: {raw_path}"
-            raise ValueError(msg)
-
-        executable = shutil.which(raw_path)
-        if not executable:
-            # If path is absolute/relative but not in PATH
-            p = Path(raw_path)
-            if p.exists() and p.is_file():  # Ensure it is a file
-                # Ensure executable permission
-                if not os.access(p, os.X_OK):
-                    msg = f"File at {p} is not executable."
-                    raise ValueError(msg)
-                executable = str(p.resolve())
-            else:
-                msg = f"LAMMPS executable '{raw_path}' not found in PATH or is not a valid file."
-                logger.error(msg)
-                raise RuntimeError(msg)
-
-        return executable
+        parts = shlex.split(exe)
+        parts.extend(["-in", f"{uid}.in", "-log", f"{uid}.log"])
+        return parts

@@ -52,7 +52,7 @@ runtime:
             mock_train.return_value = TrainingResult(
                 success=True,
                 potential_path=str(Path("_work_test") / "training" / "output.yace"),
-                metrics=TrainingMetrics(epoch=10, rmse_energy=0.01, rmse_force=0.1)
+                metrics=TrainingMetrics(epoch=10, rmse_energy=0.01, rmse_force=0.1),
             )
 
             result = runner.invoke(app, ["run", "cycle-02", "--config", "input.yaml", "--mock-dft"])

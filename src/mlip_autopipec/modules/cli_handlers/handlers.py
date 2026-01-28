@@ -305,7 +305,6 @@ class CLIHandler:
         Executes the Cycle 02 pipeline: Generation -> DFT (Oracle) -> Database -> Training.
         """
 
-
         from mlip_autopipec.config.models import SystemConfig
 
         safe_config = validate_path_safety(config_file)

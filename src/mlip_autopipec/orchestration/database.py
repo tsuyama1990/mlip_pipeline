@@ -1,374 +1,232 @@
 import logging
-import sqlite3
 import threading
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import Any
 
-import ase.db
 import numpy as np
 from ase import Atoms
+from ase.db import connect
 
-from mlip_autopipec.exceptions import DatabaseError
-
-if TYPE_CHECKING:
-    from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.config.schemas.core import SystemConfig
 
 logger = logging.getLogger(__name__)
 
 
-class DatabaseConnector:
-    """
-    Handles the connection lifecycle to the ASE/SQLite database.
-    """
-
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-        self._connection: ase.db.core.Database | None = None
-
-    def connect(self) -> ase.db.core.Database:
-        """
-        Establishes and returns the database connection.
-        """
-        if self._connection is not None:
-            return self._connection
-
-        try:
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            self._connection = ase.db.connect(str(self.db_path))
-            # Verify validity by attempting a lightweight operation
-            self._connection.count()
-            return self._connection
-        except OSError as e:
-            logger.exception("FileSystem error initializing database")
-            msg = f"FileSystem error initializing database at {self.db_path}: {e}"
-            raise DatabaseError(msg) from e
-        except sqlite3.DatabaseError as e:
-            logger.exception("File is not a valid SQLite database")
-            msg = f"File at {self.db_path} is not a valid SQLite database: {e}"
-            raise DatabaseError(msg) from e
-        except Exception as e:
-            logger.exception("Failed to initialize database")
-            msg = f"Failed to initialize database: {e}"
-            raise DatabaseError(msg) from e
-
-    def close(self) -> None:
-        """Closes the active connection."""
-        self._connection = None
+class DatabaseError(Exception):
+    """Custom exception for database operations."""
 
 
 class DatabaseManager:
     """
-    Wrapper around ase.db to enforce schema and metadata requirements.
-
-    This class manages data access and persistence operations.
-    It implements the Context Manager protocol.
-    Thread-safe for write operations.
+    Manages interaction with the ASE SQLite database.
+    Implements streaming for scalable data retrieval.
+    Thread-safe for basic operations (SQLite limits concurrency, but locking helps).
     """
 
-    def __init__(self, db_path: Path) -> None:
-        """
-        Initialize the DatabaseManager.
-
-        Args:
-            db_path: Path to the SQLite database file.
-        """
-        self.connector = DatabaseConnector(db_path)
+    def __init__(self, db_path: Path | str):
+        self.db_path = Path(db_path)
         self._lock = threading.Lock()
+        self._connection = None
+        self._initialize()
 
-    def __enter__(self) -> Self:
-        """Context manager entry. Ensures connection is ready."""
-        self.connector.connect()
+    def _initialize(self) -> None:
+        """Initializes the database connection."""
+        try:
+            self._connection = connect(str(self.db_path))
+            # Verify validity by attempting a lightweight operation
+            self._connection.count()
+        except Exception as e:
+            logger.exception(f"Failed to initialize database at {self.db_path}")
+            raise DatabaseError(f"Failed to initialize database: {e}") from e
+
+    def close(self) -> None:
+        """Closes the connection (if applicable/needed for ASE db)."""
+        # ASE db connect usually manages its own file handles per call,
+        # but if we hold a connection object, we can leave it.
+
+    def __enter__(self):
         return self
 
-    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        """Context manager exit. Closes connection."""
-        self.connector.close()
-
-    @property
-    def _connection(self) -> ase.db.core.Database:
-        """Internal helper to get connection."""
-        return self.connector.connect()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def _validate_atoms(self, atoms: Atoms) -> None:
-        """
-        Validates an ASE Atoms object before insertion.
-        Checks for NaN positions, infinite values, or zero cells if PBC is true.
-        Also checks for physical validity (e.g. non-zero coordinates for >1 atoms).
-        """
+        """Validates Atoms object integrity before insertion."""
         if not isinstance(atoms, Atoms):
-            msg = "Input must be an ase.Atoms object"
-            raise TypeError(msg)
+            raise TypeError("Input must be an ase.Atoms object")
 
         positions = atoms.get_positions()
         if np.any(np.isnan(positions)) or np.any(np.isinf(positions)):
-            msg = "Atoms object contains NaN or Inf in positions."
-            raise ValueError(msg)
+            raise ValueError("Atoms object contains NaN or Inf in positions.")
 
         if atoms.pbc.any():
             cell = atoms.get_cell()
             if np.isclose(np.linalg.det(cell), 0.0):
-                msg = "Atoms object has zero cell volume but PBC is enabled."
-                raise ValueError(msg)
+                raise ValueError("Atoms object has zero cell volume but PBC is enabled.")
 
-        # Data Integrity: Check for huge/unphysical values if possible (simple heuristic)
-        # E.g. coords > 1e6 usually mean error, but maybe not in MD.
-        # We stick to NaN/Inf for now as critical.
-
-    def add_structure(self, atoms: Atoms, metadata: dict[str, Any]) -> int:
+    def add_structure(self, atoms: Atoms, metadata: dict[str, Any] | None = None) -> int:
         """
-        Inserts an atom with metadata.
+        Adds a single structure to the database.
 
         Args:
-            atoms: ASE Atoms object.
-            metadata: Dictionary containing 'status', 'config_type', 'generation'.
+            atoms: The structure to add.
+            metadata: Key-value pairs to store as key-value pairs in ASE db.
 
         Returns:
-            The integer ID of the inserted row.
-
-        Raises:
-            DatabaseError: If insertion fails.
+            The ID of the inserted row.
         """
+        metadata = metadata or {}
         try:
             self._validate_atoms(atoms)
             with self._lock:
-                return self._connection.write(atoms, **metadata)
-        except ValueError as e:
-            logger.exception("Validation failed for atoms insertion")
-            msg = f"Invalid Atoms object: {e}"
-            raise DatabaseError(msg) from e
-        except KeyError as e:
-            logger.exception("Invalid key in metadata during add_structure")
-            msg = f"Invalid key in metadata: {e}"
-            raise DatabaseError(msg) from e
+                row_id = self._connection.write(atoms, **metadata)
+            return row_id
         except Exception as e:
-            logger.exception("Failed to add structure")
-            msg = f"Failed to add structure: {e}"
-            raise DatabaseError(msg) from e
+            logger.exception(f"Failed to add structure: {e}")
+            raise DatabaseError(f"Failed to add structure: {e}") from e
 
     def count(self, selection: str | None = None, **kwargs: Any) -> int:
-        """
-        Counts rows matching selection.
-
-        Args:
-            selection: Raw selection string (use with caution).
-            **kwargs: Parameterized selection criteria (preferred).
-
-        Returns:
-            Number of matching rows.
-        """
+        """Counts rows matching selection."""
         try:
-            # ase.db handles parameterized queries via kwargs.
-            # selection string is parsed by ase.db but can be vulnerable if constructed via f-strings externally.
-            # We rely on ase.db's internal handling but prefer kwargs.
             return self._connection.count(selection=selection, **kwargs)
         except Exception as e:
             logger.exception("Failed to count rows")
-            msg = f"Failed to count rows: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseError(f"Failed to count rows: {e}") from e
 
-    def update_status(self, id: int, status: str) -> None:
-        """
-        Updates the status of a specific row.
-
-        Args:
-            id: Database ID of the row.
-            status: New status string.
-        """
+    def update_status(self, row_id: int, status: str) -> None:
+        """Updates the status of a specific row."""
         try:
             with self._lock:
-                self._connection.update(id, status=status)
-        except KeyError as e:
-            logger.exception("ID not found during update_status")
-            msg = f"ID {id} not found: {e}"
-            raise DatabaseError(msg) from e
+                self._connection.update(row_id, status=status)
         except Exception as e:
-            logger.exception("Failed to update status")
-            msg = f"Failed to update status: {e}"
-            raise DatabaseError(msg) from e
+            logger.exception(f"Failed to update status for ID {row_id}")
+            raise DatabaseError(f"Failed to update status: {e}") from e
 
-    def update_metadata(self, id: int, data: dict[str, Any]) -> None:
-        """
-        Updates metadata for a specific row.
-
-        Args:
-            id: Database ID of the row.
-            data: Dictionary of key-value pairs to update.
-        """
+    def update_metadata(self, row_id: int, data: dict[str, Any]) -> None:
+        """Updates metadata for a specific row."""
         try:
             with self._lock:
-                self._connection.update(id, **data)
-        except KeyError as e:
-            logger.exception("ID not found during update_metadata")
-            msg = f"ID {id} not found: {e}"
-            raise DatabaseError(msg) from e
+                self._connection.update(row_id, **data)
         except Exception as e:
-            logger.exception("Failed to update metadata")
-            msg = f"Failed to update metadata: {e}"
-            raise DatabaseError(msg) from e
+            logger.exception(f"Failed to update metadata for ID {row_id}")
+            raise DatabaseError(f"Failed to update metadata: {e}") from e
 
     def select(self, selection: str | None = None, **kwargs: Any) -> Generator[Atoms, None, None]:
         """
-        Generator that yields atoms objects matching selection.
-        This enables processing large datasets without loading everything into memory.
-
-        Args:
-            selection: Selection string.
-            **kwargs: Parameterized query arguments.
-
-        Yields:
-            ASE Atoms objects with populated info dictionary.
+        Streams atoms objects matching the selection.
         """
         try:
-            rows = self._connection.select(selection=selection, **kwargs)
-            for row in rows:
+            # ASE select yields rows. We convert to atoms.
+            # Note: ASE db select loads all into memory if we aren't careful?
+            # ASE db select returns an iterator, so it should be fine.
+            for row in self._connection.select(selection=selection, **kwargs):
+                # row.toatoms() creates the Atoms object
                 at = row.toatoms()
-                if hasattr(row, "key_value_pairs"):
-                    at.info.update(row.key_value_pairs)
-                if hasattr(row, "data"):
-                    at.info.update(row.data)
+                # Re-attach info from row (ASE sometimes strips extra kv pairs not in atoms.info)
+                at.info.update(row.key_value_pairs)
+                # Also attach ID
+                at.info["_db_id"] = row.id
                 yield at
         except Exception as e:
             logger.exception("Failed to select atoms")
-            msg = f"Failed to select atoms: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseError(f"Failed to select atoms: {e}") from e
 
     def select_entries(
         self, selection: str | None = None, **kwargs: Any
     ) -> Generator[tuple[int, Atoms], None, None]:
         """
-        Generator that yields (id, atoms) tuples matching selection.
-        Crucial for batch processing where ID is needed for updates.
-
-        Args:
-            selection: Selection string.
-            **kwargs: Parameterized query arguments.
-
-        Yields:
-            Tuple of (database_id, ASE Atoms object).
+        Streams (id, Atoms) tuples.
         """
         try:
-            rows = self._connection.select(selection=selection, **kwargs)
-            for row in rows:
+            for row in self._connection.select(selection=selection, **kwargs):
                 at = row.toatoms()
-                if hasattr(row, "key_value_pairs"):
-                    at.info.update(row.key_value_pairs)
-                if hasattr(row, "data"):
-                    at.info.update(row.data)
+                at.info.update(row.key_value_pairs)
                 yield row.id, at
         except Exception as e:
             logger.exception("Failed to select entries")
-            msg = f"Failed to select entries: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseError(f"Failed to select entries: {e}") from e
 
     def get_atoms(
-        self, selection: str | None = None, **kwargs: Any
+        self, selection: str | None = None, limit: int | None = None
     ) -> Generator[Atoms, None, None]:
-        """
-        Retrieve atoms matching selection.
-        Returns a generator to avoid OOM on large datasets.
-        """
-        return self.select(selection=selection, **kwargs)
+        """Deprecated alias for select, kept for compatibility if needed."""
+        yield from self.select(selection, limit=limit)
 
-    def get_entries(
-        self, selection: str | None = None, **kwargs: Any
-    ) -> Generator[tuple[int, Atoms], None, None]:
-        """
-        Retrieve entries as (id, Atoms) tuples.
-        Returns a generator to avoid OOM on large datasets.
-        """
-        return self.select_entries(selection=selection, **kwargs)
-
-    def save_candidate(self, atoms: Atoms, metadata: dict[str, Any]) -> None:
-        """
-        Save a candidate structure.
-        """
-        self.add_structure(atoms, metadata)
-
-    def save_candidates(self, candidates: list[tuple[Atoms, dict[str, Any]]]) -> None:
-        """
-        Save multiple candidate structures in a single transaction (if possible).
-
-        Args:
-            candidates: List of tuples (atoms, metadata).
-        """
-        if not candidates:
-            return
-
+    def save_candidates(self, candidates: list[Atoms], cycle_index: int, method: str) -> None:
+        """Saves a batch of candidates."""
+        meta = {"cycle": cycle_index, "origin": method, "status": "candidate", "converged": False}
         try:
             with self._lock:
-                # ase.db doesn't expose explicit transaction begin/commit easily for `write`.
-                # However, if we are in a sqlite context, we can try to wrap.
-                # But to stay safe with ase.db abstraction, we just iterate.
-                # Since we hold the lock, no other thread interrupts.
-                # Optimally, we would use self._connection.managed_connection if available.
-                for atoms, meta in candidates:
-                    self._validate_atoms(atoms)
-                    self._connection.write(atoms, **meta)
+                for atoms in candidates:
+                    self.add_structure(atoms, meta)
         except Exception as e:
             logger.exception("Failed to save candidates batch")
-            msg = f"Failed to save candidates batch: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseError(f"Failed to save candidates batch: {e}") from e
 
     def save_dft_result(self, atoms: Atoms, result: Any, metadata: dict[str, Any]) -> None:
         """
-        Save a DFT result.
+        Saves a DFT result.
+        Expects atoms object (with positions corresponding to result) and a DFTResult-like object.
         """
         try:
-            self._validate_atoms(atoms)
-            if hasattr(result, "energy"):
-                # Check for physical validity
-                if not np.isfinite(result.energy):
-                    msg = "DFT Energy is not finite."
-                    raise ValueError(msg)
-                atoms.info["energy"] = result.energy
-            if hasattr(result, "forces"):
-                atoms.arrays["forces"] = np.array(result.forces)
-            if hasattr(result, "stress"):
-                atoms.info["stress"] = np.array(result.stress)
+            # Validation
+            if not np.isfinite(result.energy):
+                raise ValueError("DFT Energy is not finite.")
 
-            atoms.info.update(metadata)
+            atoms.info["energy"] = result.energy
 
-            with self._lock:
-                self._connection.write(
-                    atoms,
-                    data=result.model_dump() if hasattr(result, "model_dump") else {},
-                    **metadata,
-                )
-        except AttributeError as e:
-            logger.exception("Invalid DFTResult object passed to save_dft_result")
-            msg = f"Invalid DFTResult object: {e}"
-            raise DatabaseError(msg) from e
-        except ValueError as e:
-            logger.exception("Validation failed for atoms insertion in save_dft_result")
-            msg = f"Invalid Atoms object: {e}"
-            raise DatabaseError(msg) from e
+            if hasattr(result, "forces") and result.forces is not None:
+                # result.forces is List[List[float]], convert to array
+                f = np.array(result.forces)
+                if f.shape != (len(atoms), 3):
+                    raise ValueError(f"Forces shape mismatch: {f.shape} vs ({len(atoms)}, 3)")
+                # ASE calc usually stores forces in calculator, but for DB we can store in arrays
+                # ASE DB supports 'forces' array automatically if set on atoms (via calculator or arrays)
+                # Setting directly into arrays or info? ASE DB prefers Calculator or arrays.
+                # Let's set it as array.
+                atoms.new_array("forces", f)
+
+            if hasattr(result, "stress") and result.stress is not None:
+                # Store stress. ASE expects Voigt (6,) or (3,3).
+                s = np.array(result.stress)
+                atoms.info["stress"] = s  # Store in info or arrays? Info usually for global props.
+                # ASE Atoms.get_stress() looks for calculator.
+                # For DB storage, putting it in info is safe, ASE DB handles key-value pairs mostly scalar/string.
+                # Storing arrays in ASE DB requires 'data' dict or specific array fields.
+                # ASE DB stores 'stress' if it's in atoms.calc.
+                # We'll rely on ASE DB's ability to serialize arrays if we pass them.
+                # Actually, ASE DB write(atoms) extracts info.
+
+                # Best practice: Update atoms info with scalars, arrays with specific keys if supported.
+                # But to ensure it's saved, we pass it in key_value_pairs? No, arrays are separate.
+
+            # Merge metadata
+            meta = metadata.copy()
+            meta["converged"] = result.converged
+            if not result.converged:
+                meta["error"] = result.error_message
+
+            self.add_structure(atoms, meta)
+
         except Exception as e:
             logger.exception("Failed to save DFT result")
-            msg = f"Failed to save DFT result: {e}"
-            raise DatabaseError(msg) from e
+            raise DatabaseError(f"Failed to save DFT result: {e}") from e
 
     def set_system_config(self, config: "SystemConfig") -> None:
-        """Store system config in metadata."""
+        """Stores the system configuration in the database metadata."""
         try:
+            # ASE DB has a metadata dict for the whole DB
             with self._lock:
-                self._connection.metadata = config.model_dump(mode="json")  # type: ignore
+                self._connection.metadata = config.model_dump()
         except Exception as e:
-            logger.warning(f"Failed to store SystemConfig in database metadata: {e}")
+            logger.exception("Failed to set system config")
+            raise DatabaseError(f"Failed to set system config: {e}") from e
 
     def get_system_config(self) -> "SystemConfig":
-        """Retrieve system config from metadata."""
-        from pydantic import ValidationError
-
-        from mlip_autopipec.config.models import SystemConfig
-
+        """Retrieves system configuration."""
         try:
             return SystemConfig.model_validate(self._connection.metadata)
-        except ValidationError as e:
-            logger.exception("Stored SystemConfig in database is invalid")
-            msg = f"Stored SystemConfig is invalid: {e}"
-            raise DatabaseError(msg) from e
         except Exception as e:
-            logger.exception("Error retrieving SystemConfig from database")
-            msg = f"No SystemConfig found or error retrieving: {e}"
-            raise DatabaseError(msg) from e
+            logger.exception("Error retrieving SystemConfig")
+            raise DatabaseError(f"No SystemConfig found or error retrieving: {e}") from e

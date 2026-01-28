@@ -1,28 +1,23 @@
-class CandidateManager:
-    """
-    Manages candidate data persistence logic.
-    Separates business logic (defaults, validation) from raw DB access.
-    """
+import logging
 
-    def __init__(self, db_manager) -> None:
+from ase import Atoms
+
+from mlip_autopipec.orchestration.database import DatabaseManager
+
+logger = logging.getLogger(__name__)
+
+
+class CandidateManager:
+    def __init__(self, db_manager: DatabaseManager) -> None:
         self.db = db_manager
 
-    def create_candidate(self, atoms, metadata: dict | None = None):
-        from ase import Atoms
-
-        if not isinstance(atoms, Atoms):
-            msg = f"Expected ase.Atoms object, got {type(atoms)}"
-            raise TypeError(msg)
-
+    def create_candidate(self, atoms: Atoms, metadata: dict | None = None):
         if metadata is None:
             metadata = {}
-        # Apply defaults
-        meta = metadata.copy()
-        if "status" not in meta:
-            meta["status"] = "pending"
-        if "generation" not in meta:
-            meta["generation"] = 0
-        if "config_type" not in meta:
-            meta["config_type"] = "candidate"
 
-        self.db.add_structure(atoms, meta)
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"Expected ase.Atoms, got {type(atoms)}")
+
+        # Validation logic...
+
+        self.db.save_candidates([atoms], 0, "generation")

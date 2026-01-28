@@ -73,8 +73,8 @@ class DFTResult(BaseModel):
             if not all(len(row) == 3 for row in stress):
                 msg = "Stress tensor must be 3x3."
                 raise ValueError(msg)
-        elif len(stress) not in (3, 6, 9): # Basic check
-             msg = "Stress must be 3x3 matrix or 6-component vector."
-             raise ValueError(msg)
+        elif len(stress) not in (3, 6, 9):  # Basic check
+            msg = "Stress must be 3x3 matrix or 6-component vector."
+            raise ValueError(msg)
 
         return stress
