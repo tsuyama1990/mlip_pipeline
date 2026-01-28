@@ -130,7 +130,7 @@ class LammpsRunner:
         exe_str = str(exe)
 
         # Security: basic validation
-        if ";" in exe_str or "|" in exe_str:
+        if any(c in exe_str for c in [";", "|", "&", "`", "$", "(", ")"]):
              msg = "Unsafe characters in LAMMPS command"
              raise ValueError(msg)
 

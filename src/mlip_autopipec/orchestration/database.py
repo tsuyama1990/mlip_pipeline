@@ -112,6 +112,7 @@ class DatabaseManager:
         if self._connection is None:
              raise DatabaseError("Database not connected")
         try:
+            # ase.db.select returns a generator
             for row in self._connection.select(selection=selection, **kwargs):
                 at = row.toatoms()
                 at.info.update(row.key_value_pairs)
@@ -141,6 +142,7 @@ class DatabaseManager:
     def get_atoms(
         self, selection: str | None = None, limit: int | None = None
     ) -> Generator[Atoms, None, None]:
+        # This implementation ensures streaming (yield from generator)
         yield from self.select(selection, limit=limit)
 
     def save_candidates(self, candidates: list[Atoms], cycle_index: int, method: str) -> None:
@@ -169,7 +171,6 @@ class DatabaseManager:
                 forces = np.array(result.forces)
                 if forces.shape != (len(atoms), 3):
                     raise ValueError(f"Forces shape mismatch: {forces.shape} vs ({len(atoms)}, 3)")
-                # atoms.new_array("forces", f) # This adds to arrays, but calc is better
 
             stress = None
             if hasattr(result, "stress") and result.stress is not None:
@@ -177,8 +178,6 @@ class DatabaseManager:
                 atoms.info["stress"] = stress
 
             # Attach SinglePointCalculator to properly save results
-            # Note: ASE SinglePointCalculator expects energy, forces, stress, magmoms
-            # Stress must be Voigt or full 3x3? SPC usually handles it.
             calc = SinglePointCalculator(
                 atoms,
                 energy=result.energy,

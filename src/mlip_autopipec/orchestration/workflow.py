@@ -82,8 +82,11 @@ class WorkflowManager:
         runner = None
         if not mock_dft:
             if not self.config.dft:
-                raise ValueError("DFT config missing.")
-            runner = QERunner(self.config.dft, work_dir=self.work_dir / "dft_runs")
+                msg = "DFT config missing."
+                raise ValueError(msg)
+            # Use runtime config for DFT work dir
+            dft_work_dir = self.work_dir / "dft_runs"
+            runner = QERunner(self.config.dft, work_dir=dft_work_dir)
         else:
             logger.warning("Running in MOCK DFT mode.")
 
@@ -128,7 +131,8 @@ class WorkflowManager:
             logger.info("Step 3: Training")
 
             if not self.config.training_config:
-                raise ValueError("Training config missing.")
+                msg = "Training config missing."
+                raise ValueError(msg)
 
             training_dir = self.work_dir / "training"
             training_dir.mkdir(parents=True, exist_ok=True)
@@ -143,4 +147,5 @@ class WorkflowManager:
                 self.save_state()
             else:
                 logger.error("Training Failed.")
-                raise RuntimeError("Training Failed")
+                msg = "Training Failed"
+                raise RuntimeError(msg)

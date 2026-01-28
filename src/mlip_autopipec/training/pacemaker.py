@@ -40,7 +40,7 @@ class PacemakerWrapper:
             # Config generator expects data path.
 
             # 2. Generate Config
-            config_gen = PacemakerConfigGenerator(self.config.template_path)
+            PacemakerConfigGenerator(self.config.template_path)
             # Render input.yaml
 
             # 3. Resolve Executable
@@ -49,6 +49,11 @@ class PacemakerWrapper:
             # 4. Run Training
             # Security: shell=False
             cmd = [executable, "input.yaml"]
+
+            # Validate command construction (basic check since we build it)
+            if not isinstance(executable, str): # Should be covered by resolve
+                 msg = "Invalid executable path"
+                 raise ValueError(msg)
 
             with (
                 open(self.work_dir / "stdout.log", "w") as f_out,
@@ -72,9 +77,15 @@ class PacemakerWrapper:
             return TrainingResult(False)
 
     def _resolve_executable(self, name: str) -> str:
+        # Security: Validate name doesn't contain path separators if we expect it in PATH
+        if "/" in name or "\\" in name:
+             msg = f"Executable name '{name}' must be a simple filename, not a path."
+             raise ValueError(msg)
+
         exe = shutil.which(name)
         if not exe:
-            raise FileNotFoundError(f"Executable {name} not found")
+            msg = f"Executable {name} not found"
+            raise FileNotFoundError(msg)
         return exe
 
     def select_active_set(self, candidates_path: Path, current_potential: Path) -> list[int]:
@@ -85,12 +96,13 @@ class PacemakerWrapper:
 
         # Validate paths
         if not candidates_path.exists():
-            raise FileNotFoundError(f"Candidates file {candidates_path} not found")
+            msg = f"Candidates file {candidates_path} not found"
+            raise FileNotFoundError(msg)
 
         cmd = [exe, "-d", str(candidates_path), "-p", str(current_potential)]
 
         try:
-            result = subprocess.run(
+            subprocess.run(
                 cmd, cwd=self.work_dir, capture_output=True, text=True, check=True, shell=False
             )
 

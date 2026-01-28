@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -26,6 +27,9 @@ app = typer.Typer(
     add_completion=False,
 )
 
+# Constants
+DEFAULT_WORK_DIR = Path(os.getenv("MLIP_WORK_DIR", "workspace"))
+
 @app.command()
 def run(
     config: Annotated[Path, typer.Option(
@@ -38,7 +42,7 @@ def run(
         help="Working directory for artifacts.",
         file_okay=False,
         writable=True
-    )] = Path("workspace"),
+    )] = DEFAULT_WORK_DIR,
     state: Annotated[Path | None, typer.Option(
         "--state", "-s",
         help="Path to a workflow state file to resume from."

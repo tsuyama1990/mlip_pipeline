@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ase.data import atomic_numbers
 
-from mlip_autopipec.config.schemas.inference import InferenceConfig, BaselinePotential
+from mlip_autopipec.config.schemas.inference import BaselinePotential, InferenceConfig
 
 
 class ScriptGenerator:

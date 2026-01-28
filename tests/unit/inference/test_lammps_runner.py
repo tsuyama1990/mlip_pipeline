@@ -1,10 +1,9 @@
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from ase import Atoms
 
-from mlip_autopipec.config.schemas.inference import InferenceConfig, BaselinePotential
+from mlip_autopipec.config.schemas.inference import BaselinePotential, InferenceConfig
 from mlip_autopipec.inference.runner import LammpsRunner
 
 

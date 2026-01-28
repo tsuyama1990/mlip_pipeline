@@ -52,9 +52,10 @@ class DFTResult(BaseModel):
     def check_forces_shape(cls, forces: list[list[float]]) -> list[list[float]]:
         if not forces:
             return forces
-        if not all(len(row) == 3 for row in forces):
-            msg = "Forces must have a shape of (N_atoms, 3)."
-            raise ValueError(msg)
+        for i, row in enumerate(forces):
+            if len(row) != 3:
+                msg = f"Forces row {i} must have 3 components."
+                raise ValueError(msg)
         return forces
 
     @field_validator("stress")
@@ -62,19 +63,23 @@ class DFTResult(BaseModel):
     def check_stress_shape(cls, stress: list[list[float]] | None) -> list[list[float]] | None:
         if stress is None:
             return stress
-        # If stress is empty list, treat as None or invalid?
-        # Tests send stress=[] for failed cases or where irrelevant.
+
+        # Allow empty list as None
         if not stress:
             return None
 
-        # ASE stress can be 6 (Voigt) or 3x3.
-        # We enforce 3x3 here as per schema requirements for consistency.
+        # Check for 3x3
         if len(stress) == 3:
-            if not all(len(row) == 3 for row in stress):
-                msg = "Stress tensor must be 3x3."
-                raise ValueError(msg)
-        elif len(stress) not in (3, 6, 9):  # Basic check
-            msg = "Stress must be 3x3 matrix or 6-component vector."
+            for row in stress:
+                if len(row) != 3:
+                    msg = "Stress tensor must be 3x3."
+                    raise ValueError(msg)
+        elif len(stress) == 6:
+             pass # Voigt
+        elif len(stress) == 9:
+             pass # Flattened 3x3
+        else:
+            msg = "Stress must be 3x3 (matrix), 6 (Voigt), or 9 (flattened)."
             raise ValueError(msg)
 
         return stress

@@ -1,6 +1,6 @@
 import pytest
 
-from mlip_autopipec.config.schemas.inference import InferenceConfig, BaselinePotential
+from mlip_autopipec.config.schemas.inference import BaselinePotential, InferenceConfig
 from mlip_autopipec.inference.inputs import ScriptGenerator
 
 

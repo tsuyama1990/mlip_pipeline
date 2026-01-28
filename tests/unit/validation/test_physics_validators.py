@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.validation import ElasticConfig

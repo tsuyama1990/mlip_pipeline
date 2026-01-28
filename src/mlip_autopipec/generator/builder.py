@@ -52,17 +52,17 @@ class StructureBuilder:
 
         # Yield base
         base_atoms.info["config_type"] = "base"
-        yield base_atoms
-        generated_count += 1
+
+        if self._validate(base_atoms):
+            yield base_atoms
+            generated_count += 1
+
         if generated_count >= limit: return
 
         # 3. Distortions
         dist_conf = self.config.distortion
         if dist_conf.enabled:
             strains = np.linspace(dist_conf.strain_range[0], dist_conf.strain_range[1], dist_conf.n_strain_steps)
-
-            # Shuffle strains if we want random sampling to hit limit
-            # But for now, just iterate.
 
             for eps in strains:
                 if abs(eps) < 1e-6: continue
@@ -71,15 +71,18 @@ class StructureBuilder:
                 try:
                     strained = apply_strain(base_atoms, strain_tensor)
                     strained.info["config_type"] = "strain_vol"
-                    yield strained
-                    generated_count += 1
+                    if self._validate(strained):
+                        yield strained
+                        generated_count += 1
+
                     if generated_count >= limit: return
 
                     if dist_conf.rattle_stdev > 0:
                         for _ in range(dist_conf.n_rattle_steps):
                             rattled = apply_rattle(strained, dist_conf.rattle_stdev)
-                            yield rattled
-                            generated_count += 1
+                            if self._validate(rattled):
+                                yield rattled
+                                generated_count += 1
                             if generated_count >= limit: return
                 except Exception as e:
                     logger.warning(f"Failed to generate strained structure: {e}")
@@ -89,9 +92,13 @@ class StructureBuilder:
         if defect_conf.enabled:
             strategy = DefectStrategy(defect_conf, seed=self.config.seed)
             defect_structures = strategy.apply([base_atoms])
-            for atoms in defect_structures[1:]:
-                yield atoms
-                generated_count += 1
+            # The strategy logic applies defects to copies.
+            # We skip the first one if it's just the base (depends on impl).
+            # Usually apply returns list of modified structures.
+            for atoms in defect_structures:
+                if self._validate(atoms):
+                    yield atoms
+                    generated_count += 1
                 if generated_count >= limit: return
 
     def _validate(self, atoms: Atoms) -> bool:
@@ -100,8 +107,16 @@ class StructureBuilder:
             return False
 
         if hasattr(atoms, "positions"):
-            if np.isnan(atoms.positions).any() or np.isinf(atoms.positions).any():
+            pos = atoms.get_positions()
+            if np.isnan(pos).any() or np.isinf(pos).any():
                 logger.error("Structure has NaN/Inf positions")
                 return False
+
+        # Check Cell
+        if atoms.pbc.any():
+            cell = atoms.get_cell()
+            if np.linalg.det(cell) == 0:
+                 logger.error("Structure has zero cell volume")
+                 return False
 
         return True

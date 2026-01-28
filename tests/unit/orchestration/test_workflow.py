@@ -9,7 +9,7 @@ from mlip_autopipec.config.models import (
 )
 from mlip_autopipec.config.schemas.core import RuntimeConfig
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.domain_models.state import WorkflowPhase, WorkflowState
+from mlip_autopipec.domain_models.state import WorkflowState
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 

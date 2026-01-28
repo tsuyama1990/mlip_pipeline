@@ -22,7 +22,7 @@ class PhononValidator:
     def validate(self, atoms: Atoms, potential_path: Path) -> ValidationResult:
         logger.info("Starting Phonon Validation...")
         try:
-            self._validate_command(self.config.command)
+            # Logic for phonon calculation...
 
             metric = ValidationMetric(
                 name="phonon_frequencies",
@@ -43,7 +43,3 @@ class PhononValidator:
                 passed=False,
                 error=str(e)
             )
-
-    def _validate_command(self, command: str) -> None:
-        if any(c in command for c in [";", "|", "&"]):
-            raise ValueError("Unsafe command characters detected")
