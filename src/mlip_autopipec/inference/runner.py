@@ -13,7 +13,7 @@ from pathlib import Path
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.data_models.inference_models import InferenceResult
+from mlip_autopipec.domain_models.inference_models import InferenceResult
 from mlip_autopipec.inference.parsers import LogParser
 from mlip_autopipec.inference.writer import LammpsInputWriter
 
@@ -82,7 +82,7 @@ class LammpsRunner:
             # We strictly control the arguments list.
             # We redirect stdout/stderr to files to prevent OOM on large outputs (Scalability).
             with stdout_file.open("w") as f_out, stderr_file.open("w") as f_err:
-                result = subprocess.run(  # noqa: S603
+                result = subprocess.run(
                     cmd, check=False, stdout=f_out, stderr=f_err, cwd=self.work_dir, shell=False
                 )
 

@@ -4,7 +4,7 @@ from ase.eos import EquationOfState
 from ase.units import GPa
 
 from mlip_autopipec.config.schemas.validation import EOSConfig
-from mlip_autopipec.data_models.validation import ValidationMetric, ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 
 
 class EOSValidator:

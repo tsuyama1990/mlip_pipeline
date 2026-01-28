@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mlip_autopipec.data_models.types import ASEAtoms
+from mlip_autopipec.domain_models.atoms import ASEAtoms
 
 
 class CandidateData(BaseModel):

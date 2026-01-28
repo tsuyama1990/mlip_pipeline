@@ -9,6 +9,7 @@ from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.config.schemas.exploration import ExplorerConfig
 from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
+from mlip_autopipec.config.schemas.monitoring import DashboardData
 from mlip_autopipec.config.schemas.surrogate import SurrogateConfig
 from mlip_autopipec.config.schemas.training import TrainingConfig
 from mlip_autopipec.config.schemas.validation import ValidationConfig
@@ -16,6 +17,7 @@ from mlip_autopipec.config.schemas.workflow import WorkflowConfig
 
 __all__ = [
     "DFTConfig",
+    "DashboardData",
     "EmbeddingConfig",
     "ExplorerConfig",
     "GeneratorConfig",

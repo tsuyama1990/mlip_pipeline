@@ -5,8 +5,8 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.runner import DFTFatalError, QERunner
+from mlip_autopipec.domain_models.dft_models import DFTResult
 
 
 @pytest.fixture
@@ -186,15 +186,15 @@ def test_stage_pseudos(mock_config: DFTConfig, tmp_path: Path) -> None:
 def test_run_batch(mock_which: MagicMock, mock_config: DFTConfig) -> None:
     mock_which.return_value = "/bin/pw.x"
     runner = QERunner(mock_config)
-    runner.run = MagicMock(return_value=DFTResult(
+
+    with patch.object(runner, 'run', return_value=DFTResult(
         uid="1", energy=-10.0, forces=[], stress=[], succeeded=True, converged=True, wall_time=1.0, parameters={}
-    ))
+    )) as mock_run:
+        atoms_list = [Atoms("Al", positions=[[0, 0, 0]]), Atoms("Al", positions=[[1, 1, 1]])]
+        results = list(runner.run_batch(atoms_list))
 
-    atoms_list = [Atoms("Al", positions=[[0, 0, 0]]), Atoms("Al", positions=[[1, 1, 1]])]
-    results = list(runner.run_batch(atoms_list))
-
-    assert len(results) == 2
-    assert runner.run.call_count == 2
+        assert len(results) == 2
+        assert mock_run.call_count == 2
 
 
 @patch("shutil.which")
@@ -208,6 +208,7 @@ def test_input_generation_failure(mock_which: MagicMock, mock_config: DFTConfig)
         result = runner.run(atoms)
 
     assert result.succeeded is False
+    assert result.error_message is not None
     assert "Input generation failed" in result.error_message
 
 
@@ -233,4 +234,5 @@ def test_run_timeout(mock_run: MagicMock, mock_which: MagicMock, mock_config: DF
     # RecoveryHandler.analyze(...) -> ErrorType.NONE for "Timeout Expired" usually unless matched.
     # If NONE and returncode != 0 -> "Process exited with -1 ... " -> break.
 
+    assert result.error_message is not None
     assert "Process exited with -1" in result.error_message or "Timeout" in result.error_message

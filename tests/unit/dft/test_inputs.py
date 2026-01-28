@@ -1,8 +1,8 @@
 from ase import Atoms
 from ase.build import bulk
 
-from mlip_autopipec.data_models.dft_models import DFTInputParams
 from mlip_autopipec.dft.inputs import InputGenerator
+from mlip_autopipec.domain_models.dft_models import DFTInputParams
 
 
 def test_create_input_string_basic():

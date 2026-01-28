@@ -6,6 +6,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from mlip_autopipec.config.models import UserInputConfig
+from mlip_autopipec.config.schemas.dft import DFTConfig
 
 log = logging.getLogger(__name__)
 
@@ -62,3 +63,33 @@ def load_config(path: str | Path, model: type[T]) -> T:
         raise ValueError(msg)
 
     return model(**data)
+
+
+def load_dft_config_helper(path: Path) -> tuple[DFTConfig, Path]:
+    """
+    Helper to load DFT config from full MLIP config or standalone DFT config.
+    Returns: (DFTConfig, work_dir)
+    """
+    if not path.exists():
+        msg = f"Config file not found: {path}"
+        raise FileNotFoundError(msg)
+
+    with path.open("r") as f:
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        msg = "Config must be a dictionary"
+        raise ValueError(msg)
+
+    work_dir = Path("dft_work")  # Default
+
+    if "dft" in data:
+        # It's likely an MLIPConfig
+        dft_config = DFTConfig(**data["dft"])
+        if "runtime" in data and "work_dir" in data["runtime"]:
+            work_dir = Path(data["runtime"]["work_dir"])
+    else:
+        # Assume standalone
+        dft_config = DFTConfig(**data)
+
+    return dft_config, work_dir

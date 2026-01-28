@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import yaml
-from yaml.error import YAMLError
+from yaml.error import YAMLError  # type: ignore
 
 from mlip_autopipec.config.models import MinimalConfig, SystemConfig
 from mlip_autopipec.exceptions import ConfigError

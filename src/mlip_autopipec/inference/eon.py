@@ -9,7 +9,7 @@ from ase import Atoms
 from ase.io import write
 
 from mlip_autopipec.config.schemas.inference import EONConfig
-from mlip_autopipec.data_models.inference_models import InferenceResult
+from mlip_autopipec.domain_models.inference_models import InferenceResult
 from mlip_autopipec.inference.drivers import pace_driver
 
 logger = logging.getLogger(__name__)

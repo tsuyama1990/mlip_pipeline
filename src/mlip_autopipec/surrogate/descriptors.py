@@ -50,7 +50,7 @@ class DescriptorCalculator:
         species = set()
         for atoms in atoms_list:
             species.update(atoms.get_chemical_symbols())
-        species = sorted(species)
+        sorted_species = sorted(species)
 
         # Check periodicity from the first atom
         is_periodic = False
@@ -59,7 +59,7 @@ class DescriptorCalculator:
 
         try:
             self._soap = SOAP(
-                species=species,
+                species=sorted_species,
                 periodic=is_periodic,
                 r_cut=self.config.r_cut,
                 n_max=self.config.n_max,

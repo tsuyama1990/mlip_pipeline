@@ -6,7 +6,7 @@ from dask.distributed import Client
 
 from mlip_autopipec.config.models import MLIPConfig, SystemConfig
 from mlip_autopipec.config.schemas.workflow import WorkflowConfig
-from mlip_autopipec.data_models.state import WorkflowPhase, WorkflowState
+from mlip_autopipec.domain_models.state import WorkflowPhase, WorkflowState
 from mlip_autopipec.orchestration.dashboard import Dashboard, DashboardData
 from mlip_autopipec.orchestration.database import DatabaseManager
 from mlip_autopipec.orchestration.interfaces import BuilderProtocol, SurrogateProtocol

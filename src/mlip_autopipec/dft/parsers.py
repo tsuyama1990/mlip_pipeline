@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from ase.io import read as ase_read
 
-from mlip_autopipec.data_models.dft_models import DFTResult
+from mlip_autopipec.domain_models.dft_models import DFTResult
 
 
 class QEOutputParser:

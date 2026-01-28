@@ -5,12 +5,12 @@ import numpy as np
 from ase import Atoms
 from ase.io.espresso import write_espresso_in
 
-from mlip_autopipec.data_models.dft_models import DFTInputParams
 from mlip_autopipec.dft.constants import (
     DEFAULT_KPOINT_DENSITY,
     MAGNETIC_ELEMENTS,
     SSSP_EFFICIENCY_1_1,
 )
+from mlip_autopipec.domain_models.dft_models import DFTInputParams
 
 
 class InputGenerator:
@@ -127,8 +127,8 @@ class InputGenerator:
 
         lengths = np.linalg.norm(cell, axis=1)
         kpoints = []
-        for l in lengths:
-            k = 1 if l < 1e-06 else int(np.ceil(2 * np.pi / (l * kspacing)))
+        for length in lengths:
+            k = 1 if length < 1e-06 else int(np.ceil(2 * np.pi / (length * kspacing)))
             kpoints.append(max(1, k))
 
         if len(kpoints) != 3:

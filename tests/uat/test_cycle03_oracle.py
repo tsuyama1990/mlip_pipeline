@@ -3,10 +3,10 @@ from unittest.mock import MagicMock, patch
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.parsers import QEOutputParser
 from mlip_autopipec.dft.recovery import DFTErrorType
 from mlip_autopipec.dft.runner import QERunner
+from mlip_autopipec.domain_models.dft_models import DFTResult
 
 
 # Scenario 03-01: Generate Valid QE Input
