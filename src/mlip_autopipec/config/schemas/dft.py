@@ -15,23 +15,23 @@ class DFTConfig(BaseModel):
     pseudopotential_dir: Path = Field(description="Directory containing .UPF files")
 
     # Complex fields (with defaults or optional)
-    ecutwfc: float = Field(60.0, gt=0, description="Wavefunction cutoff energy (Ry)")
-    kspacing: float = Field(0.05, gt=0, description="Inverse K-point density (1/A)")
+    ecutwfc: float = Field(default=60.0, gt=0, description="Wavefunction cutoff energy (Ry)")
+    kspacing: float = Field(default=0.05, gt=0, description="Inverse K-point density (1/A)")
 
     # Optional fields with defaults
     command: str = Field(
-        "pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')"
+        default="pw.x", description="Command to run Quantum Espresso (e.g. 'mpirun -np 4 pw.x')"
     )
-    nspin: int | None = Field(None, description="Spin polarization (1=non-spin, 2=spin-polarized)")
-    diagonalization: Literal["david", "cg"] = Field("david", description="Solver")
+    nspin: int | None = Field(default=None, description="Spin polarization (1=non-spin, 2=spin-polarized)")
+    diagonalization: Literal["david", "cg"] = Field(default="david", description="Solver")
     smearing: Literal["mv", "mp", "fd"] = Field(
-        "mv", description="Smearing type ('mv', 'mp', 'fd')"
+        default="mv", description="Smearing type ('mv', 'mp', 'fd')"
     )
-    degauss: float = Field(0.02, gt=0, description="Smearing width (Ry)")
-    recoverable: bool = Field(True, description="Enable auto-recovery")
-    max_retries: int = Field(5, ge=0, description="Maximum number of retries")
+    degauss: float = Field(default=0.02, gt=0, description="Smearing width (Ry)")
+    recoverable: bool = Field(default=True, description="Enable auto-recovery")
+    max_retries: int = Field(default=5, ge=0, description="Maximum number of retries")
     pseudopotentials: dict[str, str] | None = Field(
-        None, description="Map of element to filename"
+        default=None, description="Map of element to filename"
     )
 
     @field_validator("pseudopotential_dir")

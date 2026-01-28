@@ -162,16 +162,20 @@ class DatabaseManager:
         # This implementation ensures streaming (yield from generator)
         yield from self.select(selection, limit=limit)
 
-    def save_candidates(self, candidates: list[Atoms], cycle_index: int, method: str) -> None:
-        meta = {"cycle": cycle_index, "origin": method, "status": "candidate", "converged": False}
+    def save_candidates(
+        self, candidates: list[tuple[Atoms, dict[str, Any]]], cycle_index: int, method: str
+    ) -> None:
+        base_meta = {"cycle": cycle_index, "origin": method, "status": "candidate", "converged": False}
         if self._connection is None:
              msg = "Database not connected"
              raise DatabaseError(msg)
         try:
             with self._lock:
-                for atoms in candidates:
+                for atoms, meta in candidates:
                     self._validate_atoms(atoms)
-                    self._connection.write(atoms, **meta)
+                    combined_meta = base_meta.copy()
+                    combined_meta.update(meta)
+                    self._connection.write(atoms, **combined_meta)
         except Exception as e:
             logger.exception("Failed to save candidates batch")
             msg = f"Failed to save candidates batch: {e}"

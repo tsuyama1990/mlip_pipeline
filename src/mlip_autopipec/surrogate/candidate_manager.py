@@ -25,4 +25,4 @@ class CandidateManager:
              msg = "Atoms object contains NaN or Inf in positions."
              raise ValueError(msg)
 
-        self.db.save_candidates([atoms], 0, "generation")
+        self.db.save_candidates([(atoms, metadata)], 0, "generation")

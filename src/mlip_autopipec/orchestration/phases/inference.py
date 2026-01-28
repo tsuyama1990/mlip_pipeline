@@ -63,7 +63,9 @@ class InferencePhase(BasePhase):
                 work_dir = self.manager.work_dir / INFERENCE_DIR_NAME
                 runner = LammpsRunner(self.config.inference_config, work_dir)
 
-            result = runner.run(start_atoms, potential_path)
+            cycle = self.manager.state.cycle_index
+            uid = f"inf_cycle_{cycle}"
+            result = runner.run(start_atoms, potential_path, uid=uid)
 
             # 4. Check for Halt
             if result.uncertain_structures:
@@ -75,11 +77,15 @@ class InferencePhase(BasePhase):
                 # Enrich metadata with generation
                 final_candidates = []
                 for atoms, meta in candidates:
-                    meta["generation"] = self.manager.state.cycle_index
+                    meta["generation"] = cycle
                     final_candidates.append((atoms, meta))
 
                 if final_candidates:
-                    self.db.save_candidates(final_candidates)
+                    self.db.save_candidates(
+                        final_candidates,
+                        cycle_index=cycle,
+                        method="md_inference"
+                    )
                     return True
 
             logger.info("Inference finished without high uncertainty.")

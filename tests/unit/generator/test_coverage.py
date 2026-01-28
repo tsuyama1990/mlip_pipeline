@@ -6,7 +6,7 @@ from ase import Atoms
 
 from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
+from mlip_autopipec.config.schemas.generator import GeneratorConfig, SQSConfig
 from mlip_autopipec.exceptions import GeneratorError
 from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.generator.transformations import apply_rattle, apply_strain
@@ -19,6 +19,7 @@ def test_builder_molecule_generation() -> None:
         name="molecule_H2O",
         elements=["H", "O"],
         composition={"H": 2 / 3, "O": 1 / 3},
+        crystal_structure="molecule",
     )
 
     config = SystemConfig(target_system=target)
@@ -35,7 +36,9 @@ def test_builder_molecule_generation() -> None:
 
 
 def test_builder_molecule_failure() -> None:
-    target = TargetSystem(name="molecule_Invalid", elements=["H"], composition={"H": 1.0})
+    target = TargetSystem(
+        name="molecule_Invalid", elements=["H"], composition={"H": 1.0}, crystal_structure="molecule"
+    )
 
     config = SystemConfig(target_system=target)
     builder = StructureBuilder(config)
@@ -47,9 +50,11 @@ def test_builder_molecule_failure() -> None:
 
 
 def test_builder_bulk_fallback() -> None:
-    target = TargetSystem(name="Al", elements=["Al"], composition={"Al": 1.0})
+    target = TargetSystem(
+        name="Al", elements=["Al"], composition={"Al": 1.0}, crystal_structure="fcc"
+    )
     # Disable SQS to avoid overwriting the fallback element
-    gen_config = GeneratorConfig(sqs={"enabled": False})
+    gen_config = GeneratorConfig(sqs=SQSConfig(enabled=False))
     config = SystemConfig(target_system=target, generator_config=gen_config)
     builder = StructureBuilder(config)
 
@@ -68,7 +73,9 @@ def test_builder_bulk_fallback() -> None:
 
 def test_builder_critical_failure() -> None:
     # Mock _generate_base to raise generic exception
-    target = TargetSystem(name="Al", elements=["Al"], composition={"Al": 1.0})
+    target = TargetSystem(
+        name="Al", elements=["Al"], composition={"Al": 1.0}, crystal_structure="fcc"
+    )
     config = SystemConfig(target_system=target)
     builder = StructureBuilder(config)
 

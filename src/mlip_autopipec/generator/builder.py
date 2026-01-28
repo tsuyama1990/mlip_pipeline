@@ -57,7 +57,8 @@ class StructureBuilder:
             yield base_atoms
             generated_count += 1
 
-        if generated_count >= limit: return
+        if generated_count >= limit:
+            return
 
         # 3. Distortions
         dist_conf = self.config.distortion
@@ -65,7 +66,8 @@ class StructureBuilder:
             strains = np.linspace(dist_conf.strain_range[0], dist_conf.strain_range[1], dist_conf.n_strain_steps)
 
             for eps in strains:
-                if abs(eps) < 1e-6: continue
+                if abs(eps) < 1e-6:
+                    continue
 
                 strain_tensor = np.eye(3) * eps
                 try:
@@ -75,7 +77,8 @@ class StructureBuilder:
                         yield strained
                         generated_count += 1
 
-                    if generated_count >= limit: return
+                    if generated_count >= limit:
+                        return
 
                     if dist_conf.rattle_stdev > 0:
                         for _ in range(dist_conf.n_rattle_steps):
@@ -83,7 +86,8 @@ class StructureBuilder:
                             if self._validate(rattled):
                                 yield rattled
                                 generated_count += 1
-                            if generated_count >= limit: return
+                            if generated_count >= limit:
+                                return
                 except Exception as e:
                     logger.warning(f"Failed to generate strained structure: {e}")
 
@@ -99,7 +103,8 @@ class StructureBuilder:
                 if self._validate(atoms):
                     yield atoms
                     generated_count += 1
-                if generated_count >= limit: return
+                if generated_count >= limit:
+                    return
 
     def _validate(self, atoms: Atoms) -> bool:
         if not isinstance(atoms, Atoms):

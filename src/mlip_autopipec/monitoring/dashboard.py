@@ -9,6 +9,7 @@ from ase.db import connect as ase_db_connect
 from jinja2 import Environment, FileSystemLoader, TemplateError
 
 from mlip_autopipec.config.models import DashboardData
+from mlip_autopipec.config.schemas.monitoring import DatasetComposition
 from mlip_autopipec.domain_models.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ def _gather_data(project_dir: Path) -> DashboardData:
         completed_calcs=completed_calcs,
         pending_calcs=len(state.active_tasks),
         training_history=[],  # Placeholder: state doesn't have history yet
-        dataset_composition=dict(dataset_composition),
+        dataset_composition=DatasetComposition(root=dict(dataset_composition)),
     )
 
 
@@ -71,9 +72,9 @@ def _create_plots(data: DashboardData) -> dict[str, str]:
     if data.training_history:
         history_data = [
             {
-                "Generation": m.generation,
-                "Force RMSE": m.rmse_forces,
-                "Energy RMSE": m.rmse_energy_per_atom,
+                "Generation": m.epoch,
+                "Force RMSE": m.rmse_force,
+                "Energy RMSE": m.rmse_energy,
             }
             for m in data.training_history
         ]

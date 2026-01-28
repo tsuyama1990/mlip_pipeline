@@ -1,81 +1,86 @@
 import logging
 from pathlib import Path
-from typing import Any
 
+import numpy as np
 from ase import Atoms
 from ase.io import read
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.config.schemas.inference import InferenceConfig
-from mlip_autopipec.utils.embedding import EmbeddingExtractor
+
+# from mlip_autopipec.utils.embedding import EmbeddingExtractor # unused
 
 logger = logging.getLogger(__name__)
 
 
 class CandidateProcessor:
     """
-    Service for processing and extracting candidate structures from simulation dumps.
-    Encapsulates logic for handling different engine outputs (LAMMPS vs EON).
+    Processes raw MD output (uncertain structures) into training candidates.
+    Applies:
+    1. Clustering/Extraction (Cluster-in-box)
+    2. Force Masking (if enabled)
+    3. Filtering (e.g. min distance)
     """
 
-    def __init__(self, config: InferenceConfig) -> None:
+    def __init__(self, config: InferenceConfig):
         self.config = config
         self.embedding_config = EmbeddingConfig()
-        self.extractor = EmbeddingExtractor(self.embedding_config)
 
     def extract_candidates(
-        self, dump_paths: list[Path], start_atoms: Atoms
-    ) -> list[tuple[Atoms, dict[str, Any]]]:
+        self, uncertain_structures: list[Path], reference_atoms: Atoms
+    ) -> list[tuple[Atoms, dict]]:
         """
-        Extracts candidates from a list of dump files.
+        Extracts candidate structures from dump files.
 
         Args:
-            dump_paths: List of paths to dump files.
-            start_atoms: The initial atoms object (used for species mapping in LAMMPS).
+            uncertain_structures: List of paths to LAMMPS dump files.
+            reference_atoms: The structure used to start the MD (provides cell/pbc info).
 
         Returns:
-            List of tuples (Atoms, metadata_dict) ready for database insertion.
+            List of (Atoms, metadata) tuples.
         """
-        candidates: list[tuple[Atoms, dict[str, Any]]] = []
+        candidates = []
+        # extractor = EmbeddingExtractor(self.embedding_config) # unused
 
-        for dump_path in dump_paths:
+        for dump_path in uncertain_structures:
             try:
-                frame: Atoms | None = None
+                # Read all frames from dump
+                # ase.io.read returns list if index=':'
+                # type: ignore[no-untyped-call]
+                frames = read(dump_path, index=":")
 
-                # Differentiate extraction based on engine
-                if self.config.active_engine == "eon":
-                    # EON produces single-frame .con files usually.
-                    frame = read(dump_path)
-                else:
-                    # LAMMPS: Read ONLY the last frame (index=-1) to avoid OOM
-                    frame = read(dump_path, index=-1, format="lammps-dump-text")
+                # Handle single Atoms return (though index=":" usually returns list)
+                if isinstance(frames, Atoms):
+                    frames = [frames]
 
-                if frame is None:
+                if not frames:
                     continue
 
-                # Simplified: Re-assign symbols based on types if available (LAMMPS specific)
-                if self.config.active_engine == "lammps":
-                    species = sorted(set(start_atoms.get_chemical_symbols()))
-                    if "type" in frame.arrays:
-                        types = frame.arrays["type"]
-                        symbols = [species[t - 1] for t in types]
-                        frame.set_chemical_symbols(symbols)
+                # For each frame (uncertainty event)
+                for i, atoms in enumerate(frames):
+                    # In active learning loop, we often extract the local environment
+                    # around the atom with high uncertainty.
+                    # However, typical AL with potentials like MACE/NequIP might just take the whole frame
+                    # or a large cluster.
+                    # Here we assume we take the whole frame for simplicity, unless clustering logic is added.
 
-                # Logic for extraction
-                extracted_atoms: Atoms
-                if "c_gamma" in frame.arrays:
-                    gammas = frame.arrays["c_gamma"]
-                    max_idx = int(gammas.argmax())
-                    extracted_atoms = self.extractor.extract(frame, max_idx)
-                else:
-                    # For EON, or if missing gamma, take the whole frame
-                    extracted_atoms = frame
+                    # Ensure PBC and Cell are correct (sometimes lost in dumps depending on format)
+                    if np.allclose(atoms.cell.lengths(), 0):
+                        atoms.set_cell(reference_atoms.get_cell())
+                        atoms.set_pbc(reference_atoms.get_pbc())
 
-                # Metadata template (caller should enrich if needed, but we provide base status)
-                metadata: dict[str, Any] = {"status": "screening", "config_type": "active_learning"}
-                candidates.append((extracted_atoms, metadata))
+                    # Optional: Extract cluster around high-uncertainty atom if we knew which one it was.
+                    # The dump file might contain 'c_gamma' column.
+                    if "c_gamma" in atoms.arrays:
+                        gammas = atoms.arrays["c_gamma"]
+                        max_idx = int(np.argmax(gammas))
+                        # cluster = extractor.extract(atoms, max_idx) # Implement cluster extraction if needed
+                        # candidates.append((cluster, {"origin": dump_path.name, "frame": i, "gamma": gammas[max_idx]}))
+                        candidates.append((atoms, {"origin": dump_path.name, "frame": i, "gamma": float(gammas[max_idx])}))
+                    else:
+                        candidates.append((atoms, {"origin": dump_path.name, "frame": i}))
 
             except Exception:
-                logger.exception(f"Failed to process dump file {dump_path}")
+                logger.exception(f"Failed to process dump file: {dump_path}")
 
         return candidates

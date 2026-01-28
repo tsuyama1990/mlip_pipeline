@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 from ase import Atoms
+from ase.io import write
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.training.pacemaker import PacemakerWrapper
@@ -49,9 +50,14 @@ class GammaSelectionStrategy(SelectionStrategy):
         if not candidates:
             return []
 
+        # Write candidates to temporary file
+        candidates_path = self.pacemaker.work_dir / "candidates_temp.xyz"
+        # type: ignore[no-untyped-call]
+        write(str(candidates_path), candidates, format="extxyz")
+
         # 1. Active Set Selection (Downsampling)
         try:
-            indices = self.pacemaker.select_active_set(candidates, potential_path)
+            indices = self.pacemaker.select_active_set(candidates_path, potential_path)
             selected_atoms = [candidates[i] for i in indices]
             logger.info(f"Active Set Selection: Reduced {len(candidates)} -> {len(selected_atoms)}")
         except Exception:

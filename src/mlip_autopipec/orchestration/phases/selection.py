@@ -20,6 +20,51 @@ class SelectionPhase(BasePhase):
         """
         logger.info("Phase: Selection")
         try:
+            # 0. Active Learning: Process Halted Structures
+            if self.manager.state.halted_structures:
+                from mlip_autopipec.domain_models.candidate import CandidateConfig
+                from mlip_autopipec.orchestration.candidate import CandidateProcessor
+
+                logger.info(
+                    f"Processing {len(self.manager.state.halted_structures)} halted structures."
+                )
+
+                potential_path = self.manager.state.latest_potential_path
+                if not potential_path:
+                    logger.error("No potential available for Candidate Processing.")
+                    return
+
+                # Initialize Processor
+                # Use default CandidateConfig or from somewhere else?
+                cand_config = CandidateConfig()
+
+                # Reuse training config for PacemakerWrapper
+                if not self.config.training_config:
+                    logger.error("Training config missing for Selection Phase.")
+                    return
+
+                training_dir = (
+                    self.manager.work_dir / f"training_gen_{self.manager.state.cycle_index}"
+                )
+                pacemaker = PacemakerWrapper(self.config.training_config, training_dir)
+                processor = CandidateProcessor(cand_config, pacemaker)
+
+                elements = self.config.target_system.elements
+
+                for dump_path in self.manager.state.halted_structures:
+                    candidates = processor.process(dump_path, potential_path, elements)
+                    logger.info(f"Generated {len(candidates)} candidates from {dump_path.name}")
+                    for atoms in candidates:
+                        self.db.add_structure(
+                            atoms,
+                            {"status": "pending", "generation": self.manager.state.cycle_index},
+                        )
+
+                # Clear halted structures after processing
+                self.manager.state.halted_structures = []
+                self.manager.save_state()
+                return
+
             # 1. Load candidates pending screening
             screening_entries = list(self.db.select_entries("status=screening"))
             if not screening_entries:
