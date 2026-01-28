@@ -8,6 +8,7 @@ from mlip_autopipec.orchestration.phases.dft import DFTPhase
 from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
 from mlip_autopipec.orchestration.phases.selection import SelectionPhase
 from mlip_autopipec.orchestration.phases.training import TrainingPhase
+from mlip_autopipec.orchestration.phases.validation import ValidationPhase
 from mlip_autopipec.orchestration.task_queue import TaskQueue
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,7 @@ class WorkflowManager:
             WorkflowPhase.SELECTION,
             WorkflowPhase.CALCULATION,
             WorkflowPhase.TRAINING,
+            WorkflowPhase.VALIDATION,
         ]
 
         try:
@@ -111,5 +113,11 @@ class WorkflowManager:
             self.state.current_phase = WorkflowPhase.TRAINING
             self.save_state()
             TrainingPhase(self).execute()
+
+        # Phase E: Validation
+        if start_idx <= 4:
+            self.state.current_phase = WorkflowPhase.VALIDATION
+            self.save_state()
+            ValidationPhase(self).execute()
 
         logger.info(f"=== Cycle {cycle} Completed ===")

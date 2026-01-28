@@ -1,12 +1,11 @@
-import json
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
+import pytest
 from ase import Atoms
 
 from mlip_autopipec.inference.drivers import pace_driver
+
 
 # We need to mock sys.exit to prevent test exit
 @pytest.fixture

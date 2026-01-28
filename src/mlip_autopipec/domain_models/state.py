@@ -13,6 +13,7 @@ class WorkflowPhase(str, Enum):
     SELECTION = "Selection"
     CALCULATION = "Calculation"
     TRAINING = "Training"
+    VALIDATION = "Validation"
 
 
 class WorkflowState(BaseModel):
