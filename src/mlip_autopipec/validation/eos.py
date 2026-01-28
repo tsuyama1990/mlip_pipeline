@@ -40,7 +40,7 @@ class EOSValidator:
             # 1. Relax first
             logger.info("Relaxing structure for EOS check...")
             ucf = UnitCellFilter(atoms)
-            opt = LBFGS(ucf, logfile=str(self.work_dir / "relax.log"))
+            opt = LBFGS(ucf, logfile=str(self.work_dir / "relax.log"))  # type: ignore[arg-type]
             opt.run(fmax=0.01)
 
             # 2. Generate Scaling factors

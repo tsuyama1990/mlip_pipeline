@@ -9,8 +9,8 @@ try:
     from phonopy import Phonopy
     from phonopy.structure.atoms import PhonopyAtoms
 except ImportError:
-    Phonopy = None
-    PhonopyAtoms = None
+    Phonopy = None  # type: ignore
+    PhonopyAtoms = None  # type: ignore
 
 from mlip_autopipec.config.schemas.validation import PhononConfig
 from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult

@@ -40,7 +40,7 @@ class ElasticityValidator:
             # Elastic constants require equilibrium
             logger.info("Relaxing structure for elasticity check...")
             ucf = UnitCellFilter(atoms)
-            opt = LBFGS(ucf, logfile=str(self.work_dir / "relax.log"))
+            opt = LBFGS(ucf, logfile=str(self.work_dir / "relax.log"))  # type: ignore[arg-type]
             opt.run(fmax=0.01) # Strict relaxation
 
             # 2. Calculate Elastic Constants

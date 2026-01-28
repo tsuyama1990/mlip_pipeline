@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 from ase import Atoms
 
@@ -9,7 +11,7 @@ class MaceWrapper:
 
     def __init__(self, model_type: str = "mace_mp") -> None:
         self.model_type = model_type
-        self.model = None
+        self.model: Any = None
         self.device = "cpu"
 
     def load_model(self, model_path: str, device: str) -> None:
@@ -52,7 +54,7 @@ class MaceWrapper:
             msg = "Model not loaded. Call load_model() first."
             raise RuntimeError(msg)
 
-        energies = []
+        energies_list = []
         forces_list = []
 
         # TODO: Implement batching for MACE
@@ -61,10 +63,10 @@ class MaceWrapper:
             # type: ignore
             at = atoms.copy()
             at.calc = self.model
-            energies.append(at.get_potential_energy())
+            energies_list.append(at.get_potential_energy())
             forces_list.append(at.get_forces())
 
-        return np.array(energies), forces_list
+        return np.array(energies_list), forces_list
 
     def compute_descriptors(self, atoms_list: list[Atoms]) -> np.ndarray:
         """

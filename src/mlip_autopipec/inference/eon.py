@@ -134,7 +134,12 @@ class EONWrapper:
             # Check Exit Codes
             if result.returncode == 0:
                 return InferenceResult(
-                    uid=uid, succeeded=True, max_gamma_observed=0.0, uncertain_structures=[]
+                    uid=uid,
+                    succeeded=True,
+                    max_gamma_observed=0.0,
+                    uncertain_structures=[],
+                    halted=False,
+                    halt_step=None,
                 )
 
             if result.returncode == 100:
@@ -151,11 +156,19 @@ class EONWrapper:
                     succeeded=True,  # Halted is a valid "outcome" for AL
                     max_gamma_observed=999.0,  # Indicator
                     uncertain_structures=uncertain_structures,
+                    halted=True,
+                    halt_step=None,
                 )
 
             logger.error(f"EON failed with code {result.returncode}")
             return InferenceResult(
-                uid=uid, succeeded=False, max_gamma_observed=0.0, uncertain_structures=[]
+                uid=uid,
+                succeeded=False,
+                max_gamma_observed=0.0,
+                uncertain_structures=[],
+                error_message=f"EON failed with code {result.returncode}",
+                halted=False,
+                halt_step=None,
             )
 
         except Exception as e:
@@ -166,4 +179,6 @@ class EONWrapper:
                 error_message=str(e),
                 max_gamma_observed=0.0,
                 uncertain_structures=[],
+                halted=False,
+                halt_step=None,
             )

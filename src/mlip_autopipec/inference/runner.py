@@ -77,7 +77,10 @@ class LammpsRunner:
                 return InferenceResult(
                     uid=uid,
                     succeeded=False,
-                    error_message=f"Process exited with code {process.returncode}"
+                    error_message=f"Process exited with code {process.returncode}",
+                    max_gamma_observed=max_gamma,
+                    halted=halted,
+                    halt_step=step,
                 )
 
             # If returncode != 0 but halted, it is a SUCCESSFUL detection of uncertainty.
@@ -101,7 +104,14 @@ class LammpsRunner:
 
         except Exception as e:
             logger.exception(f"Unexpected error in LammpsRunner for {uid}")
-            return InferenceResult(uid=uid, succeeded=False, error_message=str(e))
+            return InferenceResult(
+                uid=uid,
+                succeeded=False,
+                error_message=str(e),
+                max_gamma_observed=0.0,
+                halted=False,
+                halt_step=None,
+            )
 
     def _write_inputs(self, atoms: Atoms, potential_path: Path, uid: str) -> None:
         """Writes data file and input script."""
