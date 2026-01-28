@@ -1,4 +1,5 @@
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -28,28 +29,79 @@ def mock_config(tmp_path):
     )
 
 
+@patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
-def test_workflow_manager_initialization(mock_db, mock_config):
+def test_workflow_manager_initialization(mock_db, mock_tq, mock_config):
     manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
     assert isinstance(manager.state, WorkflowState)
     assert manager.state.cycle_index == 0
-    # Current phase default is EXPLORATION?
-    # WorkflowState defaults?
-    # Check WorkflowState definition if needed. Assuming defaults.
+    mock_tq.assert_called()
 
 
+@patch("mlip_autopipec.orchestration.workflow.TrainingPhase")
+@patch("mlip_autopipec.orchestration.workflow.DFTPhase")
+@patch("mlip_autopipec.orchestration.workflow.SelectionPhase")
+@patch("mlip_autopipec.orchestration.workflow.ExplorationPhase")
+@patch("mlip_autopipec.orchestration.workflow.TaskQueue")
 @patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
-def test_workflow_run_loop_cycle_02(mock_db, mock_config):
-    # Test run_cycle_02 logic roughly
+def test_run_cycle_0(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_config):
+    """Test Cycle 0 execution (Cold Start) - Selection skipped."""
     manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
 
-    # We mock StructureBuilder and QERunner inside run_cycle_02 usually, or use mock_dft=True
-    # To test run_cycle_02 execution path:
+    manager.run_cycle()
 
-    with patch("mlip_autopipec.orchestration.workflow.StructureBuilder") as mock_builder:
-        mock_builder.return_value.build.return_value = []
+    # Verify phases executed
+    mock_exp.assert_called_with(manager)
+    mock_exp.return_value.execute.assert_called_once()
 
-        manager.run_cycle_02(mock_dft=True, dry_run=True)
+    # Selection skipped (cycle 0)
+    mock_sel.assert_not_called()
 
-        # Assertions
-        mock_builder.assert_called()
+    mock_dft.assert_called_with(manager)
+    mock_dft.return_value.execute.assert_called_once()
+
+    mock_train.assert_called_with(manager)
+    mock_train.return_value.execute.assert_called_once()
+
+
+@patch("mlip_autopipec.orchestration.workflow.TrainingPhase")
+@patch("mlip_autopipec.orchestration.workflow.DFTPhase")
+@patch("mlip_autopipec.orchestration.workflow.SelectionPhase")
+@patch("mlip_autopipec.orchestration.workflow.ExplorationPhase")
+@patch("mlip_autopipec.orchestration.workflow.TaskQueue")
+@patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
+def test_run_cycle_1_with_potential(mock_db, mock_tq, mock_exp, mock_sel, mock_dft, mock_train, mock_config):
+    """Test Cycle 1 execution (Active Learning) - Selection included."""
+    manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
+    manager.state.cycle_index = 1
+    manager.state.latest_potential_path = Path("fake.yace")
+
+    manager.run_cycle()
+
+    mock_exp.assert_called_with(manager)
+    mock_exp.return_value.execute.assert_called_once()
+
+    mock_sel.assert_called_with(manager)
+    mock_sel.return_value.execute.assert_called_once()
+
+    mock_dft.assert_called_with(manager)
+    mock_dft.return_value.execute.assert_called_once()
+
+    mock_train.assert_called_with(manager)
+    mock_train.return_value.execute.assert_called_once()
+
+
+@patch("mlip_autopipec.orchestration.workflow.TaskQueue")
+@patch("mlip_autopipec.orchestration.workflow.DatabaseManager")
+def test_run_loop(mock_db, mock_tq, mock_config):
+    manager = WorkflowManager(mock_config, work_dir=mock_config.runtime.work_dir)
+
+    # Mock run_cycle to avoid actual execution
+    manager.run_cycle = MagicMock()
+
+    manager.run()
+
+    # Should run 2 cycles (0 and 1) because max_generations=2
+    assert manager.run_cycle.call_count == 2
+    assert manager.state.cycle_index == 2
+    mock_tq.return_value.shutdown.assert_called_once()

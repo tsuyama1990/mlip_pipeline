@@ -3,6 +3,7 @@ import logging
 from collections.abc import Iterable, Iterator
 from typing import TypeVar
 
+from mlip_autopipec.config.models import SystemConfig
 from mlip_autopipec.generator.builder import StructureBuilder
 from mlip_autopipec.orchestration.phases.base import BasePhase
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
@@ -27,29 +28,47 @@ class ExplorationPhase(BasePhase):
         """Execute Phase A: Exploration."""
         logger.info("Phase A: Exploration")
         try:
-            builder = self.manager.builder or StructureBuilder(self.config)
+            cycle = self.manager.state.cycle_index
 
-            # TODO: Move batch_size to config
-            batch_size = 100
-            total_generated = 0
+            if cycle == 0:
+                # Cold Start: Structure Generation
+                logger.info("Cycle 0: Running Structure Generator (Cold Start)")
 
-            # Chunked processing to avoid OOM
-            for candidate_batch in chunked(builder.build(), batch_size):
-                for atoms in candidate_batch:
-                    self.db.save_candidate(
-                        atoms,
-                        {"status": "pending", "generation": self.manager.state.cycle_index},
-                    )
-                total_generated += len(candidate_batch)
-
-            if self.config.surrogate_config:
-                logger.info("Running surrogate selection pipeline...")
-                surrogate = self.manager.surrogate or SurrogatePipeline(
-                    self.db, self.config.surrogate_config
+                sys_config = SystemConfig(
+                    target_system=self.config.target_system,
+                    generator_config=self.config.generator_config
                 )
-                surrogate.run()
+                # Allow injection or default
+                builder = getattr(self.manager, "builder", None) or StructureBuilder(sys_config)
 
-            logger.info(f"Exploration complete. Total candidates generated: {total_generated}")
+                # TODO: Move batch_size to config
+                batch_size = 100
+                total_generated = 0
+
+                # Chunked processing to avoid OOM
+                for candidate_batch in chunked(builder.build(), batch_size):
+                    for atoms in candidate_batch:
+                        # Fix: use add_structure instead of non-existent save_candidate
+                        self.db.add_structure(
+                            atoms,
+                            {"status": "pending", "generation": cycle},
+                        )
+                    total_generated += len(candidate_batch)
+
+                logger.info(f"Cold Start complete. Total candidates generated: {total_generated}")
+
+            else:
+                # Active Learning Exploration
+                logger.info(f"Cycle {cycle}: Running Active Learning Exploration")
+
+                if self.config.surrogate_config:
+                    logger.info("Running surrogate selection pipeline...")
+                    surrogate = getattr(self.manager, "surrogate", None) or SurrogatePipeline(
+                        self.db, self.config.surrogate_config
+                    )
+                    surrogate.run()
+                else:
+                    logger.warning("No surrogate config or MD engine defined for Active Learning.")
 
         except Exception:
             logger.exception("Exploration phase failed")

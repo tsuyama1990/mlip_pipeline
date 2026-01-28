@@ -13,6 +13,7 @@ from mlip_autopipec.dft.runner import QERunner
 from mlip_autopipec.generator import StructureBuilder
 from mlip_autopipec.modules.training_orchestrator import TrainingManager
 from mlip_autopipec.orchestration.database import DatabaseManager
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 from mlip_autopipec.surrogate.candidate_manager import CandidateManager
 from mlip_autopipec.surrogate.pipeline import SurrogatePipeline
 from mlip_autopipec.utils.config_utils import validate_path_safety
@@ -283,7 +284,6 @@ class CLIHandler:
     @staticmethod
     def run_loop(config_file: Path) -> None:
         from mlip_autopipec.config.models import WorkflowConfig
-        from mlip_autopipec.orchestration.workflow import WorkflowManager
 
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
@@ -300,13 +300,31 @@ class CLIHandler:
         """
         Executes the Cycle 02 pipeline: Generation -> DFT (Oracle) -> Database -> Training.
         """
-        from mlip_autopipec.orchestration.workflow import WorkflowManager
+        from mlip_autopipec.config.models import WorkflowConfig
+        from mlip_autopipec.domain_models.state import WorkflowPhase
+        from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
 
         safe_config = validate_path_safety(config_file)
         config = load_config(safe_config)
 
+        if not config.workflow_config:
+            config.workflow_config = WorkflowConfig()
+
+        # Limit to 1 cycle
+        config.workflow_config.max_generations = 1
+
         manager = WorkflowManager(config=config, work_dir=config.runtime.work_dir)
-        manager.run_cycle_02(mock_dft=mock_dft, dry_run=dry_run)
+
+        if mock_dft:
+            console("[WARNING] mock_dft flag is deprecated in new architecture.")
+
+        if dry_run:
+            console("Dry Run: Executing Exploration Only.")
+            manager.state.current_phase = WorkflowPhase.EXPLORATION
+            ExplorationPhase(manager).execute()
+            return
+
+        manager.run()
 
         console("Cycle 02 Pipeline Completed.")
 

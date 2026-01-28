@@ -157,7 +157,8 @@ class QERunner:
 
     def _run_command(self, input_path: Path, output_path: Path) -> tuple[bool, str]:
         if not self.config.command:
-             raise DFTFatalError("Command is empty")
+             msg = "Command is empty"
+             raise DFTFatalError(msg)
 
         parts = self._validate_command(self.config.command)
         executable = parts[0]

@@ -1,3 +1,4 @@
+import contextlib
 import re
 from pathlib import Path
 from typing import Any, ClassVar
@@ -38,10 +39,8 @@ class RecoveryHandler:
         """
         stdout = ""
         if output_file.exists():
-            try:
+            with contextlib.suppress(Exception):
                 stdout = output_file.read_text(errors="replace")
-            except Exception:
-                pass
 
         return self.analyze(stdout, stderr)
 
