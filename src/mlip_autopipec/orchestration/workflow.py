@@ -1,17 +1,14 @@
 import logging
-import uuid
 from pathlib import Path
 
-import numpy as np
-from rich.progress import track
-
-from mlip_autopipec.config.models import SystemConfig, UserInputConfig
-from mlip_autopipec.dft.runner import QERunner
-from mlip_autopipec.domain_models.dft_models import DFTResult
-from mlip_autopipec.domain_models.state import WorkflowState
-from mlip_autopipec.generator import StructureBuilder
-from mlip_autopipec.modules.training_orchestrator import TrainingManager
+from mlip_autopipec.config.models import UserInputConfig
+from mlip_autopipec.domain_models.state import WorkflowPhase, WorkflowState
 from mlip_autopipec.orchestration.database import DatabaseManager
+from mlip_autopipec.orchestration.phases.dft import DFTPhase
+from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
+from mlip_autopipec.orchestration.phases.selection import SelectionPhase
+from mlip_autopipec.orchestration.phases.training import TrainingPhase
+from mlip_autopipec.orchestration.task_queue import TaskQueue
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +33,10 @@ class WorkflowManager:
 
         self.state = self._load_state()
 
+        # Initialize TaskQueue
+        workers = self.workflow_config.workers if self.workflow_config else 4
+        self.task_queue = TaskQueue(workers=workers)
+
     def _load_state(self) -> WorkflowState:
         if self.state_file.exists():
             with open(self.state_file) as f:
@@ -50,102 +51,47 @@ class WorkflowManager:
         """Main execution loop for full active learning (Future Cycles)."""
         max_cycles = self.workflow_config.max_generations if self.workflow_config else 5
 
-        while self.state.cycle_index < max_cycles:
-            logger.info(f"Starting Cycle {self.state.cycle_index}")
-            # Placeholder for full loop: Exploration -> Selection -> DFT -> Training
-            self.state.cycle_index += 1
-            self.save_state()
+        logger.info(f"Starting Workflow. Max Cycles: {max_cycles}")
 
-    def run_cycle_02(self, mock_dft: bool = False, dry_run: bool = False) -> None:
-        """
-        Executes Cycle 02 pipeline: Generation -> DFT (Oracle) -> Database -> Training.
-        """
-        logger.info("Starting Cycle 02 Pipeline")
-
-        # 1. Structure Generation
-        logger.info("Step 1: Structure Generation")
-        sys_config = SystemConfig(
-            target_system=self.config.target_system,
-            generator_config=self.config.generator_config
-        )
-        builder = StructureBuilder(sys_config)
-        structures = list(builder.build())
-        logger.info(f"Generated {len(structures)} structures.")
-
-        if dry_run:
-            logger.info("Dry run: Skipping DFT and Training.")
-            return
-
-        # 2. Oracle (DFT) & 3. Database
-        logger.info("Step 2: Oracle Calculation & Database Storage")
-
-        runner = None
-        if not mock_dft:
-            if not self.config.dft:
-                msg = "DFT config missing."
-                raise ValueError(msg)
-            # Use runtime config for DFT work dir
-            dft_work_dir = self.work_dir / "dft_runs"
-            runner = QERunner(self.config.dft, work_dir=dft_work_dir)
-        else:
-            logger.warning("Running in MOCK DFT mode.")
-
-        with self.db_manager as db:
-            db.set_system_config(sys_config)
-
-            for atoms in track(structures, description="Running DFT..."):
-                uid = str(uuid.uuid4())
-                atoms.info["uid"] = uid
-                atoms.info["generation"] = 0
-
-                result = None
-                if mock_dft:
-                    # Mock Result
-                    energy = -3.5 * len(atoms) + np.random.normal(0, 0.1)
-                    forces = np.random.normal(0, 0.05, size=(len(atoms), 3)).tolist()
-                    stress = np.zeros((3, 3)).tolist()
-                    result = DFTResult(
-                        uid=uid,
-                        energy=energy,
-                        forces=forces,
-                        stress=stress,
-                        succeeded=True,
-                        converged=True,
-                        wall_time=0.1,
-                        parameters={"mock": True},
-                    )
-                elif runner:
-                    try:
-                        result = runner.run(atoms, uid=uid)
-                    except Exception:
-                        logger.exception(f"DFT Failed for {uid}")
-                        continue
-
-                if result and result.succeeded:
-                    # Save to DB
-                    db.save_dft_result(atoms, result, metadata={"status": "completed", "cycle": 0})
-                else:
-                    logger.error(f"DFT failed for {uid}")
-
-            # 4. Training
-            logger.info("Step 3: Training")
-
-            if not self.config.training_config:
-                msg = "Training config missing."
-                raise ValueError(msg)
-
-            training_dir = self.work_dir / "training"
-            training_dir.mkdir(parents=True, exist_ok=True)
-
-            manager = TrainingManager(db, self.config.training_config, training_dir)
-            train_result = manager.run_training()
-
-            if train_result.success:
-                logger.info("Training Successful!")
-                logger.info(f"Potential: {train_result.potential_path}")
-                self.state.latest_potential_path = train_result.potential_path
+        try:
+            while self.state.cycle_index < max_cycles:
+                self.run_cycle()
+                self.state.cycle_index += 1
                 self.save_state()
-            else:
-                logger.error("Training Failed.")
-                msg = "Training Failed"
-                raise RuntimeError(msg)
+
+            logger.info("Workflow Completed.")
+
+        except Exception:
+            logger.exception("Workflow Interrupted.")
+            raise
+        finally:
+            self.task_queue.shutdown()
+
+    def run_cycle(self) -> None:
+        """Executes a single Active Learning Cycle."""
+        cycle = self.state.cycle_index
+        logger.info(f"=== Starting Cycle {cycle} ===")
+
+        # Phase A: Exploration
+        self.state.current_phase = WorkflowPhase.EXPLORATION
+        self.save_state()
+        ExplorationPhase(self).execute()
+
+        # Phase B: Selection
+        # Only run selection if we have a potential to select with (Active Learning)
+        if cycle > 0 and self.state.latest_potential_path:
+            self.state.current_phase = WorkflowPhase.SELECTION
+            self.save_state()
+            SelectionPhase(self).execute()
+
+        # Phase C: Calculation (DFT)
+        self.state.current_phase = WorkflowPhase.CALCULATION
+        self.save_state()
+        DFTPhase(self).execute()
+
+        # Phase D: Training
+        self.state.current_phase = WorkflowPhase.TRAINING
+        self.save_state()
+        TrainingPhase(self).execute()
+
+        logger.info(f"=== Cycle {cycle} Completed ===")

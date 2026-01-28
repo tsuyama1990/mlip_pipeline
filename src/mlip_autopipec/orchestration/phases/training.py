@@ -17,23 +17,31 @@ class TrainingPhase(BasePhase):
                 logger.warning("No Training Config. Skipping training.")
                 return
 
+            cycle = self.manager.state.cycle_index
+            training_dir = self.manager.work_dir / f"training_gen_{cycle}"
+            training_dir.mkdir(parents=True, exist_ok=True)
+
+            logger.info(f"Training directory: {training_dir}")
+
             dataset_builder = DatasetBuilder(self.db)
 
             logger.info("Exporting training data...")
-            dataset_builder.export(self.config.training_config, self.manager.work_dir)
+            dataset_builder.export(self.config.training_config, str(training_dir))
 
             logger.info("Initializing Pacemaker...")
-            wrapper = PacemakerWrapper(self.config.training_config, self.manager.work_dir)
+            wrapper = PacemakerWrapper(self.config.training_config, training_dir)
 
             # Assuming previous generation's potential can be used as initial
             initial_potential = None
-            prev_gen = self.manager.state.cycle_index - 1
-            if prev_gen >= 0:
-                prev_pot = self.manager.work_dir / "potentials" / f"generation_{prev_gen}.yace"
+            if cycle > 0:
+                prev_gen = cycle - 1
+                pot_dir = self.manager.work_dir / "potentials"
+                prev_pot = pot_dir / f"generation_{prev_gen}.yace"
                 if prev_pot.exists():
                     initial_potential = prev_pot
+                    logger.info(f"Using initial potential: {initial_potential}")
 
-            logger.info(f"Starting training (Gen {self.manager.state.cycle_index})...")
+            logger.info(f"Starting training (Gen {cycle})...")
             result = wrapper.train(initial_potential=initial_potential)
 
             if result.success and result.potential_path:
@@ -41,12 +49,12 @@ class TrainingPhase(BasePhase):
                 # Save potential to generation specific path
                 pot_dir = self.manager.work_dir / "potentials"
                 pot_dir.mkdir(exist_ok=True)
-                dest = pot_dir / f"generation_{self.manager.state.cycle_index}.yace"
+                dest = pot_dir / f"generation_{cycle}.yace"
 
                 # Update state
                 self.manager.state.latest_potential_path = dest
 
-                # Copy or move
+                # Copy
                 try:
                     shutil.copy2(result.potential_path, dest)
                 except Exception:

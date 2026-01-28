@@ -1,4 +1,8 @@
 import logging
+import tempfile
+from pathlib import Path
+
+from ase.io import write
 
 from mlip_autopipec.config.schemas.common import EmbeddingConfig
 from mlip_autopipec.orchestration.phases.base import BasePhase
@@ -40,17 +44,27 @@ class SelectionPhase(BasePhase):
                 # Fallback: select all if no training config (can't run pacemaker)
                 selected_indices = set(range(len(candidates)))
             else:
-                pacemaker = PacemakerWrapper(self.config.training_config, self.manager.work_dir)
+                training_dir = self.manager.work_dir / f"training_gen_{self.manager.state.cycle_index}"
+                pacemaker = PacemakerWrapper(self.config.training_config, training_dir)
                 GammaSelectionStrategy(
                     pacemaker, EmbeddingConfig()
                 )  # Using default embedding config
 
                 # Since GammaSelectionStrategy uses PacemakerWrapper.select_active_set which works on file,
-                # and returns indices relative to the input list.
-                # I can rely on list order preservation.
+                # we must export candidates to a file.
 
-                indices = pacemaker.select_active_set(candidates, potential_path)
-                selected_indices = set(indices)
+                with tempfile.NamedTemporaryFile(suffix=".xyz", delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+
+                try:
+                    # Write candidates to file
+                    write(str(tmp_path), candidates, format="extxyz")
+
+                    indices = pacemaker.select_active_set(tmp_path, potential_path)
+                    selected_indices = set(indices)
+                finally:
+                    if tmp_path.exists():
+                        tmp_path.unlink()
 
             # 3. Update Status
             selected_count = 0
