@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 
 from mlip_autopipec.config.loaders.yaml_loader import load_config
-from mlip_autopipec.config.schemas.core import UserInputConfig
+from mlip_autopipec.config.models import UserInputConfig
 from mlip_autopipec.modules.cli_handlers.handlers import CLIHandler
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 

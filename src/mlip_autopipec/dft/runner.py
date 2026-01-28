@@ -10,9 +10,9 @@ from ase import Atoms
 from ase.io import write
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
-from mlip_autopipec.data_models.dft_models import DFTResult
 from mlip_autopipec.dft.parsers import BaseDFTParser, QEOutputParser
 from mlip_autopipec.dft.recovery import DFTRetriableError, RecoveryHandler
+from mlip_autopipec.domain_models.dft_models import DFTResult
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +45,32 @@ class QERunner:
         input_path = self.work_dir / "pw.in"
         output_path = self.work_dir / "pw.out"
 
-        self._validate_command(self.config.command)
+        try:
+            self._validate_command(self.config.command)
+        except DFTFatalError as e:
+             return DFTResult(
+                uid=uid,
+                energy=0.0,
+                forces=[],
+                succeeded=False,
+                converged=False,
+                error_message=f"Command validation failed: {e}",
+                wall_time=0.0,
+                parameters=self.config.model_dump(),
+            )
 
         try:
             self._write_input(atoms, input_path)
         except Exception as e:
             return DFTResult(
+                uid=uid,
                 energy=0.0,
                 forces=[],
+                succeeded=False,
                 converged=False,
-                error_message=f"Input generation failed: {e}"
+                error_message=f"Input generation failed: {e}",
+                wall_time=0.0,
+                parameters=self.config.model_dump(),
             )
 
         # 2. Run with Retries
@@ -67,12 +83,27 @@ class QERunner:
         attempt = 0
         while attempt <= self.config.max_retries:
             attempt += 1
-            success, error_msg = self._run_command(input_path, output_path)
+            try:
+                success, error_msg = self._run_command(input_path, output_path)
+            except DFTFatalError as e:
+                 return DFTResult(
+                    uid=uid,
+                    energy=0.0,
+                    forces=[],
+                    succeeded=False,
+                    converged=False,
+                    error_message=f"Fatal execution error: {e}",
+                    wall_time=0.0,
+                    parameters=params,
+                )
 
             if success:
                  # 3. Parse Output
-                 # Calculate walltime if possible, for now 0.0
-                 return self._parse_output(output_path, uid, 0.0, params, atoms)
+                 try:
+                     return self._parse_output(output_path, uid, 0.0, params, atoms)
+                 except Exception as e:
+                     logger.warning(f"Parsing failed for {uid}: {e}")
+                     error_msg = f"Parsing Error: {e}"
 
             # Handle Failure
             logger.warning(f"DFT Attempt {attempt} failed: {error_msg}")
@@ -88,24 +119,21 @@ class QERunner:
                 logger.info(f"Applying recovery strategy: {new_params}")
                 params.update(new_params)
                 # Re-write input with new params
-                # Note: We need to update self.config or pass params to _write_input
-                # _write_input currently uses self.config.
-                # Refactoring _write_input to accept params override
                 self._write_input(atoms, input_path, params_override=params)
 
-            except DFTRetriableError:
-                continue # Retry with same params? No, that's infinite loop.
-                # If get_strategy raises DFTRetriableError, it means we can't recover
-                break
-            except Exception as e:
-                logger.error(f"Recovery failed: {e}")
+            except (DFTRetriableError, RuntimeError, Exception):
+                # If recovery fails, break loop
                 break
 
         return DFTResult(
+            uid=uid,
             energy=0.0,
             forces=[],
+            succeeded=False,
             converged=False,
-            error_message=f"Failed after {attempt} attempts. Last error: {error_msg}"
+            error_message=f"Failed after {attempt} attempts. Last error: {error_msg}",
+            wall_time=0.0,
+            parameters=params,
         )
 
     def _validate_command(self, command: str) -> list[str]:
@@ -129,7 +157,7 @@ class QERunner:
 
     def _run_command(self, input_path: Path, output_path: Path) -> tuple[bool, str]:
         if not self.config.command:
-             return False, "Command is empty"
+             raise DFTFatalError("Command is empty")
 
         parts = self._validate_command(self.config.command)
         executable = parts[0]
@@ -138,11 +166,6 @@ class QERunner:
         if not shutil.which(executable):
             msg = f"Executable '{executable}' not found in PATH."
             raise DFTFatalError(msg)
-
-        # Prepare command
-        cmd = parts + ["-in", str(input_path.name)] # standard QE usage often is `pw.x < pw.in > pw.out` or `pw.x -in pw.in`
-        # But QE standard is often `pw.x -input pw.in` or stdin redirection.
-        # Let's assume standard redirection logic is handled by caller or we use stdin/stdout
 
         # Using stdin/stdout for QE
         try:
@@ -166,13 +189,24 @@ class QERunner:
         except Exception as e:
             return False, str(e)
 
-    def _write_input(self, atoms: Atoms, path: Path, params_override: dict | None = None) -> None:
+    def _write_input(self, atoms: Atoms, path: Path, params_override: dict[str, Any] | None = None) -> None:
+        """
+        Writes the DFT input file.
+
+        Args:
+            atoms: The Atoms object.
+            path: Path to write the input file.
+            params_override: Optional dictionary to override config parameters.
+        """
         # Construct params
         params = self.config.model_dump()
         if params_override:
             params.update(params_override)
 
         # Helper to extract dict from params
+        # Note: ASE's espresso calculator/writer expects 'input_data' dict for key sections
+        # and top-level kwargs like 'pseudopotentials', 'kspacing'.
+
         input_data = {
             'control': {
                 'calculation': 'scf',
@@ -192,11 +226,14 @@ class QERunner:
             }
         }
 
-        # Add input_data to atoms object for ase.io.write
-        # Or use DFTInputGenerator if we had one connected.
-        # For now, relying on ASE's built-in espresso writer via simple kwargs or dict
-
-        # ASE espresso calculator/writer uses 'input_data' dict
+        # Merge input_data from params if present (allows user to inject raw QE params)
+        if 'input_data' in params and isinstance(params['input_data'], dict):
+             # Simple merge (not deep merge for brevity, but could be improved)
+             for section, values in params['input_data'].items():
+                 if section in input_data:
+                     input_data[section].update(values)
+                 else:
+                     input_data[section] = values
 
         # type: ignore[no-untyped-call]
         write(

@@ -2,9 +2,8 @@ from types import GeneratorType
 
 import pytest
 
-from mlip_autopipec.config.models import SystemConfig
+from mlip_autopipec.config.models import GeneratorConfig, SystemConfig
 from mlip_autopipec.config.schemas.core import TargetSystem
-from mlip_autopipec.config.schemas.generator import GeneratorConfig
 from mlip_autopipec.generator.builder import StructureBuilder
 
 
@@ -22,7 +21,7 @@ def system_config() -> SystemConfig:
 
 def test_builder_initialization(system_config: SystemConfig) -> None:
     builder = StructureBuilder(system_config)
-    assert builder.generator_config.number_of_structures == 5
+    assert builder.config.number_of_structures == 5
 
 
 def test_build_flow(system_config: SystemConfig) -> None:
@@ -37,12 +36,12 @@ def test_build_flow(system_config: SystemConfig) -> None:
 
     structures = list(structures_iter)
     assert len(structures) > 0
-    # Should be limited to number_of_structures if we generated more
+    # Should be limited to number_of_structures
     assert len(structures) <= 5
 
     for s in structures:
-        assert "uuid" in s.info
-        assert s.info["target_system"] == "AlCu"
+        # Check basic properties, UUID/metadata are not responsibility of builder anymore
+        assert len(s) > 0
 
 
 def test_build_with_defaults(system_config: SystemConfig) -> None:
@@ -57,4 +56,5 @@ def test_build_no_target() -> None:
     config = SystemConfig()  # No target system
     builder = StructureBuilder(config)
     structures = list(builder.build())
-    assert structures == []
+    assert len(structures) > 0
+    assert structures[0].get_chemical_symbols()[0] == "Al" # Fallback

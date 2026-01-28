@@ -1,9 +1,9 @@
-from mlip_autopipec.inference.parsers import LogParser
+from mlip_autopipec.inference.parsers import LammpsLogParser
 
 
 def test_log_parser_no_file(tmp_path):
     log_file = tmp_path / "non_existent.log"
-    max_gamma, halted, halt_step = LogParser.parse(log_file)
+    max_gamma, halted, halt_step = LammpsLogParser.parse(log_file)
     assert max_gamma == 0.0
     assert halted is False
     assert halt_step is None
@@ -20,7 +20,7 @@ Loop time of 1.23 on 1 procs
     """
     log_file.write_text(content)
 
-    max_gamma, halted, halt_step = LogParser.parse(log_file)
+    max_gamma, halted, halt_step = LammpsLogParser.parse(log_file)
     assert max_gamma == 1.2
     assert halted is False
     assert halt_step is None
@@ -37,7 +37,7 @@ Last command: run 1000
     """
     log_file.write_text(content)
 
-    max_gamma, halted, halt_step = LogParser.parse(log_file)
+    max_gamma, halted, halt_step = LammpsLogParser.parse(log_file)
     assert max_gamma == 6.5
     assert halted is True
     # In some LAMMPS versions it might output step, but usually we rely on finding the last step output
@@ -61,7 +61,7 @@ ERROR: Fix halt condition met
     """
     log_file.write_text(content)
 
-    max_gamma, halted, halt_step = LogParser.parse(log_file)
+    max_gamma, halted, halt_step = LammpsLogParser.parse(log_file)
     assert max_gamma == 5.5
     assert halted is True
     # Ideally halt_step would be 200

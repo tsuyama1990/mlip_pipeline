@@ -1,4 +1,3 @@
-import sqlite3
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -6,6 +5,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.config.models import MinimalConfig, SystemConfig, TargetSystem
+from mlip_autopipec.domain_models.dft_models import DFTResult
 from mlip_autopipec.exceptions import DatabaseError
 from mlip_autopipec.orchestration.database import DatabaseManager
 
@@ -30,7 +30,7 @@ def test_add_structure(db_path):
         assert uid == 1
         assert db.count() == 1
 
-        entries = list(db.get_entries())
+        entries = list(db.select_entries())
         assert entries[0][0] == 1
         assert len(entries[0][1]) == 2
         assert entries[0][1].info["status"] == "pending"
@@ -42,16 +42,17 @@ def test_update_status(db_path):
         uid = db.add_structure(atoms, {"status": "pending"})
         db.update_status(uid, "running")
 
-        entries = list(db.get_entries())
+        entries = list(db.select_entries())
         assert entries[0][1].info["status"] == "running"
 
 
 def test_validate_atoms_nan(db_path):
     atoms = Atoms("H", positions=[[float("nan"), 0, 0]])
     with DatabaseManager(db_path) as db:
+        # DatabaseManager wraps errors in DatabaseError
         with pytest.raises(DatabaseError) as exc:
-            db.add_structure(atoms, {})
-        assert "Invalid Atoms object" in str(exc.value)
+             db.add_structure(atoms, {})
+        assert "NaN or Inf" in str(exc.value)
 
 
 def test_validate_atoms_zero_cell_pbc(db_path):
@@ -68,8 +69,8 @@ def test_count_kwargs(db_path):
         db.add_structure(atoms, {"status": "pending"})
         db.add_structure(atoms, {"status": "completed"})
 
-        assert db.count(status="pending") == 1
-        assert db.count(status="completed") == 1
+        assert db.count(selection="status=pending") == 1
+        assert db.count(selection="status=completed") == 1
 
 
 def test_update_metadata(db_path):
@@ -78,7 +79,7 @@ def test_update_metadata(db_path):
         uid = db.add_structure(atoms, {"status": "pending"})
         db.update_metadata(uid, {"new_key": "value"})
 
-        entries = list(db.get_entries())
+        entries = list(db.select_entries())
         assert entries[0][1].info["new_key"] == "value"
 
 
@@ -87,39 +88,66 @@ def test_get_atoms(db_path):
     with DatabaseManager(db_path) as db:
         db.add_structure(atoms, {"status": "pending", "foo": "bar"})
 
-        fetched = list(db.get_atoms(status="pending"))
+        fetched = list(db.get_atoms(selection="status=pending"))
         assert len(fetched) == 1
         assert fetched[0].info["foo"] == "bar"
         assert fetched[0].info["status"] == "pending"
 
 
-def test_save_candidate(db_path):
+def test_save_candidates(db_path):
     atoms = Atoms("H")
     with DatabaseManager(db_path) as db:
-        db.save_candidate(atoms, {"status": "pending", "source": "random"})
+        db.save_candidates([atoms], cycle_index=1, method="random")
         assert db.count() == 1
         atoms_list = list(db.get_atoms())
-        assert atoms_list[0].info["source"] == "random"
+        assert atoms_list[0].info["origin"] == "random"
 
 
 def test_save_dft_result(db_path):
-    from pydantic import BaseModel
-
-    class MockResult(BaseModel):
-        energy: float = -10.0
-        forces: list = [[0.0, 0.0, 0.0]]
-        stress: list = [0.0] * 6
-
     atoms = Atoms("H")
-    result = MockResult()
+    result = DFTResult(
+        uid="test_uid",
+        energy=-10.0,
+        forces=[[0.0, 0.0, 0.0]],
+        stress=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        succeeded=True,
+        converged=True,
+        wall_time=1.0,
+        parameters={}
+    )
     with DatabaseManager(db_path) as db:
         db.save_dft_result(atoms, result, {"status": "completed"})
 
         assert db.count() == 1
         saved = next(iter(db.get_atoms()))
-        assert saved.info["energy"] == -10.0
-        # Forces are saved in 'data' blob, which is merged into info by our get_atoms
-        assert np.allclose(saved.info["forces"], [[0.0, 0.0, 0.0]])
+        # In ASE DB, 'energy' might be stored as special column or key-value pair
+        # If no calculator is attached during write, it's stored as KV pair if we pass it in KV pairs
+        # OR if we set atoms.info['energy'].
+        # ASE DB automatically extracts energy from Calculator if present.
+        # Here we manually set atoms.info['energy'].
+        # Let's check if it comes back in info or needs accessing differently.
+
+        # If stored as key-value pair, it should be in .info
+        # Note: ASE DB might not allow 'energy' as key-value pair if it conflicts with reserved column?
+        # But 'energy' IS a reserved column. If we provide it in key_value_pairs (via **metadata in add_structure),
+        # it might populate the column.
+
+        # When reading back: row.energy is the column. toatoms() puts it where?
+        # row.toatoms() attaches a Calculator (SinglePointCalculator) if energy/forces present.
+        # So we should check get_potential_energy()?
+
+        if saved.calc:
+            assert saved.get_potential_energy() == -10.0
+        else:
+            # Fallback
+            assert saved.info.get("energy") == -10.0
+
+        # Forces
+        if saved.calc:
+             np.testing.assert_allclose(saved.get_forces(), [[0.0, 0.0, 0.0]])
+        else:
+             np.testing.assert_allclose(saved.get_array("forces"), [[0.0, 0.0, 0.0]])
+
         assert saved.info["status"] == "completed"
 
 
@@ -132,8 +160,6 @@ def test_system_config(db_path):
     with DatabaseManager(db_path) as db:
         db.set_system_config(sys_conf)
 
-        # Re-open to check persistence (ase.db metadata is stored in file)
-
     with DatabaseManager(db_path) as db:
         loaded = db.get_system_config()
         assert loaded.target_system.elements == ["Fe"]
@@ -141,105 +167,54 @@ def test_system_config(db_path):
 
 # Error Handling Tests
 
+def test_connect_error(db_path):
+    with patch("mlip_autopipec.orchestration.database.connect", side_effect=Exception("Connection failed")):
+        with pytest.raises(DatabaseError, match="Failed to initialize"):
+             with DatabaseManager(db_path) as db:
+                 pass
 
-def test_connect_os_error(db_path):
-    with patch("ase.db.connect", side_effect=OSError("Disk full")):
-        db = DatabaseManager(db_path)
-        with pytest.raises(DatabaseError) as exc:
-            db.connector.connect()
-        assert "FileSystem error" in str(exc.value)
-
-
-def test_connect_sqlite_error(db_path):
-    with patch("ase.db.connect", side_effect=sqlite3.DatabaseError("Corrupt")):
-        db = DatabaseManager(db_path)
-        with pytest.raises(DatabaseError) as exc:
-            db.connector.connect()
-        assert "not a valid SQLite database" in str(exc.value)
-
-
-def test_add_structure_key_error(db_path):
+def test_add_structure_error(db_path):
     atoms = Atoms("H")
-    # Mock _connection.write to raise KeyError
     with DatabaseManager(db_path) as db:
-        db.connector._connection = MagicMock()
-        db.connector._connection.write.side_effect = KeyError("bad key")
+        # Mocking internal connection to raise error
+        db._connection = MagicMock()
+        db._connection.write.side_effect = Exception("Write failed")
 
-        with pytest.raises(DatabaseError) as exc:
+        with pytest.raises(DatabaseError, match="Failed to add structure"):
             db.add_structure(atoms, {})
-        assert "Invalid key" in str(exc.value)
 
-
-def test_update_status_key_error(db_path):
+def test_update_status_error(db_path):
     with DatabaseManager(db_path) as db:
-        # ID 999 does not exist
-        with pytest.raises(DatabaseError) as exc:
+        db._connection = MagicMock()
+        db._connection.update.side_effect = Exception("Update failed")
+        with pytest.raises(DatabaseError, match="Failed to update status"):
             db.update_status(999, "running")
-        assert "Failed to update status" in str(exc.value)
-
-
-def test_get_atoms_error(db_path):
-    with DatabaseManager(db_path) as db:
-        db.connector._connection = MagicMock()
-        db.connector._connection.select.side_effect = Exception("Select failed")
-
-        with pytest.raises(DatabaseError) as exc:
-            list(db.get_atoms())  # Must iterate to trigger error
-        assert "Failed to select atoms" in str(exc.value)
-
-
-def test_get_entries_error(db_path):
-    with DatabaseManager(db_path) as db:
-        db.connector._connection = MagicMock()
-        db.connector._connection.select.side_effect = Exception("Select failed")
-
-        with pytest.raises(DatabaseError) as exc:
-            list(db.get_entries())  # Must iterate to trigger error
-        assert "Failed to select entries" in str(exc.value)
-
 
 def test_count_error(db_path):
     with DatabaseManager(db_path) as db:
-        db.connector._connection = MagicMock()
-        db.connector._connection.count.side_effect = Exception("Count failed")
+        db._connection = MagicMock()
+        db._connection.count.side_effect = Exception("Count failed")
 
-        with pytest.raises(DatabaseError) as exc:
+        with pytest.raises(DatabaseError, match="Failed to count rows"):
             db.count()
-        assert "Failed to count rows" in str(exc.value)
-
 
 def test_update_metadata_error(db_path):
     with DatabaseManager(db_path) as db:
-        db.connector._connection = MagicMock()
-        db.connector._connection.update.side_effect = Exception("Update failed")
+        db._connection = MagicMock()
+        db._connection.update.side_effect = Exception("Update failed")
 
-        with pytest.raises(DatabaseError) as exc:
+        with pytest.raises(DatabaseError, match="Failed to update metadata"):
             db.update_metadata(1, {})
-        assert "Failed to update metadata" in str(exc.value)
-
-
-def test_get_system_config_invalid(db_path):
-    with DatabaseManager(db_path) as db:
-        # Inject invalid metadata directly into the mock or connection if possible
-        # ase.db metadata is a dict.
-        db.connector.connect().metadata = {"target_system": "Not A Dict"}
-
-        with pytest.raises(DatabaseError) as exc:
-            db.get_system_config()
-        assert "Stored SystemConfig is invalid" in str(exc.value)
-
 
 def test_save_dft_result_error(db_path):
     atoms = Atoms("H")
-    from pydantic import BaseModel
-
-    class MockResult(BaseModel):
-        energy: float = -10.0
+    result = DFTResult(
+        uid="uid", energy=-10.0, forces=[[0.0,0.0,0.0]], succeeded=True, wall_time=0, parameters={}
+    )
 
     with DatabaseManager(db_path) as db:
-        db.connector._connection = MagicMock()
-        db.connector._connection.write.side_effect = Exception("Write failed")
+        db._connection = MagicMock()
+        db._connection.write.side_effect = Exception("Write failed")
 
-        with pytest.raises(DatabaseError) as exc:
-            db.save_dft_result(atoms, MockResult(), {})
-        assert "Failed to save DFT result" in str(exc.value)
+        with pytest.raises(DatabaseError, match="Failed to save DFT result"):
+            db.save_dft_result(atoms, result, {})

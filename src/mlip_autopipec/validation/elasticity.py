@@ -4,7 +4,7 @@ from pathlib import Path
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.validation import ElasticConfig
-from mlip_autopipec.data_models.validation import ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +21,28 @@ class ElasticityValidator:
 
     def validate(self, atoms: Atoms, potential_path: Path) -> ValidationResult:
         logger.info("Starting Elasticity Validation...")
-        self._validate_command(self.config.command)
+        try:
+            self._validate_command(self.config.command)
 
-        return ValidationResult(
-            metric="C11",
-            value=0.0,
-            reference=0.0,
-            passed=False
-        )
+            metric = ValidationMetric(
+                name="C11",
+                value=0.0,
+                unit="GPa",
+                passed=False,
+                details={"reference": 0.0}
+            )
+
+            return ValidationResult(
+                module="elastic",
+                passed=False,
+                metrics=[metric]
+            )
+        except Exception as e:
+            return ValidationResult(
+                module="elastic",
+                passed=False,
+                error=str(e)
+            )
 
     def _validate_command(self, command: str) -> None:
         if any(c in command for c in [";", "|", "&"]):

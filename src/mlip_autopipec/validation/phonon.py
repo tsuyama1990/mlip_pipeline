@@ -4,7 +4,7 @@ from pathlib import Path
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.validation import PhononConfig
-from mlip_autopipec.data_models.validation import ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +21,28 @@ class PhononValidator:
 
     def validate(self, atoms: Atoms, potential_path: Path) -> ValidationResult:
         logger.info("Starting Phonon Validation...")
-        self._validate_command(self.config.command)
+        try:
+            self._validate_command(self.config.command)
 
-        return ValidationResult(
-            metric="phonon_frequencies",
-            value=0.0,
-            reference=0.0,
-            passed=False
-        )
+            metric = ValidationMetric(
+                name="phonon_frequencies",
+                value=0.0,
+                unit="THz",
+                passed=False,
+                details={"reference": 0.0}
+            )
+
+            return ValidationResult(
+                module="phonon",
+                passed=False,
+                metrics=[metric]
+            )
+        except Exception as e:
+            return ValidationResult(
+                module="phonon",
+                passed=False,
+                error=str(e)
+            )
 
     def _validate_command(self, command: str) -> None:
         if any(c in command for c in [";", "|", "&"]):

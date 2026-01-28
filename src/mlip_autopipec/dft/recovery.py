@@ -1,16 +1,12 @@
 import re
-from enum import Enum
+from pathlib import Path
 from typing import Any, ClassVar
 
+from mlip_autopipec.domain_models.dft_models import DFTErrorType
 
-class DFTErrorType(str, Enum):
-    CONVERGENCE_FAIL = "CONVERGENCE_FAIL"
-    DIAGONALIZATION_ERROR = "DIAGONALIZATION_ERROR"
-    MAX_CPU_TIME = "MAX_CPU_TIME"
-    OOM_KILL = "OOM_KILL"
-    UNKNOWN = "UNKNOWN"
-    NONE = "NONE"
 
+class DFTRetriableError(Exception):
+    """Raised when an error is considered recoverable."""
 
 class RecoveryHandler:
     """
@@ -32,6 +28,22 @@ class RecoveryHandler:
             re.compile(r"out of memory", re.IGNORECASE),
         ],
     }
+
+    def __init__(self, config: Any):
+        self.config = config
+
+    def analyze_error(self, output_file: Path, stderr: str = "") -> DFTErrorType:
+        """
+        Analyzes the output file and stderr to determine the error type.
+        """
+        stdout = ""
+        if output_file.exists():
+            try:
+                stdout = output_file.read_text(errors="replace")
+            except Exception:
+                pass
+
+        return self.analyze(stdout, stderr)
 
     @staticmethod
     def analyze(stdout: str, stderr: str) -> DFTErrorType:
@@ -80,6 +92,9 @@ class RecoveryHandler:
                 new_params["diagonalization"] = "cg"
             return new_params
 
-        # If no strategy found or fatal error
+        # If no strategy found or fatal error, raise non-retriable exception
+        # Actually QERunner catches DFTRetriableError to retry?
+        # No, QERunner catches DFTRetriableError to CONTINUE (retry).
+        # If we raise normal Exception, it breaks.
         msg = f"No recovery strategy available for {error_type} with params {current_params}"
         raise RuntimeError(msg)

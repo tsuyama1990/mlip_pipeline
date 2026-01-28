@@ -4,7 +4,7 @@ from pathlib import Path
 from ase import Atoms
 
 from mlip_autopipec.config.schemas.validation import EOSConfig
-from mlip_autopipec.data_models.validation import ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +22,32 @@ class EOSValidator:
     def validate(self, atoms: Atoms, potential_path: Path) -> ValidationResult:
         logger.info("Starting EOS Validation...")
 
-        self._validate_command(self.config.command)
+        try:
+            self._validate_command(self.config.command)
 
-        # Placeholder implementation
-        return ValidationResult(
-            metric="bulk_modulus",
-            value=0.0,
-            reference=0.0,
-            passed=False
-        )
+            # Placeholder for actual calculation
+            bulk_modulus = 0.0
+
+            metric = ValidationMetric(
+                name="bulk_modulus",
+                value=bulk_modulus,
+                unit="GPa",
+                passed=False, # Placeholder
+                details={"reference": 0.0}
+            )
+
+            return ValidationResult(
+                module="eos",
+                passed=False,
+                metrics=[metric]
+            )
+
+        except Exception as e:
+            return ValidationResult(
+                module="eos",
+                passed=False,
+                error=str(e)
+            )
 
     def _validate_command(self, command: str) -> None:
         if any(c in command for c in [";", "|", "&"]):
