@@ -1,11 +1,9 @@
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
-from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
 
 runner = CliRunner()

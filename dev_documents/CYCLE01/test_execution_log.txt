@@ -92,7 +92,7 @@ src/mlip_autopipec/core/__init__.py                          0      0   100%
 src/mlip_autopipec/core/services.py                         13      2    85%   31-32
 src/mlip_autopipec/core/workspace.py                        13     13     0%   1-25
 src/mlip_autopipec/data_models/__init__.py                   5      0   100%
-src/mlip_autopipec/data_models/atoms.py                     24      2    92%   15-16
+src/mlip_autopipec/data_models/atoms.py                     36      9    75%   29-30, 41-45, 50-51, 61
 src/mlip_autopipec/data_models/candidate.py                 10     10     0%   1-19
 src/mlip_autopipec/data_models/dft_models.py                52      4    92%   56-57, 66-67
 src/mlip_autopipec/data_models/inference_models.py          26      9    65%   28-37
@@ -173,5 +173,5 @@ src/mlip_autopipec/validation/eos.py                        31      3    90%   2
 src/mlip_autopipec/validation/phonon.py                     36      7    81%   30, 58-68, 103-104
 src/mlip_autopipec/validation/runner.py                     24      3    88%   33, 43-44
 --------------------------------------------------------------------------------------
-TOTAL                                                     3851   1402    64%
-======================= 187 passed, 8 warnings in 53.67s =======================
+TOTAL                                                     3863   1409    64%
+======================= 187 passed, 8 warnings in 52.08s =======================

@@ -6,7 +6,7 @@ from ase import Atoms
 
 from mlip_autopipec.config.schemas.dft import DFTConfig
 from mlip_autopipec.data_models.dft_models import DFTResult
-from mlip_autopipec.dft.runner import DFTFatalError, DFTRetriableError, QERunner
+from mlip_autopipec.dft.runner import DFTFatalError, QERunner
 
 
 @pytest.fixture

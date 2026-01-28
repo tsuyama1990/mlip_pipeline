@@ -188,7 +188,7 @@ def run_dft(
     config_path: Path = typer.Option(..., "--config", "-c", help="Path to DFT configuration YAML"),  # noqa: B008
     structure_path: Path = typer.Option(
         ..., "--structure", "-s", help="Path to structure file (e.g., .cif, .xyz)"
-    ),  # noqa: B008
+    ),
     work_dir: Path = typer.Option(None, "--work-dir", "-w", help="Override working directory"),  # noqa: B008
 ) -> None:
     """Run a DFT calculation on a single structure."""
