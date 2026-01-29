@@ -8,6 +8,9 @@ def load_yaml(path: Path) -> dict[str, Any]:
     """
     Safely load a YAML file.
 
+    WARNING: This function loads the entire file into memory.
+    It is intended for configuration files, not large datasets.
+
     Args:
         path: Path to the YAML file.
 
@@ -17,6 +20,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
     Raises:
         FileNotFoundError: If the file does not exist.
         yaml.YAMLError: If the YAML is invalid.
+        TypeError: If the YAML content is not a dictionary.
     """
     with path.open("r") as f:
         data = yaml.safe_load(f)

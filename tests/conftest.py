@@ -1,6 +1,6 @@
-import pytest
-import numpy as np
 import ase
+import pytest
+
 
 @pytest.fixture
 def sample_ase_atoms():

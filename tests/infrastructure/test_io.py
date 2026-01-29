@@ -1,7 +1,10 @@
-import pytest
 from pathlib import Path
+
+import pytest
 import yaml
+
 from mlip_autopipec.infrastructure import io
+
 
 def test_load_yaml_valid(tmp_path):
     """Test loading valid YAML."""
@@ -26,7 +29,7 @@ def test_dump_yaml(tmp_path):
     io.dump_yaml(data, p)
 
     assert p.exists()
-    with open(p, "r") as f:
+    with open(p) as f:
         loaded = yaml.safe_load(f)
     assert loaded == data
 

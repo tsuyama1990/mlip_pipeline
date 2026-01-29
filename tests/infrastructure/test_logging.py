@@ -1,8 +1,8 @@
-import pytest
 import logging
-from pathlib import Path
+
 from mlip_autopipec.domain_models.config import LoggingConfig
 from mlip_autopipec.infrastructure.logging import setup_logging
+
 
 def test_setup_logging(tmp_path):
     """Test logging setup."""

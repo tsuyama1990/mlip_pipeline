@@ -1,8 +1,9 @@
-import pytest
 import numpy as np
+import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.domain_models.structure import Structure
-import ase
+
 
 def test_structure_valid():
     """Test creating a valid structure."""

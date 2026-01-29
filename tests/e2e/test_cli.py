@@ -1,7 +1,8 @@
-import pytest
-from typer.testing import CliRunner
-from mlip_autopipec.app import app
 from pathlib import Path
+
+from typer.testing import CliRunner
+
+from mlip_autopipec.app import app
 
 runner = CliRunner()
 

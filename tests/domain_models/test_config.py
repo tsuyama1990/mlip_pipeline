@@ -1,7 +1,9 @@
+
 import pytest
-from pathlib import Path
 from pydantic import ValidationError
+
 from mlip_autopipec.domain_models.config import Config, PotentialConfig
+
 
 def test_config_valid():
     """Test valid configuration creation."""

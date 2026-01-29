@@ -48,10 +48,10 @@ class Structure(BaseModel):
     def from_ase(cls, atoms: ase.Atoms) -> "Structure":
         """Factory method to create a Structure from an ASE Atoms object."""
         return cls(
-            symbols=atoms.get_chemical_symbols(),
-            positions=atoms.get_positions(),
-            cell=atoms.get_cell().array, # Ensure it's numpy array
-            pbc=tuple(atoms.get_pbc()),
+            symbols=atoms.get_chemical_symbols(),  # type: ignore[no-untyped-call]
+            positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
+            cell=atoms.get_cell().array,  # type: ignore[no-untyped-call]
+            pbc=tuple(atoms.get_pbc()),  # type: ignore[no-untyped-call]
             properties=atoms.info.copy(),
         )
 
@@ -67,4 +67,4 @@ class Structure(BaseModel):
 
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
-        return str(self.to_ase().get_chemical_formula())
+        return str(self.to_ase().get_chemical_formula())  # type: ignore[no-untyped-call]
