@@ -38,7 +38,7 @@ def test_config_missing_field() -> None:
     with pytest.raises(ValidationError):
         Config(
             project_name="Test",
-            potential=None, # type: ignore[arg-type]
+            potential=None,
             # Missing potential
         )
 
@@ -61,3 +61,23 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
     assert c.logging.level == "DEBUG"
+
+
+def test_full_config_valid() -> None:
+    """Test full configuration with all sub-configs."""
+    c = Config(
+        project_name="FullProject",
+        potential=PotentialConfig(elements=["Al"], cutoff=4.0),
+        exploration={"max_steps": 500, "temperature": 500.0},
+        dft={"command": "vasp_std", "kspacing": 0.05},
+        training={"max_epochs": 10},
+        validation={"check_phonons": False}
+    )
+
+    assert c.exploration.max_steps == 500
+    assert c.exploration.temperature == 500.0
+    assert c.dft.command == "vasp_std"
+    assert c.training.max_epochs == 10
+    assert not c.validation.check_phonons
+    # Check default
+    assert c.exploration.time_step == 0.001
