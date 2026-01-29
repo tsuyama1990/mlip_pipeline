@@ -1,10 +1,11 @@
 import logging
+from pathlib import Path
 
 from mlip_autopipec.domain_models.config import LoggingConfig
 from mlip_autopipec.infrastructure.logging import setup_logging
 
 
-def test_setup_logging(tmp_path):
+def test_setup_logging(tmp_path: Path) -> None:
     """Test logging setup."""
     log_file = tmp_path / "test.log"
     config = LoggingConfig(level="DEBUG", file_path=log_file)

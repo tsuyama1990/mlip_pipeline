@@ -153,4 +153,5 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "types-pyyaml>=6.0.12.20250915",
 ]

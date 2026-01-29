@@ -1,9 +1,10 @@
+
 import ase
 import pytest
 
 
 @pytest.fixture
-def sample_ase_atoms():
+def sample_ase_atoms() -> ase.Atoms:
     return ase.Atoms(
         symbols=["H", "H"],
         positions=[[0, 0, 0], [0, 0, 0.74]],

@@ -1,3 +1,4 @@
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -5,7 +6,7 @@ from pydantic import ValidationError
 from mlip_autopipec.domain_models.config import Config, PotentialConfig
 
 
-def test_config_valid():
+def test_config_valid() -> None:
     """Test valid configuration creation."""
     c = Config(
         project_name="TestProject",
@@ -19,7 +20,7 @@ def test_config_valid():
     assert c.potential.cutoff == 5.0
     assert c.logging.level == "INFO" # Default
 
-def test_config_invalid_cutoff():
+def test_config_invalid_cutoff() -> None:
     """Test negative cutoff."""
     with pytest.raises(ValidationError) as excinfo:
         Config(
@@ -32,15 +33,16 @@ def test_config_invalid_cutoff():
         )
     assert "Cutoff must be greater than 0" in str(excinfo.value)
 
-def test_config_missing_field():
+def test_config_missing_field() -> None:
     """Test missing required field."""
     with pytest.raises(ValidationError):
         Config(
             project_name="Test",
+            potential=None, # type: ignore[arg-type]
             # Missing potential
         )
 
-def test_from_yaml(tmp_path):
+def test_from_yaml(tmp_path: Path) -> None:
     """Test loading from YAML using real IO."""
     yaml_file = tmp_path / "config.yaml"
     yaml_content = """
