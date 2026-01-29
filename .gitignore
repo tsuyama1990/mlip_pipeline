@@ -36,3 +36,6 @@ tmp/
 mlip_pipeline.log
 .coverage
 build/
+
+# Cycle 1 specific
+workflow_state.json
