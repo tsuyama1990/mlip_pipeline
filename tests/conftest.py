@@ -1,14 +1,24 @@
+"""Shared fixtures for tests."""
 
-import ase
+from pathlib import Path
+
 import pytest
+from ase import Atoms
 
 
 @pytest.fixture
-def sample_ase_atoms() -> ase.Atoms:
-    return ase.Atoms(
-        symbols=["H", "H"],
-        positions=[[0, 0, 0], [0, 0, 0.74]],
-        cell=[[10, 0, 0], [0, 10, 0], [0, 0, 10]],
-        pbc=[True, True, True],
-        info={"energy": -1.5}
+def temp_dir(tmp_path: Path) -> Path:
+    """Provide a temporary directory that is cleaned up after test."""
+    return tmp_path
+    # tmp_path is automatically cleaned up by pytest, but we can do extra cleanup if needed.
+
+
+@pytest.fixture
+def sample_ase_atoms() -> Atoms:
+    """Provide a sample ASE Atoms object."""
+    return Atoms(
+        "Si2",
+        positions=[[0, 0, 0], [1.3, 1.3, 1.3]],
+        cell=[5.43, 5.43, 5.43],
+        pbc=True
     )

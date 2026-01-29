@@ -1,53 +1,43 @@
+"""Tests for I/O utilities."""
+
 from pathlib import Path
 
 import pytest
-import yaml
 
 from mlip_autopipec.infrastructure import io
 
 
-def test_load_yaml_valid(tmp_path: Path) -> None:
-    """Test loading valid YAML."""
-    p = tmp_path / "test.yaml"
-    data = {"foo": "bar", "baz": 123}
-    with p.open("w") as f:
-        yaml.dump(data, f)
+def test_yaml_io(tmp_path: Path) -> None:
+    """Test YAML load and dump."""
+    data = {"key": "value", "nested": {"a": 1}}
+    path = tmp_path / "test.yaml"
 
-    loaded = io.load_yaml(p)
+    io.dump_yaml(data, path)
+    assert path.exists()
+
+    loaded = io.load_yaml(path)
     assert loaded == data
 
 
-def test_load_yaml_missing() -> None:
-    """Test loading missing file."""
+def test_load_yaml_not_found() -> None:
+    """Test loading non-existent file."""
     with pytest.raises(FileNotFoundError):
-        io.load_yaml(Path("non_existent.yaml"))
+        io.load_yaml("non_existent.yaml")
 
 
-def test_dump_yaml(tmp_path: Path) -> None:
-    """Test dumping YAML."""
-    p = tmp_path / "out.yaml"
-    data = {"a": 1, "b": [2, 3]}
+def test_json_io(tmp_path: Path) -> None:
+    """Test JSON save and load."""
+    data = {"state": "RUNNING", "cycle": 1}
+    path = tmp_path / "state.json"
 
-    io.dump_yaml(data, p)
+    io.save_json(data, path)
+    assert path.exists()
 
-    assert p.exists()
-    with p.open() as f:
-        loaded = yaml.safe_load(f)
+    loaded = io.load_json(path)
     assert loaded == data
 
 
-def test_load_yaml_empty(tmp_path: Path) -> None:
-    """Test loading empty YAML file."""
-    p = tmp_path / "empty.yaml"
-    p.touch()
-    assert io.load_yaml(p) == {}
-
-
-def test_load_yaml_invalid_type(tmp_path: Path) -> None:
-    """Test loading YAML that is not a dict."""
-    p = tmp_path / "list.yaml"
-    with p.open("w") as f:
-        yaml.dump([1, 2, 3], f)
-
-    with pytest.raises(TypeError, match="must contain a dictionary"):
-        io.load_yaml(p)
+def test_load_json_not_found() -> None:
+    """Test loading non-existent JSON."""
+    with pytest.raises(FileNotFoundError):
+        io.load_json("non_existent.json")

@@ -1,41 +1,60 @@
+"""Logging configuration using Rich and standard logging."""
+
 import logging
+from pathlib import Path
 
 from rich.logging import RichHandler
 
-from mlip_autopipec.domain_models.config import LoggingConfig
+from mlip_autopipec.constants import DATE_FORMAT, DEFAULT_LOG_FILENAME, LOG_FORMAT
 
 
-def setup_logging(config: LoggingConfig) -> None:
-    """
-    Configure the root logger with Rich console output and file logging.
+def setup_logging(
+    log_level: str = "INFO",
+    log_file: Path | None = None,
+    verbose: bool = False,
+) -> None:
+    """Configure the root logger with Rich handler and File handler.
 
     Args:
-        config: Logging configuration object.
+        log_level: The logging level for the console (default: INFO).
+        log_file: Path to the log file. If None, uses DEFAULT_LOG_FILENAME.
+        verbose: If True, sets console level to DEBUG.
     """
-    # Create the handlers
-    handlers: list[logging.Handler] = []
+    if verbose:
+        log_level = "DEBUG"
 
-    # Rich Handler for console
-    rich_handler = RichHandler(
+    level = getattr(logging, log_level.upper(), logging.INFO)
+
+    # Root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Capture everything at root level
+
+    # Remove existing handlers to avoid duplicates
+    if logger.handlers:
+        logger.handlers.clear()
+
+    # Console Handler (Rich)
+    console_handler = RichHandler(
         rich_tracebacks=True,
-        show_time=False,
-        show_path=False
+        markup=True,
+        show_path=False,
+        show_time=True,
+        show_level=True,
     )
-    handlers.append(rich_handler)
+    console_handler.setLevel(level)
+    # RichHandler formats internally, so we don't set a formatter for it
+    logger.addHandler(console_handler)
 
     # File Handler
-    file_handler = logging.FileHandler(config.file_path)
-    file_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    file_handler.setFormatter(file_formatter)
-    handlers.append(file_handler)
+    if log_file is None:
+        log_file = Path(DEFAULT_LOG_FILENAME)
 
-    # Configure Root Logger
-    logging.basicConfig(
-        level=config.level,
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=handlers,
-        force=True
-    )
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)  # Always log DEBUG to file
+    formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Suppress noisy libraries
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)

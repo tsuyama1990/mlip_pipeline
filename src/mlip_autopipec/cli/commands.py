@@ -14,6 +14,7 @@ from mlip_autopipec.constants import (
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
+from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 
 def init_project(path: Path) -> None:
@@ -54,11 +55,42 @@ def check_config(config_path: Path) -> None:
 
     try:
         config = Config.from_yaml(config_path)
-        logging_infra.setup_logging(config.logging)
+        logging_infra.setup_logging(
+            log_level=config.logging.level,
+            log_file=config.logging.file_path
+        )
 
         typer.secho("Configuration valid", fg=typer.colors.GREEN)
         logging.getLogger("mlip_autopipec").info("Validation successful")
 
     except Exception as e:
         typer.secho(f"Validation failed: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+
+
+def run_loop(config_path: Path) -> None:
+    """
+    Logic for running the active learning loop.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        # Load config
+        config = Config.from_yaml(config_path)
+
+        # Setup logging
+        logging_infra.setup_logging(
+            log_level=config.logging.level,
+            log_file=config.logging.file_path
+        )
+
+        # Initialize and run workflow
+        manager = WorkflowManager(config)
+        manager.run()
+
+    except Exception as e:
+        typer.secho(f"Workflow failed: {e}", fg=typer.colors.RED)
+        logging.exception("Workflow failed")
         raise typer.Exit(code=1) from e

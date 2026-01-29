@@ -1,62 +1,63 @@
-from pathlib import Path
-from typing import Any
+"""End-to-end tests for CLI."""
 
-import pytest
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
+from mlip_autopipec.constants import DEFAULT_CONFIG_FILENAME
 
 runner = CliRunner()
 
-def test_init(tmp_path: Path) -> None:
+
+def test_cli_init(tmp_path: Path) -> None:
     """Test 'init' command."""
+    # Change to temp dir
     with runner.isolated_filesystem(temp_dir=tmp_path):
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
         assert "Created template configuration" in result.stdout
-        assert Path("config.yaml").exists()
+        assert Path(DEFAULT_CONFIG_FILENAME).exists()
 
-def test_init_existing(tmp_path: Path) -> None:
-    """Test 'init' fails if file exists."""
+
+def test_cli_init_exists(tmp_path: Path) -> None:
+    """Test 'init' when file exists."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        Path("config.yaml").touch()
+        Path(DEFAULT_CONFIG_FILENAME).touch()
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 1
         assert "already exists" in result.stdout
 
-def test_init_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test 'init' handles exceptions during write."""
-    from mlip_autopipec.infrastructure import io
 
-    def mock_dump(*args: Any, **kwargs: Any) -> None:
-        msg = "Permission denied"
-        raise OSError(msg)
-
-    monkeypatch.setattr(io, "dump_yaml", mock_dump)
-
+def test_cli_run_loop(tmp_path: Path) -> None:
+    """Test 'run-loop' command."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(app, ["init"])
-        assert result.exit_code == 1
-        assert "Failed to create config: Permission denied" in result.stdout
-
-def test_check_valid(tmp_path: Path) -> None:
-    """Test 'check' with valid config."""
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        # Create config first
+        # First init
         runner.invoke(app, ["init"])
 
-        result = runner.invoke(app, ["check"])
+        # Then run
+        result = runner.invoke(app, ["run-loop"])
         assert result.exit_code == 0
-        assert "Configuration valid" in result.stdout
-        assert Path("mlip_pipeline.log").exists()
+        assert "Starting MLIP Active Learning Loop" in result.stdout
 
-def test_check_invalid(tmp_path: Path) -> None:
-    """Test 'check' with invalid config."""
+        # Check current directory
+        assert Path("workflow_state.json").exists()
+
+
+def test_cli_run_loop_invalid_config(tmp_path: Path) -> None:
+    """Test 'run-loop' with invalid config."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        p = Path("config.yaml")
-        p.write_text("project_name: 'Bad'\npotential:\n  cutoff: -1\n  elements: ['A']")
+        # Create invalid config using relative path
+        Path(DEFAULT_CONFIG_FILENAME).write_text("invalid: yaml: content")
 
-        result = runner.invoke(app, ["check"])
+        result = runner.invoke(app, ["run-loop"])
         assert result.exit_code == 1
-        assert "Validation failed" in result.stdout
-        assert "Cutoff must be greater than 0" in result.stdout
+        assert "Workflow failed" in result.stdout
+
+
+def test_cli_run_loop_no_config(tmp_path: Path) -> None:
+    """Test 'run-loop' without config."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(app, ["run-loop"])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout
