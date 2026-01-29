@@ -25,5 +25,14 @@ def check(
     """
     commands.check_config(config_path)
 
+@app.command(name="run-loop")
+def run_loop(
+    config_path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file") # noqa: B008
+) -> None:
+    """
+    Run the Active Learning loop.
+    """
+    commands.run_loop(config_path)
+
 if __name__ == "__main__":
     app()

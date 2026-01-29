@@ -1,8 +1,18 @@
+from enum import Enum
 from typing import Any
 
 import ase
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class CandidateStatus(str, Enum):
+    PENDING = "PENDING"
+    SCREENING = "SCREENING"
+    TRAINING = "TRAINING"
+    FAILED = "FAILED"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
 
 
 class Structure(BaseModel):
@@ -68,3 +78,34 @@ class Structure(BaseModel):
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
         return str(self.to_ase().get_chemical_formula())  # type: ignore[no-untyped-call]
+
+
+class Candidate(BaseModel):
+    """
+    Represents a structure in the Active Learning pipeline.
+    """
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    structure: Structure
+    status: CandidateStatus = CandidateStatus.PENDING
+    cycle_id: int = 0
+
+    # Computed properties from DFT/Potential
+    energy: float | None = None
+    forces: np.ndarray | None = None
+    stress: np.ndarray | None = None
+
+    # Metadata for tracking origin, uncertainty, etc.
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("forces")
+    @classmethod
+    def validate_forces_shape(cls, v: np.ndarray | None, _info: Any) -> np.ndarray | None:
+        if v is None:
+            return v
+        # We can't validate against structure length here easily without 'info' access logic
+        # strictly dependent on validation order, but generic shape check is possible.
+        if v.ndim != 2 or v.shape[1] != 3:
+             msg = f"Forces must have shape (N, 3), got {v.shape}"
+             raise ValueError(msg)
+        return v
