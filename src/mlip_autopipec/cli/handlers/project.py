@@ -7,7 +7,6 @@ import typer
 from mlip_autopipec.constants import (
     DEFAULT_CUTOFF,
     DEFAULT_ELEMENTS,
-    DEFAULT_LOG_FILENAME,
     DEFAULT_LOG_LEVEL,
     DEFAULT_PROJECT_NAME,
     DEFAULT_SEED,
@@ -32,7 +31,7 @@ def init_project(path: Path) -> None:
         },
         "logging": {
             "level": DEFAULT_LOG_LEVEL,
-            "file_path": DEFAULT_LOG_FILENAME
+            # Removed file_path default as it is handled by Config model defaults
         }
     }
 

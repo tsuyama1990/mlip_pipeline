@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from mlip_autopipec.constants import DEFAULT_STATE_FILENAME
+MAX_CONFIG_SIZE = 1024 * 1024 * 5  # 5 MB limit for config/state files
 
 
 def load_yaml(path: str | Path) -> dict[str, Any]:
@@ -15,7 +15,8 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
     WARNING: This loads the entire file into memory. Do not use for large datasets.
 
     This function uses `yaml.safe_load` to prevent arbitrary code execution,
-    ensuring security against malicious YAML files.
+    ensuring security against malicious YAML files. It also checks file size
+    to prevent OOM denial-of-service.
 
     Args:
         path: Path to the YAML file.
@@ -26,11 +27,17 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
     Raises:
         FileNotFoundError: If the file does not exist.
         yaml.YAMLError: If the file is not valid YAML.
+        ValueError: If file exceeds MAX_CONFIG_SIZE.
     """
     path = Path(path)
     if not path.exists():
         msg = f"File not found: {path}"
         raise FileNotFoundError(msg)
+
+    # Check size
+    if path.stat().st_size > MAX_CONFIG_SIZE:
+        msg = f"File {path} exceeds maximum allowed size ({MAX_CONFIG_SIZE} bytes)."
+        raise ValueError(msg)
 
     with path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
@@ -57,7 +64,7 @@ def dump_yaml(data: dict[str, Any], path: str | Path) -> None:
         yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
 
 
-def save_json(data: dict[str, Any], path: str | Path = DEFAULT_STATE_FILENAME) -> None:
+def save_json(data: dict[str, Any], path: str | Path) -> None:
     """Save data to a JSON file (used for state persistence).
 
     Args:
@@ -71,7 +78,7 @@ def save_json(data: dict[str, Any], path: str | Path = DEFAULT_STATE_FILENAME) -
         json.dump(data, f, indent=2)
 
 
-def load_json(path: str | Path = DEFAULT_STATE_FILENAME) -> dict[str, Any]:
+def load_json(path: str | Path) -> dict[str, Any]:
     """Load data from a JSON file.
 
     WARNING: This loads the entire file into memory. Do not use for large datasets.
@@ -84,11 +91,17 @@ def load_json(path: str | Path = DEFAULT_STATE_FILENAME) -> dict[str, Any]:
 
     Raises:
         FileNotFoundError: If the file does not exist.
+        ValueError: If file exceeds MAX_CONFIG_SIZE.
     """
     path = Path(path)
     if not path.exists():
         msg = f"File not found: {path}"
         raise FileNotFoundError(msg)
+
+    # Check size
+    if path.stat().st_size > MAX_CONFIG_SIZE:
+        msg = f"File {path} exceeds maximum allowed size ({MAX_CONFIG_SIZE} bytes)."
+        raise ValueError(msg)
 
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)  # type: ignore[no-any-return]

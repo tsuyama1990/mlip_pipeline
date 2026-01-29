@@ -78,7 +78,7 @@ def test_cli_run_loop(tmp_path: Path) -> None:
         assert result.exit_code == 0
         assert "Starting MLIP Active Learning Loop" in result.stdout
 
-        # Check current directory
+        # Check current directory for state file (default is workflow_state.json)
         assert Path("workflow_state.json").exists()
 
 

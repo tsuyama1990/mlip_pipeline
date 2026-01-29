@@ -3,12 +3,11 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.config import Config, PotentialConfig
 
 
 def test_config_valid(temp_dir: object) -> None:
     """Test creating a valid configuration."""
-    # We construct the dict manually
     data = {
         "project_name": "test_project",
         "potential": {
@@ -41,11 +40,16 @@ def test_config_invalid_cutoff() -> None:
     assert "Cutoff must be greater than 0" in str(excinfo.value)
 
 
-def test_config_missing_field() -> None:
-    """Test missing required field."""
-    data = {
-        "project_name": "test_project",
-        # Missing potential
-    }
+def test_config_invalid_elements() -> None:
+    """Test empty elements list."""
     with pytest.raises(ValidationError):
-        Config(**data)  # type: ignore[arg-type]
+        PotentialConfig(elements=[], cutoff=5.0)
+
+
+def test_config_invalid_project_name() -> None:
+    """Test empty project name."""
+    with pytest.raises(ValidationError):
+        Config(
+            project_name="  ",
+            potential=PotentialConfig(elements=["Si"], cutoff=5.0)
+        )

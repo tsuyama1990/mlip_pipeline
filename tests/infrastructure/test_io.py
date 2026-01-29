@@ -64,6 +64,29 @@ def test_load_json_malformed(tmp_path: Path) -> None:
     path.write_text("{unquoted: 1}")
 
     # json.load raises JSONDecodeError which inherits from ValueError
-    # We use a broad match because the message depends on the python version/implementation
     with pytest.raises(ValueError, match="Expecting property name"):
+        io.load_json(path)
+
+def test_load_yaml_too_large(tmp_path: Path) -> None:
+    """Test loading oversized YAML."""
+    path = tmp_path / "large.yaml"
+    # Create file slightly larger than MAX_CONFIG_SIZE (5MB)
+    size = io.MAX_CONFIG_SIZE + 100
+    with path.open("wb") as f:
+        f.seek(size - 1)
+        f.write(b"\0")
+
+    with pytest.raises(ValueError, match="exceeds maximum allowed size"):
+        io.load_yaml(path)
+
+def test_load_json_too_large(tmp_path: Path) -> None:
+    """Test loading oversized JSON."""
+    path = tmp_path / "large.json"
+    # Create file slightly larger than MAX_CONFIG_SIZE (5MB)
+    size = io.MAX_CONFIG_SIZE + 100
+    with path.open("wb") as f:
+        f.seek(size - 1)
+        f.write(b"\0")
+
+    with pytest.raises(ValueError, match="exceeds maximum allowed size"):
         io.load_json(path)

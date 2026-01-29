@@ -1,70 +1,67 @@
-"""Tests for WorkflowManager."""
+"""Tests for WorkflowManager and StateManager."""
 
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import pytest
 
-from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.config import Config, PotentialConfig
 from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
+from mlip_autopipec.orchestration.state_manager import StateManager
 from mlip_autopipec.orchestration.workflow import WorkflowManager
 
 
 @pytest.fixture
-def mock_config() -> Config:
+def mock_config(tmp_path: Path) -> Config:
     return Config(
         project_name="test",
-        potential={"elements": ["Si"], "cutoff": 5.0}
+        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        orchestrator={"state_file": tmp_path / "state.json"}  # type: ignore
     )
 
 
-def test_workflow_initialization(tmp_path: Path, mock_config: Config) -> None:
-    """Test initializing a new workflow."""
-    manager = WorkflowManager(mock_config, state_path=tmp_path / "state.json")
-    assert manager.state.cycle_index == 0
-    assert manager.state.current_phase == WorkflowPhase.INITIALIZATION
+def test_state_manager_initialization(tmp_path: Path) -> None:
+    """Test StateManager load/init."""
+    path = tmp_path / "new_state.json"
+    manager = StateManager(path)
 
-    # Verify save works
-    manager.save_state()
-    assert (tmp_path / "state.json").exists()
-
-
-def test_workflow_load_existing(tmp_path: Path, mock_config: Config) -> None:
-    """Test loading existing state."""
-    state_path = tmp_path / "state.json"
-    initial_state = WorkflowState(cycle_index=5, current_phase=WorkflowPhase.TRAINING)
-
-    # Save manually
-    from mlip_autopipec.infrastructure import io
-    io.save_json(initial_state.model_dump(mode="json"), state_path)
-
-    manager = WorkflowManager(mock_config, state_path=state_path)
-    assert manager.state.cycle_index == 5
-    assert manager.state.current_phase == WorkflowPhase.TRAINING
+    state = manager.load_or_initialize()
+    assert state.cycle_index == 0
+    assert state.current_phase == WorkflowPhase.INITIALIZATION
 
 
-def test_workflow_load_failure(tmp_path: Path, mock_config: Config) -> None:
-    """Test handling of corrupted state file."""
-    state_path = tmp_path / "state.json"
-    state_path.write_text("{corrupted json")
+def test_state_manager_save_load(tmp_path: Path) -> None:
+    """Test StateManager persistence."""
+    path = tmp_path / "saved_state.json"
+    manager = StateManager(path)
 
-    # Should log error and start fresh
-    manager = WorkflowManager(mock_config, state_path=state_path)
-    assert manager.state.cycle_index == 0
+    state = WorkflowState(cycle_index=2, current_phase=WorkflowPhase.TRAINING)
+    manager.save(state)
+
+    loaded = manager.load_or_initialize()
+    assert loaded.cycle_index == 2
+    assert loaded.current_phase == WorkflowPhase.TRAINING
 
 
-def test_workflow_save_failure(tmp_path: Path, mock_config: Config) -> None:
-    """Test handling of save failure."""
-    # Use a directory as file path to trigger error
-    state_path = tmp_path / "directory"
-    state_path.mkdir()
+def test_state_manager_load_corruption(tmp_path: Path) -> None:
+    """Test corrupted state file."""
+    path = tmp_path / "corrupt.json"
+    path.write_text("{bad_json")
 
-    manager = WorkflowManager(mock_config, state_path=state_path)
-    # Should log error but not crash
-    manager.save_state()
+    manager = StateManager(path)
+    state = manager.load_or_initialize()
+    assert state.cycle_index == 0  # Should reset
 
-def test_workflow_run(tmp_path: Path, mock_config: Config) -> None:
-    """Test run method."""
-    manager = WorkflowManager(mock_config, state_path=tmp_path / "state.json")
+    # Check if backup was created
+    backups = list(tmp_path.glob("corrupt.bak.*.json"))
+    assert len(backups) == 1
+
+
+def test_workflow_run(mock_config: Config, tmp_path: Path) -> None:
+    """Test WorkflowManager run."""
+    manager = WorkflowManager(mock_config)
     manager.run()
+
     assert manager.state.current_phase == WorkflowPhase.EXPLORATION
+    # Verify save happened via StateManager
+    saved_state = manager.state_manager.load_or_initialize()
+    assert saved_state.current_phase == WorkflowPhase.EXPLORATION

@@ -3,10 +3,9 @@
 import logging
 from pathlib import Path
 
-from mlip_autopipec.constants import DEFAULT_STATE_FILENAME
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
-from mlip_autopipec.infrastructure import io
+from mlip_autopipec.orchestration.state_manager import StateManager
 
 logger = logging.getLogger(__name__)
 
@@ -14,35 +13,13 @@ logger = logging.getLogger(__name__)
 class WorkflowManager:
     """Manages the lifecycle of the active learning workflow."""
 
-    def __init__(self, config: Config, state_path: Path = Path(DEFAULT_STATE_FILENAME)) -> None:
+    def __init__(self, config: Config, state_path: Path | None = None) -> None:
         self.config = config
-        self.state_path = state_path
-        self.state: WorkflowState = self._load_or_initialize_state()
+        # Use config state_file if not provided override
+        path = state_path if state_path else config.orchestrator.state_file
 
-    def _load_or_initialize_state(self) -> WorkflowState:
-        """Load state from disk or initialize a new one."""
-        if self.state_path.exists():
-            try:
-                data = io.load_json(self.state_path)
-                logger.info(f"Loaded existing workflow state from {self.state_path}")
-                return WorkflowState(**data)
-            except Exception:
-                logger.exception("Failed to load state. Starting fresh.")
-                # In a real scenario, we might want to backup the corrupted state
-
-        logger.info("Initializing new workflow state.")
-        return WorkflowState(
-            cycle_index=0,
-            current_phase=WorkflowPhase.INITIALIZATION
-        )
-
-    def save_state(self) -> None:
-        """Persist current state to disk."""
-        try:
-            io.save_json(self.state.model_dump(mode="json"), self.state_path)
-            logger.debug(f"Saved workflow state to {self.state_path}")
-        except Exception:
-            logger.exception("Failed to save state.")
+        self.state_manager = StateManager(path)
+        self.state: WorkflowState = self.state_manager.load_or_initialize()
 
     def run(self) -> None:
         """Execute the workflow loop."""
@@ -51,6 +28,6 @@ class WorkflowManager:
         # Cycle 01: Stub implementation
         # Just save the state to prove it works
         self.state.current_phase = WorkflowPhase.EXPLORATION
-        self.save_state()
+        self.state_manager.save(self.state)
 
         logger.info("Workflow initialized (Stub)")

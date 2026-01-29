@@ -5,8 +5,6 @@ from pathlib import Path
 
 from rich.logging import RichHandler
 
-from mlip_autopipec.constants import DATE_FORMAT, DEFAULT_LOG_FILENAME, LOG_FORMAT
-
 
 def setup_logging(
     log_level: str = "INFO",
@@ -17,7 +15,7 @@ def setup_logging(
 
     Args:
         log_level: The logging level for the console (default: INFO).
-        log_file: Path to the log file. If None, uses DEFAULT_LOG_FILENAME.
+        log_file: Path to the log file. If None, file logging is skipped unless provided.
         verbose: If True, sets console level to DEBUG.
     """
     if verbose:
@@ -46,14 +44,15 @@ def setup_logging(
     logger.addHandler(console_handler)
 
     # File Handler
-    if log_file is None:
-        log_file = Path(DEFAULT_LOG_FILENAME)
-
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)  # Always log DEBUG to file
-    formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.DEBUG)  # Always log DEBUG to file
+        formatter = logging.Formatter(
+            "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     # Suppress noisy libraries
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
