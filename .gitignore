@@ -36,3 +36,4 @@ tmp/
 mlip_pipeline.log
 .coverage
 build/
+workflow_state.json
