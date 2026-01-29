@@ -39,6 +39,7 @@ dependencies = [
     "matplotlib",
     "Jinja2",
     "phonopy>=2.20.0",
+    "ijson",
 ]
 
 [project.urls]

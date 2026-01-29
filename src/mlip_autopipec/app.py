@@ -4,8 +4,18 @@ import typer
 
 from mlip_autopipec.cli import commands
 from mlip_autopipec.constants import DEFAULT_CONFIG_FILENAME
+from mlip_autopipec.infrastructure.logging import setup_logging
 
 app = typer.Typer(help="MLIP Automated Pipeline CLI")
+
+
+@app.callback()
+def main(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+) -> None:
+    """MLIP Automated Pipeline CLI."""
+    setup_logging(verbose=verbose)
+
 
 @app.command()
 def init(
@@ -15,6 +25,7 @@ def init(
     Initialize a new project with a template configuration file.
     """
     commands.init_project(path)
+
 
 @app.command()
 def check(
