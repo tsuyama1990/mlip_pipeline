@@ -1,63 +1,44 @@
-# User Acceptance Testing (UAT): Cycle 03
+# Cycle 03 User Acceptance Testing (UAT)
 
 ## 1. Test Scenarios
 
-Cycle 03 is about ensuring the system can reliably generate ground-truth data.
+### Scenario 3.1: Successful DFT Calculation
+*   **ID**: UAT-03-01
+*   **Priority**: High
+*   **Description**: The system runs a DFT calculation for a valid structure and retrieves results.
+*   **Steps**:
+    1.  Provide a simple structure (e.g., Al atom) in the candidate list.
+    2.  Configure `DFTConfig` to point to a mock QE script (or actual QE if available).
+    3.  Run the loop (Oracle Phase).
+    4.  Verify that `DFTResult` is stored with valid energy and forces.
 
-### Scenario 3.1: Standard DFT Calculation
--   **ID**: UAT-C03-01
--   **Priority**: Critical
--   **Description**: Run a standard static calculation (SCF) on a simple structure (e.g., Silicon unit cell).
--   **Success Criteria**:
-    -   `pw.x` executes without error.
-    -   The system parses the output and returns a `DFTResult` object.
-    -   The `DFTResult` contains energy, forces (N x 3 array), and stress.
-    -   Forces on a perfect crystal should be near zero (< 0.01 eV/A).
+### Scenario 3.2: Self-Correction of Convergence Error
+*   **ID**: UAT-03-02
+*   **Priority**: Medium
+*   **Description**: The system detects a convergence failure and retries with adjusted parameters.
+*   **Steps**:
+    1.  Configure a mock QE script that fails the first time with "convergence not achieved" but succeeds the second time.
+    2.  Run the loop.
+    3.  Verify logs show "Convergence error detected. Retrying with mixing_beta=0.3".
+    4.  Verify the final status is `converged=True`.
 
-### Scenario 3.2: Self-Healing (The "Zombie" Calculation)
--   **ID**: UAT-C03-02
--   **Priority**: High
--   **Description**: We intentionally induce a convergence failure (e.g., by setting a ridiculously high mixing beta or low electron temperature for a metal). The system should automatically fix it.
--   **Success Criteria**:
-    -   The logs show "SCF Failure detected. Applying fix: Reduce Mixing Beta".
-    -   The system retries the calculation.
-    -   The final result is reported as "Converged".
-
-### Scenario 3.3: Automatic K-Point Grid
--   **ID**: UAT-C03-03
--   **Priority**: Medium
--   **Description**: The user defines `kspacing` instead of manual K-points.
--   **Success Criteria**:
-    -   Run on a small unit cell (e.g., 5 Angstrom) -> High K-points (e.g., 6x6x6).
-    -   Run on a large supercell (e.g., 20 Angstrom) -> Low K-points (e.g., 2x2x2 or 1x1x1).
-    -   Verify the input file `pw.in` reflects this dynamic sizing.
-
-## 2. Behavior Definitions (Gherkin)
+## 2. Behavior Definitions
 
 ```gherkin
-Feature: DFT Oracle and Self-Healing
+Feature: DFT Oracle
 
-  Background:
-    Given the config has a valid path to "pw.x"
-    And valid pseudopotentials are provided
+  Scenario: Running a standard calculation
+    GIVEN a candidate structure
+    AND a valid QE configuration
+    WHEN the Oracle processes the structure
+    THEN it should generate a standard input file
+    AND execute the QE command
+    AND parse the output to extract Energy, Forces, and Stress
 
-  Scenario: Run a successful static calculation
-    Given a Silicon primitive cell structure
-    When I request a DFT calculation
-    Then the process should finish successfully
-    And the result should contain Energy
-    And the result should contain Forces with shape (2, 3)
-
-  Scenario: Recover from SCF convergence failure
-    Given a difficult metallic structure
-    And I force the initial parameters to be unstable (mixing_beta=0.9)
-    When I request a DFT calculation
-    Then the system should detect "convergence not achieved"
-    And the system should retry with "mixing_beta=0.7"
-    And the final status should be "Converged"
-
-  Scenario: K-space density consistency
-    Given a target k-spacing of 0.2 inverse Angstroms
-    When I generate inputs for a 10.0 Angstrom cubic cell
-    Then the K-points should be "4 4 4" (approx 2 * pi / (10 * 0.2) = 3.14 -> 4)
+  Scenario: Handling convergence failure
+    GIVEN a calculation that fails to converge
+    WHEN the Error Handler analyzes the log
+    THEN it should identify the error type
+    AND propose a new set of parameters (e.g., reduced mixing beta)
+    AND the Runner should retry with the new parameters
 ```

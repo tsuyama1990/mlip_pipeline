@@ -1,103 +1,70 @@
-# Cycle 08: Expansion & Production
+# Cycle 08 Specification: Expansion (kMC & Scale-up)
 
 ## 1. Summary
 
-The final cycle extends the temporal reach of our system. While Molecular Dynamics (MD) is excellent for nanosecond-scale phenomena, it cannot simulate events that happen on the scale of seconds, hours, or years—such as diffusion in solids or corrosion. To address this, we integrate **Adaptive Kinetic Monte Carlo (aKMC)** via the **EON** software.
-
-This integration is challenging because EON acts as the "Master" and calls our potential as a "Slave" client. We must provide a Python driver (`pace_driver.py`) that EON can execute to get energies and forces. Furthermore, we must monitor this external process for uncertainty ($\gamma$). If the aKMC search encounters an unknown transition state, we must halt it, learn the state, and resume. This is "On-the-Fly" learning for rare events.
-
-Finally, Cycle 08 includes the **Production Release** steps. Once a potential has survived all cycles and passed validation, it is "Graduated". We implement a `ProductionDeployer` that packages the potential with metadata (citation, license, limits of validity) and prepares it for distribution.
+Cycle 08 is the final expansion phase. It extends the system's capabilities beyond MD to include **Adaptive Kinetic Monte Carlo (aKMC)** via the EON software. This allows the system to explore long-timescale phenomena (diffusion, rare events) that MD cannot reach. Additionally, this cycle focuses on full system integration, polishing the codebase, and ensuring the transition from local active learning to large-scale production runs.
 
 ## 2. System Architecture
 
-We complete the `physics/dynamics` package and add `infrastructure/production`.
-
 ### File Structure
-Files to be created/modified are in **bold**.
+
+Files to be created/modified are **bold**.
 
 ```ascii
-mlip_autopipec/
-├── src/
-│   └── mlip_autopipec/
-│       ├── inference/
-│       │   ├── **__init__.py**
-│       │   └── **pace_driver.py**      # The script EON calls
-│       ├── physics/
-│       │   ├── dynamics/
-│       │   │   └── **eon.py**          # Wrapper to launch EON
-│       └── infrastructure/
-│           └── **production.py**       # Packaging logic
-└── tests/
-    └── physics/
-        └── dynamics/
-            └── **test_eon.py**
+src/mlip_autopipec/
+├── domain_models/
+│   └── config.py                     # Update: Add KMCConfig
+├── **inference/**
+│   └── **eon.py**                    # EON Wrapper
+└── orchestration/
+    └── phases/
+        └── **dynamics.py**           # Update: Add kMC support
 ```
-
-### Component Interaction (EON Loop)
-
-1.  **Orchestrator** launches `EonWrapper.run()`.
-2.  **`EonWrapper`** creates `client/` directory and writes `config.ini`.
-    -   Configures EON to use `Potentials = script`.
-    -   Sets script path to `pace_driver.py`.
-3.  **EON Binary** starts. It explores the Potential Energy Surface (PES) to find saddle points.
-4.  **EON** calls `pace_driver.py` with atomic coordinates.
-5.  **`pace_driver.py`**:
-    -   Loads the ACE potential.
-    -   Calculates Energy, Forces, and **Gamma**.
-    -   **CRITICAL**: If Gamma > Threshold, it exits with a special status code (e.g., 100) or writes a "STOP" signal.
-6.  **`EonWrapper`** detects the stop.
-    -   Extracts the high-gamma saddle point candidate.
-    -   Returns it to the Orchestrator for DFT.
 
 ## 3. Design Architecture
 
-### 3.1. EON Driver (`inference/pace_driver.py`)
-This is a standalone script, not a class used by the Orchestrator.
--   **Input**: Standard Input (EON format) or file.
--   **Output**: Standard Output (Energy, Forces).
--   **Logic**:
-    ```python
-    atoms = read_stdin()
-    calc = PaceCalculator("potential.yace")
-    gamma = calc.predict_gamma(atoms)
-    if gamma > 5.0:
-        dump_structure(atoms)
-        sys.exit(100) # Signal Orchestrator
-    print(calc.get_potential_energy(atoms))
-    ```
+### Domain Models
 
-### 3.2. Production Metadata
--   **Class `ProductionManifest`**:
-    -   `version`: SemVer.
-    -   `author`: User name.
-    -   `training_set_size`: int.
-    -   `validation_metrics`: `ValidationResult`.
+#### `config.py`
+*   **`KMCConfig`**:
+    *   `temperature`: float
+    *   `prefactor`: float
+    *   `search_method`: Enum (dimer, neb)
+
+### Components (`inference/eon.py`)
+
+#### `EONWrapper`
+*   **`run_kmc(structure, potential, config)`**:
+    *   Sets up EON directory structure (`config.ini`, `reactant.con`).
+    *   Generates a driver script (`pace_driver.py`) that EON calls to get Energy/Forces from the ACE potential.
+    *   **Crucial**: The driver script must perform the "Gamma Check" and exit with a specific code if uncertainty is high.
+    *   Executes `eonclient`.
+
+### Orchestration (`phases/dynamics.py`)
+
+#### `DynamicsPhase` (Updated)
+*   Adds logic to choose between `LammpsRunner` (MD) and `EONWrapper` (kMC) based on the `ExplorationTask` or Config.
+*   Handles "Halt" signals from EON (via the specific exit code).
 
 ## 4. Implementation Approach
 
-### Step 1: Pace Driver
--   Implement `src/mlip_autopipec/inference/pace_driver.py`.
--   This script must be executable (`chmod +x`).
--   It must be lightweight (load potential once if possible, or use a daemon mode, but for now simple script invocation is easier).
-
-### Step 2: EON Wrapper
--   Implement `physics/dynamics/eon.py`.
--   Similar to `LammpsRunner` but manages the EON directory structure (`runs/0001/`).
--   Handle the special exit code.
-
-### Step 3: Production Packager
--   Implement `infrastructure/production.py`.
--   Zip the `.yace` file, the `report.html`, and a `metadata.json`.
+1.  **Implement EON Wrapper**:
+    *   Create `inference/eon.py`.
+    *   Implement `pace_driver.py` generation (this script sits inside the EON run directory).
+2.  **Update Dynamics Phase**:
+    *   Refactor to support pluggable engines.
+3.  **Full Integration**:
+    *   Ensure the loop works: EON -> Halt -> Extract -> Oracle -> Train -> EON.
 
 ## 5. Test Strategy
 
-### 5.1. Integration Testing (Mocked EON)
--   **Mocking EON**:
-    -   We don't need the EON binary. We need to test the *driver*.
-    -   Feed a structure to `pace_driver.py` via stdin.
-    -   Assert it prints numbers in the correct format.
-    -   Feed a "weird" structure (high gamma). Assert it exits with code 100.
+### Unit Testing
+*   **`test_eon_wrapper.py`**:
+    *   Verify `config.ini` generation.
+    *   Verify `pace_driver.py` is correctly written and executable.
 
-### 5.2. System Test (Final)
--   Run the full `mlip-auto run-loop`.
--   Check that at the end, a `dist/` folder exists with the packaged potential.
+### Integration Testing
+*   **`test_kmc_loop.py`**:
+    *   Mock `eonclient` execution.
+    *   Simulate a halt event from EON.
+    *   Verify the orchestrator catches it and extracts the structure.

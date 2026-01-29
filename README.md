@@ -1,90 +1,128 @@
-# PyAceMaker: Automated MLIP Pipeline
+# PYACEMAKER: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_01_Foundation-blue)
-![Python](https://img.shields.io/badge/Python-3.12%2B-green)
-![License](https://img.shields.io/badge/License-MIT-purple)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 
-**PyAceMaker** is an autonomous research system designed to construct State-of-the-Art Machine Learning Interatomic Potentials (MLIPs). It democratises computational materials science by providing a "Zero-Config" workflow.
+**PYACEMAKER** is a fully automated, "Zero-Config" system for constructing and operating State-of-the-Art Machine Learning Interatomic Potentials (MLIP) using the Pacemaker (ACE) engine. It democratizes computational materials science by enabling researchers to generate robust, physics-informed potentials without needing deep expertise in machine learning or DFT.
 
-## Overview
-**What**: A robust, type-safe pipeline for automating the generation of MLIPs.
-**Why**: Scientific software often suffers from loose data contracts. This project establishes a rigid **Schema-First** foundation to prevent "silent failures" in complex simulations.
+## Key Features
 
-## Key Features (Cycle 01 Verified)
+*   **Zero-Config Workflow**: Define your material in a single YAML file, and the system handles structure generation, DFT calculations, training, and validation autonomously.
+*   **Active Learning Loop**: Utilizes an uncertainty-driven "On-the-Fly" (OTF) learning cycle to sample rare events and high-energy configurations, achieving high accuracy with minimal DFT cost.
+*   **Physics-Informed Robustness**: Implements Hybrid Potentials (ACE + ZBL/LJ) to ensure physical behavior in core regions and prevent simulation crashes.
+*   **Adaptive Exploration**: Dynamically adjusts sampling strategies (MD vs. MC, temperature schedules) based on material properties (e.g., metals vs. insulators).
+*   **Automated Validation**: Built-in quality assurance suite checking Phonon stability, Elastic constants, and Equations of State.
 
--   **Strict Data Validation**: Pydantic-based domain models ensure that every atomic structure and configuration parameter is valid before processing begins.
--   **Configuration Management**:
-    -   `init`: Generates valid template configurations instantly.
-    -   `check`: Validates existing configurations against strict schemas (e.g., catching negative cutoff radii).
--   **Robust Infrastructure**:
-    -   Type-safe YAML input/output.
-    -   Dual-channel logging: Beautiful console output (Rich) for users, detailed file logs for debugging.
+## Architecture Overview
 
-## Requirements
+The system is orchestrated by a central controller that manages a closed-loop cycle of Exploration, Oracle labeling, Training, and Validation.
 
--   **Python**: 3.12+
--   **Package Manager**: `uv` (recommended)
+```mermaid
+graph TD
+    User[User Config] --> Orchestrator
+    Orchestrator -->|1. Initialize| SG[Structure Generator]
+    SG -->|Candidate Structures| Oracle
 
-## Installation
+    subgraph Active Learning Loop
+        Oracle -->|DFT Data (Energy/Forces)| Dataset[Dataset & Active Set]
+        Dataset --> Trainer
+        Trainer -->|Potential (YACE)| DE[Dynamics Engine]
+        DE -->|Uncertainty Halt| Selection[Structure Selection]
+        Selection -->|Extracted Clusters| Oracle
+    end
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/mlip-autopipec.git
-cd mlip-autopipec
+    Trainer -->|Candidate Potential| Validator
+    Validator -->|Pass/Fail| Orchestrator
 
-# 2. Install dependencies
-uv sync
-
-# 3. (Optional) Activate virtual environment
-source .venv/bin/activate
+    Orchestrator -->|Final Pot| Deployment
 ```
+
+## Prerequisites
+
+*   **Python**: 3.11 or higher
+*   **Package Manager**: `uv` (recommended) or `pip`
+*   **External Tools**:
+    *   **LAMMPS**: For Molecular Dynamics simulations.
+    *   **Quantum Espresso**: For DFT calculations.
+    *   **Pacemaker**: For ACE potential training.
+
+## Installation & Setup
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-org/mlip-autopipec.git
+    cd mlip-autopipec
+    ```
+
+2.  **Install dependencies**:
+    Using `uv`:
+    ```bash
+    uv sync
+    ```
+    Or using `pip`:
+    ```bash
+    pip install -e .[dev]
+    ```
+
+3.  **Environment Setup**:
+    Copy the example environment file (if available) or ensure external tools are in your `PATH`.
+    ```bash
+    # Example: Export paths to external binaries
+    export ASE_ESPRESSO_COMMAND="mpirun -np 4 pw.x -in PREFIX.pwi > PREFIX.pwo"
+    export LAMMPS_COMMAND="lmp_serial"
+    ```
 
 ## Usage
 
-### 1. Initialize a Project
-Create a new project with a template configuration file.
-```bash
-uv run mlip-auto init
-# Creates 'config.yaml' in the current directory
-```
+### Quick Start
 
-### 2. Validate Configuration
-Check if your configuration file is valid.
-```bash
-uv run mlip-auto check --config config.yaml
-# Output: Configuration valid (or detailed error messages)
-```
+1.  **Initialize a new project**:
+    ```bash
+    mlip-auto init
+    ```
+    This creates a `config.yaml` in your current directory.
 
-Example `config.yaml`:
-```yaml
-project_name: "MyMLIPProject"
-potential:
-  elements: ["Ti", "O"]
-  cutoff: 5.0
-  seed: 42
-logging:
-  level: "INFO"
-  file_path: "mlip_pipeline.log"
-```
+2.  **Edit Configuration**:
+    Open `config.yaml` and set your target composition (e.g., `Ti3Al`) and computational resources.
+
+3.  **Run the Active Learning Loop**:
+    ```bash
+    mlip-auto run-loop
+    ```
+    The system will start the cycle: generating initial structures, running DFT, training the first generation potential, and iteratively improving it.
+
+## Development Workflow
+
+This project follows a strict development cycle.
+
+*   **Run Tests**:
+    ```bash
+    pytest
+    ```
+
+*   **Linting & Type Checking**:
+    The project enforces strict code quality using `ruff` and `mypy`.
+    ```bash
+    ruff check src tests
+    mypy src
+    ```
 
 ## Project Structure
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config)
-├── infrastructure/         # Logging, IO
-└── app.py                  # CLI Entry Point
+├── app.py                      # CLI Entry Point
+├── domain_models/              # Pydantic Schemas (Config, Structure, Workflow)
+├── orchestration/              # Core Logic (Workflow Manager, Phases)
+├── modules/                    # Component Modules
+│   ├── structure_gen/          # Structure Generation
+│   ├── oracle/                 # DFT Interface (QE)
+│   ├── trainer/                # Pacemaker Wrapper
+│   └── validator/              # Validation Suite
+└── inference/                  # Dynamics Engines (LAMMPS, EON)
+dev_documents/                  # Documentation & Specifications
+tests/                          # Test Suite
 ```
-
-## Roadmap
-
--   **Cycle 01**: Foundation & Core Models (Completed)
--   **Cycle 02**: Basic Exploration (MD)
--   **Cycle 03**: Oracle (DFT)
--   **Cycle 04**: Training (Pacemaker)
--   **Cycle 05**: Validation Framework
--   **Cycle 06**: Active Learning Loop
 
 ## License
 
-MIT License.
+This project is licensed under the MIT License.

@@ -1,138 +1,99 @@
-# Cycle 03: The Oracle (DFT Automation)
+# Cycle 03 Specification: DFT Oracle
 
 ## 1. Summary
 
-In Cycle 02, we established the ability to run classical simulations (MD). Now, in Cycle 03, we build the "Teacher" or "Oracle" of our active learning system: the Density Functional Theory (DFT) engine. This module is responsible for providing the ground truth labels (Energy, Forces, Virial Stress) that the machine learning model will attempt to mimic.
-
-The challenge with DFT is its fragility. Unlike classical MD, which almost always runs to completion (even if the physics is wrong), DFT calculations often fail to converge electronically (SCF cycles), especially for the distorted, high-temperature, or defective structures generated during active learning exploration. A naive script that simply runs `pw.x` will fail 20-30% of the time, halting the entire autonomous pipeline.
-
-Therefore, the core objective of this cycle is not just to run Quantum Espresso, but to implement a **Robust, Self-Healing Interface**. This "Recovery Handler" must detect specific error patterns (e.g., "convergence not achieved", "charge density negative") and automatically adjust physical parameters—such as increasing the electron temperature (smearing), reducing the mixing beta, or changing the diagonalization algorithm—to salvage the calculation.
-
-We will also implement **Periodic Embedding**. Since we cannot afford to run DFT on thousands of atoms, we need a mechanism to take a cluster from an MD simulation, wrap it in a vacuum-padded periodic box, and run the calculation on this smaller "representative" system.
+Cycle 03 implements the **Oracle** module, which serves as the interface to the Quantum Espresso (QE) DFT engine. This module is critical for generating ground-truth data (energy, forces, stress) used to train the potential. The key features are automated input file generation (using standard pseudopotentials), robust execution handling, and a self-correction mechanism that attempts to fix common SCF convergence errors by adjusting parameters like mixing beta or smearing.
 
 ## 2. System Architecture
 
-We introduce the `physics/dft` package.
-
 ### File Structure
-Files to be created/modified are in **bold**.
+
+Files to be created/modified are **bold**.
 
 ```ascii
-mlip_autopipec/
-├── src/
-│   └── mlip_autopipec/
-│       ├── domain_models/
-│       │   ├── **calculation.py**      # DFT specific schemas
-│       │   └── config.py               # Update with DFTConfig
-│       ├── physics/
-│       │   ├── dft/
-│       │   │   ├── **__init__.py**
-│       │   │   ├── **qe_runner.py**    # Quantum Espresso Wrapper
-│       │   │   ├── **input_gen.py**    # Input file creation logic
-│       │   │   ├── **parser.py**       # Output parsing
-│       │   │   └── **recovery.py**     # Error handling logic
-│       │   └── structure_gen/
-│       │       └── **embedding.py**    # Cluster extraction logic
-└── tests/
-    └── physics/
-        └── dft/
-            ├── **test_input_gen.py**
-            └── **test_recovery.py**
+src/mlip_autopipec/
+├── domain_models/
+│   ├── config.py                     # Update: Add DFTConfig
+│   └── **dft.py**                    # DFTResult models
+├── modules/
+│   └── **oracle/**
+│       ├── **__init__.py**
+│       ├── **runner.py**             # Main Oracle class
+│       ├── **qe_handler.py**         # QE specific logic (ASE wrapper)
+│       └── **error_handler.py**      # Self-correction logic
+└── orchestration/
+    └── phases/
+        ├── **__init__.py**
+        └── **oracle.py**             # OraclePhase implementation
 ```
-
-### Component Interaction
-
-1.  **Orchestrator** identifies a `Structure` that needs labelling.
-2.  **`EmbeddingHandler`** (Optional): If the structure is huge, it cuts a cluster and returns a smaller `Structure`.
-3.  **`QERunner`** initiates a job.
-4.  **`InputGenerator`** reads `DFTConfig` (pseudopotentials, cutoffs) and writes `pw.in`.
-5.  **`QERunner`** executes `pw.x`.
-6.  **`Parser`** checks the output.
-    -   If **Converged**: Returns `DFTResult` (Energy, Forces, Stress).
-    -   If **Failed**: Raises a specific `DFTError` (e.g., `SCFConvergenceError`).
-7.  **`RecoveryHandler`** catches the error.
-    -   It looks up a "Cure" (e.g., `mix_beta *= 0.5`).
-    -   It modifies the params and triggers a re-run (recursion up to N times).
 
 ## 3. Design Architecture
 
-### 3.1. Calculation Domain Model (`domain_models/calculation.py`)
+### Domain Models
 
--   **Class `DFTConfig`**:
-    -   `command`: `str` (e.g., `mpirun -np 16 pw.x`).
-    -   `pseudopotentials`: `Dict[str, Path]`.
-    -   `ecutwfc`: `float` (Wavefunction cutoff).
-    -   `kspacing`: `float` (Inverse k-point density, e.g., 0.04).
+#### `config.py`
+*   **`DFTConfig`**:
+    *   `code`: Enum (QE, VASP) - currently only QE.
+    *   `command`: str (e.g., "mpirun -np 4 pw.x")
+    *   `pseudopotentials`: Dict[str, str] (path or SSSP identifier)
+    *   `kspacing`: float (target K-space density)
+    *   `scf_params`: Dict (ecutwfc, conv_thr, etc.)
 
--   **Class `DFTResult`**:
-    -   `energy`: `float` (eV).
-    -   `forces`: `NDArray[(N, 3), float]` (eV/A).
-    -   `stress`: `NDArray[(3, 3), float]` (eV/A^3, optional).
-    -   `magmoms`: `Optional[NDArray]` (Magnetic moments).
+#### `dft.py`
+*   **`DFTResult`**:
+    *   `structure`: Structure (final)
+    *   `energy`: float
+    *   `forces`: Array[N, 3]
+    *   `stress`: Array[3, 3]
+    *   `converged`: bool
+    *   `meta`: Dict (computation time, parameters used)
 
--   **Exception `DFTError`**:
-    -   Base class for `SCFError`, `MemoryError`, `WalltimeError`.
+### Components (`modules/oracle/`)
 
-### 3.2. Recovery Logic (`physics/dft/recovery.py`)
+#### `qe_handler.py`
+*   **`QERunner`**:
+    *   Uses `ase.calculators.espresso.Espresso`.
+    *   **`prepare_input(structure, params)`**: Generates `input.pwi`.
+    *   **`run(structure) -> DFTResult`**: Executes the calculation.
+    *   **`_get_kpoints(structure, kspacing)`**: Calculates K-grid dynamically.
 
-This is a state machine or a rule-based engine.
--   **Logic**:
-    ```python
-    RULES = [
-        (SCFConvergenceError, {"mixing_beta": 0.3}),  # Try softer mixing
-        (SCFConvergenceError, {"smearing": "mv", "degauss": 0.02}), # Try hotter electrons
-        (DiagonalizationError, {"diagonalization": "cg"}), # Change algo
-    ]
-    ```
+#### `error_handler.py`
+*   **`ErrorCorrector`**:
+    *   Parses QE output/error logs.
+    *   **`diagnose(log_content) -> ErrorType`**.
+    *   **`propose_fix(params, error_type) -> NewParams`**: E.g., if "convergence not achieved", reduce `mixing_beta`.
 
-### 3.3. Input Generation
--   **Key Constraint**: Must support `kspacing` logic. Instead of fixed K-points (e.g., 4x4x4), we calculate the grid based on the cell size: $N_i = \text{ceil}(2\pi / (L_i \times \text{kspacing}))$. This ensures consistent accuracy across different cell sizes (e.g., bulk vs. supercell).
+### Orchestration (`orchestration/phases/oracle.py`)
+
+#### `OraclePhase`
+*   Iterates over `state.candidates`.
+*   Filters out candidates that are already computed.
+*   Calls `QERunner.run` for each.
+*   Handles exceptions and saves successful `DFTResult`s to `state.results`.
 
 ## 4. Implementation Approach
 
-### Step 1: Domain Models
--   Update `config.py` to include `dft` section.
--   Create `calculation.py`.
-
-### Step 2: Input Generator
--   Implement `input_gen.py`.
--   Use `ase.io.write(format='espresso-in')` as a base, but wrap it to strictly control parameters like `tprnfor` (print forces) and `tstress` (print stress) which are required for MLIP training.
-
-### Step 3: Parser
--   Implement `parser.py`.
--   Parse standard text output or XML output of QE.
--   Crucially, implement regex patterns to detect specific crash messages (e.g., "convergence not achieved").
-
-### Step 4: Runner & Recovery
--   Implement `qe_runner.py`.
--   It should accept a `Structure` and `DFTConfig`.
--   Implement the retry loop:
-    ```python
-    for attempt in range(max_retries):
-        try:
-            run_process()
-            check_convergence()
-            return parse_results()
-        except DFTError as e:
-            params = recovery_handler.apply_fix(params, e)
-    ```
+1.  **Update Config**: Add `DFTConfig`.
+2.  **Implement Domain Model**: Create `dft.py`.
+3.  **Implement QERunner**:
+    *   Wrap ASE Espresso calculator.
+    *   Ensure `tprnfor=True` and `tstress=True` are set.
+4.  **Implement Error Handler**:
+    *   Create a simple state machine: Try Default -> Fail -> Try Fix 1 -> Fail -> Try Fix 2 -> Give Up.
+5.  **Implement Oracle Phase**:
+    *   Integrate into the main loop.
+    *   Ensure results are serialized to disk immediately (don't lose expensive data).
 
 ## 5. Test Strategy
 
-### 5.1. Unit Testing
--   **Input Generation**:
-    -   Pass a `Structure` and check the generated string. Ensure `K_POINTS automatic` matches the `kspacing` formula.
-    -   Ensure `tprnfor=.true.` is present.
--   **Recovery Logic**:
-    -   Simulate an `SCFConvergenceError`. Call `apply_fix`. Assert that the returned parameters have a lower `mixing_beta`.
+### Unit Testing
+*   **`test_qe_handler.py`**:
+    *   Test K-point generation logic (smaller cell -> more K-points).
+    *   Mock `subprocess.run` to simulate QE execution and output parsing.
+*   **`test_error_handler.py`**:
+    *   Feed fake error logs (e.g., "convergence not achieved") and verify the proposed fix (reduced beta).
 
-### 5.2. Integration Testing (Mocked)
--   **Mocking QE**:
-    -   Create a mock `subprocess.run` that reads a pre-saved "failed" QE output file (text) and returns it as stdout.
-    -   Assert that `QERunner` detects the failure and attempts a second run.
-    -   For the second run, mock a "success" output.
-    -   Assert that the final result is returned and `retries=1`.
-
-### 5.3. Real DFT Test (Optional/Local)
--   If `pw.x` is available, run a static calculation on a single H2 molecule.
--   Check that Forces are close to zero for equilibrium bond length.
+### Integration Testing
+*   **`test_oracle_phase.py`**:
+    *   Mock the actual QE binary with a shell script that just writes an output file.
+    *   Run the phase and check if `DFTResult` objects are created correctly.
