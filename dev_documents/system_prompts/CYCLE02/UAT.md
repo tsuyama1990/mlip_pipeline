@@ -1,63 +1,43 @@
-# User Acceptance Testing (UAT): Cycle 02
+# Cycle 02 User Acceptance Testing (UAT)
 
 ## 1. Test Scenarios
 
-In Cycle 02, we are testing the "Muscle" of the system: the ability to exert force (run simulations). The UAT focuses on the robustness of this execution.
+### Scenario 2.1: Cold Start Generation
+*   **ID**: UAT-02-01
+*   **Priority**: High
+*   **Description**: The system must generate initial structures for a given composition when no prior data exists.
+*   **Steps**:
+    1.  Configure `config.yaml` with target composition "Si" and `num_candidates: 5`.
+    2.  Run `mlip-auto run-loop`.
+    3.  Inspect the output log. It should say "Generated 5 initial structures".
+    4.  Verify the generated structures are saved (e.g., in `debug/` or state).
 
-### Scenario 2.1: The "One-Shot" MD Run
--   **ID**: UAT-C02-01
--   **Priority**: Critical
--   **Description**: The user wants to verify that the system can actually run a simulation.
--   **Success Criteria**:
-    -   Running `mlip-auto run-one-shot` (or similar CLI command) completes successfully.
-    -   A working directory is created (e.g., `_work/job_...`).
-    -   The directory contains `in.lammps`, `data.lammps`, and `dump.lammpstrj`.
-    -   The CLI outputs "Simulation Completed: Status DONE".
+### Scenario 2.2: Structure Validity Check
+*   **ID**: UAT-02-02
+*   **Priority**: Medium
+*   **Description**: Generated structures must not have overlapping atoms.
+*   **Steps**:
+    1.  Configure `config.yaml` with a large rattle amplitude.
+    2.  Run the generator.
+    3.  Load the generated structures in a notebook or viewer (ASE GUI).
+    4.  Verify no atoms are closer than 0.5 Angstrom (or physically reasonable limit).
 
-### Scenario 2.2: Missing Executable Handling
--   **ID**: UAT-C02-02
--   **Priority**: High
--   **Description**: The user forgot to install LAMMPS or specified the wrong path in `config.yaml`.
--   **Success Criteria**:
-    -   The system should NOT hang or print a generic Python Traceback.
-    -   It should print a friendly error: "Executable 'lmp_serial' not found at /usr/bin/lmp. Please check your config."
-
-### Scenario 2.3: Simulation Instability (The "Explosion")
--   **ID**: UAT-C02-03
--   **Priority**: Medium
--   **Description**: The simulation crashes due to bad physics (simulated by a very high timestep or bad potential parameters).
--   **Success Criteria**:
-    -   The system detects the non-zero exit code of LAMMPS.
-    -   The job status is reported as `FAILED`.
-    -   The tail of `log.lammps` is printed to the console to help the user debug.
-
-## 2. Behavior Definitions (Gherkin)
+## 2. Behavior Definitions
 
 ```gherkin
-Feature: Basic Molecular Dynamics Execution
+Feature: Structure Generation
 
-  Background:
-    Given a valid "config.yaml"
-    And the LAMMPS executable path is correctly configured
+  Scenario: Cold Start with valid composition
+    GIVEN an empty dataset
+    AND a configuration for composition "Al"
+    WHEN the Exploration Phase executes
+    THEN it should produce a list of "Candidate" objects
+    AND each candidate should contain "Al" atoms
+    AND the number of candidates should match the configuration
 
-  Scenario: Run a standard NVT simulation
-    When I run the command "mlip-auto run-cycle-02"
-    Then the system should generate a structure for "Si"
-    And it should create a job directory "_work_md/"
-    And the process should exit with code 0
-    And the job status should be "COMPLETED"
-    And a file "dump.lammpstrj" should exist
-
-  Scenario: Handle invalid executable path
-    Given the config "lammps.command" is set to "/path/to/nothing"
-    When I run the command "mlip-auto run-cycle-02"
-    Then the exit code should be 1
-    And the output should contain "Executable not found"
-
-  Scenario: Handle simulation timeout
-    Given the config "lammps.timeout" is set to "1s"
-    And I run a simulation that takes 5s
-    When I execute the run command
-    Then the job status should be "TIMEOUT"
-    And the system should gracefully terminate the subprocess
+  Scenario: Generating distorted structures
+    GIVEN a base structure
+    WHEN the Random Perturbation strategy is applied
+    THEN the resulting structure should have different lattice constants
+    AND the atomic positions should be slightly displaced
 ```

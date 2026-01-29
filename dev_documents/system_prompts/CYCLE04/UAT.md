@@ -1,57 +1,42 @@
-# User Acceptance Testing (UAT): Cycle 04
+# Cycle 04 User Acceptance Testing (UAT)
 
 ## 1. Test Scenarios
 
-Cycle 04 gives the system the ability to "Learn".
+### Scenario 4.1: Dataset Creation and Active Set Selection
+*   **ID**: UAT-04-01
+*   **Priority**: Medium
+*   **Description**: New DFT data is correctly added to the dataset and filtered.
+*   **Steps**:
+    1.  Mock the Oracle phase to return 10 `DFTResult`s.
+    2.  Run the Training Phase.
+    3.  Verify that a dataset file (e.g., `data/accumulated.pckl.gzip`) is created/updated.
+    4.  Verify that the log mentions "Active Set Selection" (if enabled).
 
-### Scenario 4.1: Full Training Loop
--   **ID**: UAT-C04-01
--   **Priority**: Critical
--   **Description**: Given a set of labelled structures (from Cycle 03), train a potential.
--   **Success Criteria**:
-    -   `pace_train` runs to completion.
-    -   A `potential.yace` file is created.
-    -   A training report is generated showing Energy RMSE and Force RMSE.
-    -   The RMSE should be "reasonable" (e.g., < 10 meV/atom for a simple test case).
+### Scenario 4.2: Potential Training Execution
+*   **ID**: UAT-04-02
+*   **Priority**: High
+*   **Description**: The system successfully generates a `.yace` potential file.
+*   **Steps**:
+    1.  Ensure a valid dataset exists.
+    2.  Run the Training Phase.
+    3.  Verify that `pace_train` command was executed (check logs).
+    4.  Check for the existence of `output_potential.yace` in the training directory.
 
-### Scenario 4.2: Active Set Selection
--   **ID**: UAT-C04-02
--   **Priority**: High
--   **Description**: We have 1000 structures, but many are similar. We want to train on only the most important ones.
--   **Success Criteria**:
-    -   User configures `active_set_selection: true`.
-    -   System runs `pace_activeset`.
-    -   Logs show "Reduced dataset from 1000 to X structures".
-    -   Training proceeds using the reduced dataset.
-
-### Scenario 4.3: Delta Learning (Robustness)
--   **ID**: UAT-C04-03
--   **Priority**: Medium
--   **Description**: Ensure that the reference potential (ZBL/LJ) is correctly included.
--   **Success Criteria**:
-    -   Inspect the generated `potential.yace` (or the input YAML).
-    -   It should contain a definition for the reference potential (e.g., `type: ZBL`).
-    -   This confirms that the ACE model is learning the *difference*, not the absolute energy.
-
-## 2. Behavior Definitions (Gherkin)
+## 2. Behavior Definitions
 
 ```gherkin
-Feature: Machine Learning Potential Training
+Feature: Pacemaker Training
 
-  Background:
-    Given a valid "train.pckl.gzip" dataset exists
-    And the config specifies "Titanium" and "Oxygen"
+  Scenario: Configuring Delta Learning
+    GIVEN a config with "reference_potential: ZBL"
+    WHEN the Trainer prepares the input
+    THEN the generated "input.yaml" should contain the ZBL parameters
+    AND the ACE potential should be set to learn the difference
 
-  Scenario: Train a new potential
-    When I run the training command
-    Then the process should exit with code 0
-    And a file "potential.yace" should be created
-    And the log should contain "RMSE Energy"
-    And the log should contain "RMSE Force"
-
-  Scenario: Resume training from previous generation
-    Given an existing "old_potential.yace"
-    When I run the training command with "initial_potential=old_potential.yace"
-    Then the system should use the old potential as a starting point (fine-tuning)
-    And the training time should be shorter than a fresh start
+  Scenario: Training Process
+    GIVEN an updated dataset
+    WHEN the Training Phase runs
+    THEN it should invoke the "pace_train" command
+    AND produce a new potential file
+    AND update the workflow state with the new potential path
 ```

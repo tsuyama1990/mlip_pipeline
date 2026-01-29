@@ -1,141 +1,94 @@
-# Cycle 06: The Active Learning Loop
+# Cycle 06 Specification: Active Learning Loop
 
 ## 1. Summary
 
-We have built the engine (MD), the steering wheel (Policy/Config), the teacher (DFT), the learner (Pacemaker), and the inspector (Validator). Cycle 06 is about building the **Driver**.
-
-This cycle implements the autonomous active learning loop. It transitions the system from a collection of isolated scripts to a state-aware robot that can run for days or weeks without human intervention. The core logic revolves around the **Orchestrator**, which manages the `WorkflowState`.
-
-The loop follows this sequence:
-1.  **Exploration**: Run MD with the current potential. Monitor uncertainty ($\gamma$).
-2.  **Detection**: If MD halts due to high $\gamma$, identifying the "confusing" atomic configuration.
-3.  **Selection**: Extract the local cluster, embed it in a periodic box (Cycle 03), and add it to the candidate list.
-4.  **Calculation**: Send candidates to the Oracle for labelling.
-5.  **Refinement**: Update the dataset and re-train the potential (Fine-tuning).
-6.  **Validation**: Check if the new potential is better. If so, promote it.
-7.  **Loop**: Increment generation count and repeat.
-
-A key feature is **Resumability**. If the cluster crashes (power outage, walltime limit), the system must be able to load the `state.json` and resume exactly where it left off, rather than restarting from Generation 0.
+Cycle 06 enables the **Dynamics Engine** to perform "On-the-Fly" (OTF) active learning. This is the core engine of the system. It implements the interface to LAMMPS, enabling Molecular Dynamics (MD) simulations that are automatically interrupted when the extrapolation grade ($\gamma$) exceeds a threshold. When halted, the system extracts the problematic structure, cuts out a cluster, embeds it in a vacuum-padded supercell, and sends it to the Oracle for labeling. This closes the active learning loop.
 
 ## 2. System Architecture
 
-We expand the `orchestration` package.
-
 ### File Structure
-Files to be created/modified are in **bold**.
+
+Files to be created/modified are **bold**.
 
 ```ascii
-mlip_autopipec/
-├── src/
-│   └── mlip_autopipec/
-│       ├── domain_models/
-│       │   ├── **workflow.py**         # WorkflowState schema
-│       │   └── **structure.py**        # Update with CandidateStatus
-│       ├── orchestration/
-│       │   ├── **manager.py**          # The main loop logic
-│       │   ├── **state.py**            # Load/Save state
-│       │   └── **candidate_processing.py** # Selection logic
-│       └── physics/
-│           └── dynamics/
-│               └── **log_parser.py**   # Detect 'fix halt'
-└── tests/
-    └── orchestration/
-        └── **test_manager.py**
+src/mlip_autopipec/
+├── domain_models/
+│   └── config.py                     # Update: Add DynamicsConfig (LAMMPS)
+├── **modules/**
+│   └── **cli_handlers/**
+│       └── **handlers.py**           # Update: Add run-loop logic
+├── **inference/**
+│   ├── **__init__.py**
+│   └── **lammps.py**                 # LAMMPS wrapper with fix halt
+└── orchestration/
+    ├── **candidate_processing.py**   # Logic to extract/embed structures
+    └── phases/
+        ├── **__init__.py**
+        └── **dynamics.py**           # DynamicsPhase implementation
 ```
-
-### Component Interaction
-
-1.  **CLI** calls `WorkflowManager.run_loop()`.
-2.  **`WorkflowManager`** loads `state.json`.
-3.  **State Machine**:
-    -   `if state.phase == EXPLORATION`:
-        -   Call `LammpsRunner`.
-        -   Parse logs with `LogParser`.
-        -   If halted, extract structure -> `state.candidates`.
-        -   `state.phase = SELECTION`.
-    -   `if state.phase == SELECTION`:
-        -   Filter candidates (remove duplicates).
-        -   `state.phase = CALCULATION`.
-    -   `if state.phase == CALCULATION`:
-        -   Call `QERunner` for pending candidates.
-        -   Update `state.dataset_path`.
-        -   `state.phase = TRAINING`.
-    -   `if state.phase == TRAINING`:
-        -   Call `PacemakerRunner`.
-        -   Update `state.latest_potential`.
-        -   `state.phase = VALIDATION`.
-    -   `if state.phase == VALIDATION`:
-        -   Call `ValidationRunner`.
-        -   If pass, `state.generation += 1`.
-        -   `state.phase = EXPLORATION`.
 
 ## 3. Design Architecture
 
-### 3.1. Workflow State (`domain_models/workflow.py`)
+### Domain Models
 
--   **Enum `WorkflowPhase`**:
-    -   `EXPLORATION`, `SELECTION`, `CALCULATION`, `TRAINING`, `VALIDATION`.
+#### `config.py`
+*   **`DynamicsConfig`**:
+    *   `md_steps`: int
+    *   `timestep`: float
+    *   `temperature`: float
+    *   `uncertainty_threshold`: float (gamma)
+    *   `check_interval`: int (steps between gamma checks)
 
--   **Class `WorkflowState`**:
-    -   `project_name`: `str`.
-    -   `generation`: `int`.
-    -   `current_phase`: `WorkflowPhase`.
-    -   `latest_potential_path`: `Optional[Path]`.
-    -   `dataset_path`: `Path`.
-    -   `candidates`: `List[CandidateStructure]`.
+### Components (`inference/lammps.py`)
 
-### 3.2. Candidate Processing
-We need to handle the transition from a "Exploded MD Frame" to a "Trainable Cluster".
--   **Class `CandidateManager`**:
-    -   `extract_cluster(supercell, center_atom_id, radius)`: Cuts a sphere.
-    -   `embed_cluster(cluster)`: Wraps it in a box.
+#### `LammpsRunner`
+*   **`run_md(structure, potential, config) -> RunResult`**:
+    *   Generates `in.lammps`.
+    *   **Crucial**: Sets up `pair_style hybrid/overlay pace zbl`.
+    *   Sets up `compute pace` and `fix halt` to stop if gamma > threshold.
+    *   Returns status (`COMPLETED` or `HALTED`) and path to dump file.
 
-### 3.3. Log Parsing (`physics/dynamics/log_parser.py`)
--   **Class `LammpsLogParser`**:
-    -   Must detect the specific line: `ERROR: Fix halt ...`.
-    -   Extract the timestep.
+### Orchestration (`orchestration/candidate_processing.py`)
+
+#### `CandidateManager`
+*   **`extract_halt_structure(dump_file) -> Structure`**: Reads the last frame.
+*   **`cut_cluster(structure, center_atom, radius) -> Structure`**: Cuts a cluster.
+*   **`periodic_embed(cluster, buffer) -> Structure`**: Places cluster in a box for DFT.
+
+### Orchestration (`orchestration/phases/dynamics.py`)
+
+#### `DynamicsPhase`
+*   Runs MD using `LammpsRunner`.
+*   If halted:
+    *   Calls `CandidateManager` to process the structure.
+    *   Adds new candidates to `WorkflowState`.
+    *   Triggers transition back to ORACLE phase.
+*   If completed:
+    *   Transition to DONE (or next iteration).
 
 ## 4. Implementation Approach
 
-### Step 1: State Management
--   Implement `domain_models/workflow.py`.
--   Implement `orchestration/state.py` to save `WorkflowState` to `state.json` (atomic write to avoid corruption).
-
-### Step 2: Log Parser
--   Implement `physics/dynamics/log_parser.py`.
--   Use regex to parse LAMMPS logs.
-
-### Step 3: Candidate Processor
--   Implement `candidate_processing.py`.
--   Use `ase.neighborlist` to find neighbors of the high-uncertainty atom.
-
-### Step 4: The Manager (The Brain)
--   Implement `WorkflowManager`.
--   Write the big `while` loop.
--   Add extensive logging. "Transitioning from EXPLORATION to SELECTION".
+1.  **Update Config**: Add `DynamicsConfig`.
+2.  **Implement LAMMPS Runner**:
+    *   Use `lammps` Python module or `subprocess`.
+    *   Ensure `hybrid/overlay` is correctly scripted.
+    *   Implement `fix halt` logic.
+3.  **Implement Candidate Processing**:
+    *   Implement logic to find the atom with max gamma.
+    *   Implement cluster cutting and embedding (crucial for valid DFT).
+4.  **Implement Dynamics Phase**:
+    *   Wire the loop: MD -> Halt -> Extract -> Oracle.
 
 ## 5. Test Strategy
 
-### 5.1. Unit Testing
--   **State Logic**:
-    -   Load a state at `CALCULATION`.
-    -   Call `manager.step()`.
-    -   Verify it calls the Oracle and transitions to `TRAINING`.
+### Unit Testing
+*   **`test_candidate_processing.py`**:
+    *   Create a structure. Cut a cluster. Verify the returned structure has enough vacuum padding.
+*   **`test_lammps_runner.py`**:
+    *   Verify `in.lammps` generation contains `fix halt` and `pair_style hybrid`.
 
--   **Log Parser**:
-    -   Feed a log string containing `Fix halt condition met`.
-    -   Assert `parser.detected_halt` is True.
-
-### 5.2. Integration Testing (Simulated Loop)
--   **Mock Everything**:
-    -   Mock `LammpsRunner` to always "halt" after 10 steps.
-    -   Mock `QERunner` to always return energy=0.
-    -   Mock `PacemakerRunner` to always produce a new `.yace`.
--   **Run**:
-    -   Initialize loop at Gen 0.
-    -   Run for 2 full cycles.
-    -   Assert `generation` reaches 2.
-    -   Assert `state.json` is updated.
-
-### 5.3. Pre-commit
--   Check cyclomatic complexity of `run_loop`. It might get complex, so decompose it into `_run_exploration()`, `_run_training()`, etc.
+### Integration Testing
+*   **`test_dynamics_phase.py`**:
+    *   Mock LAMMPS execution.
+    *   Simulate a "Halt" return status.
+    *   Verify that new candidates are added to the workflow state and the phase transitions to Oracle.

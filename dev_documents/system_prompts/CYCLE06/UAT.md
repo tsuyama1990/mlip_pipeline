@@ -1,60 +1,43 @@
-# User Acceptance Testing (UAT): Cycle 06
+# Cycle 06 User Acceptance Testing (UAT)
 
 ## 1. Test Scenarios
 
-Cycle 06 is about autonomy. The user starts the process and goes to sleep.
+### Scenario 6.1: MD Simulation with Hybrid Potential
+*   **ID**: UAT-06-01
+*   **Priority**: High
+*   **Description**: MD runs using both ACE and ZBL potentials.
+*   **Steps**:
+    1.  Configure `DynamicsConfig` with a known potential.
+    2.  Run the Dynamics Phase.
+    3.  Inspect the generated `in.lammps`.
+    4.  Verify it contains `pair_style hybrid/overlay pace ... zbl ...`.
 
-### Scenario 6.1: The Autonomous Loop
--   **ID**: UAT-C06-01
--   **Priority**: Critical
--   **Description**: Start the system from scratch. It should perform Exploration, trigger a Halt, calculate, train, and loop.
--   **Success Criteria**:
-    -   Command `mlip-auto run-loop` starts.
-    -   Logs show "Gen 0: Exploration".
-    -   Logs show "Halt detected! Selecting candidates...".
-    -   Logs show "Training new potential...".
-    -   Logs show "Gen 0 -> Gen 1".
+### Scenario 6.2: Uncertainty-Driven Halt
+*   **ID**: UAT-06-02
+*   **Priority**: High
+*   **Description**: The simulation stops when a structure enters a high-uncertainty region.
+*   **Steps**:
+    1.  Mock the potential to return high gamma values (or use a very low threshold).
+    2.  Run the Dynamics Phase.
+    3.  Verify the run stops before `md_steps` is reached.
+    4.  Verify the logs say "Halted due to high uncertainty".
+    5.  Verify a new candidate structure is extracted.
 
-### Scenario 6.2: Resume from Interruption
--   **ID**: UAT-C06-02
--   **Priority**: High
--   **Description**: Kill the process (Ctrl+C) during the DFT phase. Restart it. It should not re-run MD. It should pick up the pending DFT jobs.
--   **Success Criteria**:
-    -   Interrupt the process.
-    -   Restart.
-    -   Logs show "Resuming from phase CALCULATION".
-    -   It does NOT show "Running Exploration".
-
-### Scenario 6.3: Max Generations Limit
--   **ID**: UAT-C06-03
--   **Priority**: Medium
--   **Description**: Set `max_generations: 2`. Run.
--   **Success Criteria**:
-    -   System runs Gen 0, Gen 1.
-    -   System stops gracefully after Gen 1 Validation.
-    -   Status is "COMPLETED".
-
-## 2. Behavior Definitions (Gherkin)
+## 2. Behavior Definitions
 
 ```gherkin
-Feature: Autonomous Active Learning Loop
+Feature: Active Learning Dynamics
 
-  Background:
-    Given a valid configuration
-    And a mocked environment (for speed)
+  Scenario: Normal MD run
+    GIVEN a well-trained potential
+    WHEN the Dynamics Phase runs
+    THEN the simulation should complete without halting
+    AND the system should proceed to the next iteration
 
-  Scenario: Complete one full learning cycle
-    Given the current generation is 0
-    And the phase is "EXPLORATION"
-    When I start the loop
-    Then the LammpsRunner should be called
-    And if a halt occurs, QERunner should be called
-    And then PacemakerRunner should be called
-    And the generation should increment to 1
-
-  Scenario: Resume after crash
-    Given a state file exists with phase "TRAINING"
-    When I start the loop
-    Then the system should skip Exploration and Calculation
-    And immediately start the PacemakerRunner
+  Scenario: Encountering unknown physics
+    GIVEN a potential with limited training data
+    WHEN the MD simulation encounters a rare event (high gamma)
+    THEN the "fix halt" trigger should fire
+    AND the simulation should stop immediately
+    AND the Orchestrator should extract the high-gamma structure for labeling
 ```

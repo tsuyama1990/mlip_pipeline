@@ -1,73 +1,58 @@
-# User Acceptance Testing (UAT): Cycle 01
+# Cycle 01 User Acceptance Testing (UAT)
 
 ## 1. Test Scenarios
 
-The goal of Cycle 01 is to establish a stable foundation. While there is no "scientific" output yet, the User Experience (UX) of configuration and setup is critical. A frustrated user who cannot get the system to start will never reach the physics results.
+### Scenario 1.1: Project Initialization
+*   **ID**: UAT-01-01
+*   **Priority**: High
+*   **Description**: A new user wants to start a project. They should be able to generate a default configuration file using the CLI.
+*   **Steps**:
+    1.  Open terminal.
+    2.  Run `mlip-auto init`.
+    3.  Check if `config.yaml` exists in the current directory.
+    4.  Inspect `config.yaml` content.
 
-### Scenario 1.1: Project Initialisation
--   **ID**: UAT-C01-01
--   **Priority**: High
--   **Description**: A new user wants to start a project. They should be able to generate a template configuration file without copy-pasting from documentation.
--   **Success Criteria**: Running the `init` command creates a commented, valid `config.yaml` in the current directory.
+### Scenario 1.2: Configuration Validation
+*   **ID**: UAT-01-02
+*   **Priority**: Medium
+*   **Description**: The system should reject invalid configuration files.
+*   **Steps**:
+    1.  Run `mlip-auto init`.
+    2.  Edit `config.yaml` and remove a required field (e.g., project name).
+    3.  Run `mlip-auto run-loop`.
+    4.  Verify that the system exits with a helpful error message.
 
-### Scenario 1.2: Configuration Validation (The "Guard Rails")
--   **ID**: UAT-C01-02
--   **Priority**: Critical
--   **Description**: A user makes a typo in the config file (e.g., negative cutoff radius, missing element list). The system should catch this immediately upon startup, not 2 hours later during a simulation.
--   **Success Criteria**: The system prints a clear, human-readable error message pointing to the specific field that failed validation, and exits with a non-zero code.
+### Scenario 1.3: Loop Startup and State Persistence
+*   **ID**: UAT-01-03
+*   **Priority**: High
+*   **Description**: The user runs the loop, and the system initializes the workflow state.
+*   **Steps**:
+    1.  Run `mlip-auto init`.
+    2.  Run `mlip-auto run-loop`.
+    3.  Verify console logs show "Workflow initialized".
+    4.  Check if `workflow_state.json` (or similar) is created.
 
-### Scenario 1.3: Logging Verification
--   **ID**: UAT-C01-03
--   **Priority**: Medium
--   **Description**: The user wants to see what the system is doing.
--   **Success Criteria**:
-    -   Console output is coloured and formatted (Info vs Error).
-    -   A log file (`mlip.log`) is created and contains detailed debug information not shown on the console.
-
-## 2. Behavior Definitions (Gherkin)
+## 2. Behavior Definitions
 
 ```gherkin
-Feature: System Configuration and Initialization
-
-  Background:
-    Given the mlip-auto CLI is installed
+Feature: CLI and Configuration
 
   Scenario: User initializes a new project
-    When I run the command "mlip-auto init"
-    Then a file named "config.yaml" should be created in the current directory
-    And the file "config.yaml" should contain "project_name"
-    And the file "config.yaml" should contain "potential"
+    GIVEN I am in an empty directory
+    WHEN I run "mlip-auto init"
+    THEN a file named "config.yaml" should be created
+    AND "config.yaml" should contain default settings
 
-  Scenario: User provides a valid configuration
-    Given a file "config.yaml" exists with:
-      """
-      project_name: "TestProject"
-      potential:
-        elements: ["Ti", "O"]
-        cutoff: 5.0
-        seed: 42
-      """
-    When I run the command "mlip-auto check"
-    Then the exit code should be 0
-    And the output should contain "Configuration valid"
+  Scenario: User runs the loop with valid config
+    GIVEN I have a valid "config.yaml"
+    WHEN I run "mlip-auto run-loop"
+    THEN the exit code should be 0
+    AND I should see "Starting MLIP Active Learning Loop" in the output
+    AND a "workflow_state.json" file should be created
 
-  Scenario: User provides an invalid configuration (Logical Error)
-    Given a file "config.yaml" exists with:
-      """
-      project_name: "BadProject"
-      potential:
-        elements: ["Ti", "O"]
-        cutoff: -1.0  # Invalid!
-        seed: 42
-      """
-    When I run the command "mlip-auto check"
-    Then the exit code should be 1
-    And the output should contain "cutoff"
-    And the output should contain "greater than 0"
-
-  Scenario: System Logging
-    Given a valid "config.yaml"
-    When I run the command "mlip-auto check"
-    Then a file named "mlip_pipeline.log" should be created
-    And the log file should contain "Validation successful"
+  Scenario: User runs the loop with invalid config
+    GIVEN I have a "config.yaml" with missing required fields
+    WHEN I run "mlip-auto run-loop"
+    THEN the exit code should be non-zero
+    AND I should see "Validation Error" in the output
 ```
