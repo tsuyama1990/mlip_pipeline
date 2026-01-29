@@ -2,8 +2,9 @@
 
 import json
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Generator, TypeVar
 
+import ijson
 import yaml
 from pydantic import BaseModel
 
@@ -15,10 +16,6 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
     """Load a YAML file safely.
 
     WARNING: This loads the entire file into memory. Do not use for large datasets.
-
-    This function uses `yaml.safe_load` to prevent arbitrary code execution,
-    ensuring security against malicious YAML files. It also checks file size
-    to prevent OOM denial-of-service.
 
     Args:
         path: Path to the YAML file.
@@ -57,13 +54,20 @@ def dump_yaml(data: dict[str, Any], path: str | Path) -> None:
     Args:
         data: Dictionary to dump.
         path: Path to the output file.
+
+    Raises:
+        IOError: If writing fails.
     """
     path = Path(path)
     # Ensure parent directory exists
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    with path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+    try:
+        with path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+    except Exception as e:
+        msg = f"Failed to dump YAML to {path}: {e}"
+        raise IOError(msg) from e
 
 
 def load_pydantic_from_yaml(path: str | Path, model_cls: type[T]) -> T:
@@ -86,12 +90,19 @@ def save_json(data: dict[str, Any], path: str | Path) -> None:
     Args:
         data: Dictionary to save.
         path: Path to the output file.
+
+    Raises:
+        IOError: If writing fails.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    try:
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        msg = f"Failed to save JSON to {path}: {e}"
+        raise IOError(msg) from e
 
 
 def load_json(path: str | Path) -> dict[str, Any]:
@@ -108,6 +119,7 @@ def load_json(path: str | Path) -> dict[str, Any]:
     Raises:
         FileNotFoundError: If the file does not exist.
         ValueError: If file exceeds MAX_CONFIG_SIZE.
+        TypeError: If file does not contain a dictionary.
     """
     path = Path(path)
     if not path.exists():
@@ -120,4 +132,34 @@ def load_json(path: str | Path) -> dict[str, Any]:
         raise ValueError(msg)
 
     with path.open("r", encoding="utf-8") as f:
-        return json.load(f)  # type: ignore[no-any-return]
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        msg = f"JSON file {path} must contain a dictionary, got {type(data)}"
+        raise TypeError(msg)
+
+    return data
+
+
+def load_json_iter(path: str | Path, item_prefix: str = "item") -> Generator[Any, None, None]:
+    """Load data from a JSON file iteratively using ijson.
+
+    This avoids loading the entire file into memory.
+
+    Args:
+        path: Path to the JSON file.
+        item_prefix: The prefix path to iterate over (e.g., 'item' for a list).
+
+    Yields:
+        Parsed items from the JSON file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    path = Path(path)
+    if not path.exists():
+        msg = f"File not found: {path}"
+        raise FileNotFoundError(msg)
+
+    with path.open("rb") as f:
+        yield from ijson.items(f, item_prefix)

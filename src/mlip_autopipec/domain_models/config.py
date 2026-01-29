@@ -1,12 +1,17 @@
 import os
 from pathlib import Path
-from typing import Literal, Optional, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.constants import (
+    DEFAULT_BAROSTAT,
+    DEFAULT_BATCH_SIZE,
     DEFAULT_CUTOFF,
+    DEFAULT_DYNAMICS_STEPS,
     DEFAULT_ELEMENTS,
+    DEFAULT_ENERGY_WEIGHT,
+    DEFAULT_FORCES_WEIGHT,
     DEFAULT_K_POINTS_DENSITY,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MD_MC_RATIO,
@@ -15,8 +20,11 @@ from mlip_autopipec.constants import (
     DEFAULT_SCF_K_POINTS,
     DEFAULT_SEED,
     DEFAULT_SMEARING,
+    DEFAULT_STRESS_WEIGHT,
+    DEFAULT_THERMOSTAT,
     DEFAULT_TIMESTEP,
     DEFAULT_TRAIN_EPOCHS,
+    DEFAULT_VALID_FRACTION,
 )
 
 
@@ -96,11 +104,11 @@ class TrainerConfig(BaseModel):
     engine: Literal["mace", "pacemaker", "fake"] = "mace"
     max_epochs: int = Field(default=DEFAULT_TRAIN_EPOCHS)
     model_size: str = Field(default=DEFAULT_MODEL_SIZE)
-    batch_size: int = 32
-    valid_fraction: float = 0.1
-    energy_weight: float = 1.0
-    forces_weight: float = 10.0
-    stress_weight: float = 0.1
+    batch_size: int = Field(default=DEFAULT_BATCH_SIZE)
+    valid_fraction: float = Field(default=DEFAULT_VALID_FRACTION)
+    energy_weight: float = Field(default=DEFAULT_ENERGY_WEIGHT)
+    forces_weight: float = Field(default=DEFAULT_FORCES_WEIGHT)
+    stress_weight: float = Field(default=DEFAULT_STRESS_WEIGHT)
 
     @field_validator("max_epochs")
     @classmethod
@@ -115,9 +123,9 @@ class DynamicsConfig(BaseModel):
     """Configuration for MD/kMC Dynamics."""
     model_config = ConfigDict(extra="forbid")
     timestep: float = Field(default=DEFAULT_TIMESTEP)
-    n_steps: int = 1000
-    thermostat: str = "nose-hoover"
-    barostat: str = "berendsen"
+    n_steps: int = Field(default=DEFAULT_DYNAMICS_STEPS)
+    thermostat: str = Field(default=DEFAULT_THERMOSTAT)
+    barostat: str = Field(default=DEFAULT_BAROSTAT)
 
 
 class OrchestratorConfig(BaseModel):
@@ -155,3 +163,22 @@ class Config(BaseModel):
         from mlip_autopipec.infrastructure import io
         data = io.load_yaml(path)
         return cls(**data)
+
+    @classmethod
+    def get_default_template(cls) -> dict[str, Any]:
+        """Return a default configuration template."""
+        return {
+            "project_name": DEFAULT_PROJECT_NAME,
+            "potential": {
+                "elements": DEFAULT_ELEMENTS,
+                "cutoff": DEFAULT_CUTOFF,
+                "seed": DEFAULT_SEED
+            },
+            "logging": {
+                "level": DEFAULT_LOG_LEVEL,
+            },
+            "trainer": {
+                "max_epochs": DEFAULT_TRAIN_EPOCHS,
+                "batch_size": DEFAULT_BATCH_SIZE
+            }
+        }

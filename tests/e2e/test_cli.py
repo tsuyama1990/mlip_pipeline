@@ -108,3 +108,22 @@ def test_cli_verbose(tmp_path: Path) -> None:
         # Run check with verbose
         result = runner.invoke(app, ["--verbose", "check"])
         assert result.exit_code == 0
+
+def test_cli_run_loop_valid_yaml_invalid_schema(tmp_path: Path) -> None:
+    """Test 'run-loop' with valid YAML but invalid schema (e.g., negative cutoff)."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+
+        # Modify config to be invalid (negative cutoff)
+        import yaml
+        from mlip_autopipec.infrastructure import io
+
+        data = io.load_yaml(DEFAULT_CONFIG_FILENAME)
+        data["potential"]["cutoff"] = -5.0
+        io.dump_yaml(data, DEFAULT_CONFIG_FILENAME)
+
+        result = runner.invoke(app, ["run-loop"])
+        assert result.exit_code == 1
+        assert "Workflow failed" in result.stdout
+        # Pydantic validation error should be present
+        assert "Cutoff must be greater than 0" in result.stdout

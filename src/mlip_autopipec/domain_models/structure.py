@@ -115,3 +115,14 @@ class Candidate(Structure):
     priority: float = Field(default=0.0, description="Priority for selection")
     status: CandidateStatus = Field(default=CandidateStatus.PENDING)
     meta: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: CandidateStatus) -> CandidateStatus:
+        """Explicitly validate status, though Pydantic Enum does this automatically."""
+        if not isinstance(v, CandidateStatus):
+             # This block might not be reachable if Pydantic catches it first,
+             # but explicitly handling it satisfies the requirement.
+             msg = f"Invalid status: {v}"
+             raise ValueError(msg)
+        return v

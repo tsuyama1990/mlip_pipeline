@@ -18,9 +18,17 @@ DEFAULT_SCF_K_POINTS = [2, 2, 2]  # Fallback if density not used
 # Trainer Defaults (MACE/Pacemaker)
 DEFAULT_TRAIN_EPOCHS = int(os.getenv("MLIP_DEFAULT_TRAIN_EPOCHS", "100"))
 DEFAULT_MODEL_SIZE = os.getenv("MLIP_DEFAULT_MODEL_SIZE", "small") # small, medium, large
+DEFAULT_BATCH_SIZE = int(os.getenv("MLIP_DEFAULT_BATCH_SIZE", "32"))
+DEFAULT_VALID_FRACTION = float(os.getenv("MLIP_DEFAULT_VALID_FRACTION", "0.1"))
+DEFAULT_ENERGY_WEIGHT = float(os.getenv("MLIP_DEFAULT_ENERGY_WEIGHT", "1.0"))
+DEFAULT_FORCES_WEIGHT = float(os.getenv("MLIP_DEFAULT_FORCES_WEIGHT", "10.0"))
+DEFAULT_STRESS_WEIGHT = float(os.getenv("MLIP_DEFAULT_STRESS_WEIGHT", "0.1"))
 
 # Dynamics Defaults
 DEFAULT_TIMESTEP = float(os.getenv("MLIP_DEFAULT_TIMESTEP", "1.0"))  # fs
+DEFAULT_DYNAMICS_STEPS = int(os.getenv("MLIP_DEFAULT_DYNAMICS_STEPS", "1000"))
+DEFAULT_THERMOSTAT = os.getenv("MLIP_DEFAULT_THERMOSTAT", "nose-hoover")
+DEFAULT_BAROSTAT = os.getenv("MLIP_DEFAULT_BAROSTAT", "berendsen")
 
 # Adaptive Policy Defaults
 DEFAULT_MD_MC_RATIO = float(os.getenv("MLIP_DEFAULT_MD_MC_RATIO", "0.1"))  # 10% MC steps
