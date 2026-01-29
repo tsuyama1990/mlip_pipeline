@@ -41,3 +41,29 @@ def test_load_json_not_found() -> None:
     """Test loading non-existent JSON."""
     with pytest.raises(FileNotFoundError):
         io.load_json("non_existent.json")
+
+def test_load_yaml_empty(tmp_path: Path) -> None:
+    """Test loading an empty YAML file."""
+    path = tmp_path / "empty.yaml"
+    path.touch()
+    assert io.load_yaml(path) == {}
+
+def test_load_yaml_invalid(tmp_path: Path) -> None:
+    """Test loading invalid YAML."""
+    path = tmp_path / "invalid.yaml"
+    path.write_text("invalid: [unclosed")
+
+    # yaml.safe_load raises ScannerError or ParserError
+    from yaml import YAMLError
+    with pytest.raises(YAMLError):
+        io.load_yaml(path)
+
+def test_load_json_malformed(tmp_path: Path) -> None:
+    """Test loading malformed JSON."""
+    path = tmp_path / "malformed.json"
+    path.write_text("{unquoted: 1}")
+
+    # json.load raises JSONDecodeError which inherits from ValueError
+    # We use a broad match because the message depends on the python version/implementation
+    with pytest.raises(ValueError, match="Expecting property name"):
+        io.load_json(path)

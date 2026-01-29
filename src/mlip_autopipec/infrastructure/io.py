@@ -12,6 +12,11 @@ from mlip_autopipec.constants import DEFAULT_STATE_FILENAME
 def load_yaml(path: str | Path) -> dict[str, Any]:
     """Load a YAML file safely.
 
+    WARNING: This loads the entire file into memory. Do not use for large datasets.
+
+    This function uses `yaml.safe_load` to prevent arbitrary code execution,
+    ensuring security against malicious YAML files.
+
     Args:
         path: Path to the YAML file.
 
@@ -68,6 +73,8 @@ def save_json(data: dict[str, Any], path: str | Path = DEFAULT_STATE_FILENAME) -
 
 def load_json(path: str | Path = DEFAULT_STATE_FILENAME) -> dict[str, Any]:
     """Load data from a JSON file.
+
+    WARNING: This loads the entire file into memory. Do not use for large datasets.
 
     Args:
         path: Path to the JSON file.

@@ -4,13 +4,14 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 16 items
+collected 28 items
 
-tests/domain_models/test_config.py ...                                   [ 18%]
-tests/domain_models/test_structure.py ...                                [ 37%]
-tests/e2e/test_cli.py .....                                              [ 68%]
-tests/infrastructure/test_io.py ....                                     [ 93%]
-tests/infrastructure/test_logging.py .                                   [100%]
+tests/domain_models/test_config.py ...                                   [ 10%]
+tests/domain_models/test_structure.py ...                                [ 21%]
+tests/e2e/test_cli.py .........                                          [ 53%]
+tests/infrastructure/test_io.py .......                                  [ 78%]
+tests/infrastructure/test_logging.py .                                   [ 82%]
+tests/orchestration/test_workflow.py .....                               [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
@@ -18,20 +19,23 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                            Stmts   Miss  Cover   Missing
 -----------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                      1      0   100%
-src/mlip_autopipec/app.py                          16      2    88%   26, 40
-src/mlip_autopipec/cli/commands.py                 44     14    68%   44-46, 52-68
-src/mlip_autopipec/constants.py                    13      0   100%
+src/mlip_autopipec/app.py                          16      1    94%   40
+src/mlip_autopipec/cli/commands.py                  8      0   100%
+src/mlip_autopipec/cli/handlers/project.py         15      0   100%
+src/mlip_autopipec/cli/handlers/validation.py      17      0   100%
+src/mlip_autopipec/cli/handlers/workflow.py        19      0   100%
+src/mlip_autopipec/constants.py                    41     14    66%   10-17, 23-26, 32-35
 src/mlip_autopipec/domain_models/__init__.py        0      0   100%
 src/mlip_autopipec/domain_models/config.py         49      0   100%
 src/mlip_autopipec/domain_models/structure.py      35      0   100%
 src/mlip_autopipec/domain_models/workflow.py       19      0   100%
 src/mlip_autopipec/infrastructure/__init__.py       0      0   100%
-src/mlip_autopipec/infrastructure/io.py            32      1    97%   35
+src/mlip_autopipec/infrastructure/io.py            32      0   100%
 src/mlip_autopipec/infrastructure/logging.py       24      2    92%   24, 50
 src/mlip_autopipec/orchestration/__init__.py        0      0   100%
-src/mlip_autopipec/orchestration/workflow.py       33      8    76%   25-30, 44-45
+src/mlip_autopipec/orchestration/workflow.py       33      0   100%
 -----------------------------------------------------------------------------
-TOTAL                                             266     27    90%
-============================== 16 passed in 3.02s ==============================
+TOTAL                                             309     17    94%
+============================== 28 passed in 4.72s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
