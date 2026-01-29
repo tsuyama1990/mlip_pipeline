@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any
 
 import ase
@@ -68,3 +69,23 @@ class Structure(BaseModel):
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
         return str(self.to_ase().get_chemical_formula())  # type: ignore[no-untyped-call]
+
+
+class CandidateStatus(str, Enum):
+    PENDING = "PENDING"
+    TRAINING = "TRAINING"
+    FAILED = "FAILED"
+    SCREENING = "SCREENING"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
+
+
+class Candidate(Structure):
+    """
+    Extends Structure with metadata for the active learning workflow.
+    """
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    source: str
+    status: CandidateStatus = CandidateStatus.PENDING
+    priority: int = 0

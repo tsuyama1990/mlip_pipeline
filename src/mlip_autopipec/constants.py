@@ -1,5 +1,6 @@
 
 DEFAULT_CONFIG_FILENAME = "config.yaml"
+DEFAULT_STATE_FILENAME = "workflow_state.json"
 DEFAULT_LOG_FILENAME = "mlip_pipeline.log"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_PROJECT_NAME = "MyMLIPProject"

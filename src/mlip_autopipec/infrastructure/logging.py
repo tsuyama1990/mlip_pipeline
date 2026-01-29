@@ -1,39 +1,45 @@
 import logging
+from pathlib import Path
 
 from rich.logging import RichHandler
 
-from mlip_autopipec.domain_models.config import LoggingConfig
 
-
-def setup_logging(config: LoggingConfig) -> None:
+def configure_logging(level: str = "INFO", log_file: Path | str | None = None) -> None:
     """
     Configure the root logger with Rich console output and file logging.
 
     Args:
-        config: Logging configuration object.
+        level: Logging level for the console (default: INFO).
+        log_file: Path to the log file. If provided, file logging is enabled at DEBUG level.
     """
-    # Create the handlers
+    # Create handlers
     handlers: list[logging.Handler] = []
 
     # Rich Handler for console
-    rich_handler = RichHandler(
+    console_handler = RichHandler(
         rich_tracebacks=True,
-        show_time=False,
+        show_time=True,
         show_path=False
     )
-    handlers.append(rich_handler)
+    console_handler.setLevel(level)
+    handlers.append(console_handler)
 
     # File Handler
-    file_handler = logging.FileHandler(config.file_path)
-    file_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    file_handler.setFormatter(file_formatter)
-    handlers.append(file_handler)
+    root_level = level
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.DEBUG)
+        file_formatter = logging.Formatter(
+            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+        )
+        file_handler.setFormatter(file_formatter)
+        handlers.append(file_handler)
+        # If file logging is enabled (DEBUG), root must be DEBUG to allow messages to reach file handler
+        root_level = "DEBUG"
 
     # Configure Root Logger
     logging.basicConfig(
-        level=config.level,
+        level=root_level,
         format="%(message)s",
         datefmt="[%X]",
         handlers=handlers,

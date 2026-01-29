@@ -3,8 +3,10 @@ from typing import Any
 
 import yaml
 
+from mlip_autopipec.domain_models.workflow import WorkflowState
 
-def load_yaml(path: Path) -> dict[str, Any]:
+
+def load_yaml(path: Path | str) -> dict[str, Any]:
     """
     Safely load a YAML file.
 
@@ -22,6 +24,11 @@ def load_yaml(path: Path) -> dict[str, Any]:
         yaml.YAMLError: If the YAML is invalid.
         TypeError: If the YAML content is not a dictionary.
     """
+    path = Path(path)
+    if not path.exists():
+        msg = f"YAML file not found: {path}"
+        raise FileNotFoundError(msg)
+
     with path.open("r") as f:
         data = yaml.safe_load(f)
 
@@ -34,13 +41,48 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
     return data
 
-def dump_yaml(data: dict[str, Any], path: Path) -> None:
+
+def dump_yaml(data: Any, path: Path | str) -> None:
     """
     Dump data to a YAML file.
 
     Args:
-        data: Dictionary to dump.
+        data: Data to dump.
         path: Path to the output file.
     """
+    path = Path(path)
     with path.open("w") as f:
         yaml.dump(data, f, sort_keys=False)
+
+
+def save_state(state: WorkflowState, path: Path | str) -> None:
+    """
+    Persist the workflow state to a JSON file.
+
+    Args:
+        state: The WorkflowState object.
+        path: Path to the output JSON file.
+    """
+    path = Path(path)
+    with path.open("w") as f:
+        f.write(state.model_dump_json(indent=2))
+
+
+def load_state(path: Path | str) -> WorkflowState:
+    """
+    Load the workflow state from a JSON file.
+
+    Args:
+        path: Path to the JSON file.
+
+    Returns:
+        The loaded WorkflowState object.
+    """
+    path = Path(path)
+    if not path.exists():
+        msg = f"State file not found: {path}"
+        raise FileNotFoundError(msg)
+
+    with path.open("r") as f:
+        json_str = f.read()
+    return WorkflowState.model_validate_json(json_str)

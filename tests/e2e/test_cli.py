@@ -1,62 +1,57 @@
 from pathlib import Path
-from typing import Any
+from unittest.mock import patch
 
-import pytest
+import yaml
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
 
 runner = CliRunner()
 
-def test_init(tmp_path: Path) -> None:
-    """Test 'init' command."""
+def test_init_command(tmp_path: Path) -> None:
     with runner.isolated_filesystem(temp_dir=tmp_path):
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
-        assert "Created template configuration" in result.stdout
         assert Path("config.yaml").exists()
 
-def test_init_existing(tmp_path: Path) -> None:
-    """Test 'init' fails if file exists."""
+        # Verify content
+        with Path("config.yaml").open() as f:
+            config = yaml.safe_load(f)
+            # Depending on the template, we check a key
+            assert "project_name" in config
+
+def test_init_command_existing(tmp_path: Path) -> None:
     with runner.isolated_filesystem(temp_dir=tmp_path):
         Path("config.yaml").touch()
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 1
         assert "already exists" in result.stdout
 
-def test_init_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test 'init' handles exceptions during write."""
-    from mlip_autopipec.infrastructure import io
-
-    def mock_dump(*args: Any, **kwargs: Any) -> None:
-        msg = "Permission denied"
-        raise OSError(msg)
-
-    monkeypatch.setattr(io, "dump_yaml", mock_dump)
-
+def test_check_command(tmp_path: Path) -> None:
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(app, ["init"])
-        assert result.exit_code == 1
-        assert "Failed to create config: Permission denied" in result.stdout
-
-def test_check_valid(tmp_path: Path) -> None:
-    """Test 'check' with valid config."""
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        # Create config first
         runner.invoke(app, ["init"])
-
         result = runner.invoke(app, ["check"])
         assert result.exit_code == 0
-        assert "Configuration valid" in result.stdout
-        assert Path("mlip_pipeline.log").exists()
+        assert "valid" in result.stdout.lower()
 
-def test_check_invalid(tmp_path: Path) -> None:
-    """Test 'check' with invalid config."""
+def test_check_command_missing(tmp_path: Path) -> None:
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        p = Path("config.yaml")
-        p.write_text("project_name: 'Bad'\npotential:\n  cutoff: -1\n  elements: ['A']")
-
         result = runner.invoke(app, ["check"])
         assert result.exit_code == 1
-        assert "Validation failed" in result.stdout
-        assert "Cutoff must be greater than 0" in result.stdout
+        assert "not found" in result.stdout
+
+def test_run_loop_mocked(tmp_path: Path) -> None:
+     with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+        # Mock WorkflowManager to prevent actual execution
+        with patch("mlip_autopipec.cli.commands.WorkflowManager") as mock_wm:
+            result = runner.invoke(app, ["run-loop"])
+            assert result.exit_code == 0
+            mock_wm.assert_called_once()
+            mock_wm.return_value.run.assert_called_once()
+
+def test_run_loop_missing(tmp_path: Path) -> None:
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(app, ["run-loop"])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout

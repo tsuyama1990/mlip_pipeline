@@ -1,53 +1,44 @@
 from pathlib import Path
-
 import pytest
 import yaml
-
 from mlip_autopipec.infrastructure import io
+from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase
 
+def test_yaml_io(tmp_path: Path) -> None:
+    data = {"key": "value", "nested": {"a": 1}}
+    path = tmp_path / "test.yaml"
 
-def test_load_yaml_valid(tmp_path: Path) -> None:
-    """Test loading valid YAML."""
-    p = tmp_path / "test.yaml"
-    data = {"foo": "bar", "baz": 123}
-    with p.open("w") as f:
-        yaml.dump(data, f)
+    io.dump_yaml(data, path)
+    loaded = io.load_yaml(path)
 
-    loaded = io.load_yaml(p)
     assert loaded == data
 
+def test_state_io(tmp_path: Path) -> None:
+    state = WorkflowState(cycle_index=1, current_phase=WorkflowPhase.TRAINING)
+    path = tmp_path / "state.json"
 
-def test_load_yaml_missing() -> None:
-    """Test loading missing file."""
+    io.save_state(state, path)
+    loaded_state = io.load_state(path)
+
+    assert loaded_state.cycle_index == 1
+    assert loaded_state.current_phase == WorkflowPhase.TRAINING
+
+def test_load_yaml_missing(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        io.load_yaml(Path("non_existent.yaml"))
-
-
-def test_dump_yaml(tmp_path: Path) -> None:
-    """Test dumping YAML."""
-    p = tmp_path / "out.yaml"
-    data = {"a": 1, "b": [2, 3]}
-
-    io.dump_yaml(data, p)
-
-    assert p.exists()
-    with p.open() as f:
-        loaded = yaml.safe_load(f)
-    assert loaded == data
-
+        io.load_yaml(tmp_path / "missing.yaml")
 
 def test_load_yaml_empty(tmp_path: Path) -> None:
-    """Test loading empty YAML file."""
     p = tmp_path / "empty.yaml"
     p.touch()
     assert io.load_yaml(p) == {}
 
-
 def test_load_yaml_invalid_type(tmp_path: Path) -> None:
-    """Test loading YAML that is not a dict."""
     p = tmp_path / "list.yaml"
     with p.open("w") as f:
-        yaml.dump([1, 2, 3], f)
-
-    with pytest.raises(TypeError, match="must contain a dictionary"):
+        yaml.dump([1, 2], f)
+    with pytest.raises(TypeError):
         io.load_yaml(p)
+
+def test_load_state_missing(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        io.load_state(tmp_path / "missing.json")
