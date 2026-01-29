@@ -2,11 +2,13 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import yaml
+from pydantic import BaseModel
 
 MAX_CONFIG_SIZE = 1024 * 1024 * 5  # 5 MB limit for config/state files
+T = TypeVar("T", bound=BaseModel)
 
 
 def load_yaml(path: str | Path) -> dict[str, Any]:
@@ -62,6 +64,20 @@ def dump_yaml(data: dict[str, Any], path: str | Path) -> None:
 
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def load_pydantic_from_yaml(path: str | Path, model_cls: type[T]) -> T:
+    """Load a Pydantic model from a YAML file.
+
+    Args:
+        path: Path to the YAML file.
+        model_cls: The Pydantic model class.
+
+    Returns:
+        Instance of the Pydantic model.
+    """
+    data = load_yaml(path)
+    return model_cls(**data)
 
 
 def save_json(data: dict[str, Any], path: str | Path) -> None:

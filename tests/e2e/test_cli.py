@@ -99,3 +99,12 @@ def test_cli_run_loop_no_config(tmp_path: Path) -> None:
         result = runner.invoke(app, ["run-loop"])
         assert result.exit_code == 1
         assert "not found" in result.stdout
+
+
+def test_cli_verbose(tmp_path: Path) -> None:
+    """Test verbose flag."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+        # Run check with verbose
+        result = runner.invoke(app, ["--verbose", "check"])
+        assert result.exit_code == 0

@@ -3,8 +3,14 @@
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 
 from mlip_autopipec.infrastructure import io
+
+
+class MockModel(BaseModel):
+    key: str
+    value: int
 
 
 def test_yaml_io(tmp_path: Path) -> None:
@@ -90,3 +96,13 @@ def test_load_json_too_large(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="exceeds maximum allowed size"):
         io.load_json(path)
+
+def test_load_pydantic_from_yaml(tmp_path: Path) -> None:
+    """Test loading a Pydantic model from YAML."""
+    data = {"key": "test", "value": 42}
+    path = tmp_path / "model.yaml"
+    io.dump_yaml(data, path)
+
+    model = io.load_pydantic_from_yaml(path, MockModel)
+    assert model.key == "test"
+    assert model.value == 42
