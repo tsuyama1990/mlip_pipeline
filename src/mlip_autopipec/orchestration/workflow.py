@@ -25,9 +25,27 @@ class WorkflowManager:
         """Execute the workflow loop."""
         logger.info("Starting MLIP Active Learning Loop")
 
-        # Cycle 01: Stub implementation
-        # Just save the state to prove it works
-        self.state.current_phase = WorkflowPhase.EXPLORATION
-        self.state_manager.save(self.state)
+        self._initialize_workflow()
+        self._execute_cycle()
+        self._save_state()
 
-        logger.info("Workflow initialized (Stub)")
+        logger.info("Workflow cycle completed.")
+
+    def _initialize_workflow(self) -> None:
+        """Initialize workflow state if needed."""
+        if self.state.current_phase == WorkflowPhase.INITIALIZATION:
+            logger.info("Initializing workflow...")
+            self.state.current_phase = WorkflowPhase.EXPLORATION
+            self._save_state()
+
+    def _execute_cycle(self) -> None:
+        """Execute the logic for the current cycle."""
+        # Cycle 01: Stub implementation
+        # In future, this will delegate to specific Phase handlers based on self.state.current_phase
+        if self.state.current_phase == WorkflowPhase.EXPLORATION:
+            logger.info("Executing Exploration Phase (Stub)")
+            # Stub logic: move to next phase or complete
+
+    def _save_state(self) -> None:
+        """Persist the current state."""
+        self.state_manager.save(self.state)
