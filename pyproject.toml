@@ -127,31 +127,7 @@ ignore = [
     "RUF043", # Pattern metacharacters not escaped in match
     "RUF059", # Unused unpacked variable
     "PLR0913", # Too many arguments in function definition
-    "ANN202", # Missing return type annotation for private functions
-    "ERA001", # Found commented-out code (too many false positives with math/formulas)
-    "TRY301", # Abstract `raise` to an inner function (overkill for simple raises)
-    "TRY300", # Consider moving this statement to an `else` block
-    "RET504", # Unnecessary assignment to `resolved` before `return` statement
-    "SIM117", # Use a single `with` statement with multiple contexts
-    "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
-    "S603",   # `subprocess` call: check for execution of untrusted input (we validate inputs)
-    "TRY401", # Redundant exception object included in `logging.exception` call
-    "TRY002", # Create your own exception
-    "ANN204", # Missing return type annotation for special method `__init__`
-    "C901",   # mccabe: function is too complex
-    "PLR0915", # Too many statements
-    "PLR0912", # Too many branches
-    "PLR0911", # Too many return statements
-    "S311",   # Standard pseudo-random generators are not suitable for cryptographic purposes (we use them for shuffling)
-    "S701",   # By default, jinja2 sets `autoescape` to `False` (internal dashboard, low risk)
-    "S110",   # `try`-`except`-`pass` detected
-    "PLW1510", # `subprocess.run` without explicit `check` argument
-    "TRY004", # Prefer `TypeError` exception for invalid type
-    "B904",   # Within an `except` clause, raise exceptions with `raise ... from err`
-    "A002",   # Function argument `id` is shadowing a Python builtin
-    "PTH123", # `open()` should be replaced by `Path.open()`
-    "PTH100", # `os.path.abspath()` should be replaced by `Path.resolve()`
-    "SIM115"  # Use context handler for opening files
+    "ANN202"  # Missing return type annotation for private functions
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -164,34 +140,9 @@ max-complexity = 10  # Exceeding this prompts function splitting (prevent AI lon
 suppress-dummy-args = true  # Arguments starting with _ do not require type hints
 
 [tool.pytest.ini_options]
-addopts = ""
+addopts = "--cov=dev_src --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.mypy]
-strict = false
+strict = true
 ignore_missing_imports = true
-disallow_untyped_defs = false
-disallow_subclassing_any = false
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-strict = false
-disallow_untyped_defs = false
-disallow_untyped_decorators = false
-check_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = "mlip_autopipec.app"
-disallow_untyped_decorators = false
-
-[[tool.mypy.overrides]]
-module = ["yaml", "ase.*", "dask.*", "spglib"]
-ignore_missing_imports = true
-
-[dependency-groups]
-dev = [
-    "mypy>=1.19.1",
-    "pytest>=9.0.2",
-    "pytest-cov>=7.0.0",
-    "ruff>=0.14.14",
-]
