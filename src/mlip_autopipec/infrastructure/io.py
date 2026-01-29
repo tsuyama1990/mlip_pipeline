@@ -44,7 +44,7 @@ def load_yaml(path: Path | str) -> dict[str, Any]:
 
 def dump_yaml(data: Any, path: Path | str) -> None:
     """
-    Dump data to a YAML file.
+    Dump data to a YAML file using safe dumper.
 
     Args:
         data: Data to dump.
@@ -52,7 +52,7 @@ def dump_yaml(data: Any, path: Path | str) -> None:
     """
     path = Path(path)
     with path.open("w") as f:
-        yaml.dump(data, f, sort_keys=False)
+        yaml.safe_dump(data, f, sort_keys=False)
 
 
 def save_state(state: WorkflowState, path: Path | str) -> None:
