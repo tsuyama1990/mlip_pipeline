@@ -115,7 +115,6 @@ def test_cli_run_loop_valid_yaml_invalid_schema(tmp_path: Path) -> None:
         runner.invoke(app, ["init"])
 
         # Modify config to be invalid (negative cutoff)
-        import yaml
         from mlip_autopipec.infrastructure import io
 
         data = io.load_yaml(DEFAULT_CONFIG_FILENAME)

@@ -124,5 +124,5 @@ class Candidate(Structure):
              # This block might not be reachable if Pydantic catches it first,
              # but explicitly handling it satisfies the requirement.
              msg = f"Invalid status: {v}"
-             raise ValueError(msg)
+             raise TypeError(msg)
         return v

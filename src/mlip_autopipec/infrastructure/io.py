@@ -1,8 +1,9 @@
 """I/O utilities for YAML and file handling."""
 
 import json
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator, TypeVar
+from typing import Any, TypeVar
 
 import ijson
 import yaml
@@ -67,7 +68,7 @@ def dump_yaml(data: dict[str, Any], path: str | Path) -> None:
             yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
     except Exception as e:
         msg = f"Failed to dump YAML to {path}: {e}"
-        raise IOError(msg) from e
+        raise OSError(msg) from e
 
 
 def load_pydantic_from_yaml(path: str | Path, model_cls: type[T]) -> T:
@@ -102,7 +103,7 @@ def save_json(data: dict[str, Any], path: str | Path) -> None:
             json.dump(data, f, indent=2)
     except Exception as e:
         msg = f"Failed to save JSON to {path}: {e}"
-        raise IOError(msg) from e
+        raise OSError(msg) from e
 
 
 def load_json(path: str | Path) -> dict[str, Any]:
