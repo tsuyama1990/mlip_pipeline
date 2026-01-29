@@ -1,12 +1,16 @@
 """Unit tests for structure generation."""
 
-import pytest
 import numpy as np
 from ase import Atoms
+
 from mlip_autopipec.domain_models.config import ExplorationConfig
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.modules.structure_gen.strategies import ColdStartStrategy, RandomPerturbationStrategy
 from mlip_autopipec.modules.structure_gen.generator import StructureGenerator
+from mlip_autopipec.modules.structure_gen.strategies import (
+    ColdStartStrategy,
+    RandomPerturbationStrategy,
+)
+
 
 def test_cold_start_strategy() -> None:
     """Test cold start strategy generates valid structures."""

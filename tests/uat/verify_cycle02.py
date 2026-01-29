@@ -3,13 +3,14 @@
 import logging
 import sys
 from pathlib import Path
+
 import numpy as np
 
 # Ensure src is in path
 sys.path.append(str(Path.cwd() / "src"))
 
 from mlip_autopipec.domain_models.config import Config, ExplorationConfig
-from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase
+from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
 from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
 
 # Setup Logging

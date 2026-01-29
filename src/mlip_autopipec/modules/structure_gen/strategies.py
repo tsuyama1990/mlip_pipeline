@@ -1,10 +1,8 @@
 """Structure generation strategies."""
 
 import logging
-from typing import Protocol
 
 import numpy as np
-from ase import Atoms
 from ase.build import bulk
 
 from mlip_autopipec.domain_models.config import ExplorationConfig
@@ -33,16 +31,16 @@ class ColdStartStrategy:
 
                 # Supercell
                 if config.supercell_size != [1, 1, 1]:
-                    atoms = atoms.repeat(config.supercell_size)  # type: ignore[no-untyped-call]
+                    atoms = atoms.repeat(config.supercell_size)
 
                 # Rattle
                 if config.rattle_amplitude > 0:
-                    atoms.rattle(stdev=config.rattle_amplitude)  # type: ignore[no-untyped-call]
+                    atoms.rattle(stdev=config.rattle_amplitude)
 
                 structures.append(Structure.from_ase(atoms))
 
-        except Exception as e:
-            logger.error(f"Failed to generate structure for {config.composition}: {e}")
+        except Exception:
+            logger.exception(f"Failed to generate structure for {config.composition}")
             # Return what we have or empty
             return structures
 

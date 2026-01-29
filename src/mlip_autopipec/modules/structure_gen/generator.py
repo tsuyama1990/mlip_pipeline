@@ -4,7 +4,10 @@ import logging
 
 from mlip_autopipec.domain_models.config import ExplorationConfig
 from mlip_autopipec.domain_models.structure import Candidate, CandidateStatus, Structure
-from mlip_autopipec.modules.structure_gen.strategies import ColdStartStrategy, RandomPerturbationStrategy
+from mlip_autopipec.modules.structure_gen.strategies import (
+    ColdStartStrategy,
+    RandomPerturbationStrategy,
+)
 
 logger = logging.getLogger(__name__)
 

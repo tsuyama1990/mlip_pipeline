@@ -46,10 +46,6 @@ class WorkflowManager:
             phase = ExplorationPhase()
             phase.execute(self.state, self.config)
 
-            # Move to next phase if successful (For now, just log)
-            # In full loop, we'd move to SELECTION or ORACLE
-            # self.state.current_phase = WorkflowPhase.ORACLE
-
     def _save_state(self) -> None:
         """Persist the current state."""
         self.state_manager.save(self.state)

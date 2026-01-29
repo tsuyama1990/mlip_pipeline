@@ -1,20 +1,20 @@
 """E2E tests for Exploration Phase."""
 
-import pytest
-from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase
-from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.config import Config, ExplorationConfig
+from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
 from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
+
 
 def test_exploration_phase_execution() -> None:
     """Test that exploration phase generates candidates and updates state."""
     # Setup
     config = Config(
         project_name="test",
-        structure_gen={
-            "strategy": "template",
-            "composition": "Si",
-            "num_candidates": 3
-        }
+        structure_gen=ExplorationConfig(
+            strategy="template",
+            composition="Si",
+            num_candidates=3
+        )
     )
     state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
 
