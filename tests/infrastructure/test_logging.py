@@ -10,7 +10,7 @@ def test_setup_logging(tmp_path: Path) -> None:
     log_file = tmp_path / "test.log"
     config = LoggingConfig(level="DEBUG", file_path=log_file)
 
-    setup_logging(config)
+    setup_logging(log_level=config.level, log_file=config.file_path)
 
     logger = logging.getLogger("mlip_autopipec")
     assert logger.getEffectiveLevel() == logging.DEBUG

@@ -1,53 +1,92 @@
+"""Tests for I/O utilities."""
+
 from pathlib import Path
 
 import pytest
-import yaml
 
 from mlip_autopipec.infrastructure import io
 
 
-def test_load_yaml_valid(tmp_path: Path) -> None:
-    """Test loading valid YAML."""
-    p = tmp_path / "test.yaml"
-    data = {"foo": "bar", "baz": 123}
-    with p.open("w") as f:
-        yaml.dump(data, f)
+def test_yaml_io(tmp_path: Path) -> None:
+    """Test YAML load and dump."""
+    data = {"key": "value", "nested": {"a": 1}}
+    path = tmp_path / "test.yaml"
 
-    loaded = io.load_yaml(p)
+    io.dump_yaml(data, path)
+    assert path.exists()
+
+    loaded = io.load_yaml(path)
     assert loaded == data
 
 
-def test_load_yaml_missing() -> None:
-    """Test loading missing file."""
+def test_load_yaml_not_found() -> None:
+    """Test loading non-existent file."""
     with pytest.raises(FileNotFoundError):
-        io.load_yaml(Path("non_existent.yaml"))
+        io.load_yaml("non_existent.yaml")
 
 
-def test_dump_yaml(tmp_path: Path) -> None:
-    """Test dumping YAML."""
-    p = tmp_path / "out.yaml"
-    data = {"a": 1, "b": [2, 3]}
+def test_json_io(tmp_path: Path) -> None:
+    """Test JSON save and load."""
+    data = {"state": "RUNNING", "cycle": 1}
+    path = tmp_path / "state.json"
 
-    io.dump_yaml(data, p)
+    io.save_json(data, path)
+    assert path.exists()
 
-    assert p.exists()
-    with p.open() as f:
-        loaded = yaml.safe_load(f)
+    loaded = io.load_json(path)
     assert loaded == data
 
+
+def test_load_json_not_found() -> None:
+    """Test loading non-existent JSON."""
+    with pytest.raises(FileNotFoundError):
+        io.load_json("non_existent.json")
 
 def test_load_yaml_empty(tmp_path: Path) -> None:
-    """Test loading empty YAML file."""
-    p = tmp_path / "empty.yaml"
-    p.touch()
-    assert io.load_yaml(p) == {}
+    """Test loading an empty YAML file."""
+    path = tmp_path / "empty.yaml"
+    path.touch()
+    assert io.load_yaml(path) == {}
 
+def test_load_yaml_invalid(tmp_path: Path) -> None:
+    """Test loading invalid YAML."""
+    path = tmp_path / "invalid.yaml"
+    path.write_text("invalid: [unclosed")
 
-def test_load_yaml_invalid_type(tmp_path: Path) -> None:
-    """Test loading YAML that is not a dict."""
-    p = tmp_path / "list.yaml"
-    with p.open("w") as f:
-        yaml.dump([1, 2, 3], f)
+    # yaml.safe_load raises ScannerError or ParserError
+    from yaml import YAMLError
+    with pytest.raises(YAMLError):
+        io.load_yaml(path)
 
-    with pytest.raises(TypeError, match="must contain a dictionary"):
-        io.load_yaml(p)
+def test_load_json_malformed(tmp_path: Path) -> None:
+    """Test loading malformed JSON."""
+    path = tmp_path / "malformed.json"
+    path.write_text("{unquoted: 1}")
+
+    # json.load raises JSONDecodeError which inherits from ValueError
+    with pytest.raises(ValueError, match="Expecting property name"):
+        io.load_json(path)
+
+def test_load_yaml_too_large(tmp_path: Path) -> None:
+    """Test loading oversized YAML."""
+    path = tmp_path / "large.yaml"
+    # Create file slightly larger than MAX_CONFIG_SIZE (5MB)
+    size = io.MAX_CONFIG_SIZE + 100
+    with path.open("wb") as f:
+        f.seek(size - 1)
+        f.write(b"\0")
+
+    with pytest.raises(ValueError, match="exceeds maximum allowed size"):
+        io.load_yaml(path)
+
+def test_load_json_too_large(tmp_path: Path) -> None:
+    """Test loading oversized JSON."""
+    path = tmp_path / "large.json"
+    # Create file slightly larger than MAX_CONFIG_SIZE (5MB)
+    size = io.MAX_CONFIG_SIZE + 100
+    with path.open("wb") as f:
+        f.seek(size - 1)
+        f.write(b"\0")
+
+    with pytest.raises(ValueError, match="exceeds maximum allowed size"):
+        io.load_json(path)
