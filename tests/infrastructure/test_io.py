@@ -3,7 +3,13 @@ from pathlib import Path
 import pytest
 import yaml
 
+<<<<<<< Updated upstream
 from mlip_autopipec.infrastructure import io
+=======
+from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
+from mlip_autopipec.infrastructure import io
+
+>>>>>>> Stashed changes
 
 
 def test_load_yaml_valid(tmp_path: Path) -> None:
