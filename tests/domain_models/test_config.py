@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from mlip_autopipec.domain_models.config import (
     AdaptivePolicyConfig,
     Config,
+    ExplorationConfig,
     PotentialConfig,
     TrainerConfig,
 )
@@ -25,7 +26,7 @@ def test_config_valid(temp_dir: object) -> None:
             "file_path": "test.log"
         },
         "structure_gen": {
-            "method": "random",
+            "strategy": "random",
             "policy": {
                 "md_mc_ratio": 0.5
             }
@@ -96,3 +97,35 @@ def test_trainer_validation() -> None:
     """Test validation for trainer."""
     with pytest.raises(ValidationError):
         TrainerConfig(max_epochs=0)
+
+def test_exploration_config_valid() -> None:
+    """Test valid exploration config."""
+    config = ExplorationConfig(
+        strategy="random",
+        supercell_size=[2, 2, 2],
+        rattle_amplitude=0.05,
+        num_candidates=10,
+        composition="Si2"
+    )
+    assert config.strategy == "random"
+    assert config.supercell_size == [2, 2, 2]
+    assert config.rattle_amplitude == 0.05
+    assert config.num_candidates == 10
+    assert config.composition == "Si2"
+
+def test_exploration_config_invalid() -> None:
+    """Test invalid exploration config."""
+    # Invalid supercell
+    with pytest.raises(ValidationError):
+        ExplorationConfig(supercell_size=[1, 1]) # Wrong length
+
+    with pytest.raises(ValidationError):
+        ExplorationConfig(supercell_size=[0, 1, 1]) # Not positive
+
+    # Invalid rattle
+    with pytest.raises(ValidationError):
+        ExplorationConfig(rattle_amplitude=-0.1)
+
+    # Invalid candidates
+    with pytest.raises(ValidationError):
+        ExplorationConfig(num_candidates=0)

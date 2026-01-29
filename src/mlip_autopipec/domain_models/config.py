@@ -78,11 +78,24 @@ class AdaptivePolicyConfig(BaseModel):
         return v
 
 
-class StructureGenConfig(BaseModel):
-    """Configuration for Structure Generation."""
+class ExplorationConfig(BaseModel):
+    """Configuration for Structure Exploration/Generation."""
     model_config = ConfigDict(extra="forbid")
-    method: str = "random"
+
+    strategy: Literal["random", "template", "adaptive"] = "random"
+    supercell_size: list[int] = Field(default_factory=lambda: [1, 1, 1])
+    rattle_amplitude: float = Field(default=0.1, ge=0.0)
+    num_candidates: int = Field(default=1, ge=1)
+    composition: str | None = Field(default=None, description="Chemical formula for cold start (e.g. 'Si')")
     policy: AdaptivePolicyConfig = Field(default_factory=AdaptivePolicyConfig)
+
+    @field_validator("supercell_size")
+    @classmethod
+    def validate_supercell(cls, v: list[int]) -> list[int]:
+        if len(v) != 3 or any(i < 1 for i in v):
+            msg = "Supercell size must be 3 positive integers"
+            raise ValueError(msg)
+        return v
 
 
 class OracleConfig(BaseModel):
@@ -143,7 +156,7 @@ class Config(BaseModel):
     project_name: str = Field(default=DEFAULT_PROJECT_NAME)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     potential: PotentialConfig = Field(default_factory=PotentialConfig)
-    structure_gen: StructureGenConfig = Field(default_factory=StructureGenConfig)
+    structure_gen: ExplorationConfig = Field(default_factory=ExplorationConfig)
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     dynamics: DynamicsConfig = Field(default_factory=DynamicsConfig)

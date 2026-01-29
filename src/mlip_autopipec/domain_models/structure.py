@@ -107,7 +107,10 @@ class Structure(BaseModel):
 
 
 class Candidate(Structure):
-    """A structure candidate for exploration/training."""
+    """A structure candidate for exploration/training.
+
+    Includes metadata like source strategy, priority, and current status.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

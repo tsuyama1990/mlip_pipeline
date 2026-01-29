@@ -40,11 +40,11 @@ class WorkflowManager:
 
     def _execute_cycle(self) -> None:
         """Execute the logic for the current cycle."""
-        # Cycle 01: Stub implementation
-        # In future, this will delegate to specific Phase handlers based on self.state.current_phase
         if self.state.current_phase == WorkflowPhase.EXPLORATION:
-            logger.info("Executing Exploration Phase (Stub)")
-            # Stub logic: move to next phase or complete
+            from mlip_autopipec.orchestration.phases import ExplorationPhase
+
+            phase = ExplorationPhase()
+            phase.execute(self.state, self.config)
 
     def _save_state(self) -> None:
         """Persist the current state."""

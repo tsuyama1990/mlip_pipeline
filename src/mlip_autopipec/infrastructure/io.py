@@ -145,7 +145,7 @@ def load_json(path: str | Path) -> dict[str, Any]:
 def load_json_iter(path: str | Path, item_prefix: str = "item") -> Generator[Any, None, None]:
     """Load data from a JSON file iteratively using ijson.
 
-    This avoids loading the entire file into memory.
+    This avoids loading the entire file into memory, useful for large datasets.
 
     Args:
         path: Path to the JSON file.

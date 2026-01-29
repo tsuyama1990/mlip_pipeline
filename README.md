@@ -6,6 +6,7 @@
 
 ## Features
 
+*   **Structure Generation**: Automated generation of initial atomic structures ("Cold Start") and random perturbations for candidate exploration.
 *   **Project Initialization**: Quickly set up a new active learning project with a template configuration using `mlip-auto init`.
 *   **Robust Configuration**: Strict schema validation ensures your settings are correct before any expensive calculations start.
 *   **Workflow Orchestration**: Automated state management tracks the progress of the active learning loop, handling persistence and recovery.
@@ -70,7 +71,7 @@ src/mlip_autopipec/
 
 ## Roadmap
 
-*   **Structure Generation**: Algorithms for generating initial and candidate structures.
+*   **Structure Generation**: (Completed) Algorithms for generating initial and candidate structures.
 *   **DFT Oracle**: Automated Quantum Espresso calculations.
 *   **Training Loop**: Integration with Pacemaker for potential fitting.
 *   **Active Learning**: MD-based sampling and uncertainty quantification.
