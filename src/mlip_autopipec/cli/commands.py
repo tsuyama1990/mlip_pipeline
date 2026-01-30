@@ -38,6 +38,7 @@ def init_project(path: Path) -> None:
             "file_path": DEFAULT_LOG_FILENAME
         },
         "exploration": {
+            "composition": "Si",
             "lattice_constant": 5.43,
             "md_params": {
                 "temperature": 300.0,
@@ -48,7 +49,8 @@ def init_project(path: Path) -> None:
         "lammps": {
             "command": os.getenv("LAMMPS_COMMAND", "lmp_serial"),
             "cores": 1,
-            "timeout": 3600.0
+            "timeout": 3600.0,
+            "seed": 42
         }
     }
 

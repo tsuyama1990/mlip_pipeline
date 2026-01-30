@@ -19,12 +19,9 @@ def run_one_shot(config: Config) -> LammpsResult:
     builder = StructureBuilder()
 
     # Defaults or from config
-    element = "Si"
+    element = config.exploration.composition
     crystal_structure = "diamond"
     lattice_constant = config.exploration.lattice_constant
-
-    if config.exploration.composition:
-        element = config.exploration.composition
 
     logger.info(f"Building initial structure: {element} ({crystal_structure})")
     structure = builder.build_bulk(element, crystal_structure, lattice_constant)

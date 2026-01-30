@@ -9,7 +9,7 @@ pair_style      hybrid/overlay lj/cut 2.5 zbl 4.0 5.0
 pair_coeff      * * lj/cut 1.0 1.0
 pair_coeff      1 1 zbl 14 14
 
-velocity        all create 300.0 12345 dist gaussian
+velocity        all create 300.0 42 dist gaussian
 
 fix             1 all nvt temp 300.0 300.0 0.1
 

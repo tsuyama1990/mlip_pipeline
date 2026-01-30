@@ -41,6 +41,7 @@ class LammpsConfig(BaseModel):
     command: str = Field(default_factory=lambda: os.getenv("LAMMPS_COMMAND", "lmp_serial"))
     cores: int = 1
     timeout: float = 3600.0
+    seed: int = 42
 
 
 class ExplorationConfig(BaseModel):
@@ -50,7 +51,7 @@ class ExplorationConfig(BaseModel):
     supercell_size: list[int] = Field(default_factory=lambda: [1, 1, 1])
     rattle_amplitude: float = 0.0
     num_candidates: int = 1
-    composition: Optional[str] = None
+    composition: str # Made mandatory to avoid hardcoding defaults
 
     # Fields for Cycle 02
     lattice_constant: float = 5.43
@@ -70,7 +71,7 @@ class Config(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
-    exploration: ExplorationConfig = Field(default_factory=ExplorationConfig)
+    exploration: ExplorationConfig # Removed default factory as composition is now mandatory
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
 
     @classmethod

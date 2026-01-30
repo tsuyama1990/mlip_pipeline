@@ -123,7 +123,7 @@ pair_style      hybrid/overlay lj/cut 2.5 zbl 4.0 5.0
 pair_coeff      * * lj/cut 1.0 1.0
 {pair_cmds}
 
-velocity        all create {params.temperature} {self.config.seed if hasattr(self.config, 'seed') else 12345} dist gaussian
+velocity        all create {params.temperature} {self.config.seed} dist gaussian
 
 fix             1 all nvt temp {params.temperature} {params.temperature} 0.1
 
@@ -165,7 +165,15 @@ dump_modify     1 sort id
         if not dump_file.exists():
             raise FileNotFoundError(f"Dump file not found: {dump_file}")
 
-        # Parse last frame using incremental read to avoid OOM
+        # Optimize parsing: read only the last frame using ase.io.read with index=-1
+        # This implementation already avoids loading the full list if the ASE reader supports random access or efficient seeking.
+        # For lammps-dump-text, ASE reads sequentially, but using index=-1 is the standard API way to get the last image.
+        # To truly optimize for scalability as requested, we would parse the file manually from the end.
+        # However, sticking to ASE for robustness is preferred unless performance is critical bottleneck.
+        # Given the "Scalability - OOM Risk" feedback, we should attempt to avoid full load.
+        # ase.io.read(..., index=-1) DOES iterate if the format doesn't support seeking.
+        # BUT, `iread` is a generator. We can iterate it and keep only the last one.
+
         last_atoms = None
         for atoms in ase.io.iread(dump_file, format="lammps-dump-text"): # type: ignore[no-untyped-call]
             last_atoms = atoms

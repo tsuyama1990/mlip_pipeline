@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import Config, PotentialConfig
+from mlip_autopipec.domain_models.config import Config, PotentialConfig, ExplorationConfig
 
 
 def test_config_valid() -> None:
@@ -14,6 +14,9 @@ def test_config_valid() -> None:
             elements=["Ti", "O"],
             cutoff=5.0,
             seed=42
+        ),
+        exploration=ExplorationConfig(
+            composition="TiO2"
         )
     )
     assert c.project_name == "TestProject"
@@ -29,7 +32,8 @@ def test_config_invalid_cutoff() -> None:
                 elements=["Ti"],
                 cutoff=-1.0, # Invalid
                 seed=42
-            )
+            ),
+            exploration=ExplorationConfig(composition="Ti")
         )
     assert "Cutoff must be greater than 0" in str(excinfo.value)
 
@@ -40,6 +44,7 @@ def test_config_missing_field() -> None:
             project_name="Test",
             potential=None, # type: ignore[arg-type]
             # Missing potential
+            exploration=ExplorationConfig(composition="Ti")
         )
 
 def test_from_yaml(tmp_path: Path) -> None:
@@ -53,6 +58,8 @@ def test_from_yaml(tmp_path: Path) -> None:
       seed: 123
     logging:
       level: "DEBUG"
+    exploration:
+      composition: "Cu"
     """
     yaml_file.write_text(yaml_content)
 
