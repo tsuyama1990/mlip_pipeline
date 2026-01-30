@@ -1,0 +1,60 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 59 items
+
+tests/domain_models/test_calculation.py .....                            [  8%]
+tests/domain_models/test_config.py ....                                  [ 15%]
+tests/domain_models/test_job.py ..                                       [ 18%]
+tests/domain_models/test_structure.py .....                              [ 27%]
+tests/e2e/test_cli.py .....                                              [ 35%]
+tests/infrastructure/test_io.py .....                                    [ 44%]
+tests/infrastructure/test_logging.py .                                   [ 45%]
+tests/physics/dft/test_input_gen.py ..                                   [ 49%]
+tests/physics/dft/test_parser.py ......                                  [ 59%]
+tests/physics/dft/test_qe_runner.py ........                             [ 72%]
+tests/physics/dft/test_recovery.py ....                                  [ 79%]
+tests/physics/structure_gen/test_embedding.py .                          [ 81%]
+tests/physics/test_lammps.py ..                                          [ 84%]
+tests/uat/test_cycle02.py ..                                             [ 88%]
+tests/uat/test_cycle03.py ..                                             [ 91%]
+tests/unit/test_structure_gen.py .....                                   [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               0      0   100%
+src/mlip_autopipec/app.py                                   16      1    94%   48
+src/mlip_autopipec/cli/commands.py                          52      4    92%   67-68, 87-88
+src/mlip_autopipec/constants.py                              7      0   100%
+src/mlip_autopipec/domain_models/__init__.py                 4      0   100%
+src/mlip_autopipec/domain_models/calculation.py             48      0   100%
+src/mlip_autopipec/domain_models/config.py                  63      0   100%
+src/mlip_autopipec/domain_models/job.py                     22      0   100%
+src/mlip_autopipec/domain_models/structure.py               38      0   100%
+src/mlip_autopipec/infrastructure/__init__.py                0      0   100%
+src/mlip_autopipec/infrastructure/io.py                     15      0   100%
+src/mlip_autopipec/infrastructure/logging.py                12      0   100%
+src/mlip_autopipec/orchestration/__init__.py                 0      0   100%
+src/mlip_autopipec/orchestration/orchestrator.py            22      0   100%
+src/mlip_autopipec/orchestration/workflow.py                 8      0   100%
+src/mlip_autopipec/physics/__init__.py                       0      0   100%
+src/mlip_autopipec/physics/dft/__init__.py                   5      0   100%
+src/mlip_autopipec/physics/dft/input_gen.py                 18      0   100%
+src/mlip_autopipec/physics/dft/parser.py                    36      2    94%   45, 58
+src/mlip_autopipec/physics/dft/qe_runner.py                 71      5    93%   30, 130-142
+src/mlip_autopipec/physics/dft/recovery.py                  12      0   100%
+src/mlip_autopipec/physics/dynamics/__init__.py              0      0   100%
+src/mlip_autopipec/physics/dynamics/lammps.py               69     15    78%   55, 68, 114-116, 147, 173-190
+src/mlip_autopipec/physics/structure_gen/__init__.py         0      0   100%
+src/mlip_autopipec/physics/structure_gen/builder.py         21      0   100%
+src/mlip_autopipec/physics/structure_gen/embedding.py       34      1    97%   47
+src/mlip_autopipec/physics/structure_gen/generator.py        9      2    78%   15-16
+src/mlip_autopipec/physics/structure_gen/strategies.py      18      0   100%
+--------------------------------------------------------------------------------------
+TOTAL                                                      600     30    95%
+============================== 59 passed in 5.70s ==============================

@@ -1,4 +1,3 @@
-
 DEFAULT_CONFIG_FILENAME = "config.yaml"
 DEFAULT_LOG_FILENAME = "mlip_pipeline.log"
 DEFAULT_LOG_LEVEL = "INFO"

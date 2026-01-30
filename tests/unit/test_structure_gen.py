@@ -27,7 +27,7 @@ def test_builder_rattle_validation_failure() -> None:
     # 1.0A lattice constant for diamond results in NN distance < 0.5A
     struct = builder.build_bulk("Si", "diamond", 1.0)
     with pytest.raises(ValueError, match="Atoms are too close"):
-         builder.apply_rattle(struct, stdev=0.0)
+        builder.apply_rattle(struct, stdev=0.0)
 
 
 def test_strategy_bulk_gen() -> None:
@@ -37,7 +37,7 @@ def test_strategy_bulk_gen() -> None:
         crystal_structure="diamond",
         lattice_constant=5.43,
         rattle_stdev=0.0,
-        supercell=(1, 1, 1)
+        supercell=(1, 1, 1),
     )
     generator = StructureGenFactory.get_generator(config)
     struct = generator.generate(config)
@@ -53,7 +53,7 @@ def test_strategy_bulk_supercell_rattle() -> None:
         crystal_structure="fcc",
         lattice_constant=3.61,
         rattle_stdev=0.1,
-        supercell=(2, 1, 1)
+        supercell=(2, 1, 1),
     )
     generator = StructureGenFactory.get_generator(config)
     struct = generator.generate(config)
