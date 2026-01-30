@@ -1,6 +1,5 @@
 import pytest
-from pathlib import Path
-from mlip_autopipec.domain_models.calculation import DFTConfig, SCFError, MemoryError
+from mlip_autopipec.domain_models.calculation import DFTConfig, SCFError
 from mlip_autopipec.physics.dft.recovery import RecoveryHandler
 
 def test_recovery_scf_mixing():

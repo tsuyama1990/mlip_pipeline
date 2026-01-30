@@ -1,4 +1,3 @@
-from typing import Any, Callable, Type
 
 from mlip_autopipec.domain_models.calculation import (
     DFTConfig,

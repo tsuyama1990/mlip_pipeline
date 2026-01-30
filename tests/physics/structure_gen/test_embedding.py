@@ -1,4 +1,3 @@
-import pytest
 import ase
 import numpy as np
 from mlip_autopipec.domain_models.structure import Structure

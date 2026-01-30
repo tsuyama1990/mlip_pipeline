@@ -1,13 +1,12 @@
-import shutil
 import subprocess
 import time
 import uuid
+import shlex
 from pathlib import Path
 from typing import Optional
 
 from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult, DFTError
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.physics.dft.input_gen import InputGenerator
 from mlip_autopipec.physics.dft.parser import DFTParser
 from mlip_autopipec.physics.dft.recovery import RecoveryHandler
@@ -50,39 +49,10 @@ class QERunner:
             start_time = time.time()
             try:
                 self._run_process(current_config, input_file, output_file)
-            except subprocess.TimeoutExpired:
-                 # Manually create a timeout error if subprocess raises it
-                 # But we usually handle it inside _run_process or rely on checking output
-                 # If subprocess.run raises TimeoutExpired, we catch it here.
-                 pass
             except Exception as e:
-                # Capture unexpected execution errors
-                return DFTResult(
-                    job_id=job_id,
-                    status=JobStatus.FAILED,
-                    work_dir=job_dir,
-                    duration_seconds=time.time() - start_time,
-                    log_content=f"Execution failed: {str(e)}",
-                    energy=0.0, # Placeholder, maybe make optional? But strict schema requires float.
-                    forces=[], # Placeholder
-                    # Actually DFTResult fields are not Optional for energy/forces.
-                    # We should probably return a Failed result differently or
-                    # use a wrapping structure.
-                    # But JobResult usually has status. If status is FAILED, maybe fields are ignored?
-                    # Schema says `energy: float`, `forces: np.ndarray`. They are required.
-                    # This is a schema design issue. Failed jobs usually don't have energy.
-                    # I will assume for now we raise exception or return dummy values with FAILED status.
-                    # Let's verify JobResult/DFTResult schema.
-                    # DFTResult inherits JobResult.
-                    # If I return DFTResult, I must provide energy.
-                )
-                # Wait, if I cannot return DFTResult because of missing fields, I should probably raise error
-                # or the system design expects JobResult to support missing fields.
-                # In Cycle 03 spec, DFTResult has required fields.
-                # So `run` should probably raise DFTError if it fails completely,
-                # or Orchestrator handles it.
-                # I'll re-raise as DFTError if I can't return a valid Result.
-                pass
+                # Capture unexpected execution errors and raise DFTError
+                # We do NOT return a malformed DFTResult.
+                raise DFTError(f"Execution failed for job {job_id}: {str(e)}") from e
 
             duration = time.time() - start_time
 
@@ -105,35 +75,38 @@ class QERunner:
                     current_config = self.recovery_handler.apply_fix(current_config, e, attempt)
                 except RuntimeError as fatal:
                     print(f"Recovery failed: {fatal}")
-                    # Construct a failed result if possible, or raise.
-                    # Since we can't construct DFTResult without energy, we raise.
-                    # Or we define a FailedDFTResult? No, strict schema.
-                    # We raise the exception to the caller.
                     raise fatal
 
     def _run_process(self, config: DFTConfig, input_path: Path, output_path: Path):
         """
         Executes pw.x.
         """
-        import shlex
-
-        # Build command
-        cmd_str = config.command
+        # Validate mpi_command to prevent basic injection if it's dynamic
         if config.use_mpi:
-            cmd_str = f"{config.mpi_command} {cmd_str}"
+            if ";" in config.mpi_command or "|" in config.mpi_command:
+                raise ValueError("Invalid characters in mpi_command")
+
+        # Build command safely
+        # We assume config.command and config.mpi_command are trustworthy configuration values
+        # but strictly splitting them ensures we don't execute arbitrary shell strings if we avoid shell=True.
+
+        cmd_parts = []
+        if config.use_mpi:
+             cmd_parts.extend(shlex.split(config.mpi_command))
+
+        cmd_parts.extend(shlex.split(config.command))
 
         # Add input flag
-        cmd_str += f" -in {input_path.name}"
-
-        # Split command
-        cmd = shlex.split(cmd_str)
+        # QE typically uses -in or < input. -in is safer for command line arg.
+        cmd_parts.append("-in")
+        cmd_parts.append(input_path.name)
 
         with open(output_path, "w") as f_out:
             subprocess.run(
-                cmd,
+                cmd_parts,
                 cwd=input_path.parent,
                 stdout=f_out,
                 stderr=subprocess.STDOUT, # Capture stderr too
                 timeout=config.timeout,
-                check=False # We check output content for errors, not return code (QE often returns 0 even on failure)
+                check=False # We check output content for errors, not return code
             )

@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 
@@ -43,6 +43,9 @@ class DFTParser:
                  # Assume it died unexpectedly (maybe OOM or timeout caught by shell but not printed nicely)
                  # But usually we check errors first.
                  raise DFTError("Job finished but no energy found and no specific error detected.")
+             else:
+                 # JOB DONE but no energy matched? Weird case.
+                 raise DFTError("Job finished but no energy matched.")
 
         # If forces are missing but energy is present, maybe tprnfor was False?
         # But we enforce tprnfor=True.
@@ -93,7 +96,7 @@ class DFTParser:
         # atom    1 type  1   force =     0.00000000    0.00000000    0.00120000
 
         lines = output.split('\n')
-        forces = []
+        forces: List[List[float]] = []
         parsing = False
 
         for line in lines:
@@ -127,7 +130,7 @@ class DFTParser:
         # -0.00000330   0.00000000   0.00000000        -0.49      0.00      0.00
 
         lines = output.split('\n')
-        stress = []
+        stress: List[List[float]] = []
         parsing = False
 
         for line in lines:

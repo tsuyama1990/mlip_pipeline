@@ -1,5 +1,4 @@
 from pathlib import Path
-import pytest
 import ase
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.calculation import DFTConfig

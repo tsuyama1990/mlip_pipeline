@@ -1,8 +1,7 @@
-from typing import Optional
-
 import numpy as np
 import ase
 from scipy.spatial import cKDTree  # type: ignore
+from typing import List
 
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -24,76 +23,69 @@ class EmbeddingHandler:
         """
         atoms = structure.to_ase()
 
-        # Ensure we handle PBC correctly.
-        # We want all atoms within radius of the center atom (considering PBC).
-        # cKDTree with boxsize works well for orthogonal cells.
-        # For general cells, using ASE's neighbor list is safer, but we are instructed
-        # to use cKDTree.
-        # If the cell is orthogonal, we pass boxsize.
-
         cell = atoms.get_cell() # type: ignore[no-untyped-call]
         pbc = atoms.get_pbc() # type: ignore[no-untyped-call]
-
-        is_orthogonal = np.allclose(cell, np.diag(np.diag(cell)))
-        boxsize = np.diag(cell) if (is_orthogonal and np.all(pbc)) else None
-
         positions = atoms.get_positions() # type: ignore[no-untyped-call]
-        center_pos = positions[center_index]
-
-        tree = cKDTree(positions, boxsize=boxsize)
-
-        # Query indices
-        indices = tree.query_ball_point(center_pos, r=self.radius)
-
-        # Now we have indices of atoms in the cluster.
-        # We need to extract them and unwrap them so they form a continuous cluster
-        # relative to the center.
-        # cKDTree query_ball_point returns indices, but not the image vectors.
-        # To get the correct positions relative to center, we need to compute distances again
-        # or use the periodic vector.
-
-        # Easier approach with ASE to get unwrapped positions:
-        # 1. Create a cluster object
-        # 2. For each atom in indices, find the minimum image vector to center_pos
-
-        cluster_positions = []
-        cluster_symbols = []
-
         symbols = atoms.get_chemical_symbols() # type: ignore[no-untyped-call]
 
-        # We iterate and fix PBC manually to be safe or rely on MIC
-        for idx in indices:
-            pos = positions[idx]
-            vec = pos - center_pos
-            if boxsize is not None:
-                # Apply MIC for orthogonal
+        is_orthogonal = np.allclose(cell, np.diag(np.diag(cell)))
+
+        # Determine indices within radius
+        indices: List[int] = []
+
+        if is_orthogonal and np.all(pbc):
+            # Fast path for orthogonal periodic cells
+            boxsize = np.diag(cell)
+            tree = cKDTree(positions, boxsize=boxsize)
+            center_pos = positions[center_index]
+            indices = tree.query_ball_point(center_pos, r=self.radius)
+        else:
+            # General path for non-orthogonal or mixed PBC
+            # Use ASE's neighbor list logic or simple distance check with mic=True
+            # get_distances can handle MIC for general cells
+            # We want all atoms where dist <= radius
+            # This is O(N) which is fine for "large" structures ~1000 atoms,
+            # but for huge ones we might want neighbor list.
+            # Assuming 'Structure' is reasonable size for DFT pipeline (e.g. < 10000 atoms).
+
+            # get_distances returns array of distances from center_index to all others
+            dists = atoms.get_distances(center_index, indices=range(len(atoms)), mic=True) # type: ignore[no-untyped-call]
+            indices = [i for i, d in enumerate(dists) if d <= self.radius]
+
+        # Extract unwrapped positions relative to center
+        cluster_positions_list: List[np.ndarray] = []
+        cluster_symbols: List[str] = []
+
+        center_pos = positions[center_index]
+
+        if is_orthogonal and np.all(pbc):
+             # Fast manual MIC for orthogonal
+             boxsize = np.diag(cell)
+             for idx in indices:
+                pos = positions[idx]
+                vec = pos - center_pos
                 vec = vec - boxsize * np.round(vec / boxsize)
-            elif np.any(pbc):
-                 # Fallback for non-orthogonal or partial PBC: use ASE
-                 # This is slower but correct
-                 d_vec = atoms.get_distance(center_index, idx, mic=True, vector=True) # type: ignore[no-untyped-call]
-                 vec = d_vec
+                cluster_positions_list.append(vec)
+                cluster_symbols.append(symbols[idx])
+        else:
+            # Use ASE for general MIC vector calculation
+            # get_distance with vector=True returns the vector pointing from A to B with MIC
+            for idx in indices:
+                # vector from center to idx
+                # Note: get_distance(a, b, vector=True) returns vector from a to b.
+                vec = atoms.get_distance(center_index, idx, mic=True, vector=True) # type: ignore[no-untyped-call]
+                cluster_positions_list.append(vec)
+                cluster_symbols.append(symbols[idx])
 
-            cluster_positions.append(vec) # Relative to center
-            cluster_symbols.append(symbols[idx])
+        cluster_positions_arr = np.array(cluster_positions_list)
 
-        cluster_positions = np.array(cluster_positions)
-
-        # Now shift so center is at (0,0,0) -> It is already (0,0,0) for center_index
-        # We want to center it in the new box.
-
-        # New box size
-        # Diameter is 2*radius. Add vacuum.
-        # box_side = 2 * (self.radius + self.vacuum)?
-        # Usually vacuum is added to the bounding box of the cluster.
-        # Let's say box_side = 2*radius + 2*vacuum to be safe.
-
+        # New box size: 2 * (radius + vacuum)
         box_side = 2.0 * (self.radius + self.vacuum)
         new_cell = np.eye(3) * box_side
 
-        # Shift positions to center of new box
+        # Shift positions so center is at center of new box
         center_of_box = np.array([box_side/2, box_side/2, box_side/2])
-        new_positions = cluster_positions + center_of_box
+        new_positions = cluster_positions_arr + center_of_box
 
         new_atoms = ase.Atoms(
             symbols=cluster_symbols,
