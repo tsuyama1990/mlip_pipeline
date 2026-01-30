@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
+from mlip_autopipec.domain_models import LammpsConfig, MDParams
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.job import JobStatus
 import numpy as np

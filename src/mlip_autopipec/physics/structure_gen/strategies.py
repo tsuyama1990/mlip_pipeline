@@ -1,7 +1,7 @@
 from typing import Protocol
 
 import ase.build
-from mlip_autopipec.domain_models.config import StructureGenConfig
+from mlip_autopipec.domain_models.config import BulkStructureGenConfig, StructureGenConfig
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 
@@ -24,6 +24,9 @@ class BulkStructureGenerator:
         """
         Generate a bulk structure using ASE and apply configuration settings.
         """
+        if not isinstance(config, BulkStructureGenConfig):
+             raise TypeError(f"BulkStructureGenerator received incompatible config: {type(config)}")
+
         # Generate base bulk structure
         atoms = ase.build.bulk(
             name=config.element,

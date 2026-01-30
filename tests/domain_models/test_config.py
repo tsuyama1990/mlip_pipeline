@@ -1,9 +1,11 @@
 from pathlib import Path
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import (
+from mlip_autopipec.domain_models import (
+    BulkStructureGenConfig,
     Config,
     MDConfig,
     PotentialConfig,
@@ -16,7 +18,7 @@ def test_config_valid() -> None:
     c = Config(
         project_name="TestProject",
         potential=PotentialConfig(elements=["Ti", "O"], cutoff=5.0, seed=42),
-        structure_gen=StructureGenConfig(
+        structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Ti",
             crystal_structure="hcp",
@@ -27,7 +29,11 @@ def test_config_valid() -> None:
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
     assert c.logging.level == "INFO"  # Default
+
+    # Check structure_gen fields
+    assert isinstance(c.structure_gen, BulkStructureGenConfig)
     assert c.structure_gen.element == "Ti"
+
     assert c.md.temperature == 300.0
 
 
@@ -41,7 +47,7 @@ def test_config_invalid_cutoff() -> None:
                 cutoff=-1.0,  # Invalid
                 seed=42,
             ),
-            structure_gen=StructureGenConfig(
+            structure_gen=BulkStructureGenConfig(
                 element="Ti", crystal_structure="hcp", lattice_constant=2.95
             ),
             md=MDConfig(temperature=300, n_steps=100, ensemble="NVT"),
@@ -88,5 +94,9 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
     assert c.logging.level == "DEBUG"
+
+    # Verify strict union validation (it should instantiate BulkStructureGenConfig)
+    assert isinstance(c.structure_gen, BulkStructureGenConfig)
     assert c.structure_gen.crystal_structure == "fcc"
+
     assert c.md.n_steps == 500
