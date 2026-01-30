@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import Config, PotentialConfig
+from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig
 
 
 def test_config_valid() -> None:
@@ -19,6 +19,7 @@ def test_config_valid() -> None:
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
     assert c.logging.level == "INFO" # Default
+    assert c.lammps.command == "lmp_serial" # Default
 
 def test_config_invalid_cutoff() -> None:
     """Test negative cutoff."""
@@ -53,6 +54,10 @@ def test_from_yaml(tmp_path: Path) -> None:
       seed: 123
     logging:
       level: "DEBUG"
+    lammps:
+      command: "mpirun -np 4 lmp_mpi"
+      timeout: 600
+      cores: 4
     """
     yaml_file.write_text(yaml_content)
 
@@ -61,3 +66,10 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
     assert c.logging.level == "DEBUG"
+    assert c.lammps.cores == 4
+    assert c.lammps.timeout == 600
+
+def test_lammps_config_extra_forbid() -> None:
+    """Test that extra fields are forbidden in LammpsConfig."""
+    with pytest.raises(ValidationError):
+        LammpsConfig(extra_field="fail") # type: ignore

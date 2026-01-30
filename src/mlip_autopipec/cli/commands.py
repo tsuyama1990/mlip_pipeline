@@ -14,6 +14,7 @@ from mlip_autopipec.constants import (
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
+from mlip_autopipec.orchestration.workflow import run_one_shot
 
 
 def init_project(path: Path) -> None:
@@ -61,4 +62,33 @@ def check_config(config_path: Path) -> None:
 
     except Exception as e:
         typer.secho(f"Validation failed: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+
+def run_cycle_02(config_path: Path) -> None:
+    """
+    Execute Cycle 02: One-Shot Pipeline.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        logger = logging.getLogger("mlip_autopipec")
+        logger.info("Starting Cycle 02 Execution")
+
+        result = run_one_shot(config)
+
+        if result.status == "COMPLETED":
+            typer.secho(f"Simulation Completed: Status {result.status.value}", fg=typer.colors.GREEN)
+        else:
+            typer.secho(f"Simulation Ended: Status {result.status.value}", fg=typer.colors.YELLOW)
+            if result.status == "FAILED":
+                 typer.secho("Tail of log:", fg=typer.colors.RED)
+                 typer.echo(result.log_content[-500:])
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e

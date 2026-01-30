@@ -36,3 +36,4 @@ tmp/
 mlip_pipeline.log
 .coverage
 build/
+_work_md/

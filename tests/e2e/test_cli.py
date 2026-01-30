@@ -1,10 +1,13 @@
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
+from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
+from mlip_autopipec.cli import commands
 
 runner = CliRunner()
 
@@ -60,3 +63,53 @@ def test_check_invalid(tmp_path: Path) -> None:
         assert result.exit_code == 1
         assert "Validation failed" in result.stdout
         assert "Cutoff must be greater than 0" in result.stdout
+
+def test_run_cycle_02_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test 'run-cycle-02' command success."""
+
+    # Mock return value
+    mock_result = MagicMock(spec=LammpsResult)
+    mock_result.status = JobStatus.COMPLETED
+
+    mock_run = MagicMock(return_value=mock_result)
+    monkeypatch.setattr(commands, "run_one_shot", mock_run)
+
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["run-cycle-02"])
+
+        assert result.exit_code == 0
+        assert "Simulation Completed: Status COMPLETED" in result.stdout
+        mock_run.assert_called_once()
+
+def test_run_cycle_02_failed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test 'run-cycle-02' command failure."""
+
+    mock_result = MagicMock(spec=LammpsResult)
+    mock_result.status = JobStatus.FAILED
+    mock_result.log_content = "Something went wrong"
+
+    mock_run = MagicMock(return_value=mock_result)
+    monkeypatch.setattr(commands, "run_one_shot", mock_run)
+
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["run-cycle-02"])
+
+        assert result.exit_code == 0  # Command finishes execution without crash
+        assert "Simulation Ended: Status FAILED" in result.stdout
+        assert "Tail of log" in result.stdout
+        assert "Something went wrong" in result.stdout
+
+def test_run_cycle_02_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test 'run-cycle-02' handles unexpected exceptions."""
+
+    mock_run = MagicMock(side_effect=Exception("Boom"))
+    monkeypatch.setattr(commands, "run_one_shot", mock_run)
+
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["run-cycle-02"])
+
+        assert result.exit_code == 1
+        assert "Execution failed: Boom" in result.stdout

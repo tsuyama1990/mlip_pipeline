@@ -1,3 +1,4 @@
+import enum
 from typing import Any
 
 import ase
@@ -68,3 +69,29 @@ class Structure(BaseModel):
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
         return str(self.to_ase().get_chemical_formula())  # type: ignore[no-untyped-call]
+
+    @property
+    def formatted_formula(self) -> str:
+        """Get the formatted formula."""
+        return self.get_chemical_formula()
+
+
+class CandidateStatus(str, enum.Enum):
+    """Status of a candidate structure."""
+    PENDING = "PENDING"
+    SELECTED = "SELECTED"
+    CALCULATED = "CALCULATED"
+    FAILED = "FAILED"
+    TRAINING = "TRAINING"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
+
+
+class Candidate(Structure):
+    """
+    A structure that is being tracked in the active learning loop.
+    Extends Structure with metadata about its lifecycle.
+    """
+    source: str
+    status: CandidateStatus = CandidateStatus.PENDING
+    priority: float = 0.0

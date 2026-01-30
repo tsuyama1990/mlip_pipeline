@@ -25,5 +25,14 @@ def check(
     """
     commands.check_config(config_path)
 
+@app.command(name="run-cycle-02")
+def run_cycle_02_cmd(
+    config_path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file") # noqa: B008
+) -> None:
+    """
+    Run Cycle 02: One-Shot Pipeline (Generate Structure -> Run MD).
+    """
+    commands.run_cycle_02(config_path)
+
 if __name__ == "__main__":
     app()
