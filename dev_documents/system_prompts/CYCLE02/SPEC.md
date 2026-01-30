@@ -10,11 +10,11 @@ We refer to this as the "One-Shot Pipeline". It is not yet a loop. It is a linea
 3.  **Execution Management**: Launching the LAMMPS binary via `subprocess`, managing standard output/error streams, and handling timeouts or crashes.
 4.  **Output Parsing**: Reading the binary or text dump files produced by LAMMPS and converting them back into a trajectory of `Structure` objects.
 
-By the end of this cycle, we will have a `LammpsRunner` class that serves as the interface between our Python world and the HPC world. We will also implement a basic `StructureBuilder` that can generate random supercells to feed into this runner. This proves that we can "touch" the physics engine and retrieve data, a prerequisite for the more complex Oracle (Cycle 03) and Training (Cycle 04) phases.
+By the end of this cycle, we will have a `LammpsRunner` (implemented via IO helpers) that serves as the interface between our Python world and the HPC world. We will also implement a basic `StructureGenerator` that can generate random supercells to feed into this runner. This proves that we can "touch" the physics engine and retrieve data, a prerequisite for the more complex Oracle (Cycle 03) and Training (Cycle 04) phases.
 
 ## 2. System Architecture
 
-In this cycle, we introduce the `physics` and `orchestration` packages. The architecture shifts from static data definitions to dynamic execution flows.
+In this cycle, we introduce the `modules` package and expand `infrastructure`. The architecture shifts from static data definitions to dynamic execution flows.
 
 ### File Structure
 Files to be created/modified are in **bold**.
@@ -24,81 +24,58 @@ mlip_autopipec/
 ├── src/
 │   └── mlip_autopipec/
 │       ├── domain_models/
-│       │   ├── **job.py**              # Job status and result schemas
-│       │   └── structure.py
-│       ├── orchestration/
-│       │   ├── **__init__.py**
-│       │   └── **workflow.py**         # Linear workflow manager
-│       ├── physics/
-│       │   ├── **__init__.py**
-│       │   ├── dynamics/
-│       │   │   ├── **__init__.py**
-│       │   │   └── **lammps.py**       # LAMMPS Wrapper
+│       │   ├── **structure.py**        # Updated with Job models
+│       │   └── **config.py**           # Updated with Lammps/StructureGen config
+│       ├── infrastructure/
+│       │   ├── **io.py**               # LAMMPS IO and Subprocess helpers
+│       │   └── logging.py
+│       ├── modules/
 │       │   └── structure_gen/
-│       │       ├── **__init__.py**
-│       │       └── **builder.py**      # Random structure generation
-│       └── **utils.py**                # Subprocess helpers
+│       │       ├── **generator.py**    # StructureGenerator class
+│       │       └── **strategies.py**   # Generation strategies (Bulk, Rattle)
+│       └── cli/
+│           └── **commands.py**         # CLI command to run one-shot
 └── tests/
-    └── physics/
-        └── **test_lammps.py**          # Integration tests
+    ├── domain_models/
+    │   ├── **test_structure.py**
+    │   └── **test_config.py**
+    ├── infrastructure/
+    │   └── **test_io.py**
+    ├── unit/
+    │   └── **test_structure_gen.py**
+    └── e2e/
+        └── **test_exploration_phase.py**
 ```
 
 ### Component Interaction (The "One-Shot" Flow)
 
-1.  **Orchestrator (`workflow.py`)**:
-    -   Instantiated by the CLI.
+1.  **Orchestrator (CLI `commands.py`)**:
+    -   Instantiated by the CLI command `run-cycle-02`.
     -   Loads `Config`.
-    -   Calls `StructureBuilder` to get an initial atomic configuration (e.g., Bulk Silicon).
+    -   Calls `StructureGenerator` to get an initial atomic configuration (e.g., Bulk Silicon).
 
-2.  **StructureBuilder (`builder.py`)**:
-    -   Uses `ase.build` to create a perfect crystal.
+2.  **StructureGenerator (`generator.py`)**:
+    -   Uses `strategies.py` (wrapping `ase.build`) to create a perfect crystal.
     -   Applies `rattle` (random displacement) to break symmetry.
     -   Returns a `Structure` object.
 
-3.  **LammpsRunner (`lammps.py`)**:
-    -   **Input**: Receives the `Structure` and `MDParameters`.
+3.  **Lammps Interaction (`infrastructure/io.py`)**:
+    -   **Input**: Receives the `Structure` and parameters.
     -   **Preparation**:
-        -   Creates a temporary directory `_work_md/job_001`.
-        -   Writes `data.lammps` (atomic coordinates).
+        -   Writes `data.lammps` (atomic coordinates) using `write_lammps_data`.
         -   Writes `in.lammps` (commands).
     -   **Execution**:
-        -   Calls `mpirun -np 4 lmp_serial -in in.lammps` (or similar).
+        -   Calls `mpirun -np 4 lmp_serial -in in.lammps` (or similar) via `run_subprocess`.
         -   Captures `stdout` and `stderr`.
     -   **Parsing**:
-        -   Reads `dump.lammpstrj`.
+        -   Reads `dump.lammpstrj` using `read_lammps_dump`.
         -   Extracts the final frame.
-    -   **Output**: Returns a `LammpsJobResult` containing the final `Structure` and status.
-
-4.  **Integration with Config**:
-    -   The path to the LAMMPS executable and the number of cores are defined in `config.yaml`.
-
-### Detailed Data Flow
-
-```mermaid
-sequenceDiagram
-    participant Orch as Orchestrator
-    participant Builder as StructureBuilder
-    participant Runner as LammpsRunner
-    participant FS as FileSystem
-    participant Bin as LAMMPS Binary
-
-    Orch->>Builder: build_initial_structure("Si")
-    Builder-->>Orch: Structure(Si, 64 atoms)
-    Orch->>Runner: run_md(structure, temp=300K)
-    Runner->>FS: write "data.lammps"
-    Runner->>FS: write "in.lammps"
-    Runner->>Bin: subprocess.run(lmp -in in.lammps)
-    Bin-->>FS: write "log.lammps"
-    Bin-->>FS: write "dump.lammpstrj"
-    Runner->>FS: read "dump.lammpstrj"
-    FS-->>Runner: Trajectory Data
-    Runner-->>Orch: LammpsJobResult(FinalStructure, Status=DONE)
-```
+    -   **Output**: Returns a `LammpsResult` containing the final `Structure` and status.
 
 ## 3. Design Architecture
 
-### 3.1. Job Domain Model (`domain_models/job.py`)
-We need a generic way to represent an external calculation, as we will later add DFT and Pacemaker jobs which share similar properties (status, duration, working directory).
+### 3.1. Job Domain Model (`domain_models/structure.py`)
+We need a generic way to represent an external calculation. We define these in `structure.py` (or `__init__.py`) alongside the `Structure` definition.
 
 -   **Enum `JobStatus`**:
     -   `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `TIMEOUT`.
@@ -113,65 +90,42 @@ We need a generic way to represent an external calculation, as we will later add
 -   **Class `LammpsResult`** (Inherits `JobResult`):
     -   `final_structure`: `Structure`.
     -   `trajectory_path`: `Path`.
-    -   `max_gamma`: `Optional[float]` (Placeholder for Cycle 05).
 
-### 3.2. LammpsRunner Logic (`physics/dynamics/lammps.py`)
-This class must be robust against system differences.
+### 3.2. Configuration (`domain_models/config.py`)
+-   **Class `LammpsConfig`**:
+    -   `command`: `str` (e.g. "lmp_serial").
+    -   `timeout`: `float` (seconds).
+-   **Class `StructureGenConfig`**:
+    -   `element`: `str`.
+    -   `crystal_structure`: `str` (e.g. "fcc").
+    -   `lattice_constant`: `float`.
+    -   `supercell`: `tuple[int, int, int]`.
 
--   **Class `LammpsRunner`**:
-    -   `__init__(config: LammpsConfig)`: Sets executable path.
-    -   `run(structure: Structure, params: MDParams) -> LammpsResult`:
-        -   **Context Manager**: Use `tempfile.TemporaryDirectory` or a managed subdirectory to avoid clutter.
-        -   **ASE Integration**: Use `ase.io.write(..., format='lammps-data')` for reliable conversion of the Pydantic `Structure` (via `to_ase()`) to LAMMPS format.
-        -   **Template Engine**: Use simple string formatting or `jinja2` to generate `in.lammps`. We need templates for "NVT", "NPT", and "Minimisation".
-
-### 3.3. Structure Builder (`physics/structure_gen/builder.py`)
--   **Class `StructureBuilder`**:
-    -   `build_bulk(element: str, crystal_structure: str, lattice_constant: float)`: Wraps `ase.build.bulk`.
-    -   `apply_rattle(structure: Structure, stdev: float)`: Adds thermal noise.
-    -   `apply_strain(structure: Structure, strain_tensor: np.ndarray)`: Deforms the cell.
+### 3.3. Structure Generator (`modules/structure_gen/generator.py`)
+-   **Class `StructureGenerator`**:
+    -   Uses `strategies.py` to implement generation logic.
+    -   `generate(config: StructureGenConfig) -> Structure`.
 
 ## 4. Implementation Approach
 
-### Step 1: Job Models
--   Create `src/mlip_autopipec/domain_models/job.py`.
--   Define `JobStatus` and `JobResult`. This decouples the runner from the specific output format initially.
+### Step 1: Job Models & Config
+-   Update `src/mlip_autopipec/domain_models/structure.py`.
+-   Update `src/mlip_autopipec/domain_models/config.py`.
 
-### Step 2: Structure Builder
--   Implement `physics/structure_gen/builder.py`.
--   Focus on wrapping ASE's powerful generation tools but returning our strict `Structure` model.
--   Ensure random seeds are handled deterministically (pass seed to method).
+### Step 2: Infrastructure IO
+-   Implement `write_lammps_data`, `read_lammps_dump`, `run_subprocess` in `infrastructure/io.py`.
 
-### Step 3: LAMMPS Wrapper (The Core)
--   Implement `physics/dynamics/lammps.py`.
--   **Phase 3a**: Input generation. Write a helper `_write_inputs(work_dir, structure, params)`.
--   **Phase 3b**: Execution. Use `subprocess.run` with `capture_output=True` and `text=True`. Implement a timeout mechanism.
--   **Phase 3c**: Output parsing. Use `ase.io.read(..., format='lammps-dump-text')` to parse the trajectory.
+### Step 3: Structure Generator
+-   Implement `modules/structure_gen/strategies.py` and `generator.py`.
 
-### Step 4: Orchestrator Integration
--   Implement a simple function in `orchestration/workflow.py` called `run_one_shot`.
--   It should take a `Config`, build a structure, run LAMMPS, and print the result.
--   Update `app.py` to add a `run` command that triggers this.
+### Step 4: Orchestration
+-   Implement `run_cycle_02` in `cli/commands.py` which ties it all together.
 
 ## 5. Test Strategy
 
 ### 5.1. Unit Testing
--   **Structure Builder**:
-    -   Test `build_bulk("Si")`. Assert correct number of atoms (e.g., 2 for primitive, 8 for cubic).
-    -   Test `rattle`. Assert positions have changed but cell remains same.
-
--   **LammpsRunner (Mocked)**:
-    -   **Crucial**: We cannot assume LAMMPS is installed in the CI environment. We must mock `subprocess.run`.
-    -   Create a test where `subprocess.run` is mocked to return `returncode=0` and writes a dummy `dump.lammpstrj` file to the filesystem.
-    -   Verify that `LammpsRunner.run` correctly constructs the command line arguments (e.g., checking for `mpirun` if parallel is enabled).
-    -   Verify that it correctly parses the dummy dump file.
+-   **Structure Generator**: Test `generate`.
+-   **IO**: Mock `subprocess.run` to test `run_subprocess`.
 
 ### 5.2. Integration Testing (Local)
--   If LAMMPS *is* installed (checked via `shutil.which('lmp')`), run a real test.
--   Run a 10-step MD on Argon (LJ potential).
--   Assert that `final_structure` is different from `initial_structure`.
--   Assert `status` is `COMPLETED`.
-
-### 5.3. Error Handling Tests
--   **Simulation Crash**: Mock `subprocess.run` returning `returncode=1`. Assert `LammpsRunner` returns a result with `status=FAILED`.
--   **Timeout**: Mock a timeout in subprocess. Assert `status=TIMEOUT`.
+-   Run a full cycle using `run-cycle-02`.

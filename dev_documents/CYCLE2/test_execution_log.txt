@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 33 items
+
+tests/domain_models/test_config.py ......                                [ 18%]
+tests/domain_models/test_structure.py .........                          [ 45%]
+tests/e2e/test_cli.py .....                                              [ 60%]
+tests/e2e/test_exploration_phase.py .                                    [ 63%]
+tests/infrastructure/test_io.py .........                                [ 90%]
+tests/infrastructure/test_logging.py .                                   [ 93%]
+tests/unit/test_structure_gen.py ..                                      [100%]
+
+============================== 33 passed in 1.11s ==============================
