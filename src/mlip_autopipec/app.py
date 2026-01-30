@@ -7,23 +7,43 @@ from mlip_autopipec.constants import DEFAULT_CONFIG_FILENAME
 
 app = typer.Typer(help="MLIP Automated Pipeline CLI")
 
+
 @app.command()
 def init(
-    path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), help="Path to create config file") # noqa: B008
+    path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), help="Path to create config file"
+    )  # noqa: B008
 ) -> None:
     """
     Initialize a new project with a template configuration file.
     """
     commands.init_project(path)
 
+
 @app.command()
 def check(
-    config_path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file") # noqa: B008
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    )  # noqa: B008
 ) -> None:
     """
     Validate the configuration file.
     """
     commands.check_config(config_path)
+
+
+@app.command()
+def run_cycle_02(
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    )  # noqa: B008
+) -> None:
+    """
+    Run the One-Shot Pipeline (Cycle 02).
+    Generates a structure, runs a LAMMPS simulation, and parses the result.
+    """
+    commands.run_cycle_02(config_path)
+
 
 if __name__ == "__main__":
     app()

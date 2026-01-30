@@ -10,6 +10,7 @@ class LoggingConfig(BaseModel):
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     file_path: Path = Path("mlip_pipeline.log")
 
+
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -25,10 +26,29 @@ class PotentialConfig(BaseModel):
             raise ValueError(msg)
         return v
 
+
+class LammpsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command: str
+    cores: int = 1
+    timeout: float = 3600.0
+
+
+class StructureGenConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    element: str
+    crystal_structure: str
+    lattice_constant: float
+    supercell: tuple[int, int, int]
+    rattle_stdev: float = 0.0
+
+
 class OrchestratorConfig(BaseModel):
     """Placeholder for Orchestrator configuration."""
     model_config = ConfigDict(extra="forbid")
-    # No fields defined in Cycle 01 spec yet, allowing empty or defaults if needed later.
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -37,6 +57,8 @@ class Config(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
+    lammps: LammpsConfig
+    structure_gen: StructureGenConfig
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

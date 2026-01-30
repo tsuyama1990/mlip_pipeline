@@ -1,4 +1,6 @@
-from typing import Any
+from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
 
 import ase
 import numpy as np
@@ -68,3 +70,30 @@ class Structure(BaseModel):
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
         return str(self.to_ase().get_chemical_formula())  # type: ignore[no-untyped-call]
+
+
+class JobStatus(str, Enum):
+    """Status of an external calculation job."""
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    TIMEOUT = "TIMEOUT"
+
+
+class JobResult(BaseModel):
+    """Base model for job results."""
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: str
+    status: JobStatus
+    work_dir: Path
+    duration_seconds: float
+    log_content: str
+
+
+class LammpsResult(JobResult):
+    """Result from a LAMMPS simulation."""
+    final_structure: Structure
+    trajectory_path: Path
+    max_gamma: Optional[float] = None
