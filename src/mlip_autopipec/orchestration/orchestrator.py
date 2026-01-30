@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List
+from typing import Optional, List, Iterator
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.job import JobResult, JobStatus
@@ -100,19 +100,12 @@ class Orchestrator:
         logger.info("Phase: Detection")
 
         # Check if result has max_gamma (LammpsResult)
-        if hasattr(result, "max_gamma") and getattr(result, "max_gamma") is not None:
-            max_gamma = getattr(result, "max_gamma")
+        if isinstance(result, LammpsResult) and result.max_gamma is not None:
+            max_gamma = result.max_gamma
             if max_gamma > self.config.orchestrator.uncertainty_threshold:
                 logger.warning(f"High uncertainty detected: {max_gamma}")
                 return True
 
-        # If we have DFT and Training config, and we are in a loop (max_iterations > 1),
-        # but no uncertainty info is available (e.g. initial run with LJ),
-        # we might want to proceed to Refine anyway to create the first potential?
-        # For now, strict adherence to logic: only if uncertainty detected.
-        # But if max_iterations > 1 and we are at iter 1, maybe we force?
-        # I'll stick to returning False if no signal.
-        # But for UAT integration testing, I might need to mock this method or ensure LammpsResult has max_gamma.
         return False
 
     def select(self, result: JobResult) -> List[Structure]:
@@ -143,37 +136,45 @@ class Orchestrator:
         if not self.config.training:
              raise ValueError("Training configuration missing for refinement phase.")
 
-        # 1. Labeling (DFT)
-        labelled_structures = []
         dft_runner = QERunner()
 
-        for i, struct in enumerate(candidates):
-             logger.info(f"Running DFT for candidate {i+1}/{len(candidates)}")
-             dft_result = dft_runner.run(struct, self.config.dft)
+        # 1. Labeling (DFT) - Streaming Generator
+        def dft_stream() -> Iterator[Structure]:
+            for i, struct in enumerate(candidates):
+                 logger.info(f"Running DFT for candidate {i+1}/{len(candidates)}")
+                 dft_result = dft_runner.run(struct, self.config.dft) # type: ignore[arg-type] # Pydantic model vs Config object issue if strict typing but config.dft is Optional[DFTConfig] and verified not None above
 
-             if dft_result.status == JobStatus.COMPLETED:
-                  # Update structure properties
-                  s = struct.model_copy()
-                  s.properties["energy"] = dft_result.energy
-                  s.properties["forces"] = dft_result.forces
-                  if dft_result.stress is not None:
-                       s.properties["stress"] = dft_result.stress
-                  labelled_structures.append(s)
-             else:
-                  logger.warning(f"DFT failed for candidate {i+1}: {dft_result.log_content}")
-
-        if not labelled_structures:
-             raise RuntimeError("No structures successfully labelled.")
+                 if dft_result.status == JobStatus.COMPLETED:
+                      # Update structure properties
+                      s = struct.model_copy()
+                      s.properties["energy"] = dft_result.energy
+                      s.properties["forces"] = dft_result.forces
+                      if dft_result.stress is not None:
+                           s.properties["stress"] = dft_result.stress
+                      yield s
+                 else:
+                      logger.warning(f"DFT failed for candidate {i+1}: {dft_result.log_content}")
 
         # 2. Learning (Training)
-        # Use a sub-directory for training to avoid clutter
-        # We need a work dir. Config has logging path, we can use its parent.
         base_work_dir = self.config.logging.file_path.parent
         train_work_dir = base_work_dir / f"train_iter_{self.iteration}"
 
         dataset_mgr = DatasetManager(train_work_dir)
         dataset_path = train_work_dir / "train.pckl.gzip"
-        dataset_mgr.convert(labelled_structures, dataset_path)
+
+        # Stream labelled structures directly to dataset converter
+        # This prevents accumulating all labelled structures in memory
+        try:
+            dataset_mgr.convert(dft_stream(), dataset_path)
+        except RuntimeError as e:
+            # Check if dataset was created (maybe generator yielded nothing?)
+            if not dataset_path.exists():
+                raise RuntimeError("No structures successfully labelled for training.") from e
+            raise e
+
+        # Double check if file exists and has size (generator might have been empty)
+        if not dataset_path.exists() or dataset_path.stat().st_size == 0:
+             raise RuntimeError("No structures successfully labelled (dataset empty).")
 
         pace_runner = PacemakerRunner(train_work_dir)
 

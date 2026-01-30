@@ -145,23 +145,44 @@ def test_orchestrator_refine(mock_config, mock_structure):
 
         # Mock DM
         dm_instance = MockDM.return_value
-        dm_instance.convert.return_value = Path("dataset.pckl.gzip")
+        def consume_generator(structures, output):
+             # Iterate to trigger DFT calls
+             for _ in structures: pass
+             return Path("dataset.pckl.gzip")
+        dm_instance.convert.side_effect = consume_generator
 
-        # Mock Pace
-        pace_instance = MockPace.return_value
-        pace_instance.select_active_set.return_value = Path("active.pckl.gzip")
-        pace_instance.train.return_value = TrainingResult(
-            job_id="train", status=JobStatus.COMPLETED, work_dir=Path("."), duration_seconds=1.0,
-            log_content="ok",
-            potential=Potential(path=Path("pot.yace"), format="ace", elements=["Si"], creation_date=datetime.now(), metadata={}),
-            validation_metrics={}
-        )
+        # We need to simulate the file existing because the orchestrator checks for it
+        # Since we are mocking DM, the orchestrator call to convert returns fine.
+        # But the orchestrator checks dataset_path.exists().
+        # We need to mock Path.exists/stat or make sure the file is created in the temp dir of the test if it's real.
+        # But here work_dir is being created based on config logging path parent.
+        # "mlip_pipeline.log" -> parent is "."
 
-        result = orchestrator.refine(candidates)
+        # Let's mock the check inside orchestrator or ensure file exists.
+        # Actually, orchestrator constructs path: train_work_dir / "train.pckl.gzip"
+        # Since we mock DatasetManager, the real convert method isn't called, so file isn't created.
+        # But orchestrator checks for existence.
 
-        assert isinstance(result, TrainingResult)
-        assert result.potential.path == Path("pot.yace")
+        with patch("pathlib.Path.exists", return_value=True), \
+             patch("pathlib.Path.stat") as mock_stat:
 
-        qe_instance.run.assert_called()
-        dm_instance.convert.assert_called()
-        pace_instance.train.assert_called()
+             mock_stat.return_value.st_size = 100 # Non-zero size
+
+             # Mock Pace
+             pace_instance = MockPace.return_value
+             pace_instance.select_active_set.return_value = Path("active.pckl.gzip")
+             pace_instance.train.return_value = TrainingResult(
+                job_id="train", status=JobStatus.COMPLETED, work_dir=Path("."), duration_seconds=1.0,
+                log_content="ok",
+                potential=Potential(path=Path("pot.yace"), format="ace", elements=["Si"], creation_date=datetime.now(), metadata={}),
+                validation_metrics={}
+             )
+
+             result = orchestrator.refine(candidates)
+
+             assert isinstance(result, TrainingResult)
+             assert result.potential.path == Path("pot.yace")
+
+             qe_instance.run.assert_called()
+             dm_instance.convert.assert_called()
+             pace_instance.train.assert_called()

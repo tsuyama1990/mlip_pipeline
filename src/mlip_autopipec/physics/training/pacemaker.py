@@ -59,16 +59,14 @@ class PacemakerRunner:
         duration = (end_time - start_time).total_seconds()
 
         # 3. Parse output
+        # Attempt to make parsing more robust by checking multiple patterns
+        # or graceful failure if metrics aren't critical for next step
         metrics = self._parse_log(log_path)
 
         # 4. Construct Result
-        # pace_train usually produces 'output_potential.yace' in the working directory
         potential_path = self.work_dir / "output_potential.yace"
 
         if not potential_path.exists():
-            # In simulation/mock it might not exist if we don't create it.
-            # Real run would fail earlier or here.
-            # But wait, if pace_train succeeds it should be there.
             raise FileNotFoundError(f"Potential file not found at {potential_path}")
 
         potential = Potential(
@@ -97,9 +95,6 @@ class PacemakerRunner:
         output_path = self.work_dir / "train_active.pckl.gzip"
         logger.info(f"Selecting active set from {dataset_path}")
 
-        # Command assumption: pace_activeset <input> <output>
-        # Or checking docs (hypothetically): pace_activeset -d input.pckl.gzip -o output.pckl.gzip
-        # I'll stick to positional: pace_activeset input output
         cmd = ["pace_activeset", str(dataset_path), str(output_path)]
 
         try:
@@ -150,13 +145,35 @@ class PacemakerRunner:
         """Parses the training log for metrics."""
         content = log_path.read_text()
         metrics = {}
-        # Parse logic: look for "RMSE Energy: 0.123"
-        e_match = re.search(r"RMSE Energy:\s+([\d\.]+)", content)
-        f_match = re.search(r"RMSE Force:\s+([\d\.]+)", content)
 
-        if e_match:
-            metrics["energy_rmse"] = float(e_match.group(1))
-        if f_match:
-            metrics["force_rmse"] = float(f_match.group(1))
+        # Regex patterns to try
+        # 1. Standard log format: "RMSE Energy: 0.123"
+        # 2. Alternative format or table lines (hypothetical)
+
+        patterns = {
+            "energy_rmse": [
+                r"RMSE Energy:\s+([\d\.]+)",
+                r"Energy RMSE\s*=\s*([\d\.]+)",
+                r"rmse_e\s*:\s*([\d\.]+)"
+            ],
+            "force_rmse": [
+                r"RMSE Force:\s+([\d\.]+)",
+                r"Force RMSE\s*=\s*([\d\.]+)",
+                r"rmse_f\s*:\s*([\d\.]+)"
+            ]
+        }
+
+        for key, regex_list in patterns.items():
+            for regex in regex_list:
+                match = re.search(regex, content, re.IGNORECASE)
+                if match:
+                    try:
+                        metrics[key] = float(match.group(1))
+                        break # Found a match, move to next metric
+                    except ValueError:
+                        continue
+
+        if not metrics:
+             logger.warning(f"Could not parse metrics from log {log_path}. Content sample: {content[:200]}...")
 
         return metrics

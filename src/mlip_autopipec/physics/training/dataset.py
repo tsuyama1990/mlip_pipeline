@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Iterable, Union
 
 import ase.io
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -16,12 +16,12 @@ class DatasetManager:
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-    def convert(self, structures: List[Structure], output_path: Path) -> Path:
+    def convert(self, structures: Iterable[Structure], output_path: Path) -> Path:
         """
-        Converts a list of Structures to a pacemaker-compatible dataset.
+        Converts an iterable of Structures to a pacemaker-compatible dataset.
 
         Args:
-            structures: List of Structure objects.
+            structures: Iterable of Structure objects.
             output_path: Path to save the .pckl.gzip dataset.
 
         Returns:
@@ -29,40 +29,37 @@ class DatasetManager:
         """
         temp_extxyz = self.work_dir / "temp_dataset.extxyz"
 
-        atoms_list = []
-        for s in structures:
-            atoms = s.to_ase()
+        # Generator that yields ASE Atoms
+        def ase_generator():
+            for s in structures:
+                atoms = s.to_ase()
 
-            # Move physical properties from info to Calculator for valid extxyz format
-            # We look for standard keys: energy, forces, stress
-            properties = atoms.info
+                # Move physical properties from info to Calculator for valid extxyz format
+                properties = atoms.info
+                results = {}
+                if "energy" in properties:
+                    results["energy"] = properties.pop("energy")
 
-            results = {}
-            if "energy" in properties:
-                results["energy"] = properties.pop("energy")
+                if "forces" in properties:
+                    results["forces"] = properties.pop("forces")
 
-            if "forces" in properties:
-                results["forces"] = properties.pop("forces")
+                if "stress" in properties:
+                    results["stress"] = properties.pop("stress")
 
-            if "stress" in properties:
-                results["stress"] = properties.pop("stress")
+                if "magmoms" in properties:
+                    results["magmoms"] = properties.pop("magmoms")
 
-            if "magmoms" in properties:
-                results["magmoms"] = properties.pop("magmoms")
+                if results:
+                    calc = SinglePointCalculator(atoms, **results)
+                    atoms.calc = calc
 
-            if results:
-                # Create SinglePointCalculator
-                # Note: SinglePointCalculator expects specific keywords
-                calc = SinglePointCalculator(atoms, **results)
-                atoms.calc = calc
+                yield atoms
 
-            atoms_list.append(atoms)
+        # Write to extxyz using the generator to stream data
+        logger.info(f"Streaming structures to {temp_extxyz}")
 
-        # Write to extxyz
-        logger.info(f"Writing {len(structures)} structures to {temp_extxyz}")
-        # write_results=False prevents writing calculator results if we didn't attach one?
-        # But we want to write results. Default is fine.
-        ase.io.write(temp_extxyz, atoms_list, format="extxyz")
+        # ase.io.write supports iterables of Atoms
+        ase.io.write(temp_extxyz, ase_generator(), format="extxyz")
 
         # Call pace_collect
         # pace_collect <input_extxyz> <output_pckl>

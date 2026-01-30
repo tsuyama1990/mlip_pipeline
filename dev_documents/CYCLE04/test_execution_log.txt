@@ -27,4 +27,4 @@ tests/uat/test_cycle04.py .                                              [ 89%]
 tests/unit/test_orchestrator.py ...                                      [ 93%]
 tests/unit/test_structure_gen.py .....                                   [100%]
 
-============================== 73 passed in 3.18s ==============================
+============================== 73 passed in 1.53s ==============================

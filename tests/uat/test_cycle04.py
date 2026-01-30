@@ -1,12 +1,10 @@
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 from ase.build import bulk
 
-from mlip_autopipec.domain_models.config import Config, PotentialConfig
+from mlip_autopipec.domain_models.config import PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.training import TrainingConfig
 

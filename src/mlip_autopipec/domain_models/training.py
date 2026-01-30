@@ -29,14 +29,8 @@ class TrainingConfig(BaseModel):
     @field_validator("kappa")
     @classmethod
     def validate_kappa(cls, v: float) -> float:
-        if v < 0 or v > 1:
-            # Kappa is usually a weight between 0 and 1, or just positive?
-            # Often it's ratio of energy/force.
-            # If it's pure weight, usually positive.
-            # Assuming it can be > 1 (e.g. 100).
-            # But let's just say >= 0.
-            if v < 0:
-                 raise ValueError("kappa must be non-negative")
+        if v < 0:
+             raise ValueError("kappa must be non-negative")
         return v
 
 
@@ -45,7 +39,7 @@ class TrainingResult(JobResult):
     Result of a Potential Training job.
     """
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="forbid")
 
     potential: Potential
     validation_metrics: dict[str, float]

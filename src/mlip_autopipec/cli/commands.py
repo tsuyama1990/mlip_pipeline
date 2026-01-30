@@ -65,12 +65,7 @@ def init_project(path: Path) -> None:
             ensemble="NVT",
         ),
         # Add training default to template for Cycle 04
-        training=TrainingConfig(
-            batch_size=100,
-            max_epochs=100,
-            ladder_step=[10, 5],
-            kappa=0.3
-        )
+        training=TrainingConfig()
     )
 
     try:
