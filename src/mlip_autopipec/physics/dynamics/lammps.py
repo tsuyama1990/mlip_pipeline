@@ -48,7 +48,7 @@ class LammpsRunner:
                 duration_seconds=duration,
                 log_content=log_content,
                 final_structure=final_structure,
-                trajectory_path=trajectory_path
+                trajectory_path=trajectory_path,
             )
 
         except subprocess.TimeoutExpired:
@@ -58,9 +58,9 @@ class LammpsRunner:
                 work_dir=work_dir,
                 duration_seconds=self.config.timeout,
                 log_content="Timeout Expired",
-                final_structure=structure, # Return initial as fallback
+                final_structure=structure,  # Return initial as fallback
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
             log_file = work_dir / "log.lammps"
@@ -78,7 +78,7 @@ class LammpsRunner:
                 log_content=log_content,
                 final_structure=structure,
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
         except Exception as e:
             # Try to read log if it exists
@@ -93,14 +93,16 @@ class LammpsRunner:
                 log_content=log_content,
                 final_structure=structure,
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
 
-    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams) -> None:
+    def _write_inputs(
+        self, work_dir: Path, structure: Structure, params: MDParams
+    ) -> None:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
-        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
+        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data")  # type: ignore[no-untyped-call]
 
         # Template for LJ (for Cycle 02 testing)
         # In real scenario, we would use a potential file. Here we use internal LJ.
@@ -151,7 +153,7 @@ run             {params.n_steps}
         # But simplistic check:
         exe = cmd_list[0]
         if not shutil.which(exe):
-             raise FileNotFoundError(f"Executable '{exe}' not found.")
+            raise FileNotFoundError(f"Executable '{exe}' not found.")
 
         result = subprocess.run(
             cmd_list,
@@ -159,12 +161,14 @@ run             {params.n_steps}
             capture_output=True,
             text=True,
             timeout=self.config.timeout,
-            check=True
+            check=True,
         )
 
         return result.stdout
 
-    def _parse_output(self, work_dir: Path, original_structure: Structure) -> tuple[Structure, Path]:
+    def _parse_output(
+        self, work_dir: Path, original_structure: Structure
+    ) -> tuple[Structure, Path]:
         """Parse trajectory and return final structure."""
         traj_path = work_dir / "dump.lammpstrj"
         if not traj_path.exists():
@@ -172,15 +176,15 @@ run             {params.n_steps}
 
         # Read last frame
         # ase.io.read returns Atoms or list of Atoms. index=-1 returns single Atoms.
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text")  # type: ignore[no-untyped-call]
 
         if isinstance(atoms, list):
-             # Should not happen with index=-1 but type guard
-             atoms = atoms[-1]
+            # Should not happen with index=-1 but type guard
+            atoms = atoms[-1]
 
         # Restore symbols from original structure
         # (Assuming atom order hasn't changed, which is true for standard MD)
         if len(atoms) == len(original_structure.symbols):
-            atoms.set_chemical_symbols(original_structure.symbols) # type: ignore[no-untyped-call]
+            atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
 
         return Structure.from_ase(atoms), traj_path

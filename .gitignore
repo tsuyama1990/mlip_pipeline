@@ -41,3 +41,6 @@ build/
 _work_md/
 dump.lammpstrj
 log.lammps
+
+# Cycle 03 Updates
+workflow_state.json

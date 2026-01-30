@@ -29,7 +29,7 @@ class BulkStructureGenerator:
             name=config.element,
             crystalstructure=config.crystal_structure,
             a=config.lattice_constant,
-            cubic=True
+            cubic=True,
         )
 
         # Apply supercell expansion
