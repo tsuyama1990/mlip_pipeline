@@ -1,0 +1,53 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 28 items
+
+tests/domain_models/test_config.py ....                                  [ 14%]
+tests/domain_models/test_job.py ..                                       [ 21%]
+tests/domain_models/test_structure.py .....                              [ 39%]
+tests/e2e/test_cli.py .....                                              [ 57%]
+tests/infrastructure/test_io.py .....                                    [ 75%]
+tests/infrastructure/test_logging.py .                                   [ 78%]
+tests/physics/test_builder.py ..                                         [ 85%]
+tests/physics/test_lammps.py ..                                          [ 92%]
+tests/uat/test_cycle02.py ..                                             [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                   Stmts   Miss  Cover
+--------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                             0      0   100%
+src/mlip_autopipec/app.py                                 16      1    94%
+src/mlip_autopipec/cli/commands.py                        46      4    91%
+src/mlip_autopipec/constants.py                            7      0   100%
+src/mlip_autopipec/domain_models/__init__.py               4      0   100%
+src/mlip_autopipec/domain_models/config.py                46      0   100%
+src/mlip_autopipec/domain_models/job.py                   22      0   100%
+src/mlip_autopipec/domain_models/structure.py             38      1    97%
+src/mlip_autopipec/infrastructure/__init__.py              0      0   100%
+src/mlip_autopipec/infrastructure/io.py                   15      0   100%
+src/mlip_autopipec/infrastructure/logging.py              12      0   100%
+src/mlip_autopipec/orchestration/__init__.py               0      0   100%
+src/mlip_autopipec/orchestration/workflow.py              28      0   100%
+src/mlip_autopipec/physics/__init__.py                     0      0   100%
+src/mlip_autopipec/physics/dynamics/__init__.py            0      0   100%
+src/mlip_autopipec/physics/dynamics/lammps.py             69     15    78%
+src/mlip_autopipec/physics/structure_gen/__init__.py       0      0   100%
+src/mlip_autopipec/physics/structure_gen/builder.py       10      0   100%
+tests/conftest.py                                          5      0   100%
+tests/domain_models/test_config.py                        24      0   100%
+tests/domain_models/test_job.py                           11      0   100%
+tests/domain_models/test_structure.py                     32      0   100%
+tests/e2e/test_cli.py                                     43      0   100%
+tests/infrastructure/test_io.py                           32      0   100%
+tests/infrastructure/test_logging.py                      19      0   100%
+tests/physics/test_builder.py                             19      0   100%
+tests/physics/test_lammps.py                              40      0   100%
+tests/uat/test_cycle02.py                                 31      1    97%
+--------------------------------------------------------------------------
+TOTAL                                                    569     22    96%
+============================== 28 passed in 4.12s ==============================

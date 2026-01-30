@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -9,6 +9,7 @@ class LoggingConfig(BaseModel):
 
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     file_path: Path = Path("mlip_pipeline.log")
+
 
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -25,10 +26,47 @@ class PotentialConfig(BaseModel):
             raise ValueError(msg)
         return v
 
+
 class OrchestratorConfig(BaseModel):
     """Placeholder for Orchestrator configuration."""
     model_config = ConfigDict(extra="forbid")
     # No fields defined in Cycle 01 spec yet, allowing empty or defaults if needed later.
+
+
+class LammpsConfig(BaseModel):
+    """Configuration for the LAMMPS executable and runtime environment."""
+    model_config = ConfigDict(extra="forbid")
+
+    command: str = "lmp_serial"
+    timeout: int = 3600
+    use_mpi: bool = False
+    mpi_command: str = "mpirun -np 4"
+
+
+class MDParams(BaseModel):
+    """Runtime parameters for an MD simulation."""
+    model_config = ConfigDict(extra="forbid")
+
+    temperature: float
+    pressure: Optional[float] = None
+    n_steps: int
+    timestep: float = 0.001
+    ensemble: Literal["NVT", "NPT"]
+
+
+class DFTConfig(BaseModel):
+    """Placeholder for DFT Configuration (Cycle 03)."""
+    model_config = ConfigDict(extra="forbid")
+    kspacing: float = 0.04
+    # Additional fields to be added in Cycle 03
+
+
+class TrainingConfig(BaseModel):
+    """Placeholder for Training Configuration (Cycle 04)."""
+    model_config = ConfigDict(extra="forbid")
+    initial_potential: Optional[Path] = None
+    # Additional fields to be added in Cycle 04
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -37,6 +75,10 @@ class Config(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
+    lammps: LammpsConfig = Field(default_factory=LammpsConfig)
+    # Optional placeholders for future cycles
+    dft: Optional[DFTConfig] = None
+    training: Optional[TrainingConfig] = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":
