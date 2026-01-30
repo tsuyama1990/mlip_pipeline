@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from mlip_autopipec.domain_models.config import Config, MDParams
+from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.job import LammpsResult
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 from mlip_autopipec.physics.dynamics.lammps import LammpsRunner

@@ -208,7 +208,6 @@ dump_modify     1 sort id
 
             buffer = b""
             pointer = file_size
-            frames_found = 0
 
             while pointer > 0:
                 read_size = min(chunk_size, pointer)
