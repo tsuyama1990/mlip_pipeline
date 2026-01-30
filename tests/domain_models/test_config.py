@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import Config, PotentialConfig
+from mlip_autopipec.domain_models.config import Config, PotentialConfig, LammpsConfig
 
 
 def test_config_valid() -> None:
@@ -18,7 +18,36 @@ def test_config_valid() -> None:
     )
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
+    assert c.potential.pair_style == "lj/cut 2.5" # Default
     assert c.logging.level == "INFO" # Default
+    assert c.lammps.command == "lmp_serial" # Default
+    assert c.lammps.base_work_dir == Path("_work_md") # Default
+    assert c.md_params.temperature == 300.0 # Default
+
+def test_config_potential_structure() -> None:
+    """Test new structure params in PotentialConfig."""
+    pc = PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        lattice_constant=5.43,
+        crystal_structure="diamond",
+        pair_style="hybrid/overlay ace lj/cut 2.5",
+        pair_coeff=["* * ace potential.yace Si", "* * lj/cut 1.0 1.0"]
+    )
+    assert pc.lattice_constant == 5.43
+    assert pc.pair_style.startswith("hybrid")
+    assert len(pc.pair_coeff) == 2
+
+def test_config_with_lammps() -> None:
+    c = Config(
+        project_name="TestProject",
+        potential=PotentialConfig(elements=["Si"], cutoff=4.0),
+        lammps=LammpsConfig(command="mpirun lmp", cores=4, timeout=10.0, base_work_dir=Path("/scratch"))
+    )
+    assert c.lammps.command == "mpirun lmp"
+    assert c.lammps.cores == 4
+    assert c.lammps.timeout == 10.0
+    assert c.lammps.base_work_dir == Path("/scratch")
 
 def test_config_invalid_cutoff() -> None:
     """Test negative cutoff."""
@@ -53,6 +82,10 @@ def test_from_yaml(tmp_path: Path) -> None:
       seed: 123
     logging:
       level: "DEBUG"
+    lammps:
+      command: "lmp"
+      cores: 2
+      base_work_dir: "/tmp/mlip"
     """
     yaml_file.write_text(yaml_content)
 
@@ -61,3 +94,6 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
     assert c.logging.level == "DEBUG"
+    assert c.lammps.command == "lmp"
+    assert c.lammps.cores == 2
+    assert c.lammps.base_work_dir == Path("/tmp/mlip")

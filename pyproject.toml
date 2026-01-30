@@ -8,6 +8,13 @@ authors = [
 description = "Automated Machine Learning Interatomic Potential Pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.9.0",
+    "pydantic>=2.0.0",
+    "ase>=3.22.1",
+    "PyYAML>=6.0",
+    "numpy>=1.20.0",
+]
 classifiers = [
     "Programming Language :: Python :: 3.11",
     "License :: OSI Approved :: MIT License",
@@ -19,4 +26,8 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "types-PyYAML",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

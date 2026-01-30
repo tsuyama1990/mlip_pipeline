@@ -1,4 +1,4 @@
-# Python cache
+
 __pycache__/
 *.pyc
 *.pyo
@@ -13,26 +13,12 @@ __pycache__/
 venv/
 env/
 .DS_Store
-.idea/
-.vscode/
-*.model
-*.yace
-*.pwo
-*.pwi
-*.err
-temp_ase_calc/
-.ac_cdd/
-_work/
-mlip.db
-mlip.log
-data/
-potentials/
-dev_documents/project_state.json
-
-# AC-CDD Configuration
-.ac_cdd/.env
+.coverage
+htmlcov/
+dist/
+build/
+mlip_pipeline.log
+_work_md/
 _work_dft/
 tmp/
-mlip_pipeline.log
-.coverage
-build/
+workflow_state.json
