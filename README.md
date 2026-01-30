@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_01_Foundation-blue)
+![Status](https://img.shields.io/badge/Status-Cycle_02_Exploration-blue)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -10,12 +10,16 @@
 **What**: A robust, type-safe pipeline for automating the generation of MLIPs.
 **Why**: Scientific software often suffers from loose data contracts. This project establishes a rigid **Schema-First** foundation to prevent "silent failures" in complex simulations.
 
-## Key Features (Cycle 01 Verified)
+## Key Features
 
+-   **One-Shot MD Pipeline** (Cycle 02):
+    -   Automatically generates atomic structures (e.g., Bulk Si).
+    -   Runs Molecular Dynamics simulations via **LAMMPS**.
+    -   Parses trajectories into strict `Structure` objects.
 -   **Strict Data Validation**: Pydantic-based domain models ensure that every atomic structure and configuration parameter is valid before processing begins.
 -   **Configuration Management**:
     -   `init`: Generates valid template configurations instantly.
-    -   `check`: Validates existing configurations against strict schemas (e.g., catching negative cutoff radii).
+    -   `check`: Validates existing configurations against strict schemas.
 -   **Robust Infrastructure**:
     -   Type-safe YAML input/output.
     -   Dual-channel logging: Beautiful console output (Rich) for users, detailed file logs for debugging.
@@ -24,6 +28,7 @@
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (recommended)
+-   **Simulation Engine**: LAMMPS (`lmp_serial` or similar) installed and in PATH.
 
 ## Installation
 
@@ -55,31 +60,47 @@ uv run mlip-auto check --config config.yaml
 # Output: Configuration valid (or detailed error messages)
 ```
 
-Example `config.yaml`:
+### 3. Run One-Shot Pipeline (MD)
+Generate a structure and run a Molecular Dynamics simulation.
+```bash
+uv run mlip-auto run-cycle-02 --config config.yaml
+```
+
+**Example `config.yaml`**:
 ```yaml
 project_name: "MyMLIPProject"
 potential:
-  elements: ["Ti", "O"]
+  elements: ["Si"]
   cutoff: 5.0
   seed: 42
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
+structure_gen:
+  composition: "Si"
+  rattle_amplitude: 0.1
+lammps:
+  command: "lmp_serial"  # Ensure this executable exists!
+  timeout: 600
 ```
 
 ## Project Structure
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job)
 ├── infrastructure/         # Logging, IO
+├── orchestration/          # Workflow Managers
+├── physics/                # Core Physics Engines
+│   ├── dynamics/           # LAMMPS Wrapper
+│   └── structure_gen/      # Structure Building Logic
 └── app.py                  # CLI Entry Point
 ```
 
 ## Roadmap
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
--   **Cycle 02**: Basic Exploration (MD)
+-   **Cycle 02**: Basic Exploration / One-Shot MD (Completed)
 -   **Cycle 03**: Oracle (DFT)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework

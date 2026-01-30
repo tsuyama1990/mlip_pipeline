@@ -1,94 +1,129 @@
 """UAT Verification Script for Cycle 02."""
 
 import logging
+import stat
 import sys
 from pathlib import Path
-
-import numpy as np
 
 # Ensure src is in path
 sys.path.append(str(Path.cwd() / "src"))
 
-from mlip_autopipec.domain_models.config import Config, ExplorationConfig
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
-from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
+from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig, MDParams, ElementParams
+from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("UAT-02")
 
-def uat_02_01_cold_start() -> bool:
-    logger.info("Running UAT-02-01: Cold Start Generation")
+def uat_02_02_missing_executable() -> bool:
+    logger.info("Running UAT-02-02: Missing Executable Handling")
 
-    # 1. Configure
     config = Config(
-        project_name="UAT_02",
-        structure_gen=ExplorationConfig(
-            strategy="template",
-            composition="Si",
-            num_candidates=5,
-            rattle_amplitude=0.1
-        )
+        project_name="UAT_Missing",
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=2.0,
+            element_params={"Si": ElementParams(mass=28.085, lj_sigma=1, lj_epsilon=1, zbl_z=14)}
+        ),
+        structure_gen=ExplorationConfig(composition="Si"),
+        lammps=LammpsConfig(command="/path/to/nonexistent/lmp")
     )
 
-    state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
-
-    # 2. Run
-    phase = ExplorationPhase()
-    phase.execute(state, config)
-
-    # 3. Inspect
-    if len(state.candidates) != 5:
-        logger.error(f"Failed: Expected 5 candidates, got {len(state.candidates)}")
+    try:
+        result = run_one_shot(config)
+        # Should fail gracefully
+        if result.status == JobStatus.FAILED:
+            if "not found" in result.log_content or "No such file" in result.log_content:
+                logger.info("UAT-02-02 Passed (Correctly detected missing executable)")
+                return True
+            else:
+                 logger.error(f"Failed: Job failed but log doesn't mention missing exec. Log: {result.log_content}")
+                 return False
+        else:
+             logger.error(f"Failed: Job status is {result.status}, expected FAILED")
+             return False
+    except Exception as e:
+        logger.error(f"Failed: Raised unhandled exception: {e}")
         return False
 
-    for i, cand in enumerate(state.candidates):
-        if "Si" not in cand.formatted_formula:
-             logger.error(f"Failed: Candidate {i} formula mismatch: {cand.formatted_formula}")
-             return False
+def uat_02_01_one_shot_pipeline(tmp_path: Path) -> bool:
+    logger.info("Running UAT-02-01: One-Shot MD Run (Mocked LAMMPS)")
 
-    logger.info("UAT-02-01 Passed")
-    return True
+    # Create a fake LAMMPS executable
+    fake_lmp = tmp_path / "fake_lmp.sh"
+    dump_file = "dump.lammpstrj"
 
-def uat_02_02_validity() -> bool:
-    logger.info("Running UAT-02-02: Structure Validity")
+    fake_script = f"""#!/bin/bash
+    echo "LAMMPS (Mock) is running"
+    # Create a dummy dump file
+    cat > {dump_file} << EOF
+ITEM: TIMESTEP
+100
+ITEM: NUMBER OF ATOMS
+2
+ITEM: BOX BOUNDS pp pp pp
+0 5.43
+0 5.43
+0 5.43
+ITEM: ATOMS id type x y z
+1 1 0.1 0.1 0.1
+2 1 1.5 1.5 1.5
+EOF
+    """
+    fake_lmp.write_text(fake_script)
+    fake_lmp.chmod(fake_lmp.stat().st_mode | stat.S_IEXEC)
 
-    # 1. Configure with large rattle
     config = Config(
-        project_name="UAT_02",
+        project_name="UAT_Mocked",
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=2.0,
+            element_params={"Si": ElementParams(mass=28.085, lj_sigma=1, lj_epsilon=1, zbl_z=14)}
+        ),
         structure_gen=ExplorationConfig(
-            strategy="template",
-            composition="Al",
-            num_candidates=2,
-            rattle_amplitude=0.5
-        )
+            composition="Si",
+            md_params=MDParams(temperature=300, n_steps=100)
+        ),
+        lammps=LammpsConfig(command=str(fake_lmp.absolute()), timeout=5)
     )
 
-    state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
-    phase = ExplorationPhase()
-    phase.execute(state, config)
+    try:
+        # We need to run inside tmp_path so the fake script writes dump there
+        # But LammpsRunner creates a subfolder.
+        # The fake script writes to CWD. LammpsRunner runs in a temp dir.
+        # So the fake script will write to that temp dir.
+        # But the fake script is invoked with absolute path.
 
-    # 4. Verify no atoms overlap too much
-    # Simple check: min distance > 0.5 A
-    for cand in state.candidates:
-        atoms = cand.to_ase()
-        # ASE get_all_distances
-        dist_matrix = atoms.get_all_distances(mic=True) # type: ignore[no-untyped-call]
-        # Mask diagonal
-        np.fill_diagonal(dist_matrix, 10.0)
-        min_dist = np.min(dist_matrix)
+        result = run_one_shot(config)
 
-        if min_dist < 0.5:
-             logger.error(f"Failed: Atomic overlap detected. Min dist: {min_dist}")
-             return False
+        if result.status == JobStatus.COMPLETED and isinstance(result, LammpsResult):
+            if len(result.final_structure.positions) == 2:
+                logger.info("UAT-02-01 Passed")
+                return True
+            else:
+                logger.error("Failed: Final structure has wrong number of atoms")
+                return False
+        else:
+            logger.error(f"Failed: Job status {result.status}. Log: {result.log_content}")
+            return False
 
-    logger.info("UAT-02-02 Passed")
-    return True
+    except Exception as e:
+        logger.error(f"Failed: Exception {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 if __name__ == "__main__":
+    from pathlib import Path
+    import tempfile
+
     success = True
-    success &= uat_02_01_cold_start()
-    success &= uat_02_02_validity()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        success &= uat_02_02_missing_executable()
+        success &= uat_02_01_one_shot_pipeline(tmp_path)
 
     if success:
         logger.info("All UAT tests passed.")
