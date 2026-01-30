@@ -70,9 +70,17 @@ def uat_02_01_one_shot_success(tmp_path: Path) -> bool:
     create_fake_lammps_script(fake_lammps)
 
     # Setup config pointing to fake lammps
+    # Test hybrid potential config
     config = Config(
         project_name="UAT_Cycle02",
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=5.0,
+            lattice_constant=5.43,
+            crystal_structure="diamond",
+            pair_style="hybrid/overlay ace lj/cut 2.5",
+            pair_coeff=["* * ace potential.yace Si", "* * lj/cut 1.0 1.0"]
+        ),
         lammps=LammpsConfig(
             command=str(fake_lammps.absolute()),
             cores=1
@@ -93,6 +101,25 @@ def uat_02_01_one_shot_success(tmp_path: Path) -> bool:
         logger.error("Output did not contain success message")
         logger.error(result.stdout)
         return False
+
+    # Verify input script contains new potential info
+    # We need to find the job directory. It's printed in output "Result in: ..."
+    # Or we can look in _work_md/
+    import re
+    match = re.search(r"Result in: (.*)", result.stdout)
+    if match:
+        work_dir = Path(match.group(1).strip())
+        in_lammps = work_dir / "in.lammps"
+        if in_lammps.exists():
+            content = in_lammps.read_text()
+            if "hybrid/overlay ace" not in content:
+                logger.error("Input script does not contain hybrid potential")
+                return False
+            if "potential.yace" not in content:
+                logger.error("Input script does not contain pair coeff")
+                return False
+        else:
+            logger.warning("Could not find in.lammps to verify content")
 
     logger.info("UAT-02-01 Passed")
     return True
@@ -133,11 +160,24 @@ def uat_02_02_missing_executable(tmp_path: Path) -> bool:
 if __name__ == "__main__":
     from tempfile import TemporaryDirectory
 
+    # We need to set the CWD to tmp_dir for UAT because LammpsRunner uses _work_md relative to CWD
+    # But LammpsRunner uses base_work_dir which defaults to _work_md
+    # In tests, we might want to override base_work_dir, but via CLI we can't yet (not exposed).
+    # So _work_md will be created in CWD.
+    # To keep UAT clean, we can chdir to tmp_dir?
+    import os
+
+    original_cwd = os.getcwd()
+
     with TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        success = True
-        success &= uat_02_01_one_shot_success(tmp_path)
-        success &= uat_02_02_missing_executable(tmp_path)
+        os.chdir(tmp_path)
+        try:
+            success = True
+            success &= uat_02_01_one_shot_success(tmp_path)
+            success &= uat_02_02_missing_executable(tmp_path)
+        finally:
+            os.chdir(original_cwd)
 
     if success:
         logger.info("All UAT tests passed.")

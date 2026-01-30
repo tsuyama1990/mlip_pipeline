@@ -20,9 +20,13 @@ def run_one_shot(config: Config) -> JobResult:
     logger.info(f"Building bulk structure for {element}...")
 
     builder = StructureBuilder()
-    # Hardcoded parameters for now as per "One-Shot" simplicity, or could come from Config if we added StructureGenConfig
-    # Using defaults for Si
-    structure = builder.build_bulk(element, "diamond", 5.43)
+
+    # Use config values for structure generation
+    structure = builder.build_bulk(
+        element,
+        config.potential.crystal_structure,
+        config.potential.lattice_constant
+    )
 
     # Rattle
     structure = builder.apply_rattle(structure, stdev=0.1, seed=config.potential.seed)
@@ -39,7 +43,8 @@ def run_one_shot(config: Config) -> JobResult:
         timestep=0.001
     )
 
-    result = runner.run(structure, params)
+    # Pass potential config to runner
+    result = runner.run(structure, params, config.potential)
 
     # 3. Report
     logger.info(f"Job {result.job_id} finished with status {result.status.value}")

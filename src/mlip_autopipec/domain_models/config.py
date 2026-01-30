@@ -18,6 +18,14 @@ class PotentialConfig(BaseModel):
     cutoff: float
     seed: int = 42
 
+    # Structure Generation
+    lattice_constant: float = 5.43
+    crystal_structure: str = "diamond"
+
+    # LAMMPS Potential
+    pair_style: str = "lj/cut 2.5"
+    pair_coeff: list[str] = ["* * 1.0 1.0 2.5"]
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:

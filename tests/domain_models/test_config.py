@@ -18,8 +18,23 @@ def test_config_valid() -> None:
     )
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
+    assert c.potential.pair_style == "lj/cut 2.5" # Default
     assert c.logging.level == "INFO" # Default
     assert c.lammps.command == "lmp_serial" # Default
+
+def test_config_potential_structure() -> None:
+    """Test new structure params in PotentialConfig."""
+    pc = PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        lattice_constant=5.43,
+        crystal_structure="diamond",
+        pair_style="hybrid/overlay ace lj/cut 2.5",
+        pair_coeff=["* * ace potential.yace Si", "* * lj/cut 1.0 1.0"]
+    )
+    assert pc.lattice_constant == 5.43
+    assert pc.pair_style.startswith("hybrid")
+    assert len(pc.pair_coeff) == 2
 
 def test_config_with_lammps() -> None:
     c = Config(

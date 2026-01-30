@@ -11,7 +11,12 @@ from mlip_autopipec.domain_models.structure import Structure
 def valid_config():
     return Config(
         project_name="TestProject",
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=5.0,
+            lattice_constant=5.43,
+            crystal_structure="diamond"
+        ),
         lammps=LammpsConfig(command="echo", cores=1)
     )
 
@@ -39,8 +44,13 @@ def test_run_one_shot_success(MockRunner, MockBuilder, valid_config, sample_ase_
     result = run_one_shot(valid_config)
 
     # Verify interactions
+    # Check that config values are passed to build_bulk
     mock_builder_instance.build_bulk.assert_called_with("Si", "diamond", 5.43)
     mock_builder_instance.apply_rattle.assert_called()
+
+    # Check that run is called with potential config
     mock_runner_instance.run.assert_called()
+    args, _ = mock_runner_instance.run.call_args
+    assert args[2] == valid_config.potential # 3rd arg is potential_config
 
     assert result.status == JobStatus.COMPLETED

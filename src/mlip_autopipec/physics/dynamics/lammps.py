@@ -1,5 +1,4 @@
 import logging
-import tempfile
 from pathlib import Path
 from typing import Optional
 import time
@@ -9,7 +8,7 @@ import datetime
 
 import ase.io
 
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
+from mlip_autopipec.domain_models.config import LammpsConfig, MDParams, PotentialConfig
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.infrastructure import io
@@ -26,13 +25,14 @@ class LammpsRunner:
         self.config = config
         self.base_work_dir = base_work_dir
 
-    def run(self, structure: Structure, params: MDParams) -> LammpsResult:
+    def run(self, structure: Structure, params: MDParams, potential_config: PotentialConfig) -> LammpsResult:
         """
         Run a LAMMPS simulation.
 
         Args:
             structure: Initial atomic structure.
             params: MD simulation parameters.
+            potential_config: Configuration for the interatomic potential.
 
         Returns:
             LammpsResult object.
@@ -48,7 +48,7 @@ class LammpsRunner:
 
         try:
             # 1. Write inputs
-            self._write_inputs(work_dir, structure, params)
+            self._write_inputs(work_dir, structure, params, potential_config)
 
             # 2. Run LAMMPS
             log_content = self._execute_lammps(work_dir)
@@ -87,12 +87,15 @@ class LammpsRunner:
                 log_content=str(e)
             )
 
-    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams) -> None:
+    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams, potential_config: PotentialConfig) -> None:
         """Write data.lammps and in.lammps."""
         # Write data file
         atoms = structure.to_ase()
         # ASE writes lammps-data
         ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
+
+        # Generate Pair Coeff lines
+        pair_coeff_lines = "\n".join([f"pair_coeff      {line}" for line in potential_config.pair_coeff])
 
         # Write input script
         input_script = f"""
@@ -102,8 +105,8 @@ boundary        p p p
 
 read_data       data.lammps
 
-pair_style      lj/cut 2.5
-pair_coeff      * * 1.0 1.0 2.5
+pair_style      {potential_config.pair_style}
+{pair_coeff_lines}
 
 neighbor        0.3 bin
 neigh_modify    delay 0 every 20 check no
