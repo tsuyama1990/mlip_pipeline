@@ -3,6 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.domain_models.calculation import DFTConfig
+
 
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -18,6 +20,12 @@ class PotentialConfig(BaseModel):
     cutoff: float
     seed: int = 42
 
+    # Hybrid potential settings (Cycle 02/03 updates)
+    pair_style: str = "hybrid/overlay ace zbl"
+    ace_potential_file: Path = Path("potential.yace")
+    zbl_cutoffs: dict[str, float] = Field(default_factory=dict) # e.g. {"Si-Si": 1.5}
+
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:
@@ -29,22 +37,26 @@ class PotentialConfig(BaseModel):
 
 class OrchestratorConfig(BaseModel):
     """Placeholder for Orchestrator configuration."""
+
     model_config = ConfigDict(extra="forbid")
     # No fields defined in Cycle 01 spec yet, allowing empty or defaults if needed later.
 
 
 class LammpsConfig(BaseModel):
     """Configuration for the LAMMPS executable and runtime environment."""
+
     model_config = ConfigDict(extra="forbid")
 
     command: str = "lmp_serial"
     timeout: int = 3600
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
+    base_work_dir: Path = Path("_work_md")
 
 
 class MDConfig(BaseModel):
     """Configuration for MD simulation parameters."""
+
     model_config = ConfigDict(extra="forbid")
 
     temperature: float
@@ -60,6 +72,7 @@ MDParams = MDConfig
 
 class StructureGenConfig(BaseModel):
     """Configuration for structure generation."""
+
     model_config = ConfigDict(extra="forbid")
 
     strategy: Literal["bulk"] = "bulk"
@@ -70,15 +83,9 @@ class StructureGenConfig(BaseModel):
     supercell: tuple[int, int, int] = (1, 1, 1)
 
 
-class DFTConfig(BaseModel):
-    """Placeholder for DFT Configuration (Cycle 03)."""
-    model_config = ConfigDict(extra="forbid")
-    kspacing: float = 0.04
-    # Additional fields to be added in Cycle 03
-
-
 class TrainingConfig(BaseModel):
     """Placeholder for Training Configuration (Cycle 04)."""
+
     model_config = ConfigDict(extra="forbid")
     initial_potential: Optional[Path] = None
     # Additional fields to be added in Cycle 04
@@ -105,5 +112,6 @@ class Config(BaseModel):
     def from_yaml(cls, path: Path) -> "Config":
         """Load configuration from a YAML file."""
         from mlip_autopipec.infrastructure import io
+
         data = io.load_yaml(path)
         return cls(**data)

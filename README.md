@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_02_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -12,17 +12,19 @@
 
 ## Key Features
 
--   **Molecular Dynamics Engine**:
+-   **Molecular Dynamics Engine (Cycle 02)**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
     -   Graceful handling of missing executables and timeouts.
 -   **Structure Generation**:
     -   Deterministic bulk crystal generation (e.g., Silicon Diamond).
     -   Thermal noise application (Rattling).
+    -   **Periodic Embedding (Cycle 03)**: Automatically extracts clusters from large supercells and prepares them for isolated calculations.
+-   **Oracle (DFT) Engine (Cycle 03)**:
+    -   **Quantum Espresso Wrapper**: Automated input generation, execution, and parsing.
+    -   **Self-Healing**: Automatically recovers from SCF convergence failures, memory errors, and timeouts by adjusting physical parameters (mixing beta, smearing, diagonalization).
+    -   **Dynamic K-Point Grid**: Calculates optimal K-point density based on cell size.
 -   **Strict Data Validation**: Pydantic-based domain models ensure that every atomic structure and configuration parameter is valid before processing begins.
--   **Configuration Management**:
-    -   `init`: Generates valid template configurations instantly.
-    -   `check`: Validates existing configurations against strict schemas.
 -   **Robust Infrastructure**:
     -   Type-safe YAML input/output.
     -   Dual-channel logging: Beautiful console output (Rich) for users, detailed file logs for debugging.
@@ -31,8 +33,9 @@
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (recommended)
--   **Simulation Engine**: LAMMPS (Optional for core functionality, required for MD)
-    -   Executable `lmp_serial` or `mpirun` accessible in PATH.
+-   **Simulation Engine**:
+    -   **LAMMPS**: (Optional for MD) `lmp_serial` or `mpirun`.
+    -   **Quantum Espresso**: (Optional for DFT) `pw.x` or `mpirun pw.x`.
 
 ## Installation
 
@@ -70,7 +73,7 @@ Execute a single Molecular Dynamics simulation (Generate -> MD -> Parse).
 uv run mlip-auto run-one-shot --config config.yaml
 ```
 
-Example `config.yaml`:
+Example `config.yaml` with DFT settings:
 ```yaml
 project_name: "MyMLIPProject"
 potential:
@@ -81,6 +84,12 @@ lammps:
   command: "lmp_serial"
   timeout: 3600
   use_mpi: false
+dft:
+  command: "mpirun -np 4 pw.x"
+  pseudopotentials:
+    Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+  ecutwfc: 40.0
+  kspacing: 0.04
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -90,8 +99,11 @@ logging:
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config, Job)
-├── physics/                # Physics Engines (LAMMPS, StructureGen)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job, Calculation)
+├── physics/
+│   ├── dynamics/           # LAMMPS Wrapper
+│   ├── dft/                # Quantum Espresso Wrapper (Input Gen, Runner, Recovery)
+│   └── structure_gen/      # Generation, Embedding
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
@@ -101,7 +113,7 @@ src/mlip_autopipec/
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
--   **Cycle 03**: Oracle (DFT)
+-   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop

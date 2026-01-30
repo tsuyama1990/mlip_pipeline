@@ -9,6 +9,7 @@ from mlip_autopipec.domain_models.structure import Structure
 
 class JobStatus(str, Enum):
     """Status of an external calculation job."""
+
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
@@ -21,6 +22,7 @@ class JobResult(BaseModel):
     Base model for the result of an external calculation.
     Capture metadata common to all HPC jobs.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     job_id: str
@@ -34,6 +36,7 @@ class LammpsResult(JobResult):
     """
     Result of a LAMMPS MD simulation.
     """
+
     final_structure: Structure
     trajectory_path: Path
     max_gamma: Optional[float] = None

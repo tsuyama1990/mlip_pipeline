@@ -28,14 +28,11 @@ def init_project(path: Path) -> None:
 
     template = {
         "project_name": DEFAULT_PROJECT_NAME,
-        "logging": {
-            "level": DEFAULT_LOG_LEVEL,
-            "file_path": DEFAULT_LOG_FILENAME
-        },
+        "logging": {"level": DEFAULT_LOG_LEVEL, "file_path": DEFAULT_LOG_FILENAME},
         "potential": {
             "elements": DEFAULT_ELEMENTS,
             "cutoff": DEFAULT_CUTOFF,
-            "seed": DEFAULT_SEED
+            "seed": DEFAULT_SEED,
         },
         "structure_gen": {
             "strategy": "bulk",
@@ -43,19 +40,21 @@ def init_project(path: Path) -> None:
             "crystal_structure": "diamond",
             "lattice_constant": 5.43,
             "rattle_stdev": 0.1,
-            "supercell": [1, 1, 1]
+            "supercell": (1, 1, 1),
         },
         "md": {
-             "temperature": 300.0,
-             "n_steps": 1000,
-             "timestep": 0.001,
-             "ensemble": "NVT"
+            "temperature": 300.0,
+            "n_steps": 1000,
+            "timestep": 0.001,
+            "ensemble": "NVT",
         },
-        "lammps": {
-            "command": "lmp_serial",
-            "timeout": 3600,
-            "use_mpi": False
-        }
+        "lammps": {"command": "lmp_serial", "timeout": 3600, "use_mpi": False},
+        "dft": {
+            "command": "mpirun -np 4 pw.x",
+            "pseudopotentials": {"Si": "Si.pbe-n-kjpaw_psl.1.0.0.UPF"},
+            "ecutwfc": 40.0,
+            "kspacing": 0.04,
+        },
     }
 
     try:
@@ -101,15 +100,24 @@ def run_cycle_02_cmd(config_path: Path) -> None:
         result = run_one_shot(config)
 
         if result.status == JobStatus.COMPLETED:
-            typer.secho(f"Simulation Completed: Status {result.status.value}", fg=typer.colors.GREEN)
+            typer.secho(
+                f"Simulation Completed: Status {result.status.value}",
+                fg=typer.colors.GREEN,
+            )
 
             # Check for specific result attributes (LammpsResult)
             if hasattr(result, "trajectory_path"):
-                logging.getLogger("mlip_autopipec").info(f"Trajectory saved to: {result.trajectory_path}") # type: ignore[attr-defined]
+                logging.getLogger("mlip_autopipec").info(
+                    f"Trajectory saved to: {result.trajectory_path}"
+                )  # type: ignore[attr-defined]
 
-            logging.getLogger("mlip_autopipec").info(f"Duration: {result.duration_seconds:.2f}s")
+            logging.getLogger("mlip_autopipec").info(
+                f"Duration: {result.duration_seconds:.2f}s"
+            )
         else:
-            typer.secho(f"Simulation Failed: Status {result.status.value}", fg=typer.colors.RED)
+            typer.secho(
+                f"Simulation Failed: Status {result.status.value}", fg=typer.colors.RED
+            )
             typer.echo(f"Log Tail:\n{result.log_content}")
             raise typer.Exit(code=1)
 

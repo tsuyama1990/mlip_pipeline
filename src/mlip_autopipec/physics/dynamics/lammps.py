@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import ase.io
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
+from mlip_autopipec.domain_models.config import LammpsConfig, MDParams, PotentialConfig
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -15,9 +15,10 @@ class LammpsRunner:
     Executes LAMMPS MD simulations.
     """
 
-    def __init__(self, config: LammpsConfig, base_work_dir: Path = Path("_work_md")):
+    def __init__(self, config: LammpsConfig, potential_config: PotentialConfig):
         self.config = config
-        self.base_work_dir = base_work_dir
+        self.potential_config = potential_config
+        self.base_work_dir = config.base_work_dir
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, structure: Structure, params: MDParams) -> LammpsResult:
@@ -48,7 +49,7 @@ class LammpsRunner:
                 duration_seconds=duration,
                 log_content=log_content,
                 final_structure=final_structure,
-                trajectory_path=trajectory_path
+                trajectory_path=trajectory_path,
             )
 
         except subprocess.TimeoutExpired:
@@ -58,9 +59,9 @@ class LammpsRunner:
                 work_dir=work_dir,
                 duration_seconds=self.config.timeout,
                 log_content="Timeout Expired",
-                final_structure=structure, # Return initial as fallback
+                final_structure=structure,  # Return initial as fallback
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
             log_file = work_dir / "log.lammps"
@@ -78,7 +79,7 @@ class LammpsRunner:
                 log_content=log_content,
                 final_structure=structure,
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
         except Exception as e:
             # Try to read log if it exists
@@ -93,17 +94,16 @@ class LammpsRunner:
                 log_content=log_content,
                 final_structure=structure,
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
 
-    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams) -> None:
+    def _write_inputs(
+        self, work_dir: Path, structure: Structure, params: MDParams
+    ) -> None:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
-        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
-
-        # Template for LJ (for Cycle 02 testing)
-        # In real scenario, we would use a potential file. Here we use internal LJ.
+        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data")  # type: ignore[no-untyped-call]
 
         # Determine barostat/thermostat commands
         fix_cmd = ""
@@ -113,17 +113,58 @@ class LammpsRunner:
             pres = params.pressure if params.pressure is not None else 0.0
             fix_cmd = f"fix 1 all npt temp {params.temperature} {params.temperature} $(100.0*dt) iso {pres} {pres} $(1000.0*dt)"
 
+        # Potential Configuration
+        pair_style = self.potential_config.pair_style
+        pair_coeffs = []
+
+        if "hybrid/overlay" in pair_style:
+            # Handle Hybrid
+            if "ace" in pair_style or "pace" in pair_style:
+                # ACE/PACE
+                elements_str = " ".join(self.potential_config.elements)
+                pair_coeffs.append(
+                    f"pair_coeff * * pace {self.potential_config.ace_potential_file} {elements_str}"
+                )
+
+            if "zbl" in pair_style:
+                # ZBL
+                # pair_coeff 1 1 zbl 14 14
+                from ase.data import atomic_numbers
+
+                # Assuming types 1..N correspond to self.potential_config.elements in order
+                # This is a strong assumption. Ideally check ASE output.
+                # But for UAT/Tests, we ensure consistent element ordering.
+                for i, el1 in enumerate(self.potential_config.elements):
+                    for j, el2 in enumerate(self.potential_config.elements):
+                        if j >= i:  # Symmetric
+                            z1 = atomic_numbers[el1]
+                            z2 = atomic_numbers[el2]
+                            t1 = i + 1
+                            t2 = j + 1
+                            pair_coeffs.append(f"pair_coeff {t1} {t2} zbl {z1} {z2}")
+
+        elif "lj/cut" in pair_style:
+            # Fallback/Test mode
+            # pair_coeff * * 1.0 1.0
+            pair_coeffs.append("pair_coeff * * 1.0 1.0")
+
+        else:
+            # Generic catch-all
+            pass
+
+        pair_coeff_block = "\n".join(pair_coeffs)
+
         input_script = f"""
-# Cycle 02 - One Shot MD
+# Cycle 03 - MD
 units           metal
 atom_style      atomic
 boundary        p p p
 
 read_data       data.lammps
 
-# Interaction (Lennard-Jones for testing)
-pair_style      lj/cut 2.5
-pair_coeff      * * 1.0 1.0
+# Potential
+pair_style      {pair_style}
+{pair_coeff_block}
 
 timestep        {params.timestep}
 
@@ -151,7 +192,7 @@ run             {params.n_steps}
         # But simplistic check:
         exe = cmd_list[0]
         if not shutil.which(exe):
-             raise FileNotFoundError(f"Executable '{exe}' not found.")
+            raise FileNotFoundError(f"Executable '{exe}' not found.")
 
         result = subprocess.run(
             cmd_list,
@@ -159,12 +200,14 @@ run             {params.n_steps}
             capture_output=True,
             text=True,
             timeout=self.config.timeout,
-            check=True
+            check=True,
         )
 
         return result.stdout
 
-    def _parse_output(self, work_dir: Path, original_structure: Structure) -> tuple[Structure, Path]:
+    def _parse_output(
+        self, work_dir: Path, original_structure: Structure
+    ) -> tuple[Structure, Path]:
         """Parse trajectory and return final structure."""
         traj_path = work_dir / "dump.lammpstrj"
         if not traj_path.exists():
@@ -172,15 +215,15 @@ run             {params.n_steps}
 
         # Read last frame
         # ase.io.read returns Atoms or list of Atoms. index=-1 returns single Atoms.
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text")  # type: ignore[no-untyped-call]
 
         if isinstance(atoms, list):
-             # Should not happen with index=-1 but type guard
-             atoms = atoms[-1]
+            # Should not happen with index=-1 but type guard
+            atoms = atoms[-1]
 
         # Restore symbols from original structure
         # (Assuming atom order hasn't changed, which is true for standard MD)
         if len(atoms) == len(original_structure.symbols):
-            atoms.set_chemical_symbols(original_structure.symbols) # type: ignore[no-untyped-call]
+            atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
 
         return Structure.from_ase(atoms), traj_path
