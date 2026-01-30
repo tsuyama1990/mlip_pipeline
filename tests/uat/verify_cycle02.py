@@ -3,92 +3,101 @@
 import logging
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
 # Ensure src is in path
 sys.path.append(str(Path.cwd() / "src"))
 
-from mlip_autopipec.domain_models.config import Config, ExplorationConfig
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
-from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
+from mlip_autopipec.domain_models.config import Config, PotentialConfig, LammpsConfig
+from mlip_autopipec.orchestration import workflow
+from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
+from mlip_autopipec.domain_models.structure import Structure
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("UAT-02")
 
-def uat_02_01_cold_start() -> bool:
-    logger.info("Running UAT-02-01: Cold Start Generation")
+def uat_02_01_one_shot_execution() -> bool:
+    logger.info("Running UAT-02-01: One-Shot MD Run")
 
     # 1. Configure
     config = Config(
         project_name="UAT_02",
-        structure_gen=ExplorationConfig(
-            strategy="template",
-            composition="Si",
-            num_candidates=5,
-            rattle_amplitude=0.1
-        )
+        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        lammps=LammpsConfig(command="lmp_mock", timeout=10)
     )
 
-    state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
+    # 2. Mock LAMMPS execution since we don't have binary
+    with patch("mlip_autopipec.physics.dynamics.lammps.subprocess.run") as mock_run, \
+         patch("mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output") as mock_parse:
 
-    # 2. Run
-    phase = ExplorationPhase()
-    phase.execute(state, config)
+        mock_run.return_value = MagicMock(returncode=0, stdout="Simulation done", stderr="")
 
-    # 3. Inspect
-    if len(state.candidates) != 5:
-        logger.error(f"Failed: Expected 5 candidates, got {len(state.candidates)}")
-        return False
+        # Mock parsing to return success
+        # Create a real Structure object for validation
+        real_structure = Structure(
+            symbols=["Si"] * 8,
+            positions=np.zeros((8, 3)),
+            cell=np.eye(3) * 5.43,
+            pbc=(True, True, True)
+        )
 
-    for i, cand in enumerate(state.candidates):
-        if "Si" not in cand.formatted_formula:
-             logger.error(f"Failed: Candidate {i} formula mismatch: {cand.formatted_formula}")
-             return False
+        mock_parse.return_value = LammpsResult(
+            job_id="test_job",
+            status=JobStatus.COMPLETED,
+            work_dir=Path("_work_md/test_job"),
+            duration_seconds=1.0,
+            log_content="Simulation done",
+            final_structure=real_structure
+        )
 
-    logger.info("UAT-02-01 Passed")
-    return True
+        try:
+            workflow.run_one_shot(config)
+            logger.info("UAT-02-01 Passed")
+            return True
+        except Exception as e:
+            logger.error(f"UAT-02-01 Failed: {e}", exc_info=True)
+            return False
 
-def uat_02_02_validity() -> bool:
-    logger.info("Running UAT-02-02: Structure Validity")
+def uat_02_02_missing_executable() -> bool:
+    logger.info("Running UAT-02-02: Missing Executable Handling")
 
-    # 1. Configure with large rattle
+    # This scenario is tricky because our code assumes subprocess just runs the command string.
+    # If the executable is missing, shell=True in subprocess.run might return 127.
+
     config = Config(
         project_name="UAT_02",
-        structure_gen=ExplorationConfig(
-            strategy="template",
-            composition="Al",
-            num_candidates=2,
-            rattle_amplitude=0.5
-        )
+        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        lammps=LammpsConfig(command="non_existent_executable", timeout=10)
     )
 
-    state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
-    phase = ExplorationPhase()
-    phase.execute(state, config)
+    # We want to verify that it fails gracefully
+    # But since we are likely not running this in a real shell with shell=True capable of finding "non_existent_executable",
+    # we can rely on our previous mock strategy or try to run it for real if shell is available.
+    # However, for robustness in this environment, let's mock subprocess returning 127
 
-    # 4. Verify no atoms overlap too much
-    # Simple check: min distance > 0.5 A
-    for cand in state.candidates:
-        atoms = cand.to_ase()
-        # ASE get_all_distances
-        dist_matrix = atoms.get_all_distances(mic=True) # type: ignore[no-untyped-call]
-        # Mask diagonal
-        np.fill_diagonal(dist_matrix, 10.0)
-        min_dist = np.min(dist_matrix)
+    with patch("mlip_autopipec.physics.dynamics.lammps.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=127, stdout="", stderr="command not found")
 
-        if min_dist < 0.5:
-             logger.error(f"Failed: Atomic overlap detected. Min dist: {min_dist}")
-             return False
-
-    logger.info("UAT-02-02 Passed")
-    return True
+        try:
+            workflow.run_one_shot(config)
+            # It should raise RuntimeError
+            logger.error("UAT-02-02 Failed: Should have raised RuntimeError")
+            return False
+        except RuntimeError as e:
+            if "Job failed with status" in str(e):
+                logger.info("UAT-02-02 Passed: Gracefully handled failure")
+                return True
+            else:
+                logger.error(f"UAT-02-02 Failed: Unexpected error {e}")
+                return False
 
 if __name__ == "__main__":
     success = True
-    success &= uat_02_01_cold_start()
-    success &= uat_02_02_validity()
+    success &= uat_02_01_one_shot_execution()
+    success &= uat_02_02_missing_executable()
 
     if success:
         logger.info("All UAT tests passed.")

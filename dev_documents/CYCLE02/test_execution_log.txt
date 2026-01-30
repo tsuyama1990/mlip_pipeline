@@ -1,0 +1,44 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /app/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collecting ... collected 34 items
+
+tests/domain_models/test_config.py::test_config_valid PASSED             [  2%]
+tests/domain_models/test_config.py::test_config_invalid_cutoff PASSED    [  5%]
+tests/domain_models/test_config.py::test_config_missing_field PASSED     [  8%]
+tests/domain_models/test_config.py::test_from_yaml PASSED                [ 11%]
+tests/domain_models/test_config_c2.py::test_lammps_config_defaults PASSED [ 14%]
+tests/domain_models/test_config_c2.py::test_lammps_config_custom PASSED  [ 17%]
+tests/domain_models/test_config_c2.py::test_config_integration PASSED    [ 20%]
+tests/domain_models/test_job.py::test_job_status_enum PASSED             [ 23%]
+tests/domain_models/test_job.py::test_job_result_valid PASSED            [ 26%]
+tests/domain_models/test_job.py::test_job_result_invalid PASSED          [ 29%]
+tests/domain_models/test_job.py::test_lammps_result_valid PASSED         [ 32%]
+tests/domain_models/test_job.py::test_lammps_result_optional_fields PASSED [ 35%]
+tests/domain_models/test_structure.py::test_structure_valid PASSED       [ 38%]
+tests/domain_models/test_structure.py::test_structure_consistency_error PASSED [ 41%]
+tests/domain_models/test_structure.py::test_structure_cell_shape_error PASSED [ 44%]
+tests/domain_models/test_structure.py::test_structure_positions_shape_error PASSED [ 47%]
+tests/domain_models/test_structure.py::test_from_ase_to_ase_roundtrip PASSED [ 50%]
+tests/e2e/test_cli.py::test_init PASSED                                  [ 52%]
+tests/e2e/test_cli.py::test_init_existing PASSED                         [ 55%]
+tests/e2e/test_cli.py::test_init_exception PASSED                        [ 58%]
+tests/e2e/test_cli.py::test_check_valid PASSED                           [ 61%]
+tests/e2e/test_cli.py::test_check_invalid PASSED                         [ 64%]
+tests/infrastructure/test_io.py::test_load_yaml_valid PASSED             [ 67%]
+tests/infrastructure/test_io.py::test_load_yaml_missing PASSED           [ 70%]
+tests/infrastructure/test_io.py::test_dump_yaml PASSED                   [ 73%]
+tests/infrastructure/test_io.py::test_load_yaml_empty PASSED             [ 76%]
+tests/infrastructure/test_io.py::test_load_yaml_invalid_type PASSED      [ 79%]
+tests/infrastructure/test_logging.py::test_setup_logging PASSED          [ 82%]
+tests/orchestration/test_workflow.py::test_run_one_shot_flow PASSED      [ 85%]
+tests/physics/test_builder.py::test_build_bulk PASSED                    [ 88%]
+tests/physics/test_builder.py::test_apply_rattle PASSED                  [ 91%]
+tests/physics/test_lammps.py::test_runner_init PASSED                    [ 94%]
+tests/physics/test_lammps.py::test_run_mocked_success PASSED             [ 97%]
+tests/physics/test_lammps.py::test_md_params_validation PASSED           [100%]
+
+============================== 34 passed in 1.18s ==============================
