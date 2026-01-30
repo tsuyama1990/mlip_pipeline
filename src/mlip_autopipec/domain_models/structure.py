@@ -1,4 +1,6 @@
-from typing import Any
+from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
 
 import ase
 import numpy as np
@@ -10,6 +12,7 @@ class Structure(BaseModel):
     Fundamental object representing a collection of atoms.
     Wraps ASE Atoms with strict Pydantic validation.
     """
+
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     symbols: list[str]
@@ -62,9 +65,40 @@ class Structure(BaseModel):
             positions=self.positions,
             cell=self.cell,
             pbc=self.pbc,
-            info=self.properties.copy()
+            info=self.properties.copy(),
         )
 
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
         return str(self.to_ase().get_chemical_formula())  # type: ignore[no-untyped-call]
+
+
+class JobStatus(str, Enum):
+    """Status of an external calculation job."""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    TIMEOUT = "TIMEOUT"
+
+
+class JobResult(BaseModel):
+    """Base model for job results."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: str
+    status: JobStatus
+    work_dir: Path
+    duration_seconds: float
+    log_content: str
+
+
+class LammpsResult(JobResult):
+    """Result from a LAMMPS calculation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    final_structure: Optional[Structure] = None
+    trajectory_path: Optional[Path] = None
