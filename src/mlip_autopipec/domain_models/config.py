@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Literal, Optional, Union
+import os
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -18,7 +19,7 @@ class LoggingConfig(BaseModel):
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str]
+    elements: list[str] = Field(default_factory=lambda: os.environ.get("MLIP_DEFAULT_ELEMENTS", "Si").split(","))
     cutoff: float
     seed: int = 42
 

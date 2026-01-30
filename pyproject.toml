@@ -15,6 +15,7 @@ classifiers = [
 dependencies = [
     "ase>=3.27.0",
     "numpy>=2.4.1",
+    "pandas>=3.0.0",
     "pydantic>=2.12.5",
     "pyyaml>=6.0.3",
     "scipy>=1.17.0",
@@ -24,10 +25,12 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
+    "pandas-stubs>=2.3.3.260113",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
     "types-pyyaml>=6.0.12.20250915",
+    "types-requests>=2.32.4.20260107",
 ]
 
 [tool.pytest.ini_options]
