@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import Any
 
+import ase.io
 import yaml
+
+from mlip_autopipec.domain_models.structure import Structure
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -45,3 +48,30 @@ def dump_yaml(data: dict[str, Any], path: Path) -> None:
     """
     with path.open("w") as f:
         yaml.dump(data, f, sort_keys=False)
+
+
+def load_structures(path: Path) -> list[Structure]:
+    """
+    Load structures from a file (xyz, extxyz, poscar, etc.).
+
+    Args:
+        path: Path to the structure file.
+
+    Returns:
+        List of Structure objects.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"File {path} not found")
+
+    # ase.io.read returns Atoms or list of Atoms
+    # index=':' reads all
+    try:
+        atoms_list = ase.io.read(path, index=":")
+    except Exception as e:
+        msg = f"Failed to read structures from {path}: {e}"
+        raise RuntimeError(msg) from e
+
+    if not isinstance(atoms_list, list):
+        atoms_list = [atoms_list] # type: ignore
+
+    return [Structure.from_ase(atoms) for atoms in atoms_list]

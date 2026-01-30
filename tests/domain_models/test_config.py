@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -9,7 +8,6 @@ from mlip_autopipec.domain_models import (
     Config,
     MDConfig,
     PotentialConfig,
-    StructureGenConfig,
 )
 
 
