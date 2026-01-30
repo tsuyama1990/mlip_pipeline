@@ -1,3 +1,4 @@
+import datetime
 import logging
 from pathlib import Path
 from typing import Literal, cast
@@ -20,9 +21,11 @@ from mlip_autopipec.domain_models.config import (
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.training import TrainingConfig
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 
 
 def init_project(path: Path) -> None:
@@ -60,6 +63,7 @@ def init_project(path: Path) -> None:
             timestep=0.001,
             ensemble="NVT",
         ),
+        training=TrainingConfig(),
     )
 
     try:
@@ -133,4 +137,62 @@ def run_cycle_02_cmd(config_path: Path) -> None:
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def train_potential_cmd(config_path: Path, dataset_path: Path) -> None:
+    """
+    Logic for running the Cycle 04 Training Pipeline.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not dataset_path.exists():
+        typer.secho(f"Dataset file {dataset_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+        logger = logging.getLogger("mlip_autopipec")
+
+        if config.training is None:
+            logger.warning("No training configuration found in config. Using defaults.")
+            training_config = TrainingConfig()
+        else:
+            training_config = config.training
+
+        # Create work directory
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        work_dir = Path.cwd() / f"_work_train_{timestamp}"
+
+        runner = PacemakerRunner(work_dir)
+
+        # Active Set Selection
+        final_dataset = dataset_path
+        if training_config.active_set_selection:
+            logger.info("Active set selection enabled. Pruning dataset...")
+            final_dataset = runner.select_active_set(training_config, dataset_path)
+
+        # Training
+        logger.info(f"Starting training with dataset: {final_dataset}")
+        potential = runner.train(
+            training_config,
+            final_dataset,
+            elements=config.potential.elements,
+            cutoff=config.potential.cutoff,
+            seed=config.potential.seed,
+        )
+
+        typer.secho("Training successfully completed.", fg=typer.colors.GREEN)
+        typer.echo(f"Potential saved to: {potential.path}")
+        if potential.metadata:
+            typer.echo("Metrics:")
+            for k, v in potential.metadata.items():
+                typer.echo(f"  {k}: {v}")
+
+    except Exception as e:
+        typer.secho(f"Training failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Training failed")
         raise typer.Exit(code=1) from e
