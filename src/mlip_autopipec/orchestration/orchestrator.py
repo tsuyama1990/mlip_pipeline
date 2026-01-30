@@ -33,7 +33,7 @@ class Orchestrator:
         # 2. Dynamics (MD)
         logger.info("Phase 2: Molecular Dynamics")
         md_config = self.config.md
-        runner = LammpsRunner(self.config.lammps)
+        runner = LammpsRunner(self.config.lammps, self.config.potential)
 
         # md_config is MDConfig, which is aliased to MDParams in config.py
         # LammpsRunner expects MDParams

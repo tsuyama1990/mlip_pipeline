@@ -1,53 +1,63 @@
 import pytest
-from mlip_autopipec.domain_models.calculation import SCFError, MemoryError
+from mlip_autopipec.domain_models.calculation import (
+    DFTConfig,
+    MemoryError,
+    RecoveryConfig,
+    SCFError,
+)
 from mlip_autopipec.physics.dft.recovery import RecoveryHandler
 
 
-def test_recovery_scf_strategy():
-    handler = RecoveryHandler()
+@pytest.fixture
+def recovery_config():
+    # Define custom strategies
+    return RecoveryConfig(
+        scf_strategies=[
+            {"mixing_beta": 0.5},
+            {"mixing_beta": 0.2},
+            {"smearing": "mv", "degauss": 0.05},
+        ],
+        memory_strategies=[
+            {"diagonalization": "cg"},
+        ],
+    )
 
-    # Attempt 1: Reduce mixing beta
+
+def test_recovery_scf_strategy_configurable(recovery_config):
+    handler = RecoveryHandler(recovery_config)
+
+    # Attempt 1: Custom mixing beta 0.5
     params = {}
     new_params = handler.apply_fix(params, SCFError("Convergence failed"), attempt=1)
-    assert new_params["mixing_beta"] == 0.3
+    assert new_params["mixing_beta"] == 0.5
 
-    # Attempt 2: Further reduce mixing beta
+    # Attempt 2: Custom mixing beta 0.2
     new_params = handler.apply_fix(params, SCFError("Convergence failed"), attempt=2)
-    assert new_params["mixing_beta"] == 0.1
+    assert new_params["mixing_beta"] == 0.2
 
-    # Attempt 3: Increase smearing (Methfessel-Paxton is default usually, try others)
-    # Or just change mixing mode.
-    # Let's assume strategy: 1->beta=0.3, 2->beta=0.1, 3->smearing='mv', degauss=0.02
+    # Attempt 3: Custom smearing
     new_params = handler.apply_fix(params, SCFError("Convergence failed"), attempt=3)
     assert new_params["smearing"] == "mv"
-    assert new_params["degauss"] == 0.02
+    assert new_params["degauss"] == 0.05
 
-def test_recovery_memory_strategy():
-    handler = RecoveryHandler()
 
-    # Memory error -> Reduce parallelization or change algo?
-    # Usually we can't fix memory easily without changing resources (which is outside config).
-    # But maybe we can reduce ecutwfc? (Dangerous for accuracy).
-    # Or change diagonalization to 'cg' (conjugate gradient) which might use less memory than davidson?
+def test_recovery_memory_strategy_configurable(recovery_config):
+    handler = RecoveryHandler(recovery_config)
 
     new_params = handler.apply_fix({}, MemoryError("OOM"), attempt=1)
     assert new_params.get("diagonalization") == "cg"
 
-def test_recovery_unknown_error():
-    handler = RecoveryHandler()
 
-    # If generic error, maybe try robust settings?
+def test_recovery_unknown_error(recovery_config):
+    handler = RecoveryHandler(recovery_config)
+
     with pytest.raises(ValueError):
-        # If we run out of strategies or don't know the error
         handler.apply_fix({}, Exception("Unknown"), attempt=1)
 
-def test_max_retries():
-    handler = RecoveryHandler()
-    # Assuming we define max strategies for SCF
-    # If attempt > max_strategies, raise?
-    # QERunner handles max_retries loop.
-    # But RecoveryHandler should return None or raise if no more fixes.
 
-    # Let's say we have 3 fixes for SCF. Attempt 4 should fail.
+def test_max_retries_configurable(recovery_config):
+    handler = RecoveryHandler(recovery_config)
+
+    # Memory strategies has only 1 item. Attempt 2 should fail.
     with pytest.raises(ValueError, match="No more recovery strategies"):
-        handler.apply_fix({}, SCFError("Fail"), attempt=99)
+        handler.apply_fix({}, MemoryError("OOM"), attempt=2)

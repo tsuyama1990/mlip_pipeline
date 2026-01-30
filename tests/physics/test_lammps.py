@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
+from mlip_autopipec.domain_models.config import LammpsConfig, MDParams, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.job import JobStatus
 import numpy as np
@@ -27,7 +27,19 @@ def lammps_config():
     return LammpsConfig(command="lmp_serial", timeout=10, use_mpi=False)
 
 
-def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_path):
+@pytest.fixture
+def potential_config():
+    return PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        seed=42,
+        pair_style="lj/cut 2.5",  # Explicitly set for this test
+    )
+
+
+def test_lammps_runner_execution(
+    dummy_structure, md_params, lammps_config, potential_config, tmp_path
+):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     # Mock subprocess.run
@@ -49,7 +61,7 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_
 
         # Update config with tmp_path
         lammps_config.base_work_dir = tmp_path
-        runner = LammpsRunner(config=lammps_config)
+        runner = LammpsRunner(config=lammps_config, potential_config=potential_config)
         result = runner.run(dummy_structure, md_params)
 
         assert result.status == JobStatus.COMPLETED
@@ -62,8 +74,56 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_
         assert cmd[0] == "lmp_serial"
         assert "-in" in cmd
 
+        # Verify in.lammps content has pair_style
+        # We need to check file content in tmp_path/job_.../in.lammps
+        # Since job id is random, we search dir
+        job_dir = next(tmp_path.glob("job_*"))
+        in_file = job_dir / "in.lammps"
+        assert "pair_style      lj/cut 2.5" in in_file.read_text()
 
-def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, tmp_path):
+
+def test_lammps_runner_hybrid_potential(
+    dummy_structure, md_params, lammps_config, tmp_path
+):
+    from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
+
+    hybrid_config = PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        seed=42,
+        pair_style="hybrid/overlay ace zbl",
+        ace_potential_file=Path("test.yace"),
+    )
+
+    with (
+        patch("subprocess.run") as mock_run,
+        patch(
+            "mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output"
+        ) as mock_parse,
+        patch("shutil.which") as mock_which,
+    ):
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        mock_which.return_value = "lmp"
+        mock_parse.return_value = (dummy_structure, Path("dump.lammpstrj"))
+
+        lammps_config.base_work_dir = tmp_path
+        runner = LammpsRunner(config=lammps_config, potential_config=hybrid_config)
+        runner.run(dummy_structure, md_params)
+
+        job_dir = next(tmp_path.glob("job_*"))
+        in_file = job_dir / "in.lammps"
+        content = in_file.read_text()
+
+        assert "pair_style      hybrid/overlay ace zbl" in content
+        assert "pair_coeff * * pace test.yace Si" in content
+        # ZBL: Si is 14
+        # pair_coeff 1 1 zbl 14 14
+        assert "pair_coeff 1 1 zbl 14 14" in content
+
+
+def test_lammps_runner_failure(
+    dummy_structure, md_params, lammps_config, potential_config, tmp_path
+):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     with patch("subprocess.run") as mock_run, patch("shutil.which") as mock_which:
@@ -75,7 +135,7 @@ def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, tmp_pa
         mock_which.return_value = "/usr/bin/lmp_serial"
 
         lammps_config.base_work_dir = tmp_path
-        runner = LammpsRunner(config=lammps_config)
+        runner = LammpsRunner(config=lammps_config, potential_config=potential_config)
         result = runner.run(dummy_structure, md_params)
 
         assert result.status == JobStatus.FAILED

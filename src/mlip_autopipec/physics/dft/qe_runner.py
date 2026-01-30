@@ -25,7 +25,7 @@ class QERunner:
     def __init__(self, config: DFTConfig, work_dir: Path):
         self.config = config
         self.work_dir = work_dir
-        self.recovery_handler = RecoveryHandler()
+        self.recovery_handler = RecoveryHandler(config.recovery)
 
     def run(self, structure: Structure, job_id: str) -> DFTResult:
         """

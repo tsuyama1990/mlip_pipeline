@@ -20,6 +20,12 @@ class PotentialConfig(BaseModel):
     cutoff: float
     seed: int = 42
 
+    # Hybrid potential settings (Cycle 02/03 updates)
+    pair_style: str = "hybrid/overlay ace zbl"
+    ace_potential_file: Path = Path("potential.yace")
+    zbl_cutoffs: dict[str, float] = Field(default_factory=dict) # e.g. {"Si-Si": 1.5}
+
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:

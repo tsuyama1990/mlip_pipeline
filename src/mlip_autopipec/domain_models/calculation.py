@@ -1,10 +1,48 @@
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.domain_models.job import JobResult
+
+
+def _default_scf_strategies() -> list[dict[str, Any]]:
+    return [
+        {"mixing_beta": 0.3},
+        {"mixing_beta": 0.1},
+        {"smearing": "mv", "degauss": 0.02},
+    ]
+
+
+def _default_memory_strategies() -> list[dict[str, Any]]:
+    return [
+        {"diagonalization": "cg"},
+        {"mixing_ndim": 4},
+    ]
+
+
+def _default_walltime_strategies() -> list[dict[str, Any]]:
+    return [
+        {"diagonalization": "cg"},
+        {"conv_thr": 1e-5},
+    ]
+
+
+class RecoveryConfig(BaseModel):
+    """Configuration for DFT recovery strategies."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scf_strategies: list[dict[str, Any]] = Field(
+        default_factory=_default_scf_strategies
+    )
+    memory_strategies: list[dict[str, Any]] = Field(
+        default_factory=_default_memory_strategies
+    )
+    walltime_strategies: list[dict[str, Any]] = Field(
+        default_factory=_default_walltime_strategies
+    )
 
 
 class DFTConfig(BaseModel):
@@ -19,6 +57,7 @@ class DFTConfig(BaseModel):
     ecutwfc: float
     kspacing: float = 0.04
     timeout: int = 3600  # Default timeout in seconds
+    recovery: RecoveryConfig = Field(default_factory=RecoveryConfig)
 
 
 class DFTResult(JobResult):

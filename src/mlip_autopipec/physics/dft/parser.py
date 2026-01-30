@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import ase.io
@@ -5,13 +6,15 @@ import numpy as np
 from ase import Atoms
 
 from mlip_autopipec.domain_models.calculation import (
-    DFTResult,
-    SCFError,
-    MemoryError,
-    WalltimeError,
     DFTError,
+    DFTResult,
+    MemoryError,
+    SCFError,
+    WalltimeError,
 )
 from mlip_autopipec.domain_models.job import JobStatus
+
+logger = logging.getLogger("mlip_autopipec.physics.dft.parser")
 
 
 class DFTParser:
@@ -32,14 +35,14 @@ class DFTParser:
         if not filepath.exists():
             raise FileNotFoundError(f"Output file not found: {filepath}")
 
-        # Read content for error checking
+        # Use streaming/line-by-line parsing for error checking to avoid OOM
         try:
-            content = filepath.read_text(encoding="utf-8", errors="replace")
+            DFTParser._check_errors_streaming(filepath)
         except Exception as e:
-            raise DFTError(f"Failed to read output file: {e}") from e
-
-        # Check for specific errors
-        DFTParser._check_errors(content)
+            # Re-raise known DFT Errors, wrap others
+            if isinstance(e, DFTError):
+                raise e
+            raise DFTError(f"Failed to read/check output file: {e}") from e
 
         # If no explicit error found, try to parse with ASE
         try:
@@ -47,6 +50,7 @@ class DFTParser:
             # index=-1 ensures we get the last frame
             atoms = ase.io.read(filepath, format="espresso-out", index=-1)  # type: ignore[no-untyped-call]
         except Exception as e:
+            # ASE failed to parse. Could be empty file, truncated, or format error.
             raise DFTError(f"ASE failed to parse output: {e}") from e
 
         # Ensure we have a single Atoms object
@@ -90,12 +94,15 @@ class DFTParser:
         except Exception:
             pass
 
+        # For log content, read tail only
+        log_tail = DFTParser._read_tail(filepath, lines=50)
+
         return DFTResult(
             job_id=job_id,
             status=JobStatus.COMPLETED,
             work_dir=work_dir,
             duration_seconds=duration,
-            log_content=content[-1000:],  # Keep tail
+            log_content=log_tail,
             energy=float(energy),
             forces=np.array(forces),
             stress=stress,
@@ -103,23 +110,45 @@ class DFTParser:
         )
 
     @staticmethod
-    def _check_errors(content: str) -> None:
+    def _check_errors_streaming(filepath: Path) -> None:
         """
-        Check for known error patterns in the output content.
+        Check for known error patterns in the output file line by line.
         Raises specific DFTErrors.
         """
-        # SCF Convergence
-        if "convergence not achieved" in content:
-            raise SCFError("SCF convergence not achieved.")
+        with filepath.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                # SCF Convergence
+                if "convergence not achieved" in line:
+                    raise SCFError("SCF convergence not achieved.")
 
-        # Walltime
-        if "Maximum CPU time exceeded" in content or "time limit" in content.lower():
-            raise WalltimeError("Maximum CPU time exceeded.")
+                # Walltime
+                # "Maximum CPU time exceeded" is typical QE message
+                if "Maximum CPU time exceeded" in line or "time limit" in line.lower():
+                    raise WalltimeError("Maximum CPU time exceeded.")
 
-        # Memory
-        if "cannot allocate" in content.lower() or "out of memory" in content.lower():
-            raise MemoryError("Memory allocation failed.")
+                # Memory
+                # "cannot allocate" is common in Fortran allocatable arrays
+                # "out of memory" might be system dependent but sometimes in logs
+                line_lower = line.lower()
+                if "cannot allocate" in line_lower or "out of memory" in line_lower:
+                    raise MemoryError("Memory allocation failed.")
 
-        # Generic errors
-        if "Error in routine" in content:
-            pass
+                # Generic errors
+                if "Error in routine" in line:
+                    # We might want to capture more context here, but streaming makes it hard.
+                    # Just logging it for now, or could raise generic if no specific error found later.
+                    # But often "Error in routine" is followed by specific cause.
+                    # Let's keep scanning.
+                    pass
+
+    @staticmethod
+    def _read_tail(filepath: Path, lines: int = 50) -> str:
+        """Read the last N lines of a file efficiently."""
+        # Simple implementation using deque
+        from collections import deque
+
+        with filepath.open("r", encoding="utf-8", errors="replace") as f:
+            try:
+                return "".join(deque(f, lines))
+            except Exception:
+                return "Failed to read log tail."
