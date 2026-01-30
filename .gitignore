@@ -36,3 +36,8 @@ tmp/
 mlip_pipeline.log
 .coverage
 build/
+
+# Cycle 02 Artifacts
+_work_md/
+dump.lammpstrj
+log.lammps

@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_01_Foundation-blue)
+![Status](https://img.shields.io/badge/Status-Cycle_02_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -10,12 +10,19 @@
 **What**: A robust, type-safe pipeline for automating the generation of MLIPs.
 **Why**: Scientific software often suffers from loose data contracts. This project establishes a rigid **Schema-First** foundation to prevent "silent failures" in complex simulations.
 
-## Key Features (Cycle 01 Verified)
+## Key Features
 
+-   **Molecular Dynamics Engine**:
+    -   Automated "One-Shot" MD pipelines via LAMMPS.
+    -   Robust wrapper with input generation, execution management, and trajectory parsing.
+    -   Graceful handling of missing executables and timeouts.
+-   **Structure Generation**:
+    -   Deterministic bulk crystal generation (e.g., Silicon Diamond).
+    -   Thermal noise application (Rattling).
 -   **Strict Data Validation**: Pydantic-based domain models ensure that every atomic structure and configuration parameter is valid before processing begins.
 -   **Configuration Management**:
     -   `init`: Generates valid template configurations instantly.
-    -   `check`: Validates existing configurations against strict schemas (e.g., catching negative cutoff radii).
+    -   `check`: Validates existing configurations against strict schemas.
 -   **Robust Infrastructure**:
     -   Type-safe YAML input/output.
     -   Dual-channel logging: Beautiful console output (Rich) for users, detailed file logs for debugging.
@@ -24,6 +31,8 @@
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (recommended)
+-   **Simulation Engine**: LAMMPS (Optional for core functionality, required for MD)
+    -   Executable `lmp_serial` or `mpirun` accessible in PATH.
 
 ## Installation
 
@@ -55,13 +64,23 @@ uv run mlip-auto check --config config.yaml
 # Output: Configuration valid (or detailed error messages)
 ```
 
+### 3. Run One-Shot MD
+Execute a single Molecular Dynamics simulation (Generate -> MD -> Parse).
+```bash
+uv run mlip-auto run-one-shot --config config.yaml
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
 potential:
-  elements: ["Ti", "O"]
+  elements: ["Si"]
   cutoff: 5.0
   seed: 42
+lammps:
+  command: "lmp_serial"
+  timeout: 3600
+  use_mpi: false
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -71,7 +90,9 @@ logging:
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job)
+├── physics/                # Physics Engines (LAMMPS, StructureGen)
+├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
 ```
@@ -79,7 +100,7 @@ src/mlip_autopipec/
 ## Roadmap
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
--   **Cycle 02**: Basic Exploration (MD)
+-   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework
