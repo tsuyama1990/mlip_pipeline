@@ -1,7 +1,6 @@
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.structure_gen.embedding import EmbeddingHandler
 import numpy as np
-import pytest
 
 def test_extract_cluster():
     # Create a dummy structure: 1D chain for simplicity

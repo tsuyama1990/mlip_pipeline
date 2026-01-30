@@ -175,12 +175,18 @@ run             {params.n_steps}
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
         # Read last frame
-        # ase.io.read returns Atoms or list of Atoms. index=-1 returns single Atoms.
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text")  # type: ignore[no-untyped-call]
+        # Use iread (iterator) to avoid loading full trajectory into memory
+        # We iterate to find the last one. This is memory efficient (O(1) memory) but O(N) IO.
+        # Alternatively, if file supports random access, read(index=-1) might be optimized,
+        # but iread is safer for general large files in ASE.
+        iterator = ase.io.iread(traj_path, format="lammps-dump-text") # type: ignore[no-untyped-call]
 
-        if isinstance(atoms, list):
-            # Should not happen with index=-1 but type guard
-            atoms = atoms[-1]
+        atoms = None
+        for a in iterator:
+            atoms = a
+
+        if atoms is None:
+             raise ValueError("Trajectory file is empty")
 
         # Restore symbols from original structure
         # (Assuming atom order hasn't changed, which is true for standard MD)

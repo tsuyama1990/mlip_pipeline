@@ -1,5 +1,4 @@
 import numpy as np
-from ase import Atoms  # type: ignore
 
 from mlip_autopipec.domain_models.structure import Structure
 

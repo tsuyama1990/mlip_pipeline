@@ -15,6 +15,7 @@ class DFTConfig(BaseModel):
     pseudopotentials: dict[str, Path]
     ecutwfc: float
     kspacing: float
+    timeout: int = 3600
     # Optional parameters for self-healing and detailed control
     mixing_beta: float = 0.7
     smearing: str = "mv"

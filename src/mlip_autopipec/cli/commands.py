@@ -12,7 +12,7 @@ from mlip_autopipec.constants import (
     DEFAULT_SEED,
 )
 from mlip_autopipec.domain_models.config import Config
-from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
@@ -100,10 +100,10 @@ def run_cycle_02_cmd(config_path: Path) -> None:
             )
 
             # Check for specific result attributes (LammpsResult)
-            if hasattr(result, "trajectory_path"):
+            if isinstance(result, LammpsResult):
                 logging.getLogger("mlip_autopipec").info(
                     f"Trajectory saved to: {result.trajectory_path}"
-                )  # type: ignore[attr-defined]
+                )
 
             logging.getLogger("mlip_autopipec").info(
                 f"Duration: {result.duration_seconds:.2f}s"

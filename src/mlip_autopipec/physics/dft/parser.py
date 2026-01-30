@@ -51,7 +51,18 @@ class Parser:
         try:
             # Parse results using ASE
             # index=-1 for the last step (static calc has only 1 step usually)
-            atoms = read(output_path, format='espresso-out') # type: ignore
+            # Use index=-1 to ensure we get a single Atoms object, but ASE read can return list if index is not specified
+            # or if format supports multiple. 'espresso-out' usually returns list if index not set?
+            # Let's be explicit.
+            atoms_obj = read(output_path, index=-1, format='espresso-out') # type: ignore
+
+            # Mypy safety: ensure it's not a list (though index=-1 guarantees single item usually)
+            if isinstance(atoms_obj, list):
+                 # Should not happen with index=-1
+                 atoms = atoms_obj[-1]
+            else:
+                 atoms = atoms_obj
+
         except Exception as e:
             raise DFTError(f"Failed to parse output with ASE: {e}")
 
@@ -91,5 +102,6 @@ class Parser:
         return DFTResult(
             energy=energy,
             forces=forces,
-            stress=stress
+            stress=stress,
+            magmoms=None
         )

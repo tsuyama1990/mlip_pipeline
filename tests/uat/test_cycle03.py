@@ -1,6 +1,5 @@
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import numpy as np
 
 from mlip_autopipec.domain_models.structure import Structure

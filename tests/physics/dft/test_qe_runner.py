@@ -1,5 +1,4 @@
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import pytest
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult, SCFError

@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from mlip_autopipec.domain_models.calculation import DFTConfig, SCFError, DFTError, MemoryError
+from mlip_autopipec.domain_models.calculation import DFTConfig, SCFError, DFTError
 from mlip_autopipec.physics.dft.recovery import RecoveryHandler
 
 @pytest.fixture

@@ -23,13 +23,26 @@ class QERunner:
         """
         current_config = config
 
-        # Loop: attempt 1 to MAX+1
-        for attempt in range(1, self.recovery_handler.MAX_ATTEMPTS + 2):
+        # Loop: attempt 1 to MAX_ATTEMPTS (inclusive)
+        # We start at 1. If MAX_ATTEMPTS is 5, we want attempts 1, 2, 3, 4, 5.
+        # Logic was: range(1, MAX+2) -> 1..MAX+1.
+        # Inside loop: if attempt > MAX: raise.
+        # This effectively allowed MAX+1 attempts if we consider the check is AFTER exception.
+        # But wait, attempt > MAX check is inside except block.
+        # So if attempt == MAX+1, it runs _execute_single_run, if fails, it raises because MAX+1 > MAX.
+        # So it runs MAX+1 times.
+        # Audit says "Off-by-one error... Fix: Change loop condition".
+        # Let's align with typical "max_retries" logic.
+        # Usually MAX_ATTEMPTS includes the first try or is retries?
+        # SPEC says "recursion up to N times" or "retries=1".
+        # Let's assume MAX_ATTEMPTS is TOTAL attempts.
+
+        for attempt in range(1, self.recovery_handler.MAX_ATTEMPTS + 1):
             try:
                 return self._execute_single_run(structure, current_config, attempt)
             except DFTError as e:
-                # If we've exhausted attempts, re-raise
-                if attempt > self.recovery_handler.MAX_ATTEMPTS:
+                # If we are at the last attempt, we can't recover
+                if attempt == self.recovery_handler.MAX_ATTEMPTS:
                     raise e
 
                 # Try to recover
@@ -80,8 +93,11 @@ class QERunner:
                     stdout=f_out,
                     stderr=subprocess.STDOUT,
                     cwd=run_dir,
-                    check=True
+                    check=True,
+                    timeout=config.timeout
                 )
+            except subprocess.TimeoutExpired:
+                 raise DFTError(f"Calculation timed out after {config.timeout}s")
             except subprocess.CalledProcessError:
                 # Process failed (non-zero exit code).
                 # QE often exits with error code on crash.
