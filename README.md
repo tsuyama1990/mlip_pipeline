@@ -1,90 +1,83 @@
-# PyAceMaker: Automated MLIP Pipeline
+# AutoMLIP: Automated Machine Learning Interatomic Potential Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_01_Foundation-blue)
-![Python](https://img.shields.io/badge/Python-3.12%2B-green)
-![License](https://img.shields.io/badge/License-MIT-purple)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 
-**PyAceMaker** is an autonomous research system designed to construct State-of-the-Art Machine Learning Interatomic Potentials (MLIPs). It democratises computational materials science by providing a "Zero-Config" workflow.
+> Automated generation, training, and validation of Machine Learning Interatomic Potentials (MLIPs).
 
 ## Overview
-**What**: A robust, type-safe pipeline for automating the generation of MLIPs.
-**Why**: Scientific software often suffers from loose data contracts. This project establishes a rigid **Schema-First** foundation to prevent "silent failures" in complex simulations.
 
-## Key Features (Cycle 01 Verified)
+**AutoMLIP** is an autonomous pipeline designed to accelerate the development of interatomic potentials. It orchestrates the cycle of structure generation, active learning simulations, and model training.
 
--   **Strict Data Validation**: Pydantic-based domain models ensure that every atomic structure and configuration parameter is valid before processing begins.
--   **Configuration Management**:
-    -   `init`: Generates valid template configurations instantly.
-    -   `check`: Validates existing configurations against strict schemas (e.g., catching negative cutoff radii).
--   **Robust Infrastructure**:
-    -   Type-safe YAML input/output.
-    -   Dual-channel logging: Beautiful console output (Rich) for users, detailed file logs for debugging.
+**Why?** Developing MLIPs manually is tedious and error-prone. This tool automates the "loop" of exploring configuration space (via MD), labeling structures (via DFT/Oracle), and retraining models.
+
+## Features
+
+-   **Cycle 02: One-Shot Pipeline**: Execute a complete MD workflow from a configuration file.
+    -   Generate bulk structures (e.g., Silicon Diamond).
+    -   Apply thermal noise (rattle) to initial configurations.
+    -   Run Molecular Dynamics simulations using LAMMPS.
+    -   Parse and report simulation results (trajectories and final structures).
+-   **Configurable**: YAML-based configuration for Potentials, MD parameters, and Resources.
+-   **Robust Execution**: Handles timeouts, errors, and creates persistent job directories.
 
 ## Requirements
 
--   **Python**: 3.12+
--   **Package Manager**: `uv` (recommended)
+-   **Python 3.11+**
+-   **LAMMPS**: The `lmp` (or similar) executable must be in your PATH or configured in `config.yaml`.
+-   **UV**: Recommended for dependency management.
 
 ## Installation
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/mlip-autopipec.git
-cd mlip-autopipec
-
-# 2. Install dependencies
+git clone https://github.com/your-org/auto-mlip.git
+cd auto-mlip
 uv sync
-
-# 3. (Optional) Activate virtual environment
-source .venv/bin/activate
 ```
 
 ## Usage
 
 ### 1. Initialize a Project
-Create a new project with a template configuration file.
+Create a default configuration file.
+
 ```bash
 uv run mlip-auto init
-# Creates 'config.yaml' in the current directory
 ```
 
-### 2. Validate Configuration
-Check if your configuration file is valid.
-```bash
-uv run mlip-auto check --config config.yaml
-# Output: Configuration valid (or detailed error messages)
-```
+### 2. Configure
+Edit `config.yaml` to set your desired potential and LAMMPS settings.
 
-Example `config.yaml`:
 ```yaml
-project_name: "MyMLIPProject"
+project_name: "Si_Exploration"
 potential:
-  elements: ["Ti", "O"]
+  elements: ["Si"]
   cutoff: 5.0
-  seed: 42
-logging:
-  level: "INFO"
-  file_path: "mlip_pipeline.log"
+lammps:
+  command: "lmp_serial"  # Path to your LAMMPS executable
+  cores: 4
 ```
 
-## Project Structure
+### 3. Run the One-Shot Pipeline
+Execute the Cycle 02 workflow.
 
-```ascii
+```bash
+uv run mlip-auto run-cycle-02
+```
+
+The system will:
+1.  Build a Supercell of Silicon.
+2.  Rattle the atoms.
+3.  Run an NVT MD simulation.
+4.  Output the final structure and status.
+
+## Architecture
+
+```
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config)
-├── infrastructure/         # Logging, IO
-└── app.py                  # CLI Entry Point
+├── domain_models/      # Pydantic schemas (Config, Job, Structure)
+├── physics/            # Core physics logic
+│   ├── dynamics/       # MD wrappers (LAMMPS)
+│   └── structure_gen/  # Structure builders (ASE wrapper)
+├── orchestration/      # Workflow managers
+└── infrastructure/     # I/O, Logging
 ```
-
-## Roadmap
-
--   **Cycle 01**: Foundation & Core Models (Completed)
--   **Cycle 02**: Basic Exploration (MD)
--   **Cycle 03**: Oracle (DFT)
--   **Cycle 04**: Training (Pacemaker)
--   **Cycle 05**: Validation Framework
--   **Cycle 06**: Active Learning Loop
-
-## License
-
-MIT License.
