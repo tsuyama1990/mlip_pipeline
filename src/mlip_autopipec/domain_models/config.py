@@ -16,8 +16,8 @@ class LoggingConfig(BaseModel):
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str]
-    cutoff: float
+    elements: list[str] = Field(default_factory=lambda: ["Si"])
+    cutoff: float = 5.0
     seed: int = 42
 
     @field_validator("cutoff")
@@ -52,11 +52,11 @@ class MDConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    temperature: float
+    temperature: float = 300.0
     pressure: Optional[float] = None
-    n_steps: int
+    n_steps: int = 1000
     timestep: float = 0.001
-    ensemble: Literal["NVT", "NPT"]
+    ensemble: Literal["NVT", "NPT"] = "NVT"
 
 
 # Alias for backward compatibility if needed, though we should update usages
@@ -69,9 +69,9 @@ class StructureGenConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     strategy: Literal["bulk"] = "bulk"
-    element: str
-    crystal_structure: str
-    lattice_constant: float
+    element: str = "Si"
+    crystal_structure: str = "diamond"
+    lattice_constant: float = 5.43
     rattle_stdev: float = 0.0
     supercell: tuple[int, int, int] = (1, 1, 1)
 

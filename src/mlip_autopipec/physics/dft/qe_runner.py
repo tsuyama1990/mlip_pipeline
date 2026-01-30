@@ -23,32 +23,24 @@ class QERunner:
         """
         current_config = config
 
-        # Loop: attempt 1 to MAX_ATTEMPTS (inclusive)
-        # We start at 1. If MAX_ATTEMPTS is 5, we want attempts 1, 2, 3, 4, 5.
-        # Logic was: range(1, MAX+2) -> 1..MAX+1.
-        # Inside loop: if attempt > MAX: raise.
-        # This effectively allowed MAX+1 attempts if we consider the check is AFTER exception.
-        # But wait, attempt > MAX check is inside except block.
-        # So if attempt == MAX+1, it runs _execute_single_run, if fails, it raises because MAX+1 > MAX.
-        # So it runs MAX+1 times.
-        # Audit says "Off-by-one error... Fix: Change loop condition".
-        # Let's align with typical "max_retries" logic.
-        # Usually MAX_ATTEMPTS includes the first try or is retries?
-        # SPEC says "recursion up to N times" or "retries=1".
-        # Let's assume MAX_ATTEMPTS is TOTAL attempts.
+        # Loop: attempt 0 to MAX_ATTEMPTS - 1
+        # MAX_ATTEMPTS is the total number of allowed executions.
+        # e.g., if MAX_ATTEMPTS=5, we try 0, 1, 2, 3, 4.
 
-        for attempt in range(1, self.recovery_handler.MAX_ATTEMPTS + 1):
+        for attempt in range(self.recovery_handler.MAX_ATTEMPTS):
             try:
-                return self._execute_single_run(structure, current_config, attempt)
+                # pass attempt + 1 to execution/recovery if they expect 1-based index (logging/logic)
+                return self._execute_single_run(structure, current_config, attempt + 1)
             except DFTError as e:
-                # If we are at the last attempt, we can't recover
-                if attempt == self.recovery_handler.MAX_ATTEMPTS:
+                # If we are at the last attempt (MAX_ATTEMPTS - 1), we can't recover
+                if attempt == self.recovery_handler.MAX_ATTEMPTS - 1:
                     raise e
 
                 # Try to recover
                 # We catch the error, log it (implicitly via flow), and ask for a fix
                 try:
-                    current_config = self.recovery_handler.apply_fix(current_config, e, attempt)
+                    # Pass attempt+1 because RecoveryHandler logic uses 1-based indexing for strategies
+                    current_config = self.recovery_handler.apply_fix(current_config, e, attempt + 1)
                 except DFTError as fatal_e:
                     # If recovery fails (e.g. unknown error), raise original or fatal
                     raise fatal_e

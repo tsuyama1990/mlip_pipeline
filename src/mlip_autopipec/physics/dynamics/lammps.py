@@ -174,19 +174,35 @@ run             {params.n_steps}
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
-        # Read last frame
-        # Use iread (iterator) to avoid loading full trajectory into memory
-        # We iterate to find the last one. This is memory efficient (O(1) memory) but O(N) IO.
-        # Alternatively, if file supports random access, read(index=-1) might be optimized,
-        # but iread is safer for general large files in ASE.
-        iterator = ase.io.iread(traj_path, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Scalability optimization: Use seeking to read only the last frame.
+        # LAMMPS dump format usually ends with:
+        # ITEM: TIMESTEP
+        # ...
+        # ITEM: NUMBER OF ATOMS
+        # ...
+        # ITEM: BOX BOUNDS ...
+        # ...
+        # ITEM: ATOMS ...
 
-        atoms = None
-        for a in iterator:
-            atoms = a
+        # We need to find the last occurrence of "ITEM: TIMESTEP".
+        # We can read chunks from the end.
+
+        # Helper to get last frame content
+        last_frame_content = self._read_last_frame_optimized(traj_path)
+
+        # Parse content using string IO
+        from io import StringIO
+        # Use StringIO to feed ASE
+        with StringIO(last_frame_content) as f:
+             # Using 'lammps-dump-text' on string buffer
+             # ASE expects file-like object
+             atoms = ase.io.read(f, format="lammps-dump-text") # type: ignore[no-untyped-call]
+
+        if isinstance(atoms, list):
+            atoms = atoms[-1]
 
         if atoms is None:
-             raise ValueError("Trajectory file is empty")
+             raise ValueError("Failed to parse last frame from trajectory")
 
         # Restore symbols from original structure
         # (Assuming atom order hasn't changed, which is true for standard MD)
@@ -194,3 +210,56 @@ run             {params.n_steps}
             atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
 
         return Structure.from_ase(atoms), traj_path
+
+    def _read_last_frame_optimized(self, filepath: Path, chunk_size: int = 1024 * 1024) -> str:
+        """
+        Reads the last frame from a LAMMPS dump file using backward seeking.
+        """
+        with open(filepath, "rb") as f:
+            f.seek(0, 2) # Seek to end
+            file_size = f.tell()
+
+            buffer = b""
+            # Loop backwards
+            for pos in range(file_size, -1, -chunk_size):
+                start = max(0, pos - chunk_size)
+                f.seek(start)
+                chunk = f.read(pos - start)
+                buffer = chunk + buffer
+
+                # Check for at least two "ITEM: TIMESTEP" if possible to identify boundaries,
+                # or just one if it's near the end.
+                # Actually, we need the last "ITEM: TIMESTEP".
+                # But "ITEM: TIMESTEP" might appear in the middle of the chunk.
+                # We want the LAST occurrence in the file.
+
+                # Search for marker
+                marker = b"ITEM: TIMESTEP"
+                count = buffer.count(marker)
+
+                if count >= 1:
+                     # Find index of the last marker
+                     idx = buffer.rfind(marker)
+
+                     # Check if we have the full frame.
+                     # A frame ends at the end of the file or next ITEM: TIMESTEP
+                     # Since we are reading from end, if we found the marker and we have the end of file, we likely have the frame.
+                     # However, to be safe, we might need to ensure we read enough bytes after the marker.
+                     # But buffer includes everything from marker to EOF (plus some prefix).
+
+                     # If count > 1, we definitely have the full last frame (between last marker and EOF).
+                     # If count == 1, and we haven't reached start of file, we *might* have the full frame if the chunk was big enough.
+                     # But if the frame is HUGE (bigger than chunk), we might need to keep reading back until we find the *previous* marker
+                     # to know where this one starts? No, we just need from "ITEM: TIMESTEP" to EOF.
+
+                     # We assume the last "ITEM: TIMESTEP" in the file starts the last frame.
+                     # So if we found it, we just take everything from there.
+
+                     return buffer[idx:].decode("utf-8", errors="replace")
+
+                if start == 0:
+                    break
+
+            # If we reached start and buffer has content but no marker (maybe file is small/malformed or single frame without marker?)
+            # Just return whole buffer
+            return buffer.decode("utf-8", errors="replace")

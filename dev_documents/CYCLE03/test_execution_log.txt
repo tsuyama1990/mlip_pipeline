@@ -21,4 +21,4 @@ tests/uat/test_cycle02.py ..                                             [ 82%]
 tests/uat/test_cycle03.py ...                                            [ 88%]
 tests/unit/test_structure_gen.py .....                                   [100%]
 
-============================== 45 passed in 1.39s ==============================
+============================== 45 passed in 1.41s ==============================
