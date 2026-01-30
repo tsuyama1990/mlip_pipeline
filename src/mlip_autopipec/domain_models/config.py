@@ -43,8 +43,8 @@ class LammpsConfig(BaseModel):
     mpi_command: str = "mpirun -np 4"
 
 
-class MDParams(BaseModel):
-    """Runtime parameters for an MD simulation."""
+class MDConfig(BaseModel):
+    """Configuration for MD simulation parameters."""
     model_config = ConfigDict(extra="forbid")
 
     temperature: float
@@ -52,6 +52,22 @@ class MDParams(BaseModel):
     n_steps: int
     timestep: float = 0.001
     ensemble: Literal["NVT", "NPT"]
+
+
+# Alias for backward compatibility if needed, though we should update usages
+MDParams = MDConfig
+
+
+class StructureGenConfig(BaseModel):
+    """Configuration for structure generation."""
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: Literal["bulk"] = "bulk"
+    element: str
+    crystal_structure: str
+    lattice_constant: float
+    rattle_stdev: float = 0.0
+    supercell: tuple[int, int, int] = (1, 1, 1)
 
 
 class DFTConfig(BaseModel):
@@ -76,6 +92,11 @@ class Config(BaseModel):
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
+
+    # New configurations
+    structure_gen: StructureGenConfig
+    md: MDConfig
+
     # Optional placeholders for future cycles
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
