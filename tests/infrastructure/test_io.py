@@ -1,15 +1,13 @@
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+import ase
 import pytest
 import yaml
 
-<<<<<<< Updated upstream
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.infrastructure import io
-=======
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
-from mlip_autopipec.infrastructure import io
-
->>>>>>> Stashed changes
 
 
 def test_load_yaml_valid(tmp_path: Path) -> None:
@@ -57,3 +55,38 @@ def test_load_yaml_invalid_type(tmp_path: Path) -> None:
 
     with pytest.raises(TypeError, match="must contain a dictionary"):
         io.load_yaml(p)
+
+
+@patch("subprocess.run")
+def test_run_subprocess_success(mock_run: MagicMock) -> None:
+    """Test successful subprocess execution."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+    stdout, stderr = io.run_subprocess(["echo", "hello"], cwd=Path("/tmp"))
+    assert stdout == "ok"
+    mock_run.assert_called_with(
+        ["echo", "hello"],
+        cwd=Path("/tmp"),
+        capture_output=True,
+        text=True,
+        timeout=None,
+        check=True,
+    )
+
+
+@patch("subprocess.run")
+def test_run_subprocess_timeout(mock_run: MagicMock) -> None:
+    """Test subprocess timeout."""
+    mock_run.side_effect = subprocess.TimeoutExpired(["cmd"], 1.0)
+    with pytest.raises(subprocess.TimeoutExpired):
+        io.run_subprocess(["sleep", "2"], cwd=Path("/tmp"), timeout=1.0)
+
+
+def test_write_lammps_data(tmp_path: Path, sample_ase_atoms: ase.Atoms) -> None:
+    """Test writing LAMMPS data file."""
+    s = Structure.from_ase(sample_ase_atoms)
+    p = tmp_path / "data.lammps"
+    io.write_lammps_data(s, p)
+    assert p.exists()
+    content = p.read_text()
+    assert "atoms" in content
+    assert "xlo xhi" in content

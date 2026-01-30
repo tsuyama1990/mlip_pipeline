@@ -16,11 +16,7 @@ def setup_logging(config: LoggingConfig) -> None:
     handlers: list[logging.Handler] = []
 
     # Rich Handler for console
-    rich_handler = RichHandler(
-        rich_tracebacks=True,
-        show_time=False,
-        show_path=False
-    )
+    rich_handler = RichHandler(rich_tracebacks=True, show_time=False, show_path=False)
     handlers.append(rich_handler)
 
     # File Handler
@@ -37,5 +33,5 @@ def setup_logging(config: LoggingConfig) -> None:
         format="%(message)s",
         datefmt="[%X]",
         handlers=handlers,
-        force=True
+        force=True,
     )
