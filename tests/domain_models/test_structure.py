@@ -2,9 +2,10 @@
 import ase
 import numpy as np
 import pytest
+from pathlib import Path
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.domain_models.structure import Structure, JobStatus, JobResult, LammpsResult
 
 
 def test_structure_valid() -> None:
@@ -65,3 +66,48 @@ def test_from_ase_to_ase_roundtrip(sample_ase_atoms: ase.Atoms) -> None:
     assert atoms_back.get_chemical_formula() == sample_ase_atoms.get_chemical_formula()  # type: ignore[no-untyped-call]
     np.testing.assert_array_almost_equal(atoms_back.get_positions(), sample_ase_atoms.get_positions())  # type: ignore[no-untyped-call]
     assert atoms_back.info == sample_ase_atoms.info
+
+def test_job_status_enum() -> None:
+    """Test JobStatus enum."""
+    assert JobStatus.PENDING == "PENDING"
+    assert JobStatus.TIMEOUT == "TIMEOUT"
+
+def test_job_result_valid() -> None:
+    """Test creating a valid JobResult."""
+    jr = JobResult(
+        job_id="123",
+        status=JobStatus.COMPLETED,
+        work_dir=Path("/tmp"),
+        duration_seconds=10.5
+    )
+    assert jr.status == JobStatus.COMPLETED
+
+def test_lammps_result_valid() -> None:
+    """Test creating a valid LammpsResult with structure."""
+    s = Structure(
+        symbols=["H"],
+        positions=np.array([[0, 0, 0]]),
+        cell=np.eye(3),
+        pbc=(True, True, True)
+    )
+
+    lr = LammpsResult(
+        job_id="456",
+        status=JobStatus.COMPLETED,
+        work_dir=Path("/tmp"),
+        duration_seconds=5.0,
+        final_structure=s,
+        trajectory_path=Path("traj.dump")
+    )
+    assert lr.final_structure is not None
+    assert lr.final_structure.symbols == ["H"]
+
+def test_lammps_result_failed() -> None:
+    """Test creating a LammpsResult for a failed job."""
+    lr = LammpsResult(
+        job_id="789",
+        status=JobStatus.FAILED,
+        work_dir=Path("/tmp"),
+        duration_seconds=0.1
+    )
+    assert lr.final_structure is None

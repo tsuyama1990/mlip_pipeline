@@ -1,15 +1,13 @@
 from pathlib import Path
+from unittest.mock import Mock, patch
+import subprocess
 
 import pytest
 import yaml
+import numpy as np
 
-<<<<<<< Updated upstream
 from mlip_autopipec.infrastructure import io
-=======
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
-from mlip_autopipec.infrastructure import io
-
->>>>>>> Stashed changes
+from mlip_autopipec.domain_models.structure import Structure
 
 
 def test_load_yaml_valid(tmp_path: Path) -> None:
@@ -57,3 +55,62 @@ def test_load_yaml_invalid_type(tmp_path: Path) -> None:
 
     with pytest.raises(TypeError, match="must contain a dictionary"):
         io.load_yaml(p)
+
+# Cycle 02 Tests
+
+def test_write_lammps_data(tmp_path: Path) -> None:
+    """Test writing structure to LAMMPS data format."""
+    s = Structure(
+        symbols=["Si"],
+        positions=np.array([[0, 0, 0]]),
+        cell=np.eye(3) * 5.43,
+        pbc=(True, True, True)
+    )
+    p = tmp_path / "data.lammps"
+    io.write_lammps_data(s, p)
+    assert p.exists()
+    content = p.read_text()
+    assert "atoms" in content
+    assert "xlo xhi" in content
+
+def test_read_lammps_dump(tmp_path: Path) -> None:
+    """Test reading structure from LAMMPS dump file."""
+    # Write a dummy dump file
+    dump_content = """ITEM: TIMESTEP
+0
+ITEM: NUMBER OF ATOMS
+2
+ITEM: BOX BOUNDS pp pp pp
+0.0 10.0
+0.0 10.0
+0.0 10.0
+ITEM: ATOMS id type x y z
+1 1 0.0 0.0 0.0
+2 1 5.0 5.0 5.0
+"""
+    p = tmp_path / "dump.lammpstrj"
+    p.write_text(dump_content)
+
+    s = io.read_lammps_dump(p, species=["Ar"])
+    assert len(s.positions) == 2
+    assert s.symbols == ["Ar", "Ar"]
+
+@patch("subprocess.run")
+def test_run_subprocess_success(mock_run: Mock) -> None:
+    """Test running a subprocess successfully."""
+    mock_run.return_value = Mock(returncode=0, stdout="Success", stderr="")
+
+    io.run_subprocess("echo hello", timeout=10)
+
+    mock_run.assert_called_once()
+    args, kwargs = mock_run.call_args
+    assert args[0] == ["echo", "hello"]
+    assert kwargs["timeout"] == 10
+
+@patch("subprocess.run")
+def test_run_subprocess_failure(mock_run: Mock) -> None:
+    """Test running a subprocess with failure."""
+    mock_run.side_effect = subprocess.CalledProcessError(1, ["crash"], stderr="Error")
+
+    with pytest.raises(RuntimeError):
+        io.run_subprocess("crash", timeout=10)
