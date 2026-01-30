@@ -3,8 +3,9 @@ import ase
 import numpy as np
 import pytest
 from pydantic import ValidationError
+from pathlib import Path
 
-from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.domain_models.structure import Structure, JobStatus, JobResult, LammpsResult
 
 
 def test_structure_valid() -> None:
@@ -65,3 +66,43 @@ def test_from_ase_to_ase_roundtrip(sample_ase_atoms: ase.Atoms) -> None:
     assert atoms_back.get_chemical_formula() == sample_ase_atoms.get_chemical_formula()  # type: ignore[no-untyped-call]
     np.testing.assert_array_almost_equal(atoms_back.get_positions(), sample_ase_atoms.get_positions())  # type: ignore[no-untyped-call]
     assert atoms_back.info == sample_ase_atoms.info
+
+def test_job_status_enum() -> None:
+    """Test JobStatus enum values."""
+    assert JobStatus.PENDING.value == "PENDING"
+    assert JobStatus.RUNNING.value == "RUNNING"
+    assert JobStatus.COMPLETED.value == "COMPLETED"
+    assert JobStatus.FAILED.value == "FAILED"
+    assert JobStatus.TIMEOUT.value == "TIMEOUT"
+
+def test_job_result_base() -> None:
+    """Test JobResult base model."""
+    jr = JobResult(
+        job_id="123",
+        status=JobStatus.COMPLETED,
+        work_dir=Path("/tmp"),
+        duration_seconds=10.5,
+        log_content="done"
+    )
+    assert jr.status == JobStatus.COMPLETED
+    assert jr.duration_seconds == 10.5
+
+def test_lammps_result() -> None:
+    """Test LammpsResult model."""
+    s = Structure(
+        symbols=["H"],
+        positions=np.array([[0,0,0]]),
+        cell=np.eye(3),
+        pbc=(True, True, True)
+    )
+    lr = LammpsResult(
+        job_id="abc",
+        status=JobStatus.COMPLETED,
+        work_dir=Path("/tmp"),
+        duration_seconds=1.0,
+        log_content="log",
+        final_structure=s,
+        trajectory_path=Path("traj.dump")
+    )
+    assert lr.final_structure.symbols == ["H"]
+    assert lr.trajectory_path.name == "traj.dump"

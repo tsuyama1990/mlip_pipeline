@@ -1,0 +1,34 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 35 items
+
+tests/domain_models/test_config.py .......                               [ 20%]
+tests/domain_models/test_structure.py ........                           [ 42%]
+tests/e2e/test_cli.py ......                                             [ 60%]
+tests/infrastructure/test_io.py ..........                               [ 88%]
+tests/infrastructure/test_logging.py .                                   [ 91%]
+tests/unit/test_structure_gen.py ...                                     [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               0      0   100%
+src/mlip_autopipec/app.py                                   16      1    94%   49
+src/mlip_autopipec/cli/commands.py                          94     26    72%   69-70, 89-90, 95-97, 105-107, 113-115, 146-148, 161-166, 176-178, 194
+src/mlip_autopipec/constants.py                              7      0   100%
+src/mlip_autopipec/domain_models/__init__.py                 0      0   100%
+src/mlip_autopipec/domain_models/config.py                  46      0   100%
+src/mlip_autopipec/domain_models/structure.py               57      1    98%   72
+src/mlip_autopipec/infrastructure/__init__.py                0      0   100%
+src/mlip_autopipec/infrastructure/io.py                     32      1    97%   121
+src/mlip_autopipec/infrastructure/logging.py                12      0   100%
+src/mlip_autopipec/modules/structure_gen/generator.py       14      0   100%
+src/mlip_autopipec/modules/structure_gen/strategies.py      20      2    90%   22, 34
+--------------------------------------------------------------------------------------
+TOTAL                                                      298     31    90%
+============================== 35 passed in 3.49s ==============================
