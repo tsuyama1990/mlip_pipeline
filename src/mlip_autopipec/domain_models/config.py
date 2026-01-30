@@ -43,7 +43,7 @@ class LammpsConfig(BaseModel):
 
 class ExplorationConfig(BaseModel):
     """Configuration for structure generation/exploration."""
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     strategy: str = "random"
     composition: Optional[str] = None
@@ -53,7 +53,7 @@ class ExplorationConfig(BaseModel):
 
 
 class Config(BaseModel):
-    model_config = ConfigDict(extra="ignore") # Relaxed to allow extra sections like structure_gen if not strictly defined in spec but present in legacy
+    model_config = ConfigDict(extra="forbid")
 
     project_name: str
     logging: LoggingConfig = Field(default_factory=LoggingConfig)

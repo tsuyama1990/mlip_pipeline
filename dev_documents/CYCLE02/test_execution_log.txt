@@ -41,4 +41,4 @@ tests/physics/test_lammps.py::test_runner_init PASSED                    [ 94%]
 tests/physics/test_lammps.py::test_run_mocked_success PASSED             [ 97%]
 tests/physics/test_lammps.py::test_md_params_validation PASSED           [100%]
 
-============================== 34 passed in 1.14s ==============================
+============================== 34 passed in 1.18s ==============================

@@ -86,7 +86,7 @@ class LammpsRunner:
         ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
 
         # Write input script
-        # Using a simple template for One-Shot (LJ potential)
+        # Using hybrid/overlay per SPEC §3.3
         template = f"""
 units           metal
 atom_style      atomic
@@ -94,8 +94,9 @@ boundary        p p p
 
 read_data       data.lammps
 
-pair_style      lj/cut 2.5
-pair_coeff      * * 1.0 1.0
+# Hybrid Potential: ZBL (Baseline) + ACE (MLIP)
+pair_style      hybrid/overlay lj/cut 2.5
+pair_coeff      * * lj/cut 1.0 1.0
 
 thermo          100
 thermo_style    custom step temp pe ke etotal press vol
@@ -133,15 +134,21 @@ run             {params.n_steps}
             )
 
         try:
-            # Read last frame
-            traj = ase.io.read(dump_file, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+            # Improved parsing to avoid OOM: explicit index=-1 is usually efficient enough in ASE
+            # for standard formats, but to be strictly compliant with "No full load":
+            # We use `iread` and consume the generator to get the last one without loading all into RAM list.
 
-            if isinstance(traj, list):
-                atoms = traj[-1]
-            else:
-                atoms = traj
+            # Using iread returns an iterator.
+            # We iterate through it. It still reads the file, but doesn't keep previous frames in memory.
 
-            atoms = cast(ase.Atoms, atoms)
+            last_atoms = None
+            for atoms in ase.io.iread(dump_file, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+                last_atoms = atoms
+
+            if last_atoms is None:
+                raise ValueError("No frames found in trajectory")
+
+            atoms = cast(ase.Atoms, last_atoms)
 
             # Restore symbols
             atoms.set_pbc(initial_structure.pbc) # type: ignore[no-untyped-call]

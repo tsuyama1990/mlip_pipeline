@@ -4,6 +4,7 @@ from pathlib import Path
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.material import get_material_properties
 from mlip_autopipec.physics.dynamics.lammps import LammpsRunner, MDParams
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 
@@ -24,15 +25,14 @@ def run_one_shot(config: Config) -> None:
     element = config.potential.elements[0]  # Assuming first element
     logger.info(f"Generating bulk structure for {element}")
 
-    # Heuristic for lattice constant
-    lattice_constant = 5.43
-    crystal = "diamond"
-    if element == "Al":
-        lattice_constant = 4.05
-        crystal = "fcc"
-    elif element == "Cu":
-        lattice_constant = 3.61
-        crystal = "fcc"
+    mat_props = get_material_properties(element)
+    if not mat_props:
+        logger.warning(f"Material {element} not found in database. Using defaults.")
+        lattice_constant = 5.43
+        crystal = "diamond"
+    else:
+        lattice_constant = mat_props.lattice_constant
+        crystal = mat_props.crystal_structure
 
     structure = builder.build_bulk(element, crystal, lattice_constant, cubic=True)
 
