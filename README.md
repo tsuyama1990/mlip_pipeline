@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_02_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -12,6 +12,11 @@
 
 ## Key Features
 
+-   **DFT Oracle (New in Cycle 03)**:
+    -   **Robust Execution**: Wraps Quantum Espresso (`pw.x`) with self-healing capabilities.
+    -   **Self-Healing**: Automatically detects and fixes SCF convergence failures (e.g., mixing beta, smearing).
+    -   **Automatic K-Points**: Generates grid based on physical density (`kspacing`).
+    -   **Embedding**: Extracts clusters from large structures for efficient calculation.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -31,8 +36,9 @@
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (recommended)
--   **Simulation Engine**: LAMMPS (Optional for core functionality, required for MD)
-    -   Executable `lmp_serial` or `mpirun` accessible in PATH.
+-   **Simulation Engines**:
+    -   **LAMMPS** (Required for MD): `lmp_serial` or `mpirun` accessible in PATH.
+    -   **Quantum Espresso** (Required for DFT): `pw.x` accessible in PATH.
 
 ## Installation
 
@@ -70,17 +76,29 @@ Execute a single Molecular Dynamics simulation (Generate -> MD -> Parse).
 uv run mlip-auto run-one-shot --config config.yaml
 ```
 
-Example `config.yaml`:
+Example `config.yaml` with DFT:
 ```yaml
 project_name: "MyMLIPProject"
 potential:
   elements: ["Si"]
   cutoff: 5.0
   seed: 42
-lammps:
-  command: "lmp_serial"
-  timeout: 3600
-  use_mpi: false
+structure_gen:
+  strategy: "bulk"
+  element: "Si"
+  crystal_structure: "diamond"
+  lattice_constant: 5.43
+md:
+  temperature: 300.0
+  n_steps: 1000
+  ensemble: "NVT"
+dft:
+  command: "pw.x"
+  mpi_command: "mpirun -np 4"
+  pseudopotentials:
+    Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+  ecutwfc: 40.0
+  kspacing: 0.04
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -90,8 +108,8 @@ logging:
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config, Job)
-├── physics/                # Physics Engines (LAMMPS, StructureGen)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job, Calculation)
+├── physics/                # Physics Engines (LAMMPS, DFT, StructureGen)
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
@@ -101,7 +119,7 @@ src/mlip_autopipec/
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
--   **Cycle 03**: Oracle (DFT)
+-   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop
