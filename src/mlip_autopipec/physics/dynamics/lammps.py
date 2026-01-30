@@ -1,4 +1,5 @@
 import logging
+import shlex
 import subprocess
 import tempfile
 import time
@@ -138,7 +139,9 @@ dump_modify     1 sort id
     def _run_lammps(self, work_dir: Path) -> Tuple[str, str, int, float]:
         start = time.time()
 
-        cmd = self.config.command.split()
+        # Security: Use shlex to split command correctly
+        cmd = shlex.split(self.config.command)
+
         if self.config.cores > 1:
             cmd = ["mpirun", "-np", str(self.config.cores)] + cmd
 
@@ -165,25 +168,68 @@ dump_modify     1 sort id
         if not dump_file.exists():
             raise FileNotFoundError(f"Dump file not found: {dump_file}")
 
-        # Optimize parsing: read only the last frame using ase.io.read with index=-1
-        # This implementation already avoids loading the full list if the ASE reader supports random access or efficient seeking.
-        # For lammps-dump-text, ASE reads sequentially, but using index=-1 is the standard API way to get the last image.
-        # To truly optimize for scalability as requested, we would parse the file manually from the end.
-        # However, sticking to ASE for robustness is preferred unless performance is critical bottleneck.
-        # Given the "Scalability - OOM Risk" feedback, we should attempt to avoid full load.
-        # ase.io.read(..., index=-1) DOES iterate if the format doesn't support seeking.
-        # BUT, `iread` is a generator. We can iterate it and keep only the last one.
+        # Optimize parsing: Read file backwards to find the last TIMESTEP
+        # This implementation avoids full file scan.
 
-        last_atoms = None
-        for atoms in ase.io.iread(dump_file, format="lammps-dump-text"): # type: ignore[no-untyped-call]
-            last_atoms = atoms
+        try:
+            last_frame_content = self._read_last_frame_text(dump_file)
 
-        if last_atoms is None:
-             raise ValueError("No frames found in dump file")
+            # Use temp file to parse with ASE to reuse parser logic
+            with tempfile.NamedTemporaryFile(mode='w+', suffix=".lammpstrj") as tmp:
+                tmp.write(last_frame_content)
+                tmp.flush()
+                tmp.seek(0)
+                atoms = ase.io.read(tmp.name, format="lammps-dump-text") # type: ignore[no-untyped-call]
 
-        if not isinstance(last_atoms, ase.Atoms):
-             # Should generally be ase.Atoms
-             # But iread can return Images? Usually Atoms.
-             pass
+            if not isinstance(atoms, ase.Atoms):
+                 raise TypeError(f"Expected ase.Atoms, got {type(atoms)}")
 
-        return Structure.from_ase(last_atoms), dump_file
+            return Structure.from_ase(atoms), dump_file
+
+        except Exception as e:
+            # Fallback to iread if custom parser fails
+            logger.warning(f"Optimized parser failed ({e}), falling back to standard iterator")
+            last_atoms = None
+            for atoms in ase.io.iread(dump_file, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+                last_atoms = atoms
+
+            if last_atoms is None:
+                 raise ValueError("No frames found in dump file")
+
+            return Structure.from_ase(last_atoms), dump_file
+
+    def _read_last_frame_text(self, filepath: Path, chunk_size: int = 4096) -> str:
+        """
+        Read the last frame from a LAMMPS dump file by seeking backwards.
+        """
+        with filepath.open('rb') as f:
+            f.seek(0, 2)
+            file_size = f.tell()
+
+            buffer = b""
+            pointer = file_size
+            frames_found = 0
+
+            while pointer > 0:
+                read_size = min(chunk_size, pointer)
+                pointer -= read_size
+                f.seek(pointer)
+                chunk = f.read(read_size)
+                buffer = chunk + buffer
+
+                # Check for "ITEM: TIMESTEP"
+                # If we find 2 occurrences, we have the start of the last frame and the start of the previous
+                # We want from the last "ITEM: TIMESTEP" to end.
+
+                markers = buffer.count(b"ITEM: TIMESTEP")
+                if markers >= 1:
+                     # Found at least one start marker.
+                     # We need to ensure we have the WHOLE last frame.
+                     # If we found 2, we definitely have the last frame fully in buffer (assuming it's after the second-to-last marker).
+                     # Actually, we just need to find the *last* occurrence of "ITEM: TIMESTEP" in the file.
+
+                     last_marker_idx = buffer.rfind(b"ITEM: TIMESTEP")
+                     if last_marker_idx != -1:
+                         return buffer[last_marker_idx:].decode('utf-8')
+
+        raise ValueError("Could not find start of frame in file")

@@ -34,8 +34,6 @@ def run_one_shot(config: Config) -> LammpsResult:
     runner = LammpsRunner(config.lammps)
 
     md_params = config.exploration.md_params
-    if not md_params:
-         md_params = MDParams(temperature=300, timestep=0.001, n_steps=100)
 
     logger.info("Running MD Simulation...")
     work_dir = Path("_work_md/job_one_shot")

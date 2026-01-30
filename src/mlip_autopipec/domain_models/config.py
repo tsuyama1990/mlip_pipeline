@@ -30,10 +30,10 @@ class PotentialConfig(BaseModel):
 
 class MDParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    temperature: float
+    temperature: float = 300.0
     pressure: float = 0.0
-    timestep: float
-    n_steps: int
+    timestep: float = 0.001
+    n_steps: int = 100
 
 
 class LammpsConfig(BaseModel):
@@ -55,7 +55,7 @@ class ExplorationConfig(BaseModel):
 
     # Fields for Cycle 02
     lattice_constant: float = 5.43
-    md_params: Optional[MDParams] = None
+    md_params: MDParams = Field(default_factory=MDParams)
 
 
 class OrchestratorConfig(BaseModel):
