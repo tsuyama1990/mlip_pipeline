@@ -17,12 +17,16 @@ from mlip_autopipec.domain_models.config import (
     Config,
     LoggingConfig,
     PotentialConfig,
+    TrainingConfig, # Added
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
-from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.job import JobStatus # Added JobResult
+from mlip_autopipec.domain_models.training import TrainingResult # Added
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.orchestration.orchestrator import Orchestrator # Added
+from mlip_autopipec.physics.training.pacemaker import PacemakerRunner # Added
 
 
 def init_project(path: Path) -> None:
@@ -60,6 +64,8 @@ def init_project(path: Path) -> None:
             timestep=0.001,
             ensemble="NVT",
         ),
+        # Add training default to template for Cycle 04
+        training=TrainingConfig()
     )
 
     try:
@@ -129,6 +135,94 @@ def run_cycle_02_cmd(config_path: Path) -> None:
             )
             typer.echo(f"Log Tail:\n{result.log_content}")
             raise typer.Exit(code=1)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def run_pipeline_cmd(config_path: Path) -> None:
+    """
+    Logic for running the full Active Learning Pipeline (Cycle 04).
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        orchestrator = Orchestrator(config)
+        result = orchestrator.run_pipeline()
+
+        if result.status == JobStatus.COMPLETED:
+            typer.secho(
+                f"Pipeline Completed: Status {result.status.value}",
+                fg=typer.colors.GREEN,
+            )
+
+            if isinstance(result, TrainingResult):
+                 typer.secho(f"Potential saved to: {result.potential.path}", fg=typer.colors.GREEN)
+                 typer.echo(f"Metrics: {result.validation_metrics}")
+
+            logging.getLogger("mlip_autopipec").info(
+                f"Duration: {result.duration_seconds:.2f}s"
+            )
+        else:
+            typer.secho(
+                f"Pipeline Failed: Status {result.status.value}", fg=typer.colors.RED
+            )
+            typer.echo(f"Log Tail:\n{result.log_content}")
+            raise typer.Exit(code=1)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def train_cmd(config_path: Path, dataset_path: Path) -> None:
+    """
+    Logic for running offline training.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not dataset_path.exists():
+        typer.secho(f"Dataset file {dataset_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        if not config.training:
+             typer.secho("Training configuration missing in config.yaml.", fg=typer.colors.RED)
+             raise typer.Exit(code=1)
+
+        work_dir = config.logging.file_path.parent / "manual_train"
+        runner = PacemakerRunner(work_dir)
+
+        # Select Active Set
+        if config.training.active_set_optimization:
+             dataset_path = runner.select_active_set(dataset_path)
+
+        # Train
+        result = runner.train(dataset_path, config.training, config.potential)
+
+        if result.status == JobStatus.COMPLETED:
+            typer.secho(
+                f"Training Completed: Status {result.status.value}",
+                fg=typer.colors.GREEN,
+            )
+            typer.secho(f"Potential saved to: {result.potential.path}", fg=typer.colors.GREEN)
+            typer.echo(f"Metrics: {result.validation_metrics}")
+        else:
+             typer.secho("Training Failed", fg=typer.colors.RED)
+             raise typer.Exit(code=1)
 
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)

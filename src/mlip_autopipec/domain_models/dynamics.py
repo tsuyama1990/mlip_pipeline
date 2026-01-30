@@ -37,6 +37,7 @@ MDParams = MDConfig
 class LammpsResult(JobResult):
     """
     Result of a LAMMPS MD simulation.
+    Includes trajectory path and maximum uncertainty (gamma) if applicable.
     """
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)

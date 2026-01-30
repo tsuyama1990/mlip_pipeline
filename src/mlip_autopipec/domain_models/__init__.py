@@ -16,6 +16,7 @@ from mlip_autopipec.domain_models.dynamics import (
 from mlip_autopipec.domain_models.job import JobResult, JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.training import TrainingConfig, TrainingResult
+from mlip_autopipec.domain_models.potential import Potential
 
 __all__ = [
     "BulkStructureGenConfig",
@@ -35,4 +36,5 @@ __all__ = [
     "StructureGenConfig",
     "TrainingConfig",
     "TrainingResult",
+    "Potential",
 ]

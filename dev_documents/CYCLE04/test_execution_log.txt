@@ -1,0 +1,30 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 73 items
+
+tests/domain_models/test_calculation.py .....                            [  6%]
+tests/domain_models/test_config.py ....                                  [ 12%]
+tests/domain_models/test_job.py ..                                       [ 15%]
+tests/domain_models/test_potential.py ...                                [ 19%]
+tests/domain_models/test_structure.py .....                              [ 26%]
+tests/e2e/test_cli.py .......                                            [ 35%]
+tests/infrastructure/test_io.py .....                                    [ 42%]
+tests/infrastructure/test_logging.py .                                   [ 43%]
+tests/physics/dft/test_input_gen.py ..                                   [ 46%]
+tests/physics/dft/test_parser.py ......                                  [ 54%]
+tests/physics/dft/test_qe_runner.py .........                            [ 67%]
+tests/physics/dft/test_recovery.py ....                                  [ 72%]
+tests/physics/structure_gen/test_embedding.py ..                         [ 75%]
+tests/physics/test_lammps.py ..                                          [ 78%]
+tests/physics/training/test_dataset.py .                                 [ 79%]
+tests/physics/training/test_pacemaker.py ..                              [ 82%]
+tests/uat/test_cycle02.py ..                                             [ 84%]
+tests/uat/test_cycle03.py ..                                             [ 87%]
+tests/uat/test_cycle04.py .                                              [ 89%]
+tests/unit/test_orchestrator.py ...                                      [ 93%]
+tests/unit/test_structure_gen.py .....                                   [100%]
+
+============================== 73 passed in 1.53s ==============================
