@@ -4,6 +4,12 @@ from typing import Any
 import yaml
 
 
+# Ensure tuples are dumped as lists (sequences) for YAML compatibility
+yaml.add_representer(
+    tuple, lambda dumper, data: dumper.represent_sequence("tag:yaml.org,2002:seq", data)
+)
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
     """
     Safely load a YAML file.

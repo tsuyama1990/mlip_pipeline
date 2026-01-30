@@ -40,7 +40,7 @@ def init_project(path: Path) -> None:
             "crystal_structure": "diamond",
             "lattice_constant": 5.43,
             "rattle_stdev": 0.1,
-            "supercell": [1, 1, 1],
+            "supercell": (1, 1, 1),
         },
         "md": {
             "temperature": 300.0,

@@ -1,5 +1,5 @@
 import pytest
-from mlip_autopipec.domain_models.calculation import SCFError, MemoryError, WalltimeError, DFTConfig
+from mlip_autopipec.domain_models.calculation import SCFError, MemoryError
 from mlip_autopipec.physics.dft.recovery import RecoveryHandler
 
 

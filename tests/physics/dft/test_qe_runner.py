@@ -1,14 +1,13 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import numpy as np
 
-from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult, SCFError, MemoryError
+from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult, SCFError
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.physics.dft.qe_runner import QERunner
-from mlip_autopipec.physics.dft.recovery import RecoveryHandler
 
 
 @pytest.fixture
@@ -71,7 +70,7 @@ def test_qe_runner_recovery(sample_structure, dft_config, tmp_path):
         stress=np.zeros((3, 3))
     )
 
-    with patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse", side_effect=[SCFError("SCF failed"), success_result]) as mock_parse, \
+    with patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse", side_effect=[SCFError("SCF failed"), success_result]), \
          patch("mlip_autopipec.physics.dft.qe_runner.subprocess.run") as mock_run:
 
         runner = QERunner(dft_config, work_dir=tmp_path)
@@ -86,7 +85,7 @@ def test_qe_runner_recovery(sample_structure, dft_config, tmp_path):
 def test_qe_runner_max_retries(sample_structure, dft_config, tmp_path):
     # Scenario: Fails repeatedly until max retries
 
-    with patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse", side_effect=SCFError("SCF failed")) as mock_parse, \
+    with patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse", side_effect=SCFError("SCF failed")), \
          patch("mlip_autopipec.physics.dft.qe_runner.subprocess.run") as mock_run:
 
         runner = QERunner(dft_config, work_dir=tmp_path)

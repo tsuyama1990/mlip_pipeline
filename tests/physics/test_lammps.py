@@ -47,7 +47,9 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_
         # Mock parsing to return the same structure
         mock_parse.return_value = (dummy_structure, Path("dump.lammpstrj"))
 
-        runner = LammpsRunner(config=lammps_config, base_work_dir=tmp_path)
+        # Update config with tmp_path
+        lammps_config.base_work_dir = tmp_path
+        runner = LammpsRunner(config=lammps_config)
         result = runner.run(dummy_structure, md_params)
 
         assert result.status == JobStatus.COMPLETED
@@ -72,7 +74,8 @@ def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, tmp_pa
         )
         mock_which.return_value = "/usr/bin/lmp_serial"
 
-        runner = LammpsRunner(config=lammps_config, base_work_dir=tmp_path)
+        lammps_config.base_work_dir = tmp_path
+        runner = LammpsRunner(config=lammps_config)
         result = runner.run(dummy_structure, md_params)
 
         assert result.status == JobStatus.FAILED

@@ -45,6 +45,7 @@ class LammpsConfig(BaseModel):
     timeout: int = 3600
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
+    base_work_dir: Path = Path("_work_md")
 
 
 class MDConfig(BaseModel):

@@ -1,4 +1,3 @@
-from pathlib import Path
 import pytest
 import numpy as np
 
@@ -79,7 +78,7 @@ def test_parse_success(create_dummy_file):
     # Since I cannot easily create a full valid QE output that ASE accepts without running QE,
     # I will mock `ase.io.read`.
 
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
     from ase import Atoms
     from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -96,7 +95,7 @@ def test_parse_success(create_dummy_file):
     )
     atoms.calc = calc
 
-    with patch("ase.io.read", return_value=atoms) as mock_read:
+    with patch("ase.io.read", return_value=atoms):
         result = DFTParser.parse(path, job_id="test_job", work_dir=path.parent, duration=100.0)
 
         assert isinstance(result, DFTResult)

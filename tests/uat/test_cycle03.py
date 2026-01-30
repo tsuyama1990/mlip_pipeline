@@ -102,7 +102,7 @@ def test_uat_c03_01_standard_dft(uat_structure, uat_config, tmp_path):
     )
 
     with patch("mlip_autopipec.physics.dft.qe_runner.subprocess.run", side_effect=mock_subprocess_run_success) as mock_run, \
-         patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse", return_value=success_result) as mock_parse:
+         patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse", return_value=success_result):
 
         runner = QERunner(uat_config, work_dir=tmp_path)
         result = runner.run(uat_structure, job_id="uat_job_1")
@@ -165,7 +165,7 @@ def test_uat_c03_03_kpoint_grid(uat_structure, uat_config, tmp_path):
     # We mock execution to stop immediately.
 
     with patch("mlip_autopipec.physics.dft.qe_runner.subprocess.run") as mock_run, \
-         patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse") as mock_parse:
+         patch("mlip_autopipec.physics.dft.qe_runner.DFTParser.parse"):
 
         mock_run.side_effect = Exception("Stop execution") # Quick abort
 

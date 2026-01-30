@@ -15,9 +15,9 @@ class LammpsRunner:
     Executes LAMMPS MD simulations.
     """
 
-    def __init__(self, config: LammpsConfig, base_work_dir: Path = Path("_work_md")):
+    def __init__(self, config: LammpsConfig):
         self.config = config
-        self.base_work_dir = base_work_dir
+        self.base_work_dir = config.base_work_dir
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, structure: Structure, params: MDParams) -> LammpsResult:
