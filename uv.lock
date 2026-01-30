@@ -38,6 +38,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "scipy" },
     { name = "typer" },
 ]
 
@@ -56,6 +57,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.4.1" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "scipy", specifier = ">=1.17.0" },
     { name = "typer", specifier = ">=0.21.1" },
 ]
 

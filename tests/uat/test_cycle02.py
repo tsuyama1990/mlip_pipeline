@@ -9,6 +9,7 @@ from mlip_autopipec.app import app
 
 runner = CliRunner()
 
+
 def setup_config(path: Path, lammps_cmd: str = "echo"):
     """Helper to create a valid config."""
     config_content = f"""
@@ -33,6 +34,7 @@ lammps:
 """
     (path / "config.yaml").write_text(config_content)
 
+
 def test_uat_c02_01_one_shot_success(tmp_path):
     """
     Scenario 2.1: The "One-Shot" MD Run
@@ -49,17 +51,25 @@ def test_uat_c02_01_one_shot_success(tmp_path):
         # Let's try to make a fake script if possible, or Mock.
         # Given the constraints, Mocking subprocess in the app context is safer.
 
-        with patch("subprocess.run") as mock_run, \
-             patch("mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output") as mock_parse:
-
-            mock_run.return_value = MagicMock(returncode=0, stdout="Simulation Done", stderr="")
+        with (
+            patch("subprocess.run") as mock_run,
+            patch(
+                "mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output"
+            ) as mock_parse,
+        ):
+            mock_run.return_value = MagicMock(
+                returncode=0, stdout="Simulation Done", stderr=""
+            )
 
             # Mock parsing to return a dummy structure result
             from mlip_autopipec.domain_models.structure import Structure
             import numpy as np
+
             dummy_struct = Structure(
-                symbols=["Si"], positions=np.array([[0,0,0]]),
-                cell=np.eye(3), pbc=(True,True,True)
+                symbols=["Si"],
+                positions=np.array([[0, 0, 0]]),
+                cell=np.eye(3),
+                pbc=(True, True, True),
             )
             mock_parse.return_value = (dummy_struct, Path("dump.lammpstrj"))
 
@@ -69,6 +79,7 @@ def test_uat_c02_01_one_shot_success(tmp_path):
             assert "Simulation Completed: Status COMPLETED" in result.stdout
             # Because LammpsRunner creates random dir, just check for existence of base work dir
             assert Path("_work_md").exists()
+
 
 def test_uat_c02_02_missing_executable(tmp_path):
     """
@@ -86,6 +97,7 @@ def test_uat_c02_02_missing_executable(tmp_path):
         # It should exit with error
         assert result.exit_code != 0
         assert "Executable" in result.stdout and "not found" in result.stdout
+
 
 if __name__ == "__main__":
     # Allow running this script directly

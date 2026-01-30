@@ -8,6 +8,7 @@ from mlip_autopipec.app import app
 
 runner = CliRunner()
 
+
 def test_init(tmp_path: Path) -> None:
     """Test 'init' command."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -16,6 +17,7 @@ def test_init(tmp_path: Path) -> None:
         assert "Created template configuration" in result.stdout
         assert Path("config.yaml").exists()
 
+
 def test_init_existing(tmp_path: Path) -> None:
     """Test 'init' fails if file exists."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -23,6 +25,7 @@ def test_init_existing(tmp_path: Path) -> None:
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 1
         assert "already exists" in result.stdout
+
 
 def test_init_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test 'init' handles exceptions during write."""
@@ -39,6 +42,7 @@ def test_init_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         assert result.exit_code == 1
         assert "Failed to create config: Permission denied" in result.stdout
 
+
 def test_check_valid(tmp_path: Path) -> None:
     """Test 'check' with valid config."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
@@ -49,6 +53,7 @@ def test_check_valid(tmp_path: Path) -> None:
         assert result.exit_code == 0
         assert "Configuration valid" in result.stdout
         assert Path("mlip_pipeline.log").exists()
+
 
 def test_check_invalid(tmp_path: Path) -> None:
     """Test 'check' with invalid config."""

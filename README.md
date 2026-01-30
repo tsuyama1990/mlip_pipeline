@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_02_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -12,6 +12,11 @@
 
 ## Key Features
 
+-   **Oracle (DFT Automation)**:
+    -   **Self-Healing**: Robust Quantum Espresso wrapper that automatically detects and fixes SCF convergence failures (adjusts mixing beta, smearing).
+    -   **Auto K-Points**: Generates K-point grids dynamically based on physical spacing density.
+    -   **Periodic Embedding**: Efficiently extracts atomic clusters from large simulations into vacuum-padded boxes for DFT calculation.
+    -   **Strict Parsing**: Regex-based parsing of Energy, Forces, and Stress with unit conversion.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -31,8 +36,9 @@
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (recommended)
--   **Simulation Engine**: LAMMPS (Optional for core functionality, required for MD)
-    -   Executable `lmp_serial` or `mpirun` accessible in PATH.
+-   **Simulation Engines**:
+    -   **LAMMPS**: `lmp_serial` or `mpirun` (Optional for core, required for MD).
+    -   **Quantum Espresso**: `pw.x` (Optional for core, required for DFT).
 
 ## Installation
 
@@ -81,6 +87,13 @@ lammps:
   command: "lmp_serial"
   timeout: 3600
   use_mpi: false
+dft:
+  command: "pw.x"
+  mpi_command: "mpirun -np 4"
+  pseudopotentials:
+    Si: "Si.upf"
+  ecutwfc: 40.0
+  kspacing: 0.04
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -90,8 +103,11 @@ logging:
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config, Job)
-├── physics/                # Physics Engines (LAMMPS, StructureGen)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job, Calculation)
+├── physics/                # Physics Engines
+│   ├── dft/                # Quantum Espresso (Runner, Parser, Recovery)
+│   ├── dynamics/           # LAMMPS (Runner)
+│   └── structure_gen/      # Generation & Embedding
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
@@ -101,7 +117,7 @@ src/mlip_autopipec/
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
--   **Cycle 03**: Oracle (DFT)
+-   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop
