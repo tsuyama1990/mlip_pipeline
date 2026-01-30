@@ -1,7 +1,10 @@
 import logging
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Iterator
 
+import ase
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import write
 
@@ -11,40 +14,42 @@ logger = logging.getLogger("mlip_autopipec")
 
 
 class DatasetManager:
-    def convert(self, structures: list[Structure], output_path: Path) -> Path:
+    def convert(self, structures: Iterable[Structure], output_path: Path) -> Path:
         """
-        Convert a list of Structure objects to a pacemaker-compatible dataset.
+        Convert an iterable of Structure objects to a pacemaker-compatible dataset.
+        Uses a generator to stream writing to avoid OOM with large datasets.
         """
-        ase_atoms_list = []
 
-        for s in structures:
-            atoms = s.to_ase()
+        def atom_generator() -> Iterator[ase.Atoms]:
+            for s in structures:
+                atoms = s.to_ase()
 
-            # Extract labels from properties
-            energy = s.properties.get("energy")
-            forces = s.properties.get("forces")
-            stress = s.properties.get("stress")
+                # Extract labels from properties
+                energy = s.properties.get("energy")
+                forces = s.properties.get("forces")
+                stress = s.properties.get("stress")
 
-            if energy is not None and forces is not None:
-                # Remove labels from info to avoid conflict with Calculator during write
-                atoms.info.pop("energy", None)
-                atoms.info.pop("forces", None)
-                atoms.info.pop("stress", None)
+                if energy is not None and forces is not None:
+                    # Remove labels from info to avoid conflict with Calculator during write
+                    atoms.info.pop("energy", None)
+                    atoms.info.pop("forces", None)
+                    atoms.info.pop("stress", None)
 
-                calc = SinglePointCalculator(
-                    atoms,
-                    energy=energy,
-                    forces=forces,
-                    stress=stress,
-                )
-                atoms.calc = calc
+                    calc = SinglePointCalculator(
+                        atoms,
+                        energy=energy,
+                        forces=forces,
+                        stress=stress,
+                    )
+                    atoms.calc = calc
 
-            ase_atoms_list.append(atoms)
+                yield atoms
 
-        # Write to temporary extxyz
+        # Write to temporary extxyz using the generator
         extxyz_path = output_path.parent / "temp_dataset.extxyz"
-        # Type ignore for ase.io.write if needed, but it's usually dynamic
-        write(extxyz_path, ase_atoms_list, format="extxyz")  # type: ignore[no-untyped-call]
+
+        # ASE write supports generators/iterables for many formats including extxyz
+        write(extxyz_path, atom_generator(), format="extxyz")  # type: ignore[no-untyped-call, arg-type]
 
         # Run pace_collect
         cmd = ["pace_collect", str(extxyz_path), str(output_path)]

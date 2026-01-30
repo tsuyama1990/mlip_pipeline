@@ -1,3 +1,5 @@
+from pathlib import Path
+
 DEFAULT_CONFIG_FILENAME = "config.yaml"
 DEFAULT_LOG_FILENAME = "mlip_pipeline.log"
 DEFAULT_LOG_LEVEL = "INFO"
@@ -5,3 +7,7 @@ DEFAULT_PROJECT_NAME = "MyMLIPProject"
 DEFAULT_ELEMENTS = ["Ti", "O"]
 DEFAULT_CUTOFF = 5.0
 DEFAULT_SEED = 42
+
+# Centralized Path defaults
+DEFAULT_CONFIG_PATH = Path(DEFAULT_CONFIG_FILENAME)
+DEFAULT_DATASET_PATH = Path("train.pckl.gzip")

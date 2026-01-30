@@ -1,8 +1,7 @@
-from unittest.mock import patch, MagicMock
-from pathlib import Path
-import pytest
+from unittest.mock import patch
 import numpy as np
 from ase.atoms import Atoms
+import yaml
 
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.training import TrainingConfig
@@ -43,8 +42,21 @@ def test_uat_c04_01_full_training_loop(tmp_path):
         # 1. Convert
         data_file = dataset_manager.convert(structures, dataset_path)
 
+        # Verify extxyz creation
+        extxyz_path = tmp_path / "temp_dataset.extxyz"
+        assert extxyz_path.exists()
+        # Should contain Si atoms
+        assert "Si" in extxyz_path.read_text()
+
         # 2. Train
         potential = pacemaker.train(config, data_file, elements=["Si"])
+
+        # Verify input.yaml creation
+        input_yaml = tmp_path / "input.yaml"
+        assert input_yaml.exists()
+        with open(input_yaml) as f:
+            data = yaml.safe_load(f)
+            assert data["backend"]["batch_size"] == 10
 
         # Then a potential should be created
         assert potential.path.exists()
@@ -80,3 +92,4 @@ def test_uat_c04_02_active_set_selection(tmp_path):
         # And pace_activeset was called
         args = mock_run.call_args[0][0]
         assert "pace_activeset" in args
+        assert str(dataset_path) in args

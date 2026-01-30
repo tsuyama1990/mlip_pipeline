@@ -1,7 +1,7 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from mlip_autopipec.domain_models.job import JobResult
 from mlip_autopipec.domain_models.structure import Structure
@@ -17,6 +17,13 @@ class LammpsConfig(BaseModel):
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
 
+    @field_validator("timeout")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Timeout must be greater than 0")
+        return v
+
 
 class MDConfig(BaseModel):
     """Configuration for MD simulation parameters."""
@@ -28,6 +35,13 @@ class MDConfig(BaseModel):
     n_steps: int
     timestep: float = 0.001
     ensemble: Literal["NVT", "NPT"]
+
+    @field_validator("temperature", "n_steps", "timestep")
+    @classmethod
+    def validate_positive(cls, v: float, info: Any) -> float:
+        if v <= 0:
+            raise ValueError(f"{info.field_name} must be greater than 0")
+        return v
 
 
 # Alias for backward compatibility

@@ -1,9 +1,8 @@
 from pathlib import Path
-
 import typer
 
 from mlip_autopipec.cli import commands
-from mlip_autopipec.constants import DEFAULT_CONFIG_FILENAME
+from mlip_autopipec.constants import DEFAULT_CONFIG_PATH, DEFAULT_DATASET_PATH
 
 app = typer.Typer(help="MLIP Automated Pipeline CLI")
 
@@ -11,7 +10,7 @@ app = typer.Typer(help="MLIP Automated Pipeline CLI")
 @app.command()
 def init(
     path: Path = typer.Option(
-        Path(DEFAULT_CONFIG_FILENAME), help="Path to create config file"
+        DEFAULT_CONFIG_PATH, help="Path to create config file"
     ),  # noqa: B008
 ) -> None:
     """
@@ -23,7 +22,7 @@ def init(
 @app.command()
 def check(
     config_path: Path = typer.Option(
-        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+        DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config file"
     ),  # noqa: B008
 ) -> None:
     """
@@ -35,7 +34,7 @@ def check(
 @app.command(name="run-one-shot")
 def run_one_shot(
     config_path: Path = typer.Option(
-        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+        DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config file"
     ),  # noqa: B008
 ) -> None:
     """
@@ -47,10 +46,10 @@ def run_one_shot(
 @app.command(name="train")
 def train(
     config_path: Path = typer.Option(
-        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+        DEFAULT_CONFIG_PATH, "--config", "-c", help="Path to config file"
     ),  # noqa: B008
     dataset_path: Path = typer.Option(
-        Path("train.pckl.gzip"), "--dataset", "-d", help="Path to dataset file"
+        DEFAULT_DATASET_PATH, "--dataset", "-d", help="Path to dataset file"
     ),  # noqa: B008
 ) -> None:
     """
