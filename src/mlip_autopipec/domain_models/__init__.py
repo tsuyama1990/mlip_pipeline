@@ -1,5 +1,6 @@
 from mlip_autopipec.domain_models.config import (
     Config,
+    ElementParams,
     ExplorationConfig,
     LammpsConfig,
     LoggingConfig,
@@ -12,6 +13,7 @@ from mlip_autopipec.domain_models.structure import Candidate, CandidateStatus, S
 
 __all__ = [
     "Config",
+    "ElementParams",
     "ExplorationConfig",
     "LammpsConfig",
     "LoggingConfig",

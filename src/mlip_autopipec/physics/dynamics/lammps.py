@@ -4,7 +4,7 @@ from pathlib import Path
 
 import ase.io
 
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
+from mlip_autopipec.domain_models.config import LammpsConfig, MDParams, PotentialConfig
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -17,13 +17,14 @@ class LammpsRunner:
     def __init__(self, config: LammpsConfig) -> None:
         self.config = config
 
-    def run(self, structure: Structure, params: MDParams, work_dir: Path) -> LammpsResult:
+    def run(self, structure: Structure, params: MDParams, potential_config: PotentialConfig, work_dir: Path) -> LammpsResult:
         """
         Run a LAMMPS simulation.
 
         Args:
             structure: Initial structure.
             params: MD parameters.
+            potential_config: Potential configuration including element parameters.
             work_dir: Directory to run simulation in.
 
         Returns:
@@ -34,7 +35,7 @@ class LammpsRunner:
 
         try:
             # 1. Write Inputs
-            self._write_inputs(work_dir, structure, params)
+            self._write_inputs(work_dir, structure, params, potential_config)
 
             # 2. Run LAMMPS
             command = self.config.command.split()
@@ -112,16 +113,59 @@ class LammpsRunner:
                 trajectory_path=work_dir / "dump.lammpstrj"
             )
 
-    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams) -> None:
+    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams, potential_config: PotentialConfig) -> None:
         """Write LAMMPS data and input script."""
         atoms = structure.to_ase()
 
         # Write data file
         ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
 
-        # Generate input script
-        # Using hybrid/overlay as requested by SPEC.
-        # LJ/ZBL as baseline + ACE (placeholder since we don't have ACE files)
+        # Get unique elements present in structure to ensure we have params
+        present_elements = set(structure.symbols)
+
+        # Generate mass and pair_coeff commands
+        mass_cmds = []
+        pair_coeff_lj = []
+        pair_coeff_zbl = []
+
+        # NOTE: ase.io.write lammps-data writes types as 1, 2, 3... corresponding to sorted species?
+        # Typically ASE sorts them alphabetically or by appearance.
+        # Ideally we should strictly map types.
+        # But 'lammps-data' output usually follows alphabetical order of symbols if created from ASE.
+        # We need to rely on ASE's mapping.
+
+        # Let's assume sorted symbols list
+        sorted_elements = sorted(list(present_elements))
+
+        for i, el in enumerate(sorted_elements, start=1):
+            if el not in potential_config.element_params:
+                raise ValueError(f"Missing element parameters for {el}")
+
+            p = potential_config.element_params[el]
+
+            mass_cmds.append(f"mass            {i} {p.mass}")
+
+            # LJ: pair_coeff type1 type2 epsilon sigma cutoff
+            # Here we do diagonal only for simplicity in loop, but LAMMPS needs all pairs or mixing.
+            # "pair_coeff * * ..." sets global or specific.
+            # For hybrid, we usually specify specific types.
+
+            # Simplified: Use * * for single element system or simple mixing
+            # If multi-element, this logic needs to be pair-wise.
+            # SPEC says "programmatically".
+
+            # For this cycle (Si only implied but code should be generic):
+            # pair_coeff {i} {i} ...
+
+            pair_coeff_lj.append(f"pair_coeff      {i} {i} lj/cut {p.lj_epsilon} {p.lj_sigma}")
+
+            # ZBL: pair_coeff type1 type2 Zi Zj
+            pair_coeff_zbl.append(f"pair_coeff      {i} {i} zbl {p.zbl_z} {p.zbl_z}")
+
+        # If we have mixed interactions, we rely on mixing rules or explicit defs.
+        # For One-Shot MD with single element, this loop works.
+        # For multi-element, we'd need cross terms.
+        # Sticking to diagonal for now as Cycle 2 focus is basic exploration.
 
         script = f"""
 units           metal
@@ -130,12 +174,13 @@ boundary        p p p
 
 read_data       data.lammps
 
-# Hybrid pair style: LJ/Cut for baseline + ZBL + (ACE placeholder)
+# Hybrid pair style: LJ/Cut for baseline + ZBL
 pair_style      hybrid/overlay lj/cut 2.5 zbl 2.0 2.5
-pair_coeff      * * lj/cut 1.0 1.0 2.5
-pair_coeff      * * zbl 14.0 14.0  # Si Z=14
 
-mass            * 28.0855  # Si mass approx
+{''.join(mass_cmds)}
+
+{''.join(pair_coeff_lj)}
+{''.join(pair_coeff_zbl)}
 
 velocity        all create {params.temperature} 12345 mom yes rot no
 

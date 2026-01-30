@@ -55,6 +55,12 @@ def test_from_yaml(tmp_path: Path) -> None:
       elements: ["Cu"]
       cutoff: 3.0
       seed: 123
+      element_params:
+        Cu:
+            mass: 63.546
+            lj_sigma: 2.338
+            lj_epsilon: 0.167
+            zbl_z: 29
     logging:
       level: "DEBUG"
     lammps:
@@ -73,6 +79,7 @@ def test_from_yaml(tmp_path: Path) -> None:
 
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
+    assert c.potential.element_params["Cu"].zbl_z == 29
     assert c.logging.level == "DEBUG"
     assert c.lammps.cores == 4
     assert c.lammps.timeout == 600

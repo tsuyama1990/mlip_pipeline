@@ -31,7 +31,15 @@ def init_project(path: Path) -> None:
         "potential": {
             "elements": DEFAULT_ELEMENTS,
             "cutoff": DEFAULT_CUTOFF,
-            "seed": DEFAULT_SEED
+            "seed": DEFAULT_SEED,
+            "element_params": {
+                "Si": {
+                    "mass": 28.0855,
+                    "lj_sigma": 1.0,
+                    "lj_epsilon": 1.0,
+                    "zbl_z": 14
+                }
+            }
         },
         "logging": {
             "level": DEFAULT_LOG_LEVEL,

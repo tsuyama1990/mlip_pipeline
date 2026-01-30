@@ -8,7 +8,7 @@ from pathlib import Path
 # Ensure src is in path
 sys.path.append(str(Path.cwd() / "src"))
 
-from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig, MDParams
+from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig, MDParams, ElementParams
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 
@@ -21,7 +21,11 @@ def uat_02_02_missing_executable() -> bool:
 
     config = Config(
         project_name="UAT_Missing",
-        potential=PotentialConfig(elements=["Si"], cutoff=2.0),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=2.0,
+            element_params={"Si": ElementParams(mass=28.085, lj_sigma=1, lj_epsilon=1, zbl_z=14)}
+        ),
         structure_gen=ExplorationConfig(composition="Si"),
         lammps=LammpsConfig(command="/path/to/nonexistent/lmp")
     )
@@ -72,7 +76,11 @@ EOF
 
     config = Config(
         project_name="UAT_Mocked",
-        potential=PotentialConfig(elements=["Si"], cutoff=2.0),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=2.0,
+            element_params={"Si": ElementParams(mass=28.085, lj_sigma=1, lj_epsilon=1, zbl_z=14)}
+        ),
         structure_gen=ExplorationConfig(
             composition="Si",
             md_params=MDParams(temperature=300, n_steps=100)

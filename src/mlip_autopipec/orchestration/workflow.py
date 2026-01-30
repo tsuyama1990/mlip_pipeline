@@ -37,12 +37,13 @@ def run_one_shot(config: Config) -> JobResult:
     job_id = str(uuid.uuid4())[:8]
     work_dir = Path("_work_md") / f"job_{job_id}"
 
-    # Use config parameters instead of hardcoded ones
     params = config.structure_gen.md_params
 
     # 4. Execute
     logger.info(f"Launching MD Job {job_id}...")
-    result = runner.run(structure, params, work_dir)
+
+    # Pass potential config for physics parameters
+    result = runner.run(structure, params, config.potential, work_dir)
 
     logger.info(f"Job {job_id} finished with status {result.status}")
     return result

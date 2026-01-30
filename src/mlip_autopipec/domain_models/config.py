@@ -11,12 +11,23 @@ class LoggingConfig(BaseModel):
     file_path: Path = Path("mlip_pipeline.log")
 
 
+class ElementParams(BaseModel):
+    """Physical parameters for a specific chemical element."""
+    model_config = ConfigDict(extra="forbid")
+
+    mass: float
+    lj_sigma: float
+    lj_epsilon: float
+    zbl_z: int
+
+
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     elements: list[str]
     cutoff: float
     seed: int = 42
+    element_params: dict[str, ElementParams] = Field(default_factory=dict)
 
     @field_validator("cutoff")
     @classmethod
