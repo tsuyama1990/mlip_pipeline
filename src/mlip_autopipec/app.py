@@ -44,5 +44,30 @@ def run_one_shot(
     commands.run_cycle_02_cmd(config_path)
 
 
+@app.command(name="run")
+def run(
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+) -> None:
+    """
+    Execute the Full Active Learning Loop (Generate -> MD -> Detect -> Select -> DFT -> Train).
+    """
+    commands.run_pipeline_cmd(config_path)
+
+
+@app.command(name="train")
+def train(
+    dataset_path: Path = typer.Option(..., "--dataset", "-d", help="Path to dataset file (.pckl.gzip)"),
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+) -> None:
+    """
+    Execute Offline Training on an existing dataset.
+    """
+    commands.train_cmd(config_path, dataset_path)
+
+
 if __name__ == "__main__":
     app()
