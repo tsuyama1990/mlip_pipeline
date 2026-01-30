@@ -5,11 +5,14 @@ from mlip_autopipec.domain_models.config import (
     MDParams,
     PotentialConfig,
 )
+from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult
 from mlip_autopipec.domain_models.job import JobResult, JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 
 __all__ = [
     "Config",
+    "DFTConfig",
+    "DFTResult",
     "LoggingConfig",
     "PotentialConfig",
     "LammpsConfig",

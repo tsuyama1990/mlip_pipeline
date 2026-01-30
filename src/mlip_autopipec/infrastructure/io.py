@@ -34,6 +34,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
     return data
 
+
 def dump_yaml(data: dict[str, Any], path: Path) -> None:
     """
     Dump data to a YAML file.
