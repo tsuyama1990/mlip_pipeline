@@ -35,16 +35,8 @@ def run_one_shot(config: Config) -> JobResult:
     logger.info("Running MD simulation...")
     runner = LammpsRunner(config.lammps)
 
-    # Use defaults or allow Config to override if we added fields to Config
-    # Creating params
-    params = MDParams(
-        temperature=300.0,
-        n_steps=1000,
-        timestep=0.001
-    )
-
     # Pass potential config to runner
-    result = runner.run(structure, params, config.potential)
+    result = runner.run(structure, config.md_params, config.potential)
 
     # 3. Report
     logger.info(f"Job {result.job_id} finished with status {result.status.value}")

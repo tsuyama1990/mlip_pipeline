@@ -32,7 +32,10 @@ def silicon_structure(sample_ase_atoms):
 
 
 def test_write_inputs(lammps_config, silicon_structure, md_params, potential_config, tmp_path):
-    runner = LammpsRunner(lammps_config, base_work_dir=tmp_path)
+    runner = LammpsRunner(lammps_config)
+    # Override base_work_dir for test (although config has default, we want tmp_path)
+    runner.base_work_dir = tmp_path
+
     work_dir = tmp_path / "job_01"
     work_dir.mkdir()
 
@@ -52,12 +55,12 @@ def test_write_inputs(lammps_config, silicon_structure, md_params, potential_con
 
 
 @patch("mlip_autopipec.infrastructure.io.run_subprocess")
-@patch("ase.io.read")
-def test_run_success(mock_read, mock_run, lammps_config, silicon_structure, md_params, potential_config, tmp_path):
-    # Mock reading the output trajectory
+@patch("ase.io.iread")
+def test_run_success(mock_iread, mock_run, lammps_config, silicon_structure, md_params, potential_config, tmp_path):
+    # Mock reading the output trajectory - use iterator
     mock_atoms = silicon_structure.to_ase()
     mock_atoms.positions += 0.1  # Shift positions to simulate movement
-    mock_read.return_value = mock_atoms # When index=-1 is used
+    mock_iread.return_value = iter([mock_atoms]) # iterator with one frame
 
     # We need to simulate the file creation that LAMMPS would do
     def mock_subprocess_execution(cmd, cwd, timeout, env):
@@ -68,7 +71,8 @@ def test_run_success(mock_read, mock_run, lammps_config, silicon_structure, md_p
 
     mock_run.side_effect = mock_subprocess_execution
 
-    runner = LammpsRunner(lammps_config, base_work_dir=tmp_path)
+    runner = LammpsRunner(lammps_config)
+    runner.base_work_dir = tmp_path
 
     result = runner.run(silicon_structure, md_params, potential_config)
 
@@ -83,7 +87,8 @@ def test_run_success(mock_read, mock_run, lammps_config, silicon_structure, md_p
 def test_run_failed(mock_run, lammps_config, silicon_structure, md_params, potential_config, tmp_path):
     mock_run.return_value = (1, "Error", "Segfault")
 
-    runner = LammpsRunner(lammps_config, base_work_dir=tmp_path)
+    runner = LammpsRunner(lammps_config)
+    runner.base_work_dir = tmp_path
     result = runner.run(silicon_structure, md_params, potential_config)
 
     assert result.status == JobStatus.FAILED

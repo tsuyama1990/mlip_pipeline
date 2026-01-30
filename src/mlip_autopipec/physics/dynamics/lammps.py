@@ -21,9 +21,10 @@ class LammpsRunner:
     Executes LAMMPS simulations.
     """
 
-    def __init__(self, config: LammpsConfig, base_work_dir: Path = Path("_work_md")):
+    def __init__(self, config: LammpsConfig):
         self.config = config
-        self.base_work_dir = base_work_dir
+        # Use configured base_work_dir
+        self.base_work_dir = config.base_work_dir
 
     def run(self, structure: Structure, params: MDParams, potential_config: PotentialConfig) -> LammpsResult:
         """
@@ -154,11 +155,14 @@ run             {params.n_steps}
         if not dump_file.exists():
             raise FileNotFoundError(f"Dump file not found at {dump_file}")
 
-        # Read last frame
-        atoms = ase.io.read(dump_file, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Read last frame safely without loading full trajectory into memory
+        # iread returns an iterator. We loop to the end.
+        atoms = None
+        for frame in ase.io.iread(dump_file, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+            atoms = frame
 
-        if isinstance(atoms, list):
-             atoms = atoms[-1]
+        if atoms is None:
+             raise ValueError("Trajectory file contained no frames")
 
         structure = Structure.from_ase(atoms) # type: ignore[arg-type]
 

@@ -58,6 +58,7 @@ class LammpsConfig(BaseModel):
     command: str = "lmp_serial"
     cores: int = 1
     timeout: float = 3600.0
+    base_work_dir: Path = Path("_work_md")
 
 
 class Config(BaseModel):
@@ -68,6 +69,7 @@ class Config(BaseModel):
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
+    md_params: MDParams = Field(default_factory=MDParams)
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

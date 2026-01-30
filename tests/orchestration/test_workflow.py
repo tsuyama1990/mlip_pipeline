@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 
 from mlip_autopipec.orchestration.workflow import run_one_shot
-from mlip_autopipec.domain_models.config import Config, PotentialConfig, LammpsConfig
+from mlip_autopipec.domain_models.config import Config, PotentialConfig, LammpsConfig, MDParams
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -17,7 +17,8 @@ def valid_config():
             lattice_constant=5.43,
             crystal_structure="diamond"
         ),
-        lammps=LammpsConfig(command="echo", cores=1)
+        lammps=LammpsConfig(command="echo", cores=1),
+        md_params=MDParams(temperature=500.0, n_steps=500)
     )
 
 
@@ -48,9 +49,13 @@ def test_run_one_shot_success(MockRunner, MockBuilder, valid_config, sample_ase_
     mock_builder_instance.build_bulk.assert_called_with("Si", "diamond", 5.43)
     mock_builder_instance.apply_rattle.assert_called()
 
-    # Check that run is called with potential config
+    # Check that run is called with potential config and md_params
     mock_runner_instance.run.assert_called()
     args, _ = mock_runner_instance.run.call_args
-    assert args[2] == valid_config.potential # 3rd arg is potential_config
+    # 2nd arg is MDParams
+    assert args[1].temperature == 500.0
+    assert args[1].n_steps == 500
+    # 3rd arg is potential_config
+    assert args[2] == valid_config.potential
 
     assert result.status == JobStatus.COMPLETED
