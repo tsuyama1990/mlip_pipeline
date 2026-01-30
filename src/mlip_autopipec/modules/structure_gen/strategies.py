@@ -1,5 +1,4 @@
 import ase.build
-import numpy as np
 from mlip_autopipec.domain_models.config import StructureGenConfig
 from mlip_autopipec.domain_models.structure import Structure
 

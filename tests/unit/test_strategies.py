@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from mlip_autopipec.domain_models.config import StructureGenConfig
 from mlip_autopipec.domain_models.structure import Structure
