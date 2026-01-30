@@ -55,6 +55,14 @@ def init_project(path: Path) -> None:
             "command": "lmp_serial",
             "timeout": 3600,
             "use_mpi": False
+        },
+        "dft": {
+            "command": "pw.x",
+            "pseudopotentials": {
+                 "Si": "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+            },
+            "ecutwfc": 40.0,
+            "kspacing": 0.04
         }
     }
 
