@@ -12,5 +12,8 @@ class StructureGenFactory:
     def get_generator(config: StructureGenConfig) -> StructureGenerator:
         if config.strategy == "bulk":
             return BulkStructureGenerator()
+        if config.strategy == "surface":
+            raise NotImplementedError("Surface generation strategy is not yet implemented.")
+
         msg = f"Unknown structure generation strategy: {config.strategy}"
         raise ValueError(msg)

@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Literal, cast
 
 import typer
 
@@ -11,7 +12,13 @@ from mlip_autopipec.constants import (
     DEFAULT_PROJECT_NAME,
     DEFAULT_SEED,
 )
-from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.config import (
+    BulkStructureGenConfig,
+    Config,
+    LoggingConfig,
+    PotentialConfig,
+)
+from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
@@ -26,33 +33,41 @@ def init_project(path: Path) -> None:
         typer.secho(f"File {path} already exists.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-    template = {
-        "project_name": DEFAULT_PROJECT_NAME,
-        "logging": {"level": DEFAULT_LOG_LEVEL, "file_path": DEFAULT_LOG_FILENAME},
-        "potential": {
-            "elements": DEFAULT_ELEMENTS,
-            "cutoff": DEFAULT_CUTOFF,
-            "seed": DEFAULT_SEED,
-        },
-        "structure_gen": {
-            "strategy": "bulk",
-            "element": "Si",
-            "crystal_structure": "diamond",
-            "lattice_constant": 5.43,
-            "rattle_stdev": 0.1,
-            "supercell": [1, 1, 1],
-        },
-        "md": {
-            "temperature": 300.0,
-            "n_steps": 1000,
-            "timestep": 0.001,
-            "ensemble": "NVT",
-        },
-        "lammps": {"command": "lmp_serial", "timeout": 3600, "use_mpi": False},
-    }
+    # Cast log level to Literal
+    log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
+
+    # Create default configuration using Pydantic models
+    # This ensures consistency with the schema and leverages defaults
+    config = Config(
+        project_name=DEFAULT_PROJECT_NAME,
+        logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
+        potential=PotentialConfig(
+            elements=DEFAULT_ELEMENTS,
+            cutoff=DEFAULT_CUTOFF,
+            seed=DEFAULT_SEED,
+        ),
+        structure_gen=BulkStructureGenConfig(
+            strategy="bulk",
+            element="Si",
+            crystal_structure="diamond",
+            lattice_constant=5.43,
+            rattle_stdev=0.1,
+            supercell=(1, 1, 1),
+        ),
+        md=MDConfig(
+            temperature=300.0,
+            n_steps=1000,
+            timestep=0.001,
+            ensemble="NVT",
+        ),
+    )
 
     try:
-        io.dump_yaml(template, path)
+        # Dump to YAML (using mode='json' to handle Paths, then to YAML)
+        # Note: io.dump_yaml handles dicts. We convert model to dict.
+        # We use exclude_none=True to avoid cluttering with optional None fields
+        data = config.model_dump(mode="json", exclude_none=True)
+        io.dump_yaml(data, path)
         typer.secho(f"Created template configuration at {path}", fg=typer.colors.GREEN)
     except Exception as e:
         typer.secho(f"Failed to create config: {e}", fg=typer.colors.RED)
@@ -99,11 +114,11 @@ def run_cycle_02_cmd(config_path: Path) -> None:
                 fg=typer.colors.GREEN,
             )
 
-            # Check for specific result attributes (LammpsResult)
-            if hasattr(result, "trajectory_path"):
+            # Check for specific result attributes
+            if isinstance(result, LammpsResult):
                 logging.getLogger("mlip_autopipec").info(
                     f"Trajectory saved to: {result.trajectory_path}"
-                )  # type: ignore[attr-defined]
+                )
 
             logging.getLogger("mlip_autopipec").info(
                 f"Duration: {result.duration_seconds:.2f}s"

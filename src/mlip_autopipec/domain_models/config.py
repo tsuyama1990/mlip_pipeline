@@ -1,9 +1,11 @@
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.domain_models.calculation import DFTConfig
+from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
+from mlip_autopipec.domain_models.training import TrainingConfig
 
 
 class LoggingConfig(BaseModel):
@@ -30,41 +32,15 @@ class PotentialConfig(BaseModel):
 
 
 class OrchestratorConfig(BaseModel):
-    """Placeholder for Orchestrator configuration."""
+    """Configuration for the Orchestrator (Active Learning Loop)."""
 
     model_config = ConfigDict(extra="forbid")
-    # No fields defined in Cycle 01 spec yet, allowing empty or defaults if needed later.
+    max_iterations: int = 1
+    uncertainty_threshold: float = 5.0
 
 
-class LammpsConfig(BaseModel):
-    """Configuration for the LAMMPS executable and runtime environment."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    command: str = "lmp_serial"
-    timeout: int = 3600
-    use_mpi: bool = False
-    mpi_command: str = "mpirun -np 4"
-
-
-class MDConfig(BaseModel):
-    """Configuration for MD simulation parameters."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    temperature: float
-    pressure: Optional[float] = None
-    n_steps: int
-    timestep: float = 0.001
-    ensemble: Literal["NVT", "NPT"]
-
-
-# Alias for backward compatibility if needed, though we should update usages
-MDParams = MDConfig
-
-
-class StructureGenConfig(BaseModel):
-    """Configuration for structure generation."""
+class BulkStructureGenConfig(BaseModel):
+    """Configuration for bulk structure generation."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -76,12 +52,20 @@ class StructureGenConfig(BaseModel):
     supercell: tuple[int, int, int] = (1, 1, 1)
 
 
-class TrainingConfig(BaseModel):
-    """Placeholder for Training Configuration (Cycle 04)."""
+class SurfaceStructureGenConfig(BaseModel):
+    """Configuration for surface structure generation (Placeholder)."""
 
     model_config = ConfigDict(extra="forbid")
-    initial_potential: Optional[Path] = None
-    # Additional fields to be added in Cycle 04
+
+    strategy: Literal["surface"] = "surface"
+    element: str
+    facet: tuple[int, int, int]
+    layers: int
+    vacuum: float
+
+
+# Union of all structure generation configs
+StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
 
 
 class Config(BaseModel):
@@ -94,10 +78,10 @@ class Config(BaseModel):
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
 
     # New configurations
-    structure_gen: StructureGenConfig
+    structure_gen: StructureGenConfig = Field(discriminator="strategy")
     md: MDConfig
 
-    # Optional placeholders for future cycles
+    # Optional components
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
 

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from mlip_autopipec.domain_models.config import StructureGenConfig
+from mlip_autopipec.domain_models.config import BulkStructureGenConfig
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 
@@ -31,7 +31,7 @@ def test_builder_rattle_validation_failure() -> None:
 
 
 def test_strategy_bulk_gen() -> None:
-    config = StructureGenConfig(
+    config = BulkStructureGenConfig(
         strategy="bulk",
         element="Si",
         crystal_structure="diamond",
@@ -39,6 +39,7 @@ def test_strategy_bulk_gen() -> None:
         rattle_stdev=0.0,
         supercell=(1, 1, 1),
     )
+    # Factory expects StructureGenConfig (Union), BulkStructureGenConfig is a valid member
     generator = StructureGenFactory.get_generator(config)
     struct = generator.generate(config)
 
@@ -47,7 +48,7 @@ def test_strategy_bulk_gen() -> None:
 
 
 def test_strategy_bulk_supercell_rattle() -> None:
-    config = StructureGenConfig(
+    config = BulkStructureGenConfig(
         strategy="bulk",
         element="Cu",
         crystal_structure="fcc",

@@ -5,8 +5,8 @@ from ase.build import bulk
 import subprocess
 
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.domain_models.calculation import DFTConfig, DFTError
-from mlip_autopipec.domain_models.job import JobStatus, JobResult
+from mlip_autopipec.domain_models.calculation import DFTConfig
+from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.physics.dft.qe_runner import QERunner
 
 SUCCESS_OUTPUT = """

@@ -5,9 +5,13 @@ from datetime import datetime
 from pathlib import Path
 
 import ase.io
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
-from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
-from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.domain_models import (
+    JobStatus,
+    LammpsConfig,
+    LammpsResult,
+    MDParams,
+    Structure,
+)
 
 
 class LammpsRunner:
