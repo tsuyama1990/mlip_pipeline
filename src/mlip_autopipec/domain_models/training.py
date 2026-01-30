@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.domain_models.job import JobResult
 
@@ -13,6 +13,9 @@ class TrainingConfig(BaseModel):
     initial_potential: Optional[Path] = None
     active_set_optimization: bool = True
     max_epochs: int = 100
+    batch_size: int = 10
+    ladder_step: list[int] = Field(default_factory=lambda: [100, 10])
+    kappa: float = 0.6
 
 
 class TrainingResult(JobResult):

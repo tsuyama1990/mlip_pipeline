@@ -20,9 +20,11 @@ from mlip_autopipec.domain_models.config import (
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.training import TrainingConfig
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 
 
 def init_project(path: Path) -> None:
@@ -60,6 +62,12 @@ def init_project(path: Path) -> None:
             timestep=0.001,
             ensemble="NVT",
         ),
+        # Default training config
+        training=TrainingConfig(
+            max_epochs=100,
+            batch_size=10,
+            kappa=0.6,
+        )
     )
 
     try:
@@ -133,4 +141,56 @@ def run_cycle_02_cmd(config_path: Path) -> None:
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def train_model_cmd(config_path: Path, dataset_path: Path) -> None:
+    """
+    Logic for running Pacemaker training.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not dataset_path.exists():
+        typer.secho(f"Dataset file {dataset_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        if config.training is None:
+             typer.secho("Training configuration not found in config.", fg=typer.colors.RED)
+             raise typer.Exit(code=1)
+
+        work_dir = config_path.parent / "training_work"
+
+        # Pass potential config as well
+        runner = PacemakerRunner(config.training, config.potential, work_dir)
+
+        # active set selection
+        if config.training.active_set_optimization:
+            logging.getLogger("mlip_autopipec").info("Selecting active set...")
+            try:
+                dataset_path = runner.select_active_set(dataset_path)
+            except Exception as e:
+                logging.getLogger("mlip_autopipec").warning(f"Active set selection failed: {e}. Using full dataset.")
+
+        logging.getLogger("mlip_autopipec").info("Starting training...")
+        result = runner.train(dataset_path)
+
+        if result.status == JobStatus.COMPLETED:
+            typer.secho("Training Completed successfully.", fg=typer.colors.GREEN)
+            if result.potential_path:
+                logging.getLogger("mlip_autopipec").info(f"Potential saved to: {result.potential_path}")
+            logging.getLogger("mlip_autopipec").info(f"Metrics: {result.validation_metrics}")
+        else:
+            typer.secho("Training Failed.", fg=typer.colors.RED)
+            logging.getLogger("mlip_autopipec").error(f"Log tail: {result.log_content}")
+            raise typer.Exit(code=1)
+
+    except Exception as e:
+        typer.secho(f"Training execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Training execution failed")
         raise typer.Exit(code=1) from e

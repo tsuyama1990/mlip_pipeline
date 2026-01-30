@@ -18,6 +18,7 @@ class Structure(BaseModel):
     cell: np.ndarray
     pbc: tuple[bool, bool, bool]
     properties: dict[str, Any] = Field(default_factory=dict)
+    arrays: dict[str, np.ndarray] = Field(default_factory=dict)
 
     @field_validator("positions")
     @classmethod
@@ -43,28 +44,44 @@ class Structure(BaseModel):
                 f"number of positions ({len(self.positions)})"
             )
             raise ValueError(msg)
+        # Validate arrays length
+        for key, arr in self.arrays.items():
+            if len(arr) != len(self.positions):
+                 msg = f"Array {key} has length {len(arr)}, expected {len(self.positions)}"
+                 raise ValueError(msg)
         return self
 
     @classmethod
     def from_ase(cls, atoms: ase.Atoms) -> "Structure":
         """Factory method to create a Structure from an ASE Atoms object."""
+        # Extract arrays (excluding positions/numbers which are handled by symbols/positions)
+        # atoms.arrays contains 'positions', 'numbers', and others like 'forces'.
+        arrays = {}
+        for key, val in atoms.arrays.items():
+            if key not in ["positions", "numbers", "species", "type"]:
+                arrays[key] = np.array(val)
+
         return cls(
             symbols=atoms.get_chemical_symbols(),  # type: ignore[no-untyped-call]
             positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
             cell=atoms.get_cell().array,  # type: ignore[no-untyped-call]
             pbc=tuple(atoms.get_pbc()),  # type: ignore[no-untyped-call]
             properties=atoms.info.copy(),
+            arrays=arrays,
         )
 
     def to_ase(self) -> ase.Atoms:
         """Convert to ASE Atoms object."""
-        return ase.Atoms(
+        atoms = ase.Atoms(
             symbols=self.symbols,
             positions=self.positions,
             cell=self.cell,
             pbc=self.pbc,
             info=self.properties.copy(),
         )
+        for key, val in self.arrays.items():
+            atoms.set_array(key, val) # type: ignore[no-untyped-call]
+        return atoms
 
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
