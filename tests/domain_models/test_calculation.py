@@ -13,7 +13,7 @@ from mlip_autopipec.domain_models.calculation import (
 
 def test_dft_config_defaults():
     config = DFTConfig(
-        command="pw.x",
+        command=["pw.x"],
         pseudopotentials={"Si": Path("Si.upf")},
         ecutwfc=30.0,
         kspacing=0.05,

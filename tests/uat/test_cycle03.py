@@ -1,10 +1,10 @@
 import pytest
 import numpy as np
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult, SCFError
+from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult
 from mlip_autopipec.physics.dft.qe_runner import QERunner
 
 # Define mocked outputs
@@ -41,7 +41,7 @@ def si_structure():
 @pytest.fixture
 def dft_config():
     return DFTConfig(
-        command="mock_pw.x",
+        command=["mock_pw.x"],
         pseudopotentials={"Si": Path("Si.upf")},
         ecutwfc=30.0,
         kspacing=0.04,
@@ -85,7 +85,7 @@ def test_uat_c03_02_self_healing(si_structure, dft_config):
     side_effects_read = [MOCK_FAILURE_OUTPUT, MOCK_SUCCESS_OUTPUT]
 
     with patch("subprocess.run") as mock_run, \
-         patch("pathlib.Path.read_text", side_effect=side_effects_read) as mock_read:
+         patch("pathlib.Path.read_text", side_effect=side_effects_read):
 
         mock_run.return_value = MagicMock(returncode=0) # QE often exits 0 even on SCF fail, or non-zero.
 

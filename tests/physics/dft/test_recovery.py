@@ -1,7 +1,6 @@
 import pytest
-from pathlib import Path
 from mlip_autopipec.physics.dft.recovery import RecoveryHandler
-from mlip_autopipec.domain_models.calculation import RecoveryConfig, SCFError, DFTConfig, DFTResult
+from mlip_autopipec.domain_models.calculation import RecoveryConfig, SCFError, DFTConfig
 
 def test_recovery_strategy_selection():
     config = RecoveryConfig(
@@ -13,7 +12,7 @@ def test_recovery_strategy_selection():
         }
     )
     dft_config = DFTConfig(
-        command="pw.x",
+        command=["pw.x"],
         pseudopotentials={},
         recovery=config
     )

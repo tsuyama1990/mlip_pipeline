@@ -9,8 +9,16 @@ from mlip_autopipec.app import app
 
 runner = CliRunner()
 
-def setup_config(path: Path, lammps_cmd: str = "echo"):
+def setup_config(path: Path, lammps_cmd: str | list[str] = "echo"):
     """Helper to create a valid config."""
+    # Handle list or string for command
+    import json
+    if isinstance(lammps_cmd, list):
+        cmd_str = json.dumps(lammps_cmd) # YAML handles JSON syntax for lists
+    else:
+        # If it's a string, we need to wrap it in list syntax for YAML [ "cmd" ]
+        cmd_str = f'["{lammps_cmd}"]'
+
     config_content = f"""
 project_name: "UAT_Project"
 potential:
@@ -27,7 +35,7 @@ md:
   timestep: 0.001
   ensemble: "NVT"
 lammps:
-  command: "{lammps_cmd}"
+  command: {cmd_str}
   timeout: 10
   use_mpi: false
 """
@@ -38,7 +46,7 @@ def test_uat_c02_01_one_shot_success(tmp_path):
     Scenario 2.1: The "One-Shot" MD Run
     """
     with runner.isolated_filesystem(temp_dir=tmp_path) as td:
-        setup_config(Path(td), lammps_cmd="echo 'Simulation Done'")
+        setup_config(Path(td), lammps_cmd=["echo", "Simulation Done"])
 
         # We need to mock the LammpsRunner execution if we don't have a real LAMMPS
         # Since 'echo' won't produce a dump file, LammpsRunner would fail parsing.
@@ -75,7 +83,7 @@ def test_uat_c02_02_missing_executable(tmp_path):
     Scenario 2.2: Missing Executable Handling
     """
     with runner.isolated_filesystem(temp_dir=tmp_path) as td:
-        setup_config(Path(td), lammps_cmd="/path/to/nothing")
+        setup_config(Path(td), lammps_cmd=["/path/to/nothing"])
 
         # Here we don't mock, we want it to fail naturally finding the executable
         # BUT shutil.which might check existence.

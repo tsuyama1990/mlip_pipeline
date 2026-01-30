@@ -17,7 +17,7 @@ def si_structure():
 @pytest.fixture
 def dft_config():
     return DFTConfig(
-        command="pw.x",
+        command=["pw.x"],
         pseudopotentials={"Si": Path("Si.upf")},
         ecutwfc=30.0,
         kspacing=0.04,

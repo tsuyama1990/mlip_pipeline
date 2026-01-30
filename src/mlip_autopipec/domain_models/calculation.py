@@ -50,7 +50,7 @@ class DFTConfig(BaseModel):
     """Configuration for DFT calculations (Quantum Espresso)."""
     model_config = ConfigDict(extra="forbid")
 
-    command: str = "pw.x"
+    command: list[str] = Field(default_factory=lambda: ["pw.x"])
     pseudopotentials: dict[str, Path]
     ecutwfc: float = 40.0
     kspacing: float = 0.04

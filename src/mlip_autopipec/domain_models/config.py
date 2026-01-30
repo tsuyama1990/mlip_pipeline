@@ -39,10 +39,10 @@ class LammpsConfig(BaseModel):
     """Configuration for the LAMMPS executable and runtime environment."""
     model_config = ConfigDict(extra="forbid")
 
-    command: str = "lmp_serial"
+    command: list[str] = Field(default_factory=lambda: ["lmp_serial"])
     timeout: int = 3600
     use_mpi: bool = False
-    mpi_command: str = "mpirun -np 4"
+    mpi_command: list[str] = Field(default_factory=lambda: ["mpirun", "-np", "4"])
 
 
 class MDConfig(BaseModel):

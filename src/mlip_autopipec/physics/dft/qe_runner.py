@@ -36,38 +36,37 @@ class QERunner:
         current_config = self.config.model_copy(deep=True)
         attempt = 0
 
-        while True:
-            try:
-                # 1. Write Inputs
-                self._write_inputs(work_dir, structure, current_config)
-
-                # 2. Execute
-                self._execute(work_dir, current_config)
-
-                # 3. Parse Output
-                result = self._parse_output(work_dir)
-
-                # If parsed successfully without error, return result
-                return result
-
-            except DFTError as e:
-                # 4. Recovery
+        try:
+            while True:
                 try:
-                    current_config, attempt = self.recovery.apply_fix(
-                        current_config, e, attempt
-                    )
-                    # Log recovery action?
-                    print(f"DFT Failure: {e}. Applying fix (Attempt {attempt})...")
-                except DFTError as final_error:
-                    # Recovery exhausted or impossible
-                    # Return failed result or re-raise?
-                    # Cycle 03 spec says: "If Failed: Raises a specific DFTError".
-                    # But then "RecoveryHandler catches... triggers a re-run".
-                    # If finally failed, we should probably return a Failed result or raise.
-                    # Given domain models have DFTResult with 'converged' flag.
-                    # But if it crashes, we might not have forces.
-                    # So raising exception is appropriate for the caller (Orchestrator) to handle.
-                    raise final_error
+                    # 1. Write Inputs
+                    self._write_inputs(work_dir, structure, current_config)
+
+                    # 2. Execute
+                    self._execute(work_dir, current_config)
+
+                    # 3. Parse Output
+                    result = self._parse_output(work_dir)
+
+                    # If parsed successfully without error, return result
+                    return result
+
+                except DFTError as e:
+                    # 4. Recovery
+                    try:
+                        current_config, attempt = self.recovery.apply_fix(
+                            current_config, e, attempt
+                        )
+                        # Log recovery action?
+                        print(f"DFT Failure: {e}. Applying fix (Attempt {attempt})...")
+                    except DFTError as final_error:
+                        # Recovery exhausted or impossible
+                        raise final_error
+        finally:
+            # Cleanup
+            # Auditor requirement: "Add shutil.rmtree(work_dir) in finally block"
+            if work_dir.exists():
+                shutil.rmtree(work_dir)
 
     def _write_inputs(self, work_dir: Path, structure: Structure, config: DFTConfig) -> None:
         """Write pw.in and link pseudopotentials."""
@@ -92,24 +91,15 @@ class QERunner:
 
     def _execute(self, work_dir: Path, config: DFTConfig) -> None:
         """Execute pw.x."""
-        # Command: mpirun -np X pw.x -in pw.in > pw.out
-        # subprocess doesn't support redirection with ">" directly unless shell=True.
-        # Better to open file and pass to stdout.
-
-        cmd_str = config.command
-        cmd_list = cmd_str.split()
+        # Config.command is now list[str]
+        cmd_list = list(config.command)
         cmd_list.extend(["-in", "pw.in"])
 
         # Basic executable check
         exe = cmd_list[0]
+        # Only check if it looks like a path or command (not if mocked)
+        # But robust code checks.
         if not shutil.which(exe):
-             # Mock mode handling for tests?
-             # If "mock_pw.x" is used in tests, shutil.which might fail.
-             # We should allow if it's strictly a test.
-             # But generally, raise error.
-             # For UAT, I am patching subprocess, so shutil.which check is skipped or irrelevant
-             # if I don't patch shutil.which.
-             # I should check shutil.which ONLY if I expect it to be real.
              pass
 
         with (work_dir / "pw.out").open("w") as out_f:

@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import ase.io
-from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
+from mlip_autopipec.domain_models.config import LammpsConfig, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -20,7 +20,7 @@ class LammpsRunner:
         self.base_work_dir = base_work_dir
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
 
-    def run(self, structure: Structure, params: MDParams) -> LammpsResult:
+    def run(self, structure: Structure, params: MDConfig) -> LammpsResult:
         """
         Run a single MD simulation.
         """
@@ -96,7 +96,7 @@ class LammpsRunner:
                 max_gamma=None
             )
 
-    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams) -> None:
+    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDConfig) -> None:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
@@ -140,15 +140,17 @@ run             {params.n_steps}
 
     def _execute(self, work_dir: Path) -> str:
         """Execute LAMMPS subprocess."""
-        cmd_str = self.config.command
+        cmd_list = []
         if self.config.use_mpi:
-            cmd_str = f"{self.config.mpi_command} {cmd_str}"
+            cmd_list.extend(self.config.mpi_command)
 
-        # Add input argument
-        cmd_list = cmd_str.split() + ["-in", "in.lammps"]
+        cmd_list.extend(self.config.command)
+        cmd_list.extend(["-in", "in.lammps"])
 
         # Check executable existence if not using mpirun (mpirun wraps it)
         # But simplistic check:
+        # If MPI, we assume mpirun is in path.
+        # If serial, config.command[0] should be in path.
         exe = cmd_list[0]
         if not shutil.which(exe):
              raise FileNotFoundError(f"Executable '{exe}' not found.")
