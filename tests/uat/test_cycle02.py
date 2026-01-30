@@ -16,6 +16,16 @@ project_name: "UAT_Project"
 potential:
   elements: ["Si"]
   cutoff: 5.0
+structure_gen:
+  strategy: "bulk"
+  element: "Si"
+  crystal_structure: "diamond"
+  lattice_constant: 5.43
+md:
+  temperature: 300.0
+  n_steps: 10
+  timestep: 0.001
+  ensemble: "NVT"
 lammps:
   command: "{lammps_cmd}"
   timeout: 10
@@ -57,7 +67,8 @@ def test_uat_c02_01_one_shot_success(tmp_path):
 
             assert result.exit_code == 0
             assert "Simulation Completed: Status COMPLETED" in result.stdout
-            assert Path("_work_md").exists() or Path("_work").exists()
+            # Because LammpsRunner creates random dir, just check for existence of base work dir
+            assert Path("_work_md").exists()
 
 def test_uat_c02_02_missing_executable(tmp_path):
     """
