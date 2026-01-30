@@ -48,7 +48,7 @@ class LammpsRunner:
                 duration_seconds=duration,
                 log_content=log_content,
                 final_structure=final_structure,
-                trajectory_path=trajectory_path
+                trajectory_path=trajectory_path,
             )
 
         except subprocess.TimeoutExpired:
@@ -58,9 +58,9 @@ class LammpsRunner:
                 work_dir=work_dir,
                 duration_seconds=self.config.timeout,
                 log_content="Timeout Expired",
-                final_structure=structure, # Return initial as fallback
+                final_structure=structure,  # Return initial as fallback
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
             log_file = work_dir / "log.lammps"
@@ -78,7 +78,7 @@ class LammpsRunner:
                 log_content=log_content,
                 final_structure=structure,
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
         except Exception as e:
             # Try to read log if it exists
@@ -93,14 +93,16 @@ class LammpsRunner:
                 log_content=log_content,
                 final_structure=structure,
                 trajectory_path=work_dir / "dump.lammpstrj",
-                max_gamma=None
+                max_gamma=None,
             )
 
-    def _write_inputs(self, work_dir: Path, structure: Structure, params: MDParams) -> None:
+    def _write_inputs(
+        self, work_dir: Path, structure: Structure, params: MDParams
+    ) -> None:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
-        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
+        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data")  # type: ignore[no-untyped-call]
 
         # Template for LJ (for Cycle 02 testing)
         # In real scenario, we would use a potential file. Here we use internal LJ.
@@ -151,7 +153,7 @@ run             {params.n_steps}
         # But simplistic check:
         exe = cmd_list[0]
         if not shutil.which(exe):
-             raise FileNotFoundError(f"Executable '{exe}' not found.")
+            raise FileNotFoundError(f"Executable '{exe}' not found.")
 
         result = subprocess.run(
             cmd_list,
@@ -159,28 +161,105 @@ run             {params.n_steps}
             capture_output=True,
             text=True,
             timeout=self.config.timeout,
-            check=True
+            check=True,
         )
 
         return result.stdout
 
-    def _parse_output(self, work_dir: Path, original_structure: Structure) -> tuple[Structure, Path]:
+    def _parse_output(
+        self, work_dir: Path, original_structure: Structure
+    ) -> tuple[Structure, Path]:
         """Parse trajectory and return final structure."""
         traj_path = work_dir / "dump.lammpstrj"
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
-        # Read last frame
-        # ase.io.read returns Atoms or list of Atoms. index=-1 returns single Atoms.
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Scalability optimization: Use seeking to read only the last frame.
+        # LAMMPS dump format usually ends with:
+        # ITEM: TIMESTEP
+        # ...
+        # ITEM: NUMBER OF ATOMS
+        # ...
+        # ITEM: BOX BOUNDS ...
+        # ...
+        # ITEM: ATOMS ...
+
+        # We need to find the last occurrence of "ITEM: TIMESTEP".
+        # We can read chunks from the end.
+
+        # Helper to get last frame content
+        last_frame_content = self._read_last_frame_optimized(traj_path)
+
+        # Parse content using string IO
+        from io import StringIO
+        # Use StringIO to feed ASE
+        with StringIO(last_frame_content) as f:
+             # Using 'lammps-dump-text' on string buffer
+             # ASE expects file-like object
+             atoms = ase.io.read(f, format="lammps-dump-text") # type: ignore[no-untyped-call]
 
         if isinstance(atoms, list):
-             # Should not happen with index=-1 but type guard
-             atoms = atoms[-1]
+            atoms = atoms[-1]
+
+        if atoms is None:
+             raise ValueError("Failed to parse last frame from trajectory")
 
         # Restore symbols from original structure
         # (Assuming atom order hasn't changed, which is true for standard MD)
         if len(atoms) == len(original_structure.symbols):
-            atoms.set_chemical_symbols(original_structure.symbols) # type: ignore[no-untyped-call]
+            atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
 
         return Structure.from_ase(atoms), traj_path
+
+    def _read_last_frame_optimized(self, filepath: Path, chunk_size: int = 1024 * 1024) -> str:
+        """
+        Reads the last frame from a LAMMPS dump file using backward seeking.
+        """
+        with open(filepath, "rb") as f:
+            f.seek(0, 2) # Seek to end
+            file_size = f.tell()
+
+            buffer = b""
+            # Loop backwards
+            for pos in range(file_size, -1, -chunk_size):
+                start = max(0, pos - chunk_size)
+                f.seek(start)
+                chunk = f.read(pos - start)
+                buffer = chunk + buffer
+
+                # Check for at least two "ITEM: TIMESTEP" if possible to identify boundaries,
+                # or just one if it's near the end.
+                # Actually, we need the last "ITEM: TIMESTEP".
+                # But "ITEM: TIMESTEP" might appear in the middle of the chunk.
+                # We want the LAST occurrence in the file.
+
+                # Search for marker
+                marker = b"ITEM: TIMESTEP"
+                count = buffer.count(marker)
+
+                if count >= 1:
+                     # Find index of the last marker
+                     idx = buffer.rfind(marker)
+
+                     # Check if we have the full frame.
+                     # A frame ends at the end of the file or next ITEM: TIMESTEP
+                     # Since we are reading from end, if we found the marker and we have the end of file, we likely have the frame.
+                     # However, to be safe, we might need to ensure we read enough bytes after the marker.
+                     # But buffer includes everything from marker to EOF (plus some prefix).
+
+                     # If count > 1, we definitely have the full last frame (between last marker and EOF).
+                     # If count == 1, and we haven't reached start of file, we *might* have the full frame if the chunk was big enough.
+                     # But if the frame is HUGE (bigger than chunk), we might need to keep reading back until we find the *previous* marker
+                     # to know where this one starts? No, we just need from "ITEM: TIMESTEP" to EOF.
+
+                     # We assume the last "ITEM: TIMESTEP" in the file starts the last frame.
+                     # So if we found it, we just take everything from there.
+
+                     return buffer[idx:].decode("utf-8", errors="replace")
+
+                if start == 0:
+                    break
+
+            # If we reached start and buffer has content but no marker (maybe file is small/malformed or single frame without marker?)
+            # Just return whole buffer
+            return buffer.decode("utf-8", errors="replace")

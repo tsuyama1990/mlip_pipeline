@@ -1,9 +1,11 @@
 import logging
 import ase.build
+import ase.neighborlist
 import numpy as np
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger("mlip_autopipec")
+
 
 class StructureBuilder:
     """
@@ -11,7 +13,9 @@ class StructureBuilder:
     Wraps ASE structure generation tools with strictly typed inputs/outputs.
     """
 
-    def build_bulk(self, element: str, crystal_structure: str, lattice_constant: float) -> Structure:
+    def build_bulk(
+        self, element: str, crystal_structure: str, lattice_constant: float
+    ) -> Structure:
         """
         Build a bulk crystal structure.
 
@@ -27,11 +31,13 @@ class StructureBuilder:
             name=element,
             crystalstructure=crystal_structure,
             a=lattice_constant,
-            cubic=True # Force cubic cell for simplicity in Cycle 02
+            cubic=True,  # Force cubic cell for simplicity in Cycle 02
         )
         return Structure.from_ase(atoms)
 
-    def apply_rattle(self, structure: Structure, stdev: float, seed: int = 42) -> Structure:
+    def apply_rattle(
+        self, structure: Structure, stdev: float, seed: int = 42
+    ) -> Structure:
         """
         Apply random thermal noise (rattle) to atomic positions.
 
@@ -47,7 +53,7 @@ class StructureBuilder:
 
         # ASE rattle takes an integer seed or RandomState.
         # Memory says "strictly requires an integer seed".
-        atoms.rattle(stdev=stdev, seed=seed) # type: ignore[no-untyped-call]
+        atoms.rattle(stdev=stdev, seed=seed)  # type: ignore[no-untyped-call]
 
         self._validate_structure(atoms)
 
@@ -64,16 +70,25 @@ class StructureBuilder:
         Raises:
             ValueError: If atoms are too close.
         """
-        # Use mic=True to respect Periodic Boundary Conditions
-        dist_matrix = atoms.get_all_distances(mic=True) # type: ignore[no-untyped-call]
+        # Use NeighborList for O(N) validation instead of O(N^2) distance matrix
+        # Cutoff is min_dist / 2 because NeighborList uses cutoff radii (r_i + r_j)
+        # We want to find any pair with distance < min_dist.
+        # So if we set cutoff to min_dist/2 for all atoms, any pair closer than min_dist will be found.
+        # Wait, neighbor_list takes cutoffs dictionary or list.
+        # Simpler: ase.neighborlist.neighbor_list('d', atoms, cutoff) returns distances < cutoff.
 
-        # Mask diagonal (distance to self is 0)
-        np.fill_diagonal(dist_matrix, np.inf)
+        # 'd' returns distances.
+        distances = ase.neighborlist.neighbor_list('d', atoms, cutoff=min_dist)
 
-        min_d = np.min(dist_matrix)
-        if min_d < min_dist:
-            logger.warning(f"Unphysical atomic distances detected: {min_d:.3f} A < {min_dist} A")
-            # For Cycle 02, we warn. In active learning, we might reject.
-            # But strictly speaking, if it's too close, LAMMPS will crash or explode.
-            # Let's raise an error to enforce "Physically Reasonable" as per User request.
+        # Filter out self-interactions if any (neighbor_list usually doesn't include self unless specified)
+        # But neighbor_list returns list of distances.
+        if len(distances) > 0:
+            min_d = np.min(distances)
+            # neighbor_list can return 0 if atoms overlap perfectly? No, self interaction usually handled.
+            # But let's check.
+            # If atoms are distinct, dist > 0.
+
+            logger.warning(
+                f"Unphysical atomic distances detected: {min_d:.3f} A < {min_dist} A"
+            )
             raise ValueError(f"Atoms are too close: {min_d:.3f} A < {min_dist} A")

@@ -15,27 +15,18 @@ def test_config_valid() -> None:
     """Test valid configuration creation."""
     c = Config(
         project_name="TestProject",
-        potential=PotentialConfig(
-            elements=["Ti", "O"],
-            cutoff=5.0,
-            seed=42
-        ),
+        potential=PotentialConfig(elements=["Ti", "O"], cutoff=5.0, seed=42),
         structure_gen=StructureGenConfig(
             strategy="bulk",
             element="Ti",
             crystal_structure="hcp",
             lattice_constant=2.95,
         ),
-        md=MDConfig(
-            temperature=300.0,
-            n_steps=100,
-            timestep=0.001,
-            ensemble="NVT"
-        )
+        md=MDConfig(temperature=300.0, n_steps=100, timestep=0.001, ensemble="NVT"),
     )
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
-    assert c.logging.level == "INFO" # Default
+    assert c.logging.level == "INFO"  # Default
     assert c.structure_gen.element == "Ti"
     assert c.md.temperature == 300.0
 
@@ -47,15 +38,13 @@ def test_config_invalid_cutoff() -> None:
             project_name="Test",
             potential=PotentialConfig(
                 elements=["Ti"],
-                cutoff=-1.0, # Invalid
-                seed=42
+                cutoff=-1.0,  # Invalid
+                seed=42,
             ),
             structure_gen=StructureGenConfig(
                 element="Ti", crystal_structure="hcp", lattice_constant=2.95
             ),
-            md=MDConfig(
-                temperature=300, n_steps=100, ensemble="NVT"
-            )
+            md=MDConfig(temperature=300, n_steps=100, ensemble="NVT"),
         )
     assert "Cutoff must be greater than 0" in str(excinfo.value)
 
@@ -65,9 +54,9 @@ def test_config_missing_field() -> None:
     with pytest.raises(ValidationError):
         Config(
             project_name="Test",
-            potential=None, # type: ignore[arg-type]
+            potential=None,  # type: ignore[arg-type]
             # Missing potential, etc.
-        ) # type: ignore[call-arg]
+        )  # type: ignore[call-arg]
 
 
 def test_from_yaml(tmp_path: Path) -> None:

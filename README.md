@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_02_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -12,6 +12,10 @@
 
 ## Key Features
 
+-   **DFT Oracle (Quantum Espresso)**:
+    -   **Self-Healing Workflows**: Automatically recovers from SCF convergence failures, memory errors, and crashes by dynamically adjusting parameters (e.g., mixing beta, smearing).
+    -   **Periodic Embedding**: Efficiently extracts local clusters from large MD structures for ground-truth labelling.
+    -   **Smart Input Generation**: Automates K-point grid selection based on cell size and desired density.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -31,8 +35,9 @@
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (recommended)
--   **Simulation Engine**: LAMMPS (Optional for core functionality, required for MD)
-    -   Executable `lmp_serial` or `mpirun` accessible in PATH.
+-   **Simulation Engines**:
+    -   **LAMMPS**: (Optional) Executable `lmp_serial` or `mpirun` accessible in PATH.
+    -   **Quantum Espresso**: (Optional) Executable `pw.x` accessible in PATH.
 
 ## Installation
 
@@ -81,6 +86,13 @@ lammps:
   command: "lmp_serial"
   timeout: 3600
   use_mpi: false
+# New in Cycle 03
+dft:
+  command: "pw.x"
+  kspacing: 0.04
+  ecutwfc: 30.0
+  pseudopotentials:
+    Si: "path/to/Si.UPF"
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -90,8 +102,8 @@ logging:
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config, Job)
-├── physics/                # Physics Engines (LAMMPS, StructureGen)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job, Calculation)
+├── physics/                # Physics Engines (LAMMPS, DFT, StructureGen)
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
@@ -101,7 +113,7 @@ src/mlip_autopipec/
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
--   **Cycle 03**: Oracle (DFT)
+-   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop

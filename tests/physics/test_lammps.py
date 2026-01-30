@@ -6,42 +6,42 @@ from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.job import JobStatus
 import numpy as np
 
+
 @pytest.fixture
 def dummy_structure():
     return Structure(
         symbols=["Si", "Si"],
         positions=np.array([[0.0, 0.0, 0.0], [1.5, 1.5, 1.5]]),
         cell=np.eye(3) * 5.43,
-        pbc=(True, True, True)
+        pbc=(True, True, True),
     )
+
 
 @pytest.fixture
 def md_params():
-    return MDParams(
-        temperature=300.0,
-        n_steps=100,
-        timestep=0.001,
-        ensemble="NVT"
-    )
+    return MDParams(temperature=300.0, n_steps=100, timestep=0.001, ensemble="NVT")
+
 
 @pytest.fixture
 def lammps_config():
-    return LammpsConfig(
-        command="lmp_serial",
-        timeout=10,
-        use_mpi=False
-    )
+    return LammpsConfig(command="lmp_serial", timeout=10, use_mpi=False)
+
 
 def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_path):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     # Mock subprocess.run
-    with patch("subprocess.run") as mock_run, \
-         patch("mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output") as mock_parse, \
-         patch("shutil.which") as mock_which:
-
+    with (
+        patch("subprocess.run") as mock_run,
+        patch(
+            "mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output"
+        ) as mock_parse,
+        patch("shutil.which") as mock_which,
+    ):
         # Setup mocks
-        mock_run.return_value = MagicMock(returncode=0, stdout="Simulation done", stderr="")
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Simulation done", stderr=""
+        )
         mock_which.return_value = "/usr/bin/lmp_serial"
 
         # Mock parsing to return the same structure
@@ -60,12 +60,16 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_
         assert cmd[0] == "lmp_serial"
         assert "-in" in cmd
 
+
 def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, tmp_path):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     with patch("subprocess.run") as mock_run, patch("shutil.which") as mock_which:
         import subprocess
-        mock_run.side_effect = subprocess.CalledProcessError(1, "lmp_serial", stderr="Error")
+
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, "lmp_serial", stderr="Error"
+        )
         mock_which.return_value = "/usr/bin/lmp_serial"
 
         runner = LammpsRunner(config=lammps_config, base_work_dir=tmp_path)

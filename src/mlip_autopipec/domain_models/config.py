@@ -3,6 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.domain_models.calculation import DFTConfig
+
 
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -14,8 +16,8 @@ class LoggingConfig(BaseModel):
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str]
-    cutoff: float
+    elements: list[str] = Field(default_factory=lambda: ["Si"])
+    cutoff: float = 5.0
     seed: int = 42
 
     @field_validator("cutoff")
@@ -29,12 +31,14 @@ class PotentialConfig(BaseModel):
 
 class OrchestratorConfig(BaseModel):
     """Placeholder for Orchestrator configuration."""
+
     model_config = ConfigDict(extra="forbid")
     # No fields defined in Cycle 01 spec yet, allowing empty or defaults if needed later.
 
 
 class LammpsConfig(BaseModel):
     """Configuration for the LAMMPS executable and runtime environment."""
+
     model_config = ConfigDict(extra="forbid")
 
     command: str = "lmp_serial"
@@ -45,13 +49,14 @@ class LammpsConfig(BaseModel):
 
 class MDConfig(BaseModel):
     """Configuration for MD simulation parameters."""
+
     model_config = ConfigDict(extra="forbid")
 
-    temperature: float
+    temperature: float = 300.0
     pressure: Optional[float] = None
-    n_steps: int
+    n_steps: int = 1000
     timestep: float = 0.001
-    ensemble: Literal["NVT", "NPT"]
+    ensemble: Literal["NVT", "NPT"] = "NVT"
 
 
 # Alias for backward compatibility if needed, though we should update usages
@@ -60,25 +65,20 @@ MDParams = MDConfig
 
 class StructureGenConfig(BaseModel):
     """Configuration for structure generation."""
+
     model_config = ConfigDict(extra="forbid")
 
     strategy: Literal["bulk"] = "bulk"
-    element: str
-    crystal_structure: str
-    lattice_constant: float
+    element: str = "Si"
+    crystal_structure: str = "diamond"
+    lattice_constant: float = 5.43
     rattle_stdev: float = 0.0
     supercell: tuple[int, int, int] = (1, 1, 1)
 
 
-class DFTConfig(BaseModel):
-    """Placeholder for DFT Configuration (Cycle 03)."""
-    model_config = ConfigDict(extra="forbid")
-    kspacing: float = 0.04
-    # Additional fields to be added in Cycle 03
-
-
 class TrainingConfig(BaseModel):
     """Placeholder for Training Configuration (Cycle 04)."""
+
     model_config = ConfigDict(extra="forbid")
     initial_potential: Optional[Path] = None
     # Additional fields to be added in Cycle 04
@@ -105,5 +105,6 @@ class Config(BaseModel):
     def from_yaml(cls, path: Path) -> "Config":
         """Load configuration from a YAML file."""
         from mlip_autopipec.infrastructure import io
+
         data = io.load_yaml(path)
         return cls(**data)

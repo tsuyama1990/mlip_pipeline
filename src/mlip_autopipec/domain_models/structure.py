@@ -10,6 +10,7 @@ class Structure(BaseModel):
     Fundamental object representing a collection of atoms.
     Wraps ASE Atoms with strict Pydantic validation.
     """
+
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     symbols: list[str]
@@ -62,7 +63,7 @@ class Structure(BaseModel):
             positions=self.positions,
             cell=self.cell,
             pbc=self.pbc,
-            info=self.properties.copy()
+            info=self.properties.copy(),
         )
 
     def get_chemical_formula(self) -> str:

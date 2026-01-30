@@ -3,16 +3,15 @@ from pathlib import Path
 
 import typer
 
-from mlip_autopipec.constants import (
-    DEFAULT_CUTOFF,
-    DEFAULT_ELEMENTS,
-    DEFAULT_LOG_FILENAME,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_PROJECT_NAME,
-    DEFAULT_SEED,
+from mlip_autopipec.domain_models.config import (
+    Config,
+    LammpsConfig,
+    LoggingConfig,
+    MDConfig,
+    PotentialConfig,
+    StructureGenConfig,
 )
-from mlip_autopipec.domain_models.config import Config
-from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
@@ -26,40 +25,22 @@ def init_project(path: Path) -> None:
         typer.secho(f"File {path} already exists.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-    template = {
-        "project_name": DEFAULT_PROJECT_NAME,
-        "logging": {
-            "level": DEFAULT_LOG_LEVEL,
-            "file_path": DEFAULT_LOG_FILENAME
-        },
-        "potential": {
-            "elements": DEFAULT_ELEMENTS,
-            "cutoff": DEFAULT_CUTOFF,
-            "seed": DEFAULT_SEED
-        },
-        "structure_gen": {
-            "strategy": "bulk",
-            "element": "Si",
-            "crystal_structure": "diamond",
-            "lattice_constant": 5.43,
-            "rattle_stdev": 0.1,
-            "supercell": [1, 1, 1]
-        },
-        "md": {
-             "temperature": 300.0,
-             "n_steps": 1000,
-             "timestep": 0.001,
-             "ensemble": "NVT"
-        },
-        "lammps": {
-            "command": "lmp_serial",
-            "timeout": 3600,
-            "use_mpi": False
-        }
-    }
+    # Instantiate models with default values
+    config = Config(
+        project_name="MyMLIPProject",
+        logging=LoggingConfig(),
+        potential=PotentialConfig(),
+        lammps=LammpsConfig(),
+        structure_gen=StructureGenConfig(),
+        md=MDConfig(),
+    )
 
     try:
-        io.dump_yaml(template, path)
+        # Convert to dict, excluding defaults? No, we want explicit template.
+        # But dumping defaults is good for template.
+        # Use mode='json' to handle Path and Enums
+        data = config.model_dump(mode="json")
+        io.dump_yaml(data, path)
         typer.secho(f"Created template configuration at {path}", fg=typer.colors.GREEN)
     except Exception as e:
         typer.secho(f"Failed to create config: {e}", fg=typer.colors.RED)
@@ -101,15 +82,24 @@ def run_cycle_02_cmd(config_path: Path) -> None:
         result = run_one_shot(config)
 
         if result.status == JobStatus.COMPLETED:
-            typer.secho(f"Simulation Completed: Status {result.status.value}", fg=typer.colors.GREEN)
+            typer.secho(
+                f"Simulation Completed: Status {result.status.value}",
+                fg=typer.colors.GREEN,
+            )
 
             # Check for specific result attributes (LammpsResult)
-            if hasattr(result, "trajectory_path"):
-                logging.getLogger("mlip_autopipec").info(f"Trajectory saved to: {result.trajectory_path}") # type: ignore[attr-defined]
+            if isinstance(result, LammpsResult):
+                logging.getLogger("mlip_autopipec").info(
+                    f"Trajectory saved to: {result.trajectory_path}"
+                )
 
-            logging.getLogger("mlip_autopipec").info(f"Duration: {result.duration_seconds:.2f}s")
+            logging.getLogger("mlip_autopipec").info(
+                f"Duration: {result.duration_seconds:.2f}s"
+            )
         else:
-            typer.secho(f"Simulation Failed: Status {result.status.value}", fg=typer.colors.RED)
+            typer.secho(
+                f"Simulation Failed: Status {result.status.value}", fg=typer.colors.RED
+            )
             typer.echo(f"Log Tail:\n{result.log_content}")
             raise typer.Exit(code=1)
 
