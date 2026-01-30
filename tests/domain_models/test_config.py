@@ -20,6 +20,9 @@ def test_config_valid() -> None:
     assert c.potential.cutoff == 5.0
     assert c.logging.level == "INFO" # Default
     assert c.lammps.command == "lmp_serial" # Default
+    # Check new defaults
+    assert c.structure_gen.lattice_constant == 5.43
+    assert c.structure_gen.md_params.temperature == 300.0
 
 def test_config_invalid_cutoff() -> None:
     """Test negative cutoff."""
@@ -58,6 +61,11 @@ def test_from_yaml(tmp_path: Path) -> None:
       command: "mpirun -np 4 lmp_mpi"
       timeout: 600
       cores: 4
+    structure_gen:
+      md_params:
+        temperature: 500
+        n_steps: 2000
+      lattice_constant: 3.61
     """
     yaml_file.write_text(yaml_content)
 
@@ -68,6 +76,8 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.logging.level == "DEBUG"
     assert c.lammps.cores == 4
     assert c.lammps.timeout == 600
+    assert c.structure_gen.md_params.temperature == 500
+    assert c.structure_gen.lattice_constant == 3.61
 
 def test_lammps_config_extra_forbid() -> None:
     """Test that extra fields are forbidden in LammpsConfig."""

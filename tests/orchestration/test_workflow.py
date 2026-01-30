@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig
+from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig, MDParams
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.orchestration.workflow import run_one_shot
 
@@ -12,7 +12,11 @@ def mock_config():
     return Config(
         project_name="Test",
         potential=PotentialConfig(elements=["Si"], cutoff=2.0),
-        structure_gen=ExplorationConfig(composition="Si"),
+        structure_gen=ExplorationConfig(
+            composition="Si",
+            lattice_constant=5.43,
+            md_params=MDParams(temperature=300, n_steps=100)
+        ),
         lammps=LammpsConfig()
     )
 
@@ -46,7 +50,10 @@ def test_run_one_shot_success(mock_config, minimal_structure):
         MockBuilder.assert_called()
         MockRunner.assert_called()
         builder_instance.build_bulk.assert_called_with("Si", "diamond", 5.43)
+        # Verify passed params
         runner_instance.run.assert_called()
+        call_args = runner_instance.run.call_args
+        assert call_args[0][1].temperature == 300 # Checked from config
 
 def test_run_one_shot_failure(mock_config, minimal_structure):
     """Test one shot workflow failure."""

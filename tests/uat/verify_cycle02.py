@@ -8,7 +8,7 @@ from pathlib import Path
 # Ensure src is in path
 sys.path.append(str(Path.cwd() / "src"))
 
-from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig
+from mlip_autopipec.domain_models.config import Config, LammpsConfig, PotentialConfig, ExplorationConfig, MDParams
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 
@@ -73,7 +73,10 @@ EOF
     config = Config(
         project_name="UAT_Mocked",
         potential=PotentialConfig(elements=["Si"], cutoff=2.0),
-        structure_gen=ExplorationConfig(composition="Si"),
+        structure_gen=ExplorationConfig(
+            composition="Si",
+            md_params=MDParams(temperature=300, n_steps=100)
+        ),
         lammps=LammpsConfig(command=str(fake_lmp.absolute()), timeout=5)
     )
 
@@ -99,6 +102,8 @@ EOF
 
     except Exception as e:
         logger.error(f"Failed: Exception {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 if __name__ == "__main__":

@@ -3,9 +3,9 @@ from unittest.mock import patch
 
 import pytest
 
-from mlip_autopipec.domain_models.config import LammpsConfig
+from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
 from mlip_autopipec.domain_models.job import JobStatus
-from mlip_autopipec.physics.dynamics.lammps import LammpsRunner, MDParams
+from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
 
 @pytest.fixture
@@ -30,14 +30,6 @@ def test_run_success(lammps_runner, minimal_structure, mock_subprocess_run, tmp_
         args=[], returncode=0, stdout="Done", stderr=""
     )
 
-    # Mock the output file creation (dump.lammpstrj)
-    # We need to spy on the internal work_dir creation or mock internal methods
-    # But integration test logic: wrapper writes inputs, runs command, reads outputs.
-    # To test 'read outputs', we need the file to exist.
-
-    # We can mock `_write_inputs` and `_parse_output` to test `run` logic specifically
-    # OR we can let it try to write and fail parsing if file missing.
-
     # Easier: Mock the `_parse_output` method to return a structure.
     with patch.object(LammpsRunner, "_parse_output") as mock_parse:
         mock_parse.return_value = minimal_structure
@@ -51,6 +43,11 @@ def test_run_success(lammps_runner, minimal_structure, mock_subprocess_run, tmp_
         # Verify inputs written
         assert (tmp_path / "in.lammps").exists()
         assert (tmp_path / "data.lammps").exists()
+
+        # Verify hybrid potential input
+        script = (tmp_path / "in.lammps").read_text()
+        assert "pair_style      hybrid/overlay" in script
+        assert "pair_coeff      * * zbl" in script
 
         # Verify command called
         mock_subprocess_run.assert_called_once()

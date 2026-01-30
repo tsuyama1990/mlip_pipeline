@@ -1,27 +1,14 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import ase.io
-from pydantic import BaseModel, ConfigDict
 
-from mlip_autopipec.domain_models.config import LammpsConfig
+from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
-
-
-class MDParams(BaseModel):
-    """Parameters for Molecular Dynamics simulation."""
-    model_config = ConfigDict(extra="forbid")
-
-    temperature: float
-    n_steps: int
-    timestep: float = 0.001  # ps
-    ensemble: str = "nvt"  # nvt, npt
-    pressure: Optional[float] = None  # bar, for NPT
 
 
 class LammpsRunner:
@@ -133,10 +120,8 @@ class LammpsRunner:
         ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
 
         # Generate input script
-        # Using a simple template for now. In real world, use jinja2.
-
-        # Note: pair_style lj/cut is just a placeholder for UAT.
-        # Cycle 2 goal is "touching" the engine.
+        # Using hybrid/overlay as requested by SPEC.
+        # LJ/ZBL as baseline + ACE (placeholder since we don't have ACE files)
 
         script = f"""
 units           metal
@@ -145,8 +130,10 @@ boundary        p p p
 
 read_data       data.lammps
 
-pair_style      lj/cut 2.5
-pair_coeff      * * 1.0 1.0 2.5
+# Hybrid pair style: LJ/Cut for baseline + ZBL + (ACE placeholder)
+pair_style      hybrid/overlay lj/cut 2.5 zbl 2.0 2.5
+pair_coeff      * * lj/cut 1.0 1.0 2.5
+pair_coeff      * * zbl 14.0 14.0  # Si Z=14
 
 mass            * 28.0855  # Si mass approx
 
@@ -155,7 +142,6 @@ velocity        all create {params.temperature} 12345 mom yes rot no
 fix             1 all {params.ensemble} temp {params.temperature} {params.temperature} 0.1
 """
         if params.ensemble == "npt" and params.pressure is not None:
-             # Fix NPT syntax varies, simplified here
              script = script.replace(f"fix             1 all {params.ensemble}", f"fix             1 all npt temp {params.temperature} {params.temperature} 0.1 iso {params.pressure} {params.pressure} 1.0")
 
         script += f"""
@@ -168,18 +154,17 @@ run             {params.n_steps}
         (work_dir / "in.lammps").write_text(script)
 
     def _parse_output(self, dump_path: Path) -> Structure:
-        """Parse the final frame from LAMMPS dump."""
+        """Parse the final frame from LAMMPS dump using streaming read."""
         if not dump_path.exists():
             raise FileNotFoundError(f"Dump file not found: {dump_path}")
 
-        # Use ASE to read
-        # index=-1 gets the last frame
-        atoms = ase.io.read(dump_path, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Use ASE iread to avoid loading full trajectory into memory
+        last_atoms = None
+        # type: ignore[no-untyped-call]
+        for atoms in ase.io.iread(dump_path, format="lammps-dump-text"):
+            last_atoms = atoms
 
-        # ASE dump read might not have cell/pbc info correctly if not in dump
-        # But for 'custom' dump with xs ys zs or x y z + box bounds, it usually works.
-        # My UAT fake script writes 'BOX BOUNDS', so it should be fine.
+        if last_atoms is None:
+             raise ValueError("Dump file is empty")
 
-        # Recover info if missing (optional)
-
-        return Structure.from_ase(atoms) # type: ignore[arg-type]
+        return Structure.from_ase(last_atoms) # type: ignore[arg-type]

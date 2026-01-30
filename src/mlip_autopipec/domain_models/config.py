@@ -33,6 +33,17 @@ class OrchestratorConfig(BaseModel):
     # No fields defined in Cycle 01 spec yet, allowing empty or defaults if needed later.
 
 
+class MDParams(BaseModel):
+    """Parameters for Molecular Dynamics simulation."""
+    model_config = ConfigDict(extra="forbid")
+
+    temperature: float = 300.0
+    n_steps: int = 1000
+    timestep: float = 0.001  # ps
+    ensemble: str = "nvt"  # nvt, npt
+    pressure: Optional[float] = None  # bar, for NPT
+
+
 class ExplorationConfig(BaseModel):
     """Configuration for the exploration phase."""
     model_config = ConfigDict(extra="forbid")
@@ -42,6 +53,8 @@ class ExplorationConfig(BaseModel):
     rattle_amplitude: float = 0.0
     num_candidates: int = 1
     composition: Optional[str] = None
+    lattice_constant: float = 5.43
+    md_params: MDParams = Field(default_factory=MDParams)
 
 
 class LammpsConfig(BaseModel):

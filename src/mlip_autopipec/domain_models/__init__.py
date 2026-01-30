@@ -3,6 +3,7 @@ from mlip_autopipec.domain_models.config import (
     ExplorationConfig,
     LammpsConfig,
     LoggingConfig,
+    MDParams,
     OrchestratorConfig,
     PotentialConfig,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "ExplorationConfig",
     "LammpsConfig",
     "LoggingConfig",
+    "MDParams",
     "OrchestratorConfig",
     "PotentialConfig",
     "JobResult",

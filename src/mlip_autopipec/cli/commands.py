@@ -12,6 +12,7 @@ from mlip_autopipec.constants import (
     DEFAULT_SEED,
 )
 from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
@@ -81,11 +82,12 @@ def run_cycle_02(config_path: Path) -> None:
 
         result = run_one_shot(config)
 
-        if result.status == "COMPLETED":
+        # Fix: Use Enum comparison instead of string to satisfy mypy strict checks
+        if result.status == JobStatus.COMPLETED:
             typer.secho(f"Simulation Completed: Status {result.status.value}", fg=typer.colors.GREEN)
         else:
             typer.secho(f"Simulation Ended: Status {result.status.value}", fg=typer.colors.YELLOW)
-            if result.status == "FAILED":
+            if result.status == JobStatus.FAILED:
                  typer.secho("Tail of log:", fg=typer.colors.RED)
                  typer.echo(result.log_content[-500:])
 

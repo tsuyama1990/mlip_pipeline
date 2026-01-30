@@ -4,7 +4,7 @@ from pathlib import Path
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.job import JobResult
-from mlip_autopipec.physics.dynamics.lammps import LammpsRunner, MDParams
+from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 
 logger = logging.getLogger(__name__)
@@ -18,16 +18,14 @@ def run_one_shot(config: Config) -> JobResult:
     logger.info("Starting One-Shot Pipeline")
 
     # 1. Generate Structure
-    # Use config.structure_gen.composition (Cycle 1 legacy name 'structure_gen' in my Config update)
-    # The config field is 'structure_gen', type ExplorationConfig.
-
     element = config.structure_gen.composition or "Si"
-    logger.info(f"Building initial structure for {element}")
+    lattice_const = config.structure_gen.lattice_constant
+
+    logger.info(f"Building initial structure for {element} (a={lattice_const})")
 
     builder = StructureBuilder(seed=config.potential.seed)
 
-    # Defaults for demo
-    structure = builder.build_bulk(element, "diamond", 5.43)
+    structure = builder.build_bulk(element, "diamond", lattice_const)
 
     if config.structure_gen.rattle_amplitude > 0:
         structure = builder.apply_rattle(structure, config.structure_gen.rattle_amplitude)
@@ -39,11 +37,8 @@ def run_one_shot(config: Config) -> JobResult:
     job_id = str(uuid.uuid4())[:8]
     work_dir = Path("_work_md") / f"job_{job_id}"
 
-    params = MDParams(
-        temperature=300,
-        n_steps=1000,
-        timestep=0.001
-    )
+    # Use config parameters instead of hardcoded ones
+    params = config.structure_gen.md_params
 
     # 4. Execute
     logger.info(f"Launching MD Job {job_id}...")
