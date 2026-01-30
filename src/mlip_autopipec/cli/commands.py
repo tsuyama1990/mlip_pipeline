@@ -11,7 +11,15 @@ from mlip_autopipec.constants import (
     DEFAULT_PROJECT_NAME,
     DEFAULT_SEED,
 )
-from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.config import (
+    Config,
+    DFTConfig,
+    LammpsConfig,
+    LoggingConfig,
+    MDConfig,
+    PotentialConfig,
+    StructureGenConfig,
+)
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
@@ -26,40 +34,53 @@ def init_project(path: Path) -> None:
         typer.secho(f"File {path} already exists.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-    template = {
-        "project_name": DEFAULT_PROJECT_NAME,
-        "logging": {
-            "level": DEFAULT_LOG_LEVEL,
-            "file_path": DEFAULT_LOG_FILENAME
-        },
-        "potential": {
-            "elements": DEFAULT_ELEMENTS,
-            "cutoff": DEFAULT_CUTOFF,
-            "seed": DEFAULT_SEED
-        },
-        "structure_gen": {
-            "strategy": "bulk",
-            "element": "Si",
-            "crystal_structure": "diamond",
-            "lattice_constant": 5.43,
-            "rattle_stdev": 0.1,
-            "supercell": [1, 1, 1]
-        },
-        "md": {
-             "temperature": 300.0,
-             "n_steps": 1000,
-             "timestep": 0.001,
-             "ensemble": "NVT"
-        },
-        "lammps": {
-            "command": "lmp_serial",
-            "timeout": 3600,
-            "use_mpi": False
-        }
-    }
+    # Use defaults from domain models
+    # Note: We construct a dictionary that mimics the structure,
+    # but populated with defaults from the models where possible.
+    # However, some fields like 'pseudopotentials' are mandatory and don't have defaults.
+
+    # We create a sample valid config.
+
+    # Explicitly cast DEFAULT_LOG_LEVEL to Literal if needed, but Pydantic should handle string matching.
+    # Mypy complains strict type mismatch.
+    from typing import Literal, cast
+
+    log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
+
+    template = Config(
+        project_name=DEFAULT_PROJECT_NAME,
+        logging=LoggingConfig(
+            level=log_level,
+            file_path=Path(DEFAULT_LOG_FILENAME)
+        ),
+        potential=PotentialConfig(
+            elements=DEFAULT_ELEMENTS,
+            cutoff=DEFAULT_CUTOFF,
+            seed=DEFAULT_SEED
+        ),
+        structure_gen=StructureGenConfig(
+            strategy="bulk",
+            element="Si",
+            crystal_structure="diamond",
+            lattice_constant=5.43,
+            rattle_stdev=0.1,
+            supercell=(1, 1, 1)
+        ),
+        md=MDConfig(
+            temperature=300.0,
+            n_steps=1000,
+            timestep=0.001,
+            ensemble="NVT"
+        ),
+        lammps=LammpsConfig(), # Uses defaults
+        dft=DFTConfig(
+            pseudopotentials={"Si": Path("Si.pbe-n-kjpaw_psl.1.0.0.UPF")}
+        )
+    )
 
     try:
-        io.dump_yaml(template, path)
+        # Dump to YAML via dict
+        io.dump_yaml(template.model_dump(mode="json"), path)
         typer.secho(f"Created template configuration at {path}", fg=typer.colors.GREEN)
     except Exception as e:
         typer.secho(f"Failed to create config: {e}", fg=typer.colors.RED)

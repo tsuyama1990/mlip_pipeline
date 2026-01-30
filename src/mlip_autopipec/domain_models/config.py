@@ -3,6 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.domain_models.calculation import DFTConfig
+
 
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -37,10 +39,10 @@ class LammpsConfig(BaseModel):
     """Configuration for the LAMMPS executable and runtime environment."""
     model_config = ConfigDict(extra="forbid")
 
-    command: str = "lmp_serial"
+    command: list[str] = Field(default_factory=lambda: ["lmp_serial"])
     timeout: int = 3600
     use_mpi: bool = False
-    mpi_command: str = "mpirun -np 4"
+    mpi_command: list[str] = Field(default_factory=lambda: ["mpirun", "-np", "4"])
 
 
 class MDConfig(BaseModel):
@@ -70,11 +72,6 @@ class StructureGenConfig(BaseModel):
     supercell: tuple[int, int, int] = (1, 1, 1)
 
 
-class DFTConfig(BaseModel):
-    """Placeholder for DFT Configuration (Cycle 03)."""
-    model_config = ConfigDict(extra="forbid")
-    kspacing: float = 0.04
-    # Additional fields to be added in Cycle 03
 
 
 class TrainingConfig(BaseModel):

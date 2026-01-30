@@ -17,6 +17,7 @@ dependencies = [
     "numpy>=2.4.1",
     "pydantic>=2.12.5",
     "pyyaml>=6.0.3",
+    "scipy>=1.17.0",
     "typer>=0.21.1",
 ]
 
@@ -26,6 +27,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "scipy-stubs>=1.17.0.2",
     "types-pyyaml>=6.0.12.20250915",
 ]
 

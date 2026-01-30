@@ -1,3 +1,9 @@
+from mlip_autopipec.domain_models.calculation import (
+    DFTConfig,
+    DFTError,
+    DFTResult,
+    RecoveryConfig,
+)
 from mlip_autopipec.domain_models.config import (
     Config,
     LammpsConfig,
@@ -18,4 +24,8 @@ __all__ = [
     "JobStatus",
     "LammpsResult",
     "Structure",
+    "DFTConfig",
+    "DFTResult",
+    "RecoveryConfig",
+    "DFTError",
 ]

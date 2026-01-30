@@ -27,7 +27,7 @@ def md_params():
 @pytest.fixture
 def lammps_config():
     return LammpsConfig(
-        command="lmp_serial",
+        command=["lmp_serial"],
         timeout=10,
         use_mpi=False
     )

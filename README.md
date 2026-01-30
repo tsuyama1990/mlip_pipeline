@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_02_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -12,6 +12,11 @@
 
 ## Key Features
 
+-   **Oracle (DFT Automation)**:
+    -   **Quantum Espresso** wrapper with self-healing capabilities.
+    -   Automatic recovery from SCF convergence failures (adjusting mixing beta, smearing).
+    -   Automatic K-point grid generation based on `kspacing`.
+    -   **Periodic Embedding**: Extraction of representative clusters from large MD structures.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -101,7 +106,7 @@ src/mlip_autopipec/
 
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
--   **Cycle 03**: Oracle (DFT)
+-   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop
