@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 import typer
@@ -14,6 +15,7 @@ from mlip_autopipec.constants import (
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
+from mlip_autopipec.orchestration import run_one_shot
 
 
 def init_project(path: Path) -> None:
@@ -34,6 +36,21 @@ def init_project(path: Path) -> None:
         "logging": {
             "level": DEFAULT_LOG_LEVEL,
             "file_path": DEFAULT_LOG_FILENAME
+        },
+        "exploration": {
+            "composition": "Si",
+            "lattice_constant": 5.43,
+            "md_params": {
+                "temperature": 300.0,
+                "timestep": 0.001,
+                "n_steps": 100
+            }
+        },
+        "lammps": {
+            "command": os.getenv("LAMMPS_COMMAND", "lmp_serial"),
+            "cores": 1,
+            "timeout": 3600.0,
+            "seed": 42
         }
     }
 
@@ -43,6 +60,7 @@ def init_project(path: Path) -> None:
     except Exception as e:
         typer.secho(f"Failed to create config: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
+
 
 def check_config(config_path: Path) -> None:
     """
@@ -61,4 +79,26 @@ def check_config(config_path: Path) -> None:
 
     except Exception as e:
         typer.secho(f"Validation failed: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from e
+
+
+def run_cycle02(config_path: Path) -> None:
+    """
+    Run the One-Shot Pipeline (Cycle 02).
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        result = run_one_shot(config)
+
+        color = typer.colors.GREEN if result.status.value == "COMPLETED" else typer.colors.RED
+        typer.secho(f"Simulation Completed: Status {result.status.value}", fg=color)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e

@@ -7,6 +7,7 @@ from mlip_autopipec.constants import DEFAULT_CONFIG_FILENAME
 
 app = typer.Typer(help="MLIP Automated Pipeline CLI")
 
+
 @app.command()
 def init(
     path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), help="Path to create config file") # noqa: B008
@@ -16,6 +17,7 @@ def init(
     """
     commands.init_project(path)
 
+
 @app.command()
 def check(
     config_path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file") # noqa: B008
@@ -24,6 +26,17 @@ def check(
     Validate the configuration file.
     """
     commands.check_config(config_path)
+
+
+@app.command(name="run-cycle-02")
+def run_cycle_02(
+    config_path: Path = typer.Option(Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file") # noqa: B008
+) -> None:
+    """
+    Run the One-Shot Pipeline (Cycle 02).
+    """
+    commands.run_cycle02(config_path)
+
 
 if __name__ == "__main__":
     app()
