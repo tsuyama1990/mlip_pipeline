@@ -1,10 +1,8 @@
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-from pathlib import Path
+from unittest.mock import patch
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.domain_models.training import TrainingConfig, TrainingResult
 from mlip_autopipec.domain_models.config import PotentialConfig
-from mlip_autopipec.domain_models.potential import Potential
 
 
 @pytest.fixture

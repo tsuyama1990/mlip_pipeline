@@ -1,4 +1,3 @@
-import pytest
 from ase import Atoms
 import pandas as pd
 import numpy as np

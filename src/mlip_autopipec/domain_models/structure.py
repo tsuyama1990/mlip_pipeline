@@ -2,13 +2,21 @@ from typing import Any
 
 import ase
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, validate_call
 
 
 class Structure(BaseModel):
     """
     Fundamental object representing a collection of atoms.
     Wraps ASE Atoms with strict Pydantic validation.
+
+    Example:
+        >>> from ase import Atoms
+        >>> atoms = Atoms("Si2", positions=[[0,0,0], [1,1,1]], cell=[5,5,5], pbc=True)
+        >>> structure = Structure.from_ase(atoms)
+        >>> print(structure.get_chemical_formula())
+        'Si2'
+        >>> ase_atoms = structure.to_ase()
     """
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)

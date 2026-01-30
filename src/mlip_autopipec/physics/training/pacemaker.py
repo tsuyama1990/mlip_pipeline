@@ -2,7 +2,6 @@ import subprocess
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
 from mlip_autopipec.domain_models.training import TrainingConfig, TrainingResult
 from mlip_autopipec.domain_models.config import PotentialConfig
@@ -27,10 +26,24 @@ class PacemakerRunner:
         """
         Run pace_activeset to select sparse subset of structures.
         Returns path to the new dataset.
+
+        WARNING: This operation invokes `pace_activeset` which may load the entire
+        dataset into memory. Ensure sufficient RAM is available for large datasets.
         """
         if not self.config.active_set_optimization:
             logger.info("Active set optimization disabled.")
             return dataset_path
+
+        # Check dataset size to warn about potential OOM
+        try:
+            file_size_mb = dataset_path.stat().st_size / (1024 * 1024)
+            if file_size_mb > 500: # Warn if > 500MB
+                 logger.warning(
+                     f"Dataset size is {file_size_mb:.2f} MB. "
+                     "pace_activeset might consume significant memory."
+                 )
+        except Exception:
+            pass
 
         output_dataset = self.work_dir / "train_active.pckl.gzip"
         cmd = [
@@ -72,7 +85,8 @@ class PacemakerRunner:
 
         try:
             with open(log_path, "w") as f_log:
-                result = subprocess.run(
+                # We don't assign the result to a variable since we check exception
+                subprocess.run(
                     cmd,
                     cwd=self.work_dir,
                     check=True,

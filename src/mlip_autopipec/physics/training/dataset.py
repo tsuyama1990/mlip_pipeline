@@ -1,9 +1,8 @@
 import pandas as pd
 import numpy as np
-from typing import List, Optional
+from typing import List
 from pathlib import Path
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.infrastructure import io
 
 
 def atoms_to_dataframe(atoms_list: List[Structure]) -> pd.DataFrame:
