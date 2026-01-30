@@ -1,10 +1,12 @@
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
+from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 
 runner = CliRunner()
 
@@ -60,3 +62,26 @@ def test_check_invalid(tmp_path: Path) -> None:
         assert result.exit_code == 1
         assert "Validation failed" in result.stdout
         assert "Cutoff must be greater than 0" in result.stdout
+
+def test_run_cycle_02_success(tmp_path: Path):
+    """Test run-cycle-02 command success."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+
+        with patch("mlip_autopipec.cli.commands.run_one_shot") as mock_run:
+            mock_run.return_value = LammpsResult(
+                job_id="test",
+                status=JobStatus.COMPLETED,
+                work_dir=Path("."),
+                duration_seconds=1.0
+            )
+            result = runner.invoke(app, ["run-cycle-02"])
+            assert result.exit_code == 0
+            assert "Simulation Completed: Status COMPLETED" in result.stdout
+
+def test_run_cycle_02_missing_config(tmp_path: Path):
+    """Test run-cycle-02 command fails without config."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(app, ["run-cycle-02"])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout

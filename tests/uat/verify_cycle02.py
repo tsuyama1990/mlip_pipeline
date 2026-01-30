@@ -1,98 +1,90 @@
-"""UAT Verification Script for Cycle 02."""
-
-import logging
 import sys
 from pathlib import Path
+import subprocess
+import yaml
 
-import numpy as np
+def main():
+    print("Starting UAT Cycle 02...")
 
-# Ensure src is in path
-sys.path.append(str(Path.cwd() / "src"))
+    # 1. Setup Dummy LAMMPS
+    dummy_lammps = Path("fake_lammps.sh")
+    dump_content = """ITEM: TIMESTEP
+0
+ITEM: NUMBER OF ATOMS
+8
+ITEM: BOX BOUNDS pp pp pp
+0.0 5.43
+0.0 5.43
+0.0 5.43
+ITEM: ATOMS id type x y z
+1 1 0.0 0.0 0.0
+2 1 1.35 1.35 1.35
+3 1 2.71 2.71 0.0
+4 1 4.07 4.07 1.35
+5 1 2.71 0.0 2.71
+6 1 4.07 1.35 4.07
+7 1 0.0 2.71 2.71
+8 1 1.35 4.07 4.07
+"""
+    script_content = f"""#!/bin/bash
+echo "Simulating LAMMPS..."
+# Args: -in in.lammps
+# We just write dump.lammpstrj
+echo "{dump_content}" > dump.lammpstrj
+"""
+    dummy_lammps.write_text(script_content)
+    dummy_lammps.chmod(0o755)
+    fake_cmd_abs = str(dummy_lammps.resolve())
 
-from mlip_autopipec.domain_models.config import Config, ExplorationConfig
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
-from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
+    # 2. Initialize Config
+    # We can use CLI 'init' but we need to modify it.
+    subprocess.run(["uv", "run", "mlip-auto", "init"], check=True)
 
-# Setup Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("UAT-02")
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)
 
-def uat_02_01_cold_start() -> bool:
-    logger.info("Running UAT-02-01: Cold Start Generation")
+    config["lammps"]["command"] = fake_cmd_abs
+    config["lammps"]["timeout"] = 5.0
 
-    # 1. Configure
-    config = Config(
-        project_name="UAT_02",
-        structure_gen=ExplorationConfig(
-            strategy="template",
-            composition="Si",
-            num_candidates=5,
-            rattle_amplitude=0.1
+    with open("config.yaml", "w") as f:
+        yaml.dump(config, f)
+
+    # 3. Run Cycle 02
+    print("Running Cycle 02...")
+    try:
+        res = subprocess.run(
+            ["uv", "run", "mlip-auto", "run-cycle-02"],
+            check=True,
+            capture_output=True,
+            text=True
         )
-    )
+        print(res.stdout)
+        if "Simulation Completed: Status COMPLETED" in res.stdout:
+            print("SUCCESS: Simulation completed.")
+        else:
+            print("FAILURE: output does not contain success message.")
+            print(res.stderr)
+            sys.exit(1)
 
-    state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
+    except subprocess.CalledProcessError as e:
+        print("FAILURE: Command exited with error.")
+        print(e.stdout)
+        print(e.stderr)
+        sys.exit(1)
 
-    # 2. Run
-    phase = ExplorationPhase()
-    phase.execute(state, config)
+    # 4. Verify Artifacts
+    if Path("_work_md/job_one_shot/dump.lammpstrj").exists():
+         print("SUCCESS: Artifacts found.")
+    else:
+         print("FAILURE: Artifacts missing.")
+         sys.exit(1)
 
-    # 3. Inspect
-    if len(state.candidates) != 5:
-        logger.error(f"Failed: Expected 5 candidates, got {len(state.candidates)}")
-        return False
+    print("UAT Cycle 02 Passed!")
 
-    for i, cand in enumerate(state.candidates):
-        if "Si" not in cand.formatted_formula:
-             logger.error(f"Failed: Candidate {i} formula mismatch: {cand.formatted_formula}")
-             return False
-
-    logger.info("UAT-02-01 Passed")
-    return True
-
-def uat_02_02_validity() -> bool:
-    logger.info("Running UAT-02-02: Structure Validity")
-
-    # 1. Configure with large rattle
-    config = Config(
-        project_name="UAT_02",
-        structure_gen=ExplorationConfig(
-            strategy="template",
-            composition="Al",
-            num_candidates=2,
-            rattle_amplitude=0.5
-        )
-    )
-
-    state = WorkflowState(current_phase=WorkflowPhase.EXPLORATION)
-    phase = ExplorationPhase()
-    phase.execute(state, config)
-
-    # 4. Verify no atoms overlap too much
-    # Simple check: min distance > 0.5 A
-    for cand in state.candidates:
-        atoms = cand.to_ase()
-        # ASE get_all_distances
-        dist_matrix = atoms.get_all_distances(mic=True) # type: ignore[no-untyped-call]
-        # Mask diagonal
-        np.fill_diagonal(dist_matrix, 10.0)
-        min_dist = np.min(dist_matrix)
-
-        if min_dist < 0.5:
-             logger.error(f"Failed: Atomic overlap detected. Min dist: {min_dist}")
-             return False
-
-    logger.info("UAT-02-02 Passed")
-    return True
+    # Cleanup
+    dummy_lammps.unlink()
+    if Path("config.yaml").exists():
+        Path("config.yaml").unlink()
 
 if __name__ == "__main__":
-    success = True
-    success &= uat_02_01_cold_start()
-    success &= uat_02_02_validity()
-
-    if success:
-        logger.info("All UAT tests passed.")
-        sys.exit(0)
-    else:
-        logger.error("Some UAT tests failed.")
-        sys.exit(1)
+    main()
