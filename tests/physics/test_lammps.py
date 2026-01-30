@@ -69,6 +69,9 @@ def test_write_inputs(lammps_config, mock_structure, md_params, tmp_path):
     assert (tmp_path / "in.lammps").exists()
     content = (tmp_path / "in.lammps").read_text()
     assert f"fix             1 all nvt temp {md_params.temperature}" in content
+    assert "pair_style      hybrid/overlay lj/cut 2.5 zbl 4.0 5.0" in content
+    assert "pair_coeff      * * lj/cut 1.0 1.0" in content
+    assert "pair_coeff      1 1 zbl 14 14" in content  # Si is 14
 
 def test_parse_output(lammps_config, tmp_path):
     runner = LammpsRunner(lammps_config)

@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 import typer
@@ -45,7 +46,7 @@ def init_project(path: Path) -> None:
             }
         },
         "lammps": {
-            "command": "lmp_serial",
+            "command": os.getenv("LAMMPS_COMMAND", "lmp_serial"),
             "cores": 1,
             "timeout": 3600.0
         }

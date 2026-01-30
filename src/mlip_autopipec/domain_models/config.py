@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -37,7 +38,7 @@ class MDParams(BaseModel):
 
 class LammpsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    command: str
+    command: str = Field(default_factory=lambda: os.getenv("LAMMPS_COMMAND", "lmp_serial"))
     cores: int = 1
     timeout: float = 3600.0
 
@@ -70,7 +71,7 @@ class Config(BaseModel):
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
     exploration: ExplorationConfig = Field(default_factory=ExplorationConfig)
-    lammps: LammpsConfig = Field(default_factory=lambda: LammpsConfig(command="lmp_serial"))
+    lammps: LammpsConfig = Field(default_factory=LammpsConfig)
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

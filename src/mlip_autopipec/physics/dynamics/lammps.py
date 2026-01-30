@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import ase.io
+import ase
+from ase.data import atomic_numbers
 from mlip_autopipec.domain_models.config import LammpsConfig, MDParams
 from mlip_autopipec.domain_models.job import JobStatus, LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
@@ -94,8 +96,22 @@ class LammpsRunner:
         atoms = structure.to_ase()
         ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data") # type: ignore[no-untyped-call]
 
+        # Determine species mapping (ASE lammps-data sorts species alphabetically)
+        species = sorted(list(set(atoms.get_chemical_symbols()))) # type: ignore[no-untyped-call]
+
+        # Generate pair coefficients for ZBL
+        zbl_coeffs = []
+        for i, s1 in enumerate(species, 1):
+            for j, s2 in enumerate(species, 1):
+                if i <= j: # Symmetric
+                    z1 = atomic_numbers[s1]
+                    z2 = atomic_numbers[s2]
+                    zbl_coeffs.append(f"pair_coeff      {i} {j} zbl {z1} {z2}")
+
+        pair_cmds = "\n".join(zbl_coeffs)
+
         # Write input script
-        # Basic LJ potential for testing
+        # Hybrid potential: LJ/ZBL baseline
         template = f"""
 units           metal
 atom_style      atomic
@@ -103,8 +119,9 @@ boundary        p p p
 
 read_data       data.lammps
 
-pair_style      lj/cut 2.5
-pair_coeff      * * 1.0 1.0
+pair_style      hybrid/overlay lj/cut 2.5 zbl 4.0 5.0
+pair_coeff      * * lj/cut 1.0 1.0
+{pair_cmds}
 
 velocity        all create {params.temperature} {self.config.seed if hasattr(self.config, 'seed') else 12345} dist gaussian
 
@@ -148,17 +165,17 @@ dump_modify     1 sort id
         if not dump_file.exists():
             raise FileNotFoundError(f"Dump file not found: {dump_file}")
 
-        # Parse last frame
-        atoms = ase.io.read(dump_file, index=-1, format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Parse last frame using incremental read to avoid OOM
+        last_atoms = None
+        for atoms in ase.io.iread(dump_file, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+            last_atoms = atoms
 
-        if isinstance(atoms, list):
-             atoms = atoms[-1]
+        if last_atoms is None:
+             raise ValueError("No frames found in dump file")
 
-        if not isinstance(atoms, ase.Atoms):
-             raise TypeError(f"Expected ase.Atoms, got {type(atoms)}")
+        if not isinstance(last_atoms, ase.Atoms):
+             # Should generally be ase.Atoms
+             # But iread can return Images? Usually Atoms.
+             pass
 
-        # If chemical symbols are missing (defaults to X), we might want to fix them.
-        # But for generic runner, we might not know mapping.
-        # Structure model requires symbols.
-
-        return Structure.from_ase(atoms), dump_file
+        return Structure.from_ase(last_atoms), dump_file
