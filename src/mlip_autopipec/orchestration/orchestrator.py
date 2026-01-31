@@ -3,6 +3,7 @@ from typing import Optional
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.job import JobResult, JobStatus
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 
@@ -18,6 +19,7 @@ class Orchestrator:
     def __init__(self, config: Config) -> None:
         self.config = config
         self.iteration = 0
+        self.labelled_structures: list[Structure] = []
 
     def run_pipeline(self) -> JobResult:
         """
@@ -39,13 +41,15 @@ class Orchestrator:
 
             # 2. Detect
             if not self.detect(last_result):
-                logger.info("No high uncertainty detected or loop finish. Convergence achieved.")
+                logger.info(
+                    "No high uncertainty detected or loop finish. Convergence achieved."
+                )
                 break
 
             # 3. Select (Placeholder)
             self.select()
 
-            # 4. Refine (Placeholder)
+            # 4. Refine (Training)
             self.refine()
 
         if last_result:
@@ -98,10 +102,16 @@ class Orchestrator:
                 logger.warning(f"High uncertainty detected: {max_gamma}")
                 return True
 
-        # For Cycle 02 (One-Shot), we might always return False to stop the loop,
-        # UNLESS the user explicitly wants to simulate a loop.
-        # But since we don't have Select/Refine implemented, returning True would cause issues.
-        # We assume max_iterations controls the loop primarily for now.
+        # If we have labelled structures, we might want to train regardless of detection in this simple loop?
+        # Or if the user wants to force training (max_iterations > 0 and we are in loop)
+        # For testing purposes, let's return True if we have structures to train?
+        # But detection should depend on UNCERTAINTY.
+
+        # If we are in the loop, we usually want to proceed to Select/Refine if we found something.
+        # If no uncertainty, we break.
+
+        # For UAT/Demo, we might want to force it.
+        # But strictly speaking, if max_gamma is low, we stop.
         return False
 
     def select(self) -> None:
@@ -117,5 +127,52 @@ class Orchestrator:
         Phase 4: Refinement
         Run DFT and retrain potential.
         """
-        logger.info("Phase: Refinement (Placeholder)")
-        # In future: Run DFT, Train Pacemaker
+        logger.info("Phase: Refinement")
+
+        if not self.labelled_structures:
+            logger.info("No labelled structures to train on.")
+            return
+
+        if not self.config.training:
+            logger.info("No training configuration found. Skipping training.")
+            return
+
+        # 2. Dataset Generation
+        from mlip_autopipec.physics.training.dataset import DatasetManager
+        from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
+
+        # Use a training subdirectory
+        train_dir = self.config.logging.file_path.parent / f"training_{self.iteration}"
+        dataset_path = train_dir / "train.pckl.gzip"
+
+        ds_manager = DatasetManager()
+        try:
+            ds_path = ds_manager.atoms_to_dataset(
+                self.labelled_structures, dataset_path
+            )
+        except RuntimeError as e:
+            logger.error(f"Dataset creation failed: {e}")
+            return
+
+        # 3. Training
+        runner = PacemakerRunner(work_dir=train_dir)
+
+        # Active Set Selection
+        if self.config.training.active_set_optimization:
+            try:
+                ds_path = runner.select_active_set(
+                    ds_path, self.config.training, self.config.potential
+                )
+            except RuntimeError as e:
+                logger.error(f"Active set selection failed: {e}")
+                # Fallback to full dataset?
+                pass
+
+        # Train
+        result = runner.train(ds_path, self.config.training, self.config.potential)
+        if result.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Training finished: RMSE Energy={result.validation_metrics.get('rmse_energy', 'N/A')}"
+            )
+        else:
+            logger.error("Training failed.")

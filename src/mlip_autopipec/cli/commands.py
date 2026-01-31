@@ -134,3 +134,64 @@ def run_cycle_02_cmd(config_path: Path) -> None:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Execution failed")
         raise typer.Exit(code=1) from e
+
+
+def train_model(config_path: Path, dataset_path: Path) -> None:
+    """
+    Train a potential using Pacemaker.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not dataset_path.exists():
+        typer.secho(f"Dataset file {dataset_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        if not config.training:
+            typer.secho("Config missing 'training' section.", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+        from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
+
+        # Determine work dir (e.g., dataset parent or new dir)
+        # Using a timestamped dir in base work dir is better
+        # But config doesn't have base_work_dir explicit, usually inferred.
+        # Let's use config.logging.file_path.parent / "manual_training"
+        work_dir = config.logging.file_path.parent / "manual_training"
+
+        runner = PacemakerRunner(work_dir)
+
+        # Active set selection
+        if config.training.active_set_optimization:
+            typer.secho("Running active set selection...", fg=typer.colors.YELLOW)
+            try:
+                dataset_path = runner.select_active_set(
+                    dataset_path, config.training, config.potential
+                )
+            except RuntimeError as e:
+                typer.secho(
+                    f"Active set selection failed: {e}. Proceeding with full dataset.",
+                    fg=typer.colors.YELLOW,
+                )
+
+        typer.secho("Starting training...", fg=typer.colors.YELLOW)
+        result = runner.train(dataset_path, config.training, config.potential)
+
+        if result.status == JobStatus.COMPLETED:
+            typer.secho("Training Completed Successfully!", fg=typer.colors.GREEN)
+            typer.echo(f"Potential saved to: {result.potential_path}")
+            typer.echo(f"Metrics: {result.validation_metrics}")
+        else:
+            typer.secho("Training Failed.", fg=typer.colors.RED)
+            typer.echo(f"Log:\n{result.log_content}")
+            raise typer.Exit(code=1)
+
+    except Exception as e:
+        typer.secho(f"Training failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Training failed")
+        raise typer.Exit(code=1) from e
