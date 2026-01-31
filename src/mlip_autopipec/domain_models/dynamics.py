@@ -1,7 +1,7 @@
 from typing import Literal, Optional
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from mlip_autopipec.domain_models.job import JobResult
 from mlip_autopipec.domain_models.structure import Structure
@@ -31,6 +31,13 @@ class MDConfig(BaseModel):
 
     # Uncertainty Quantification (UQ)
     uncertainty_threshold: Optional[float] = None
+
+    @field_validator("n_steps")
+    @classmethod
+    def validate_n_steps(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("n_steps must be positive")
+        return v
 
 
 # Alias for backward compatibility

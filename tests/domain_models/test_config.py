@@ -9,6 +9,7 @@ from mlip_autopipec.domain_models import (
     MDConfig,
     PotentialConfig,
     RandomSliceStructureGenConfig,
+    OrchestratorConfig
 )
 
 
@@ -173,3 +174,14 @@ def test_config_delta_learning_enforcement() -> None:
         pair_style="pace"
     )
     assert pc_h.pair_style == "pace"
+
+def test_config_validators_positive():
+    """Test positive int validators for orchestrator."""
+    with pytest.raises(ValidationError):
+        OrchestratorConfig(max_active_set_size=-1)
+
+    with pytest.raises(ValidationError):
+        OrchestratorConfig(dft_batch_size=0)
+
+    with pytest.raises(ValidationError):
+        MDConfig(temperature=300, n_steps=0, ensemble="NVT")

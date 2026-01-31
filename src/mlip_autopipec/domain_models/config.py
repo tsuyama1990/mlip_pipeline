@@ -80,11 +80,15 @@ class OrchestratorConfig(BaseModel):
     active_set_optimization: bool = True
     max_active_set_size: int = 1000
 
-    @field_validator("max_active_set_size")
+    # Sampling & Batching
+    trajectory_sampling_stride: int = 1
+    dft_batch_size: int = 10
+
+    @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
     @classmethod
-    def validate_max_active_set_size(cls, v: int) -> int:
+    def validate_positive_ints(cls, v: int, info: Field) -> int:
         if v <= 0:
-            raise ValueError("max_active_set_size must be positive")
+            raise ValueError(f"{info.field_name} must be positive")
         return v
 
 
