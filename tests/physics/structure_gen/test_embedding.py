@@ -40,12 +40,15 @@ def test_embed_cluster(large_structure):
     # Let's just check it's large enough.
     assert np.all(np.diag(cluster.cell) >= 10.0)
 
+
 def test_embedding_vacuum_padding(large_structure):
     handler = EmbeddingHandler()
     radius = 3.0
     vacuum = 5.0
 
-    cluster = handler.embed_cluster(large_structure, center_index=0, radius=radius, vacuum=vacuum)
+    cluster = handler.embed_cluster(
+        large_structure, center_index=0, radius=radius, vacuum=vacuum
+    )
 
     # Estimate extent
     # At least one atom at 0,0,0

@@ -1,0 +1,151 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 99 items
+
+tests/domain_models/test_calculation.py .....                            [  5%]
+tests/domain_models/test_config.py ....                                  [  9%]
+tests/domain_models/test_job.py ..                                       [ 11%]
+tests/domain_models/test_potential.py ...                                [ 14%]
+tests/domain_models/test_structure.py .....                              [ 19%]
+tests/domain_models/test_training.py .....                               [ 24%]
+tests/domain_models/test_validation.py .....                             [ 29%]
+tests/e2e/test_cli.py .......                                            [ 36%]
+tests/infrastructure/test_io.py .....                                    [ 41%]
+tests/infrastructure/test_logging.py .                                   [ 42%]
+tests/physics/dft/test_input_gen.py ..                                   [ 44%]
+tests/physics/dft/test_parser.py ......                                  [ 50%]
+tests/physics/dft/test_qe_runner.py .........                            [ 59%]
+tests/physics/dft/test_recovery.py ....                                  [ 63%]
+tests/physics/reporting/test_html_gen.py .                               [ 64%]
+tests/physics/structure_gen/test_embedding.py ..                         [ 66%]
+tests/physics/test_lammps.py ..                                          [ 68%]
+tests/physics/training/test_dataset.py ..                                [ 70%]
+tests/physics/training/test_pacemaker.py ....                            [ 74%]
+tests/physics/validation/test_elasticity.py ...                          [ 77%]
+tests/physics/validation/test_eos.py ..                                  [ 79%]
+tests/physics/validation/test_phonon.py ..                               [ 81%]
+tests/physics/validation/test_runner.py ..                               [ 83%]
+tests/physics/validation/test_utils.py ..                                [ 85%]
+tests/uat/test_cycle02.py ..                                             [ 87%]
+tests/uat/test_cycle03.py ..                                             [ 89%]
+tests/uat/test_cycle04.py .                                              [ 90%]
+tests/uat/test_cycle05.py FF                                             [ 92%]
+tests/unit/test_orchestrator.py ..                                       [ 94%]
+tests/unit/test_structure_gen.py .....                                   [100%]
+
+=================================== FAILURES ===================================
+__________________ test_uat_cycle05_01_phonon_stability_pass ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-4/test_uat_cycle05_01_phonon_sta0')
+
+    def test_uat_cycle05_01_phonon_stability_pass(tmp_path: Path) -> None:
+        """
+        UAT-C05-01: Verify that a stable crystal structure has no imaginary phonon modes.
+        Success Criteria: Status PASS, HTML report generated.
+        """
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(app, ["init"])
+            (tmp_path / "pot.yace").touch()
+
+            # Mock ValidationRunner internals to simulate PASS
+            with (
+                patch(
+                    "mlip_autopipec.physics.validation.runner.PhononValidator"
+                ) as MockPhonon,
+                patch(
+                    "mlip_autopipec.physics.validation.runner.ElasticityValidator"
+                ) as MockElasticity,
+                patch("mlip_autopipec.physics.validation.runner.EOSValidator") as MockEOS,
+                patch(
+                    "mlip_autopipec.physics.validation.runner.StructureGenFactory"
+                ) as MockGen,
+            ):
+                # Setup returns
+                MockPhonon.return_value.validate.return_value = (
+                    [
+                        MagicMock(
+                            passed=True, name="Phonon Stability", value=1.0, unit="THz"
+                        )
+                    ],
+                    {},
+                )
+                MockElasticity.return_value.validate.return_value = (
+                    [
+                        MagicMock(
+                            passed=True, name="Elastic Stability", value=1.0, unit="GPa"
+                        )
+                    ],
+                    {},
+                )
+                MockEOS.return_value.validate.return_value = (
+                    [MagicMock(passed=True, name="Bulk Modulus", value=100.0, unit="GPa")],
+                    {},
+                )
+                MockGen.get_generator.return_value.generate.return_value = MagicMock()
+
+                result = runner.invoke(app, ["validate", "--potential", "pot.yace"])
+
+>               assert result.exit_code == 0
+E               assert 1 == 0
+E                +  where 1 = <Result SystemExit(1)>.exit_code
+
+tests/uat/test_cycle05.py:58: AssertionError
+______________________ test_uat_cycle05_02_bad_potential _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-4/test_uat_cycle05_02_bad_potent0')
+
+    def test_uat_cycle05_02_bad_potential(tmp_path: Path) -> None:
+        """
+        UAT-C05-02: Force validation failure.
+        Success Criteria: Status FAIL.
+        """
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            runner.invoke(app, ["init"])
+            (tmp_path / "pot.yace").touch()
+
+            with (
+                patch(
+                    "mlip_autopipec.physics.validation.runner.PhononValidator"
+                ) as MockPhonon,
+                patch(
+                    "mlip_autopipec.physics.validation.runner.ElasticityValidator"
+                ) as MockElasticity,
+                patch("mlip_autopipec.physics.validation.runner.EOSValidator") as MockEOS,
+                patch(
+                    "mlip_autopipec.physics.validation.runner.StructureGenFactory"
+                ) as MockGen,
+            ):
+                # Setup returns: Phonon Fails
+                MockPhonon.return_value.validate.return_value = (
+                    [
+                        MagicMock(
+                            passed=False, name="Phonon Stability", value=-1.0, unit="THz"
+                        )
+                    ],
+                    {},
+                )
+                MockElasticity.return_value.validate.return_value = (
+                    [MagicMock(passed=True, name="Elastic", value=1.0)],
+                    {},
+                )
+                MockEOS.return_value.validate.return_value = (
+                    [MagicMock(passed=True, name="EOS", value=1.0)],
+                    {},
+                )
+                MockGen.get_generator.return_value.generate.return_value = MagicMock()
+
+                result = runner.invoke(app, ["validate", "--potential", "pot.yace"])
+
+>               assert result.exit_code == 0  # Command succeeds, but report says FAIL
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               assert 1 == 0
+E                +  where 1 = <Result SystemExit(1)>.exit_code
+
+tests/uat/test_cycle05.py:110: AssertionError
+=========================== short test summary info ============================
+FAILED tests/uat/test_cycle05.py::test_uat_cycle05_01_phonon_stability_pass
+FAILED tests/uat/test_cycle05.py::test_uat_cycle05_02_bad_potential - assert ...
+========================= 2 failed, 97 passed in 3.24s =========================

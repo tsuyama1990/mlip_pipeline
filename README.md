@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_04_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_05_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -22,6 +22,11 @@
     -   **Active Set Selection**: Optimized dataset pruning using D-optimality to maximize information density.
     -   **Delta Learning**: Robust reference potential subtraction (e.g., ZBL, Lennard-Jones) for stable fitting.
     -   **Automatic Conversion**: Efficiently converts ASE structures to pacemaker-compatible datasets.
+-   **Physics Validation Framework**:
+    -   **Phonon Stability**: Calculates band structures via `phonopy` to detect imaginary frequencies.
+    -   **Elastic Stability**: Computes stiffness tensor ($C_{ij}$) and validates Born stability criteria.
+    -   **Equation of State (EOS)**: Fits Birch-Murnaghan EOS to verify bulk modulus and convexity.
+    -   **Automated Reporting**: Generates beautiful HTML reports with plots and metrics.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -45,6 +50,7 @@
     -   **LAMMPS**: `lmp_serial` or `mpirun` (Optional for core, required for MD).
     -   **Quantum Espresso**: `pw.x` (Optional for core, required for DFT).
     -   **Pacemaker**: `pace_train`, `pace_activeset`, `pace_collect` (Required for Training).
+    -   **Phonopy**: Required for phonon validation (installed via pip).
 
 ## Installation
 
@@ -88,6 +94,13 @@ Train a machine learning potential using a labelled dataset.
 uv run mlip-auto train --config config.yaml --dataset training_data.extxyz
 ```
 
+### 5. Validate a Potential
+Run a battery of physical tests on a trained potential.
+```bash
+uv run mlip-auto validate --potential potential.yace --config config.yaml
+# Generates validation_report.html
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -124,6 +137,7 @@ src/mlip_autopipec/
 │   ├── dft/                # Quantum Espresso (Runner, Parser, Recovery)
 │   ├── dynamics/           # LAMMPS (Runner)
 │   ├── training/           # Pacemaker (Dataset, Runner)
+│   ├── validation/         # Phonons, Elasticity, EOS
 │   └── structure_gen/      # Generation & Embedding
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
@@ -136,7 +150,7 @@ src/mlip_autopipec/
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker) (Completed)
--   **Cycle 05**: Validation Framework
+-   **Cycle 05**: Validation Framework (Completed)
 -   **Cycle 06**: Active Learning Loop
 
 ## License

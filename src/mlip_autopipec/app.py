@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -57,6 +58,21 @@ def train(
     Train a machine learning potential using Pacemaker.
     """
     commands.train_model(config_path, dataset_path)
+
+
+@app.command()
+def validate(
+    potential_path: Optional[Path] = typer.Option(
+        None, "--potential", "-p", help="Path to potential file (.yace)"
+    ),  # noqa: B008
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+) -> None:
+    """
+    Run physics validation on a potential.
+    """
+    commands.validate_potential(config_path, potential_path)
 
 
 if __name__ == "__main__":

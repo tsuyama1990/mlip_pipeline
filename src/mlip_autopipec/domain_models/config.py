@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from mlip_autopipec.domain_models.calculation import DFTConfig
 from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
 from mlip_autopipec.domain_models.training import TrainingConfig
+from mlip_autopipec.domain_models.validation import ValidationConfig
 
 
 class LoggingConfig(BaseModel):
@@ -93,6 +94,7 @@ class Config(BaseModel):
     # Optional components
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
+    validation: Optional[ValidationConfig] = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":
