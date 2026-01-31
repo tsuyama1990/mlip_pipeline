@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from mlip_autopipec.domain_models.calculation import DFTConfig
 from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
@@ -35,6 +35,22 @@ class PotentialConfig(BaseModel):
             raise ValueError(msg)
         return v
 
+    @field_validator("zbl_inner_cutoff", "zbl_outer_cutoff")
+    @classmethod
+    def validate_zbl_values(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("ZBL cutoffs must be non-negative")
+        return v
+
+    @model_validator(mode="after")
+    def validate_hybrid_params(self) -> "PotentialConfig":
+        if self.pair_style == "hybrid/overlay":
+            # Just ensure cutoffs are sensible if hybrid is used.
+            # They have defaults, but we can check relative order
+            if self.zbl_inner_cutoff > self.zbl_outer_cutoff:
+                raise ValueError("zbl_inner_cutoff must be <= zbl_outer_cutoff")
+        return self
+
 
 class OrchestratorConfig(BaseModel):
     """Configuration for the Orchestrator (Active Learning Loop)."""
@@ -46,6 +62,10 @@ class OrchestratorConfig(BaseModel):
     # Active Set Selection
     active_set_optimization: bool = True
     max_active_set_size: int = 1000
+
+    # Trajectory Processing Limits
+    max_trajectory_frames: int = 10000
+    trajectory_sampling_stride: int = 1
 
 
 class BulkStructureGenConfig(BaseModel):
@@ -73,6 +93,17 @@ class SurfaceStructureGenConfig(BaseModel):
     vacuum: float
 
 
+class ValidationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    phonon_tolerance: float = -0.1
+    phonon_supercell: tuple[int, int, int] = (2, 2, 2)
+    eos_vol_range: float = 0.1
+    eos_n_points: int = 10
+    elastic_strain: float = 0.01
+    elastic_stability_tolerance: float = 0.0
+
+
 # Union of all structure generation configs
 StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
 
@@ -93,6 +124,7 @@ class Config(BaseModel):
     # Optional components
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
+    validation: Optional[ValidationConfig] = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

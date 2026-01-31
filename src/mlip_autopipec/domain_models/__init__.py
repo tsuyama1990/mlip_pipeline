@@ -5,7 +5,9 @@ from mlip_autopipec.domain_models.config import (
     OrchestratorConfig,
     PotentialConfig,
     StructureGenConfig,
+    ValidationConfig,
 )
+from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult
 from mlip_autopipec.domain_models.dynamics import (
     LammpsConfig,
@@ -37,4 +39,7 @@ __all__ = [
     "TrainingConfig",
     "TrainingResult",
     "Potential",
+    "ValidationConfig",
+    "ValidationMetric",
+    "ValidationResult",
 ]

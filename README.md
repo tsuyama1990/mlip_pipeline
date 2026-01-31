@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_04_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_05_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -22,6 +22,11 @@
     -   **Active Set Selection**: Optimized dataset pruning using D-optimality to maximize information density.
     -   **Delta Learning**: Robust reference potential subtraction (e.g., ZBL, Lennard-Jones) for stable fitting.
     -   **Automatic Conversion**: Efficiently converts ASE structures to pacemaker-compatible datasets.
+-   **Physics Validation Suite**:
+    -   **Phonon Stability**: Automated calculation of phonon dispersion and detection of imaginary frequencies (dynamical instability).
+    -   **Elastic Properties**: Calculation of stiffness tensor ($C_{ij}$) and verification of Born stability criteria.
+    -   **Equation of State**: Birch-Murnaghan fitting to verify convex energy-volume curves and positive bulk modulus.
+    -   **HTML Reporting**: Generates beautiful, interactive reports summarizing all validation metrics and plots.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -88,6 +93,12 @@ Train a machine learning potential using a labelled dataset.
 uv run mlip-auto train --config config.yaml --dataset training_data.extxyz
 ```
 
+### 5. Validate a Potential
+Run physics-based validation checks on a trained potential.
+```bash
+uv run mlip-auto validate --config config.yaml --potential potential.yace
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -110,6 +121,10 @@ training:
   batch_size: 100
   max_epochs: 100
   active_set_optimization: true
+validation:
+  phonon_tolerance: -0.1
+  eos_vol_range: 0.1
+  elastic_strain: 0.01
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -124,6 +139,7 @@ src/mlip_autopipec/
 │   ├── dft/                # Quantum Espresso (Runner, Parser, Recovery)
 │   ├── dynamics/           # LAMMPS (Runner)
 │   ├── training/           # Pacemaker (Dataset, Runner)
+│   ├── validation/         # Physics Validation (EOS, Elasticity, Phonon)
 │   └── structure_gen/      # Generation & Embedding
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
@@ -136,7 +152,7 @@ src/mlip_autopipec/
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker) (Completed)
--   **Cycle 05**: Validation Framework
+-   **Cycle 05**: Validation Framework (Completed)
 -   **Cycle 06**: Active Learning Loop
 
 ## License

@@ -13,7 +13,10 @@ class StructureGenFactory:
         if config.strategy == "bulk":
             return BulkStructureGenerator()
         if config.strategy == "surface":
-            raise NotImplementedError("Surface generation strategy is not yet implemented.")
+            raise NotImplementedError(
+                "Surface generation strategy is not yet implemented."
+            )
 
+        # Fallback for unexpected strategy if typing doesn't catch it
         msg = f"Unknown structure generation strategy: {config.strategy}"
         raise ValueError(msg)

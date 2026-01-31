@@ -32,6 +32,7 @@ dev_documents/project_state.json
 # AC-CDD Configuration
 .ac_cdd/.env
 _work_dft/
+_work_validation/
 tmp/
 mlip_pipeline.log
 .coverage
@@ -44,3 +45,7 @@ log.lammps
 *.pckl.gzip
 *.yace
 training_data/
+
+# Validation Artifacts
+validation_report.html
+*.png

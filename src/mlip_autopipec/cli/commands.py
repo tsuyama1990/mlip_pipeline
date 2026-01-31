@@ -25,6 +25,7 @@ from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
+from mlip_autopipec.physics.validation.runner import ValidationRunner
 
 
 def init_project(path: Path) -> None:
@@ -138,6 +139,46 @@ def run_cycle_02_cmd(config_path: Path) -> None:
         raise typer.Exit(code=1) from e
 
 
+def validate_potential(config_path: Path, potential_path: Path) -> None:
+    """
+    Logic for validating a potential.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not potential_path.exists():
+        typer.secho(f"Potential file {potential_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        runner = ValidationRunner(output_dir=Path("_work_validation"))
+        result = runner.validate(potential_path, config)
+
+        status_color = (
+            typer.colors.GREEN if result.overall_status == "PASS" else typer.colors.RED
+        )
+        typer.secho(
+            f"Validation Completed: Status {result.overall_status}", fg=status_color
+        )
+        typer.echo("Metrics:")
+        for metric in result.metrics:
+            status = "PASS" if metric.passed else "FAIL"
+            typer.echo(f"  - {metric.name}: {metric.value:.4f} [{status}]")
+            if metric.error_message:
+                typer.echo(f"    Error: {metric.error_message}")
+
+        typer.echo(f"Report generated at: {runner.output_dir / 'validation_report.html'}")
+
+    except Exception as e:
+        typer.secho(f"Validation failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Validation failed")
+        raise typer.Exit(code=1) from e
+
+
 def train_model(config_path: Path, dataset_path: Path) -> None:
     """
     Logic for training a potential.
@@ -164,14 +205,15 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         # 1. Load structures
         logger.info(f"Loading structures from {dataset_path}")
         # type: ignore[no-untyped-call]
-        structures = io.load_structures(dataset_path)
+        # Return an iterator to avoid loading all into memory
+        structures_iter = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
         # We use a subdirectory for training data
         work_dir = Path("training_work")
         dataset_manager = DatasetManager(work_dir=work_dir / "data")
         pacemaker_dataset = dataset_manager.convert(
-            structures, work_dir / "data" / "train.pckl.gzip"
+            structures_iter, work_dir / "data" / "train.pckl.gzip"
         )
 
         # 3. Train
