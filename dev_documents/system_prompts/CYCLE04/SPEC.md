@@ -72,6 +72,8 @@ Pacemaker uses a specific pickle format containing pandas DataFrames. We need to
     -   `max_epochs`: `int`.
     -   `ladder_step`: `List[int]` (Basis set size steps).
     -   `kappa`: `float` (Weighting of forces vs energy).
+    -   `initial_potential`: `Optional[Path]` (For fine-tuning).
+    -   `active_set_optimization`: `bool` (Whether to run active set selection).
 
 ## 4. Implementation Approach
 
@@ -81,6 +83,7 @@ Pacemaker uses a specific pickle format containing pandas DataFrames. We need to
 
 ### Step 2: Dataset Manager
 -   Implement `physics/training/dataset.py`.
+-   Add `pandas` and `jinja2` to project dependencies.
 -   Since `pacemaker` is a library, try to import `pacemaker.data` if available. If not (to keep dependency loose), implement a subprocess call to `pace_collect` which is the standard CLI tool for data conversion.
 -   **Recommendation**: Use `subprocess.run(["pace_collect", ...])` to convert extended XYZ files to `.pckl.gzip`. It's more stable than relying on internal APIs that change.
 

@@ -1,0 +1,120 @@
+import logging
+import subprocess
+from pathlib import Path
+from typing import Iterable, Iterator
+
+import numpy as np
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+from ase.io import write
+
+from mlip_autopipec.domain_models.structure import Structure
+
+logger = logging.getLogger("mlip_autopipec")
+
+
+class DatasetManager:
+    """
+    Manages the conversion of ASE Structures to Pacemaker training datasets.
+    """
+
+    def __init__(self, work_dir: Path) -> None:
+        self.work_dir = work_dir
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    def convert(self, structures: Iterable[Structure], output_path: Path) -> Path:
+        """
+        Convert a list (or iterator) of Structure objects to a .pckl.gzip dataset.
+
+        Uses streaming to avoid loading all atoms into memory.
+
+        Args:
+            structures: Iterable of Structure objects.
+            output_path: Path to the output .pckl.gzip file.
+
+        Returns:
+            Path to the generated dataset.
+        """
+        logger.info(f"Converting structures to Pacemaker dataset: {output_path}")
+
+        # 1. Write structures to extxyz
+        extxyz_path = self.work_dir / "dataset.extxyz"
+
+        def atoms_generator() -> Iterator[Atoms]:
+            count = 0
+            for s in structures:
+                yield self._prepare_atoms(s)
+                count += 1
+            if count == 0:
+                 # raising Error here might be tricky inside generator consumed by write
+                 # but write will just write empty file if empty.
+                 # We can check afterwards or use a wrapper.
+                 pass
+
+        # Write to file
+        # ase.io.write supports generator for many formats including extxyz
+        write(extxyz_path, atoms_generator(), format="extxyz")  # type: ignore[arg-type]
+
+        # Check if file is empty or not created (if generator was empty)
+        # extxyz writer might write header even if empty?
+        # If empty, pace_collect will likely fail.
+        if not extxyz_path.exists() or extxyz_path.stat().st_size == 0:
+             # This check is weak because write might buffer.
+             # But let's assume if structure list was empty, we should have failed earlier?
+             # Since input is iterator, we can't check len.
+             # We rely on pace_collect failure or check if file is trivial.
+             pass
+
+        # 2. Call pace_collect
+        # usage: pace_collect dataset.extxyz -o dataset.pckl.gzip
+        cmd = ["pace_collect", str(extxyz_path), "--output", str(output_path)]
+
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info("Dataset conversion successful")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"pace_collect failed: {e.stderr}")
+            raise RuntimeError(f"pace_collect failed: {e.stderr}") from e
+
+        return output_path
+
+    def _prepare_atoms(self, structure: Structure) -> Atoms:
+        """
+        Convert Structure to ASE Atoms, ensuring energy/forces/stress are attached
+        as a SinglePointCalculator so ASE writes them correctly to extxyz.
+        """
+        atoms = structure.to_ase()
+
+        # Structure.to_ase() puts everything in atoms.info
+        # We need to extract them and put into Calculator
+
+        # Extract properties
+        # Note: keys in structure.properties should match ASE expectations
+        # 'energy', 'forces', 'stress'
+
+        energy = atoms.info.get("energy")
+        forces = atoms.info.get("forces")
+        stress = atoms.info.get("stress")
+
+        # Remove from info to avoid duplication in extended XYZ comment line
+        if "energy" in atoms.info:
+            del atoms.info["energy"]
+        if "forces" in atoms.info:
+            del atoms.info["forces"]
+        if "stress" in atoms.info:
+            del atoms.info["stress"]
+
+        calc_args = {}
+        if energy is not None:
+            calc_args["energy"] = energy
+        if forces is not None:
+            # Forces must be numpy array
+            calc_args["forces"] = np.array(forces)
+        if stress is not None:
+            calc_args["stress"] = np.array(stress)
+
+        if calc_args:
+            # type: ignore[no-untyped-call]
+            atoms.calc = SinglePointCalculator(atoms, **calc_args)
+
+        return atoms

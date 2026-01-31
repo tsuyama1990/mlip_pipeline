@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_04_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -17,6 +17,11 @@
     -   **Auto K-Points**: Generates K-point grids dynamically based on physical spacing density.
     -   **Periodic Embedding**: Efficiently extracts atomic clusters from large simulations into vacuum-padded boxes for DFT calculation.
     -   **Strict Parsing**: Regex-based parsing of Energy, Forces, and Stress with unit conversion.
+-   **Machine Learning Potential Training**:
+    -   **Pacemaker Integration**: Seamless interface for training Atomic Cluster Expansion (ACE) potentials.
+    -   **Active Set Selection**: Optimized dataset pruning using D-optimality to maximize information density.
+    -   **Delta Learning**: Robust reference potential subtraction (e.g., ZBL, Lennard-Jones) for stable fitting.
+    -   **Automatic Conversion**: Efficiently converts ASE structures to pacemaker-compatible datasets.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -39,6 +44,7 @@
 -   **Simulation Engines**:
     -   **LAMMPS**: `lmp_serial` or `mpirun` (Optional for core, required for MD).
     -   **Quantum Espresso**: `pw.x` (Optional for core, required for DFT).
+    -   **Pacemaker**: `pace_train`, `pace_activeset`, `pace_collect` (Required for Training).
 
 ## Installation
 
@@ -76,6 +82,12 @@ Execute a single Molecular Dynamics simulation (Generate -> MD -> Parse).
 uv run mlip-auto run-one-shot --config config.yaml
 ```
 
+### 4. Train a Potential
+Train a machine learning potential using a labelled dataset.
+```bash
+uv run mlip-auto train --config config.yaml --dataset training_data.extxyz
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -94,6 +106,10 @@ dft:
     Si: "Si.upf"
   ecutwfc: 40.0
   kspacing: 0.04
+training:
+  batch_size: 100
+  max_epochs: 100
+  active_set_optimization: true
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -107,6 +123,7 @@ src/mlip_autopipec/
 ├── physics/                # Physics Engines
 │   ├── dft/                # Quantum Espresso (Runner, Parser, Recovery)
 │   ├── dynamics/           # LAMMPS (Runner)
+│   ├── training/           # Pacemaker (Dataset, Runner)
 │   └── structure_gen/      # Generation & Embedding
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
@@ -118,7 +135,7 @@ src/mlip_autopipec/
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT) (Completed)
--   **Cycle 04**: Training (Pacemaker)
+-   **Cycle 04**: Training (Pacemaker) (Completed)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop
 

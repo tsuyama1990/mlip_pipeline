@@ -41,3 +41,6 @@ build/
 _work_md/
 dump.lammpstrj
 log.lammps
+*.pckl.gzip
+*.yace
+training_data/

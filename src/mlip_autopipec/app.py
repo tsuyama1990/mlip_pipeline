@@ -44,5 +44,20 @@ def run_one_shot(
     commands.run_cycle_02_cmd(config_path)
 
 
+@app.command()
+def train(
+    dataset_path: Path = typer.Option(
+        ..., "--dataset", "-d", help="Path to dataset file (extxyz, etc.)"
+    ),  # noqa: B008
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+) -> None:
+    """
+    Train a machine learning potential using Pacemaker.
+    """
+    commands.train_model(config_path, dataset_path)
+
+
 if __name__ == "__main__":
     app()
