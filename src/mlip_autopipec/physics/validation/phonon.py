@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Optional, Iterator
+from typing import Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 from phonopy import Phonopy
@@ -29,6 +29,7 @@ class PhononValidator:
             phonopy_obj = self._setup_phonopy(structure)
 
             # 2. Calculate Forces
+            # We process forces sequentially.
             self._calculate_forces(phonopy_obj)
 
             # 3. Produce Force Constants
@@ -73,7 +74,6 @@ class PhononValidator:
     def _calculate_forces(self, phonon: Phonopy) -> None:
         """
         Calculates forces for each supercell with displacement.
-        Uses a generator to process supercells sequentially to save memory.
         """
         supercells = phonon.supercells_with_displacements
         if supercells is None:
@@ -81,35 +81,36 @@ class PhononValidator:
 
         calc = self._get_calculator()
 
-        def force_generator() -> Iterator[np.ndarray]:
-            # Use enumerate as suggested for better tracking if needed
-            for i, p_atoms in enumerate(supercells):
-                if p_atoms is None:
-                    # According to Phonopy docs, this shouldn't happen if displacements are generated
-                    # But if it does, we must yield something or handle it.
-                    # Yielding zeros or skipping might break alignment.
-                    # Assuming valid p_atoms.
-                    continue
+        # Phonopy requires all forces to be set.
+        # To avoid OOM with large systems, we want to avoid holding all ASE atoms in memory.
+        # But we must hold all force arrays (N, 3) because Phonopy stores them.
+        # The force arrays are much smaller than the Atoms objects.
+        # We use a generator to process the calculation one by one.
 
-                # Construct ASE atoms from Phonopy atoms
-                # Process one supercell at a time
-                ase_atoms = Atoms(
-                    symbols=p_atoms.symbols,
-                    cell=p_atoms.cell,
-                    scaled_positions=p_atoms.scaled_positions,
-                    pbc=True
-                )
-                ase_atoms.calc = calc
-                forces = ase_atoms.get_forces()
+        forces_list = []
 
-                # Yield only the force array (N, 3), not the Atom object
-                yield forces
+        for i, p_atoms in enumerate(supercells):
+            if p_atoms is None:
+                continue
 
-        # Phonopy expects a list for the forces setter.
-        # While we consume the generator into a list here, we avoid holding
-        # the list of ASE atoms objects or intermediate calculation data.
-        # This satisfies the requirement to process sequentially.
-        phonon.forces = list(force_generator())
+            # Create ASE atoms only for the calculation scope
+            ase_atoms = Atoms(
+                symbols=p_atoms.symbols,
+                cell=p_atoms.cell,
+                scaled_positions=p_atoms.scaled_positions,
+                pbc=True
+            )
+            ase_atoms.calc = calc
+
+            # Compute forces
+            forces = ase_atoms.get_forces()
+
+            # Store only the force array
+            forces_list.append(forces)
+
+            # ase_atoms is discarded here
+
+        phonon.forces = forces_list
 
     def _get_frequencies(self, phonon: Phonopy) -> np.ndarray:
         mesh = [20, 20, 20]

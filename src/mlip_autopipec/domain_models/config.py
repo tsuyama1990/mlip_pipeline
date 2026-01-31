@@ -61,20 +61,8 @@ class BulkStructureGenConfig(BaseModel):
     supercell: tuple[int, int, int] = (1, 1, 1)
 
 
-class SurfaceStructureGenConfig(BaseModel):
-    """Configuration for surface structure generation (Placeholder)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    strategy: Literal["surface"] = "surface"
-    element: str
-    facet: tuple[int, int, int]
-    layers: int
-    vacuum: float
-
-
 # Union of all structure generation configs
-StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
+StructureGenConfig = Union[BulkStructureGenConfig]
 
 
 class ValidationConfig(BaseModel):
@@ -92,6 +80,9 @@ class ValidationConfig(BaseModel):
     # EOS
     eos_vol_range: float = 0.1  # +/- 10%
     eos_n_points: int = 10
+
+    # Reporting
+    report_path: Path = Path("validation_report.html")
 
 
 class Config(BaseModel):

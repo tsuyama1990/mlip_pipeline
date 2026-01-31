@@ -49,6 +49,6 @@ class ValidationRunner:
         )
 
         # Generate Report
-        self.report_generator.generate(result, Path("validation_report.html"))
+        self.report_generator.generate(result, self.val_config.report_path)
 
         return result
