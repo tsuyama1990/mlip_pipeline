@@ -1,7 +1,9 @@
 from pathlib import Path
 import ase.data
+import ase.build
 from ase.calculators.lammpsrun import LAMMPS
-from mlip_autopipec.domain_models.config import PotentialConfig
+from mlip_autopipec.domain_models.config import PotentialConfig, ValidationConfig
+from mlip_autopipec.domain_models.structure import Structure
 
 
 def get_calculator(potential_path: Path, config: PotentialConfig) -> LAMMPS:
@@ -58,3 +60,26 @@ def get_calculator(potential_path: Path, config: PotentialConfig) -> LAMMPS:
     )
 
     return calc
+
+
+def get_reference_structure(validation_config: ValidationConfig, potential_config: PotentialConfig) -> Structure:
+    """
+    Generate reference structure based on ValidationConfig.
+    Defaults to fcc if not specified, using first element from potential.
+    """
+    element = potential_config.elements[0]
+    crystal = validation_config.ref_crystal_structure
+    a = validation_config.ref_lattice_constant
+
+    # Use ase.build.bulk
+    try:
+        atoms = ase.build.bulk(element, crystal, a=a) # type: ignore[no-untyped-call]
+    except Exception:
+        # If crystal structure name is invalid or not supported by bulk (e.g. complex names),
+        # we might fallback or raise.
+        # But 'fcc', 'bcc', 'diamond', etc are standard.
+        # Fallback to simple fcc to ensure continuity if user provides bad config?
+        # Better to raise error so user knows configuration is wrong.
+        raise ValueError(f"Could not generate reference structure for {element} with {crystal}, a={a}")
+
+    return Structure.from_ase(atoms)

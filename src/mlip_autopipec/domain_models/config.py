@@ -86,6 +86,12 @@ class ValidationConfig(BaseModel):
     eos_vol_range: tuple[float, float] = (0.9, 1.1)
     eos_n_points: int = 10
     strain_magnitude: float = 0.01
+    output_dir: Path = Path("validation_reports")
+
+    # Reference Structure for Stability Checks (e.g. Bulk Modulus, Phonons)
+    # Defaults should be provided for the target material to avoid hardcoding FCC
+    ref_crystal_structure: str = "fcc"
+    ref_lattice_constant: float = 4.0
 
 
 class Config(BaseModel):

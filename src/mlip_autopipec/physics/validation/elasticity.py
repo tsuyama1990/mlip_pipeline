@@ -1,25 +1,24 @@
 from pathlib import Path
 import numpy as np
-from ase.build import bulk
 
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric
 from mlip_autopipec.physics.validation.runner import BaseValidator
-from mlip_autopipec.physics.validation.utils import get_calculator
+from mlip_autopipec.physics.validation.utils import get_calculator, get_reference_structure
 
 
 class ElasticityValidator(BaseValidator):
     def validate(self, potential_path: Path) -> ValidationResult:
-        element = self.potential_config.elements[0]
-        try:
-            atoms = bulk(element) # type: ignore[no-untyped-call]
-        except Exception:
-            atoms = bulk(element, 'fcc', a=4.0) # type: ignore[no-untyped-call]
+        struct = get_reference_structure(self.config, self.potential_config)
+        atoms = struct.to_ase()
 
         calc = get_calculator(potential_path, self.potential_config)
 
         C = self._calculate_cij(atoms, calc)
 
         # Check stability for cubic (simplified check, assuming cubic structure)
+        # This assumes the reference structure is Cubic.
+        # If user provides non-cubic, these checks might be invalid,
+        # but we use simple defaults.
         c11 = C[0,0]
         c12 = C[0,1]
         c44 = C[3,3]
@@ -70,23 +69,12 @@ class ElasticityValidator(BaseValidator):
              deformation = np.eye(3) + strain_tensor
 
              at = atoms.copy() # type: ignore[no-untyped-call]
-             # ASE cell is row-vectors. cell_new = cell_old @ deformation_T?
-             # If r' = F r.
-             # h = [a, b, c]^T (column vectors in standard physics).
-             # ASE h_ase = h^T.
-             # h_new = F h.
-             # h_ase_new = h_new^T = (F h)^T = h^T F^T.
-             # So cell_new = cell @ F^T.
-             # If deformation IS F.
-             # My deformation matrix above is F.
              at.set_cell(at.cell @ deformation.T, scale_atoms=True)
 
              at.calc = calc
 
              # get_stress returns [sxx, syy, szz, syz, sxz, sxy] (Voigt order)
              return at.get_stress(voigt=True)
-
-        # Reference (not strictly needed if using central difference centered at 0)
 
         for i in range(6):
             strain = np.zeros(6)
@@ -97,7 +85,6 @@ class ElasticityValidator(BaseValidator):
             stress_minus = get_stress(strain)
 
             # C_ij = d(sigma_i)/d(epsilon_j)
-            # We varied epsilon_i (loop variable), so we get column i of C
             C[:, i] = (stress_plus - stress_minus) / (2 * delta)
 
         # Convert to GPa

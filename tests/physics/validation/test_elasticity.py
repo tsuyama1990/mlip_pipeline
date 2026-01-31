@@ -1,14 +1,20 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 import numpy as np
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
 
 def test_elasticity_validator_pass():
     with patch("mlip_autopipec.physics.validation.elasticity.ElasticityValidator._calculate_cij") as MockCij, \
-         patch("mlip_autopipec.physics.validation.elasticity.bulk"), \
+         patch("mlip_autopipec.physics.validation.elasticity.get_reference_structure") as MockGetRef, \
          patch("mlip_autopipec.physics.validation.elasticity.get_calculator"):
 
         from mlip_autopipec.physics.validation.elasticity import ElasticityValidator
+
+        # Mock Reference Structure
+        mock_struct = MagicMock()
+        mock_atoms = MagicMock()
+        mock_struct.to_ase.return_value = mock_atoms
+        MockGetRef.return_value = mock_struct
 
         # Stable Cubic
         C = np.zeros((6,6))
@@ -26,10 +32,15 @@ def test_elasticity_validator_pass():
 
 def test_elasticity_validator_fail():
     with patch("mlip_autopipec.physics.validation.elasticity.ElasticityValidator._calculate_cij") as MockCij, \
-         patch("mlip_autopipec.physics.validation.elasticity.bulk"), \
+         patch("mlip_autopipec.physics.validation.elasticity.get_reference_structure") as MockGetRef, \
          patch("mlip_autopipec.physics.validation.elasticity.get_calculator"):
 
         from mlip_autopipec.physics.validation.elasticity import ElasticityValidator
+
+        mock_struct = MagicMock()
+        mock_atoms = MagicMock()
+        mock_struct.to_ase.return_value = mock_atoms
+        MockGetRef.return_value = mock_struct
 
         # Unstable: C11 - C12 < 0
         C = np.zeros((6,6))

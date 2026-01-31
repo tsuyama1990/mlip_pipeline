@@ -2,22 +2,18 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import ase
-from ase.build import bulk
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric
 from mlip_autopipec.physics.validation.runner import BaseValidator
-from mlip_autopipec.physics.validation.utils import get_calculator
+from mlip_autopipec.physics.validation.utils import get_calculator, get_reference_structure
 
 
 class PhononValidator(BaseValidator):
     def validate(self, potential_path: Path) -> ValidationResult:
-        element = self.potential_config.elements[0]
-        try:
-            atoms = bulk(element) # type: ignore[no-untyped-call]
-        except Exception:
-            atoms = bulk(element, 'fcc', a=4.0) # type: ignore[no-untyped-call]
+        struct = get_reference_structure(self.config, self.potential_config)
+        atoms = struct.to_ase()
 
         calc = get_calculator(potential_path, self.potential_config)
 
@@ -35,7 +31,6 @@ class PhononValidator(BaseValidator):
         set_of_forces = []
         # supercells is list of PhonopyAtoms (or None if not generated)
         if supercells is None:
-             # Should not happen
              supercells = []
 
         for sc in supercells:
@@ -73,7 +68,7 @@ class PhononValidator(BaseValidator):
             passed=passed
         )
 
-        plot_path = Path.cwd() / "phonon_plot.png"
+        plot_path = self.config.output_dir / "phonon_plot.png"
         plt = phonon.plot_band_structure()
         plt.savefig(plot_path)
         plt.close() # Close to free memory

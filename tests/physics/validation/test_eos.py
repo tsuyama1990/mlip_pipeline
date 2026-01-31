@@ -5,7 +5,7 @@ from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfi
 
 def test_eos_validator_pass():
     with patch("mlip_autopipec.physics.validation.eos.EquationOfState") as MockEOS, \
-         patch("mlip_autopipec.physics.validation.eos.bulk") as MockBulk, \
+         patch("mlip_autopipec.physics.validation.eos.get_reference_structure") as MockGetRef, \
          patch("mlip_autopipec.physics.validation.eos.get_calculator"):
 
         from mlip_autopipec.physics.validation.eos import EOSValidator
@@ -17,14 +17,22 @@ def test_eos_validator_pass():
         mock_eos_instance.fit.return_value = (10.0, -5.0, 0.624, 4.0)
 
         # Mock Atoms
+        mock_struct = MagicMock()
         mock_atoms = MagicMock()
         mock_atoms.get_potential_energy.return_value = -5.0
         mock_atoms.get_volume.return_value = 10.0
-        mock_atoms.copy.return_value = mock_atoms # Needed for at.copy()
-        MockBulk.return_value = mock_atoms
+        mock_atoms.copy.return_value = mock_atoms
+        mock_struct.to_ase.return_value = mock_atoms
+        MockGetRef.return_value = mock_struct
 
         pot_config = PotentialConfig(elements=["Si"], cutoff=5.0)
-        validator = EOSValidator(ValidationConfig(), pot_config)
+        # We need to set output_dir because it is used now
+        val_config = ValidationConfig()
+        # Mock output dir creation or ensure it exists?
+        # Actually in eos.py: plot_path = self.config.output_dir / "eos_plot.png"
+        # Since it's a Path object it's fine.
+
+        validator = EOSValidator(val_config, pot_config)
         result = validator.validate(Path("pot.yace"))
 
         assert result.overall_status == "PASS"
@@ -33,7 +41,7 @@ def test_eos_validator_pass():
 
 def test_eos_validator_fail():
     with patch("mlip_autopipec.physics.validation.eos.EquationOfState") as MockEOS, \
-         patch("mlip_autopipec.physics.validation.eos.bulk") as MockBulk, \
+         patch("mlip_autopipec.physics.validation.eos.get_reference_structure") as MockGetRef, \
          patch("mlip_autopipec.physics.validation.eos.get_calculator"):
 
         from mlip_autopipec.physics.validation.eos import EOSValidator
@@ -42,9 +50,11 @@ def test_eos_validator_fail():
         mock_eos_instance = MockEOS.return_value
         mock_eos_instance.fit.return_value = (10.0, -5.0, -0.1, 4.0)
 
+        mock_struct = MagicMock()
         mock_atoms = MagicMock()
         mock_atoms.copy.return_value = mock_atoms
-        MockBulk.return_value = mock_atoms
+        mock_struct.to_ase.return_value = mock_atoms
+        MockGetRef.return_value = mock_struct
 
         pot_config = PotentialConfig(elements=["Si"], cutoff=5.0)
         validator = EOSValidator(ValidationConfig(), pot_config)

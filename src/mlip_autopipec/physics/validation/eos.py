@@ -3,22 +3,17 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 from ase.eos import EquationOfState
-from ase.build import bulk
 
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric
 from mlip_autopipec.physics.validation.runner import BaseValidator
-from mlip_autopipec.physics.validation.utils import get_calculator
+from mlip_autopipec.physics.validation.utils import get_calculator, get_reference_structure
 
 
 class EOSValidator(BaseValidator):
     def validate(self, potential_path: Path) -> ValidationResult:
-        element = self.potential_config.elements[0]
-
-        try:
-            atoms = bulk(element)
-        except Exception:
-            # Fallback
-            atoms = bulk(element, 'fcc', a=4.0) # type: ignore[no-untyped-call]
+        # Use config-based reference structure
+        struct = get_reference_structure(self.config, self.potential_config)
+        atoms = struct.to_ase()
 
         calc = get_calculator(potential_path, self.potential_config)
 
@@ -42,14 +37,9 @@ class EOSValidator(BaseValidator):
 
         eos = EquationOfState(volumes, energies, eos='birchmurnaghan')
         # fit() returns v0, e0, B, dB/dP, residual
-        # Wait, fit() signature depends on ASE version.
-        # Modern ASE: fit() returns v0, e0, B, Bprime
         try:
              v0_fit, e0_fit, B, Bprime = eos.fit()
         except ValueError:
-             # Some versions might return different tuple? Or fitting failed?
-             # Let's assume standard behavior.
-             # If fitting fails, raise or fail validation.
              return ValidationResult(
                 potential_id=potential_path.stem,
                 metrics=[],
@@ -68,7 +58,7 @@ class EOSValidator(BaseValidator):
             passed=passed
         )
 
-        plot_path = Path.cwd() / "eos_plot.png"
+        plot_path = self.config.output_dir / "eos_plot.png"
         eos.plot(filename=str(plot_path))
 
         return ValidationResult(

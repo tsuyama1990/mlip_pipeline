@@ -21,7 +21,10 @@ class ValidationRunner:
     def __init__(self, config: ValidationConfig, potential_config: PotentialConfig):
         self.config = config
         self.potential_config = potential_config
-        self.report_generator = ReportGenerator(output_dir=Path.cwd())
+
+        # Ensure output directory exists
+        self.config.output_dir.mkdir(parents=True, exist_ok=True)
+        self.report_generator = ReportGenerator(output_dir=self.config.output_dir)
 
     def validate(self, potential_path: Path) -> ValidationResult:
         from mlip_autopipec.physics.validation.eos import EOSValidator

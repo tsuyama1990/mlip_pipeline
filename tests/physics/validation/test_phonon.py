@@ -5,17 +5,19 @@ from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfi
 
 def test_phonon_validator_pass():
     with patch("mlip_autopipec.physics.validation.phonon.Phonopy") as MockPhonopy, \
-         patch("mlip_autopipec.physics.validation.phonon.bulk") as MockBulk, \
+         patch("mlip_autopipec.physics.validation.phonon.get_reference_structure") as MockGetRef, \
          patch("mlip_autopipec.physics.validation.phonon.get_calculator"):
 
         from mlip_autopipec.physics.validation.phonon import PhononValidator
 
         # Mock atoms with valid cell
+        mock_struct = MagicMock()
         mock_atoms = MagicMock()
         mock_atoms.cell = np.eye(3)
         mock_atoms.get_chemical_symbols.return_value = ["Si"]
         mock_atoms.get_scaled_positions.return_value = np.zeros((1,3))
-        MockBulk.return_value = mock_atoms
+        mock_struct.to_ase.return_value = mock_atoms
+        MockGetRef.return_value = mock_struct
 
         mock_pho = MockPhonopy.return_value
         # Mock band structure
@@ -38,16 +40,18 @@ def test_phonon_validator_pass():
 
 def test_phonon_validator_fail():
     with patch("mlip_autopipec.physics.validation.phonon.Phonopy") as MockPhonopy, \
-         patch("mlip_autopipec.physics.validation.phonon.bulk") as MockBulk, \
+         patch("mlip_autopipec.physics.validation.phonon.get_reference_structure") as MockGetRef, \
          patch("mlip_autopipec.physics.validation.phonon.get_calculator"):
 
         from mlip_autopipec.physics.validation.phonon import PhononValidator
 
+        mock_struct = MagicMock()
         mock_atoms = MagicMock()
         mock_atoms.cell = np.eye(3)
         mock_atoms.get_chemical_symbols.return_value = ["Si"]
         mock_atoms.get_scaled_positions.return_value = np.zeros((1,3))
-        MockBulk.return_value = mock_atoms
+        mock_struct.to_ase.return_value = mock_atoms
+        MockGetRef.return_value = mock_struct
 
         mock_pho = MockPhonopy.return_value
         # Negative frequency < -0.1
