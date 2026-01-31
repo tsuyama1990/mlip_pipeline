@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from mlip_autopipec.domain_models import LammpsConfig, MDParams
+from mlip_autopipec.domain_models import LammpsConfig, MDParams, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.job import JobStatus
 import numpy as np
@@ -19,7 +19,13 @@ def dummy_structure():
 
 @pytest.fixture
 def md_params():
-    return MDParams(temperature=300.0, n_steps=100, timestep=0.001, ensemble="NVT")
+    return MDParams(
+        temperature=300.0,
+        n_steps=100,
+        timestep=0.001,
+        ensemble="NVT",
+        uncertainty_threshold=5.0
+    )
 
 
 @pytest.fixture
@@ -27,7 +33,18 @@ def lammps_config():
     return LammpsConfig(command="lmp_serial", timeout=10, use_mpi=False)
 
 
-def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_path):
+@pytest.fixture
+def potential_config():
+    return PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        pair_style="hybrid/overlay",
+        zbl_inner_cutoff=0.5,
+        zbl_outer_cutoff=1.2
+    )
+
+
+def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     # Mock subprocess.run
@@ -45,10 +62,11 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_
         mock_which.return_value = "/usr/bin/lmp_serial"
 
         # Mock parsing to return the same structure
-        mock_parse.return_value = (dummy_structure, Path("dump.lammpstrj"))
+        mock_parse.return_value = (dummy_structure, Path("dump.lammpstrj"), None)
 
-        runner = LammpsRunner(config=lammps_config, base_work_dir=tmp_path)
-        result = runner.run(dummy_structure, md_params)
+        runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)
+        potential_path = Path("potential.yace")
+        result = runner.run(dummy_structure, md_params, potential_path=potential_path)
 
         assert result.status == JobStatus.COMPLETED
         assert result.final_structure == dummy_structure
@@ -60,8 +78,29 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, tmp_
         assert cmd[0] == "lmp_serial"
         assert "-in" in cmd
 
+        # Inspect generated input file
+        # Find the job dir
+        job_dirs = list(tmp_path.glob("job_*"))
+        assert len(job_dirs) == 1
+        work_dir = job_dirs[0]
+        in_lammps = (work_dir / "in.lammps").read_text()
 
-def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, tmp_path):
+        # Check Hybrid Potential
+        assert "pair_style" in in_lammps
+        assert "hybrid/overlay pace zbl" in in_lammps
+        assert "pair_coeff      * * pace" in in_lammps
+        assert "Si" in in_lammps
+        # Check for ZBL coefficients
+        assert "pair_coeff" in in_lammps
+        assert "zbl" in in_lammps
+
+        # Check UQ
+        assert "compute         pace_gamma all pace" in in_lammps
+        assert "potential.yace" in in_lammps
+        assert "fix             watchdog all halt 10 v_max_gamma > 5.0" in in_lammps
+
+
+def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     with patch("subprocess.run") as mock_run, patch("shutil.which") as mock_which:
@@ -72,7 +111,7 @@ def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, tmp_pa
         )
         mock_which.return_value = "/usr/bin/lmp_serial"
 
-        runner = LammpsRunner(config=lammps_config, base_work_dir=tmp_path)
+        runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)
         result = runner.run(dummy_structure, md_params)
 
         assert result.status == JobStatus.FAILED

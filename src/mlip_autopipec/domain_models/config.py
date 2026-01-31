@@ -22,6 +22,11 @@ class PotentialConfig(BaseModel):
     cutoff: float
     seed: int = 42
 
+    # Hybrid Potential Settings (ACE + ZBL)
+    pair_style: Literal["pace", "hybrid/overlay"] = "pace"
+    zbl_inner_cutoff: float = 1.0
+    zbl_outer_cutoff: float = 2.0
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:
@@ -37,6 +42,10 @@ class OrchestratorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_iterations: int = 1
     uncertainty_threshold: float = 5.0
+
+    # Active Set Selection
+    active_set_optimization: bool = True
+    max_active_set_size: int = 1000
 
 
 class BulkStructureGenConfig(BaseModel):

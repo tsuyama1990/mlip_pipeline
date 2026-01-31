@@ -15,17 +15,32 @@ def test_config_valid() -> None:
     """Test valid configuration creation."""
     c = Config(
         project_name="TestProject",
-        potential=PotentialConfig(elements=["Ti", "O"], cutoff=5.0, seed=42),
+        potential=PotentialConfig(
+            elements=["Ti", "O"],
+            cutoff=5.0,
+            seed=42,
+            pair_style="hybrid/overlay",
+            zbl_inner_cutoff=0.8,
+            zbl_outer_cutoff=1.5
+        ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Ti",
             crystal_structure="hcp",
             lattice_constant=2.95,
         ),
-        md=MDConfig(temperature=300.0, n_steps=100, timestep=0.001, ensemble="NVT"),
+        md=MDConfig(
+            temperature=300.0,
+            n_steps=100,
+            timestep=0.001,
+            ensemble="NVT",
+            uncertainty_threshold=5.0
+        ),
     )
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
+    assert c.potential.pair_style == "hybrid/overlay"
+    assert c.potential.zbl_inner_cutoff == 0.8
     assert c.logging.level == "INFO"  # Default
 
     # Check structure_gen fields
@@ -33,6 +48,10 @@ def test_config_valid() -> None:
     assert c.structure_gen.element == "Ti"
 
     assert c.md.temperature == 300.0
+    assert c.md.uncertainty_threshold == 5.0
+
+    # Check Orchestrator defaults
+    assert c.orchestrator.active_set_optimization is True
 
 
 def test_config_invalid_cutoff() -> None:
@@ -72,6 +91,7 @@ def test_from_yaml(tmp_path: Path) -> None:
       elements: ["Cu"]
       cutoff: 3.0
       seed: 123
+      pair_style: "pace"
     logging:
       level: "DEBUG"
     structure_gen:
@@ -84,6 +104,9 @@ def test_from_yaml(tmp_path: Path) -> None:
       n_steps: 500
       timestep: 0.002
       ensemble: "NVT"
+      uncertainty_threshold: 10.0
+    orchestrator:
+      active_set_optimization: false
     """
     yaml_file.write_text(yaml_content)
 
@@ -91,6 +114,7 @@ def test_from_yaml(tmp_path: Path) -> None:
 
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
+    assert c.potential.pair_style == "pace"
     assert c.logging.level == "DEBUG"
 
     # Verify strict union validation (it should instantiate BulkStructureGenConfig)
@@ -98,3 +122,5 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.structure_gen.crystal_structure == "fcc"
 
     assert c.md.n_steps == 500
+    assert c.md.uncertainty_threshold == 10.0
+    assert c.orchestrator.active_set_optimization is False

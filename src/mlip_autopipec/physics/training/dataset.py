@@ -22,15 +22,19 @@ class DatasetManager:
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-    def convert(self, structures: Iterable[Structure], output_path: Path) -> Path:
+    def convert(
+        self, structures: Iterable[Structure], output_path: Path, append: bool = False
+    ) -> Path:
         """
         Convert a list (or iterator) of Structure objects to a .pckl.gzip dataset.
 
         Uses streaming to avoid loading all atoms into memory.
+        If append=True, appends to the intermediate extxyz file, effectively adding to the dataset.
 
         Args:
             structures: Iterable of Structure objects.
             output_path: Path to the output .pckl.gzip file.
+            append: If True, append to existing dataset.extxyz.
 
         Returns:
             Path to the generated dataset.
@@ -53,16 +57,14 @@ class DatasetManager:
 
         # Write to file
         # ase.io.write supports generator for many formats including extxyz
-        write(extxyz_path, atoms_generator(), format="extxyz")  # type: ignore[arg-type]
+        # append=True allows accumulation
+        write(extxyz_path, atoms_generator(), format="extxyz", append=append)  # type: ignore[arg-type]
 
         # Check if file is empty or not created (if generator was empty)
-        # extxyz writer might write header even if empty?
-        # If empty, pace_collect will likely fail.
         if not extxyz_path.exists() or extxyz_path.stat().st_size == 0:
-             # This check is weak because write might buffer.
-             # But let's assume if structure list was empty, we should have failed earlier?
-             # Since input is iterator, we can't check len.
-             # We rely on pace_collect failure or check if file is trivial.
+             logger.warning("dataset.extxyz is empty or does not exist.")
+             # If appending and it was empty, maybe okay?
+             # But usually means no structures provided.
              pass
 
         # 2. Call pace_collect

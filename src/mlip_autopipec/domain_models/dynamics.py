@@ -29,6 +29,9 @@ class MDConfig(BaseModel):
     timestep: float = 0.001
     ensemble: Literal["NVT", "NPT"]
 
+    # Uncertainty Quantification (UQ)
+    uncertainty_threshold: Optional[float] = None
+
 
 # Alias for backward compatibility
 MDParams = MDConfig
