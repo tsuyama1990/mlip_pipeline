@@ -8,9 +8,10 @@ from mlip_autopipec.physics.reporting.html_gen import ReportGenerator
 
 
 class BaseValidator(ABC):
-    def __init__(self, config: ValidationConfig, potential_config: PotentialConfig):
+    def __init__(self, config: ValidationConfig, potential_config: PotentialConfig, lammps_command: str = "lammps"):
         self.config = config
         self.potential_config = potential_config
+        self.lammps_command = lammps_command
 
     @abstractmethod
     def validate(self, potential_path: Path) -> ValidationResult:
@@ -18,9 +19,10 @@ class BaseValidator(ABC):
 
 
 class ValidationRunner:
-    def __init__(self, config: ValidationConfig, potential_config: PotentialConfig):
+    def __init__(self, config: ValidationConfig, potential_config: PotentialConfig, lammps_command: str = "lammps"):
         self.config = config
         self.potential_config = potential_config
+        self.lammps_command = lammps_command
 
         # Ensure output directory exists
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
@@ -32,9 +34,9 @@ class ValidationRunner:
         from mlip_autopipec.physics.validation.phonon import PhononValidator
 
         validators: list[BaseValidator] = [
-            EOSValidator(self.config, self.potential_config),
-            ElasticityValidator(self.config, self.potential_config),
-            PhononValidator(self.config, self.potential_config),
+            EOSValidator(self.config, self.potential_config, self.lammps_command),
+            ElasticityValidator(self.config, self.potential_config, self.lammps_command),
+            PhononValidator(self.config, self.potential_config, self.lammps_command),
         ]
 
         metrics: list[ValidationMetric] = []

@@ -15,7 +15,7 @@ class PhononValidator(BaseValidator):
         struct = get_reference_structure(self.config, self.potential_config)
         atoms = struct.to_ase()
 
-        calc = get_calculator(potential_path, self.potential_config)
+        calc = get_calculator(potential_path, self.potential_config, self.lammps_command)
 
         # Phonopy setup
         unitcell = PhonopyAtoms(symbols=atoms.get_chemical_symbols(),

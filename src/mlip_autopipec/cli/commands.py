@@ -225,7 +225,17 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
             # Create default
             val_config = ValidationConfig()
 
-        runner = ValidationRunner(val_config, config.potential)
+        # Pass lammps command from config
+        lammps_cmd = config.lammps.command
+        # If config.lammps.command is a list, join it?
+        # LammpsConfig definition: command: str | list[str]
+        # ASE LAMMPS calculator expects string usually for simple cases,
+        # but if it's complex, we might need to handle it.
+        # Assuming space separated string is fine for now if it's a list.
+        if isinstance(lammps_cmd, list):
+            lammps_cmd = " ".join(lammps_cmd)
+
+        runner = ValidationRunner(val_config, config.potential, lammps_cmd)
         result = runner.validate(potential_path)
 
         if result.overall_status == "PASS":

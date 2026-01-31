@@ -11,7 +11,7 @@ class ElasticityValidator(BaseValidator):
         struct = get_reference_structure(self.config, self.potential_config)
         atoms = struct.to_ase()
 
-        calc = get_calculator(potential_path, self.potential_config)
+        calc = get_calculator(potential_path, self.potential_config, self.lammps_command)
 
         C = self._calculate_cij(atoms, calc)
 

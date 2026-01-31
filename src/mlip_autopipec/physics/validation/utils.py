@@ -1,14 +1,23 @@
+import ase.build
 from pathlib import Path
 import ase.data
-import ase.build
 from ase.calculators.lammpsrun import LAMMPS
 from mlip_autopipec.domain_models.config import PotentialConfig, ValidationConfig
 from mlip_autopipec.domain_models.structure import Structure
 
 
-def get_calculator(potential_path: Path, config: PotentialConfig) -> LAMMPS:
+def get_calculator(potential_path: Path, config: PotentialConfig, lammps_command: str = "lammps") -> LAMMPS:
     """
     Creates an ASE LAMMPS calculator for the given potential.
+
+    Args:
+        potential_path: Path to the .yace potential file.
+        config: Potential configuration.
+        lammps_command: Command to run LAMMPS (e.g. 'lmp_serial').
+                        Passed to ASE as a string. ASE uses subprocess/os.system depending on version,
+                        but typically expects a string command line.
+                        We rely on ASE's internal handling, but assume lammps_command comes from
+                        validated LammpsConfig.
     """
     # Elements
     elements = config.elements
@@ -49,10 +58,9 @@ def get_calculator(potential_path: Path, config: PotentialConfig) -> LAMMPS:
         pair_coeffs.append(f"* * pace {pot_abs} {elem_str}")
 
     # Create Calculator
-    # We assume 'lammps' executable is in PATH.
-    # We explicitly turn off 'echo' to reduce noise?
+    # We use explicit command string from config
     calc = LAMMPS(
-        command="lammps",
+        command=lammps_command,
         pair_style=pair_style,
         pair_coeff=pair_coeffs,
         keep_tmp_files=False,
@@ -65,21 +73,22 @@ def get_calculator(potential_path: Path, config: PotentialConfig) -> LAMMPS:
 def get_reference_structure(validation_config: ValidationConfig, potential_config: PotentialConfig) -> Structure:
     """
     Generate reference structure based on ValidationConfig.
-    Defaults to fcc if not specified, using first element from potential.
+    Raises ValueError if reference parameters are missing.
     """
     element = potential_config.elements[0]
     crystal = validation_config.ref_crystal_structure
     a = validation_config.ref_lattice_constant
 
+    if crystal is None or a is None:
+        raise ValueError(
+            "ValidationConfig missing 'ref_crystal_structure' or 'ref_lattice_constant'. "
+            "These are required for validation (EOS, Elasticity, Phonons)."
+        )
+
     # Use ase.build.bulk
     try:
         atoms = ase.build.bulk(element, crystal, a=a) # type: ignore[no-untyped-call]
-    except Exception:
-        # If crystal structure name is invalid or not supported by bulk (e.g. complex names),
-        # we might fallback or raise.
-        # But 'fcc', 'bcc', 'diamond', etc are standard.
-        # Fallback to simple fcc to ensure continuity if user provides bad config?
-        # Better to raise error so user knows configuration is wrong.
-        raise ValueError(f"Could not generate reference structure for {element} with {crystal}, a={a}")
+    except Exception as e:
+        raise ValueError(f"Could not generate reference structure for {element} with {crystal}, a={a}: {e}")
 
     return Structure.from_ase(atoms)
