@@ -8,6 +8,10 @@ from mlip_autopipec.domain_models.validation import ValidationMetric
 from mlip_autopipec.physics.validation.utils import get_lammps_calculator
 
 class EOSValidator:
+    """
+    Validates the Equation of State (EOS) by fitting Birch-Murnaghan equation.
+    Checks if the Bulk Modulus is positive.
+    """
     def __init__(self, val_config: ValidationConfig, pot_config: PotentialConfig, potential_path: Path, work_dir: Path = Path("_work_validation/eos")):
         self.val_config = val_config
         self.pot_config = pot_config
@@ -18,7 +22,6 @@ class EOSValidator:
     def validate(self, structure: Structure) -> ValidationMetric:
         atoms = structure.to_ase()
 
-        # v0 used to be here but was unused.
         range_frac = self.val_config.eos_vol_range
         n_points = self.val_config.eos_n_points
 

@@ -8,6 +8,10 @@ from mlip_autopipec.domain_models.validation import ValidationMetric
 from mlip_autopipec.physics.validation.utils import get_lammps_calculator
 
 class ElasticityValidator:
+    """
+    Validates elastic stability by calculating the stiffness tensor C_ij.
+    Checks for Born stability criteria (positive definite C matrix).
+    """
     def __init__(self, val_config: ValidationConfig, pot_config: PotentialConfig, potential_path: Path, work_dir: Path = Path("_work_validation/elastic")):
         self.val_config = val_config
         self.pot_config = pot_config
@@ -52,6 +56,8 @@ class ElasticityValidator:
         atoms.calc = calc
 
         delta = 0.01 # 1% strain
+
+        # Pre-allocate C matrix (Optimization)
         C = np.zeros((6, 6))
 
         # Voigt notation: 0:xx, 1:yy, 2:zz, 3:yz, 4:xz, 5:xy

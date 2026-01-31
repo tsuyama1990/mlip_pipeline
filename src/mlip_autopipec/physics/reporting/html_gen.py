@@ -6,12 +6,17 @@ from typing import Optional
 from mlip_autopipec.domain_models.validation import ValidationResult
 
 class ReportGenerator:
-    def __init__(self, template_dir: Path = Path("src/mlip_autopipec/physics/reporting/templates")):
-        self.template_dir = template_dir
+    def __init__(self, template_dir: Optional[Path] = None):
+        # Use package-relative path by default
+        if template_dir is None:
+            self.template_dir = Path(__file__).parent / "templates"
+        else:
+            self.template_dir = template_dir
+
         self.env: Optional[Environment] = None
-        if template_dir.exists():
+        if self.template_dir.exists():
             self.env = Environment(
-                loader=FileSystemLoader(template_dir),
+                loader=FileSystemLoader(self.template_dir),
                 autoescape=select_autoescape(['html', 'xml'])
             )
 
