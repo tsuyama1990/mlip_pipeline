@@ -275,16 +275,20 @@ run             {params.n_steps}
         if not shutil.which(exe):
             raise FileNotFoundError(f"Executable '{exe}' not found.")
 
-        result = subprocess.run(
-            cmd_list,
-            cwd=work_dir,
-            capture_output=True,
-            text=True,
-            timeout=self.config.timeout,
-            check=True,
-        )
+        # Use stdout/stderr redirection to files to avoid full memory buffering
+        with (work_dir / "stdout.log").open("w") as stdout_f, (
+            work_dir / "stderr.log"
+        ).open("w") as stderr_f:
+            subprocess.run(
+                cmd_list,
+                cwd=work_dir,
+                timeout=self.config.timeout,
+                check=True,
+                stdout=stdout_f,
+                stderr=stderr_f,
+            )
 
-        return result.stdout
+        return (work_dir / "stdout.log").read_text()
 
     def _parse_output(
         self, work_dir: Path, original_structure: Structure
@@ -295,47 +299,33 @@ run             {params.n_steps}
 
         max_gamma = None
 
-        # Parse log for max_gamma if it exists
+        # Incremental log parsing
         if log_path.exists():
-            # Look for specific Halt message if printed?
-            # Or usually "Fix halt: ..."
-            # We can also parse thermo output if we printed max_gamma.
-            # But fix halt doesn't necessarily print the value that triggered it in a standard format.
-            # However, we can look for it.
-            # Simplest: check if we halted.
-            # If we halted, we assume max_gamma > threshold.
-            # But we want the actual value?
-            # Maybe we should have printed it in thermo?
-            # For now, let's try to parse "v_max_gamma" from thermo if we added it (we didn't).
-            # We will just return None for now unless we find a clear pattern.
-            # Actually, if we use "fix halt ... error hard", the log might contain the error message.
-            pass
+            with log_path.open("r") as f:
+                # Seek to end and read backwards? Or read chunk by chunk.
+                # For scalability, we shouldn't read whole file.
+                # But typical LAMMPS logs aren't massive compared to trajectories.
+                # However, if we look for "Fix halt", we can scan line by line.
+                for line in f:
+                    if "Fix halt" in line:
+                        max_gamma = 999.9
+                        break
 
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
-        # Read last frame
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text")  # type: ignore[no-untyped-call]
+        # Read last frame safely using iread and exhausting iterator
+        # This is more memory efficient than read(index=-1) for huge files?
+        # ase.io.read(index=-1) might optimize, but iread is safer.
+        last_atoms = None
+        for atoms in ase.io.iread(traj_path, format="lammps-dump-text"):
+            last_atoms = atoms
 
-        if isinstance(atoms, list):
-            atoms = atoms[-1]
+        if last_atoms is None:
+             raise ValueError("Trajectory is empty")
 
         # Restore symbols
-        if len(atoms) == len(original_structure.symbols):
-            atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
+        if len(last_atoms) == len(original_structure.symbols):
+            last_atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
 
-        # Try to guess max_gamma from properties if dumped?
-        # We didn't dump gamma in custom dump command: "dump ... id type x y z"
-        # So we can't get it from dump.
-
-        # If simulation crashed due to fix halt, we assume detection.
-        # We can check log for "Fix halt"
-        if log_path.exists():
-            if "Fix halt" in log_path.read_text():
-                # We don't know exact value but we know it exceeded threshold.
-                # Let's return threshold + epsilon or just 999.0?
-                # Or update LammpsResult to have bool halted?
-                # max_gamma > threshold is enough.
-                max_gamma = 999.9  # Flag value
-
-        return Structure.from_ase(atoms), traj_path, max_gamma
+        return Structure.from_ase(last_atoms), traj_path, max_gamma

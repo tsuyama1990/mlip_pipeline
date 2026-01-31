@@ -169,19 +169,18 @@ class Orchestrator:
             logger.warning("No trajectory found.")
             return []
 
-        # Read dump
+        # Read dump using iread for streaming (memory safety)
         # We expect c_pace_gamma to be available if UQ was on
-        traj = ase.io.read(result.trajectory_path, index=":", format="lammps-dump-text")  # type: ignore[no-untyped-call]
+        traj_iter = ase.io.iread(result.trajectory_path, index=":", format="lammps-dump-text")
 
         candidates = []
         threshold = self.config.orchestrator.uncertainty_threshold
 
         # Simple strategy: Select frames where max(gamma) > threshold
-        # Better: Select atoms with high gamma and cluster them?
-        # For "Cycle 02/03", let's just take the frames that exceeded threshold.
+        # We process frame by frame to avoid OOM
         # But we also limit the number of candidates.
 
-        for atoms in traj:
+        for atoms in traj_iter:
             # Check for gamma
             # atoms.arrays might contain 'c_pace_gamma'
             gammas = atoms.arrays.get("c_pace_gamma")
@@ -192,7 +191,6 @@ class Orchestrator:
                     is_candidate = True
             else:
                 # If gamma not present but we detected via log/halt?
-                # Maybe just take the last frame (halt frame)
                 pass
 
             if is_candidate:

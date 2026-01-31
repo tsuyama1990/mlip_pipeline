@@ -54,6 +54,12 @@ def test_qe_runner_success(runner, structure, config):
             assert result.energy != 0.0
             assert mock_exec.call_count == 1
 
+            # Verify correct config propagation (Audit Fix)
+            call_args = mock_exec.call_args
+            called_config = call_args[0][1] # second arg of _execute(work_dir, config)
+            assert called_config.kspacing == 0.04
+            assert called_config.mixing_beta == 0.7
+
 
 def test_qe_runner_recovery(runner, structure, config):
     with patch.object(

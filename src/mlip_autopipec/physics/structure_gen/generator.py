@@ -17,5 +17,6 @@ class StructureGenFactory:
                 "Surface generation strategy is not yet implemented."
             )
 
+        # Fallback for unexpected strategy if typing doesn't catch it
         msg = f"Unknown structure generation strategy: {config.strategy}"
         raise ValueError(msg)

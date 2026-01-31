@@ -54,9 +54,9 @@ class PhononValidator(BaseValidator):
             # 3. Calculate forces
             forces_set = []
             if supercells is not None:
-                for sc in supercells:
+                for s in supercells:
                     # Convert Phonopy atom to ASE
-                    ase_atoms = self._phonopy_to_ase(sc)
+                    ase_atoms = self._phonopy_to_ase(s)
                     ase_atoms.calc = self.calculator
                     forces = ase_atoms.get_forces()
                     forces_set.append(forces)

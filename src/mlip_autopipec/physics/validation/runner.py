@@ -3,12 +3,15 @@ from pathlib import Path
 from ase.calculators.lammpsrun import LAMMPS
 
 from mlip_autopipec.domain_models.config import Config, ValidationConfig
+from typing import Literal
+
 from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.reporting.html_gen import ReportGenerator
 from mlip_autopipec.physics.validation.eos import EOSValidator
 from mlip_autopipec.physics.validation.elasticity import ElasticityValidator
 from mlip_autopipec.physics.validation.phonon import PhononValidator
+from mlip_autopipec.physics.validation.base import BaseValidator
 
 
 class ValidationRunner:
@@ -22,9 +25,9 @@ class ValidationRunner:
 
         # 2. Prepare Structure (Equilibrium)
         # We use the structure generation config to get the reference structure
-        generator = StructureGenFactory.create(config.structure_gen)
+        generator = StructureGenFactory.get_generator(config.structure_gen)
         # Generate 1 structure
-        structure_dm = next(generator.generate(n_structures=1))
+        structure_dm = generator.generate(config.structure_gen)
         structure = structure_dm.to_ase()
 
         # 3. Setup Calculator Creator
@@ -69,24 +72,55 @@ class ValidationRunner:
         # 4. Run Validators
         metrics = []
         plots = {}
-        status = "PASS"
+        status: Literal["PASS", "WARN", "FAIL"] = "PASS"
 
         # We need to catch specific exceptions like "Phonopy not installed"
-        validators = []
+        validators: list[BaseValidator] = []
 
         # EOS
-        validators.append(EOSValidator(structure, make_calculator(), val_config, self.output_dir, potential_path.name))
+        validators.append(
+            EOSValidator(
+                structure,
+                make_calculator(),
+                val_config,
+                self.output_dir,
+                potential_path.name,
+            )
+        )
 
         # Elasticity
-        validators.append(ElasticityValidator(structure, make_calculator(), val_config, self.output_dir, potential_path.name))
+        validators.append(
+            ElasticityValidator(
+                structure,
+                make_calculator(),
+                val_config,
+                self.output_dir,
+                potential_path.name,
+            )
+        )
 
         # Phonon
         try:
-            validators.append(PhononValidator(structure, make_calculator(), val_config, self.output_dir, potential_path.name))
+            validators.append(
+                PhononValidator(
+                    structure,
+                    make_calculator(),
+                    val_config,
+                    self.output_dir,
+                    potential_path.name,
+                )
+            )
         except RuntimeError:
             # Phonopy missing
-            metrics.append(ValidationMetric(name="Phonon", value=0.0, passed=False, error_message="Phonopy not installed"))
-            status = "FAIL" # Or WARN?
+            metrics.append(
+                ValidationMetric(
+                    name="Phonon",
+                    value=0.0,
+                    passed=False,
+                    error_message="Phonopy not installed",
+                )
+            )
+            status = "FAIL"  # Or WARN?
 
         for validator in validators:
             res = validator.validate()
@@ -102,7 +136,7 @@ class ValidationRunner:
             potential_id=potential_path.name,
             metrics=metrics,
             plots=plots,
-            overall_status=status
+            overall_status=status,
         )
 
         # 6. Report
