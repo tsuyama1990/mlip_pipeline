@@ -1,10 +1,10 @@
 import logging
+import shutil
 from pathlib import Path
 from typing import List, Iterator
 
 import numpy as np
 import ase.io
-from ase import Atoms
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -176,11 +176,15 @@ class WorkflowManager:
         stride = self.config.orchestrator.trajectory_sampling_stride
         threshold = self.config.orchestrator.uncertainty_threshold
 
+        # Buffer radius for extraction (SPEC 3.2: R_cut + R_buffer)
+        buffer_radius = 2.0
+        extraction_radius = self.config.potential.cutoff + buffer_radius
+
         # Helper to stream candidates
         def stream_candidates() -> Iterator[CandidateStructure]:
             traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
             for i, atoms in enumerate(traj):
-                if not isinstance(atoms, Atoms):
+                if not isinstance(atoms, ase.Atoms):
                     continue
 
                 gammas = atoms.arrays.get('c_pace_gamma')
@@ -189,7 +193,7 @@ class WorkflowManager:
 
                     full_struct = Structure.from_ase(atoms)
                     cluster = self.candidate_manager.extract_cluster(
-                        full_struct, center_idx, radius=self.config.potential.cutoff
+                        full_struct, center_idx, radius=extraction_radius
                     )
 
                     yield CandidateStructure(
@@ -208,6 +212,9 @@ class WorkflowManager:
         count = 0
 
         if self.config.training and self.config.orchestrator.active_set_optimization:
+             # Stream to file
+             # Note: We need to keep track of CandidateStructure metadata (origin, gamma).
+             # Extxyz info dict is suitable.
 
              with open(all_cands_path, "w"):
                  pass # clear file
@@ -229,6 +236,7 @@ class WorkflowManager:
                  ase.io.write(all_cands_path, chunk, append=True) # type: ignore[no-untyped-call]
 
              if count == 0:
+                 shutil.rmtree(temp_dir)
                  return []
 
              logger.info(f"Collected {count} raw candidates. Running Active Set Selection.")
@@ -243,6 +251,7 @@ class WorkflowManager:
              try:
                  selected_path = pm_runner.select_active_set(all_cands_path)
 
+                 # Read back selected
                  final_candidates = []
                  for s_struct in load_structures(selected_path):
 
@@ -257,6 +266,7 @@ class WorkflowManager:
                      ))
 
                  logger.info(f"Selected {len(final_candidates)} candidates.")
+                 shutil.rmtree(temp_dir) # Cleanup
                  return final_candidates
 
              except Exception as e:
@@ -277,15 +287,21 @@ class WorkflowManager:
                              uncertainty_score=gamma,
                              status=CandidateStatus.PENDING
                          ))
+                 shutil.rmtree(temp_dir) # Cleanup
                  return final_candidates
 
         else:
+            # Just collect all, limiting by simple logic if needed
             candidates = list(stream_candidates())
 
             max_size = self.config.orchestrator.max_active_set_size
             if len(candidates) > max_size:
                  indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
                  candidates = [candidates[i] for i in indices]
+
+            # Cleanup if temp dir was created
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
 
             return candidates
 
@@ -323,6 +339,18 @@ class WorkflowManager:
 
                         # Update structure with DFT results
                         s_new = embedded.model_copy()
+
+                        # Force Masking (SPEC 3.2)
+                        # We zero out forces for atoms outside cutoff (buffer region)
+                        # Candidates carry 'cluster_dist' array from extraction
+                        if "cluster_dist" in cand.structure.arrays:
+                            dists = cand.structure.arrays["cluster_dist"]
+                            cutoff = self.config.potential.cutoff
+                            mask_indices = np.where(dists > cutoff)[0]
+                            if len(mask_indices) > 0:
+                                res.forces[mask_indices] = 0.0
+                                logger.debug(f"Masked forces for {len(mask_indices)} buffer atoms.")
+
                         s_new.properties = {
                             'energy': res.energy,
                             'forces': res.forces,

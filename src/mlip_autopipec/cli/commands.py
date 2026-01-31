@@ -180,8 +180,9 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         structures = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
-        # We use a subdirectory for training data
-        work_dir = Path("training_work")
+        # Use a default path relative to cwd if not specified in config (assuming training config might carry path in future)
+        # For now, derive from cwd as per fix plan
+        work_dir = Path.cwd() / "training_work"
         dataset_manager = DatasetManager(work_dir=work_dir / "data")
         pacemaker_dataset = dataset_manager.convert(
             structures, work_dir / "data" / "train.pckl.gzip"

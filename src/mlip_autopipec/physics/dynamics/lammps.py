@@ -56,13 +56,21 @@ class LammpsRunner:
 
             # 2. Execute
             start_time = datetime.now()
-            log_content = self._execute(work_dir)
+            # Execute with log streaming to file instead of capture_output
+            self._execute(work_dir)
             duration = (datetime.now() - start_time).total_seconds()
 
             # 3. Parse Output
             final_structure, trajectory_path, max_gamma = self._parse_output(
                 work_dir, structure
             )
+
+            # Read log content for result object (tail only?)
+            # For scalability, maybe we shouldn't read the whole log if it's huge.
+            # But JobResult expects log_content string.
+            # We'll read it, assuming it's manageable or we can truncate.
+            log_file = work_dir / "stdout.log"
+            log_content = log_file.read_text() if log_file.exists() else ""
 
             return LammpsResult(
                 job_id=job_id,
@@ -87,11 +95,8 @@ class LammpsRunner:
                 max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
-            log_file = work_dir / "log.lammps"
-            if log_file.exists():
-                log_content = log_file.read_text()
-            else:
-                log_content = f"Command failed.\nStderr: {e.stderr}"
+            log_file = work_dir / "stdout.log"
+            log_content = log_file.read_text() if log_file.exists() else f"Command failed.\nStderr: {e.stderr}"
 
             # Try to parse output even if failed (e.g. fix halt with error)
             try:
@@ -105,7 +110,6 @@ class LammpsRunner:
 
             # Check if it was a halt
             status = JobStatus.FAILED
-            # If parsing detected halt or max_gamma is high, we might consider this expected.
 
             return LammpsResult(
                 job_id=job_id,
@@ -118,7 +122,7 @@ class LammpsRunner:
                 max_gamma=max_gamma,
             )
         except Exception as e:
-            log_file = work_dir / "log.lammps"
+            log_file = work_dir / "stdout.log"
             log_content = log_file.read_text() if log_file.exists() else str(e)
 
             return LammpsResult(
@@ -231,8 +235,8 @@ run             {params.n_steps}
 """
         (work_dir / "in.lammps").write_text(input_script)
 
-    def _execute(self, work_dir: Path) -> str:
-        """Execute LAMMPS subprocess."""
+    def _execute(self, work_dir: Path) -> None:
+        """Execute LAMMPS subprocess, streaming output to file."""
         cmd_str = self.config.command
         if self.config.use_mpi:
             cmd_str = f"{self.config.mpi_command} {cmd_str}"
@@ -244,16 +248,19 @@ run             {params.n_steps}
         if not shutil.which(exe):
             raise FileNotFoundError(f"Executable '{exe}' not found.")
 
-        result = subprocess.run(
-            cmd_list,
-            cwd=work_dir,
-            capture_output=True,
-            text=True,
-            timeout=self.config.timeout,
-            check=True,
-        )
+        # Stream stdout/stderr to files
+        stdout_path = work_dir / "stdout.log"
+        stderr_path = work_dir / "stderr.log"
 
-        return result.stdout
+        with open(stdout_path, "w") as f_out, open(stderr_path, "w") as f_err:
+            subprocess.run(
+                cmd_list,
+                cwd=work_dir,
+                stdout=f_out,
+                stderr=f_err,
+                timeout=self.config.timeout,
+                check=True,
+            )
 
     def _parse_output(
         self, work_dir: Path, original_structure: Structure
@@ -270,13 +277,7 @@ run             {params.n_steps}
             parse_result = self.log_parser.parse(log_content)
             max_gamma = parse_result.max_gamma
 
-            # If halt detected but max_gamma not parsed (maybe thermo didn't print in time?),
-            # assume it triggered threshold.
             if parse_result.halt_detected and max_gamma is None:
-                # We assume the last step triggered it.
-                # Just return a flag value or None (Orchestrator can handle halt logic separately via JobStatus?)
-                # But Orchestrator logic: if result.max_gamma > threshold -> Detect.
-                # So we must return > threshold.
                 max_gamma = 999.9
 
         if not traj_path.exists():

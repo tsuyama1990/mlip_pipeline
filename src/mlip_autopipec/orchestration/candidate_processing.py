@@ -14,46 +14,42 @@ class CandidateManager:
         """
         Extracts a spherical cluster of atoms around a center atom.
         Uses ASE NeighborList for correct PBC handling.
+        Tags atoms outside the core radius (radius - buffer) as ghosts if buffer is considered.
+        However, for extraction, we just take everything within radius.
+        The caller is responsible for providing R_cut + R_buffer as the radius.
+
+        We will tag atoms based on distance from center for later Force Masking.
         """
         atoms = supercell.to_ase()
 
-        # cutoffs: list of radius/2 for each atom to find neighbors?
-        # NeighborList takes cutoffs. If we want all neighbors within radius of center atom:
-        # We can just iterate over neighbors of center atom.
-
-        # cutoffs for NeighborList are usually atomic radii.
-        # But here we want a spherical cut.
-        # We can use natural_cutoffs or just a large cutoff.
-        # Actually, to find neighbors within radius R, we need neighbor list with cutoff R/2 + R/2 = R.
-        # So if we set all cutoffs to radius/2, then any pair with dist < R will be found.
-
+        # Determine neighbors within radius (cutoff + buffer)
         cutoffs = [radius / 2.0] * len(atoms)
         nl = NeighborList(cutoffs, self_interaction=False, bothways=True) # type: ignore[no-untyped-call]
         nl.update(atoms) # type: ignore[no-untyped-call]
 
         indices, offsets = nl.get_neighbors(center_atom_index) # type: ignore[no-untyped-call]
 
-        # Unwrapping: get_neighbors returns offsets (pbc shifts).
-        # We can reconstruct positions relative to center atom.
-        # pos_neighbor = pos_original + offset @ cell
-        # vector = pos_neighbor - pos_center
-        # new_pos = vector (centered at 0)
-
+        # Include center atom
         center_pos = atoms.positions[center_atom_index]
         cell = atoms.get_cell()
 
         new_positions = []
         new_symbols = []
+        distances = []
 
-        # Center atom at 0
+        # Add center atom
         new_positions.append([0.0, 0.0, 0.0])
         new_symbols.append(atoms.symbols[center_atom_index])
+        distances.append(0.0)
 
         for i, idx in enumerate(indices):
             offset_vec = np.dot(offsets[i], cell)
             diff = atoms.positions[idx] + offset_vec - center_pos
+            dist = np.linalg.norm(diff)
+
             new_positions.append(diff)
             new_symbols.append(atoms.symbols[idx])
+            distances.append(float(dist)) # Cast to float for Mypy
 
         # Create new Structure
         # We set a large dummy cell to avoid 0-volume issues, but no PBC.
@@ -66,8 +62,8 @@ class CandidateManager:
             pbc=(False, False, False)
         )
 
-        # Recenter (optional, but we already centered at 0)
-        # cluster.to_ase().center()
+        # Add distances to properties for later masking
+        cluster.arrays['cluster_dist'] = np.array(distances)
 
         return cluster
 
