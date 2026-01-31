@@ -1,7 +1,10 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import yaml
+from ase.io import iread
+
+from mlip_autopipec.domain_models.structure import Structure
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -45,3 +48,19 @@ def dump_yaml(data: dict[str, Any], path: Path) -> None:
     """
     with path.open("w") as f:
         yaml.dump(data, f, sort_keys=False)
+
+
+def load_structures(path: Path) -> Iterator[Structure]:
+    """
+    Load structures from a file (xyz, extxyz, poscar, etc.).
+    Returns an iterator to be memory efficient.
+
+    Args:
+        path: Path to the structure file.
+
+    Returns:
+        Iterator of Structure objects.
+    """
+    # type: ignore[no-untyped-call]
+    for atoms in iread(path, index=":"):
+        yield Structure.from_ase(atoms)

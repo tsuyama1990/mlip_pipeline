@@ -23,6 +23,8 @@ from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.physics.training.dataset import DatasetManager
+from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 
 
 def init_project(path: Path) -> None:
@@ -127,6 +129,68 @@ def run_cycle_02_cmd(config_path: Path) -> None:
             typer.secho(
                 f"Simulation Failed: Status {result.status.value}", fg=typer.colors.RED
             )
+            typer.echo(f"Log Tail:\n{result.log_content}")
+            raise typer.Exit(code=1)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def train_model(config_path: Path, dataset_path: Path) -> None:
+    """
+    Logic for training a potential.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not dataset_path.exists():
+        typer.secho(f"Dataset file {dataset_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        if config.training is None:
+            typer.secho("Config must have a 'training' section.", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+        logger = logging.getLogger("mlip_autopipec")
+        logger.info(f"Starting Training: {config.project_name}")
+
+        # 1. Load structures
+        logger.info(f"Loading structures from {dataset_path}")
+        # type: ignore[no-untyped-call]
+        structures = io.load_structures(dataset_path)
+
+        # 2. Convert Dataset
+        # We use a subdirectory for training data
+        work_dir = Path("training_work")
+        dataset_manager = DatasetManager(work_dir=work_dir / "data")
+        pacemaker_dataset = dataset_manager.convert(
+            structures, work_dir / "data" / "train.pckl.gzip"
+        )
+
+        # 3. Train
+        runner = PacemakerRunner(
+            work_dir=work_dir / "run",
+            train_config=config.training,
+            potential_config=config.potential,
+        )
+
+        result = runner.train(pacemaker_dataset)
+
+        if result.status == JobStatus.COMPLETED:
+            typer.secho("Training Completed", fg=typer.colors.GREEN)
+            typer.echo(f"Potential saved to: {result.potential_path}")
+            typer.echo(f"Metrics: {result.validation_metrics}")
+            logger.info(f"Potential saved to: {result.potential_path}")
+            logger.info(f"Metrics: {result.validation_metrics}")
+        else:
+            typer.secho("Training Failed", fg=typer.colors.RED)
             typer.echo(f"Log Tail:\n{result.log_content}")
             raise typer.Exit(code=1)
 
