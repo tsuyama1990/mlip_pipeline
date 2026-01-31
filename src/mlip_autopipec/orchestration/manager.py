@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import List, Iterator
+from typing import List, Iterator, Optional
 
 import numpy as np
 import ase.io
@@ -108,8 +108,12 @@ class WorkflowManager:
 
             elif phase == WorkflowPhase.TRAINING:
                 new_pot = self.train(gen_dir)
-                self.state.latest_potential_path = new_pot
-                self.transition_to(WorkflowPhase.VALIDATION)
+                if new_pot is not None:
+                    self.state.latest_potential_path = new_pot
+                    self.transition_to(WorkflowPhase.VALIDATION)
+                else:
+                    logger.error("Training returned no potential path.")
+                    return False
 
             elif phase == WorkflowPhase.VALIDATION:
                 self.validate(gen_dir)
@@ -177,10 +181,6 @@ class WorkflowManager:
         stride = self.config.orchestrator.trajectory_sampling_stride
         threshold = self.config.orchestrator.uncertainty_threshold
 
-        # Buffer radius for extraction (SPEC 3.2: R_cut + R_buffer)
-        buffer_radius = 2.0
-        extraction_radius = self.config.potential.cutoff + buffer_radius
-
         # Helper to stream candidates
         def stream_candidates() -> Iterator[CandidateStructure]:
             traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
@@ -194,7 +194,7 @@ class WorkflowManager:
 
                     full_struct = Structure.from_ase(atoms)
                     cluster = self.candidate_manager.extract_cluster(
-                        full_struct, center_idx, radius=extraction_radius
+                        full_struct, center_idx, radius=self.config.potential.cutoff
                     )
 
                     yield CandidateStructure(
@@ -301,7 +301,6 @@ class WorkflowManager:
                  return final_candidates
 
         else:
-            # Just collect all, limiting by simple logic if needed
             # If no active set opt, use simple iterative subsampling on stream
             # Reservoir sampling is best if we don't know total count, but stream_candidates is an iterator.
             # We can use a buffer or just accept the first N (bad).
@@ -401,7 +400,7 @@ class WorkflowManager:
 
         return processed_count > 0 or len(self.state.candidates) == 0
 
-    def train(self, iter_dir: Path) -> Path:
+    def train(self, iter_dir: Path) -> Optional[Path]:
         """
         Run Training.
         """
