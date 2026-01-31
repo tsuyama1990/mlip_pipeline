@@ -1,4 +1,4 @@
-from typing import Protocol, Union
+from typing import Protocol
 
 import ase.build
 from mlip_autopipec.domain_models.config import (
