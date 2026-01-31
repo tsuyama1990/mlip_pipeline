@@ -71,14 +71,15 @@ def test_uat_c02_01_one_shot_success(tmp_path):
                 cell=np.eye(3),
                 pbc=(True, True, True),
             )
-            mock_parse.return_value = (dummy_struct, Path("dump.lammpstrj"))
+            mock_parse.return_value = (dummy_struct, Path("dump.lammpstrj"), None)
 
             result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
 
             assert result.exit_code == 0
             assert "Simulation Completed: Status COMPLETED" in result.stdout
             # Because LammpsRunner creates random dir, just check for existence of base work dir
-            assert Path("_work_md").exists()
+            # Refactored Orchestrator uses active_learning/iter_001 structure
+            assert Path("active_learning/iter_001").exists()
 
 
 def test_uat_c02_02_missing_executable(tmp_path):
