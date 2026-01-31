@@ -6,13 +6,6 @@ import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
-from mlip_autopipec.domain_models.config import (
-    Config,
-    PotentialConfig,
-    BulkStructureGenConfig,
-    MDConfig,
-    TrainingConfig
-)
 
 runner = CliRunner()
 

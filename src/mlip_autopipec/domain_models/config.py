@@ -80,6 +80,13 @@ class OrchestratorConfig(BaseModel):
     active_set_optimization: bool = True
     max_active_set_size: int = 1000
 
+    @field_validator("max_active_set_size")
+    @classmethod
+    def validate_max_active_set_size(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("max_active_set_size must be positive")
+        return v
+
 
 class BulkStructureGenConfig(BaseModel):
     """Configuration for bulk structure generation."""

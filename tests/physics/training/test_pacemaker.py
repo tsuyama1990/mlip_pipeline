@@ -35,7 +35,7 @@ def test_train_success(runner):
         mock_read.return_value = "RMSE Energy: 0.001\nRMSE Force: 0.02"
 
         # Mock existence of potential file
-        pot_path = runner.work_dir / "potential.yace"
+        # pot_path = runner.work_dir / "potential.yace" # REMOVED unused variable
 
         with patch("pathlib.Path.exists") as mock_exists:
             # We need log path exists=True, potential path exists=True

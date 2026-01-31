@@ -1,5 +1,4 @@
 from unittest.mock import MagicMock, patch
-from pathlib import Path
 import pytest
 import numpy as np
 from mlip_autopipec.physics.validation.phonon import PhononValidator

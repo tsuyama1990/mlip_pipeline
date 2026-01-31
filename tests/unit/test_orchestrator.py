@@ -138,7 +138,7 @@ def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
 
     with patch("mlip_autopipec.orchestration.orchestrator.QERunner") as mock_qe_runner_cls, \
          patch("mlip_autopipec.orchestration.orchestrator.PacemakerRunner") as mock_pace_runner_cls, \
-         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as mock_dm_cls:
+         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as _: # mock_dm_cls removed as unused
 
         mock_dft_runner = MagicMock()
         # First DFT succeeds, Second fails with generic JobResult (not DFTResult) or DFTResult with dummy

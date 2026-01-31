@@ -1,6 +1,5 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from pathlib import Path
-import pytest
 from mlip_autopipec.physics.validation.runner import ValidationRunner
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure

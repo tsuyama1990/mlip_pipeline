@@ -1,7 +1,4 @@
-import pytest
-from pydantic import ValidationError
 from mlip_autopipec.domain_models.training import TrainingConfig, TrainingResult
-from mlip_autopipec.domain_models.config import PotentialConfig
 from pathlib import Path
 
 def test_training_config_valid():

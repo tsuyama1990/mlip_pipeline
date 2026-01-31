@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Protocol, Union
 
 import ase.build
 from mlip_autopipec.domain_models.config import (
@@ -29,6 +29,13 @@ class BulkStructureGenerator:
     def generate(self, config: StructureGenConfig) -> Structure:
         """
         Generate a bulk structure using ASE and apply configuration settings.
+
+        Args:
+            config: A BulkStructureGenConfig containing parameters like element,
+                    crystal structure, lattice constant, and supercell size.
+
+        Returns:
+            A Structure object representing the generated bulk material.
         """
         if not isinstance(config, BulkStructureGenConfig):
              raise TypeError(f"BulkStructureGenerator received incompatible config: {type(config)}")
@@ -61,6 +68,12 @@ class RandomSliceGenerator:
         pass
 
     def generate(self, config: StructureGenConfig) -> Structure:
+        """
+        Generate a random slice/slab structure.
+
+        This strategy creates a bulk structure and cuts it along a random plane
+        or specific Miller indices (if implemented), adding vacuum padding.
+        """
         if not isinstance(config, RandomSliceStructureGenConfig):
             raise TypeError(f"RandomSliceGenerator received incompatible config: {type(config)}")
 
@@ -89,6 +102,12 @@ class DefectGenerator:
         pass
 
     def generate(self, config: StructureGenConfig) -> Structure:
+        """
+        Generate a structure containing a point defect.
+
+        This strategy loads a base structure and introduces a vacancy,
+        interstitial, or substitutional defect based on the configuration.
+        """
         if not isinstance(config, DefectStructureGenConfig):
              raise TypeError(f"DefectGenerator received incompatible config: {type(config)}")
 
@@ -105,6 +124,12 @@ class StrainGenerator:
         pass
 
     def generate(self, config: StructureGenConfig) -> Structure:
+        """
+        Generate a strained structure for elasticity calculations.
+
+        This strategy loads a base structure and applies a deformation gradient
+        defined by the strain configuration.
+        """
         if not isinstance(config, StrainStructureGenConfig):
              raise TypeError(f"StrainGenerator received incompatible config: {type(config)}")
 
