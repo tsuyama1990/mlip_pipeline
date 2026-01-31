@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from typing import Iterable
 
 import ase.io
 from mlip_autopipec.domain_models.structure import Structure
@@ -14,12 +15,12 @@ class DatasetManager:
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-    def create_dataset(self, structures: list[Structure], name: str) -> Path:
+    def create_dataset(self, structures: Iterable[Structure], name: str) -> Path:
         """
         Convert a list of Structures to a Pacemaker-compatible dataset (.pckl.gzip).
 
         Args:
-            structures: List of Structure objects.
+            structures: Iterable of Structure objects.
             name: Name of the dataset (without extension).
 
         Returns:
@@ -28,22 +29,20 @@ class DatasetManager:
         extxyz_path = self.work_dir / f"{name}.extxyz"
         output_path = self.work_dir / f"{name}.pckl.gzip"
 
-        # Convert Structures to ASE Atoms
-        atoms_list = []
-        for s in structures:
-            atoms = s.to_ase()
+        # Stream write to extended XYZ format to avoid OOM
+        with extxyz_path.open("w") as f:
+            for s in structures:
+                atoms = s.to_ase()
 
-            # Move forces to arrays for correct extxyz writing
-            if "forces" in atoms.info:
-                forces = atoms.info.pop("forces")
-                # Only add if it matches atom count
-                if len(forces) == len(atoms):
-                    atoms.new_array("forces", forces) # type: ignore[no-untyped-call]
+                # Move forces to arrays for correct extxyz writing
+                if "forces" in atoms.info:
+                    forces = atoms.info.pop("forces")
+                    # Only add if it matches atom count
+                    if len(forces) == len(atoms):
+                        atoms.new_array("forces", forces) # type: ignore[no-untyped-call]
 
-            atoms_list.append(atoms)
-
-        # Write to extended XYZ format
-        ase.io.write(extxyz_path, atoms_list, format="extxyz")
+                # Write single frame
+                ase.io.write(f, atoms, format="extxyz")
 
         # Run pace_collect
         # Usage: pace_collect -f file.extxyz -o output.pckl.gzip

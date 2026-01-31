@@ -1,23 +1,12 @@
 import logging
 import time
 from pathlib import Path
-from typing import Literal, cast
 
 import typer
 
-from mlip_autopipec.constants import (
-    DEFAULT_CUTOFF,
-    DEFAULT_ELEMENTS,
-    DEFAULT_LOG_FILENAME,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_PROJECT_NAME,
-    DEFAULT_SEED,
-)
 from mlip_autopipec.domain_models.config import (
     BulkStructureGenConfig,
     Config,
-    LoggingConfig,
-    PotentialConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -36,19 +25,9 @@ def init_project(path: Path) -> None:
         typer.secho(f"File {path} already exists.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-    # Cast log level to Literal
-    log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
-
     # Create default configuration using Pydantic models
     # This ensures consistency with the schema and leverages defaults
     config = Config(
-        project_name=DEFAULT_PROJECT_NAME,
-        logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
-        potential=PotentialConfig(
-            elements=DEFAULT_ELEMENTS,
-            cutoff=DEFAULT_CUTOFF,
-            seed=DEFAULT_SEED,
-        ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Si",
@@ -165,6 +144,8 @@ def train_model(config_path: Path, data_path: Path) -> None:
         ds_manager = DatasetManager(work_dir=training_dir)
 
         logging.getLogger("mlip_autopipec").info(f"Loading structures from {data_path}...")
+
+        # Generator for loading structures
         structures = io.load_structures(data_path)
 
         logging.getLogger("mlip_autopipec").info("Creating training dataset...")

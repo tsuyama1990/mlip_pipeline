@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import ase.io
 import yaml
@@ -50,28 +50,23 @@ def dump_yaml(data: dict[str, Any], path: Path) -> None:
         yaml.dump(data, f, sort_keys=False)
 
 
-def load_structures(path: Path) -> list[Structure]:
+def load_structures(path: Path) -> Iterator[Structure]:
     """
-    Load structures from a file (xyz, extxyz, poscar, etc.).
+    Load structures from a file (xyz, extxyz, poscar, etc.) using streaming.
 
     Args:
         path: Path to the structure file.
 
-    Returns:
-        List of Structure objects.
+    Yields:
+        Structure objects.
     """
     if not path.exists():
         raise FileNotFoundError(f"File {path} not found")
 
-    # ase.io.read returns Atoms or list of Atoms
-    # index=':' reads all
     try:
-        atoms_list = ase.io.read(path, index=":")
+        # iread returns an iterator of Atoms
+        for i, atoms in enumerate(ase.io.iread(path, index=":")):
+             yield Structure.from_ase(atoms) # type: ignore
     except Exception as e:
         msg = f"Failed to read structures from {path}: {e}"
         raise RuntimeError(msg) from e
-
-    if not isinstance(atoms_list, list):
-        atoms_list = [atoms_list] # type: ignore
-
-    return [Structure.from_ase(atoms) for atoms in atoms_list]
