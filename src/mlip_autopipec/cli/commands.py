@@ -25,6 +25,8 @@ from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
+from mlip_autopipec.physics.validation.runner import ValidationRunner
+from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 
 
 def init_project(path: Path) -> None:
@@ -161,9 +163,11 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         logger = logging.getLogger("mlip_autopipec")
         logger.info(f"Starting Training: {config.project_name}")
 
-        # 1. Load structures
+        # 1. Load structures (streaming)
         logger.info(f"Loading structures from {dataset_path}")
-        # type: ignore[no-untyped-call]
+        # Use load_structures which uses iread internally (O(1) memory)
+        # Note: DatasetManager.convert now expects iterator or list.
+        # iread returns a generator.
         structures = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
@@ -197,4 +201,63 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+def validate_potential(config_path: Path, potential_path: Path) -> None:
+    """
+    Logic for validating a potential.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not potential_path.exists():
+         typer.secho(f"Potential file {potential_path} not found.", fg=typer.colors.RED)
+         raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        # Use StructureGen to produce a perfect bulk structure for validation.
+        gen_config = config.structure_gen
+
+        # Use model_copy(update=...) to avoid mutating original config
+        # Assuming BulkStructureGenConfig which has rattle_stdev
+        if isinstance(gen_config, BulkStructureGenConfig):
+            gen_config = gen_config.model_copy(update={"rattle_stdev": 0.0})
+
+        # We also need to update config.structure_gen but since we use gen_config locally
+        # for generation, we don't need to replace it in the main config object.
+
+        generator = StructureGenFactory.get_generator(gen_config)
+        structure = generator.generate(gen_config)
+
+        runner = ValidationRunner(
+            val_config=config.validation,
+            pot_config=config.potential,
+            potential_path=potential_path
+        )
+
+        typer.secho(f"Starting validation for {potential_path}", fg=typer.colors.BLUE)
+        result = runner.validate(structure)
+
+        if result.overall_status == "PASS":
+            color = typer.colors.GREEN
+        elif result.overall_status == "WARN":
+            color = typer.colors.YELLOW
+        else:
+            color = typer.colors.RED
+
+        typer.secho(f"Validation Finished: {result.overall_status}", fg=color)
+        typer.echo("Metrics:")
+        for m in result.metrics:
+            status_icon = "✓" if m.passed else "✗"
+            typer.echo(f"  {status_icon} {m.name}: {m.value:.4f} ({m.message})")
+
+        typer.echo("Report generated at: validation_report.html")
+
+    except Exception as e:
+        typer.secho(f"Validation execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Validation failed")
         raise typer.Exit(code=1) from e

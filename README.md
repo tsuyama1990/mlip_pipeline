@@ -22,6 +22,9 @@
     -   **Active Set Selection**: Optimized dataset pruning using D-optimality to maximize information density.
     -   **Delta Learning**: Robust reference potential subtraction (e.g., ZBL, Lennard-Jones) for stable fitting.
     -   **Automatic Conversion**: Efficiently converts ASE structures to pacemaker-compatible datasets.
+-   **Validation Framework**:
+    -   **Physics Validation**: Automated tests for Phonon stability (Phonopy), Elastic stability (Born criteria), and Equation of State (Birch-Murnaghan).
+    -   **Reporting**: Generates HTML reports with pass/fail metrics and plots.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -88,6 +91,12 @@ Train a machine learning potential using a labelled dataset.
 uv run mlip-auto train --config config.yaml --dataset training_data.extxyz
 ```
 
+### 5. Validate a Potential
+Run physics-based validation on a trained potential.
+```bash
+uv run mlip-auto validate --config config.yaml --potential potential.yace
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -136,7 +145,7 @@ src/mlip_autopipec/
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker) (Completed)
--   **Cycle 05**: Validation Framework
+-   **Cycle 05**: Validation Framework (Completed)
 -   **Cycle 06**: Active Learning Loop
 
 ## License

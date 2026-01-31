@@ -26,6 +26,10 @@ class DFTConfig(BaseModel):
     degauss: float = 0.02
     mixing_beta: float = 0.7
 
+    # Calculation Flags
+    tprnfor: bool = True
+    tstress: bool = True
+
     timeout: int = 3600  # seconds
 
     @field_validator("ecutwfc", "kspacing", "degauss", "mixing_beta")
