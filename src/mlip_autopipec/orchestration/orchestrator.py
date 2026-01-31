@@ -36,7 +36,7 @@ class Orchestrator:
         # Track current potential
         self.current_potential_path: Optional[Path] = None
         if self.config.training and self.config.training.initial_potential:
-             self.current_potential_path = self.config.training.initial_potential
+            self.current_potential_path = self.config.training.initial_potential
 
     def run_pipeline(self) -> JobResult:
         """
@@ -67,7 +67,9 @@ class Orchestrator:
                 logger.info(f"Selected {len(candidates)} candidates for DFT.")
 
                 if not candidates:
-                    logger.warning("No candidates selected despite detection. Convergence?")
+                    logger.warning(
+                        "No candidates selected despite detection. Convergence?"
+                    )
                     break
 
                 # 4. Refine
@@ -83,7 +85,7 @@ class Orchestrator:
                         status=JobStatus.FAILED,
                         work_dir=iter_dir,
                         duration_seconds=0.0,
-                        log_content=str(e)
+                        log_content=str(e),
                     )
                     break
             else:
@@ -92,6 +94,14 @@ class Orchestrator:
 
         if last_result:
             logger.info(f"Pipeline Finished with status: {last_result.status.value}")
+
+            # Validation Step
+            if self.current_potential_path and self.current_potential_path.exists():
+                try:
+                    self.validate_potential(self.current_potential_path)
+                except Exception as e:
+                    logger.error(f"Validation failed: {e}")
+
             return last_result
 
         return JobResult(
@@ -122,7 +132,9 @@ class Orchestrator:
         md_config.uncertainty_threshold = self.config.orchestrator.uncertainty_threshold
 
         work_dir = iter_dir / "md_run"
-        runner = LammpsRunner(self.config.lammps, self.config.potential, base_work_dir=work_dir.parent)
+        runner = LammpsRunner(
+            self.config.lammps, self.config.potential, base_work_dir=work_dir.parent
+        )
 
         # We need to ensure runner uses specific work_dir or we let it create one inside base?
         # LammpsRunner creates a subfolder "job_...".
@@ -130,9 +142,11 @@ class Orchestrator:
         # LammpsRunner.__init__ takes `base_work_dir`.
         # So passing `iter_dir` as base means it will create `iter_dir/job_...`.
         # For this implementation, we accept that LammpsRunner manages its own job folders.
-        runner.base_work_dir = iter_dir # Override base dir for this run
+        runner.base_work_dir = iter_dir  # Override base dir for this run
 
-        result = runner.run(structure, md_config, potential_path=self.current_potential_path)
+        result = runner.run(
+            structure, md_config, potential_path=self.current_potential_path
+        )
         return result
 
     def detect(self, result: LammpsResult) -> bool:
@@ -165,7 +179,7 @@ class Orchestrator:
 
         # Read dump
         # We expect c_pace_gamma to be available if UQ was on
-        traj = ase.io.read(result.trajectory_path, index=":", format="lammps-dump-text") # type: ignore[no-untyped-call]
+        traj = ase.io.read(result.trajectory_path, index=":", format="lammps-dump-text")  # type: ignore[no-untyped-call]
 
         candidates = []
         threshold = self.config.orchestrator.uncertainty_threshold
@@ -178,7 +192,7 @@ class Orchestrator:
         for atoms in traj:
             # Check for gamma
             # atoms.arrays might contain 'c_pace_gamma'
-            gammas = atoms.arrays.get('c_pace_gamma')
+            gammas = atoms.arrays.get("c_pace_gamma")
 
             is_candidate = False
             if gammas is not None:
@@ -194,8 +208,8 @@ class Orchestrator:
 
         # If no candidates found via gamma (maybe format issue), but we halted:
         if not candidates and result.status != JobStatus.COMPLETED:
-             # Take the final structure
-             candidates.append(result.final_structure)
+            # Take the final structure
+            candidates.append(result.final_structure)
 
         # Active Set Optimization on candidates?
         # Usually done during training, but we can do it here to reduce DFT calls.
@@ -207,7 +221,7 @@ class Orchestrator:
         if len(candidates) > max_size:
             # Random subsample? Or take spaced frames?
             # Let's just slice
-            indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
+            indices = np.linspace(0, len(candidates) - 1, max_size, dtype=int)
             candidates = [candidates[i] for i in indices]
 
         return candidates
@@ -239,16 +253,18 @@ class Orchestrator:
                 # We need to construct a new Structure with properties
                 s_new = s.model_copy()
                 s_new.properties = {
-                    'energy': res.energy,
-                    'forces': res.forces,
-                    'stress': res.stress
+                    "energy": res.energy,
+                    "forces": res.forces,
+                    "stress": res.stress,
                 }
                 dft_results.append(s_new)
             else:
-                logger.warning(f"DFT failed for candidate {i}: {res.log_content[:100]}...")
+                logger.warning(
+                    f"DFT failed for candidate {i}: {res.log_content[:100]}..."
+                )
 
         if not dft_results:
-             raise RuntimeError("All DFT calculations failed.")
+            raise RuntimeError("All DFT calculations failed.")
 
         # 2. Update Dataset
         # We append to the global accumulated dataset
@@ -257,18 +273,20 @@ class Orchestrator:
 
         # 3. Train
         train_dir = iter_dir / "training"
-        pacemaker = PacemakerRunner(train_dir, self.config.training, self.config.potential)
+        pacemaker = PacemakerRunner(
+            train_dir, self.config.training, self.config.potential
+        )
 
         # Set initial potential for fine-tuning
         # (PacemakerRunner handles config.initial_potential, but we want to update it to current_potential)
         if self.current_potential_path:
-             # We need to override the config passed to PacemakerRunner or update it
-             # PacemakerRunner uses self.config.initial_potential.
-             # We should update the config object passed to it?
-             # Or construct a new TrainingConfig
-             new_train_config = self.config.training.model_copy()
-             new_train_config.initial_potential = self.current_potential_path
-             pacemaker.config = new_train_config
+            # We need to override the config passed to PacemakerRunner or update it
+            # PacemakerRunner uses self.config.initial_potential.
+            # We should update the config object passed to it?
+            # Or construct a new TrainingConfig
+            new_train_config = self.config.training.model_copy()
+            new_train_config.initial_potential = self.current_potential_path
+            pacemaker.config = new_train_config
 
         train_result = pacemaker.train(dataset_path)
 
@@ -276,3 +294,21 @@ class Orchestrator:
             raise RuntimeError(f"Training failed: {train_result.log_content}")
 
         return train_result.potential_path
+
+    def validate_potential(self, potential_path: Path) -> None:
+        """
+        Run physics validation on the potential and generate a report.
+        """
+        from mlip_autopipec.physics.reporting.html_gen import generate_report
+        from mlip_autopipec.physics.validation.runner import ValidationRunner
+
+        logger.info(f"Validating potential: {potential_path}")
+
+        runner = ValidationRunner(self.config)
+        result = runner.validate(potential_path)
+
+        # Report
+        report_path = Path("validation_report.html")
+        generate_report(result, report_path)
+        logger.info(f"Validation Report generated at {report_path}")
+        logger.info(f"Overall Status: {result.overall_status}")

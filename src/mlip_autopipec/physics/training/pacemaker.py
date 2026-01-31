@@ -111,9 +111,7 @@ class PacemakerRunner:
         data = {
             "cutoff": self.pot_config.cutoff,
             "seed": self.pot_config.seed,
-            "data": {
-                "filename": str(dataset_path.absolute())
-            },
+            "data": {"filename": str(dataset_path.absolute())},
             "potential": {
                 "elements": self.pot_config.elements,
                 "deltaSplineBins": 0.001,
@@ -121,15 +119,10 @@ class PacemakerRunner:
                     "ALL": {
                         "npot": "FinnisSinclair",
                         "fs_parameters": [1, 1, 1, 0.5],
-                        "ndensity": 2
+                        "ndensity": 2,
                     }
                 },
-                "bonds": {
-                    "ALL": {
-                        "dmin": 0,
-                        "dmax": self.pot_config.cutoff
-                    }
-                }
+                "bonds": {"ALL": {"dmin": 0, "dmax": self.pot_config.cutoff}},
             },
             "fit": {
                 "loss": {
@@ -142,14 +135,10 @@ class PacemakerRunner:
                     "max_epochs": self.config.max_epochs,
                     "batch_size": self.config.batch_size,
                     "ladder_step": self.config.ladder_step,
-                }
+                },
             },
-            "backend": {
-                "evaluator": "tensorpot"
-            },
-            "output": {
-                "potential": "potential.yace"
-            }
+            "backend": {"evaluator": "tensorpot"},
+            "output": {"potential": "potential.yace"},
         }
 
         with open(output_path, "w") as f:

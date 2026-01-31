@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Optional, cast
 
 import typer
 
@@ -22,6 +22,7 @@ from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
@@ -135,6 +136,43 @@ def run_cycle_02_cmd(config_path: Path) -> None:
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def validate_potential(config_path: Path, potential_path: Optional[Path]) -> None:
+    """
+    Logic for running physics validation on a potential.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        # Determine potential path
+        if potential_path is None:
+            # Try to infer from training config or search in potentials dir?
+            if config.training and config.training.initial_potential:
+                potential_path = config.training.initial_potential
+
+        if potential_path is None or not potential_path.exists():
+            typer.secho(
+                f"Potential file {potential_path} not found. Please provide valid path.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+
+        orchestrator = Orchestrator(config)
+        # We manually call validate
+        orchestrator.validate_potential(potential_path)
+
+        typer.secho("Validation Completed.", fg=typer.colors.GREEN)
+
+    except Exception as e:
+        typer.secho(f"Validation failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Validation failed")
         raise typer.Exit(code=1) from e
 
 

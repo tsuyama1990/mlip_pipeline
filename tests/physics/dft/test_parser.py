@@ -1,7 +1,12 @@
 import pytest
 import numpy as np
 
-from mlip_autopipec.domain_models.calculation import SCFError, WalltimeError, MemoryError, DFTError
+from mlip_autopipec.domain_models.calculation import (
+    SCFError,
+    WalltimeError,
+    MemoryError,
+    DFTError,
+)
 from mlip_autopipec.physics.dft.parser import DFTParser
 
 SUCCESS_OUTPUT = """
@@ -62,11 +67,13 @@ def test_parser_scf_failure():
     with pytest.raises(SCFError):
         parser.parse_output(SCF_FAIL_OUTPUT)
 
+
 def test_parser_walltime_error():
     parser = DFTParser()
     out = "some output... maximum CPU time exceeded ... ending"
     with pytest.raises(WalltimeError):
         parser.parse_output(out)
+
 
 def test_parser_memory_error():
     parser = DFTParser()
@@ -74,11 +81,13 @@ def test_parser_memory_error():
     with pytest.raises(MemoryError):
         parser.parse_output("output", stderr=err)
 
+
 def test_parser_incomplete():
     parser = DFTParser()
     # No JOB DONE, no energy
     with pytest.raises(DFTError, match="Job incomplete"):
         parser.parse_output("Starts... ends abruptly")
+
 
 def test_parser_job_done_no_energy():
     parser = DFTParser()

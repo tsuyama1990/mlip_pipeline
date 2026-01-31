@@ -48,8 +48,11 @@ def test_recovery_no_fix(base_config):
         # We might not have a fix for MemoryError yet, so it should re-raise
         handler.apply_fix(base_config, MemoryError("OOM"), attempt=1)
 
+
 def test_recovery_scf_mix_beta_aggressive(base_config):
     handler = RecoveryHandler()
     # Attempt 3 -> mixing_beta = 0.1
-    new_config = handler.apply_fix(base_config, SCFError("convergence not achieved"), attempt=3)
+    new_config = handler.apply_fix(
+        base_config, SCFError("convergence not achieved"), attempt=3
+    )
     assert new_config.mixing_beta == 0.1

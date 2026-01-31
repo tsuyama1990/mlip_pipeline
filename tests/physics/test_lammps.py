@@ -24,7 +24,7 @@ def md_params():
         n_steps=100,
         timestep=0.001,
         ensemble="NVT",
-        uncertainty_threshold=5.0
+        uncertainty_threshold=5.0,
     )
 
 
@@ -40,11 +40,13 @@ def potential_config():
         cutoff=5.0,
         pair_style="hybrid/overlay",
         zbl_inner_cutoff=0.5,
-        zbl_outer_cutoff=1.2
+        zbl_outer_cutoff=1.2,
     )
 
 
-def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
+def test_lammps_runner_execution(
+    dummy_structure, md_params, lammps_config, potential_config, tmp_path
+):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     # Mock subprocess.run
@@ -64,7 +66,11 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, pote
         # Mock parsing to return the same structure
         mock_parse.return_value = (dummy_structure, Path("dump.lammpstrj"), None)
 
-        runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)
+        runner = LammpsRunner(
+            config=lammps_config,
+            potential_config=potential_config,
+            base_work_dir=tmp_path,
+        )
         potential_path = Path("potential.yace")
         result = runner.run(dummy_structure, md_params, potential_path=potential_path)
 
@@ -100,7 +106,9 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, pote
         assert "fix             watchdog all halt 10 v_max_gamma > 5.0" in in_lammps
 
 
-def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
+def test_lammps_runner_failure(
+    dummy_structure, md_params, lammps_config, potential_config, tmp_path
+):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
     with patch("subprocess.run") as mock_run, patch("shutil.which") as mock_which:
@@ -111,7 +119,11 @@ def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potent
         )
         mock_which.return_value = "/usr/bin/lmp_serial"
 
-        runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)
+        runner = LammpsRunner(
+            config=lammps_config,
+            potential_config=potential_config,
+            base_work_dir=tmp_path,
+        )
         result = runner.run(dummy_structure, md_params)
 
         assert result.status == JobStatus.FAILED

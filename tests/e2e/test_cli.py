@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -65,3 +66,29 @@ def test_check_invalid(tmp_path: Path) -> None:
         assert result.exit_code == 1
         assert "Validation failed" in result.stdout
         assert "Cutoff must be greater than 0" in result.stdout
+
+
+def test_validate_command(tmp_path: Path) -> None:
+    """Test 'validate' command."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+        pot = Path("pot.yace")
+        pot.touch()
+
+        with patch("mlip_autopipec.cli.commands.Orchestrator") as MockOrch:
+            result = runner.invoke(app, ["validate", "--potential", "pot.yace"])
+
+            assert result.exit_code == 0
+            assert "Validation Completed" in result.stdout
+            MockOrch.return_value.validate_potential.assert_called()
+
+
+def test_validate_missing_potential(tmp_path: Path) -> None:
+    """Test 'validate' fails without potential."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        runner.invoke(app, ["init"])
+
+        result = runner.invoke(app, ["validate"])
+        # Should fail if not in config
+        assert result.exit_code == 1
+        assert "Potential file" in result.stdout
