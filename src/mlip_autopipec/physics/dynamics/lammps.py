@@ -161,46 +161,46 @@ class LammpsRunner:
         pair_coeff = ""
 
         if potential_path and self.potential_config.pair_style == "hybrid/overlay":
-             # Hybrid ACE + ZBL
-             zbl_in = self.potential_config.zbl_inner_cutoff
-             zbl_out = self.potential_config.zbl_outer_cutoff
+            # Hybrid ACE + ZBL
+            zbl_in = self.potential_config.zbl_inner_cutoff
+            zbl_out = self.potential_config.zbl_outer_cutoff
 
-             pair_style = f"pair_style      hybrid/overlay pace zbl {zbl_in} {zbl_out}"
+            pair_style = f"pair_style      hybrid/overlay pace zbl {zbl_in} {zbl_out}"
 
-             # Copy potential file to work_dir? Or reference absolute path.
-             # LAMMPS handles absolute paths usually.
-             pot_file_str = str(potential_path.resolve())
+            # Copy potential file to work_dir? Or reference absolute path.
+            # LAMMPS handles absolute paths usually.
+            pot_file_str = str(potential_path.resolve())
 
-             # Pace coeff
-             # pair_coeff * * pace potential.yace Element1 Element2 ...
-             # Note: Elements must match type order 1, 2, ...
-             elem_str = " ".join(unique_elements)
-             pair_coeff += f"pair_coeff      * * pace {pot_file_str} {elem_str}\n"
+            # Pace coeff
+            # pair_coeff * * pace potential.yace Element1 Element2 ...
+            # Note: Elements must match type order 1, 2, ...
+            elem_str = " ".join(unique_elements)
+            pair_coeff += f"pair_coeff      * * pace {pot_file_str} {elem_str}\n"
 
-             # ZBL coeff
-             # pair_coeff * * zbl Z1 Z2
-             # We need to iterate over all pairs of types i, j
-             # Or use * * zbl? No, zbl requires args.
-             # Actually, if we use pair_style zbl with cutoffs in style command,
-             # pair_coeff i j zbl Zi Zj
-             for i, el1 in enumerate(unique_elements):
-                 z1 = ase.data.atomic_numbers[el1]
-                 for j, el2 in enumerate(unique_elements):
-                     if j < i:
-                         continue # Symmetric
-                     z2 = ase.data.atomic_numbers[el2]
-                     pair_coeff += f"pair_coeff      {i+1} {j+1} zbl {z1} {z2}\n"
+            # ZBL coeff
+            # pair_coeff * * zbl Z1 Z2
+            # We need to iterate over all pairs of types i, j
+            # Or use * * zbl? No, zbl requires args.
+            # Actually, if we use pair_style zbl with cutoffs in style command,
+            # pair_coeff i j zbl Zi Zj
+            for i, el1 in enumerate(unique_elements):
+                z1 = ase.data.atomic_numbers[el1]
+                for j, el2 in enumerate(unique_elements):
+                    if j < i:
+                        continue  # Symmetric
+                    z2 = ase.data.atomic_numbers[el2]
+                    pair_coeff += f"pair_coeff      {i + 1} {j + 1} zbl {z1} {z2}\n"
 
         elif potential_path:
-             # Just ACE
-             pair_style = "pair_style      pace"
-             pot_file_str = str(potential_path.resolve())
-             elem_str = " ".join(unique_elements)
-             pair_coeff = f"pair_coeff      * * pace {pot_file_str} {elem_str}"
+            # Just ACE
+            pair_style = "pair_style      pace"
+            pot_file_str = str(potential_path.resolve())
+            elem_str = " ".join(unique_elements)
+            pair_coeff = f"pair_coeff      * * pace {pot_file_str} {elem_str}"
         else:
-             # Fallback LJ
-             pair_style = "pair_style      lj/cut 2.5"
-             pair_coeff = "pair_coeff      * * 1.0 1.0"
+            # Fallback LJ
+            pair_style = "pair_style      lj/cut 2.5"
+            pair_coeff = "pair_coeff      * * 1.0 1.0"
 
         # UQ / Watchdog
         uq_cmds = ""
@@ -332,10 +332,10 @@ run             {params.n_steps}
         # We can check log for "Fix halt"
         if log_path.exists():
             if "Fix halt" in log_path.read_text():
-                 # We don't know exact value but we know it exceeded threshold.
-                 # Let's return threshold + epsilon or just 999.0?
-                 # Or update LammpsResult to have bool halted?
-                 # max_gamma > threshold is enough.
-                 max_gamma = 999.9 # Flag value
+                # We don't know exact value but we know it exceeded threshold.
+                # Let's return threshold + epsilon or just 999.0?
+                # Or update LammpsResult to have bool halted?
+                # max_gamma > threshold is enough.
+                max_gamma = 999.9  # Flag value
 
         return Structure.from_ase(atoms), traj_path, max_gamma

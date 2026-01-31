@@ -21,7 +21,7 @@ def test_config_valid() -> None:
             seed=42,
             pair_style="hybrid/overlay",
             zbl_inner_cutoff=0.8,
-            zbl_outer_cutoff=1.5
+            zbl_outer_cutoff=1.5,
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
@@ -34,7 +34,7 @@ def test_config_valid() -> None:
             n_steps=100,
             timestep=0.001,
             ensemble="NVT",
-            uncertainty_threshold=5.0
+            uncertainty_threshold=5.0,
         ),
     )
     assert c.project_name == "TestProject"

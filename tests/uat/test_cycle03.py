@@ -35,6 +35,7 @@ def test_scenario_3_1_standard_dft(si_structure, dft_config):
     # Mock the internal run method or subprocess to avoid real execution
     # For now, we mock the run method to simulate success
     import numpy as np
+
     expected_result = DFTResult(
         job_id="test_job",
         status=JobStatus.COMPLETED,
@@ -43,7 +44,7 @@ def test_scenario_3_1_standard_dft(si_structure, dft_config):
         log_content="DONE",
         energy=-100.0,
         forces=np.zeros((len(si_structure.positions), 3)),
-        stress=np.zeros((3, 3))
+        stress=np.zeros((3, 3)),
     )
 
     with patch.object(runner, "run", return_value=expected_result):

@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 91 items
+
+tests/domain_models/test_calculation.py .....                            [  5%]
+tests/domain_models/test_config.py ....                                  [  9%]
+tests/domain_models/test_job.py ..                                       [ 12%]
+tests/domain_models/test_potential.py ...                                [ 15%]
+tests/domain_models/test_structure.py .....                              [ 20%]
+tests/domain_models/test_training.py .....                               [ 26%]
+tests/domain_models/test_validation.py ....                              [ 30%]
+tests/e2e/test_cli.py .....                                              [ 36%]
+tests/infrastructure/test_io.py .....                                    [ 41%]
+tests/infrastructure/test_logging.py .                                   [ 42%]
+tests/physics/dft/test_input_gen.py ..                                   [ 45%]
+tests/physics/dft/test_parser.py ......                                  [ 51%]
+tests/physics/dft/test_qe_runner.py .........                            [ 61%]
+tests/physics/dft/test_recovery.py ....                                  [ 65%]
+tests/physics/structure_gen/test_embedding.py ..                         [ 68%]
+tests/physics/test_lammps.py ..                                          [ 70%]
+tests/physics/training/test_dataset.py ..                                [ 72%]
+tests/physics/training/test_pacemaker.py ....                            [ 76%]
+tests/physics/validation/test_elasticity.py ..                           [ 79%]
+tests/physics/validation/test_eos.py ..                                  [ 81%]
+tests/physics/validation/test_phonon.py ..                               [ 83%]
+tests/uat/test_cycle02.py ..                                             [ 85%]
+tests/uat/test_cycle03.py ..                                             [ 87%]
+tests/uat/test_cycle04.py .                                              [ 89%]
+tests/uat/test_cycle05.py .                                              [ 90%]
+tests/unit/test_orchestrator.py ..                                       [ 92%]
+tests/unit/test_orchestrator_refactor.py ..                              [ 94%]
+tests/unit/test_structure_gen.py .....                                   [100%]
+
+============================== 91 passed in 2.17s ==============================

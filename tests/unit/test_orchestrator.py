@@ -11,10 +11,11 @@ from mlip_autopipec.domain_models import (
     PotentialConfig,
     JobStatus,
     LammpsResult,
-    Structure
+    Structure,
 )
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 import numpy as np
+
 
 @pytest.fixture
 def mock_config():
@@ -33,6 +34,7 @@ def mock_config():
         orchestrator=OrchestratorConfig(max_iterations=1, uncertainty_threshold=5.0),
     )
 
+
 @pytest.fixture
 def mock_structure():
     return Structure(
@@ -42,11 +44,17 @@ def mock_structure():
         pbc=(True, True, True),
     )
 
+
 def test_orchestrator_one_shot(mock_config, mock_structure):
     """Test standard one-shot execution."""
-    with patch("mlip_autopipec.orchestration.orchestrator.StructureGenFactory") as mock_gen_factory, \
-         patch("mlip_autopipec.orchestration.orchestrator.LammpsRunner") as mock_runner_cls:
-
+    with (
+        patch(
+            "mlip_autopipec.orchestration.orchestrator.StructureGenFactory"
+        ) as mock_gen_factory,
+        patch(
+            "mlip_autopipec.orchestration.orchestrator.LammpsRunner"
+        ) as mock_runner_cls,
+    ):
         # Setup mocks
         mock_generator = MagicMock()
         mock_generator.generate.return_value = mock_structure
@@ -60,7 +68,7 @@ def test_orchestrator_one_shot(mock_config, mock_structure):
             duration_seconds=1.0,
             log_content="ok",
             final_structure=mock_structure,
-            trajectory_path="traj.lammpstrj"
+            trajectory_path="traj.lammpstrj",
         )
         mock_runner_cls.return_value = mock_runner
 
@@ -72,17 +80,30 @@ def test_orchestrator_one_shot(mock_config, mock_structure):
         mock_generator.generate.assert_called_once()
         mock_runner.run.assert_called_once()
 
+
 def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
     """Test loop logic when uncertainty is detected (simulated)."""
     # Enable multiple iterations
     mock_config.orchestrator.max_iterations = 2
 
-    with patch("mlip_autopipec.orchestration.orchestrator.StructureGenFactory") as mock_gen_factory, \
-         patch("mlip_autopipec.orchestration.orchestrator.LammpsRunner") as mock_runner_cls:
-
+    with (
+        patch(
+            "mlip_autopipec.orchestration.orchestrator.StructureGenFactory"
+        ) as mock_gen_factory,
+        patch(
+            "mlip_autopipec.orchestration.orchestrator.LammpsRunner"
+        ) as mock_runner_cls,
+        patch(
+            "mlip_autopipec.orchestration.orchestrator.ValidationRunner"
+        ) as mock_val_runner_cls,
+    ):
         mock_generator = MagicMock()
         mock_generator.generate.return_value = mock_structure
         mock_gen_factory.get_generator.return_value = mock_generator
+
+        mock_val_runner = MagicMock()
+        mock_val_runner_cls.return_value = mock_val_runner
+        mock_val_runner.validate.return_value = MagicMock(overall_status="PASS")
 
         mock_runner = MagicMock()
         # First run: High uncertainty -> should trigger select/refine (mocked) and continue
@@ -93,12 +114,24 @@ def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
         from pathlib import Path
 
         res1 = LammpsResult(
-            job_id="1", status=JobStatus.COMPLETED, work_dir=Path("."), duration_seconds=1.0,
-            log_content="ok", final_structure=mock_structure, trajectory_path=Path("t1"), max_gamma=10.0
+            job_id="1",
+            status=JobStatus.COMPLETED,
+            work_dir=Path("."),
+            duration_seconds=1.0,
+            log_content="ok",
+            final_structure=mock_structure,
+            trajectory_path=Path("t1"),
+            max_gamma=10.0,
         )
         res2 = LammpsResult(
-            job_id="2", status=JobStatus.COMPLETED, work_dir=Path("."), duration_seconds=1.0,
-            log_content="ok", final_structure=mock_structure, trajectory_path=Path("t2"), max_gamma=1.0
+            job_id="2",
+            status=JobStatus.COMPLETED,
+            work_dir=Path("."),
+            duration_seconds=1.0,
+            log_content="ok",
+            final_structure=mock_structure,
+            trajectory_path=Path("t2"),
+            max_gamma=1.0,
         )
 
         mock_runner.run.side_effect = [res1, res2]
@@ -107,12 +140,13 @@ def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
         orchestrator = Orchestrator(mock_config)
 
         # We need to mock select/refine or spy on them
-        with patch.object(orchestrator, 'select') as mock_select, \
-             patch.object(orchestrator, 'refine') as mock_refine:
-
+        with (
+            patch.object(orchestrator, "select") as mock_select,
+            patch.object(orchestrator, "refine") as mock_refine,
+        ):
             result = orchestrator.run_pipeline()
 
             assert orchestrator.iteration == 2
-            assert mock_select.call_count == 1 # Only after first detection
+            assert mock_select.call_count == 1  # Only after first detection
             assert mock_refine.call_count == 1
             assert result.job_id == "2"
