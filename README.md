@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_04_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_05_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -22,6 +22,9 @@
     -   **Active Set Selection**: Optimized dataset pruning using D-optimality to maximize information density.
     -   **Delta Learning**: Robust reference potential subtraction (e.g., ZBL, Lennard-Jones) for stable fitting.
     -   **Automatic Conversion**: Efficiently converts ASE structures to pacemaker-compatible datasets.
+-   **Validation Framework (QA)**:
+    -   **Physics Validation**: Automated checks for Phonon stability (imaginary frequencies), Elastic constants (Born stability), and Equation of State (Bulk Modulus).
+    -   **Reporting**: Generates beautiful HTML reports with plots (Phonon bands, EOS curves) and pass/fail metrics.
 -   **Molecular Dynamics Engine**:
     -   Automated "One-Shot" MD pipelines via LAMMPS.
     -   Robust wrapper with input generation, execution management, and trajectory parsing.
@@ -45,6 +48,7 @@
     -   **LAMMPS**: `lmp_serial` or `mpirun` (Optional for core, required for MD).
     -   **Quantum Espresso**: `pw.x` (Optional for core, required for DFT).
     -   **Pacemaker**: `pace_train`, `pace_activeset`, `pace_collect` (Required for Training).
+    -   **Phonopy**: Required for phonon calculations (installed via pip).
 
 ## Installation
 
@@ -88,6 +92,13 @@ Train a machine learning potential using a labelled dataset.
 uv run mlip-auto train --config config.yaml --dataset training_data.extxyz
 ```
 
+### 5. Validate a Potential
+Run physical validation checks (Phonons, Elasticity, EOS) on a trained potential.
+```bash
+uv run mlip-auto validate --potential potential.yace --config config.yaml
+# Output: Validation Report generated at: .../validation_report.html
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -110,6 +121,9 @@ training:
   batch_size: 100
   max_epochs: 100
   active_set_optimization: true
+validation:
+  phonon_tolerance: -0.05
+  elastic_stability_tolerance: 1e-3
 logging:
   level: "INFO"
   file_path: "mlip_pipeline.log"
@@ -124,6 +138,8 @@ src/mlip_autopipec/
 │   ├── dft/                # Quantum Espresso (Runner, Parser, Recovery)
 │   ├── dynamics/           # LAMMPS (Runner)
 │   ├── training/           # Pacemaker (Dataset, Runner)
+│   ├── validation/         # QA (Phonons, Elasticity, EOS)
+│   ├── reporting/          # HTML Report Generation
 │   └── structure_gen/      # Generation & Embedding
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
@@ -136,7 +152,7 @@ src/mlip_autopipec/
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker) (Completed)
--   **Cycle 05**: Validation Framework
+-   **Cycle 05**: Validation Framework (Completed)
 -   **Cycle 06**: Active Learning Loop
 
 ## License

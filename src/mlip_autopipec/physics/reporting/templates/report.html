@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Validation Report</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .pass { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+        .warn { color: orange; font-weight: bold; }
+        table { border-collapse: collapse; width: 100%; max-width: 800px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .plot { margin-top: 20px; margin-bottom: 20px; }
+        .result { margin-bottom: 40px; padding: 20px; border: 1px solid #eee; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Validation Report</h1>
+    <p>Generated on: {{ timestamp }}</p>
+
+    {% for result in results %}
+    <div class="result">
+        <h2>Potential: {{ result.potential_id }}</h2>
+        <h3>Status: <span class="{{ result.overall_status.lower() }}">{{ result.overall_status }}</span></h3>
+
+        <h4>Metrics</h4>
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Value</th>
+                <th>Reference</th>
+                <th>Status</th>
+                <th>Message</th>
+            </tr>
+            {% for metric in result.metrics %}
+            <tr>
+                <td>{{ metric.name }}</td>
+                <td>{{ "%.4f"|format(metric.value) }}</td>
+                <td>{{ metric.reference if metric.reference is not none else '-' }}</td>
+                <td class="{{ 'pass' if metric.passed else 'fail' }}">{{ 'PASS' if metric.passed else 'FAIL' }}</td>
+                <td>{{ metric.message or '' }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        {% if result.plots %}
+        <h4>Plots</h4>
+        {% for name, path in result.plots.items() %}
+        <div class="plot">
+            <h5>{{ name }}</h5>
+            <img src="{{ path }}" alt="{{ name }}" style="max-width: 600px;">
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endfor %}
+</body>
+</html>
