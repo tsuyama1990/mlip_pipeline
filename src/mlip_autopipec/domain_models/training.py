@@ -22,8 +22,9 @@ class TrainingConfig(BaseModel):
     # Potential initialization
     initial_potential: Optional[Path] = None
 
-    # Dataset
+    # Dataset and Output
     dataset_path: Optional[Path] = None
+    work_dir: Path = Path("training_work")
 
     @field_validator("batch_size", "max_epochs")
     @classmethod

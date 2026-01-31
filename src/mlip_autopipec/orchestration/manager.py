@@ -213,34 +213,34 @@ class WorkflowManager:
         count = 0
 
         if self.config.training and self.config.orchestrator.active_set_optimization:
-             # Stream to file
-             # Note: We need to keep track of CandidateStructure metadata (origin, gamma).
-             # Extxyz info dict is suitable.
+             # Streaming Reservoir Sampling
+             target_max = self.config.orchestrator.max_active_set_size
+             reservoir_cap = target_max * 10
+             reservoir: List[Atoms] = []
 
-             with open(all_cands_path, "w"):
-                 pass # clear file
-
-             chunk = []
-             batch_size = 100
              for cand in stream_candidates():
-                 atoms = cand.structure.to_ase()
-                 atoms.info['origin'] = cand.origin
-                 atoms.info['gamma'] = cand.uncertainty_score
-                 chunk.append(atoms)
+                 if len(reservoir) < reservoir_cap:
+                     atoms = cand.structure.to_ase()
+                     # Store metadata separately or in info
+                     atoms.info['origin'] = cand.origin
+                     atoms.info['gamma'] = cand.uncertainty_score
+                     reservoir.append(atoms)
+                 else:
+                     j = np.random.randint(0, count + 1)
+                     if j < reservoir_cap:
+                         atoms = cand.structure.to_ase()
+                         atoms.info['origin'] = cand.origin
+                         atoms.info['gamma'] = cand.uncertainty_score
+                         reservoir[j] = atoms
                  count += 1
 
-                 if len(chunk) >= batch_size:
-                     ase.io.write(all_cands_path, chunk, append=True) # type: ignore[no-untyped-call]
-                     chunk = []
-
-             if chunk:
-                 ase.io.write(all_cands_path, chunk, append=True) # type: ignore[no-untyped-call]
-
-             if count == 0:
+             if not reservoir:
                  shutil.rmtree(temp_dir)
                  return []
 
-             logger.info(f"Collected {count} raw candidates. Running Active Set Selection.")
+             # Write reservoir to file
+             logger.info(f"Writing {len(reservoir)} pre-screened candidates to disk for Active Set Selection.")
+             ase.io.write(all_cands_path, reservoir) # type: ignore[no-untyped-call]
 
              # Run pace_activeset
              pm_runner = PacemakerRunner(
@@ -276,10 +276,7 @@ class WorkflowManager:
                  target = self.config.orchestrator.max_active_set_size
 
                  # Iterative Subsampling (Reservoir Sampling-like)
-                 # We want 'target' candidates from 'count' total items.
-                 # Since we already wrote them to file, we can read back with a calculated stride.
-                 # Stride = ceil(count / target)
-                 stride_fallback = max(1, int(np.ceil(count / target)))
+                 stride_fallback = max(1, int(np.ceil(count / target))) if target > 0 else 1
 
                  final_candidates = []
                  for i, s_struct in enumerate(load_structures(all_cands_path)):
@@ -302,28 +299,22 @@ class WorkflowManager:
 
         else:
             # If no active set opt, use simple iterative subsampling on stream
-            # Reservoir sampling is best if we don't know total count, but stream_candidates is an iterator.
-            # We can use a buffer or just accept the first N (bad).
-            # To do this properly without OOM:
-            # 1. Count first? (expensive)
-            # 2. Reservoir sampling: keep N, replace with prob k/i.
-
             max_size = self.config.orchestrator.max_active_set_size
-            reservoir: List[CandidateStructure] = []
+            reservoir_result: List[CandidateStructure] = []
 
             for i, cand in enumerate(stream_candidates()):
-                if len(reservoir) < max_size:
-                    reservoir.append(cand)
+                if len(reservoir_result) < max_size:
+                    reservoir_result.append(cand)
                 else:
                     j = np.random.randint(0, i + 1)
                     if j < max_size:
-                        reservoir[j] = cand
+                        reservoir_result[j] = cand
 
             # Cleanup if temp dir was created (it wasn't in this branch, but good practice)
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
 
-            return reservoir
+            return reservoir_result
 
     def calculate(self, iter_dir: Path) -> bool:
         """

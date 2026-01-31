@@ -36,6 +36,12 @@ class LammpsRunner:
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
         self.log_parser = LammpsLogParser()
 
+        # Validate command immediately upon instantiation
+        # This ensures we don't start setting up a job if the command is invalid
+        LammpsConfig.validate_command(self.config.command)
+        if self.config.use_mpi:
+            LammpsConfig.validate_command(self.config.mpi_command)
+
     def run(
         self,
         structure: Structure,
@@ -277,18 +283,13 @@ run             {params.n_steps}
 
         max_gamma = None
 
-        # Parse log using streaming
+        # Parse log for max_gamma and halt status
         if log_path.exists():
-            # Reset parser for fresh file
-            self.log_parser = LammpsLogParser()
-            with open(log_path, 'r') as f:
-                for line in f:
-                    self.log_parser.parse_line(line)
+            log_content = log_path.read_text()
+            parse_result = self.log_parser.parse(log_content)
+            max_gamma = parse_result.max_gamma
 
-            result = self.log_parser.get_result()
-            max_gamma = result.max_gamma
-
-            if result.halt_detected and max_gamma is None:
+            if parse_result.halt_detected and max_gamma is None:
                 max_gamma = 999.9
 
         if not traj_path.exists():

@@ -180,25 +180,12 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         structures = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
-        # Use config.training.dataset_path if available (for output location)
-        # But convert generates .pckl.gzip.
-        # If dataset_path is set in config, use that directory?
-        # Actually dataset_path in TrainingConfig usually points to input for training.
-        # But here 'dataset_path' arg is input (extxyz).
-        # We need output pckl path.
-        # We will use "training_work/data" relative to cwd if not specified.
+        # Use work_dir from TrainingConfig (Constitution compliance)
+        work_dir = config.training.work_dir
 
-        work_dir = Path.cwd() / "training_work"
-        if config.training.dataset_path:
-             # Use parent of configured dataset path as work dir?
-             # Or strict output path?
-             # dataset_manager expects a work_dir.
-             work_dir = config.training.dataset_path.parent.parent # Assuming data/train.pckl structure?
-             # Safer: just use training_work but allow config override if I implemented it.
-             # Constitution says "No hardcoded paths".
-             # Ideally Orchestrator manages paths. CLI is top level.
-             # We'll stick to local relative path as "user working directory".
-             pass
+        # Ensure it's absolute or relative to CWD correctly (Pydantic handles Path)
+        # We can resolve it just in case
+        work_dir = work_dir.resolve()
 
         dataset_manager = DatasetManager(work_dir=work_dir / "data")
         pacemaker_dataset = dataset_manager.convert(
