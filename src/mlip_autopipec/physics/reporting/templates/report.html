@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Validation Report: {{ result.potential_id }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        .pass { color: green; }
+        .fail { color: red; }
+        .warn { color: orange; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Validation Report: {{ result.potential_id }}</h1>
+    <h2 class="{{ result.overall_status.lower() }}">Status: {{ result.overall_status }}</h2>
+
+    <h3>Metrics</h3>
+    <table>
+        <tr>
+            <th>Name</th>
+            <th>Value</th>
+            <th>Reference</th>
+            <th>Status</th>
+        </tr>
+        {% for metric in result.metrics %}
+        <tr>
+            <td>{{ metric.name }}</td>
+            <td>{{ "%.4f"|format(metric.value) }}</td>
+            <td>{{ "%.4f"|format(metric.reference) if metric.reference else "-" }}</td>
+            <td class="{{ 'pass' if metric.passed else 'fail' }}">{{ "PASS" if metric.passed else "FAIL" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h3>Plots</h3>
+    {% for name, path in result.plots.items() %}
+    <div>
+        <h4>{{ name }}</h4>
+        <img src="{{ path }}" alt="{{ name }}" style="max-width: 600px;">
+    </div>
+    {% endfor %}
+</body>
+</html>

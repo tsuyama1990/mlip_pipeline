@@ -17,6 +17,7 @@ class TrainingConfig(BaseModel):
     kappa: float = 0.4
     initial_potential: Optional[Path] = None
     active_set_optimization: bool = True
+    work_dir: Path = Path("training_work")
 
 
 class TrainingResult(JobResult):
