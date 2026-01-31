@@ -39,8 +39,11 @@ class WorkflowManager:
         self.candidate_manager = CandidateManager()
 
         # Load or Init State
-        self.state = self.state_manager.load()
-        if not self.state:
+        loaded_state = self.state_manager.load()
+        if loaded_state:
+            self.state: WorkflowState = loaded_state
+            logger.info(f"Resumed state: Gen {self.state.generation}, Phase {self.state.current_phase}")
+        else:
             logger.info("No existing state found. Initializing new WorkflowState.")
             self.state = WorkflowState(
                 project_name=config.project_name,
@@ -49,8 +52,6 @@ class WorkflowManager:
                 latest_potential_path=config.training.initial_potential if config.training else None
             )
             self.state_manager.save(self.state)
-        else:
-            logger.info(f"Resumed state: Gen {self.state.generation}, Phase {self.state.current_phase}")
 
         # Setup Data Dir
         self.data_dir = work_dir / "data"
@@ -129,12 +130,10 @@ class WorkflowManager:
         """
         logger.info("Running Exploration...")
 
-        # 1. Generate Structure
         gen_config = self.config.structure_gen
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)
 
-        # 2. Run MD
         md_config = self.config.md
         md_config.uncertainty_threshold = self.config.orchestrator.uncertainty_threshold
 
@@ -146,7 +145,6 @@ class WorkflowManager:
 
         result = runner.run(structure, md_config, potential_path=self.state.latest_potential_path)
 
-        # Detect
         if result.max_gamma is not None:
              if result.max_gamma > self.config.orchestrator.uncertainty_threshold:
                  logger.info(f"Halt detected! Max Gamma: {result.max_gamma}")
@@ -157,9 +155,9 @@ class WorkflowManager:
     def select(self, md_base_dir: Path) -> List[CandidateStructure]:
         """
         Scan MD trajectory for candidates.
+        Applies Active Set Selection (D-Optimality) if candidates exceed max size.
         """
         logger.info("Selecting candidates...")
-        # LammpsRunner was passed iter_dir as base.
         job_dirs = sorted([d for d in md_base_dir.glob("job_*") if d.is_dir()])
 
         if not job_dirs:
@@ -178,19 +176,15 @@ class WorkflowManager:
         threshold = self.config.orchestrator.uncertainty_threshold
 
         try:
-             # iread returns iterator
+             # First pass: collect all high-uncertainty candidates
              traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
 
              for i, atoms in enumerate(traj):
                  gammas = atoms.arrays.get('c_pace_gamma')
                  if gammas is not None and np.max(gammas) > threshold:
-                     # Identify center atom (max gamma)
-                     center_idx = np.argmax(gammas)
+                     center_idx = int(np.argmax(gammas))
 
-                     # Extract Cluster
-                     # Convert to Structure
                      full_struct = Structure.from_ase(atoms)
-
                      cluster = self.candidate_manager.extract_cluster(
                          full_struct, center_idx, radius=self.config.potential.cutoff
                      )
@@ -205,13 +199,62 @@ class WorkflowManager:
 
         except Exception as e:
             logger.error(f"Error reading trajectory: {e}")
+            return []
 
-        # Limit size
+        # Limit size using D-Optimality (pace_activeset)
         max_size = self.config.orchestrator.max_active_set_size
-        if len(candidates) > max_size:
-            # Subsample
-            indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
-            candidates = [candidates[i] for i in indices]
+        if len(candidates) > max_size and self.config.training:
+            logger.info(f"Candidates ({len(candidates)}) > {max_size}. Running Active Set Selection.")
+
+            # We need to leverage PacemakerRunner or call pace_activeset.
+            # We will use a temporary directory for this operation.
+            temp_dir = md_base_dir / "active_set_selection"
+            temp_dir.mkdir(exist_ok=True)
+
+            # Dump all candidates to extxyz
+            all_cands_path = temp_dir / "candidates.extxyz"
+            all_ase = [c.structure.to_ase() for c in candidates]
+            ase.io.write(all_cands_path, all_ase) # type: ignore[no-untyped-call]
+
+            # Instantiate PacemakerRunner solely for selection utility
+            pm_runner = PacemakerRunner(
+                work_dir=temp_dir,
+                train_config=self.config.training,
+                potential_config=self.config.potential
+            )
+
+            try:
+                # pace_activeset writes to pckl.gzip
+                selected_path = pm_runner.select_active_set(all_cands_path)
+
+                # Load back the selected structures
+                selected_structures = ase.io.read(selected_path, index=":") # type: ignore[no-untyped-call]
+
+                if isinstance(selected_structures, list):
+                    # We need to map back to candidates.
+                    # Simple way: just keep the new structures as new candidates.
+                    new_candidates = []
+                    for s_ase in selected_structures:
+                        # Re-wrap
+                        s_struct = Structure.from_ase(s_ase)
+                        new_candidates.append(CandidateStructure(
+                            structure=s_struct,
+                            origin="active_set_selection",
+                            uncertainty_score=0.0, # Lost, or we need to preserve info in ase.info
+                            status=CandidateStatus.PENDING
+                        ))
+                    candidates = new_candidates
+                    logger.info(f"Reduced to {len(candidates)} candidates.")
+
+            except Exception as e:
+                logger.warning(f"Active set selection failed ({e}). Fallback to linear subsampling.")
+                indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
+                candidates = [candidates[i] for i in indices]
+
+        elif len(candidates) > max_size:
+             # Fallback if no training config or other issue
+             indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
+             candidates = [candidates[i] for i in indices]
 
         return candidates
 
@@ -221,10 +264,16 @@ class WorkflowManager:
         """
         logger.info(f"Calculating {len(self.state.candidates)} candidates...")
 
+        if not self.config.dft:
+            logger.error("DFT configuration missing.")
+            return False
+
         dft_dir = iter_dir / "dft_calc"
         runner = QERunner(base_work_dir=dft_dir)
 
         processed_count = 0
+        batch_size = self.config.orchestrator.dft_batch_size
+        pending_writes = []
 
         for cand in self.state.candidates:
             if cand.status == CandidateStatus.PENDING:
@@ -249,9 +298,12 @@ class WorkflowManager:
                             'stress': res.stress
                         }
 
-                        # Write to dataset immediately
-                        self.dataset_manager.convert([s_new], output_path=self.state.dataset_path, append=True)
+                        pending_writes.append(s_new)
                         processed_count += 1
+
+                        if len(pending_writes) >= batch_size:
+                            self.dataset_manager.convert(pending_writes, output_path=self.state.dataset_path, append=True)
+                            pending_writes = []
 
                     else:
                         cand.status = CandidateStatus.FAILED
@@ -263,6 +315,10 @@ class WorkflowManager:
 
                 self.state_manager.save(self.state)
 
+        # Final flush
+        if pending_writes:
+            self.dataset_manager.convert(pending_writes, output_path=self.state.dataset_path, append=True)
+
         return processed_count > 0 or len(self.state.candidates) == 0
 
     def train(self, iter_dir: Path) -> Path:
@@ -270,6 +326,9 @@ class WorkflowManager:
         Run Training.
         """
         logger.info("Training potential...")
+
+        if not self.config.training:
+             raise ValueError("Training configuration missing.")
 
         train_dir = iter_dir / "training"
         pacemaker = PacemakerRunner(

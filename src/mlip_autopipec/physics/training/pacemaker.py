@@ -25,6 +25,9 @@ class PacemakerRunner:
         potential_config: PotentialConfig,
     ):
         self.work_dir = work_dir
+        self.train_config = train_config # Use train_config to match manager usage
+        # Also alias to config to keep internal usage consistent if needed, but standardizing on train_config is better.
+        # However, to avoid breaking existing code in this file, I'll alias self.config = train_config
         self.config = train_config
         self.pot_config = potential_config
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -40,23 +43,16 @@ class PacemakerRunner:
         logger.info(f"Starting Pacemaker training in {self.work_dir}")
 
         # 1. Active Set Selection (Optional but recommended)
-        # If input is extxyz, we MUST produce a pckl file for training usually (pace_train takes pckl or extxyz?)
-        # pace_train takes .pckl.gzip or .extxyz.
-        # But if we want active set, we do it here.
-
         final_dataset_path = dataset_path
 
         if self.config.active_set_optimization:
             logger.info("Running active set selection...")
             try:
-                # Select active set. This reduces dataset size and produces a pckl file.
                 active_set_path = self.select_active_set(dataset_path)
                 logger.info(f"Active set selected: {active_set_path}")
                 final_dataset_path = active_set_path
             except subprocess.CalledProcessError as e:
                 logger.warning(f"Active set selection failed, falling back to full dataset: {e}")
-                # If active set fails, we might still want to ensure format is correct for train
-                # But let's assume pace_train handles original file if selection fails.
                 pass
 
         # 2. Generate input.yaml
@@ -108,25 +104,11 @@ class PacemakerRunner:
     def select_active_set(self, dataset_path: Path) -> Path:
         """
         Run pace_activeset to reduce the dataset.
-
-        This reads the input dataset (can be extxyz), selects optimal structures,
-        and writes them to a new .pckl.gzip file.
-        This avoids loading the entire dataset into python memory, delegating efficiently to the tool.
         """
-        # Output filename usually implies format. Pacemaker uses .pckl.gzip for binary datasets.
         output_path = self.work_dir / "train_active.pckl.gzip"
-
-        # pace_activeset <input> --output <output> ...
-        # We can add max_size if we had it in config, currently boolean toggle.
-        # Assuming config might have it or use defaults.
-        # Let's check config.
-        # (TrainingConfig has active_set_optimization boolean, but not max_size explicitly here,
-        # OrchestratorConfig has max_active_set_size for selection loop, but training config is separate).
-        # We'll just run defaults or max_active_set_size if added to TrainingConfig (not currently there).
 
         cmd = ["pace_activeset", str(dataset_path), "--output", str(output_path)]
 
-        # We capture output to avoid spamming console, unless error
         subprocess.run(cmd, check=True, capture_output=True)
         return output_path
 
@@ -134,7 +116,7 @@ class PacemakerRunner:
         """
         Generate input.yaml for pace_train.
         """
-        # Minimal configuration structure
+        # Configuration from PotentialConfig
         data = {
             "cutoff": self.pot_config.cutoff,
             "seed": self.pot_config.seed,
@@ -146,9 +128,9 @@ class PacemakerRunner:
                 "deltaSplineBins": 0.001,
                 "embeddings": {
                     "ALL": {
-                        "npot": "FinnisSinclair",
-                        "fs_parameters": [1, 1, 1, 0.5],
-                        "ndensity": 2
+                        "npot": self.pot_config.npot,
+                        "fs_parameters": self.pot_config.fs_parameters,
+                        "ndensity": self.pot_config.ndensity
                     }
                 },
                 "bonds": {
@@ -187,10 +169,7 @@ class PacemakerRunner:
         Parse training log for metrics.
         """
         metrics = {}
-        # Example parsing logic, depends on actual log format
         for line in content.splitlines():
-            # "RMSE Energy: 0.005"
-            # "RMSE Force: 0.01"
             lower_line = line.lower()
             if "rmse energy" in lower_line:
                 try:

@@ -1,4 +1,5 @@
 import numpy as np
+from ase.neighborlist import NeighborList
 
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -12,46 +13,63 @@ class CandidateManager:
     def extract_cluster(self, supercell: Structure, center_atom_index: int, radius: float) -> Structure:
         """
         Extracts a spherical cluster of atoms around a center atom.
+        Uses ASE NeighborList for correct PBC handling.
         """
         atoms = supercell.to_ase()
 
-        # We handle PBC by using neighbor list which handles it
-        # Or simpler: compute distances. But neighbor list is better for PBC.
-        # cutoffs: list of radius for each atom. We only care about center.
+        # cutoffs: list of radius/2 for each atom to find neighbors?
+        # NeighborList takes cutoffs. If we want all neighbors within radius of center atom:
+        # We can just iterate over neighbors of center atom.
 
-        # Simple approach: Calculate distances from center atom to all others (considering PBC)
-        # ASE has get_distances
+        # cutoffs for NeighborList are usually atomic radii.
+        # But here we want a spherical cut.
+        # We can use natural_cutoffs or just a large cutoff.
+        # Actually, to find neighbors within radius R, we need neighbor list with cutoff R/2 + R/2 = R.
+        # So if we set all cutoffs to radius/2, then any pair with dist < R will be found.
 
-        # However, to properly extract a cluster that 'looks' like the local environment,
-        # we might want to unwrap it or keep relative positions.
-        # Simplest valid approach for DFT:
-        # 1. Build NeighborList
-        # 2. Identify indices.
-        # 3. Create new Atoms.
+        cutoffs = [radius / 2.0] * len(atoms)
+        nl = NeighborList(cutoffs, self_interaction=False, bothways=True) # type: ignore[no-untyped-call]
+        nl.update(atoms) # type: ignore[no-untyped-call]
 
-        # This implementation uses simple distance check which might be slow for huge systems
-        # but robust enough for this cycle.
-        # Actually, get_distances handles MIC (Minimum Image Convention).
+        indices, offsets = nl.get_neighbors(center_atom_index) # type: ignore[no-untyped-call]
 
-        dists = atoms.get_distances(center_atom_index, range(len(atoms)), mic=True) # type: ignore[no-untyped-call]
-        mask = dists <= radius
-        indices = np.where(mask)[0]
+        # Unwrapping: get_neighbors returns offsets (pbc shifts).
+        # We can reconstruct positions relative to center atom.
+        # pos_neighbor = pos_original + offset @ cell
+        # vector = pos_neighbor - pos_center
+        # new_pos = vector (centered at 0)
 
-        cluster_atoms = atoms[indices]
+        center_pos = atoms.positions[center_atom_index]
+        cell = atoms.get_cell()
 
-        # Center the cluster?
-        # Maybe shift positions so center_atom is at origin?
-        # For now, just return as is but wrapped?
-        # Ideally we want a non-periodic cluster initially.
-        cluster_atoms.set_pbc((False, False, False)) # type: ignore[no-untyped-call]
+        new_positions = []
+        new_symbols = []
 
-        # We don't set cell to zero, to avoid issues with zero-volume cells in some tools.
-        # We keep the original cell (though pbc is false).
-        # Or we can set it to a large dummy box to be safe.
-        cluster_atoms.set_cell(np.eye(3) * (2 * radius + 10.0)) # type: ignore[no-untyped-call]
-        cluster_atoms.center() # type: ignore[no-untyped-call]
+        # Center atom at 0
+        new_positions.append([0.0, 0.0, 0.0])
+        new_symbols.append(atoms.symbols[center_atom_index])
 
-        return Structure.from_ase(cluster_atoms)
+        for i, idx in enumerate(indices):
+            offset_vec = np.dot(offsets[i], cell)
+            diff = atoms.positions[idx] + offset_vec - center_pos
+            new_positions.append(diff)
+            new_symbols.append(atoms.symbols[idx])
+
+        # Create new Structure
+        # We set a large dummy cell to avoid 0-volume issues, but no PBC.
+        dummy_cell = np.eye(3) * (2 * radius + 10.0)
+
+        cluster = Structure(
+            symbols=new_symbols,
+            positions=np.array(new_positions),
+            cell=dummy_cell,
+            pbc=(False, False, False)
+        )
+
+        # Recenter (optional, but we already centered at 0)
+        # cluster.to_ase().center()
+
+        return cluster
 
     def embed_cluster(self, cluster: Structure, vacuum: float = 10.0) -> Structure:
         """
@@ -60,8 +78,5 @@ class CandidateManager:
         atoms = cluster.to_ase()
         atoms.center(vacuum=vacuum) # type: ignore[no-untyped-call]
         atoms.set_pbc((True, True, True)) # type: ignore[no-untyped-call]
-
-        # We might want to set a 'ghost_mask' array here if we were doing ghost atoms.
-        # For now, just simple embedding.
 
         return Structure.from_ase(atoms)

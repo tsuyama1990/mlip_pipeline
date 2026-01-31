@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict
 
 
 @dataclass
@@ -28,7 +28,7 @@ class LammpsLogParser:
         # And then finding the max value in the data rows.
 
         lines = [line.strip() for line in log_content.splitlines()]
-        header_indices = {}
+        header_indices: Dict[str, int] = {}
 
         for line in lines:
             if not line:
