@@ -52,7 +52,7 @@ def init_project(path: Path) -> None:
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
-            element="Si",
+            element=DEFAULT_ELEMENTS[0],
             crystal_structure="diamond",
             lattice_constant=5.43,
             rattle_stdev=0.1,
