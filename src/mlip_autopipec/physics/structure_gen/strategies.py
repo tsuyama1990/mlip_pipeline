@@ -1,7 +1,13 @@
 from typing import Protocol
 
 import ase.build
-from mlip_autopipec.domain_models.config import BulkStructureGenConfig, StructureGenConfig
+from mlip_autopipec.domain_models.config import (
+    BulkStructureGenConfig,
+    DefectStructureGenConfig,
+    RandomSliceStructureGenConfig,
+    StrainStructureGenConfig,
+    StructureGenConfig,
+)
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 
@@ -46,3 +52,61 @@ class BulkStructureGenerator:
             structure = self.builder.apply_rattle(structure, config.rattle_stdev)
 
         return structure
+
+
+class RandomSliceGenerator:
+    """Strategy for generating random slice (surface/slab) structures."""
+
+    def __init__(self) -> None:
+        pass
+
+    def generate(self, config: StructureGenConfig) -> Structure:
+        if not isinstance(config, RandomSliceStructureGenConfig):
+            raise TypeError(f"RandomSliceGenerator received incompatible config: {type(config)}")
+
+        # Placeholder implementation
+        # Ideally: generate bulk, then slice with random Miller indices
+        # For now, we'll just generate a bulk and warn or return it
+        # Real implementation would go here.
+
+        atoms = ase.build.bulk(
+            name=config.element,
+            crystalstructure=config.crystal_structure,
+            a=config.lattice_constant,
+            cubic=True
+        )
+        atoms = atoms * config.supercell
+        # Add vacuum?
+        atoms.center(vacuum=config.vacuum, axis=2) # Slab
+
+        return Structure.from_ase(atoms)
+
+
+class DefectGenerator:
+    """Strategy for generating structures with defects."""
+
+    def __init__(self) -> None:
+        pass
+
+    def generate(self, config: StructureGenConfig) -> Structure:
+        if not isinstance(config, DefectStructureGenConfig):
+             raise TypeError(f"DefectGenerator received incompatible config: {type(config)}")
+
+        # Placeholder
+        # Need to load base structure from path
+        # And introduce defect
+        raise NotImplementedError("Defect generation strategy not yet implemented")
+
+
+class StrainGenerator:
+    """Strategy for generating strained structures."""
+
+    def __init__(self) -> None:
+        pass
+
+    def generate(self, config: StructureGenConfig) -> Structure:
+        if not isinstance(config, StrainStructureGenConfig):
+             raise TypeError(f"StrainGenerator received incompatible config: {type(config)}")
+
+        # Placeholder
+        raise NotImplementedError("Strain generation strategy not yet implemented")

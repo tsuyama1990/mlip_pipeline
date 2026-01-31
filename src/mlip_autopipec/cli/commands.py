@@ -16,6 +16,7 @@ from mlip_autopipec.domain_models.config import (
     BulkStructureGenConfig,
     Config,
     LoggingConfig,
+    OrchestratorConfig,
     PotentialConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
@@ -45,10 +46,17 @@ def init_project(path: Path) -> None:
     config = Config(
         project_name=DEFAULT_PROJECT_NAME,
         logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
+        orchestrator=OrchestratorConfig(
+            max_iterations=5,
+            uncertainty_threshold=5.0,
+            halt_threshold=5,
+            validation_frequency=1
+        ),
         potential=PotentialConfig(
             elements=DEFAULT_ELEMENTS,
             cutoff=DEFAULT_CUTOFF,
             seed=DEFAULT_SEED,
+            pair_style="pace"
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",

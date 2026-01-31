@@ -1,9 +1,12 @@
 from mlip_autopipec.domain_models.config import (
     BulkStructureGenConfig,
     Config,
+    DefectStructureGenConfig,
     LoggingConfig,
     OrchestratorConfig,
     PotentialConfig,
+    RandomSliceStructureGenConfig,
+    StrainStructureGenConfig,
     StructureGenConfig,
 )
 from mlip_autopipec.domain_models.calculation import DFTConfig, DFTResult
@@ -21,6 +24,7 @@ from mlip_autopipec.domain_models.potential import Potential
 __all__ = [
     "BulkStructureGenConfig",
     "Config",
+    "DefectStructureGenConfig",
     "DFTConfig",
     "DFTResult",
     "JobResult",
@@ -32,6 +36,8 @@ __all__ = [
     "MDParams",
     "OrchestratorConfig",
     "PotentialConfig",
+    "RandomSliceStructureGenConfig",
+    "StrainStructureGenConfig",
     "Structure",
     "StructureGenConfig",
     "TrainingConfig",

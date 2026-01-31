@@ -5,7 +5,7 @@ from typing import Optional
 import ase.io
 import numpy as np
 
-from mlip_autopipec.domain_models.config import Config
+from mlip_autopipec.domain_models.config import BulkStructureGenConfig, Config
 from mlip_autopipec.domain_models.job import JobResult, JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dft.qe_runner import QERunner
@@ -13,6 +13,7 @@ from mlip_autopipec.physics.dynamics.lammps import LammpsResult, LammpsRunner
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
+from mlip_autopipec.physics.validation.runner import ValidationRunner
 
 logger = logging.getLogger("mlip_autopipec")
 
@@ -20,7 +21,7 @@ logger = logging.getLogger("mlip_autopipec")
 class Orchestrator:
     """
     Orchestrates the active learning pipeline.
-    Implements the Active Learning Cycle: Explore -> Detect -> Select -> Refine.
+    Implements the Active Learning Cycle: Explore -> Detect -> Select -> Refine -> Validate.
     """
 
     def __init__(self, config: Config) -> None:
@@ -37,6 +38,36 @@ class Orchestrator:
         self.current_potential_path: Optional[Path] = None
         if self.config.training and self.config.training.initial_potential:
              self.current_potential_path = self.config.training.initial_potential
+
+    def _create_lammps_runner(self, work_dir: Path) -> LammpsRunner:
+        """Factory method for LammpsRunner."""
+        return LammpsRunner(
+            config=self.config.lammps,
+            potential_config=self.config.potential,
+            base_work_dir=work_dir.parent
+        )
+
+    def _create_dft_runner(self, work_dir: Path) -> QERunner:
+        """Factory method for QERunner."""
+        return QERunner(base_work_dir=work_dir)
+
+    def _create_pacemaker_runner(self, work_dir: Path) -> PacemakerRunner:
+        """Factory method for PacemakerRunner."""
+        if not self.config.training:
+            raise ValueError("Training configuration missing.")
+        return PacemakerRunner(
+            work_dir=work_dir,
+            train_config=self.config.training,
+            potential_config=self.config.potential
+        )
+
+    def _create_validation_runner(self, potential_path: Path) -> ValidationRunner:
+        """Factory method for ValidationRunner."""
+        return ValidationRunner(
+            val_config=self.config.validation,
+            pot_config=self.config.potential,
+            potential_path=potential_path
+        )
 
     def run_pipeline(self) -> JobResult:
         """
@@ -86,6 +117,14 @@ class Orchestrator:
                         log_content=str(e)
                     )
                     break
+
+                # 5. Validate
+                if self.iteration % self.config.orchestrator.validation_frequency == 0:
+                    try:
+                        self.validate(iter_dir)
+                    except Exception as e:
+                        logger.error(f"Validation failed: {e}")
+
             else:
                 logger.info("No high uncertainty detected. Convergence achieved.")
                 break
@@ -122,15 +161,9 @@ class Orchestrator:
         md_config.uncertainty_threshold = self.config.orchestrator.uncertainty_threshold
 
         work_dir = iter_dir / "md_run"
-        runner = LammpsRunner(self.config.lammps, self.config.potential, base_work_dir=work_dir.parent)
+        runner = self._create_lammps_runner(work_dir)
 
-        # We need to ensure runner uses specific work_dir or we let it create one inside base?
-        # LammpsRunner creates a subfolder "job_...".
-        # Ideally we want it in `iter_dir/md_run`.
-        # LammpsRunner.__init__ takes `base_work_dir`.
-        # So passing `iter_dir` as base means it will create `iter_dir/job_...`.
-        # For this implementation, we accept that LammpsRunner manages its own job folders.
-        runner.base_work_dir = iter_dir # Override base dir for this run
+        runner.base_work_dir = iter_dir # Force it to be inside iteration dir
 
         result = runner.run(structure, md_config, potential_path=self.current_potential_path)
         return result
@@ -164,49 +197,40 @@ class Orchestrator:
             return []
 
         # Read dump
-        # We expect c_pace_gamma to be available if UQ was on
-        traj = ase.io.read(result.trajectory_path, index=":", format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Using format='lammps-dump-text' explicitly
+        try:
+            traj = ase.io.read(result.trajectory_path, index=":", format="lammps-dump-text") # type: ignore[no-untyped-call]
+        except Exception as e:
+            logger.error(f"Failed to read trajectory: {e}")
+            return []
 
         candidates = []
         threshold = self.config.orchestrator.uncertainty_threshold
 
-        # Simple strategy: Select frames where max(gamma) > threshold
-        # Better: Select atoms with high gamma and cluster them?
-        # For "Cycle 02/03", let's just take the frames that exceeded threshold.
-        # But we also limit the number of candidates.
-
-        for atoms in traj:
+        # Iterate through trajectory to find high-uncertainty frames
+        for i, atoms in enumerate(traj):
             # Check for gamma
-            # atoms.arrays might contain 'c_pace_gamma'
             gammas = atoms.arrays.get('c_pace_gamma')
 
             is_candidate = False
             if gammas is not None:
                 if np.max(gammas) > threshold:
                     is_candidate = True
-            else:
-                # If gamma not present but we detected via log/halt?
-                # Maybe just take the last frame (halt frame)
-                pass
+                    logger.debug(f"Frame {i}: Max gamma {np.max(gammas)} > {threshold}")
 
             if is_candidate:
                 candidates.append(Structure.from_ase(atoms))
 
-        # If no candidates found via gamma (maybe format issue), but we halted:
+        # If no candidates found via gamma, but we halted (likely due to uncertainty or error),
+        # take the final structure as a fallback candidate.
         if not candidates and result.status != JobStatus.COMPLETED:
-             # Take the final structure
+             logger.info("No high-gamma frames found in trajectory, but job halted. Selecting final frame.")
              candidates.append(result.final_structure)
 
-        # Active Set Optimization on candidates?
-        # Usually done during training, but we can do it here to reduce DFT calls.
-        # But pace_activeset requires a potential to evaluate? No, it selects based on geometric descriptors.
-        # But we need to convert to dataset first.
-        # For simplicity, we just return candidates, max capped.
-
+        # Limit the size of active set to avoid overwhelming DFT
         max_size = self.config.orchestrator.max_active_set_size
         if len(candidates) > max_size:
-            # Random subsample? Or take spaced frames?
-            # Let's just slice
+            logger.info(f"Subsampling candidates from {len(candidates)} to {max_size}")
             indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
             candidates = [candidates[i] for i in indices]
 
@@ -228,7 +252,7 @@ class Orchestrator:
         dft_dir = iter_dir / "dft_calc"
         dft_dir.mkdir(exist_ok=True)
 
-        runner = QERunner(base_work_dir=dft_dir)
+        runner = self._create_dft_runner(dft_dir)
         dft_results = []
 
         for i, s in enumerate(candidates):
@@ -257,7 +281,7 @@ class Orchestrator:
 
         # 3. Train
         train_dir = iter_dir / "training"
-        pacemaker = PacemakerRunner(train_dir, self.config.training, self.config.potential)
+        pacemaker = self._create_pacemaker_runner(train_dir)
 
         # Set initial potential for fine-tuning
         # (PacemakerRunner handles config.initial_potential, but we want to update it to current_potential)
@@ -276,3 +300,32 @@ class Orchestrator:
             raise RuntimeError(f"Training failed: {train_result.log_content}")
 
         return train_result.potential_path
+
+    def validate(self, iter_dir: Path) -> None:
+        """
+        Phase 5: Validation
+        Run validation suite on the current potential.
+        """
+        logger.info("Phase: Validation")
+        if not self.current_potential_path or not self.current_potential_path.exists():
+            logger.warning("No potential to validate.")
+            return
+
+        # 1. Generate Validation Structure (Preferably Ideal Bulk)
+        gen_config = self.config.structure_gen
+
+        # If possible, remove thermal noise for validation structure
+        if isinstance(gen_config, BulkStructureGenConfig):
+            # Create a copy with rattle=0
+            gen_config = gen_config.model_copy(update={"rattle_stdev": 0.0})
+
+        generator = StructureGenFactory.get_generator(gen_config)
+        structure = generator.generate(gen_config)
+
+        # 2. Run Validation
+        runner = self._create_validation_runner(self.current_potential_path)
+        result = runner.validate(structure)
+
+        logger.info(f"Validation Status: {result.overall_status}")
+        for m in result.metrics:
+            logger.info(f"Metric {m.name}: {'PASS' if m.passed else 'FAIL'} - {m.value}")

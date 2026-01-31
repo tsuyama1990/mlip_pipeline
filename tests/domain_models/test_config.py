@@ -8,6 +8,7 @@ from mlip_autopipec.domain_models import (
     Config,
     MDConfig,
     PotentialConfig,
+    RandomSliceStructureGenConfig,
 )
 
 
@@ -52,6 +53,25 @@ def test_config_valid() -> None:
 
     # Check Orchestrator defaults
     assert c.orchestrator.active_set_optimization is True
+
+
+def test_config_random_slice() -> None:
+    """Test RandomSlice configuration."""
+    c = Config(
+        project_name="TestSlice",
+        potential=PotentialConfig(elements=["Al"], cutoff=4.0),
+        structure_gen=RandomSliceStructureGenConfig(
+            strategy="random_slice",
+            element="Al",
+            crystal_structure="fcc",
+            lattice_constant=4.05,
+            vacuum=15.0
+        ),
+        md=MDConfig(temperature=300, n_steps=100, ensemble="NVT")
+    )
+    assert isinstance(c.structure_gen, RandomSliceStructureGenConfig)
+    assert c.structure_gen.strategy == "random_slice"
+    assert c.structure_gen.vacuum == 15.0
 
 
 def test_config_invalid_cutoff() -> None:

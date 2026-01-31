@@ -42,6 +42,8 @@ class OrchestratorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_iterations: int = 1
     uncertainty_threshold: float = 5.0
+    halt_threshold: int = 5
+    validation_frequency: int = 1
 
     # Active Set Selection
     active_set_optimization: bool = True
@@ -61,8 +63,49 @@ class BulkStructureGenConfig(BaseModel):
     supercell: tuple[int, int, int] = (1, 1, 1)
 
 
+class RandomSliceStructureGenConfig(BaseModel):
+    """Configuration for random slice structure generation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: Literal["random_slice"] = "random_slice"
+    element: str
+    crystal_structure: str
+    lattice_constant: float
+    supercell: tuple[int, int, int] = (2, 2, 2)
+    vacuum: float = 10.0
+    n_structures: int = 5
+
+
+class DefectStructureGenConfig(BaseModel):
+    """Configuration for defect structure generation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: Literal["defect"] = "defect"
+    base_structure_path: Path
+    defect_type: Literal["vacancy", "interstitial", "substitution"]
+    concentration: float = 0.01
+
+
+class StrainStructureGenConfig(BaseModel):
+    """Configuration for strained structure generation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: Literal["strain"] = "strain"
+    base_structure_path: Path
+    strain_range: float = 0.1  # +/- 10%
+    n_points: int = 10
+
+
 # Union of all structure generation configs
-StructureGenConfig = Union[BulkStructureGenConfig]
+StructureGenConfig = Union[
+    BulkStructureGenConfig,
+    RandomSliceStructureGenConfig,
+    DefectStructureGenConfig,
+    StrainStructureGenConfig
+]
 
 
 class ValidationConfig(BaseModel):

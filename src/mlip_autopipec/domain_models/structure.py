@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 
 import ase
 import numpy as np
@@ -17,7 +17,8 @@ class Structure(BaseModel):
     positions: np.ndarray
     cell: np.ndarray
     pbc: tuple[bool, bool, bool]
-    properties: dict[str, Any] = Field(default_factory=dict)
+    properties: Dict[str, Any] = Field(default_factory=dict)  # System-wide (info)
+    arrays: Dict[str, np.ndarray] = Field(default_factory=dict)  # Per-atom (arrays)
 
     @field_validator("positions")
     @classmethod
@@ -43,28 +44,55 @@ class Structure(BaseModel):
                 f"number of positions ({len(self.positions)})"
             )
             raise ValueError(msg)
+
+        # Validate array lengths
+        for name, arr in self.arrays.items():
+            if len(arr) != len(self.positions):
+                msg = (
+                    f"Array '{name}' length ({len(arr)}) does not match "
+                    f"number of atoms ({len(self.positions)})"
+                )
+                raise ValueError(msg)
         return self
 
     @classmethod
     def from_ase(cls, atoms: ase.Atoms) -> "Structure":
         """Factory method to create a Structure from an ASE Atoms object."""
+        # Convert arrays to dict of numpy arrays
+        # atoms.arrays includes positions, numbers, etc. We want custom ones + standard if needed
+        # but 'positions' and 'numbers' are handled separately.
+        # We'll just copy everything from arrays except positions and numbers if we want full fidelity?
+        # Or just what's needed. For now, let's copy all extra arrays.
+
+        arrays = {}
+        for k, v in atoms.arrays.items():
+            if k not in ['positions', 'numbers', 'types']:
+                arrays[k] = v
+
         return cls(
             symbols=atoms.get_chemical_symbols(),  # type: ignore[no-untyped-call]
             positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
             cell=atoms.get_cell().array,  # type: ignore[no-untyped-call]
             pbc=tuple(atoms.get_pbc()),  # type: ignore[no-untyped-call]
             properties=atoms.info.copy(),
+            arrays=arrays
         )
 
     def to_ase(self) -> ase.Atoms:
         """Convert to ASE Atoms object."""
-        return ase.Atoms(
+        atoms = ase.Atoms(
             symbols=self.symbols,
             positions=self.positions,
             cell=self.cell,
             pbc=self.pbc,
             info=self.properties.copy(),
         )
+
+        # Set arrays
+        for k, v in self.arrays.items():
+            atoms.set_array(k, v)
+
+        return atoms
 
     def get_chemical_formula(self) -> str:
         """Get the chemical formula string."""
