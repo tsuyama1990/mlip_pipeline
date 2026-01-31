@@ -63,6 +63,10 @@ class OrchestratorConfig(BaseModel):
     active_set_optimization: bool = True
     max_active_set_size: int = 1000
 
+    # Trajectory Processing Limits
+    max_trajectory_frames: int = 10000
+    trajectory_sampling_stride: int = 1
+
 
 class BulkStructureGenConfig(BaseModel):
     """Configuration for bulk structure generation."""

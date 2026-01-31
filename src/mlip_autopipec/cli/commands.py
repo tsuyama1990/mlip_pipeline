@@ -205,6 +205,7 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         # 1. Load structures
         logger.info(f"Loading structures from {dataset_path}")
         # type: ignore[no-untyped-call]
+        # Return an iterator to avoid loading all into memory
         structures_iter = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
