@@ -1,42 +1,39 @@
-from datetime import datetime
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.config import PotentialConfig
+from pathlib import Path
+from datetime import datetime
 
-from mlip_autopipec.domain_models import Potential
-
-
-def test_potential_valid():
-    p = Potential(
-        path=Path("potentials/pot.yace"),
+def test_potential_model_valid():
+    pot = Potential(
+        path=Path("potential.yace"),
         format="ace",
         elements=["Si", "O"],
         creation_date=datetime.now(),
-        metadata={"rmse": 0.01},
+        metadata={"version": "1.0"}
     )
-    assert p.format == "ace"
-    assert p.path == Path("potentials/pot.yace")
+    assert pot.format == "ace"
 
-
-def test_potential_invalid_format():
+def test_potential_model_invalid_format():
     with pytest.raises(ValidationError):
         Potential(
-            path=Path("potentials/pot.yace"),
-            format="invalid",  # type: ignore
-            elements=["Si"],
+            path=Path("pot.txt"),
+            format="invalid_format", # type: ignore
+            elements=["Fe"],
             creation_date=datetime.now(),
-            metadata={},
+            metadata={}
         )
 
+def test_potential_config_valid():
+    pc = PotentialConfig(
+        elements=["Si", "C"],
+        cutoff=4.5,
+        pair_style="hybrid/overlay"
+    )
+    assert pc.cutoff == 4.5
+    assert pc.pair_style == "hybrid/overlay"
 
-def test_potential_extra_fields():
+def test_potential_config_invalid_cutoff():
     with pytest.raises(ValidationError):
-        Potential(
-            path=Path("pot.yace"),
-            format="ace",
-            elements=["Si"],
-            creation_date=datetime.now(),
-            metadata={},
-            extra_field="fail",  # type: ignore
-        )
+        PotentialConfig(elements=["Al"], cutoff=-1.0)

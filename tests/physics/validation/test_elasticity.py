@@ -1,50 +1,50 @@
-import numpy as np
-from ase import Atoms
-from unittest.mock import MagicMock
+import pytest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
-
 from mlip_autopipec.physics.validation.elasticity import ElasticityValidator
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
+import numpy as np
 
-def test_elasticity_validator_success():
+@pytest.fixture
+def mock_calc():
+    with patch("mlip_autopipec.physics.validation.elasticity.get_lammps_calculator") as mock:
+        calc = MagicMock()
+        calc.get_stress.return_value = np.zeros(6)
+        calc.get_potential_energy.return_value = 0.0
+        mock.return_value = calc
+        yield calc
+
+def test_elasticity_validator_success(mock_calc):
     val_config = ValidationConfig()
-    pot_config = PotentialConfig(elements=["Al"], cutoff=5.0)
-    validator = ElasticityValidator(val_config, pot_config, potential_path=Path("dummy.yace"))
+    pot_config = PotentialConfig(elements=["Al"], cutoff=5.0, pair_style="hybrid/overlay")
+    validator = ElasticityValidator(val_config, pot_config, Path("pot.yace"))
 
-    # Mock internal calculation of C_ij
-    # Born stability for Cubic:
-    # C11 - C12 > 0
-    # C11 + 2C12 > 0
-    # C44 > 0
-    C_ij = np.zeros((6,6))
-    C_ij[0,0] = C_ij[1,1] = C_ij[2,2] = 100.0 # C11
-    C_ij[0,1] = C_ij[1,0] = C_ij[0,2] = C_ij[2,0] = C_ij[1,2] = C_ij[2,1] = 50.0 # C12
-    C_ij[3,3] = C_ij[4,4] = C_ij[5,5] = 40.0 # C44
+    structure = Structure(
+        symbols=["Al"]*4,
+        positions=np.zeros((4,3)),
+        cell=np.eye(3)*4.0,
+        pbc=(True,True,True)
+    )
 
-    validator._calculate_stiffness = MagicMock(return_value=C_ij)
+    # Mock _calculate_stiffness to return a stable matrix (identity)
+    with patch.object(validator, "_calculate_stiffness", return_value=np.eye(6)):
+        metric = validator.validate(structure)
+        assert metric.passed is True
 
-    structure = Structure.from_ase(Atoms("Al", cell=[4,4,4], pbc=True))
-
-    metric = validator.validate(structure)
-
-    assert metric.passed is True
-    assert metric.message is None or "Stable" in metric.message
-
-def test_elasticity_validator_failure():
+def test_elasticity_validator_failure(mock_calc):
     val_config = ValidationConfig()
-    pot_config = PotentialConfig(elements=["Al"], cutoff=5.0)
-    validator = ElasticityValidator(val_config, pot_config, potential_path=Path("dummy.yace"))
+    pot_config = PotentialConfig(elements=["Al"], cutoff=5.0, pair_style="hybrid/overlay")
+    validator = ElasticityValidator(val_config, pot_config, Path("pot.yace"))
 
-    # Unstable C_ij (C44 < 0)
-    C_ij = np.zeros((6,6))
-    C_ij[0,0] = 100.0
-    C_ij[3,3] = -10.0
+    structure = Structure(
+        symbols=["Al"]*4,
+        positions=np.zeros((4,3)),
+        cell=np.eye(3)*4.0,
+        pbc=(True,True,True)
+    )
 
-    validator._calculate_stiffness = MagicMock(return_value=C_ij)
-
-    structure = Structure.from_ase(Atoms("Al", cell=[4,4,4], pbc=True))
-
-    metric = validator.validate(structure)
-
-    assert metric.passed is False
+    # Mock _calculate_stiffness to return an unstable matrix (negative identity)
+    with patch.object(validator, "_calculate_stiffness", return_value=-np.eye(6)):
+        metric = validator.validate(structure)
+        assert metric.passed is False

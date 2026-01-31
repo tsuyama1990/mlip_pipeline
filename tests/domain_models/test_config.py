@@ -59,7 +59,8 @@ def test_config_random_slice() -> None:
     """Test RandomSlice configuration."""
     c = Config(
         project_name="TestSlice",
-        potential=PotentialConfig(elements=["Al"], cutoff=4.0),
+        # Al has Z=13, so must use hybrid/overlay
+        potential=PotentialConfig(elements=["Al"], cutoff=4.0, pair_style="hybrid/overlay"),
         structure_gen=RandomSliceStructureGenConfig(
             strategy="random_slice",
             element="Al",
@@ -105,13 +106,14 @@ def test_config_missing_field() -> None:
 def test_from_yaml(tmp_path: Path) -> None:
     """Test loading from YAML using real IO."""
     yaml_file = tmp_path / "config.yaml"
+    # Cu has Z=29, must use hybrid/overlay
     yaml_content = """
     project_name: "YamlProject"
     potential:
       elements: ["Cu"]
       cutoff: 3.0
       seed: 123
-      pair_style: "pace"
+      pair_style: "hybrid/overlay"
     logging:
       level: "DEBUG"
     structure_gen:
@@ -134,7 +136,7 @@ def test_from_yaml(tmp_path: Path) -> None:
 
     assert c.project_name == "YamlProject"
     assert c.potential.elements == ["Cu"]
-    assert c.potential.pair_style == "pace"
+    assert c.potential.pair_style == "hybrid/overlay"
     assert c.logging.level == "DEBUG"
 
     # Verify strict union validation (it should instantiate BulkStructureGenConfig)
@@ -144,3 +146,30 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.md.n_steps == 500
     assert c.md.uncertainty_threshold == 10.0
     assert c.orchestrator.active_set_optimization is False
+
+def test_config_delta_learning_enforcement() -> None:
+    """Test that heavy atoms require hybrid/overlay."""
+    # He (Z=2) with pace should fail
+    with pytest.raises(ValidationError) as excinfo:
+        PotentialConfig(
+            elements=["He"],
+            cutoff=3.0,
+            pair_style="pace"
+        )
+    assert "MUST use 'hybrid/overlay'" in str(excinfo.value)
+
+    # He with hybrid/overlay should pass
+    pc = PotentialConfig(
+        elements=["He"],
+        cutoff=3.0,
+        pair_style="hybrid/overlay"
+    )
+    assert pc.pair_style == "hybrid/overlay"
+
+    # H (Z=1) with pace should pass
+    pc_h = PotentialConfig(
+        elements=["H"],
+        cutoff=3.0,
+        pair_style="pace"
+    )
+    assert pc_h.pair_style == "pace"

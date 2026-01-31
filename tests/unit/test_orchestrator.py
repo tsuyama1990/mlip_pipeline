@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 import pytest
 from mlip_autopipec.domain_models import (
@@ -11,7 +12,11 @@ from mlip_autopipec.domain_models import (
     PotentialConfig,
     JobStatus,
     LammpsResult,
-    Structure
+    Structure,
+    DFTResult,
+    JobResult,
+    DFTConfig,
+    TrainingConfig
 )
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 import numpy as np
@@ -21,7 +26,7 @@ def mock_config():
     return Config(
         project_name="TestProject",
         logging=LoggingConfig(),
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        potential=PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay"),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Si",
@@ -31,6 +36,8 @@ def mock_config():
         md=MDConfig(temperature=300, n_steps=100, ensemble="NVT"),
         lammps=LammpsConfig(),
         orchestrator=OrchestratorConfig(max_iterations=1, uncertainty_threshold=5.0, validation_frequency=1),
+        dft=DFTConfig(pseudopotentials={"Si": Path("Si.upf")}, ecutwfc=40.0, kspacing=0.05),
+        training=TrainingConfig()
     )
 
 @pytest.fixture
@@ -122,23 +129,47 @@ def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
 
             assert result.job_id == "2"
 
-def test_orchestrator_validation_call(mock_config, mock_structure):
-    """Test that validation is called correctly."""
+def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
+    """Test that Orchestrator proceeds if some DFTs fail but not all."""
     mock_config.orchestrator.max_iterations = 1
-    mock_config.orchestrator.validation_frequency = 1
-    mock_config.orchestrator.uncertainty_threshold = 1.0 # Force low to avoid refine
 
-    # We need to trigger detection to True? No, validate is inside the detection block?
-    # Wait, in my implementation:
-    # if self.detect(explore_result):
-    #    ... select ... refine ... validate ...
-    # else: break
-    #
-    # So Validation ONLY happens if we refined?
-    # Spec says: "Learning cycle (Refinement) が完了するたびに" -> Yes, after refinement.
-    # So if no uncertainty detected, we converge and exit. No validation needed?
-    # Or maybe final validation?
-    # The current code puts validate INSIDE the detect block.
-    # So if detect returns False, we break and skip validation.
-    # This aligns with "validate the NEW potential".
-    pass
+    # Create two candidates
+    candidates = [mock_structure.model_copy(), mock_structure.model_copy()]
+
+    with patch("mlip_autopipec.orchestration.orchestrator.QERunner") as mock_qe_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.PacemakerRunner") as mock_pace_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as mock_dm_cls:
+
+        mock_dft_runner = MagicMock()
+        # First DFT succeeds, Second fails with generic JobResult (not DFTResult) or DFTResult with dummy
+        # If QERunner failure returns JobResult(status=FAILED)
+        res_ok = DFTResult(job_id="1", status=JobStatus.COMPLETED, work_dir=".", duration_seconds=1, log_content="ok", energy=-10.0, forces=np.zeros((1,3)), stress=np.zeros((3,3)))
+        res_fail = JobResult(job_id="2", status=JobStatus.FAILED, work_dir=".", duration_seconds=1, log_content="error")
+
+        mock_dft_runner.run.side_effect = [res_ok, res_fail]
+        mock_qe_runner_cls.return_value = mock_dft_runner
+
+        mock_pace_runner = MagicMock()
+        mock_pace_runner.train.return_value = MagicMock(status=JobStatus.COMPLETED, potential_path=Path("new.yace"))
+        mock_pace_runner_cls.return_value = mock_pace_runner
+
+        # We also need to mock dataset manager or rely on real one? Real one needs files.
+        # Let's mock it on the orchestrator instance
+
+        orchestrator = Orchestrator(mock_config)
+        orchestrator.dataset_manager = MagicMock()
+
+        # Mocking dft_dir
+        iter_dir = Path("test_iter")
+        (iter_dir / "dft_calc").mkdir(parents=True, exist_ok=True)
+
+        # Run Refine directly
+        new_pot = orchestrator.refine(candidates, iter_dir)
+
+        # Assertions
+        assert new_pot == Path("new.yace")
+        assert mock_dft_runner.run.call_count == 2
+        # Dataset manager should only be called with 1 result (the successful one)
+        orchestrator.dataset_manager.convert.assert_called_once()
+        args, _ = orchestrator.dataset_manager.convert.call_args
+        assert len(args[0]) == 1 # List of 1 structure

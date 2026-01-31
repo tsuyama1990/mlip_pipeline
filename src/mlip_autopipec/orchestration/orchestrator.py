@@ -196,10 +196,11 @@ class Orchestrator:
             logger.warning("No trajectory found.")
             return []
 
-        # Read dump
+        # Stream dump using iread to avoid OOM
         # Using format='lammps-dump-text' explicitly
         try:
-            traj = ase.io.read(result.trajectory_path, index=":", format="lammps-dump-text") # type: ignore[no-untyped-call]
+            # iread returns an iterator
+            traj_iter = ase.io.iread(result.trajectory_path, index=":", format="lammps-dump-text") # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"Failed to read trajectory: {e}")
             return []
@@ -208,7 +209,10 @@ class Orchestrator:
         threshold = self.config.orchestrator.uncertainty_threshold
 
         # Iterate through trajectory to find high-uncertainty frames
-        for i, atoms in enumerate(traj):
+        # We can't use enumerate easily if we want to skip frames or optimize selection later,
+        # but for now linear scan is fine.
+
+        for i, atoms in enumerate(traj_iter):
             # Check for gamma
             gammas = atoms.arrays.get('c_pace_gamma')
 
@@ -257,19 +261,21 @@ class Orchestrator:
 
         for i, s in enumerate(candidates):
             # We skip optimization here (static calc), assuming structure is from MD snapshot
-            res = runner.run(s, self.config.dft)
-            if res.status == JobStatus.COMPLETED:
-                # Update Structure with DFT properties
-                # We need to construct a new Structure with properties
-                s_new = s.model_copy()
-                s_new.properties = {
-                    'energy': res.energy,
-                    'forces': res.forces,
-                    'stress': res.stress
-                }
-                dft_results.append(s_new)
-            else:
-                logger.warning(f"DFT failed for candidate {i}: {res.log_content[:100]}...")
+            try:
+                res = runner.run(s, self.config.dft)
+                if res.status == JobStatus.COMPLETED:
+                    # Update Structure with DFT properties
+                    s_new = s.model_copy()
+                    s_new.properties = {
+                        'energy': res.energy,
+                        'forces': res.forces,
+                        'stress': res.stress
+                    }
+                    dft_results.append(s_new)
+                else:
+                    logger.warning(f"DFT failed for candidate {i}: {res.log_content[:100]}...")
+            except Exception as e:
+                logger.warning(f"DFT execution error for candidate {i}: {e}")
 
         if not dft_results:
              raise RuntimeError("All DFT calculations failed.")

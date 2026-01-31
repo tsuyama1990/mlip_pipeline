@@ -7,8 +7,7 @@ from mlip_autopipec.domain_models.config import PotentialConfig
 def get_lammps_calculator(
     potential_path: Path,
     config: PotentialConfig,
-    work_dir: Path,
-    command: str = "lmp"
+    work_dir: Path
 ) -> LAMMPS:
     """
     Factory to create an ASE LAMMPS calculator configured with the potential.
@@ -57,7 +56,7 @@ def get_lammps_calculator(
         specorder=unique_elements,
         files=[str(abs_pot_path)],
         keep_tmp_files=True,
-        command=command
+        command=config.lammps_command
     )
 
     return calc

@@ -56,7 +56,7 @@ def init_project(path: Path) -> None:
             elements=DEFAULT_ELEMENTS,
             cutoff=DEFAULT_CUTOFF,
             seed=DEFAULT_SEED,
-            pair_style="pace"
+            pair_style="hybrid/overlay"
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",

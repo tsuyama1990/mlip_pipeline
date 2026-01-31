@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+import ase.data
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from mlip_autopipec.domain_models.calculation import DFTConfig
 from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
@@ -21,6 +22,7 @@ class PotentialConfig(BaseModel):
     elements: list[str]
     cutoff: float
     seed: int = 42
+    lammps_command: str = "lmp"
 
     # Hybrid Potential Settings (ACE + ZBL)
     pair_style: Literal["pace", "hybrid/overlay"] = "pace"
@@ -34,6 +36,35 @@ class PotentialConfig(BaseModel):
             msg = "Cutoff must be greater than 0"
             raise ValueError(msg)
         return v
+
+    @model_validator(mode="after")
+    def check_delta_learning(self) -> "PotentialConfig":
+        """
+        Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
+        Spec Section 3.3.
+        """
+        # Check if any element has Z >= 2 (He and above)
+        # H (Z=1) might be exempt, but typically we want it for all core repulsions.
+        # Feedback explicitly said "nuclear charge >= 2".
+        has_heavy_atoms = False
+        for el in self.elements:
+            try:
+                z = ase.data.atomic_numbers[el]
+                if z >= 2:
+                    has_heavy_atoms = True
+                    break
+            except KeyError:
+                # If element is not standard, we skip check or assume it's custom
+                pass
+
+        if has_heavy_atoms and self.pair_style != "hybrid/overlay":
+             raise ValueError(
+                 "Elements with Z >= 2 found. You MUST use 'hybrid/overlay' pair_style "
+                 "to enforce physical core repulsion (Delta Learning). "
+                 "See SPEC.md Section 3.3."
+             )
+
+        return self
 
 
 class OrchestratorConfig(BaseModel):
@@ -126,6 +157,7 @@ class ValidationConfig(BaseModel):
 
     # Reporting
     report_path: Path = Path("validation_report.html")
+    template_dir: Optional[Path] = None
 
 
 class Config(BaseModel):
