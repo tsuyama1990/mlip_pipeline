@@ -8,6 +8,17 @@ from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
 from mlip_autopipec.domain_models.training import TrainingConfig
 
 
+class ValidationConfig(BaseModel):
+    """Configuration for the Validation Framework."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    report_path: Path = Path("validation_report.html")
+    phonon_tolerance: float = -0.1  # THz (allow small imaginary freqs)
+    elastic_tolerance: float = 0.15  # 15% error margin vs reference
+    eos_vol_range: float = 0.2  # +/- 20% volume change
+
+
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -93,6 +104,7 @@ class Config(BaseModel):
     # Optional components
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
+    validation: ValidationConfig = Field(default_factory=ValidationConfig)
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

@@ -59,5 +59,23 @@ def train(
     commands.train_model(config_path, dataset_path)
 
 
+@app.command()
+def validate(
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+    potential_path: Path = typer.Option(
+        ..., "--potential", "-p", help="Path to potential file (.yace)"
+    ),  # noqa: B008
+    structure_path: Path = typer.Option(
+        None, "--structure", "-s", help="Path to structure file (optional)"
+    ),  # noqa: B008
+) -> None:
+    """
+    Run physical validation tests on a potential.
+    """
+    commands.validate_model(config_path, potential_path, structure_path)
+
+
 if __name__ == "__main__":
     app()

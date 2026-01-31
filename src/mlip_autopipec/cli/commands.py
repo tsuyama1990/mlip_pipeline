@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Optional, cast
 
 import typer
 
@@ -20,11 +20,13 @@ from mlip_autopipec.domain_models.config import (
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
+from mlip_autopipec.physics.validation.runner import ValidationRunner
 
 
 def init_project(path: Path) -> None:
@@ -131,6 +133,84 @@ def run_cycle_02_cmd(config_path: Path) -> None:
             )
             typer.echo(f"Log Tail:\n{result.log_content}")
             raise typer.Exit(code=1)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def validate_model(
+    config_path: Path, potential_path: Path, structure_path: Optional[Path] = None
+) -> None:
+    """
+    Run physical validation tests on a potential.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    if not potential_path.exists():
+        typer.secho(f"Potential file {potential_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        # Load structure
+        structure: Structure
+        if structure_path:
+            if not structure_path.exists():
+                typer.secho(
+                    f"Structure file {structure_path} not found.", fg=typer.colors.RED
+                )
+                raise typer.Exit(code=1)
+            # Load first structure
+            # type: ignore[no-untyped-call]
+            s_iter = io.load_structures(structure_path)
+            try:
+                structure = next(s_iter)
+            except StopIteration:
+                typer.secho(
+                    f"Structure file {structure_path} is empty.", fg=typer.colors.RED
+                )
+                raise typer.Exit(code=1)
+        else:
+            # Generate from config
+            typer.echo("No structure provided. Generating from structure_gen config.")
+            from mlip_autopipec.physics.structure_gen.generator import (
+                StructureGenFactory,
+            )
+
+            gen = StructureGenFactory.get_generator(config.structure_gen)
+            structure = gen.generate(config.structure_gen)
+
+        logger = logging.getLogger("mlip_autopipec")
+        logger.info(
+            f"Validating potential {potential_path} using structure {structure.get_chemical_formula()}"
+        )
+
+        runner = ValidationRunner(config.validation)
+        result = runner.validate(potential_path, structure)
+
+        if result.overall_status == "FAIL":
+            typer.secho(
+                f"Validation Failed. Status: {result.overall_status}",
+                fg=typer.colors.RED,
+            )
+        elif result.overall_status == "WARN":
+            typer.secho(
+                f"Validation Warning. Status: {result.overall_status}",
+                fg=typer.colors.YELLOW,
+            )
+        else:
+            typer.secho(
+                f"Validation Completed. Status: {result.overall_status}",
+                fg=typer.colors.GREEN,
+            )
+
+        typer.echo(f"Report generated at: {config.validation.report_path}")
 
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
