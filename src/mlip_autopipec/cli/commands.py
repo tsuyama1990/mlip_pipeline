@@ -16,6 +16,7 @@ from mlip_autopipec.domain_models.config import (
     BulkStructureGenConfig,
     Config,
     LoggingConfig,
+    OrchestratorConfig,
     PotentialConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
@@ -45,10 +46,17 @@ def init_project(path: Path) -> None:
     config = Config(
         project_name=DEFAULT_PROJECT_NAME,
         logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
+        orchestrator=OrchestratorConfig(
+            max_iterations=5,
+            uncertainty_threshold=5.0,
+            halt_threshold=5,
+            validation_frequency=1
+        ),
         potential=PotentialConfig(
             elements=DEFAULT_ELEMENTS,
             cutoff=DEFAULT_CUTOFF,
             seed=DEFAULT_SEED,
+            pair_style="hybrid/overlay"
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
@@ -225,7 +233,7 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         # Use model_copy(update=...) to avoid mutating original config
         # Assuming BulkStructureGenConfig which has rattle_stdev
         if isinstance(gen_config, BulkStructureGenConfig):
-            gen_config = gen_config.model_copy(update={"rattle_stdev": 0.0})
+            gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
 
         # We also need to update config.structure_gen but since we use gen_config locally
         # for generation, we don't need to replace it in the main config object.

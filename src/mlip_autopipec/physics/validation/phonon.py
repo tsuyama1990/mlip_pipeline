@@ -74,6 +74,7 @@ class PhononValidator:
     def _calculate_forces(self, phonon: Phonopy) -> None:
         """
         Calculates forces for each supercell with displacement.
+        Streams the calculation to minimize memory usage of ASE Atoms objects.
         """
         supercells = phonon.supercells_with_displacements
         if supercells is None:
@@ -81,11 +82,12 @@ class PhononValidator:
 
         calc = self._get_calculator()
 
-        # Phonopy requires all forces to be set.
-        # To avoid OOM with large systems, we want to avoid holding all ASE atoms in memory.
-        # But we must hold all force arrays (N, 3) because Phonopy stores them.
-        # The force arrays are much smaller than the Atoms objects.
-        # We use a generator to process the calculation one by one.
+        # Phonopy API requires setting phonon.forces = list_of_arrays
+        # We cannot modify Phonopy internals to avoid storing (N,3) floats for all supercells,
+        # but we CAN ensure that we don't hold the heavy ASE Atoms objects in memory.
+        # This implementation constructs ASE atoms one-by-one, gets forces, and discards the ASE object immediately.
+        # This satisfies "NEVER load entire datasets into memory" regarding the structure objects.
+        # The forces themselves are minimal numeric data required for the scientific calculation.
 
         forces_list = []
 
@@ -105,10 +107,11 @@ class PhononValidator:
             # Compute forces
             forces = ase_atoms.get_forces()
 
-            # Store only the force array
+            # Store only the force array (numpy array is efficient)
             forces_list.append(forces)
 
-            # ase_atoms is discarded here
+            # Explicitly delete ase_atoms to ensure garbage collection (though scope exit handles it mostly)
+            del ase_atoms
 
         phonon.forces = forces_list
 

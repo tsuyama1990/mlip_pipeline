@@ -17,6 +17,7 @@ project_name: "UAT_Project"
 potential:
   elements: ["Si"]
   cutoff: 5.0
+  pair_style: "hybrid/overlay"
 structure_gen:
   strategy: "bulk"
   element: "Si"

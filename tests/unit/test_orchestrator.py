@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 import pytest
 from mlip_autopipec.domain_models import (
@@ -11,7 +12,11 @@ from mlip_autopipec.domain_models import (
     PotentialConfig,
     JobStatus,
     LammpsResult,
-    Structure
+    Structure,
+    DFTResult,
+    JobResult,
+    DFTConfig,
+    TrainingConfig
 )
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 import numpy as np
@@ -21,7 +26,7 @@ def mock_config():
     return Config(
         project_name="TestProject",
         logging=LoggingConfig(),
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0),
+        potential=PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay"),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Si",
@@ -30,7 +35,9 @@ def mock_config():
         ),
         md=MDConfig(temperature=300, n_steps=100, ensemble="NVT"),
         lammps=LammpsConfig(),
-        orchestrator=OrchestratorConfig(max_iterations=1, uncertainty_threshold=5.0),
+        orchestrator=OrchestratorConfig(max_iterations=1, uncertainty_threshold=5.0, validation_frequency=1),
+        dft=DFTConfig(pseudopotentials={"Si": Path("Si.upf")}, ecutwfc=40.0, kspacing=0.05),
+        training=TrainingConfig()
     )
 
 @pytest.fixture
@@ -106,13 +113,106 @@ def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
 
         orchestrator = Orchestrator(mock_config)
 
-        # We need to mock select/refine or spy on them
+        # We need to mock select/refine/validate or spy on them
         with patch.object(orchestrator, 'select') as mock_select, \
-             patch.object(orchestrator, 'refine') as mock_refine:
+             patch.object(orchestrator, 'refine') as mock_refine, \
+             patch.object(orchestrator, 'validate') as mock_validate:
 
             result = orchestrator.run_pipeline()
 
             assert orchestrator.iteration == 2
             assert mock_select.call_count == 1 # Only after first detection
             assert mock_refine.call_count == 1
+            # Validate is called after refine if frequency matches
+            # Config has frequency 1, so it should be called in iteration 1 (after refine)
+            assert mock_validate.call_count == 1
+
             assert result.job_id == "2"
+
+def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
+    """Test that Orchestrator proceeds if some DFTs fail but not all."""
+    mock_config.orchestrator.max_iterations = 1
+
+    # Create two candidates
+    candidates = [mock_structure.model_copy(), mock_structure.model_copy()]
+
+    with patch("mlip_autopipec.orchestration.orchestrator.QERunner") as mock_qe_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.PacemakerRunner") as mock_pace_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as _:
+
+        mock_dft_runner = MagicMock()
+        # First DFT succeeds, Second fails with generic JobResult (not DFTResult) or DFTResult with dummy
+        # If QERunner failure returns JobResult(status=FAILED)
+        res_ok = DFTResult(job_id="1", status=JobStatus.COMPLETED, work_dir=".", duration_seconds=1, log_content="ok", energy=-10.0, forces=np.zeros((1,3)), stress=np.zeros((3,3)))
+        res_fail = JobResult(job_id="2", status=JobStatus.FAILED, work_dir=".", duration_seconds=1, log_content="error")
+
+        mock_dft_runner.run.side_effect = [res_ok, res_fail]
+        mock_qe_runner_cls.return_value = mock_dft_runner
+
+        mock_pace_runner = MagicMock()
+        mock_pace_runner.train.return_value = MagicMock(status=JobStatus.COMPLETED, potential_path=Path("new.yace"))
+        mock_pace_runner_cls.return_value = mock_pace_runner
+
+        # We also need to mock dataset manager or rely on real one? Real one needs files.
+        # Let's mock it on the orchestrator instance
+
+        orchestrator = Orchestrator(mock_config)
+        orchestrator.dataset_manager = MagicMock()
+
+        # Mocking dft_dir
+        iter_dir = Path("test_iter")
+        (iter_dir / "dft_calc").mkdir(parents=True, exist_ok=True)
+
+        # Run Refine directly
+        new_pot = orchestrator.refine(candidates, iter_dir)
+
+        # Assertions
+        assert new_pot == Path("new.yace")
+        assert mock_dft_runner.run.call_count == 2
+        # Dataset manager should only be called with 1 result (the successful one)
+        orchestrator.dataset_manager.convert.assert_called_once()
+        args, _ = orchestrator.dataset_manager.convert.call_args
+        assert len(args[0]) == 1 # List of 1 structure
+
+def test_force_masking(mock_config, mock_structure):
+    """Test force masking logic in Refine."""
+    mock_config.orchestrator.max_iterations = 1
+
+    # Structure with ghost mask
+    s_ghost = mock_structure.model_copy()
+    s_ghost.arrays = {"ghost_mask": np.array([True])} # Single atom, is ghost
+    candidates = [s_ghost]
+
+    with patch("mlip_autopipec.orchestration.orchestrator.QERunner") as mock_qe_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.PacemakerRunner") as mock_pace_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as _:
+
+        mock_dft_runner = MagicMock()
+        # DFT returns non-zero forces
+        res_ok = DFTResult(
+            job_id="1", status=JobStatus.COMPLETED, work_dir=".", duration_seconds=1,
+            log_content="ok", energy=-10.0,
+            forces=np.array([[1.0, 1.0, 1.0]]), # Non-zero
+            stress=np.zeros((3,3))
+        )
+        mock_dft_runner.run.return_value = res_ok
+        mock_qe_runner_cls.return_value = mock_dft_runner
+
+        mock_pace_runner = MagicMock()
+        mock_pace_runner.train.return_value = MagicMock(status=JobStatus.COMPLETED, potential_path=Path("new.yace"))
+        mock_pace_runner_cls.return_value = mock_pace_runner
+
+        orchestrator = Orchestrator(mock_config)
+        orchestrator.dataset_manager = MagicMock()
+
+        # Mocking dft_dir
+        iter_dir = Path("test_iter_mask")
+        (iter_dir / "dft_calc").mkdir(parents=True, exist_ok=True)
+
+        orchestrator.refine(candidates, iter_dir)
+
+        # Check that the structure passed to dataset_manager has masked forces
+        args, _ = orchestrator.dataset_manager.convert.call_args
+        struct_saved = args[0][0]
+        # Force should be zeroed out
+        assert np.allclose(struct_saved.properties['forces'], 0.0)

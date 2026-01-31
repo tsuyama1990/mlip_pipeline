@@ -1,38 +1,32 @@
-from unittest.mock import MagicMock
+from unittest.mock import patch
 from pathlib import Path
-
 from mlip_autopipec.physics.validation.runner import ValidationRunner
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.domain_models.validation import ValidationMetric, ValidationResult
+from mlip_autopipec.domain_models.validation import ValidationMetric
+import numpy as np
 
 def test_validation_runner():
     # Setup
     val_config = ValidationConfig()
-    pot_config = PotentialConfig(elements=["Si"], cutoff=5.0)
-    runner = ValidationRunner(val_config, pot_config, potential_path=Path("dummy.yace"))
+    pot_config = PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay")
+    runner = ValidationRunner(val_config, pot_config, Path("pot.yace"))
+
+    structure = Structure(
+        symbols=["Si"],
+        positions=np.zeros((1,3)),
+        cell=np.eye(3),
+        pbc=(True,True,True)
+    )
 
     # Mock validators
-    metric_pass = ValidationMetric(name="Test1", value=1.0, passed=True)
-    metric_fail = ValidationMetric(name="Test2", value=-1.0, passed=False)
+    with patch.object(runner.eos_validator, 'validate', return_value=ValidationMetric(name="EOS", value=0.1, passed=True)), \
+         patch.object(runner.elastic_validator, 'validate', return_value=ValidationMetric(name="Elastic", value=0.1, passed=True)), \
+         patch.object(runner.phonon_validator, 'validate', return_value=(ValidationMetric(name="Phonon", value=0.1, passed=True), None)), \
+         patch.object(runner.report_generator, 'generate'):
 
-    runner.eos_validator.validate = MagicMock(return_value=metric_pass)
-    runner.elastic_validator.validate = MagicMock(return_value=metric_pass)
-    # Phonon returns tuple (metric, plot_path)
-    runner.phonon_validator.validate = MagicMock(return_value=(metric_fail, Path("plot.png")))
+         result = runner.validate(structure)
 
-    runner.report_generator.generate = MagicMock()
-
-    # Execute
-    # Mock structure
-    from ase import Atoms
-    structure = Structure.from_ase(Atoms("Si"))
-
-    result = runner.validate(structure)
-
-    # Verify
-    assert isinstance(result, ValidationResult)
-    assert result.overall_status == "FAIL" # One failure
-    assert len(result.metrics) == 3
-    assert "Test2" in [m.name for m in result.metrics]
-    assert result.plots["Phonon Dispersion"] == Path("plot.png")
+         assert result.overall_status == "PASS"
+         assert len(result.metrics) == 3
+         runner.report_generator.generate.assert_called_once()

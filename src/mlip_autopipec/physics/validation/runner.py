@@ -19,7 +19,7 @@ class ValidationRunner:
         self.elastic_validator = ElasticityValidator(val_config, pot_config, potential_path)
         self.phonon_validator = PhononValidator(val_config, pot_config, potential_path)
 
-        self.report_generator = ReportGenerator()
+        self.report_generator = ReportGenerator(template_dir=val_config.template_dir)
 
     def validate(self, structure: Structure) -> ValidationResult:
         metrics = []

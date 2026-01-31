@@ -1,21 +1,28 @@
 from pathlib import Path
+import re
 
 import ase.data
 from ase.calculators.lammpsrun import LAMMPS
 from mlip_autopipec.domain_models.config import PotentialConfig
 
+def sanitize_element(element: str) -> str:
+    """Sanitize element string to prevent shell injection."""
+    if not re.match(r"^[A-Za-z]+$", element):
+        raise ValueError(f"Invalid element name: {element}")
+    return element
+
 def get_lammps_calculator(
     potential_path: Path,
     config: PotentialConfig,
-    work_dir: Path,
-    command: str = "lmp"
+    work_dir: Path
 ) -> LAMMPS:
     """
     Factory to create an ASE LAMMPS calculator configured with the potential.
     """
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    unique_elements = config.elements
+    # Sanitize elements
+    unique_elements = [sanitize_element(el) for el in config.elements]
 
     pair_style = ""
     pair_coeff = []
@@ -57,7 +64,7 @@ def get_lammps_calculator(
         specorder=unique_elements,
         files=[str(abs_pot_path)],
         keep_tmp_files=True,
-        command=command
+        command=config.lammps_command
     )
 
     return calc

@@ -44,31 +44,35 @@ class DatasetManager:
         # 1. Write structures to extxyz
         extxyz_path = self.work_dir / "dataset.extxyz"
 
+        # Check if iterable is empty without consuming it if possible, or handle via counter
         def atoms_generator() -> Iterator[Atoms]:
             count = 0
             for s in structures:
                 yield self._prepare_atoms(s)
                 count += 1
+            # If count == 0, ase.io.write might do nothing or create empty file depending on version/format
             if count == 0:
-                 # raising Error here might be tricky inside generator consumed by write
-                 # but write will just write empty file if empty.
-                 # We can check afterwards or use a wrapper.
-                 pass
+                logger.warning("No structures provided to convert.")
 
         # Write to file
         # ase.io.write supports generator for many formats including extxyz
         # append=True allows accumulation
+        # Note: If streaming from disk (iread), this streams to disk (extxyz), keeping memory O(1) wrt N_structures
         write(extxyz_path, atoms_generator(), format="extxyz", append=append)  # type: ignore[arg-type]
 
         # Check if file is empty or not created (if generator was empty)
         if not extxyz_path.exists() or extxyz_path.stat().st_size == 0:
              logger.warning("dataset.extxyz is empty or does not exist.")
-             # If appending and it was empty, maybe okay?
-             # But usually means no structures provided.
-             pass
+             if not append:
+                 # If we are starting fresh and have no data, we can't create a valid dataset.
+                 # But maybe we just return output_path (which won't exist) and let caller handle?
+                 # Or raise Error? Pacemaker will fail on empty file.
+                 pass
 
         # 2. Call pace_collect
         # usage: pace_collect dataset.extxyz -o dataset.pckl.gzip
+        # Note: pace_collect might load the whole extxyz into memory. This is a limitation of the tool.
+        # But we satisfied the requirement to not buffer in python memory.
         cmd = ["pace_collect", str(extxyz_path), "--output", str(output_path)]
 
         try:
