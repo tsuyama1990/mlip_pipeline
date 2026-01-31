@@ -71,7 +71,7 @@ class ElasticityValidator(BaseValidator):
             # Check Born stability (Positive Definiteness)
             eigvals = np.linalg.eigvalsh(C)
             min_eig = np.min(eigvals)
-            passed = min_eig > 0
+            passed = min_eig > self.config.elastic_stability_tolerance
 
             # Generate Heatmap
             plot_path = self.work_dir / "elasticity_matrix.png"

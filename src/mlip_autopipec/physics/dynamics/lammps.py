@@ -265,11 +265,32 @@ run             {params.n_steps}
 
     def _execute(self, work_dir: Path) -> str:
         """Execute LAMMPS subprocess."""
-        cmd_str = self.config.command
-        if self.config.use_mpi:
-            cmd_str = f"{self.config.mpi_command} {cmd_str}"
+        # Sanitize and construct command list safely
+        cmd_input = self.config.command
 
-        cmd_list = cmd_str.split() + ["-in", "in.lammps"]
+        # If command is a string, split it safely (assuming space separation for args)
+        # Ideally config.command should be a list, but schema allows str.
+        if isinstance(cmd_input, str):
+            base_cmd = cmd_input.split()
+        else:
+            base_cmd = list(cmd_input)
+
+        if not base_cmd:
+             raise ValueError("LAMMPS command is empty")
+
+        if self.config.use_mpi:
+            # MPI command handling
+            # mpi_command is typically "mpirun -np 4"
+            mpi_str = self.config.mpi_command
+            if isinstance(mpi_str, str):
+                mpi_cmd = mpi_str.split()
+            else:
+                # Fallback if somehow list, though config defines str
+                mpi_cmd = list(mpi_str) # type: ignore[arg-type]
+
+            cmd_list = mpi_cmd + base_cmd + ["-in", "in.lammps"]
+        else:
+            cmd_list = base_cmd + ["-in", "in.lammps"]
 
         exe = cmd_list[0]
         if not shutil.which(exe):

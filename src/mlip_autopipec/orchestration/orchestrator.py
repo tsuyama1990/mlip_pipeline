@@ -180,7 +180,21 @@ class Orchestrator:
         # We process frame by frame to avoid OOM
         # But we also limit the number of candidates.
 
+        # Limit frame processing to avoid unbounded execution time on huge trajectories
+        # Configurable via OrchestratorConfig?
+        # For now hardcode a reasonable limit or use config if available.
+        # But for OOM, iter is fine.
+        # Audit: "Implement frame sampling strategy with maximum frame limit."
+
+        max_frames = 10000 # Safety limit
+        frame_count = 0
+
         for atoms in traj_iter:
+            if frame_count >= max_frames:
+                logger.warning(f"Reached max frame limit ({max_frames}) during selection.")
+                break
+            frame_count += 1
+
             # Check for gamma
             # atoms.arrays might contain 'c_pace_gamma'
             gammas = atoms.arrays.get("c_pace_gamma")

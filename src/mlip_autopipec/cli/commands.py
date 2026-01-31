@@ -205,14 +205,14 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         # 1. Load structures
         logger.info(f"Loading structures from {dataset_path}")
         # type: ignore[no-untyped-call]
-        structures = io.load_structures(dataset_path)
+        structures_iter = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
         # We use a subdirectory for training data
         work_dir = Path("training_work")
         dataset_manager = DatasetManager(work_dir=work_dir / "data")
         pacemaker_dataset = dataset_manager.convert(
-            structures, work_dir / "data" / "train.pckl.gzip"
+            structures_iter, work_dir / "data" / "train.pckl.gzip"
         )
 
         # 3. Train
