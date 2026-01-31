@@ -56,7 +56,6 @@ class LammpsRunner:
 
             # 2. Execute
             start_time = datetime.now()
-            # Execute with log streaming to file instead of capture_output
             self._execute(work_dir)
             duration = (datetime.now() - start_time).total_seconds()
 
@@ -65,12 +64,9 @@ class LammpsRunner:
                 work_dir, structure
             )
 
-            # Read log content for result object (tail only?)
-            # For scalability, maybe we shouldn't read the whole log if it's huge.
-            # But JobResult expects log_content string.
-            # We'll read it, assuming it's manageable or we can truncate.
+            # Read tail of log content for debugging
             log_file = work_dir / "stdout.log"
-            log_content = log_file.read_text() if log_file.exists() else ""
+            log_content = self._read_log_tail(log_file)
 
             return LammpsResult(
                 job_id=job_id,
@@ -96,7 +92,7 @@ class LammpsRunner:
             )
         except subprocess.CalledProcessError as e:
             log_file = work_dir / "stdout.log"
-            log_content = log_file.read_text() if log_file.exists() else f"Command failed.\nStderr: {e.stderr}"
+            log_content = self._read_log_tail(log_file) if log_file.exists() else f"Command failed.\nStderr: {e.stderr}"
 
             # Try to parse output even if failed (e.g. fix halt with error)
             try:
@@ -123,7 +119,7 @@ class LammpsRunner:
             )
         except Exception as e:
             log_file = work_dir / "stdout.log"
-            log_content = log_file.read_text() if log_file.exists() else str(e)
+            log_content = self._read_log_tail(log_file) if log_file.exists() else str(e)
 
             return LammpsResult(
                 job_id=job_id,
@@ -262,6 +258,16 @@ run             {params.n_steps}
                 check=True,
             )
 
+    def _read_log_tail(self, log_path: Path, lines: int = 100) -> str:
+        """Read last N lines of log file efficiently."""
+        if not log_path.exists():
+            return ""
+
+        # Simple implementation using deque for tail
+        from collections import deque
+        with open(log_path, 'r') as f:
+            return "".join(deque(f, lines))
+
     def _parse_output(
         self, work_dir: Path, original_structure: Structure
     ) -> tuple[Structure, Path, Optional[float]]:
@@ -271,13 +277,18 @@ run             {params.n_steps}
 
         max_gamma = None
 
-        # Parse log for max_gamma and halt status
+        # Parse log using streaming
         if log_path.exists():
-            log_content = log_path.read_text()
-            parse_result = self.log_parser.parse(log_content)
-            max_gamma = parse_result.max_gamma
+            # Reset parser for fresh file
+            self.log_parser = LammpsLogParser()
+            with open(log_path, 'r') as f:
+                for line in f:
+                    self.log_parser.parse_line(line)
 
-            if parse_result.halt_detected and max_gamma is None:
+            result = self.log_parser.get_result()
+            max_gamma = result.max_gamma
+
+            if result.halt_detected and max_gamma is None:
                 max_gamma = 999.9
 
         if not traj_path.exists():

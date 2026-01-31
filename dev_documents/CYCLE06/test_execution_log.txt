@@ -49,7 +49,7 @@ dummy_structure = Structure(symbols=['Si', 'Si'], positions=array([[0. , 0. , 0.
 md_params = MDConfig(temperature=300.0, pressure=None, n_steps=100, timestep=0.001, ensemble='NVT', uncertainty_threshold=5.0)
 lammps_config = LammpsConfig(command='lmp_serial', timeout=10, use_mpi=False, mpi_command='mpirun -np 4')
 potential_config = PotentialConfig(elements=['Si'], cutoff=5.0, seed=42, lammps_command='lmp', pair_style='hybrid/overlay', zbl_inner_cutoff=0.5, zbl_outer_cutoff=1.2, npot='FinnisSinclair', fs_parameters=[1.0, 1.0, 1.0, 0.5], ndensity=2)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_lammps_runner_failure0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-15/test_lammps_runner_failure0')
 
     def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
         from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
@@ -68,7 +68,7 @@ tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-13/test_lammps_runner_failure0
             assert result.status == JobStatus.FAILED
 >           assert "Error" in result.log_content
 E           AssertionError: assert 'Error' in ''
-E            +  where '' = LammpsResult(job_id='365fbb86-28b4-44ea-a8a9-ddc95d5b1f00', status=<JobStatus.FAILED: 'FAILED'>, work_dir=PosixPath('/...mp/pytest-of-jules/pytest-13/test_lammps_runner_failure0/job_20260131_225602_365fbb86/dump.lammpstrj'), max_gamma=None).log_content
+E            +  where '' = LammpsResult(job_id='6530b926-51f8-42dc-a25f-ea563a1f8265', status=<JobStatus.FAILED: 'FAILED'>, work_dir=PosixPath('/...mp/pytest-of-jules/pytest-15/test_lammps_runner_failure0/job_20260131_231029_6530b926/dump.lammpstrj'), max_gamma=None).log_content
 
 tests/physics/test_lammps.py:118: AssertionError
 =============================== warnings summary ===============================
@@ -79,4 +79,4 @@ tests/physics/validation/test_eos.py::test_eos_validator_success
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
 FAILED tests/physics/test_lammps.py::test_lammps_runner_failure - AssertionEr...
-=================== 1 failed, 106 passed, 1 warning in 2.77s ===================
+=================== 1 failed, 106 passed, 1 warning in 3.36s ===================

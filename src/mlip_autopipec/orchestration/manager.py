@@ -5,6 +5,7 @@ from typing import List, Iterator
 
 import numpy as np
 import ase.io
+from ase import Atoms
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -184,7 +185,7 @@ class WorkflowManager:
         def stream_candidates() -> Iterator[CandidateStructure]:
             traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
             for i, atoms in enumerate(traj):
-                if not isinstance(atoms, ase.Atoms):
+                if not isinstance(atoms, Atoms):
                     continue
 
                 gammas = atoms.arrays.get('c_pace_gamma')
@@ -270,10 +271,15 @@ class WorkflowManager:
                  return final_candidates
 
              except Exception as e:
-                 logger.warning(f"Active set selection failed: {e}. Fallback to linear subsampling.")
+                 logger.warning(f"Active set selection failed: {e}. Fallback to iterative subsampling.")
 
                  target = self.config.orchestrator.max_active_set_size
-                 stride_fallback = max(1, count // target)
+
+                 # Iterative Subsampling (Reservoir Sampling-like)
+                 # We want 'target' candidates from 'count' total items.
+                 # Since we already wrote them to file, we can read back with a calculated stride.
+                 # Stride = ceil(count / target)
+                 stride_fallback = max(1, int(np.ceil(count / target)))
 
                  final_candidates = []
                  for i, s_struct in enumerate(load_structures(all_cands_path)):
@@ -287,23 +293,38 @@ class WorkflowManager:
                              uncertainty_score=gamma,
                              status=CandidateStatus.PENDING
                          ))
+                         # Safety break if we slightly exceed due to integer math
+                         if len(final_candidates) >= target:
+                             break
+
                  shutil.rmtree(temp_dir) # Cleanup
                  return final_candidates
 
         else:
             # Just collect all, limiting by simple logic if needed
-            candidates = list(stream_candidates())
+            # If no active set opt, use simple iterative subsampling on stream
+            # Reservoir sampling is best if we don't know total count, but stream_candidates is an iterator.
+            # We can use a buffer or just accept the first N (bad).
+            # To do this properly without OOM:
+            # 1. Count first? (expensive)
+            # 2. Reservoir sampling: keep N, replace with prob k/i.
 
             max_size = self.config.orchestrator.max_active_set_size
-            if len(candidates) > max_size:
-                 indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
-                 candidates = [candidates[i] for i in indices]
+            reservoir: List[CandidateStructure] = []
 
-            # Cleanup if temp dir was created
+            for i, cand in enumerate(stream_candidates()):
+                if len(reservoir) < max_size:
+                    reservoir.append(cand)
+                else:
+                    j = np.random.randint(0, i + 1)
+                    if j < max_size:
+                        reservoir[j] = cand
+
+            # Cleanup if temp dir was created (it wasn't in this branch, but good practice)
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
 
-            return candidates
+            return reservoir
 
     def calculate(self, iter_dir: Path) -> bool:
         """

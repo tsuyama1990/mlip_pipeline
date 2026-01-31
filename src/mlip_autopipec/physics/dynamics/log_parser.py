@@ -12,55 +12,70 @@ class LogParseResult:
 class LammpsLogParser:
     """
     Parses LAMMPS logs to detect 'fix halt' conditions and extract metrics.
+    Supports incremental parsing to avoid loading large logs into memory.
     """
 
+    def __init__(self):
+        self.halt_detected = False
+        self.max_gamma: Optional[float] = None
+        self.header_indices: Dict[str, int] = {}
+
+    def parse_line(self, line: str) -> None:
+        """
+        Parse a single line of the log file and update state.
+        """
+        line = line.strip()
+        if not line:
+            return
+
+        if "ERROR: Fix halt condition met" in line:
+            self.halt_detected = True
+
+        # Thermo Data Parsing
+        if line.startswith("Step"):
+            parts = line.split()
+            self.header_indices = {} # Reset headers if new run starts
+            for i, part in enumerate(parts):
+                self.header_indices[part] = i
+        elif self.header_indices:
+            # This is a data line (hopefully)
+            parts = line.split()
+            try:
+                # Simple heuristic: first column is integer (Step)
+                if not parts:
+                    return
+
+                int(parts[0]) # Check if step is int
+
+                if len(parts) == len(self.header_indices):
+                    # Extract Gamma
+                    current_gamma = None
+                    if "c_pace_gamma" in self.header_indices:
+                         current_gamma = float(parts[self.header_indices["c_pace_gamma"]])
+                    elif "v_max_gamma" in self.header_indices:
+                         current_gamma = float(parts[self.header_indices["v_max_gamma"]])
+
+                    if current_gamma is not None:
+                        if self.max_gamma is None or current_gamma > self.max_gamma:
+                            self.max_gamma = current_gamma
+
+            except ValueError:
+                pass # Not a data line
+
+    def get_result(self) -> LogParseResult:
+        return LogParseResult(
+            halt_detected=self.halt_detected,
+            max_gamma=self.max_gamma
+        )
+
     def parse(self, log_content: str) -> LogParseResult:
-        halt_detected = False
-        max_gamma = None
-        step = None
+        """Legacy method for backward compatibility/testing with full string."""
+        # Reset state for fresh parse
+        self.halt_detected = False
+        self.max_gamma = None
+        self.header_indices = {}
 
-        # Detect halt
-        if "ERROR: Fix halt condition met" in log_content:
-            halt_detected = True
+        for line in log_content.splitlines():
+            self.parse_line(line)
 
-        # Try to parse max gamma if available in thermo output
-        # We look for a line with headers including 'c_pace_gamma' or 'v_max_gamma'
-        # And then finding the max value in the data rows.
-
-        lines = [line.strip() for line in log_content.splitlines()]
-        header_indices: Dict[str, int] = {}
-
-        for line in lines:
-            if not line:
-                continue
-
-            if line.startswith("Step"):
-                parts = line.split()
-                header_indices = {} # Reset headers if new run starts
-                for i, part in enumerate(parts):
-                    header_indices[part] = i
-            elif header_indices:
-                # This is a data line (hopefully)
-                parts = line.split()
-                # Check if it looks like numbers
-                try:
-                    # Simple heuristic: first column is integer (Step)
-                    if not parts:
-                        continue
-
-                    int(parts[0]) # Check if step is int
-
-                    if len(parts) == len(header_indices):
-                        # Extract Gamma
-                        if "c_pace_gamma" in header_indices:
-                             val = float(parts[header_indices["c_pace_gamma"]])
-                             if max_gamma is None or val > max_gamma:
-                                 max_gamma = val
-                        elif "v_max_gamma" in header_indices:
-                             val = float(parts[header_indices["v_max_gamma"]])
-                             if max_gamma is None or val > max_gamma:
-                                 max_gamma = val
-                except ValueError:
-                    pass # Not a data line
-
-        return LogParseResult(halt_detected=halt_detected, max_gamma=max_gamma, step=step)
+        return self.get_result()
