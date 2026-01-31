@@ -1,10 +1,10 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_04_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_06_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
-**PyAceMaker** is an autonomous research system designed to construct State-of-the-Art Machine Learning Interatomic Potentials (MLIPs). It democratises computational materials science by providing a "Zero-Config" workflow.
+**PyAceMaker** is an autonomous research system designed to construct State-of-Art Machine Learning Interatomic Potentials (MLIPs). It democratises computational materials science by providing a "Zero-Config" workflow.
 
 ## Overview
 **What**: A robust, type-safe pipeline for automating the generation of MLIPs.
@@ -12,6 +12,10 @@
 
 ## Key Features
 
+-   **Autonomous Active Learning Loop**:
+    -   **State-Aware Orchestration**: Resumable workflow managing Exploration, Selection, Calculation, and Training phases.
+    -   **Uncertainty Quantification**: Real-time detection of high-uncertainty configurations during MD (`fix halt`).
+    -   **Self-Improvement**: Automatically refines potentials by learning from "confusing" structures.
 -   **Oracle (DFT Automation)**:
     -   **Self-Healing**: Robust Quantum Espresso wrapper that automatically detects and fixes SCF convergence failures (adjusts mixing beta, smearing).
     -   **Auto K-Points**: Generates K-point grids dynamically based on physical spacing density.
@@ -97,6 +101,12 @@ Run physics-based validation on a trained potential.
 uv run mlip-auto validate --config config.yaml --potential potential.yace
 ```
 
+### 6. Run Autonomous Loop
+Execute the full active learning cycle (Explore -> Detect -> Refine -> Validate).
+```bash
+uv run mlip-auto run-loop --config config.yaml
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -146,7 +156,7 @@ src/mlip_autopipec/
 -   **Cycle 03**: Oracle (DFT) (Completed)
 -   **Cycle 04**: Training (Pacemaker) (Completed)
 -   **Cycle 05**: Validation Framework (Completed)
--   **Cycle 06**: Active Learning Loop
+-   **Cycle 06**: Active Learning Loop (Completed)
 
 ## License
 

@@ -1,0 +1,148 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 107 items
+
+tests/domain_models/test_calculation.py .....                            [  4%]
+tests/domain_models/test_config.py .......                               [ 11%]
+tests/domain_models/test_job.py ..                                       [ 13%]
+tests/domain_models/test_potential.py ....                               [ 16%]
+tests/domain_models/test_structure.py .....                              [ 21%]
+tests/domain_models/test_training.py ..                                  [ 23%]
+tests/domain_models/test_validation.py ...                               [ 26%]
+tests/e2e/test_cli.py .....                                              [ 30%]
+tests/infrastructure/test_io.py .....                                    [ 35%]
+tests/infrastructure/test_logging.py .                                   [ 36%]
+tests/physics/dft/test_input_gen.py ..                                   [ 38%]
+tests/physics/dft/test_parser.py ......                                  [ 43%]
+tests/physics/dft/test_qe_runner.py .........                            [ 52%]
+tests/physics/dft/test_recovery.py ....                                  [ 56%]
+tests/physics/structure_gen/test_embedding.py ..                         [ 57%]
+tests/physics/test_lammps.py .F                                          [ 59%]
+tests/physics/training/test_dataset.py ..                                [ 61%]
+tests/physics/training/test_pacemaker.py ....                            [ 65%]
+tests/physics/validation/test_elasticity.py ..                           [ 67%]
+tests/physics/validation/test_eos.py .                                   [ 68%]
+tests/physics/validation/test_phonon.py ..                               [ 70%]
+tests/physics/validation/test_runner.py .                                [ 71%]
+tests/uat/test_cycle02.py F.                                             [ 72%]
+tests/uat/test_cycle03.py ..                                             [ 74%]
+tests/uat/test_cycle04.py .                                              [ 75%]
+tests/uat/test_cycle05.py .                                              [ 76%]
+tests/uat/test_cycle06.py ...                                            [ 79%]
+tests/unit/test_candidate_processing.py ..                               [ 81%]
+tests/unit/test_log_parser.py ...                                        [ 84%]
+tests/unit/test_manager.py .....                                         [ 88%]
+tests/unit/test_orchestrator.py ....                                     [ 92%]
+tests/unit/test_structure_gen.py .....                                   [ 97%]
+tests/unit/test_workflow_state.py ...                                    [100%]
+
+=================================== FAILURES ===================================
+__________________________ test_lammps_runner_failure __________________________
+
+dummy_structure = Structure(symbols=['Si', 'Si'], positions=array([[0. , 0. , 0. ],
+       [1.5, 1.5, 1.5]]), cell=array([[5.43, 0.  , 0.  ],
+       [0.  , 5.43, 0.  ],
+       [0.  , 0.  , 5.43]]), pbc=(True, True, True), properties={}, arrays={})
+md_params = MDConfig(temperature=300.0, pressure=None, n_steps=100, timestep=0.001, ensemble='NVT', uncertainty_threshold=5.0)
+lammps_config = LammpsConfig(command='lmp_serial', timeout=10, use_mpi=False, mpi_command='mpirun -np 4')
+potential_config = PotentialConfig(elements=['Si'], cutoff=5.0, seed=42, lammps_command='lmp', pair_style='hybrid/overlay', zbl_inner_cutoff=0.5, zbl_outer_cutoff=1.2, npot='FinnisSinclair', fs_parameters=[1.0, 1.0, 1.0, 0.5], ndensity=2)
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-19/test_lammps_runner_failure0')
+
+    def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
+        from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
+
+        with patch("subprocess.run") as mock_run, patch("shutil.which") as mock_which:
+            import subprocess
+
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1, "lmp_serial", stderr="Error"
+            )
+            mock_which.return_value = "/usr/bin/lmp_serial"
+
+            runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)
+            result = runner.run(dummy_structure, md_params)
+
+            assert result.status == JobStatus.FAILED
+>           assert "Error" in result.log_content
+E           AssertionError: assert 'Error' in ''
+E            +  where '' = LammpsResult(job_id='d772fced-164a-4cac-b54b-681fc0c0a7f7', status=<JobStatus.FAILED: 'FAILED'>, work_dir=PosixPath('/...mp/pytest-of-jules/pytest-19/test_lammps_runner_failure0/job_20260131_233817_d772fced/dump.lammpstrj'), max_gamma=None).log_content
+
+tests/physics/test_lammps.py:118: AssertionError
+_______________________ test_uat_c02_01_one_shot_success _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-19/test_uat_c02_01_one_shot_succe0')
+
+    def test_uat_c02_01_one_shot_success(tmp_path):
+        """
+        Scenario 2.1: The "One-Shot" MD Run
+        """
+        with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+            setup_config(Path(td), lammps_cmd="echo 'Simulation Done'")
+
+            # We need to mock the LammpsRunner execution if we don't have a real LAMMPS
+            # Since 'echo' won't produce a dump file, LammpsRunner would fail parsing.
+            # We can either:
+            # 1. Use a fake script that produces a dump file.
+            # 2. Mock the LammpsRunner inside the UAT (less "Black Box" but practical).
+
+            # Let's try to make a fake script if possible, or Mock.
+            # Given the constraints, Mocking subprocess in the app context is safer.
+
+            with (
+                patch("subprocess.run") as mock_run,
+                patch(
+                    "mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output"
+                ) as mock_parse,
+            ):
+                mock_run.return_value = MagicMock(
+                    returncode=0, stdout="Simulation Done", stderr=""
+                )
+
+                # Mock parsing to return a dummy structure result
+                from mlip_autopipec.domain_models.structure import Structure
+                import numpy as np
+
+                dummy_struct = Structure(
+                    symbols=["Si"],
+                    positions=np.array([[0, 0, 0]]),
+                    cell=np.eye(3),
+                    pbc=(True, True, True),
+                )
+                mock_parse.return_value = (dummy_struct, Path("dump.lammpstrj"), None)
+
+                result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
+
+>               assert result.exit_code == 0
+E               assert 1 == 0
+E                +  where 1 = <Result SystemExit(1)>.exit_code
+
+tests/uat/test_cycle02.py:79: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    mlip_autopipec:commands.py:148 Execution failed
+Traceback (most recent call last):
+  File "/app/src/mlip_autopipec/cli/commands.py", line 119, in run_cycle_02_cmd
+    config = Config.from_yaml(config_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/mlip_autopipec/domain_models/config.py", line 202, in from_yaml
+    return cls(**data)
+           ^^^^^^^^^^^
+  File "/app/.venv/lib/python3.12/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Config
+lammps.command
+  Value error, LAMMPS command 'echo 'Simulation Done'' is not in allowlist or contains unsafe characters. [type=value_error, input_value="echo 'Simulation Done'", input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+=============================== warnings summary ===============================
+tests/physics/validation/test_eos.py::test_eos_validator_success
+  /app/.venv/lib/python3.12/site-packages/ase/eos.py:236: OptimizeWarning: Covariance of the parameters could not be estimated
+    popt, _pcov = curve_fit(self.func, self.v, self.e, p0)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/physics/test_lammps.py::test_lammps_runner_failure - AssertionEr...
+FAILED tests/uat/test_cycle02.py::test_uat_c02_01_one_shot_success - assert 1...
+=================== 2 failed, 105 passed, 1 warning in 3.40s ===================

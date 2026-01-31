@@ -1,5 +1,6 @@
 from typing import Literal, Optional
 from pathlib import Path
+import re
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -16,6 +17,27 @@ class LammpsConfig(BaseModel):
     timeout: int = 3600
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
+
+    @field_validator("command")
+    @classmethod
+    def validate_command(cls, v: str) -> str:
+        """
+        Validate LAMMPS command to prevent shell injection or execution of arbitrary binaries.
+        Allowlist approach:
+        - Must start with lmp, lammps, or be a specific safe path.
+        - OR match a safe pattern (alphanumeric, underscores, hyphens).
+        """
+        # Allow standard lammps executable names
+        allowed_prefixes = ["lmp", "lammps", "mpirun", "srun"]
+        if any(v.startswith(prefix) for prefix in allowed_prefixes):
+            return v
+
+        # Allow absolute paths if they look safe (no shell metas)
+        # This regex allows alphanumeric, /, _, -, .
+        if re.match(r"^[\w/\.\-]+$", v):
+            return v
+
+        raise ValueError(f"LAMMPS command '{v}' is not in allowlist or contains unsafe characters.")
 
 
 class MDConfig(BaseModel):

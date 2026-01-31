@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, List
 
 import ase.data
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, ValidationInfo
@@ -29,6 +29,11 @@ class PotentialConfig(BaseModel):
     zbl_inner_cutoff: float = 1.0
     zbl_outer_cutoff: float = 2.0
 
+    # Pacemaker / ACE Basis Parameters (Moved from hardcoded values)
+    npot: str = "FinnisSinclair"
+    fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5])
+    ndensity: int = 2
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:
@@ -43,9 +48,6 @@ class PotentialConfig(BaseModel):
         Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
         Spec Section 3.3.
         """
-        # Check if any element has Z >= 2 (He and above)
-        # H (Z=1) might be exempt, but typically we want it for all core repulsions.
-        # Feedback explicitly said "nuclear charge >= 2".
         has_heavy_atoms = False
         for el in self.elements:
             try:
@@ -54,7 +56,6 @@ class PotentialConfig(BaseModel):
                     has_heavy_atoms = True
                     break
             except KeyError:
-                # If element is not standard, we skip check or assume it's custom
                 pass
 
         if has_heavy_atoms and self.pair_style != "hybrid/overlay":

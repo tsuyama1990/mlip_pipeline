@@ -24,6 +24,7 @@ from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -179,8 +180,13 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         structures = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
-        # We use a subdirectory for training data
-        work_dir = Path("training_work")
+        # Use work_dir from TrainingConfig (Constitution compliance)
+        work_dir = config.training.work_dir
+
+        # Ensure it's absolute or relative to CWD correctly (Pydantic handles Path)
+        # We can resolve it just in case
+        work_dir = work_dir.resolve()
+
         dataset_manager = DatasetManager(work_dir=work_dir / "data")
         pacemaker_dataset = dataset_manager.convert(
             structures, work_dir / "data" / "train.pckl.gzip"
@@ -234,9 +240,11 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         # Assuming BulkStructureGenConfig which has rattle_stdev
         if isinstance(gen_config, BulkStructureGenConfig):
             gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
-
-        # We also need to update config.structure_gen but since we use gen_config locally
-        # for generation, we don't need to replace it in the main config object.
+        elif not isinstance(gen_config, BulkStructureGenConfig):
+             # For validation, we prefer BulkStructureGenConfig if possible
+             # But if user configured something else, we try to use it.
+             # Warn if not bulk?
+             pass
 
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)
@@ -263,9 +271,34 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
             status_icon = "✓" if m.passed else "✗"
             typer.echo(f"  {status_icon} {m.name}: {m.value:.4f} ({m.message})")
 
-        typer.echo("Report generated at: validation_report.html")
+        typer.echo(f"Report generated at: {config.validation.report_path}")
 
     except Exception as e:
         typer.secho(f"Validation execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Validation failed")
+        raise typer.Exit(code=1) from e
+
+def run_loop_cmd(config_path: Path) -> None:
+    """
+    Logic for running the Autonomous Active Learning Loop (Cycle 06).
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        # Initialize Manager
+        manager = WorkflowManager(config, work_dir=Path.cwd())
+
+        # Run Loop
+        manager.run_loop()
+
+        typer.secho("Autonomous Loop Finished.", fg=typer.colors.GREEN)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Execution failed")
         raise typer.Exit(code=1) from e
