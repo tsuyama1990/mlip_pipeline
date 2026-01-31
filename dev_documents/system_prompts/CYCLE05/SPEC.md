@@ -67,6 +67,7 @@ mlip_autopipec/
     -   `value`: `float`.
     -   `reference`: `Optional[float]` (Experimental/DFT value).
     -   `error`: `Optional[float]`.
+    -   `message`: `Optional[str]` (Error message or warning details).
     -   `passed`: `bool`.
 
 -   **Class `ValidationResult`**:
@@ -75,7 +76,16 @@ mlip_autopipec/
     -   `plots`: `Dict[str, Path]` (Paths to PNG images).
     -   `overall_status`: `Literal["PASS", "WARN", "FAIL"]`.
 
-### 3.2. Phonon Validator (`physics/validation/phonon.py`)
+### 3.2. Configuration Model (`domain_models/config.py`)
+
+-   **Class `ValidationConfig`**:
+    -   `phonon_tolerance`: `float` (default -0.05 THz).
+    -   `phonon_supercell`: `tuple[int, int, int]` (default (2, 2, 2)).
+    -   `elastic_stability_tolerance`: `float` (default 1e-3).
+    -   `eos_vol_range`: `float` (default 0.1).
+    -   `eos_n_points`: `int` (default 11).
+
+### 3.3. Phonon Validator (`physics/validation/phonon.py`)
 -   **Dependency**: `phonopy`.
 -   **Method**: Finite displacement method (Frozen Phonon).
 -   **Logic**:

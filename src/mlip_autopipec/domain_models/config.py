@@ -77,6 +77,18 @@ class SurfaceStructureGenConfig(BaseModel):
 StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
 
 
+class ValidationConfig(BaseModel):
+    """Configuration for the Validation Framework."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phonon_tolerance: float = -0.05
+    phonon_supercell: tuple[int, int, int] = (2, 2, 2)
+    elastic_stability_tolerance: float = 1e-3
+    eos_vol_range: float = 0.1
+    eos_n_points: int = 11
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -93,6 +105,7 @@ class Config(BaseModel):
     # Optional components
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
+    validation: ValidationConfig = Field(default_factory=ValidationConfig)
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

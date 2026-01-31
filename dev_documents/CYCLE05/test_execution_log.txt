@@ -1,0 +1,39 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 95 items
+
+tests/domain_models/test_calculation.py .....                            [  5%]
+tests/domain_models/test_config.py ....                                  [  9%]
+tests/domain_models/test_job.py ..                                       [ 11%]
+tests/domain_models/test_potential.py ...                                [ 14%]
+tests/domain_models/test_structure.py .....                              [ 20%]
+tests/domain_models/test_training.py .....                               [ 25%]
+tests/domain_models/test_validation.py .....                             [ 30%]
+tests/e2e/test_cli.py .....                                              [ 35%]
+tests/infrastructure/test_io.py .....                                    [ 41%]
+tests/infrastructure/test_logging.py .                                   [ 42%]
+tests/physics/dft/test_input_gen.py ..                                   [ 44%]
+tests/physics/dft/test_parser.py ......                                  [ 50%]
+tests/physics/dft/test_qe_runner.py .........                            [ 60%]
+tests/physics/dft/test_recovery.py ....                                  [ 64%]
+tests/physics/reporting/test_html_gen.py .                               [ 65%]
+tests/physics/structure_gen/test_embedding.py ..                         [ 67%]
+tests/physics/test_lammps.py ..                                          [ 69%]
+tests/physics/training/test_dataset.py ..                                [ 71%]
+tests/physics/training/test_pacemaker.py ....                            [ 75%]
+tests/physics/validation/test_elasticity.py ..                           [ 77%]
+tests/physics/validation/test_eos.py .                                   [ 78%]
+tests/physics/validation/test_phonon.py ..                               [ 81%]
+tests/physics/validation/test_runner.py .                                [ 82%]
+tests/physics/validation/test_utils.py ..                                [ 84%]
+tests/uat/test_cycle02.py ..                                             [ 86%]
+tests/uat/test_cycle03.py ..                                             [ 88%]
+tests/uat/test_cycle04.py .                                              [ 89%]
+tests/uat/test_cycle05.py ...                                            [ 92%]
+tests/unit/test_orchestrator.py ..                                       [ 94%]
+tests/unit/test_structure_gen.py .....                                   [100%]
+
+============================== 95 passed in 2.34s ==============================
