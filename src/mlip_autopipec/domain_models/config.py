@@ -22,11 +22,24 @@ class PotentialConfig(BaseModel):
     cutoff: float
     seed: int = 42
 
+    # New fields for ZBL and Bonds
+    zbl_inner_cutoff: float = 0.1
+    zbl_outer_cutoff: float = 2.0
+    bond_r0: float = 1.0
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:
         if v <= 0:
             msg = "Cutoff must be greater than 0"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("zbl_inner_cutoff", "zbl_outer_cutoff", "bond_r0")
+    @classmethod
+    def validate_positive_float(cls, v: float) -> float:
+        if v <= 0:
+            msg = "Value must be positive"
             raise ValueError(msg)
         return v
 

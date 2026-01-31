@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_03_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_04_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -12,6 +12,11 @@
 
 ## Key Features
 
+-   **Machine Learning (Pacemaker Integration)**:
+    -   **Automated Training**: Full wrapper around `pace_train` to generate ACE potentials.
+    -   **Delta Learning**: Automatically subtracts reference potentials (ZBL/LJ) to focus learning on many-body interactions.
+    -   **Active Set Selection**: Implements D-Optimality (via `pace_activeset`) to prune redundant structures and maximize information density.
+    -   **Dataset Management**: Seamless conversion from ASE structures to efficient `.pckl.gzip` streaming datasets.
 -   **Oracle (DFT Automation)**:
     -   **Self-Healing**: Robust Quantum Espresso wrapper that automatically detects and fixes SCF convergence failures (adjusts mixing beta, smearing).
     -   **Auto K-Points**: Generates K-point grids dynamically based on physical spacing density.
@@ -39,6 +44,7 @@
 -   **Simulation Engines**:
     -   **LAMMPS**: `lmp_serial` or `mpirun` (Optional for core, required for MD).
     -   **Quantum Espresso**: `pw.x` (Optional for core, required for DFT).
+    -   **Pacemaker**: `pace_train`, `pace_activeset`, `pace_collect` (Required for training).
 
 ## Installation
 
@@ -76,6 +82,12 @@ Execute a single Molecular Dynamics simulation (Generate -> MD -> Parse).
 uv run mlip-auto run-one-shot --config config.yaml
 ```
 
+### 4. Train Potential
+Train a new ACE potential using an existing dataset.
+```bash
+uv run mlip-auto train train.pckl.gzip --config config.yaml
+```
+
 Example `config.yaml`:
 ```yaml
 project_name: "MyMLIPProject"
@@ -83,6 +95,10 @@ potential:
   elements: ["Si"]
   cutoff: 5.0
   seed: 42
+training:
+  batch_size: 100
+  max_epochs: 100
+  active_set_optimization: true
 lammps:
   command: "lmp_serial"
   timeout: 3600
@@ -103,11 +119,12 @@ logging:
 
 ```ascii
 src/mlip_autopipec/
-├── domain_models/          # Pydantic Schemas (Structure, Config, Job, Calculation)
+├── domain_models/          # Pydantic Schemas (Structure, Config, Job, Calculation, Training)
 ├── physics/                # Physics Engines
 │   ├── dft/                # Quantum Espresso (Runner, Parser, Recovery)
 │   ├── dynamics/           # LAMMPS (Runner)
-│   └── structure_gen/      # Generation & Embedding
+│   ├── structure_gen/      # Generation & Embedding
+│   └── training/           # Pacemaker (Dataset, Runner)
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
@@ -118,7 +135,7 @@ src/mlip_autopipec/
 -   **Cycle 01**: Foundation & Core Models (Completed)
 -   **Cycle 02**: Basic Exploration (MD) (Completed)
 -   **Cycle 03**: Oracle (DFT) (Completed)
--   **Cycle 04**: Training (Pacemaker)
+-   **Cycle 04**: Training (Pacemaker) (Completed)
 -   **Cycle 05**: Validation Framework
 -   **Cycle 06**: Active Learning Loop
 
