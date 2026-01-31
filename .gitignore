@@ -44,3 +44,7 @@ log.lammps
 *.pckl.gzip
 *.yace
 training_data/
+
+# Validation Artifacts
+validation_report.html
+*.png
