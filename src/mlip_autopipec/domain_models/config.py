@@ -77,6 +77,23 @@ class SurfaceStructureGenConfig(BaseModel):
 StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
 
 
+class ValidationConfig(BaseModel):
+    """Configuration for the Validation Framework."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Phonon
+    phonon_tolerance: float = -0.05  # THz, strictly negative to allow numeric noise
+    phonon_supercell: tuple[int, int, int] = (2, 2, 2)
+
+    # Elastic
+    elastic_stability_tolerance: float = 1e-4  # GPa
+
+    # EOS
+    eos_vol_range: float = 0.1  # +/- 10%
+    eos_n_points: int = 10
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -85,6 +102,7 @@ class Config(BaseModel):
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
+    validation: ValidationConfig = Field(default_factory=ValidationConfig)
 
     # New configurations
     structure_gen: StructureGenConfig = Field(discriminator="strategy")
