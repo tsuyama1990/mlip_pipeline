@@ -1,10 +1,13 @@
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
+from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.training import TrainingResult
 
 runner = CliRunner()
 
@@ -65,3 +68,43 @@ def test_check_invalid(tmp_path: Path) -> None:
         assert result.exit_code == 1
         assert "Validation failed" in result.stdout
         assert "Cutoff must be greater than 0" in result.stdout
+
+def test_train_command(tmp_path: Path) -> None:
+    """Test 'train' command integration."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        # Setup config
+        runner.invoke(app, ["init"])
+
+        # Manually append training config as init doesn't produce it yet (optional)
+        # Actually init produces a config without 'training'.
+        # We need to add 'training' section.
+        config_path = Path("config.yaml")
+        config_content = config_path.read_text()
+        config_content += "\ntraining:\n  batch_size: 10\n  max_epochs: 5\n"
+        config_path.write_text(config_content)
+
+        # Create dummy dataset
+        dataset_path = Path("train.pckl.gzip")
+        dataset_path.touch()
+
+        # Mock PacemakerRunner.train
+        with patch("mlip_autopipec.physics.training.pacemaker.PacemakerRunner.train") as mock_train:
+            mock_train.return_value = TrainingResult(
+                job_id="test",
+                status=JobStatus.COMPLETED,
+                work_dir=tmp_path / "manual_training",
+                duration_seconds=1.0,
+                log_content="done",
+                potential_path=tmp_path / "manual_training" / "potential.yace",
+                validation_metrics={"rmse_energy": 0.01}
+            )
+
+            # Mock select_active_set to just return dataset path
+            with patch("mlip_autopipec.physics.training.pacemaker.PacemakerRunner.select_active_set") as mock_select:
+                 mock_select.return_value = dataset_path
+
+                 result = runner.invoke(app, ["train", str(dataset_path)])
+
+                 assert result.exit_code == 0
+                 assert "Training Completed Successfully" in result.stdout
+                 assert "potential.yace" in result.stdout

@@ -42,6 +42,10 @@ class PacemakerRunner:
         log_path = self.work_dir / "log.txt"
         cmd = ["pace_train", str(input_yaml_path)]
 
+        # Support initialization from an existing potential (fine-tuning)
+        if training_config.initial_potential:
+             cmd.extend(["--initial_potential", str(training_config.initial_potential)])
+
         try:
             with open(log_path, "w") as log_file:
                 subprocess.run(
@@ -148,14 +152,14 @@ class PacemakerRunner:
             },
             "potential": {
                 "delta": {
-                    "type": "ZBL",  # Hardcoded for now as per spec suggestion
-                    "inner_cutoff": 0.1,
-                    "outer_cutoff": 2.0,  # Heuristic
+                    "type": "ZBL",
+                    "inner_cutoff": potential_config.zbl_inner_cutoff,
+                    "outer_cutoff": potential_config.zbl_outer_cutoff,
                 },
                 "bonds": {
                     elem: {
                         "element": elem,
-                        "r0": 1.0,  # Heuristic, maybe should be in config
+                        "r0": potential_config.bond_r0,
                     }
                     for elem in potential_config.elements
                 },
