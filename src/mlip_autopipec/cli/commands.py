@@ -163,9 +163,11 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         logger = logging.getLogger("mlip_autopipec")
         logger.info(f"Starting Training: {config.project_name}")
 
-        # 1. Load structures
+        # 1. Load structures (streaming)
         logger.info(f"Loading structures from {dataset_path}")
-        # type: ignore[no-untyped-call]
+        # Use load_structures which uses iread internally (O(1) memory)
+        # Note: DatasetManager.convert now expects iterator or list.
+        # iread returns a generator.
         structures = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
@@ -218,17 +220,15 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         logging_infra.setup_logging(config.logging)
 
         # Use StructureGen to produce a perfect bulk structure for validation.
-        # We override rattle to 0.0 to get perfect crystal.
-
         gen_config = config.structure_gen
 
-        # Create a copy to not modify original config object if needed, though here it's fine.
-        # We use model_copy(update=...) but pydantic v2 has specific syntax.
-        # If gen_config is a Union, we need to handle it.
-        # Assuming BulkStructureGenConfig for now as per init.
+        # Use model_copy(update=...) to avoid mutating original config
+        # Assuming BulkStructureGenConfig which has rattle_stdev
+        if isinstance(gen_config, BulkStructureGenConfig):
+            gen_config = gen_config.model_copy(update={"rattle_stdev": 0.0})
 
-        if hasattr(gen_config, "rattle_stdev"):
-            gen_config.rattle_stdev = 0.0
+        # We also need to update config.structure_gen but since we use gen_config locally
+        # for generation, we don't need to replace it in the main config object.
 
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)
@@ -255,7 +255,7 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
             status_icon = "✓" if m.passed else "✗"
             typer.echo(f"  {status_icon} {m.name}: {m.value:.4f} ({m.message})")
 
-        typer.echo(f"Report generated at: validation_report.html")
+        typer.echo("Report generated at: validation_report.html")
 
     except Exception as e:
         typer.secho(f"Validation execution failed: {e}", fg=typer.colors.RED)

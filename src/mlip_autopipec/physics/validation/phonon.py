@@ -54,6 +54,14 @@ class PhononValidator:
 
     def _setup_phonopy(self, structure: Structure) -> Phonopy:
         atoms = structure.to_ase()
+        # Fix: PhonopyAtoms constructor args vs attributes
+        # PhonopyAtoms(symbols=..., positions=..., cell=...)
+        # We should iterate correctly.
+        # However, checking mypy error: "PhonopyAtoms" has no attribute "get_chemical_symbols"
+        # Correct, PhonopyAtoms uses .symbols, .positions, .cell attributes.
+        # But we are constructing it here, not reading.
+        # Wait, the error was in _calculate_forces where we READ from PhonopyAtoms.
+
         unitcell = PhonopyAtoms(
             symbols=atoms.get_chemical_symbols(),
             cell=atoms.get_cell(),
@@ -70,20 +78,21 @@ class PhononValidator:
         calc = self._get_calculator()
 
         forces_set = []
-        # supercells is a list of PhonopyAtoms
-        # If supercells is None (no displacements), loop is skipped.
         if supercells is None:
             return
 
         for p_atoms in supercells:
             if p_atoms is None:
-                # Should not happen if displacements generated
                 continue
 
+            # Fix: PhonopyAtoms attributes access
+            # p_atoms is a PhonopyAtoms object.
+            # It has .symbols, .cell, .scaled_positions (properties or attributes)
+
             ase_atoms = Atoms(
-                symbols=p_atoms.get_chemical_symbols(),
-                cell=p_atoms.get_cell(),
-                scaled_positions=p_atoms.get_scaled_positions(),
+                symbols=p_atoms.symbols,
+                cell=p_atoms.cell,
+                scaled_positions=p_atoms.scaled_positions,
                 pbc=True
             )
             ase_atoms.calc = calc
@@ -100,22 +109,14 @@ class PhononValidator:
         return frequencies.flatten()
 
     def _plot_band_structure(self, phonon: Phonopy) -> Path:
-        # Use auto band structure path
         phonon.auto_band_structure(plot=True)
-        # band_structure object has .plot() method which returns pyplot object
-        # but phonon.plot_band_structure() calls it internally and returns plt
-
-        # Check if plot_band_structure exists on this version of Phonopy interface
-        # .auto_band_structure computes it.
-        # To get the plot:
-        bs = phonon.get_band_structure_dict() # Dictionary representation
-        # Actually `phonon.plot_band_structure()` is a convenience method.
+        # removed unused bs assignment
 
         bs_plot = phonon.plot_band_structure()
 
         output_path = self.work_dir / "phonon_dispersion.png"
         bs_plot.savefig(output_path)
-        plt.close(bs_plot) # Close figure
+        plt.close(bs_plot)
         return output_path
 
     def _get_calculator(self):

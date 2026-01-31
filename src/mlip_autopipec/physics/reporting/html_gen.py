@@ -1,19 +1,19 @@
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape, Template
 import base64
+from typing import Optional
 
 from mlip_autopipec.domain_models.validation import ValidationResult
 
 class ReportGenerator:
     def __init__(self, template_dir: Path = Path("src/mlip_autopipec/physics/reporting/templates")):
         self.template_dir = template_dir
+        self.env: Optional[Environment] = None
         if template_dir.exists():
             self.env = Environment(
                 loader=FileSystemLoader(template_dir),
                 autoescape=select_autoescape(['html', 'xml'])
             )
-        else:
-            self.env = None
 
     def generate(self, result: ValidationResult, output_path: Path) -> None:
         template_content = """

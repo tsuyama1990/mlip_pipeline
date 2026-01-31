@@ -1,7 +1,6 @@
 from pathlib import Path
 import numpy as np
 from ase.eos import EquationOfState
-from ase import Atoms
 
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
@@ -19,7 +18,7 @@ class EOSValidator:
     def validate(self, structure: Structure) -> ValidationMetric:
         atoms = structure.to_ase()
 
-        v0 = atoms.get_volume()
+        # v0 used to be here but was unused.
         range_frac = self.val_config.eos_vol_range
         n_points = self.val_config.eos_n_points
 

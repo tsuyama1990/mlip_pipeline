@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 from ase import Atoms
 from unittest.mock import MagicMock
 from pathlib import Path

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
 from mlip_autopipec.domain_models.structure import Structure
@@ -38,7 +39,7 @@ class ValidationRunner:
 
         # Overall Status
         failures = sum(1 for m in metrics if not m.passed)
-        status = "FAIL" if failures > 0 else "PASS"
+        status: Literal["PASS", "WARN", "FAIL"] = "FAIL" if failures > 0 else "PASS"
 
         result = ValidationResult(
             potential_id=self.potential_path.name,

@@ -1,6 +1,4 @@
-import shutil
 from pathlib import Path
-from typing import Optional
 
 import ase.data
 from ase.calculators.lammpsrun import LAMMPS
@@ -40,7 +38,8 @@ def get_lammps_calculator(
          for i, el1 in enumerate(unique_elements):
              z1 = ase.data.atomic_numbers[el1]
              for j, el2 in enumerate(unique_elements):
-                 if j < i: continue
+                 if j < i:
+                     continue
                  z2 = ase.data.atomic_numbers[el2]
                  pair_coeff.append(f"{i+1} {j+1} zbl {z1} {z2}")
 
