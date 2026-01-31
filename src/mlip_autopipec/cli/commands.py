@@ -233,7 +233,7 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         # Use model_copy(update=...) to avoid mutating original config
         # Assuming BulkStructureGenConfig which has rattle_stdev
         if isinstance(gen_config, BulkStructureGenConfig):
-            gen_config = gen_config.model_copy(update={"rattle_stdev": 0.0})
+            gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
 
         # We also need to update config.structure_gen but since we use gen_config locally
         # for generation, we don't need to replace it in the main config object.

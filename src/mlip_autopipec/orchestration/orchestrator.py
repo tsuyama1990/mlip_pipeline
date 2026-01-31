@@ -259,31 +259,59 @@ class Orchestrator:
         runner = self._create_dft_runner(dft_dir)
         dft_results = []
 
+        # Batch IO setup
+        dataset_path = self.data_dir / "accumulated.pckl.gzip"
+        batch_size = 10  # Write every 10 successful calculations
+        pending_writes = []
+
         for i, s in enumerate(candidates):
-            # We skip optimization here (static calc), assuming structure is from MD snapshot
             try:
                 res = runner.run(s, self.config.dft)
                 if res.status == JobStatus.COMPLETED:
                     # Update Structure with DFT properties
                     s_new = s.model_copy()
+
+                    # Apply Force Masking if 'ghost_mask' is present
+                    # Assumption: 1 = ghost (mask), 0 = real (keep)
+                    # Spec 3.2: "Force Masking"
+
+                    forces = res.forces
+                    if "ghost_mask" in s.arrays:
+                        mask = s.arrays["ghost_mask"]
+                        # Zero out forces where mask is truthy (1)
+                        # Ensure shape broadcast if needed, though mask is (N,) and forces (N,3)
+                        # numpy broadcasting works if we do forces[mask == 1] = 0
+
+                        # Just in case mask is not boolean
+                        ghost_indices = np.where(mask)[0]
+                        if len(ghost_indices) > 0:
+                            forces[ghost_indices] = 0.0
+                            logger.debug(f"Masked forces for {len(ghost_indices)} ghost atoms in candidate {i}")
+
                     s_new.properties = {
                         'energy': res.energy,
-                        'forces': res.forces,
+                        'forces': forces,
                         'stress': res.stress
                     }
                     dft_results.append(s_new)
+                    pending_writes.append(s_new)
+
+                    # Batch Write
+                    if len(pending_writes) >= batch_size:
+                        self.dataset_manager.convert(pending_writes, output_path=dataset_path, append=True)
+                        pending_writes = [] # Clear buffer
+
                 else:
                     logger.warning(f"DFT failed for candidate {i}: {res.log_content[:100]}...")
             except Exception as e:
                 logger.warning(f"DFT execution error for candidate {i}: {e}")
 
+        # Final flush of pending writes
+        if pending_writes:
+            self.dataset_manager.convert(pending_writes, output_path=dataset_path, append=True)
+
         if not dft_results:
              raise RuntimeError("All DFT calculations failed.")
-
-        # 2. Update Dataset
-        # We append to the global accumulated dataset
-        dataset_path = self.data_dir / "accumulated.pckl.gzip"
-        self.dataset_manager.convert(dft_results, output_path=dataset_path, append=True)
 
         # 3. Train
         train_dir = iter_dir / "training"

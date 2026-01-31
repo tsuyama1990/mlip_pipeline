@@ -166,6 +166,9 @@ class ValidationConfig(BaseModel):
     report_path: Path = Path("validation_report.html")
     template_dir: Optional[Path] = None
 
+    # Structure Prep
+    validation_rattle_stdev: float = 0.0
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")

@@ -138,7 +138,7 @@ def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
 
     with patch("mlip_autopipec.orchestration.orchestrator.QERunner") as mock_qe_runner_cls, \
          patch("mlip_autopipec.orchestration.orchestrator.PacemakerRunner") as mock_pace_runner_cls, \
-         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as _: # mock_dm_cls removed as unused
+         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as _:
 
         mock_dft_runner = MagicMock()
         # First DFT succeeds, Second fails with generic JobResult (not DFTResult) or DFTResult with dummy
@@ -173,3 +173,46 @@ def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
         orchestrator.dataset_manager.convert.assert_called_once()
         args, _ = orchestrator.dataset_manager.convert.call_args
         assert len(args[0]) == 1 # List of 1 structure
+
+def test_force_masking(mock_config, mock_structure):
+    """Test force masking logic in Refine."""
+    mock_config.orchestrator.max_iterations = 1
+
+    # Structure with ghost mask
+    s_ghost = mock_structure.model_copy()
+    s_ghost.arrays = {"ghost_mask": np.array([True])} # Single atom, is ghost
+    candidates = [s_ghost]
+
+    with patch("mlip_autopipec.orchestration.orchestrator.QERunner") as mock_qe_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.PacemakerRunner") as mock_pace_runner_cls, \
+         patch("mlip_autopipec.orchestration.orchestrator.DatasetManager") as _:
+
+        mock_dft_runner = MagicMock()
+        # DFT returns non-zero forces
+        res_ok = DFTResult(
+            job_id="1", status=JobStatus.COMPLETED, work_dir=".", duration_seconds=1,
+            log_content="ok", energy=-10.0,
+            forces=np.array([[1.0, 1.0, 1.0]]), # Non-zero
+            stress=np.zeros((3,3))
+        )
+        mock_dft_runner.run.return_value = res_ok
+        mock_qe_runner_cls.return_value = mock_dft_runner
+
+        mock_pace_runner = MagicMock()
+        mock_pace_runner.train.return_value = MagicMock(status=JobStatus.COMPLETED, potential_path=Path("new.yace"))
+        mock_pace_runner_cls.return_value = mock_pace_runner
+
+        orchestrator = Orchestrator(mock_config)
+        orchestrator.dataset_manager = MagicMock()
+
+        # Mocking dft_dir
+        iter_dir = Path("test_iter_mask")
+        (iter_dir / "dft_calc").mkdir(parents=True, exist_ok=True)
+
+        orchestrator.refine(candidates, iter_dir)
+
+        # Check that the structure passed to dataset_manager has masked forces
+        args, _ = orchestrator.dataset_manager.convert.call_args
+        struct_saved = args[0][0]
+        # Force should be zeroed out
+        assert np.allclose(struct_saved.properties['forces'], 0.0)

@@ -6,6 +6,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ValidationMetric(BaseModel):
+    """
+    Represents a single validation metric result.
+
+    Attributes:
+        name: Name of the metric (e.g., "RMSE Energy").
+        value: The calculated numerical value.
+        reference: Optional reference value (e.g., DFT ground truth).
+        error: Optional calculated error (e.g., |value - reference|).
+        passed: Boolean indicating if the metric passed the criteria.
+        message: Optional descriptive message or failure reason.
+    """
     model_config = ConfigDict(extra="forbid")
 
     name: str
