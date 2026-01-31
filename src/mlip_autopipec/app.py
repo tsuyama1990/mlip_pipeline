@@ -74,5 +74,17 @@ def validate(
     commands.validate_potential(config_path, potential_path)
 
 
+@app.command(name="run-loop")
+def run_loop(
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+) -> None:
+    """
+    Run the Autonomous Active Learning Loop (Cycle 06).
+    """
+    commands.run_loop_cmd(config_path)
+
+
 if __name__ == "__main__":
     app()

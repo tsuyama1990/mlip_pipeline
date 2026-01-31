@@ -24,6 +24,7 @@ from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
+from mlip_autopipec.orchestration.manager import WorkflowManager
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -268,4 +269,29 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
     except Exception as e:
         typer.secho(f"Validation execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Validation failed")
+        raise typer.Exit(code=1) from e
+
+def run_loop_cmd(config_path: Path) -> None:
+    """
+    Logic for running the Autonomous Active Learning Loop (Cycle 06).
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        # Initialize Manager
+        manager = WorkflowManager(config, work_dir=Path.cwd())
+
+        # Run Loop
+        manager.run_loop()
+
+        typer.secho("Autonomous Loop Finished.", fg=typer.colors.GREEN)
+
+    except Exception as e:
+        typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Execution failed")
         raise typer.Exit(code=1) from e

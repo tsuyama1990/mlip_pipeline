@@ -2,7 +2,7 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict
 
 import yaml
 

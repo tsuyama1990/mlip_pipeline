@@ -15,6 +15,7 @@ from mlip_autopipec.domain_models import (
     Structure,
     PotentialConfig,
 )
+from mlip_autopipec.physics.dynamics.log_parser import LammpsLogParser
 
 
 class LammpsRunner:
@@ -32,6 +33,7 @@ class LammpsRunner:
         self.potential_config = potential_config
         self.base_work_dir = base_work_dir
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
+        self.log_parser = LammpsLogParser()
 
     def run(
         self,
@@ -45,7 +47,7 @@ class LammpsRunner:
         job_id = str(uuid.uuid4())
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         work_dir = self.base_work_dir / f"job_{timestamp}_{job_id[:8]}"
-        work_dir.mkdir()
+        work_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             # 1. Write Inputs
@@ -57,8 +59,6 @@ class LammpsRunner:
             duration = (datetime.now() - start_time).total_seconds()
 
             # 3. Parse Output
-            # Note: If fix halt triggered, we might have exit code 0 or error, depending on config.
-            # We check log content for max_gamma.
             final_structure, trajectory_path, max_gamma = self._parse_output(
                 work_dir, structure
             )
@@ -104,13 +104,7 @@ class LammpsRunner:
 
             # Check if it was a halt
             status = JobStatus.FAILED
-            # Simple check: if max_gamma is present and high, maybe it's not "FAILED" in the traditional sense?
-            # But the job stopped early. 'COMPLETED' might be misleading if it crashed.
-            # However, orchestrator will see max_gamma and handle it.
-            # If log says "Halt triggered", we might consider it COMPLETED (as in, ran successfully until halt).
-            # But normally CalledProcessError implies non-zero exit.
-            # If fix halt used "error hard", it exits with 1.
-            # Let's keep FAILED but provide max_gamma.
+            # If parsing detected halt or max_gamma is high, we might consider this expected.
 
             return LammpsResult(
                 job_id=job_id,
@@ -147,13 +141,8 @@ class LammpsRunner:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
-        # Ensure we write sorted species for consistent mapping
-        # types will be 1..N for sorted(unique(symbols))
-        # ase.io.write handles this but we need to match it in pair_coeff
         ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data")  # type: ignore[no-untyped-call]
 
-        # Determine elements in order of types (sorted by ASE logic usually)
-        # Using sorted(unique) is a safe bet for ASE default
         unique_elements = sorted(list(set(structure.symbols)))
 
         # Interaction
@@ -161,71 +150,47 @@ class LammpsRunner:
         pair_coeff = ""
 
         if potential_path and self.potential_config.pair_style == "hybrid/overlay":
-             # Hybrid ACE + ZBL
              zbl_in = self.potential_config.zbl_inner_cutoff
              zbl_out = self.potential_config.zbl_outer_cutoff
 
              pair_style = f"pair_style      hybrid/overlay pace zbl {zbl_in} {zbl_out}"
-
-             # Copy potential file to work_dir? Or reference absolute path.
-             # LAMMPS handles absolute paths usually.
              pot_file_str = str(potential_path.resolve())
 
-             # Pace coeff
-             # pair_coeff * * pace potential.yace Element1 Element2 ...
-             # Note: Elements must match type order 1, 2, ...
              elem_str = " ".join(unique_elements)
              pair_coeff += f"pair_coeff      * * pace {pot_file_str} {elem_str}\n"
 
-             # ZBL coeff
-             # pair_coeff * * zbl Z1 Z2
-             # We need to iterate over all pairs of types i, j
-             # Or use * * zbl? No, zbl requires args.
-             # Actually, if we use pair_style zbl with cutoffs in style command,
-             # pair_coeff i j zbl Zi Zj
              for i, el1 in enumerate(unique_elements):
                  z1 = ase.data.atomic_numbers[el1]
                  for j, el2 in enumerate(unique_elements):
                      if j < i:
-                         continue # Symmetric
+                         continue
                      z2 = ase.data.atomic_numbers[el2]
                      pair_coeff += f"pair_coeff      {i+1} {j+1} zbl {z1} {z2}\n"
 
         elif potential_path:
-             # Just ACE
              pair_style = "pair_style      pace"
              pot_file_str = str(potential_path.resolve())
              elem_str = " ".join(unique_elements)
              pair_coeff = f"pair_coeff      * * pace {pot_file_str} {elem_str}"
         else:
-             # Fallback LJ
              pair_style = "pair_style      lj/cut 2.5"
              pair_coeff = "pair_coeff      * * 1.0 1.0"
 
         # UQ / Watchdog
         uq_cmds = ""
         dump_vars = "id type x y z"
+        thermo_custom = "step temp pe"
+
         if params.uncertainty_threshold is not None and potential_path:
-            # compute pace_gamma all pace potential.yace gamma_mode=1?
-            # Check spec or pace docs. "compute pace ... gamma_mode=1" is likely correct for getting gamma.
-            # Assuming compute pace returns gamma as scalar per atom?
-            # Or vector?
-            # Usually: compute ID group-ID pace filename
-            # It generates c_ID[1] = energy, ... depending on implementation.
-            # But user-pace often provides specific compute.
-            # Spec says: "compute pace_gamma all pace ... gamma_mode=1"
-            # "variable max_gamma equal max(c_pace_gamma)"
             pot_file_str = str(potential_path.resolve())
             uq_cmds = f"""
 # Uncertainty Quantification
 compute         pace_gamma all pace {pot_file_str}
-# Note: implementation of compute pace varies. Assuming it outputs gamma or we configure it.
-# If pace compute output is just gamma (or vector where gamma is component), we need to know index.
-# For now, following Spec:
 variable        max_gamma equal max(c_pace_gamma)
 fix             watchdog all halt 10 v_max_gamma > {params.uncertainty_threshold} error hard
 """
             dump_vars += " c_pace_gamma"
+            thermo_custom += " v_max_gamma"
 
         # Ensemble
         fix_cmd = ""
@@ -251,6 +216,8 @@ timestep        {params.timestep}
 
 # Output
 dump            1 all custom 100 dump.lammpstrj {dump_vars}
+thermo          10
+thermo_style    custom {thermo_custom}
 log             log.lammps
 
 # UQ
@@ -295,21 +262,20 @@ run             {params.n_steps}
 
         max_gamma = None
 
-        # Parse log for max_gamma if it exists
+        # Parse log for max_gamma and halt status
         if log_path.exists():
-            # Look for specific Halt message if printed?
-            # Or usually "Fix halt: ..."
-            # We can also parse thermo output if we printed max_gamma.
-            # But fix halt doesn't necessarily print the value that triggered it in a standard format.
-            # However, we can look for it.
-            # Simplest: check if we halted.
-            # If we halted, we assume max_gamma > threshold.
-            # But we want the actual value?
-            # Maybe we should have printed it in thermo?
-            # For now, let's try to parse "v_max_gamma" from thermo if we added it (we didn't).
-            # We will just return None for now unless we find a clear pattern.
-            # Actually, if we use "fix halt ... error hard", the log might contain the error message.
-            pass
+            log_content = log_path.read_text()
+            parse_result = self.log_parser.parse(log_content)
+            max_gamma = parse_result.max_gamma
+
+            # If halt detected but max_gamma not parsed (maybe thermo didn't print in time?),
+            # assume it triggered threshold.
+            if parse_result.halt_detected and max_gamma is None:
+                # We assume the last step triggered it.
+                # Just return a flag value or None (Orchestrator can handle halt logic separately via JobStatus?)
+                # But Orchestrator logic: if result.max_gamma > threshold -> Detect.
+                # So we must return > threshold.
+                max_gamma = 999.9
 
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
@@ -323,19 +289,5 @@ run             {params.n_steps}
         # Restore symbols
         if len(atoms) == len(original_structure.symbols):
             atoms.set_chemical_symbols(original_structure.symbols)  # type: ignore[no-untyped-call]
-
-        # Try to guess max_gamma from properties if dumped?
-        # We didn't dump gamma in custom dump command: "dump ... id type x y z"
-        # So we can't get it from dump.
-
-        # If simulation crashed due to fix halt, we assume detection.
-        # We can check log for "Fix halt"
-        if log_path.exists():
-            if "Fix halt" in log_path.read_text():
-                 # We don't know exact value but we know it exceeded threshold.
-                 # Let's return threshold + epsilon or just 999.0?
-                 # Or update LammpsResult to have bool halted?
-                 # max_gamma > threshold is enough.
-                 max_gamma = 999.9 # Flag value
 
         return Structure.from_ase(atoms), traj_path, max_gamma
