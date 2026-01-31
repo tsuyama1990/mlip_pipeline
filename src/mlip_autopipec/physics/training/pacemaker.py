@@ -2,7 +2,7 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Union
 
 import yaml
 
@@ -32,21 +32,36 @@ class PacemakerRunner:
     def train(self, dataset_path: Path) -> TrainingResult:
         """
         Execute the training process.
+
+        Args:
+            dataset_path: Path to the dataset file (can be extxyz or pckl.gzip).
+                          If extxyz, active set selection (if enabled) will produce pckl.gzip.
         """
         logger.info(f"Starting Pacemaker training in {self.work_dir}")
 
-        # 1. Active Set Selection (Optional)
+        # 1. Active Set Selection (Optional but recommended)
+        # If input is extxyz, we MUST produce a pckl file for training usually (pace_train takes pckl or extxyz?)
+        # pace_train takes .pckl.gzip or .extxyz.
+        # But if we want active set, we do it here.
+
+        final_dataset_path = dataset_path
+
         if self.config.active_set_optimization:
             logger.info("Running active set selection...")
             try:
-                dataset_path = self.select_active_set(dataset_path)
-                logger.info(f"Active set selected: {dataset_path}")
+                # Select active set. This reduces dataset size and produces a pckl file.
+                active_set_path = self.select_active_set(dataset_path)
+                logger.info(f"Active set selected: {active_set_path}")
+                final_dataset_path = active_set_path
             except subprocess.CalledProcessError as e:
-                logger.warning(f"Active set selection failed, using full dataset: {e}")
+                logger.warning(f"Active set selection failed, falling back to full dataset: {e}")
+                # If active set fails, we might still want to ensure format is correct for train
+                # But let's assume pace_train handles original file if selection fails.
+                pass
 
         # 2. Generate input.yaml
         input_yaml_path = self.work_dir / "input.yaml"
-        self._generate_input_yaml(dataset_path, input_yaml_path)
+        self._generate_input_yaml(final_dataset_path, input_yaml_path)
 
         # 3. Run pace_train
         log_path = self.work_dir / "log.txt"
@@ -74,8 +89,6 @@ class PacemakerRunner:
         metrics = self._parse_log(log_content)
 
         # 5. Locate output potential
-        # Assuming pace_train produces 'potential.yace' or we specified it in input.yaml
-        # For this implementation, we assume input.yaml defines output as 'potential.yace'
         potential_path = self.work_dir / "potential.yace"
 
         if status == JobStatus.COMPLETED and not potential_path.exists():
@@ -95,8 +108,22 @@ class PacemakerRunner:
     def select_active_set(self, dataset_path: Path) -> Path:
         """
         Run pace_activeset to reduce the dataset.
+
+        This reads the input dataset (can be extxyz), selects optimal structures,
+        and writes them to a new .pckl.gzip file.
+        This avoids loading the entire dataset into python memory, delegating efficiently to the tool.
         """
+        # Output filename usually implies format. Pacemaker uses .pckl.gzip for binary datasets.
         output_path = self.work_dir / "train_active.pckl.gzip"
+
+        # pace_activeset <input> --output <output> ...
+        # We can add max_size if we had it in config, currently boolean toggle.
+        # Assuming config might have it or use defaults.
+        # Let's check config.
+        # (TrainingConfig has active_set_optimization boolean, but not max_size explicitly here,
+        # OrchestratorConfig has max_active_set_size for selection loop, but training config is separate).
+        # We'll just run defaults or max_active_set_size if added to TrainingConfig (not currently there).
+
         cmd = ["pace_activeset", str(dataset_path), "--output", str(output_path)]
 
         # We capture output to avoid spamming console, unless error

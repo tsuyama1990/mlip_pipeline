@@ -1,4 +1,4 @@
-from typing import Protocol, Union
+from typing import Protocol
 
 import ase.build
 from mlip_autopipec.domain_models.config import (
@@ -114,11 +114,11 @@ class DefectGenerator:
         atoms_list = io.load_structures(config.base_structure_path)
         # Taking the first one if multiple, or assume single
         try:
-            atoms = next(iter(atoms_list)) # load_structures returns iterator or list
+            structure = next(iter(atoms_list)) # load_structures returns iterator or list
         except StopIteration:
             raise ValueError(f"Base structure file {config.base_structure_path} is empty.")
 
-        atoms = atoms.to_ase()
+        atoms = structure.to_ase()
 
         if config.defect_type == "vacancy":
             # Remove a random atom (or first one)
@@ -159,11 +159,11 @@ class StrainGenerator:
         # Load base structure
         atoms_list = io.load_structures(config.base_structure_path)
         try:
-            atoms = next(iter(atoms_list))
+            structure = next(iter(atoms_list))
         except StopIteration:
             raise ValueError(f"Base structure file {config.base_structure_path} is empty.")
 
-        atoms = atoms.to_ase()
+        atoms = structure.to_ase()
 
         # Apply random strain within range
         strain = (config.strain_range)

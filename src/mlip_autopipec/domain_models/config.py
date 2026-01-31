@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Literal, Optional, Union
 
 import ase.data
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, ValidationInfo
 
 from mlip_autopipec.domain_models.calculation import DFTConfig
 from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
@@ -86,7 +86,7 @@ class OrchestratorConfig(BaseModel):
 
     @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
     @classmethod
-    def validate_positive_ints(cls, v: int, info: Field) -> int:
+    def validate_positive_ints(cls, v: int, info: ValidationInfo) -> int:
         if v <= 0:
             raise ValueError(f"{info.field_name} must be positive")
         return v
