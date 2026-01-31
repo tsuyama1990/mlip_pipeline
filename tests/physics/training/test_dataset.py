@@ -5,6 +5,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.structure import Structure
+
 # We assume the module exists (TDD)
 from mlip_autopipec.physics.training.dataset import DatasetManager
 
@@ -49,7 +50,9 @@ def test_dataset_conversion(mock_run, sample_structures, tmp_path):
 @patch("subprocess.run")
 def test_dataset_conversion_failure(mock_run, sample_structures, tmp_path):
     # Raise CalledProcessError to simulate command failure
-    mock_run.side_effect = subprocess.CalledProcessError(1, cmd="pace_collect", stderr="pace_collect failed")
+    mock_run.side_effect = subprocess.CalledProcessError(
+        1, cmd="pace_collect", stderr="pace_collect failed"
+    )
 
     manager = DatasetManager(work_dir=tmp_path)
     output_path = tmp_path / "train.pckl.gzip"

@@ -73,6 +73,16 @@ class SurfaceStructureGenConfig(BaseModel):
     vacuum: float
 
 
+class ValidationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    phonon_tolerance: float = -0.1
+    phonon_supercell: tuple[int, int, int] = (2, 2, 2)
+    eos_vol_range: float = 0.1
+    eos_n_points: int = 10
+    elastic_strain: float = 0.01
+
+
 # Union of all structure generation configs
 StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
 
@@ -93,6 +103,7 @@ class Config(BaseModel):
     # Optional components
     dft: Optional[DFTConfig] = None
     training: Optional[TrainingConfig] = None
+    validation: Optional[ValidationConfig] = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

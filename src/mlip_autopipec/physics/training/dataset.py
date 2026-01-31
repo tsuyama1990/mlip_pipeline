@@ -50,10 +50,10 @@ class DatasetManager:
                 yield self._prepare_atoms(s)
                 count += 1
             if count == 0:
-                 # raising Error here might be tricky inside generator consumed by write
-                 # but write will just write empty file if empty.
-                 # We can check afterwards or use a wrapper.
-                 pass
+                # raising Error here might be tricky inside generator consumed by write
+                # but write will just write empty file if empty.
+                # We can check afterwards or use a wrapper.
+                pass
 
         # Write to file
         # ase.io.write supports generator for many formats including extxyz
@@ -62,10 +62,10 @@ class DatasetManager:
 
         # Check if file is empty or not created (if generator was empty)
         if not extxyz_path.exists() or extxyz_path.stat().st_size == 0:
-             logger.warning("dataset.extxyz is empty or does not exist.")
-             # If appending and it was empty, maybe okay?
-             # But usually means no structures provided.
-             pass
+            logger.warning("dataset.extxyz is empty or does not exist.")
+            # If appending and it was empty, maybe okay?
+            # But usually means no structures provided.
+            pass
 
         # 2. Call pace_collect
         # usage: pace_collect dataset.extxyz -o dataset.pckl.gzip

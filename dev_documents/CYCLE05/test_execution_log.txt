@@ -1,0 +1,44 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 94 items
+
+tests/domain_models/test_calculation.py .....                            [  5%]
+tests/domain_models/test_config.py ....                                  [  9%]
+tests/domain_models/test_job.py ..                                       [ 11%]
+tests/domain_models/test_potential.py ...                                [ 14%]
+tests/domain_models/test_structure.py .....                              [ 20%]
+tests/domain_models/test_training.py .....                               [ 25%]
+tests/domain_models/test_validation.py .....                             [ 30%]
+tests/e2e/test_cli.py .....                                              [ 36%]
+tests/infrastructure/test_io.py .....                                    [ 41%]
+tests/infrastructure/test_logging.py .                                   [ 42%]
+tests/physics/dft/test_input_gen.py ..                                   [ 44%]
+tests/physics/dft/test_parser.py ......                                  [ 51%]
+tests/physics/dft/test_qe_runner.py .........                            [ 60%]
+tests/physics/dft/test_recovery.py ....                                  [ 64%]
+tests/physics/reporting/test_html_gen.py .                               [ 65%]
+tests/physics/structure_gen/test_embedding.py ..                         [ 68%]
+tests/physics/test_lammps.py ..                                          [ 70%]
+tests/physics/training/test_dataset.py ..                                [ 72%]
+tests/physics/training/test_pacemaker.py ....                            [ 76%]
+tests/physics/validation/test_elasticity.py ..                           [ 78%]
+tests/physics/validation/test_eos.py ..                                  [ 80%]
+tests/physics/validation/test_phonon.py ..                               [ 82%]
+tests/physics/validation/test_runner.py ..                               [ 85%]
+tests/uat/test_cycle02.py ..                                             [ 87%]
+tests/uat/test_cycle03.py ..                                             [ 89%]
+tests/uat/test_cycle04.py .                                              [ 90%]
+tests/uat/test_cycle05.py ..                                             [ 92%]
+tests/unit/test_orchestrator.py ..                                       [ 94%]
+tests/unit/test_structure_gen.py .....                                   [100%]
+
+=============================== warnings summary ===============================
+tests/physics/validation/test_eos.py::test_eos_validation_success
+  /app/.venv/lib/python3.12/site-packages/ase/eos.py:236: OptimizeWarning: Covariance of the parameters could not be estimated
+    popt, _pcov = curve_fit(self.func, self.v, self.e, p0)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 94 passed, 1 warning in 8.37s =========================

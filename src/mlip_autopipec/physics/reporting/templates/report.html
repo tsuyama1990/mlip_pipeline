@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLIP Validation Report: {{ result.potential_id }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        h1, h2 { color: #333; }
+        .status { padding: 0.5rem; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .PASS { background-color: #d4edda; color: #155724; }
+        .FAIL { background-color: #f8d7da; color: #721c24; }
+        .WARN { background-color: #fff3cd; color: #856404; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .plot { margin-bottom: 2rem; border: 1px solid #ccc; padding: 1rem; }
+        img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <h1>Validation Report</h1>
+    <p><strong>Potential ID:</strong> {{ result.potential_id }}</p>
+    <p><strong>Overall Status:</strong> <span class="status {{ result.overall_status }}">{{ result.overall_status }}</span></p>
+
+    <h2>Metrics</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Metric Name</th>
+                <th>Value</th>
+                <th>Reference</th>
+                <th>Passed</th>
+                <th>Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for metric in result.metrics %}
+            <tr>
+                <td>{{ metric.name }}</td>
+                <td>{{ "%.4f"|format(metric.value) }}</td>
+                <td>{% if metric.reference is not none %}{{ metric.reference }}{% else %}-{% endif %}</td>
+                <td>
+                    {% if metric.passed %}
+                    <span class="status PASS">PASS</span>
+                    {% else %}
+                    <span class="status FAIL">FAIL</span>
+                    {% endif %}
+                </td>
+                <td>{% if metric.error %}{{ metric.error }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Plots</h2>
+    {% for name, b64 in plots.items() %}
+    <div class="plot">
+        <h3>{{ name }}</h3>
+        <img src="{{ b64 }}" alt="{{ name }}">
+    </div>
+    {% endfor %}
+
+</body>
+</html>

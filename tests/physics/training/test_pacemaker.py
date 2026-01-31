@@ -8,6 +8,7 @@ from mlip_autopipec.domain_models.training import TrainingConfig
 from mlip_autopipec.domain_models.config import PotentialConfig
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 
+
 @pytest.fixture
 def training_config():
     return TrainingConfig(
@@ -18,6 +19,7 @@ def training_config():
         active_set_optimization=False,
     )
 
+
 @pytest.fixture
 def potential_config():
     return PotentialConfig(
@@ -25,18 +27,19 @@ def potential_config():
         cutoff=5.0,
     )
 
+
 @patch("subprocess.run")
 def test_train_success(mock_run, training_config, potential_config, tmp_path):
     runner = PacemakerRunner(
         work_dir=tmp_path,
         train_config=training_config,
-        potential_config=potential_config
+        potential_config=potential_config,
     )
 
     # Mock subprocess side effect to write to log file
     def mock_run_side_effect(cmd, **kwargs):
-        if 'stdout' in kwargs and hasattr(kwargs['stdout'], 'write'):
-            kwargs['stdout'].write("Final RMSE Energy: 0.005\nFinal RMSE Force: 0.01\n")
+        if "stdout" in kwargs and hasattr(kwargs["stdout"], "write"):
+            kwargs["stdout"].write("Final RMSE Energy: 0.005\nFinal RMSE Force: 0.01\n")
         return MagicMock(returncode=0)
 
     mock_run.side_effect = mock_run_side_effect
@@ -69,7 +72,7 @@ def test_active_set_selection(mock_run, training_config, potential_config, tmp_p
     runner = PacemakerRunner(
         work_dir=tmp_path,
         train_config=training_config,
-        potential_config=potential_config
+        potential_config=potential_config,
     )
 
     dataset_path = tmp_path / "train.pckl.gzip"
