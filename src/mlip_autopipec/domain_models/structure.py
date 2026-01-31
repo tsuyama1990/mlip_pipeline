@@ -59,11 +59,6 @@ class Structure(BaseModel):
     def from_ase(cls, atoms: ase.Atoms) -> "Structure":
         """Factory method to create a Structure from an ASE Atoms object."""
         # Convert arrays to dict of numpy arrays
-        # atoms.arrays includes positions, numbers, etc. We want custom ones + standard if needed
-        # but 'positions' and 'numbers' are handled separately.
-        # We'll just copy everything from arrays except positions and numbers if we want full fidelity?
-        # Or just what's needed. For now, let's copy all extra arrays.
-
         arrays = {}
         for k, v in atoms.arrays.items():
             if k not in ['positions', 'numbers', 'types']:

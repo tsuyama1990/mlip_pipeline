@@ -235,9 +235,11 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         # Assuming BulkStructureGenConfig which has rattle_stdev
         if isinstance(gen_config, BulkStructureGenConfig):
             gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
-
-        # We also need to update config.structure_gen but since we use gen_config locally
-        # for generation, we don't need to replace it in the main config object.
+        elif not isinstance(gen_config, BulkStructureGenConfig):
+             # For validation, we prefer BulkStructureGenConfig if possible
+             # But if user configured something else, we try to use it.
+             # Warn if not bulk?
+             pass
 
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)
@@ -264,7 +266,7 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
             status_icon = "✓" if m.passed else "✗"
             typer.echo(f"  {status_icon} {m.name}: {m.value:.4f} ({m.message})")
 
-        typer.echo("Report generated at: validation_report.html")
+        typer.echo(f"Report generated at: {config.validation.report_path}")
 
     except Exception as e:
         typer.secho(f"Validation execution failed: {e}", fg=typer.colors.RED)

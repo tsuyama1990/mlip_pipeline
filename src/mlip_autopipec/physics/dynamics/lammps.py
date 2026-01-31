@@ -1,20 +1,21 @@
 import shutil
 import subprocess
 import uuid
+import shlex
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import ase.io
 import ase.data
-from mlip_autopipec.domain_models import (
-    JobStatus,
+from mlip_autopipec.domain_models.dynamics import (
     LammpsConfig,
     LammpsResult,
     MDParams,
-    Structure,
-    PotentialConfig,
 )
+from mlip_autopipec.domain_models.config import PotentialConfig
+from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dynamics.log_parser import LammpsLogParser
 
 
@@ -236,7 +237,8 @@ run             {params.n_steps}
         if self.config.use_mpi:
             cmd_str = f"{self.config.mpi_command} {cmd_str}"
 
-        cmd_list = cmd_str.split() + ["-in", "in.lammps"]
+        # Safe splitting
+        cmd_list = shlex.split(cmd_str) + ["-in", "in.lammps"]
 
         exe = cmd_list[0]
         if not shutil.which(exe):

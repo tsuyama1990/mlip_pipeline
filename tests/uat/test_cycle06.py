@@ -5,8 +5,11 @@ from mlip_autopipec.domain_models.config import (
     Config, OrchestratorConfig, LoggingConfig, PotentialConfig,
     BulkStructureGenConfig, MDConfig, DFTConfig, TrainingConfig, ValidationConfig
 )
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
+from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState, CandidateStatus
+from mlip_autopipec.domain_models.job import JobResult, JobStatus
 from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.domain_models.structure import Structure
+import numpy as np
 
 @pytest.fixture
 def valid_config(tmp_path):
@@ -94,3 +97,45 @@ def test_uat_resume_interruption(valid_config, tmp_path):
 
         assert mock_train.called
         assert manager.state.current_phase == WorkflowPhase.VALIDATION
+
+def test_uat_dft_failure_handling(valid_config, tmp_path):
+    # Setup state with candidates ready for calculation
+    state = WorkflowState(
+        project_name="UAT_Cycle06",
+        dataset_path=tmp_path / "data.pckl",
+        current_phase=WorkflowPhase.CALCULATION,
+        generation=0
+    )
+    # Mock candidate with valid Structure
+    mock_struct = Structure(
+        symbols=["Si"], positions=np.array([[0,0,0]]), cell=np.eye(3), pbc=(True,True,True)
+    )
+
+    mock_cand = MagicMock()
+    mock_cand.status = CandidateStatus.PENDING
+    mock_cand.structure = mock_struct # Needs to be real structure or mock that passes embed logic
+
+    state.candidates = [mock_cand]
+
+    with patch("mlip_autopipec.orchestration.manager.StateManager") as MockStateMgr, \
+         patch("mlip_autopipec.orchestration.manager.QERunner") as MockQERunner:
+
+        MockStateMgr.return_value.load.return_value = state
+
+        # Setup QERunner to return FAILED
+        mock_runner = MockQERunner.return_value
+        mock_runner.run.return_value = JobResult(
+            job_id="fail", status=JobStatus.FAILED, work_dir=Path("."), duration_seconds=0, log_content="Error"
+        )
+
+        manager = WorkflowManager(valid_config, work_dir=tmp_path)
+
+        # Execute step
+        result = manager.calculate(tmp_path)
+
+        # It should process, but mark candidate as FAILED
+        assert mock_cand.status == CandidateStatus.FAILED
+        assert mock_cand.error_message == "Error"
+
+        # Since no candidates succeeded, calculate should return False
+        assert result is False

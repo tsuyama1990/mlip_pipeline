@@ -1,9 +1,10 @@
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Iterator
 
 import numpy as np
 import ase.io
+from ase import Atoms
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -22,6 +23,7 @@ from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
+from mlip_autopipec.infrastructure.io import load_structures
 
 logger = logging.getLogger("mlip_autopipec.orchestration")
 
@@ -154,8 +156,8 @@ class WorkflowManager:
 
     def select(self, md_base_dir: Path) -> List[CandidateStructure]:
         """
-        Scan MD trajectory for candidates.
-        Applies Active Set Selection (D-Optimality) if candidates exceed max size.
+        Scan MD trajectory for candidates using streaming/chunking to avoid OOM.
+        Uses pace_activeset (D-Optimality) if available.
         """
         logger.info("Selecting candidates...")
         job_dirs = sorted([d for d in md_base_dir.glob("job_*") if d.is_dir()])
@@ -172,91 +174,120 @@ class WorkflowManager:
             return []
 
         stride = self.config.orchestrator.trajectory_sampling_stride
-        candidates = []
         threshold = self.config.orchestrator.uncertainty_threshold
 
-        try:
-             # First pass: collect all high-uncertainty candidates
-             traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
+        # Helper to stream candidates
+        def stream_candidates() -> Iterator[CandidateStructure]:
+            traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
+            for i, atoms in enumerate(traj):
+                if not isinstance(atoms, Atoms):
+                    continue
 
-             for i, atoms in enumerate(traj):
-                 gammas = atoms.arrays.get('c_pace_gamma')
-                 if gammas is not None and np.max(gammas) > threshold:
-                     center_idx = int(np.argmax(gammas))
+                gammas = atoms.arrays.get('c_pace_gamma')
+                if gammas is not None and np.max(gammas) > threshold:
+                    center_idx = int(np.argmax(gammas))
 
-                     full_struct = Structure.from_ase(atoms)
-                     cluster = self.candidate_manager.extract_cluster(
-                         full_struct, center_idx, radius=self.config.potential.cutoff
-                     )
+                    full_struct = Structure.from_ase(atoms)
+                    cluster = self.candidate_manager.extract_cluster(
+                        full_struct, center_idx, radius=self.config.potential.cutoff
+                    )
 
-                     cand = CandidateStructure(
-                         structure=cluster,
-                         origin=f"{latest_job.name}_frame_{i*stride}",
-                         uncertainty_score=float(np.max(gammas)),
-                         status=CandidateStatus.PENDING
-                     )
-                     candidates.append(cand)
+                    yield CandidateStructure(
+                        structure=cluster,
+                        origin=f"{latest_job.name}_frame_{i*stride}",
+                        uncertainty_score=float(np.max(gammas)),
+                        status=CandidateStatus.PENDING
+                    )
 
-        except Exception as e:
-            logger.error(f"Error reading trajectory: {e}")
-            return []
+        # Temporary path for all candidates if we use active set selection
+        temp_dir = md_base_dir / "active_set_selection"
+        temp_dir.mkdir(exist_ok=True)
+        all_cands_path = temp_dir / "candidates.extxyz"
 
-        # Limit size using D-Optimality (pace_activeset)
-        max_size = self.config.orchestrator.max_active_set_size
-        if len(candidates) > max_size and self.config.training:
-            logger.info(f"Candidates ({len(candidates)}) > {max_size}. Running Active Set Selection.")
+        # Stream writes to avoid OOM
+        count = 0
 
-            # We need to leverage PacemakerRunner or call pace_activeset.
-            # We will use a temporary directory for this operation.
-            temp_dir = md_base_dir / "active_set_selection"
-            temp_dir.mkdir(exist_ok=True)
+        if self.config.training and self.config.orchestrator.active_set_optimization:
 
-            # Dump all candidates to extxyz
-            all_cands_path = temp_dir / "candidates.extxyz"
-            all_ase = [c.structure.to_ase() for c in candidates]
-            ase.io.write(all_cands_path, all_ase) # type: ignore[no-untyped-call]
+             with open(all_cands_path, "w"):
+                 pass # clear file
 
-            # Instantiate PacemakerRunner solely for selection utility
-            pm_runner = PacemakerRunner(
+             chunk = []
+             batch_size = 100
+             for cand in stream_candidates():
+                 atoms = cand.structure.to_ase()
+                 atoms.info['origin'] = cand.origin
+                 atoms.info['gamma'] = cand.uncertainty_score
+                 chunk.append(atoms)
+                 count += 1
+
+                 if len(chunk) >= batch_size:
+                     ase.io.write(all_cands_path, chunk, append=True) # type: ignore[no-untyped-call]
+                     chunk = []
+
+             if chunk:
+                 ase.io.write(all_cands_path, chunk, append=True) # type: ignore[no-untyped-call]
+
+             if count == 0:
+                 return []
+
+             logger.info(f"Collected {count} raw candidates. Running Active Set Selection.")
+
+             # Run pace_activeset
+             pm_runner = PacemakerRunner(
                 work_dir=temp_dir,
                 train_config=self.config.training,
                 potential_config=self.config.potential
-            )
+             )
 
-            try:
-                # pace_activeset writes to pckl.gzip
-                selected_path = pm_runner.select_active_set(all_cands_path)
+             try:
+                 selected_path = pm_runner.select_active_set(all_cands_path)
 
-                # Load back the selected structures
-                selected_structures = ase.io.read(selected_path, index=":") # type: ignore[no-untyped-call]
+                 final_candidates = []
+                 for s_struct in load_structures(selected_path):
 
-                if isinstance(selected_structures, list):
-                    # We need to map back to candidates.
-                    # Simple way: just keep the new structures as new candidates.
-                    new_candidates = []
-                    for s_ase in selected_structures:
-                        # Re-wrap
-                        s_struct = Structure.from_ase(s_ase)
-                        new_candidates.append(CandidateStructure(
-                            structure=s_struct,
-                            origin="active_set_selection",
-                            uncertainty_score=0.0, # Lost, or we need to preserve info in ase.info
-                            status=CandidateStatus.PENDING
-                        ))
-                    candidates = new_candidates
-                    logger.info(f"Reduced to {len(candidates)} candidates.")
+                     origin = str(s_struct.properties.get('origin', 'active_set_selection'))
+                     gamma = float(s_struct.properties.get('gamma', 0.0))
 
-            except Exception as e:
-                logger.warning(f"Active set selection failed ({e}). Fallback to linear subsampling.")
-                indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
-                candidates = [candidates[i] for i in indices]
+                     final_candidates.append(CandidateStructure(
+                         structure=s_struct,
+                         origin=origin,
+                         uncertainty_score=gamma,
+                         status=CandidateStatus.PENDING
+                     ))
 
-        elif len(candidates) > max_size:
-             # Fallback if no training config or other issue
-             indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
-             candidates = [candidates[i] for i in indices]
+                 logger.info(f"Selected {len(final_candidates)} candidates.")
+                 return final_candidates
 
-        return candidates
+             except Exception as e:
+                 logger.warning(f"Active set selection failed: {e}. Fallback to linear subsampling.")
+
+                 target = self.config.orchestrator.max_active_set_size
+                 stride_fallback = max(1, count // target)
+
+                 final_candidates = []
+                 for i, s_struct in enumerate(load_structures(all_cands_path)):
+                     if i % stride_fallback == 0:
+                         origin = str(s_struct.properties.get('origin', ''))
+                         gamma = float(s_struct.properties.get('gamma', 0.0))
+
+                         final_candidates.append(CandidateStructure(
+                             structure=s_struct,
+                             origin=origin,
+                             uncertainty_score=gamma,
+                             status=CandidateStatus.PENDING
+                         ))
+                 return final_candidates
+
+        else:
+            candidates = list(stream_candidates())
+
+            max_size = self.config.orchestrator.max_active_set_size
+            if len(candidates) > max_size:
+                 indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
+                 candidates = [candidates[i] for i in indices]
+
+            return candidates
 
     def calculate(self, iter_dir: Path) -> bool:
         """

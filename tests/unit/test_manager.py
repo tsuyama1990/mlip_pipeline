@@ -16,6 +16,15 @@ def mock_config():
     config.logging.file_path = Path("test.log")
     config.training = MagicMock()
     config.training.initial_potential = None
+    config.validation = MagicMock()
+    config.validation.report_path = Path("validation_report.html")
+    # Fix: Ensure all fields accessed by Manager are mocked
+    config.structure_gen = MagicMock()
+    config.potential = MagicMock()
+    config.lammps = MagicMock()
+    config.dft = MagicMock()
+    config.md = MagicMock()
+
     return config
 
 @pytest.fixture
@@ -74,3 +83,34 @@ def test_manager_completion(mock_config, mock_state, tmp_path):
 
         should_continue = manager.step()
         assert not should_continue
+
+def test_manager_validation_report_check(mock_config, mock_state, tmp_path):
+    # Ensure validation report path is checked or used
+    # In validate method, we log report path.
+    # Here we can just check if report generation is attempted.
+
+    mock_state.current_phase = WorkflowPhase.VALIDATION
+    mock_state.latest_potential_path = Path("pot.yace")
+
+    with patch("mlip_autopipec.orchestration.manager.StateManager") as MockStateMgr, \
+         patch("mlip_autopipec.orchestration.manager.ValidationRunner") as MockValRunner, \
+         patch("mlip_autopipec.orchestration.manager.StructureGenFactory"):
+
+        MockStateMgr.return_value.load.return_value = mock_state
+        manager = WorkflowManager(mock_config, work_dir=tmp_path)
+        manager.state = mock_state
+
+        # Mock validation result
+        MockValRunner.return_value.validate.return_value = MagicMock(overall_status="PASS")
+
+        manager.step()
+
+        # Assert ValidationRunner called with config
+        MockValRunner.assert_called_with(
+            val_config=mock_config.validation,
+            pot_config=mock_config.potential,
+            potential_path=mock_state.latest_potential_path
+        )
+
+        # Report verification is implicitly done by ValidationRunner (which we mocked),
+        # but the test ensures we pass the config correctly.
