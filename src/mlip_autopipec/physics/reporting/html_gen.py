@@ -1,15 +1,18 @@
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from mlip_autopipec.domain_models.validation import ValidationResult
 
 class ReportGenerator:
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, template_dir: Optional[Path] = None):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Setup Jinja2
-        template_dir = Path(__file__).parent / "templates"
+        if template_dir is None:
+            template_dir = Path(__file__).parent / "templates"
+
         self.env = Environment(
             loader=FileSystemLoader(template_dir),
             autoescape=select_autoescape(['html', 'xml'])

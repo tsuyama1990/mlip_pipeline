@@ -1,7 +1,8 @@
+import math
 from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ValidationMetric(BaseModel):
@@ -15,6 +16,13 @@ class ValidationMetric(BaseModel):
     error: Optional[float] = None
     message: Optional[str] = None
     passed: bool
+
+    @field_validator("value")
+    @classmethod
+    def check_finite(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError(f"Metric value must be finite, got {v}")
+        return v
 
 
 class ValidationResult(BaseModel):

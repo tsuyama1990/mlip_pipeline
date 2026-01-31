@@ -1,4 +1,3 @@
-from typing import Optional
 from pathlib import Path
 from ase import Atoms
 import numpy as np
@@ -112,7 +111,6 @@ class ElasticityValidator:
             def_matrix[1, 0] += strain[5] / 2.0
 
             # Apply deformation
-            new_cell = np.dot(cell0, def_matrix) # or dot(def_matrix, cell0)?
             # ASE: row vectors. cell = [v1, v2, v3].
             # new_v1 = v1 * F? No.
             # Usually r' = F r.
@@ -183,7 +181,7 @@ class ElasticityValidator:
             min_eig = np.min(eigenvalues)
             positive_definite = min_eig > self.config.elastic_stability_tolerance
 
-            passed = positive_definite
+            passed = positive_definite and born_1 and born_2 and born_3
 
             metrics.append(ValidationMetric(name="C11", value=c11, passed=True))
             metrics.append(ValidationMetric(name="C12", value=c12, passed=True))
@@ -201,5 +199,5 @@ class ElasticityValidator:
             potential_id=self.potential_path.stem,
             metrics=metrics,
             plots={},
-            overall_status=status
+            overall_status=status  # type: ignore[arg-type]
         )

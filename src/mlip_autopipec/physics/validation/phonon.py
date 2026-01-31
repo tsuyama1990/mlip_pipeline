@@ -1,4 +1,3 @@
-from typing import Optional
 from pathlib import Path
 from ase import Atoms
 import numpy as np
@@ -69,10 +68,18 @@ class PhononValidator:
         # 2. Calculate Forces
         forces_set = []
 
+        if supercells is None:
+            return ValidationResult(
+                potential_id=self.potential_path.stem,
+                metrics=[ValidationMetric(name="Phonon Forces", value=0.0, passed=False, message="Failed to generate supercells")],
+                plots={},
+                overall_status="FAIL"
+            )
+
         for i, sc in enumerate(supercells):
             # Convert PhonopyAtoms back to ASE
-            # sc is PhonopyAtoms? No, it's None in recent versions?
-            # 'supercells_with_displacements' returns list of PhonopyAtoms.
+            if sc is None:
+                continue
 
             # Convert sc to ASE
             ase_sc = Atoms(
@@ -125,10 +132,9 @@ class PhononValidator:
         # Plot
         plot_path = work_dir / "phonon_band.png"
         try:
-            import matplotlib.pyplot as plt
-            plt = phonon.plot_band_structure()
-            plt.savefig(plot_path)
-            plt.close()
+            plot = phonon.plot_band_structure()
+            plot.savefig(plot_path)
+            plot.close()
         except Exception:
             pass
 
@@ -145,5 +151,5 @@ class PhononValidator:
             potential_id=self.potential_path.stem,
             metrics=[metric],
             plots={"phonon": plot_path} if plot_path.exists() else {},
-            overall_status=status
+            overall_status=status  # type: ignore[arg-type]
         )

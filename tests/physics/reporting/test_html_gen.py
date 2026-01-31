@@ -1,5 +1,3 @@
-import pytest
-from pathlib import Path
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric
 from mlip_autopipec.physics.reporting.html_gen import ReportGenerator
 

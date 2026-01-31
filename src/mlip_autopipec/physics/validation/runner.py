@@ -21,7 +21,7 @@ class ValidationRunner:
         try:
             eos_val = EOSValidator(self.potential_path, self.config, self.potential_config, self.lammps_command)
             results.append(eos_val.validate(reference_structure))
-        except Exception as e:
+        except Exception:
             # Handle crash in validator instantiation or unexpected error
             # But validate() should handle its own errors.
             pass

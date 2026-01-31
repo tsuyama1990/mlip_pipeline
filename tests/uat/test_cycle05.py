@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from typer.testing import CliRunner
 from mlip_autopipec.app import app
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric
@@ -34,7 +34,7 @@ def test_uat_c05_01_stable_potential(tmp_path):
             )
         ]
 
-        with patch("mlip_autopipec.physics.validation.runner.ValidationRunner.validate", return_value=mock_results) as mock_validate:
+        with patch("mlip_autopipec.physics.validation.runner.ValidationRunner.validate", return_value=mock_results):
              # Mock Structure generation to avoid needing ASE data/build issues if any (though unit tests passed)
              # But init config defaults to Si diamond, which is fine.
 

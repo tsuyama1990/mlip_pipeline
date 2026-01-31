@@ -1,6 +1,4 @@
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from mlip_autopipec.physics.validation.utils import get_lammps_calculator
 from mlip_autopipec.domain_models.config import PotentialConfig
 
@@ -14,7 +12,7 @@ def test_get_lammps_calculator(tmp_path):
     pot_path.touch()
 
     with patch("mlip_autopipec.physics.validation.utils.LAMMPS") as MockLAMMPS:
-        calc = get_lammps_calculator(
+        get_lammps_calculator(
             potential_path=pot_path,
             potential_config=pot_config,
             lammps_command="lmp_serial",
@@ -54,3 +52,27 @@ def test_get_lammps_calculator_hybrid(tmp_path):
         # pair_coeff should have length 2 (pace + zbl)
         assert len(kwargs["pair_coeff"]) == 2
         assert "zbl" in kwargs["pair_coeff"][1]
+
+
+def test_get_lammps_calculator_empty_elements(tmp_path):
+    """Test behavior with empty elements list."""
+    pot_config = PotentialConfig(
+        elements=[],
+        cutoff=5.0,
+        pair_style="hybrid/overlay"
+    )
+    pot_path = tmp_path / "pot.yace"
+    pot_path.touch()
+
+    # Should probably raise error or produce weird config
+    # Since specorder is empty, LAMMPS calc might complain or just write empty data
+
+    with patch("mlip_autopipec.physics.validation.utils.LAMMPS") as MockLAMMPS:
+        get_lammps_calculator(
+            potential_path=pot_path,
+            potential_config=pot_config,
+            working_dir=tmp_path
+        )
+        _, kwargs = MockLAMMPS.call_args
+        # Check that we still got calls
+        assert kwargs["specorder"] == []

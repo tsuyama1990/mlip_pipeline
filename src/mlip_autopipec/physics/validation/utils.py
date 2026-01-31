@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-from typing import Any
 import ase.data
 from ase.calculators.lammpsrun import LAMMPS
 from mlip_autopipec.domain_models.config import PotentialConfig

@@ -1,4 +1,3 @@
-from typing import Optional
 from pathlib import Path
 from ase import Atoms
 from ase.eos import EquationOfState
@@ -57,7 +56,7 @@ class EOSValidator:
                 energy = atoms.get_potential_energy()
                 volumes.append(atoms.get_volume())
                 energies.append(energy)
-            except Exception as e:
+            except Exception:
                 # Calculation failed
                 pass
 
@@ -105,5 +104,5 @@ class EOSValidator:
             potential_id=self.potential_path.stem,
             metrics=[metric],
             plots={"eos": plot_path} if plot_path.exists() else {},
-            overall_status=status
+            overall_status=status  # type: ignore[arg-type]
         )

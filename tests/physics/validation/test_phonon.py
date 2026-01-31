@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock, patch
 import pytest
-from pathlib import Path
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
