@@ -3,6 +3,14 @@ from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.constants import (
+    DEFAULT_CUTOFF,
+    DEFAULT_ELEMENTS,
+    DEFAULT_LOG_FILENAME,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_PROJECT_NAME,
+    DEFAULT_SEED,
+)
 from mlip_autopipec.domain_models.calculation import DFTConfig
 from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
 from mlip_autopipec.domain_models.training import TrainingConfig
@@ -11,16 +19,16 @@ from mlip_autopipec.domain_models.training import TrainingConfig
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    file_path: Path = Path("mlip_pipeline.log")
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = DEFAULT_LOG_LEVEL # type: ignore
+    file_path: Path = Path(DEFAULT_LOG_FILENAME)
 
 
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str]
-    cutoff: float
-    seed: int = 42
+    elements: list[str] = Field(default_factory=lambda: DEFAULT_ELEMENTS)
+    cutoff: float = DEFAULT_CUTOFF
+    seed: int = DEFAULT_SEED
 
     @field_validator("cutoff")
     @classmethod
@@ -71,10 +79,10 @@ StructureGenConfig = Union[BulkStructureGenConfig, SurfaceStructureGenConfig]
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    project_name: str
+    project_name: str = DEFAULT_PROJECT_NAME
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
-    potential: PotentialConfig
+    potential: PotentialConfig = Field(default_factory=PotentialConfig)
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
 
     # New configurations
