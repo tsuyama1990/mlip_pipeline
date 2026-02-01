@@ -94,6 +94,11 @@ def run_lammps(args: argparse.Namespace, data_file: Path, work_dir: Path) -> Tup
     # Absolute path for potential
     pot_path = Path(args.potential).resolve()
 
+    # Security: Use forward slashes for LAMMPS paths (Windows compatibility + safe chars)
+    # While Path handles it, string conversion might use backslashes on Windows.
+    # LAMMPS often prefers forward slashes.
+    pot_path_str = str(pot_path).replace("\\", "/")
+
     # Prepare interaction commands
     # Get Z numbers
     from ase.data import atomic_numbers
@@ -102,7 +107,7 @@ def run_lammps(args: argparse.Namespace, data_file: Path, work_dir: Path) -> Tup
 
     pair_cmds = f"""
     pair_style      hybrid/overlay pace zbl {args.zbl_inner} {args.zbl_outer}
-    pair_coeff      * * pace {pot_path} {elem_str}
+    pair_coeff      * * pace {pot_path_str} {elem_str}
     """
 
     # ZBL pairs
@@ -122,7 +127,7 @@ def run_lammps(args: argparse.Namespace, data_file: Path, work_dir: Path) -> Tup
 
     {pair_cmds}
 
-    compute         pace_gamma all pace {pot_path}
+    compute         pace_gamma all pace {pot_path_str}
     variable        max_gamma equal max(c_pace_gamma)
 
     thermo_style    custom step temp pe v_max_gamma

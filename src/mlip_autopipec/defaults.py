@@ -1,3 +1,4 @@
+import os
 from typing import List, Tuple
 
 # General
@@ -19,6 +20,12 @@ DEFAULT_ACE_NPOT = "FinnisSinclair"
 DEFAULT_ACE_FS_PARAMS = [1.0, 1.0, 1.0, 0.5]
 DEFAULT_ACE_NDENSITY = 2
 
+# Pacemaker Fitting
+DEFAULT_PACEMAKER_DELTA_SPLINE_BINS = 0.001
+DEFAULT_PACEMAKER_LOSS_WEIGHT_ENERGY = 1.0
+DEFAULT_PACEMAKER_LOSS_WEIGHT_FORCES = 1.0
+DEFAULT_PACEMAKER_LOSS_WEIGHT_STRESS = 0.1
+
 # Orchestrator
 DEFAULT_MAX_ITERATIONS = 1
 DEFAULT_UNCERTAINTY_THRESHOLD = 5.0
@@ -36,7 +43,12 @@ DEFAULT_INPUT_FILE_LAMMPS = "in.lammps"
 DEFAULT_DATA_FILE_LAMMPS = "data.lammps"
 DEFAULT_STDOUT_FILE = "stdout.log"
 DEFAULT_STDERR_FILE = "stderr.log"
-DEFAULT_ALLOWED_COMMAND_PREFIXES = ["lmp", "lammps", "mpirun", "srun"]
+# Get allowed prefixes from env or default
+_env_prefixes = os.environ.get("MLIP_ALLOWED_COMMAND_PREFIXES")
+if _env_prefixes:
+    DEFAULT_ALLOWED_COMMAND_PREFIXES = _env_prefixes.split(",")
+else:
+    DEFAULT_ALLOWED_COMMAND_PREFIXES = ["lmp", "lammps", "mpirun", "srun"]
 
 # Structure Gen (Bulk)
 DEFAULT_BULK_STRATEGY = "bulk"
@@ -69,3 +81,6 @@ DEFAULT_TRAIN_KAPPA = 0.4
 DEFAULT_ACTIVE_SET_OPT = True
 DEFAULT_MAX_ACTIVE_SET = 1000
 DEFAULT_TRAIN_WORK_DIR = "training_work"
+
+# Production
+DEFAULT_PACKAGE_NAME_FORMAT_FALLBACK = "mlip_package_{version}.zip"

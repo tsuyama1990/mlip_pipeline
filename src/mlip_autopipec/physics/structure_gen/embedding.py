@@ -1,77 +1,80 @@
 import numpy as np
-from ase import Atoms
-from ase.neighborlist import neighbor_list
+from ase.neighborlist import NeighborList
 from mlip_autopipec.domain_models.structure import Structure
 
 
 class EmbeddingHandler:
-    def embed_cluster(
+    def extract_periodic_box(
         self,
         structure: Structure,
         center_index: int,
-        radius: float,
-        vacuum: float = 10.0,
+        box_length: float,
     ) -> Structure:
         """
-        Extracts a cluster around an atom and places it in a vacuum-padded box.
-        Uses ASE neighbor list to handle periodic boundary conditions correctly.
+        Extracts a cubic periodic box centered at a specific atom.
+        Implements Periodic Embedding (Spec 3.2).
+
+        This extracts atoms from the original structure (supercell) that fall within
+        a cubic box of size `box_length` centered at `structure.positions[center_index]`.
+        The resulting structure is a periodic cubic cell of size `box_length`.
         """
         atoms = structure.to_ase()
-
-        # Get neighbors including periodic images
-        # i: source index, j: neighbor index, S: shift vector, d: distance
-        i_list, j_list, S_list, D_list = neighbor_list("ijSd", atoms, cutoff=radius)
-
-        # Filter for the specific center atom
-        mask = i_list == center_index
-        neighbors_j = j_list[mask]
-        neighbors_S = S_list[mask]
-
-        # Initialize cluster with the center atom at (0,0,0)
-        cluster_symbols = [atoms.get_chemical_symbols()[center_index]]
-        cluster_positions = [np.array([0.0, 0.0, 0.0])]
-
-        center_pos_orig = atoms.positions[center_index]
+        center_pos = atoms.positions[center_index]
         cell = atoms.get_cell()
 
-        for j, S in zip(neighbors_j, neighbors_S):
-            # Calculate position of the neighbor image relative to the center atom
-            # pos_j_image = pos_j + S @ cell
-            # vector = pos_j_image - center_pos
-            vec = atoms.positions[j] + S @ cell - center_pos_orig
+        # Calculate search radius to cover the box diagonal
+        # We add a small epsilon to ensure we catch boundary atoms
+        radius = (box_length * np.sqrt(3) / 2.0) + 0.1
 
-            dist = np.linalg.norm(vec)
+        # NeighborList to find atoms within the bounding sphere of the box
+        cutoffs = [radius / 2.0] * len(atoms)
+        nl = NeighborList(cutoffs, self_interaction=True, bothways=True) # type: ignore[no-untyped-call]
+        nl.update(atoms) # type: ignore[no-untyped-call]
 
-            # Skip the center atom itself if it appears in the neighbor list (dist ~ 0)
-            if dist < 1e-4:
-                continue
+        indices, offsets = nl.get_neighbors(center_index) # type: ignore[no-untyped-call]
 
-            cluster_symbols.append(atoms.get_chemical_symbols()[j])
-            cluster_positions.append(vec)
+        new_positions = []
+        new_symbols = []
+        distances = []
 
-        # Convert to numpy array
-        pos_array = np.array(cluster_positions)
+        # We define the new box from -L/2 to L/2 relative to center
+        half_box = box_length / 2.0
 
-        # Determine the size of the cluster
-        p_min = np.min(pos_array, axis=0)
-        p_max = np.max(pos_array, axis=0)
-        extent = p_max - p_min
+        for i, idx in enumerate(indices):
+            # Vector from center to neighbor (handling PBC of original structure)
+            vec = atoms.positions[idx] + np.dot(offsets[i], cell) - center_pos
 
-        # Create a cubic box large enough to hold the cluster + vacuum
-        # Using a cubic box is generally safer for DFT codes that might assume symmetries
-        box_length = np.max(extent) + vacuum
+            # Check if inside the box
+            if np.all(np.abs(vec) <= half_box):
+                # Shift to new box coordinates (0 to L)
+                # The new box is centered at L/2, L/2, L/2 relative to the atom's origin (0,0,0) in the new frame?
+                # No, we want the atom at the center of the box usually,
+                # but standard unit cells start at 0.
+                # So we map [-L/2, L/2] to [0, L].
+                pos_in_box = vec + half_box
+
+                new_positions.append(pos_in_box)
+                new_symbols.append(atoms.symbols[idx])
+                distances.append(float(np.linalg.norm(vec)))
+
+        # Create Structure
         new_cell = np.eye(3) * box_length
 
-        # Center the cluster in the new box
-        bbox_center = (p_max + p_min) / 2.0
-        box_center = np.array([box_length, box_length, box_length]) / 2.0
-        shift = box_center - bbox_center
+        # Fallback if somehow empty (should at least have center)
+        # Audit: Explicitly check for empty atoms and raise/warn
+        if not new_positions:
+             # This implies even the center atom wasn't found, which is weird if we include self_interaction=True
+             # But if it happens, we shouldn't return an empty structure or silently mock it without knowing context.
+             # However, previous logic tried to recover. Let's make it robust but explicit.
+             raise ValueError("Extraction failed: No atoms found within the specified box, not even the center atom.")
 
-        pos_array += shift
-
-        # Create new Atoms object
-        cluster_atoms = Atoms(
-            symbols=cluster_symbols, positions=pos_array, cell=new_cell, pbc=True
+        struct = Structure(
+            symbols=new_symbols,
+            positions=np.array(new_positions),
+            cell=new_cell,
+            pbc=(True, True, True)
         )
+        # Store distance from center for later Force Masking
+        struct.arrays['cluster_dist'] = np.array(distances)
 
-        return Structure.from_ase(cluster_atoms)
+        return struct

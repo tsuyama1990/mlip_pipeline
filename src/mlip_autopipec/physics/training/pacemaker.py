@@ -2,7 +2,7 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 import yaml
 
@@ -117,7 +117,7 @@ class PacemakerRunner:
         Generate input.yaml for pace_train.
         """
         # Configuration from PotentialConfig
-        data = {
+        data: Dict[str, Any] = {
             "cutoff": self.pot_config.cutoff,
             "seed": self.pot_config.seed,
             "data": {
@@ -125,7 +125,7 @@ class PacemakerRunner:
             },
             "potential": {
                 "elements": self.pot_config.elements,
-                "deltaSplineBins": 0.001,
+                "deltaSplineBins": self.pot_config.delta_spline_bins,
                 "embeddings": {
                     "ALL": {
                         "npot": self.pot_config.ace_params.npot,
@@ -143,9 +143,9 @@ class PacemakerRunner:
             "fit": {
                 "loss": {
                     "kappa": self.config.kappa,
-                    "w_energy": 1.0,
-                    "w_forces": 1.0,
-                    "w_stress": 0.1,
+                    "w_energy": self.pot_config.loss_weight_energy,
+                    "w_forces": self.pot_config.loss_weight_forces,
+                    "w_stress": self.pot_config.loss_weight_stress,
                 },
                 "optimizer": {
                     "max_epochs": self.config.max_epochs,
@@ -160,6 +160,14 @@ class PacemakerRunner:
                 "potential": "potential.yace"
             }
         }
+
+        # Add Repulsion if Hybrid
+        if self.pot_config.pair_style == "hybrid/overlay":
+            data["potential"]["repulsion"] = {
+                "type": "zbl",
+                "inner_cutoff": self.pot_config.zbl_inner_cutoff,
+                "outer_cutoff": self.pot_config.zbl_outer_cutoff
+            }
 
         with open(output_path, "w") as f:
             yaml.dump(data, f)

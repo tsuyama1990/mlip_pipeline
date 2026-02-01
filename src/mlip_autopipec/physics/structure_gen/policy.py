@@ -1,11 +1,43 @@
+from typing import Protocol
+
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.exploration import ExplorationTask
+
+
+class PolicyStrategy(Protocol):
+    """Protocol for exploration policy strategies."""
+
+    def decide(self, config: Config) -> ExplorationTask:
+        """Decide the exploration task based on configuration."""
+        ...
+
+
+class MetalPolicy:
+    """Policy for metallic systems (e.g. alloys)."""
+
+    def decide(self, config: Config) -> ExplorationTask:
+        return ExplorationTask(
+            method="MD",
+            modifiers=["swap"],
+            temperature=config.md.temperature,
+            steps=config.md.n_steps,
+        )
+
+
+class InsulatorPolicy:
+    """Policy for insulating/ceramic systems."""
+
+    def decide(self, config: Config) -> ExplorationTask:
+        return ExplorationTask(
+            method="Static",
+            modifiers=["defect"]
+        )
+
 
 class AdaptivePolicy:
     """
     The Decision Engine for the Exploration Phase.
     Decides the strategy based on cycle count and material configuration.
-    See SPEC.md Section 3.1 and Cycle 07 specs.
     """
 
     def decide(self, cycle: int, config: Config) -> ExplorationTask:
@@ -26,21 +58,11 @@ class AdaptivePolicy:
                 modifiers=["strain", "rattle"]
             )
 
-        # Adaptive Logic
-        policy_conf = config.policy
-
-        if policy_conf.is_metal:
-            # Metals: Use Hybrid MD/MC (Atom Swap) to explore chemical ordering
-            return ExplorationTask(
-                method="MD",
-                modifiers=["swap"],
-                temperature=config.md.temperature,
-                steps=config.md.n_steps
-            )
+        # Dispatch to specific policy
+        strategy: PolicyStrategy
+        if config.policy.is_metal:
+            strategy = MetalPolicy()
         else:
-            # Insulators/Ceramics: Use Defect Sampling to explore bond breaking/vacancies
-            # Logic: Simple MD is insufficient for hard materials.
-            return ExplorationTask(
-                method="Static",
-                modifiers=["defect"]
-            )
+            strategy = InsulatorPolicy()
+
+        return strategy.decide(config)

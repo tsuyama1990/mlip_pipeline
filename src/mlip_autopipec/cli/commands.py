@@ -191,8 +191,7 @@ def train_model(config_path: Path, dataset_path: Path) -> None:
         # 1. Load structures (streaming)
         logger.info(f"Loading structures from {dataset_path}")
         # Use load_structures which uses iread internally (O(1) memory)
-        # Note: DatasetManager.convert now expects iterator or list.
-        # iread returns a generator.
+        # iread returns a generator, preventing full dataset load into memory.
         structures = io.load_structures(dataset_path)
 
         # 2. Convert Dataset
@@ -256,11 +255,12 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         # Assuming BulkStructureGenConfig which has rattle_stdev
         if isinstance(gen_config, BulkStructureGenConfig):
             gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
-        elif not isinstance(gen_config, BulkStructureGenConfig):
-             # For validation, we prefer BulkStructureGenConfig if possible
-             # But if user configured something else, we try to use it.
-             # Warn if not bulk?
-             pass
+        else:
+             # For validation, we prefer BulkStructureGenConfig if possible.
+             # If user configured something else (e.g. RandomSlice), we use it as is.
+             logging.getLogger("mlip_autopipec").warning(
+                 f"Validation using non-Bulk strategy: {type(gen_config).__name__}. 'validation_rattle_stdev' ignored."
+             )
 
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)

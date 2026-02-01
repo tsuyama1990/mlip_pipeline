@@ -42,6 +42,12 @@ class PotentialConfig(BaseModel):
     # Pacemaker / ACE Basis Parameters
     ace_params: ACEConfig = Field(default_factory=ACEConfig, description="ACE basis parameters")
 
+    # Fitting Parameters (Moved from hardcoded values)
+    delta_spline_bins: float = defaults.DEFAULT_PACEMAKER_DELTA_SPLINE_BINS
+    loss_weight_energy: float = defaults.DEFAULT_PACEMAKER_LOSS_WEIGHT_ENERGY
+    loss_weight_forces: float = defaults.DEFAULT_PACEMAKER_LOSS_WEIGHT_FORCES
+    loss_weight_stress: float = defaults.DEFAULT_PACEMAKER_LOSS_WEIGHT_STRESS
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:
@@ -50,23 +56,25 @@ class PotentialConfig(BaseModel):
             raise ValueError(msg)
         return v
 
+    @field_validator("elements")
+    @classmethod
+    def validate_elements(cls, v: List[str]) -> List[str]:
+        """Validate elements list."""
+        if not v:
+            raise ValueError("Elements list cannot be empty.")
+
+        for el in v:
+            if el not in ase.data.atomic_numbers:
+                raise ValueError(f"Invalid element symbol: {el}")
+        return v
+
     @model_validator(mode="after")
     def validate_config(self) -> "PotentialConfig":
         """
         Validate the configuration for physical consistency.
         """
-        self._validate_elements()
         self._validate_hybrid_style()
         return self
-
-    def _validate_elements(self):
-        """Internal helper to validate elements list."""
-        if not self.elements:
-            raise ValueError("Elements list cannot be empty.")
-
-        for el in self.elements:
-            if el not in ase.data.atomic_numbers:
-                raise ValueError(f"Invalid element symbol: {el}")
 
     def _validate_hybrid_style(self):
         """Internal helper to validate hybrid style requirements."""
@@ -78,6 +86,15 @@ class PotentialConfig(BaseModel):
                  "to enforce physical core repulsion (Delta Learning). "
                  "See SPEC.md Section 3.3."
              )
+
+        if self.pair_style == "hybrid/overlay":
+            if self.zbl_inner_cutoff >= self.zbl_outer_cutoff:
+                raise ValueError(
+                    f"zbl_inner_cutoff ({self.zbl_inner_cutoff}) must be less than "
+                    f"zbl_outer_cutoff ({self.zbl_outer_cutoff})."
+                )
+            if self.zbl_inner_cutoff <= 0:
+                raise ValueError("zbl_inner_cutoff must be positive.")
 
 
 class OrchestratorConfig(BaseModel):
