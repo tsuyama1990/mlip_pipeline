@@ -5,6 +5,8 @@ DEFAULT_LOG_FILENAME = "mlip_pipeline.log"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_PROJECT_NAME = "MyMLIPProject"
 
+import os
+
 # Potential
 DEFAULT_ELEMENTS: List[str] = []
 DEFAULT_CUTOFF = 5.0
@@ -42,7 +44,12 @@ DEFAULT_INPUT_FILE_LAMMPS = "in.lammps"
 DEFAULT_DATA_FILE_LAMMPS = "data.lammps"
 DEFAULT_STDOUT_FILE = "stdout.log"
 DEFAULT_STDERR_FILE = "stderr.log"
-DEFAULT_ALLOWED_COMMAND_PREFIXES = ["lmp", "lammps", "mpirun", "srun"]
+# Get allowed prefixes from env or default
+_env_prefixes = os.environ.get("MLIP_ALLOWED_COMMAND_PREFIXES")
+if _env_prefixes:
+    DEFAULT_ALLOWED_COMMAND_PREFIXES = _env_prefixes.split(",")
+else:
+    DEFAULT_ALLOWED_COMMAND_PREFIXES = ["lmp", "lammps", "mpirun", "srun"]
 
 # Structure Gen (Bulk)
 DEFAULT_BULK_STRATEGY = "bulk"

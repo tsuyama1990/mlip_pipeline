@@ -21,6 +21,9 @@ class ValidationPhase:
         gen_config = config.structure_gen
         if isinstance(gen_config, BulkStructureGenConfig):
             gen_config = gen_config.model_copy(update={"rattle_stdev": 0.0})
+        else:
+            # Fallback or warning for non-bulk configs
+            logger.warning(f"Validation running with non-bulk strategy: {type(gen_config).__name__}")
 
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)

@@ -23,9 +23,8 @@ def mock_state():
         validation_history={}
     )
 
-@patch("zipfile.ZipFile")
-def test_deploy_success(mock_zip, mock_config, mock_state, tmp_path):
-    # Setup state with validation result
+def test_deploy_success(mock_config, mock_state, tmp_path):
+    # Integration test without mocking ZipFile
     metrics = [ValidationMetric(name="RMSE", value=0.1, passed=True)]
     val_result = ValidationResult(
         potential_id="pot1",
@@ -34,26 +33,35 @@ def test_deploy_success(mock_zip, mock_config, mock_state, tmp_path):
     )
     mock_state.validation_history = {1: val_result}
 
-    # Mock files
-    (tmp_path / "potential.yace").touch()
-    (tmp_path / "report.html").touch()
+    # Create real dummy artifacts
+    pot_path = tmp_path / "potential.yace"
+    pot_path.write_text("dummy potential content")
 
-    deployer = ProductionDeployer(mock_config, tmp_path)
+    report_path = tmp_path / "report.html"
+    report_path.write_text("<html>Report</html>")
 
-    # We need to mock that potential and report exist in the path expected
-    # The deployer usually takes paths from config or state.
-    # We'll update mock_state to point to tmp_path files
-    mock_state.latest_potential_path = tmp_path / "potential.yace"
+    # Update config and state to point to real files
+    mock_config.validation.report_path = report_path
+    mock_state.latest_potential_path = pot_path
 
-    # We also need to mock report location if it relies on config
-    # ProductionDeployer might need to know where the report is.
-    # Usually Orchestrator knows.
-    # Let's assume Deployer takes an explicit argument or finds it.
+    # Use a subdirectory for output
+    dist_dir = tmp_path / "dist"
+    deployer = ProductionDeployer(mock_config, dist_dir)
 
+    # Execute
     output_zip = deployer.deploy(mock_state, version="1.0.0", author="Me")
 
-    # assert output_zip.exists() # Fails because we mock ZipFile
+    # Verify
+    assert output_zip.exists()
     assert output_zip.name == "mlip_package_1.0.0.zip"
 
-    # Verify ZipFile was called with correct path
-    mock_zip.assert_called_with(output_zip, "w")
+    # Verify content of ZIP
+    import zipfile
+    with zipfile.ZipFile(output_zip, "r") as zf:
+        names = zf.namelist()
+        assert "potential.yace" in names
+        assert "validation_report.html" in names
+        assert "metadata.json" in names
+
+        # Verify content integrity
+        assert zf.read("potential.yace").decode() == "dummy potential content"
