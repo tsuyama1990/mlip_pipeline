@@ -30,7 +30,7 @@ class Orchestrator:
 
         # Setup infrastructure
         # Data directory for accumulated dataset
-        self.data_dir = Path("data")
+        self.data_dir = self.config.orchestrator.data_dir
         self.data_dir.mkdir(exist_ok=True)
         self.dataset_manager = DatasetManager(self.data_dir)
 
@@ -224,17 +224,25 @@ class Orchestrator:
                     logger.debug(f"Frame {i*stride}: Max gamma {np.max(gammas)} > {threshold}")
 
             if is_candidate:
-                struct = Structure.from_ase(atoms)
+                # Optimized Reservoir Sampling: Delay object creation
+                keep = False
+                replace_idx = -1
 
-                # Reservoir Sampling
                 if len(reservoir) < max_size:
-                    reservoir.append(struct)
+                    keep = True
                 else:
                     # Randomly replace existing element
-                    # j = random integer in [0, candidate_count]
                     j = np.random.randint(0, candidate_count + 1)
                     if j < max_size:
-                        reservoir[j] = struct
+                        keep = True
+                        replace_idx = j
+
+                if keep:
+                    struct = Structure.from_ase(atoms)
+                    if len(reservoir) < max_size:
+                        reservoir.append(struct)
+                    else:
+                        reservoir[replace_idx] = struct
 
                 candidate_count += 1
 

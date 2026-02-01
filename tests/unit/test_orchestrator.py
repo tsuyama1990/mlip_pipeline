@@ -19,6 +19,7 @@ from mlip_autopipec.domain_models import (
     TrainingConfig
 )
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.structure_gen.strategies import StructureGenerator
 import numpy as np
 
 @pytest.fixture
@@ -55,7 +56,7 @@ def test_orchestrator_one_shot(mock_config, mock_structure):
          patch("mlip_autopipec.orchestration.orchestrator.LammpsRunner") as mock_runner_cls:
 
         # Setup mocks
-        mock_generator = MagicMock()
+        mock_generator = MagicMock(spec=StructureGenerator)
         mock_generator.generate.return_value = mock_structure
         mock_gen_factory.get_generator.return_value = mock_generator
 
@@ -87,7 +88,7 @@ def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
     with patch("mlip_autopipec.orchestration.orchestrator.StructureGenFactory") as mock_gen_factory, \
          patch("mlip_autopipec.orchestration.orchestrator.LammpsRunner") as mock_runner_cls:
 
-        mock_generator = MagicMock()
+        mock_generator = MagicMock(spec=StructureGenerator)
         mock_generator.generate.return_value = mock_structure
         mock_gen_factory.get_generator.return_value = mock_generator
 

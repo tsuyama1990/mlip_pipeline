@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable
 
 import numpy as np
 from ase import Atoms
@@ -33,24 +33,44 @@ class DatasetManager:
         return self.finalize_dataset(extxyz_path, output_path)
 
     def append_structures(
-        self, structures: Iterable[Structure], append: bool = True
+        self, structures: Iterable[Structure], append: bool = True, chunk_size: int = 100
     ) -> Path:
         """
         Append structures to the intermediate extxyz file.
+        Uses chunking to maintain low memory usage even for large iterables.
         """
         extxyz_path = self.work_dir / "dataset.extxyz"
 
-        # Check if iterable is empty without consuming it if possible, or handle via counter
-        def atoms_generator() -> Iterator[Atoms]:
-            count = 0
-            for s in structures:
-                yield self._prepare_atoms(s)
-                count += 1
-            if count == 0:
-                logger.debug("No structures provided to append.")
+        iterator = iter(structures)
+        first_chunk = True
 
-        # Write to file
-        write(extxyz_path, atoms_generator(), format="extxyz", append=append)  # type: ignore[arg-type]
+        while True:
+            chunk = []
+            try:
+                for _ in range(chunk_size):
+                    chunk.append(next(iterator))
+            except StopIteration:
+                pass
+
+            if not chunk:
+                if first_chunk:
+                    logger.debug("No structures provided to append.")
+                break
+
+            atoms_list = [self._prepare_atoms(s) for s in chunk]
+
+            # Determine write mode:
+            # If append=True (arg), always append.
+            # If append=False (arg), first chunk overwrites, subsequent chunks append.
+            current_append = True
+            if not append and first_chunk:
+                current_append = False
+
+            write(extxyz_path, atoms_list, format="extxyz", append=current_append)  # type: ignore[arg-type]
+
+            first_chunk = False
+            del chunk
+            del atoms_list
 
         return extxyz_path
 

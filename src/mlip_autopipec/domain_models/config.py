@@ -85,6 +85,9 @@ class OrchestratorConfig(BaseModel):
     trajectory_sampling_stride: int = 1
     dft_batch_size: int = 10
 
+    # Paths
+    data_dir: Path = Path("data")
+
     @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
     @classmethod
     def validate_positive_ints(cls, v: int, info: ValidationInfo) -> int:
