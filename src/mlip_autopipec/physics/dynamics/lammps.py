@@ -300,26 +300,53 @@ run             {params.n_steps}
         stdout_path = work_dir / "stdout.log"
         stderr_path = work_dir / "stderr.log"
 
-        # Use line buffering (buffering=1) to ensure logs are written to disk frequently
-        # This is important for monitoring tools like `_read_log_tail` to work correctly during execution (if parallel)
-        # and satisfies the requirement to minimize I/O bottlenecks related to large memory buffers holding data too long.
-        with open(stdout_path, "w", buffering=1) as f_out, open(stderr_path, "w", buffering=1) as f_err:
-            # Use Popen to explicitly manage the process and ensure cleanup
+        # Explicitly stream output in chunks to avoid memory buffer issues
+        with open(stdout_path, "wb") as f_out, open(stderr_path, "wb") as f_err:
             process = subprocess.Popen(
                 cmd_list,
                 cwd=work_dir,
-                stdout=f_out,
-                stderr=f_err
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
 
             try:
-                # Wait for completion with timeout
-                process.communicate(timeout=self.config.timeout)
+                # Manual streaming loop
+                import select
+
+                # Check for output until process ends
+                while True:
+                    reads = [process.stdout.fileno(), process.stderr.fileno()]
+                    ret = select.select(reads, [], [], 0.5) # Timeout 0.5s to check process poll
+
+                    for fd in ret[0]:
+                        if fd == process.stdout.fileno():
+                            chunk = process.stdout.read(4096)
+                            if chunk:
+                                f_out.write(chunk)
+                                f_out.flush()
+                        elif fd == process.stderr.fileno():
+                            chunk = process.stderr.read(4096)
+                            if chunk:
+                                f_err.write(chunk)
+                                f_err.flush()
+
+                    if process.poll() is not None:
+                         # Process ended, drain remaining
+                         remaining_out = process.stdout.read()
+                         if remaining_out:
+                             f_out.write(remaining_out)
+                         remaining_err = process.stderr.read()
+                         if remaining_err:
+                             f_err.write(remaining_err)
+                         break
+
                 if process.returncode != 0:
                     raise subprocess.CalledProcessError(process.returncode, cmd_list)
-            except subprocess.TimeoutExpired:
+
+            except Exception:
+                # Cleanup if error
                 process.kill()
-                process.communicate() # Clean up zombie
+                process.wait()
                 raise
 
     def _read_log_tail(self, log_path: Path, lines: int = 100) -> str:
@@ -376,6 +403,8 @@ run             {params.n_steps}
         atoms = None
         for frame in ase.io.iread(traj_path, format="lammps-dump-text"): # type: ignore[no-untyped-call]
             atoms = frame
+            # Ensure we don't hold references to previous frames implicitly
+            # (though simple reassignment should handle it in CPython)
 
         if atoms is None:
              raise ValueError(f"Trajectory {traj_path} is empty or invalid.")

@@ -4,11 +4,13 @@ import uuid
 import ase.io
 import numpy as np
 import itertools
+from typing import Iterator
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
 from mlip_autopipec.domain_models.dynamics import LammpsResult
 from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
@@ -45,7 +47,7 @@ class ExplorationPhase:
         if task.method == "Static":
 
             # Helper to chain iterators
-            iterators = []
+            iterators: list[Iterator[Structure]] = []
 
             # Apply strategies
             if "defect" in task.modifiers:
@@ -68,6 +70,7 @@ class ExplorationPhase:
                 iterators.append(ss.apply(base_structure, strain_type="rattle"))
 
             # Chain all iterators
+            structure_stream: Iterator[Structure]
             if not iterators:
                 # If no modifiers or strategy failed, fallback to base
                 # Use a generator expression to avoid creating a list in memory
@@ -101,6 +104,10 @@ class ExplorationPhase:
 
                 last_structure = s
                 count += 1
+
+                # Explicitly delete to encourage GC (though loop var reassignment handles it mostly)
+                del atoms
+                del s
 
             if count == 0:
                  # Should theoretically not happen if logic is correct, but safe fallback
