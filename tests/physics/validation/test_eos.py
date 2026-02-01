@@ -17,7 +17,14 @@ def mock_calc():
 def test_eos_validator_success(mock_calc):
     # Setup
     val_config = ValidationConfig()
-    pot_config = PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay")
+    pot_config = PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
+    )
     validator = EOSValidator(val_config, pot_config, Path("pot.yace"))
 
     structure = Structure(

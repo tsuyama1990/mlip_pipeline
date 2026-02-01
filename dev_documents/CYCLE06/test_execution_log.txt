@@ -45,4 +45,4 @@ tests/physics/validation/test_eos.py::test_eos_validator_success
     popt, _pcov = curve_fit(self.func, self.v, self.e, p0)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================== 107 passed, 1 warning in 2.65s ========================
+======================== 107 passed, 1 warning in 2.73s ========================

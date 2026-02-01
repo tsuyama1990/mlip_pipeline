@@ -57,7 +57,10 @@ def init_project(path: Path) -> None:
             elements=DEFAULT_ELEMENTS,
             cutoff=DEFAULT_CUTOFF,
             seed=DEFAULT_SEED,
-            pair_style="hybrid/overlay"
+            pair_style="hybrid/overlay",
+            npot="FinnisSinclair",
+            fs_parameters=[1.0, 1.0, 1.0, 0.5],
+            ndensity=2,
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",

@@ -30,9 +30,9 @@ class PotentialConfig(BaseModel):
     zbl_outer_cutoff: float = 2.0
 
     # Pacemaker / ACE Basis Parameters (Moved from hardcoded values)
-    npot: str = "FinnisSinclair"
-    fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5])
-    ndensity: int = 2
+    npot: str = Field(..., description="Potential type (e.g. FinnisSinclair)")
+    fs_parameters: List[float] = Field(..., description="Finnis-Sinclair parameters")
+    ndensity: int = Field(..., description="Density of basis functions")
 
     @field_validator("cutoff")
     @classmethod

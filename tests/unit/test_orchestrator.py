@@ -27,7 +27,14 @@ def mock_config():
     return Config(
         project_name="TestProject",
         logging=LoggingConfig(),
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay"),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=5.0,
+            pair_style="hybrid/overlay",
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Si",

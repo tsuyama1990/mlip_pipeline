@@ -59,14 +59,15 @@ class DatasetManager:
 
             atoms_list = [self._prepare_atoms(s) for s in chunk]
 
-            # Determine write mode:
-            # If append=True (arg), always append.
-            # If append=False (arg), first chunk overwrites, subsequent chunks append.
-            current_append = True
-            if not append and first_chunk:
-                current_append = False
+            # Determine write mode logic for the first chunk
+            mode = "a" if append else "w"
+            if not first_chunk:
+                mode = "a"
 
-            write(extxyz_path, atoms_list, format="extxyz", append=current_append)  # type: ignore[arg-type]
+            # Open file once per chunk (or could keep open, but chunking implies separation)
+            # Efficiently write chunk
+            with open(extxyz_path, mode) as f:
+                write(f, atoms_list, format="extxyz")  # type: ignore[arg-type]
 
             first_chunk = False
             del chunk

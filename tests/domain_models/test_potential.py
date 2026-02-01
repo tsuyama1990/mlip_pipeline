@@ -29,11 +29,20 @@ def test_potential_config_valid():
     pc = PotentialConfig(
         elements=["Si", "C"],
         cutoff=4.5,
-        pair_style="hybrid/overlay"
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
     )
     assert pc.cutoff == 4.5
     assert pc.pair_style == "hybrid/overlay"
 
 def test_potential_config_invalid_cutoff():
     with pytest.raises(ValidationError):
-        PotentialConfig(elements=["Al"], cutoff=-1.0)
+        PotentialConfig(
+            elements=["Al"],
+            cutoff=-1.0,
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )

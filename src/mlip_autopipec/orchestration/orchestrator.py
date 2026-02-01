@@ -202,7 +202,9 @@ class Orchestrator:
         index_spec = f"::{stride}"
 
         try:
-            # iread returns an iterator
+            # iread returns an iterator. We ensure format is specified to avoid guessing overhead.
+            # Using 'lammps-dump-text' is correct for standard LAMMPS dump files.
+            # This yields Atoms objects one by one (or with stride) without loading the full file.
             traj_iter = ase.io.iread(result.trajectory_path, index=index_spec, format="lammps-dump-text") # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"Failed to read trajectory: {e}")

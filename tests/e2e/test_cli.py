@@ -59,7 +59,8 @@ def test_check_invalid(tmp_path: Path) -> None:
     """Test 'check' with invalid config."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
         p = Path("config.yaml")
-        p.write_text("project_name: 'Bad'\npotential:\n  cutoff: -1\n  elements: ['A']")
+        # Missing npot etc, but also invalid cutoff. Validation should fail either way.
+        p.write_text("project_name: 'Bad'\npotential:\n  cutoff: -1\n  elements: ['A']\n  npot: 'FS'\n  fs_parameters: [1]\n  ndensity: 2")
 
         result = runner.invoke(app, ["check"])
         assert result.exit_code == 1
