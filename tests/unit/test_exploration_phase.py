@@ -1,14 +1,14 @@
 import pytest
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 from pathlib import Path
-import numpy as np
+import ase.build
 
 from mlip_autopipec.domain_models.config import Config, PolicyConfig
 from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase
 from mlip_autopipec.domain_models.exploration import ExplorationTask
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
-import ase.build
+# We use real strategies to test integration
 
 @pytest.fixture
 def mock_config():
@@ -33,10 +33,9 @@ def mock_state():
     )
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
-@patch("mlip_autopipec.orchestration.phases.exploration.DefectStrategy")
 @patch("mlip_autopipec.orchestration.phases.exploration.ase.io.write")
 @patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")
-def test_exploration_static_defects(MockFactory, MockWrite, MockDefectStrategy, MockPolicy, mock_config, mock_state, tmp_path):
+def test_exploration_static_defects(MockFactory, MockWrite, MockPolicy, mock_config, mock_state, tmp_path):
     # Setup Policy to return Static Defect
     policy_instance = MockPolicy.return_value
     policy_instance.decide.return_value = ExplorationTask(
@@ -44,12 +43,11 @@ def test_exploration_static_defects(MockFactory, MockWrite, MockDefectStrategy, 
         modifiers=["defect"]
     )
 
-    # Setup DefectStrategy to return some structures
-    atoms = ase.build.bulk("Si")
-    struct = Structure.from_ase(atoms)
-    MockDefectStrategy.return_value.apply.return_value = [struct, struct]
+    # NOTE: We are NOT mocking DefectStrategy here, we let ExplorationPhase use the real one.
 
     # Setup Initial Structure (for defect strategy to work on)
+    atoms = ase.build.bulk("Si")
+    struct = Structure.from_ase(atoms)
     MockFactory.get_generator.return_value.generate.return_value = struct
 
     phase = ExplorationPhase()
@@ -59,17 +57,13 @@ def test_exploration_static_defects(MockFactory, MockWrite, MockDefectStrategy, 
     # 1. Policy was consulted
     policy_instance.decide.assert_called_with(mock_state.generation, mock_config)
 
-    # 2. Defect Strategy was used
-    assert MockDefectStrategy.return_value.apply.called
-
-    # 3. Trajectory was written
-    # We expect write to be called with a path ending in 'dump.lammpstrj' and a list of atoms
+    # 2. Trajectory was written
+    # Since we used the real strategy, ase.io.write should have been called with the generated defects
     assert MockWrite.called
     args, kwargs = MockWrite.call_args
     assert str(args[0]).endswith("dump.lammpstrj")
 
-    # 4. Result has high gamma
-    # The phase should return a LammpsResult with artificially high gamma to trigger selection
+    # 3. Result has high gamma
     assert result.max_gamma > mock_config.orchestrator.uncertainty_threshold
     assert result.trajectory_path.name == "dump.lammpstrj"
 
@@ -99,3 +93,23 @@ def test_exploration_md_fallback(MockFactory, MockRunner, MockPolicy, mock_confi
     # Should call LammpsRunner
     assert MockRunner.return_value.run.called
     assert result == mock_result
+
+@patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
+@patch("mlip_autopipec.orchestration.phases.exploration.ase.io.write")
+@patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")
+def test_exploration_static_strain(MockFactory, MockWrite, MockPolicy, mock_config, mock_state, tmp_path):
+    # Test Strain Strategy path with real StrainStrategy
+    policy_instance = MockPolicy.return_value
+    policy_instance.decide.return_value = ExplorationTask(
+        method="Static",
+        modifiers=["strain"]
+    )
+
+    atoms = ase.build.bulk("Si")
+    struct = Structure.from_ase(atoms)
+    MockFactory.get_generator.return_value.generate.return_value = struct
+
+    phase = ExplorationPhase()
+    phase.execute(mock_state, mock_config, tmp_path)
+
+    assert MockWrite.called

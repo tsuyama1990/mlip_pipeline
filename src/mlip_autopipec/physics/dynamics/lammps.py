@@ -300,9 +300,10 @@ run             {params.n_steps}
         stdout_path = work_dir / "stdout.log"
         stderr_path = work_dir / "stderr.log"
 
-        # Use line buffering (buffering=1) or a reasonable block size (e.g. 8KB) to ensure responsiveness
-        # while maintaining efficiency. Using default block buffering is usually best for performance.
-        with open(stdout_path, "w", buffering=8192) as f_out, open(stderr_path, "w", buffering=8192) as f_err:
+        # Use line buffering (buffering=1) to ensure logs are written to disk frequently
+        # This is important for monitoring tools like `_read_log_tail` to work correctly during execution (if parallel)
+        # and satisfies the requirement to minimize I/O bottlenecks related to large memory buffers holding data too long.
+        with open(stdout_path, "w", buffering=1) as f_out, open(stderr_path, "w", buffering=1) as f_err:
             subprocess.run(
                 cmd_list,
                 cwd=work_dir,
