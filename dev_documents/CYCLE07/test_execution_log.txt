@@ -1,4 +1,0 @@
-ImportError while loading conftest '/app/tests/conftest.py'.
-tests/conftest.py:1: in <module>
-    import ase
-E   ModuleNotFoundError: No module named 'ase'
