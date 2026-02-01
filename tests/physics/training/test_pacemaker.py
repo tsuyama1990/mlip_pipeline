@@ -6,6 +6,7 @@ from mlip_autopipec.domain_models.training import TrainingConfig
 from mlip_autopipec.domain_models.config import PotentialConfig, ACEConfig
 from mlip_autopipec.domain_models.job import JobStatus
 import subprocess
+import yaml
 
 @pytest.fixture
 def mock_train_config():
@@ -40,16 +41,45 @@ def test_train_success(runner):
         mock_read.return_value = "RMSE Energy: 0.001\nRMSE Force: 0.02"
 
         # Mock existence of potential file
-        # pot_path = runner.work_dir / "potential.yace" # REMOVED unused variable
+        # But we want to verify input.yaml creation, which is real.
+
+        # We need to mock existence of output potential specifically
+        # But allow input.yaml to be written?
+        # The runner calls _generate_input_yaml which writes to file.
+
+        # If we assume 'pace_train' doesn't run (mocked), no output file is created.
+        # But we can check if input.yaml exists.
 
         with patch("pathlib.Path.exists") as mock_exists:
-            # We need log path exists=True, potential path exists=True
+            # We need to handle checking specific paths.
+            # side_effect can be a function.
+            def exists_side_effect(self_path=None):
+                # When calling Path("...").exists(), self is the path.
+                # But here mock_exists is patching the unbound method? Or bound?
+                # Usually patch("pathlib.Path.exists") patches the class method.
+                # So we need to handle the instance.
+                # Actually, simple lambda might be enough if we just want "True" for potential check.
+                return True
+
             mock_exists.side_effect = lambda: True
 
             result = runner.train(Path("dataset.pckl.gzip"))
 
             assert result.status == JobStatus.COMPLETED
             assert result.validation_metrics["energy"] == 0.001
+
+            # Verify input.yaml content
+            input_yaml = runner.work_dir / "input.yaml"
+            # Since we patched Path.exists globally, we can't trust it.
+            # But 'open' works.
+            # Wait, `write_file` tool writes real file. `runner.train` writes real file.
+            # So `input.yaml` should be on disk in `tmp_path`.
+            # But verify `open` wasn't mocked? No.
+
+            with open(input_yaml) as f:
+                data = yaml.safe_load(f)
+                assert data["potential"]["elements"] == ["Si"]
+                assert data["potential"]["embeddings"]["ALL"]["npot"] == "FinnisSinclair"
 
 def test_active_set_selection(runner):
     with patch("subprocess.run") as mock_run:
