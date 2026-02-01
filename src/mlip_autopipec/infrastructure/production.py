@@ -91,7 +91,8 @@ class ProductionDeployer:
         except KeyError:
             # Fallback if format string is invalid or missing keys
             logger.warning(f"Invalid package name format '{fmt}'. Using default.")
-            zip_name = f"mlip_package_{version}.zip"
+            from mlip_autopipec.defaults import DEFAULT_PACKAGE_NAME_FORMAT_FALLBACK
+            zip_name = DEFAULT_PACKAGE_NAME_FORMAT_FALLBACK.format(version=version)
 
         zip_path = self.output_dir / zip_name
 

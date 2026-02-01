@@ -137,6 +137,7 @@ class ExplorationPhase:
         count = 0
 
         # Batched writing for I/O efficiency while maintaining memory safety
+        # We accumulate structures in memory and write in chunks to minimize I/O syscalls.
         BATCH_SIZE = 100
         batch: List[ase.Atoms] = []
 
@@ -154,6 +155,7 @@ class ExplorationPhase:
                 count += 1
 
                 if len(batch) >= BATCH_SIZE:
+                    # Write batch to file handle
                     ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
                     batch.clear() # Explicitly clear to free memory
 

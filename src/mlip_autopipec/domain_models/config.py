@@ -56,23 +56,25 @@ class PotentialConfig(BaseModel):
             raise ValueError(msg)
         return v
 
+    @field_validator("elements")
+    @classmethod
+    def validate_elements(cls, v: List[str]) -> List[str]:
+        """Validate elements list."""
+        if not v:
+            raise ValueError("Elements list cannot be empty.")
+
+        for el in v:
+            if el not in ase.data.atomic_numbers:
+                raise ValueError(f"Invalid element symbol: {el}")
+        return v
+
     @model_validator(mode="after")
     def validate_config(self) -> "PotentialConfig":
         """
         Validate the configuration for physical consistency.
         """
-        self._validate_elements()
         self._validate_hybrid_style()
         return self
-
-    def _validate_elements(self):
-        """Internal helper to validate elements list."""
-        if not self.elements:
-            raise ValueError("Elements list cannot be empty.")
-
-        for el in self.elements:
-            if el not in ase.data.atomic_numbers:
-                raise ValueError(f"Invalid element symbol: {el}")
 
     def _validate_hybrid_style(self):
         """Internal helper to validate hybrid style requirements."""
