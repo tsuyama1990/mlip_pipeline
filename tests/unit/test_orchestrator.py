@@ -170,8 +170,8 @@ def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
         assert new_pot == Path("new.yace")
         assert mock_dft_runner.run.call_count == 2
         # Dataset manager should only be called with 1 result (the successful one)
-        orchestrator.dataset_manager.convert.assert_called_once()
-        args, _ = orchestrator.dataset_manager.convert.call_args
+        orchestrator.dataset_manager.append_structures.assert_called_once()
+        args, _ = orchestrator.dataset_manager.append_structures.call_args
         assert len(args[0]) == 1 # List of 1 structure
 
 def test_force_masking(mock_config, mock_structure):
@@ -209,10 +209,13 @@ def test_force_masking(mock_config, mock_structure):
         iter_dir = Path("test_iter_mask")
         (iter_dir / "dft_calc").mkdir(parents=True, exist_ok=True)
 
+        # Ensure append_structures returns a Path so finalize_dataset is called
+        orchestrator.dataset_manager.append_structures.return_value = Path("test.extxyz")
+
         orchestrator.refine(candidates, iter_dir)
 
         # Check that the structure passed to dataset_manager has masked forces
-        args, _ = orchestrator.dataset_manager.convert.call_args
+        args, _ = orchestrator.dataset_manager.append_structures.call_args
         struct_saved = args[0][0]
         # Force should be zeroed out
         assert np.allclose(struct_saved.properties['forces'], 0.0)
