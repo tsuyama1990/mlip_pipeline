@@ -338,6 +338,9 @@ class Orchestrator:
         if train_result.status != JobStatus.COMPLETED:
             raise RuntimeError(f"Training failed: {train_result.log_content}")
 
+        if train_result.potential_path is None:
+            raise RuntimeError("Training reported success but returned no potential path.")
+
         return train_result.potential_path
 
     def validate(self, iter_dir: Path) -> None:

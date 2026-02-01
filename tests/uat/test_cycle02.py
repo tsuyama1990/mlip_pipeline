@@ -41,7 +41,7 @@ def test_uat_c02_01_one_shot_success(tmp_path):
     Scenario 2.1: The "One-Shot" MD Run
     """
     with runner.isolated_filesystem(temp_dir=tmp_path) as td:
-        setup_config(Path(td), lammps_cmd="echo 'Simulation Done'")
+        setup_config(Path(td), lammps_cmd="lmp_mock")
 
         # We need to mock the LammpsRunner execution if we don't have a real LAMMPS
         # Since 'echo' won't produce a dump file, LammpsRunner would fail parsing.
@@ -54,6 +54,7 @@ def test_uat_c02_01_one_shot_success(tmp_path):
 
         with (
             patch("subprocess.run") as mock_run,
+            patch("shutil.which", return_value="/bin/lmp_mock"),
             patch(
                 "mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output"
             ) as mock_parse,

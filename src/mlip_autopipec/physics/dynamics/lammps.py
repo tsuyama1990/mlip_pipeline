@@ -97,8 +97,11 @@ class LammpsRunner:
                 max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
-            log_file = work_dir / "stdout.log"
-            log_content = self._read_log_tail(log_file) if log_file.exists() else f"Command failed.\nStderr: {e.stderr}"
+            log_content = self._collect_log_content(work_dir)
+
+            # Fallback to exception info if logs are empty
+            if not log_content.strip():
+                log_content = f"Command failed.\nStderr: {e.stderr}"
 
             # Try to parse output even if failed (e.g. fix halt with error)
             try:
@@ -124,8 +127,10 @@ class LammpsRunner:
                 max_gamma=max_gamma,
             )
         except Exception as e:
-            log_file = work_dir / "stdout.log"
-            log_content = self._read_log_tail(log_file) if log_file.exists() else str(e)
+            log_content = self._collect_log_content(work_dir)
+
+            if not log_content.strip():
+                log_content = str(e)
 
             return LammpsResult(
                 job_id=job_id,
@@ -273,6 +278,24 @@ run             {params.n_steps}
         from collections import deque
         with open(log_path, 'r') as f:
             return "".join(deque(f, lines))
+
+    def _collect_log_content(self, work_dir: Path) -> str:
+        """Helper to collect logs from stdout.log and stderr.log."""
+        stdout_path = work_dir / "stdout.log"
+        stderr_path = work_dir / "stderr.log"
+
+        log_content_parts = []
+        if stdout_path.exists():
+            out_tail = self._read_log_tail(stdout_path)
+            if out_tail.strip():
+                log_content_parts.append(f"--- STDOUT ---\n{out_tail}")
+
+        if stderr_path.exists():
+            err_tail = self._read_log_tail(stderr_path)
+            if err_tail.strip():
+                log_content_parts.append(f"--- STDERR ---\n{err_tail}")
+
+        return "\n".join(log_content_parts)
 
     def _parse_output(
         self, work_dir: Path, original_structure: Structure
