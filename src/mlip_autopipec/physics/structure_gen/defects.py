@@ -1,6 +1,7 @@
 from typing import Iterator, Literal, Optional, cast
 import numpy as np
 import ase
+import ase.data
 from ase import Atoms
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -54,6 +55,10 @@ class DefectStrategy:
                 pos = rng.random(3)
                 species = new_atoms.get_chemical_symbols() # type: ignore[no-untyped-call]
                 element = species[rng.integers(len(species))]
+
+                # STRICT TYPE SAFETY: Validate element symbol
+                if element not in ase.data.atomic_numbers:
+                    raise ValueError(f"Invalid element symbol generated: {element}")
 
                 new_atoms.append(ase.Atom(element, position=new_atoms.get_cell().dot(pos))) # type: ignore[no-untyped-call]
                 yield Structure.from_ase(new_atoms)

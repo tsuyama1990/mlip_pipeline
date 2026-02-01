@@ -50,10 +50,9 @@ class PotentialConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def check_delta_learning(self) -> "PotentialConfig":
+    def validate_config(self) -> "PotentialConfig":
         """
-        Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
-        Spec Section 3.3.
+        Validate the configuration for physical consistency.
         """
         self._validate_elements()
         self._validate_hybrid_style()
@@ -64,20 +63,13 @@ class PotentialConfig(BaseModel):
         if not self.elements:
             raise ValueError("Elements list cannot be empty.")
 
-    def _validate_hybrid_style(self):
-        """Internal helper to validate hybrid style requirements."""
-        if not self.elements:
-            # Should be caught by _validate_elements, but for safety
-            return
-
-        has_heavy_atoms = False
         for el in self.elements:
             if el not in ase.data.atomic_numbers:
                 raise ValueError(f"Invalid element symbol: {el}")
 
-            z = ase.data.atomic_numbers[el]
-            if z >= 2:
-                has_heavy_atoms = True
+    def _validate_hybrid_style(self):
+        """Internal helper to validate hybrid style requirements."""
+        has_heavy_atoms = any(ase.data.atomic_numbers[el] >= 2 for el in self.elements)
 
         if has_heavy_atoms and self.pair_style != "hybrid/overlay":
              raise ValueError(
@@ -241,4 +233,5 @@ class Config(BaseModel):
         from mlip_autopipec.infrastructure import io
 
         data = io.load_yaml(path)
+        # Pydantic validation happens here automatically
         return cls(**data)

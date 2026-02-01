@@ -33,8 +33,13 @@ class LammpsConfig(BaseModel):
         Validate LAMMPS command to prevent shell injection or execution of arbitrary binaries.
         Allowlist approach:
         - Must start with lmp, lammps, or be a specific safe path.
-        - OR match a safe pattern (alphanumeric, underscores, hyphens).
+        - OR match a safe pattern (alphanumeric, underscores, hyphens, forward slashes).
+        - Explicitly disallow '..' to prevent directory traversal.
         """
+        # Explicit check for directory traversal
+        if ".." in v:
+            raise ValueError(f"LAMMPS command '{v}' contains forbidden directory traversal '..'")
+
         # Allow standard lammps executable names
         allowed_prefixes = ["lmp", "lammps", "mpirun", "srun"]
         if any(v.startswith(prefix) for prefix in allowed_prefixes):

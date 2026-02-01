@@ -192,7 +192,12 @@ fix             watchdog all halt 10 v_max_gamma > {params.uncertainty_threshold
             fix_cmd = f"fix 1 all npt temp {params.temperature} {params.temperature} $(100.0*dt) iso {pres} {pres} $(1000.0*dt)"
 
         # Extra Commands
-        extras = "\n".join(extra_commands) if extra_commands else ""
+        extras = ""
+        if extra_commands:
+            # Validate each command individually
+            for cmd in extra_commands:
+                self._validate_input_script(cmd)
+            extras = "\n".join(extra_commands)
 
         input_script = f"""
 # Cycle 02/03 - MD
@@ -237,14 +242,9 @@ run             {params.n_steps}
 
     def _validate_input_script(self, script: str) -> None:
         """Basic validation of generated LAMMPS script."""
-        if "pair_style" not in script:
-            raise ValueError("Generated script missing 'pair_style'.")
-        if "run" not in script:
-            raise ValueError("Generated script missing 'run' command.")
-
         # Security: Check for potential injection/forbidden commands
         # Expanding the list of forbidden commands to include system execution
-        forbidden_cmds = ["shell", "external", "python", "jump", "include", "print"]
+        forbidden_cmds = ["shell", "external", "python", "jump", "include", "print", "package"]
 
         # Simple tokenization
         for line in script.splitlines():
@@ -261,7 +261,7 @@ run             {params.n_steps}
 
             # Check forbidden command keywords
             if cmd in forbidden_cmds:
-                 raise ValueError(f"Forbidden command '{cmd}' found in generated script.")
+                 raise ValueError(f"Forbidden command '{cmd}' found in script.")
 
             # Special check for 'variable' command style
             # variable name style args...
@@ -269,7 +269,7 @@ run             {params.n_steps}
                 if len(words) >= 3:
                     style = words[2].lower()
                     if style in ["python", "system", "getenv", "file"]:
-                        raise ValueError(f"Forbidden variable style '{style}' found in generated script.")
+                        raise ValueError(f"Forbidden variable style '{style}' found in script.")
 
     def _generate_potential_commands(
         self, unique_elements: list[str], potential_path: Optional[Path]
