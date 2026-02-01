@@ -5,6 +5,9 @@ from typing import Literal, cast
 import typer
 
 from mlip_autopipec.constants import (
+    DEFAULT_ACE_FS_PARAMS,
+    DEFAULT_ACE_NDENSITY,
+    DEFAULT_ACE_NPOT,
     DEFAULT_CUTOFF,
     DEFAULT_ELEMENTS,
     DEFAULT_LOG_FILENAME,
@@ -60,9 +63,9 @@ def init_project(path: Path) -> None:
             seed=DEFAULT_SEED,
             pair_style="hybrid/overlay",
             ace_params=ACEConfig(
-                npot="FinnisSinclair",
-                fs_parameters=[1.0, 1.0, 1.0, 0.5],
-                ndensity=2,
+                npot=DEFAULT_ACE_NPOT,
+                fs_parameters=DEFAULT_ACE_FS_PARAMS,
+                ndensity=DEFAULT_ACE_NDENSITY,
             ),
         ),
         structure_gen=BulkStructureGenConfig(

@@ -184,6 +184,13 @@ class ValidationConfig(BaseModel):
     # Structure Prep
     validation_rattle_stdev: float = 0.0
 
+    @field_validator("validation_rattle_stdev")
+    @classmethod
+    def validate_non_negative(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("validation_rattle_stdev must be non-negative")
+        return v
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
