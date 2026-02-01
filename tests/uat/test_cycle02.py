@@ -1,17 +1,22 @@
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
+from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.dynamics import LammpsResult
+from mlip_autopipec.domain_models.structure import Structure
+import numpy as np
 
 runner = CliRunner()
 
 
-def setup_config(path: Path, lammps_cmd: str = "echo"):
+def setup_config(path: Path):
     """Helper to create a valid config."""
-    config_content = f"""
+    config_content = """
 project_name: "UAT_Project"
 potential:
   elements: ["Si"]
@@ -32,37 +37,11 @@ md:
   timestep: 0.001
   ensemble: "NVT"
 lammps:
-  command: "{lammps_cmd}"
+  command: "lmp"
   timeout: 10
   use_mpi: false
 """
     (path / "config.yaml").write_text(config_content)
-
-
-def create_mock_lammps_script(path: Path) -> Path:
-    """Create a fake LAMMPS executable that writes a dummy dump file."""
-    script_content = """#!/usr/bin/env python3
-import sys
-from pathlib import Path
-
-# Create dump.lammpstrj
-with open("dump.lammpstrj", "w") as f:
-    f.write("ITEM: TIMESTEP\\n100\\n")
-    f.write("ITEM: NUMBER OF ATOMS\\n1\\n")
-    f.write("ITEM: BOX BOUNDS pp pp pp\\n0 10\\n0 10\\n0 10\\n")
-    f.write("ITEM: ATOMS id type x y z c_pace_gamma\\n")
-    f.write("1 1 0.0 0.0 0.0 0.0\\n")
-
-# Create log.lammps
-with open("log.lammps", "w") as f:
-    f.write("LAMMPS (Mock)\\nStep Temp PotEng\\n100 300 -100\\nLoop time of 1.0\\n")
-
-sys.exit(0)
-"""
-    script_path = path / "lmp_mock"
-    script_path.write_text(script_content)
-    script_path.chmod(0o755)
-    return script_path
 
 
 def test_uat_c02_01_one_shot_success(tmp_path):
@@ -71,40 +50,59 @@ def test_uat_c02_01_one_shot_success(tmp_path):
     """
     with runner.isolated_filesystem(temp_dir=tmp_path) as td:
         td_path = Path(td)
-        mock_exe = create_mock_lammps_script(td_path)
+        setup_config(td_path)
 
-        # Use absolute path to mock executable
-        setup_config(td_path, lammps_cmd=str(mock_exe))
+        # Mock ExplorationPhase to avoid real execution
+        with patch("mlip_autopipec.orchestration.workflow.ExplorationPhase") as MockPhase:
 
-        # We rely on real subprocess execution now, but pointing to our mock script
-        # validation regex allows paths
+            mock_result = LammpsResult(
+                job_id="test",
+                status=JobStatus.COMPLETED,
+                work_dir=td_path,
+                duration_seconds=1.0,
+                log_content="ok",
+                final_structure=Structure(
+                    symbols=["Si"], positions=np.array([[0,0,0]]), cell=np.eye(3), pbc=(True,True,True)
+                ),
+                trajectory_path=td_path / "dump.lammpstrj"
+            )
+            MockPhase.return_value.execute.return_value = mock_result
 
-        result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
+            result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
 
-        if result.exit_code != 0:
-            print(result.stdout)
-            print(result.stderr)
+            if result.exit_code != 0:
+                print(result.stdout)
+                print(result.stderr)
 
-        assert result.exit_code == 0
-        assert "Simulation Completed: Status COMPLETED" in result.stdout
+            assert result.exit_code == 0
+            assert "Simulation Completed: Status COMPLETED" in result.stdout
+            assert "dump.lammpstrj" in result.stdout
 
 
 def test_uat_c02_02_missing_executable(tmp_path):
     """
     Scenario 2.2: Missing Executable Handling
     """
+    # This tests validation logic in LammpsRunner or Config before execution?
+    # LammpsConfig doesn't validate existence on init.
+    # The runner checks `shutil.which` usually.
+    # Since we are mocking ExplorationPhase in the other test, here we might need to test the real runner failure OR mock it failing.
+    # The prompt asked for mocking to ensure isolation.
+
     with runner.isolated_filesystem(temp_dir=tmp_path) as td:
-        setup_config(Path(td), lammps_cmd="/path/to/nothing")
+        setup_config(Path(td))
 
-        # Here we don't mock, we want it to fail naturally finding the executable
-        # BUT shutil.which might check existence.
-        # If LammpsRunner checks existence before running, it should fail gracefully.
+        # We can mock ExplorationPhase to raise an error
+        with patch("mlip_autopipec.orchestration.workflow.ExplorationPhase") as MockPhase:
 
-        result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
+            MockPhase.return_value.execute.side_effect = Exception("Executable 'lmp' not found")
 
-        # It should exit with error
-        assert result.exit_code != 0
-        assert "Executable" in result.stdout and "not found" in result.stdout
+            result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
+
+            # It should exit with error
+            assert result.exit_code != 0
+            assert "Execution failed" in result.stdout
+            assert "Executable 'lmp' not found" in result.stdout
 
 
 if __name__ == "__main__":

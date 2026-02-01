@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 from mlip_autopipec.orchestration.state import StateManager
 from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase

@@ -30,7 +30,7 @@ def md_params():
 
 @pytest.fixture
 def lammps_config():
-    return LammpsConfig(command="lmp_serial", timeout=10, use_mpi=False)
+    return LammpsConfig(command="lmp", timeout=10, use_mpi=False)
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, pote
         mock_run.return_value = MagicMock(
             returncode=0, stdout="Simulation done", stderr=""
         )
-        mock_which.return_value = "/usr/bin/lmp_serial"
+        mock_which.return_value = "/usr/bin/lmp"
 
         # Mock parsing to return the same structure
         mock_parse.return_value = (dummy_structure, Path("dump.lammpstrj"), None)
@@ -77,10 +77,10 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, pote
         assert result.final_structure == dummy_structure
 
         # Verify subprocess called with correct command
-        # Expected: lmp_serial -in in.lammps
+        # Expected: lmp -in in.lammps
         args, _ = mock_run.call_args
         cmd = args[0]
-        assert cmd[0] == "lmp_serial"
+        assert cmd[0] == "lmp"
         assert "-in" in cmd
 
         # Inspect generated input file
@@ -112,9 +112,9 @@ def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potent
         import subprocess
 
         mock_run.side_effect = subprocess.CalledProcessError(
-            1, "lmp_serial", stderr="Error"
+            1, "lmp", stderr="Error"
         )
-        mock_which.return_value = "/usr/bin/lmp_serial"
+        mock_which.return_value = "/usr/bin/lmp"
 
         runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)
         result = runner.run(dummy_structure, md_params)
