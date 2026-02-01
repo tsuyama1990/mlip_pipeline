@@ -28,7 +28,7 @@ class ACEConfig(BaseModel):
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str] = Field(default_factory=lambda: ["Ti", "O"])
+    elements: list[str] = Field(default_factory=list)
     cutoff: float = 5.0
     seed: int = 42
     lammps_command: str = "lmp"
@@ -55,21 +55,24 @@ class PotentialConfig(BaseModel):
         Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
         Spec Section 3.3.
         """
-        # Delegated to internal helper for cleanliness
         self._validate_hybrid_style()
         return self
 
     def _validate_hybrid_style(self):
         """Internal helper to validate hybrid style requirements."""
+        if not self.elements:
+            # If elements list is empty, we can't validate yet, maybe allow it?
+            # Or fail? The field allows default_factory=list, so empty is possible initially.
+            return
+
         has_heavy_atoms = False
         for el in self.elements:
-            try:
-                z = ase.data.atomic_numbers[el]
-                if z >= 2:
-                    has_heavy_atoms = True
-                    break
-            except KeyError:
-                pass
+            if el not in ase.data.atomic_numbers:
+                raise ValueError(f"Invalid element symbol: {el}")
+
+            z = ase.data.atomic_numbers[el]
+            if z >= 2:
+                has_heavy_atoms = True
 
         if has_heavy_atoms and self.pair_style != "hybrid/overlay":
              raise ValueError(

@@ -15,7 +15,8 @@ class DefectStrategy:
         structure: Structure,
         defect_type: Literal["vacancy", "interstitial", "antisite"] = "vacancy",
         count: int = 1,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        max_retries: int = 10
     ) -> Iterator[Structure]:
         """
         Apply defect generation strategy to the input structure.
@@ -25,6 +26,7 @@ class DefectStrategy:
             defect_type: Type of defect to introduce.
             count: Number of variations to generate (e.g. remove different atoms).
             seed: Random seed for reproducibility.
+            max_retries: Maximum number of attempts to find valid defects (e.g. antisite pairs).
 
         Returns:
             Iterator yielding modified Structures.
@@ -69,8 +71,8 @@ class DefectStrategy:
             for _ in range(count):
                 new_atoms = cast(Atoms, atoms.copy()) # type: ignore[no-untyped-call]
                 # Pick two indices with different species
-                # Attempt 10 times to find a pair
-                for _retry in range(10):
+                # Attempt max_retries times to find a pair
+                for _retry in range(max_retries):
                     idx1, idx2 = rng.choice(indices, 2, replace=False)
                     if new_atoms[idx1].symbol != new_atoms[idx2].symbol:
                         # Swap

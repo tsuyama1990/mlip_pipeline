@@ -69,7 +69,9 @@ class ExplorationPhase:
                 ss = StrainStrategy()
                 iterators.append(ss.apply(base_structure, strain_type="rattle"))
 
-            # Chain all iterators
+            # Chain all iterators. This is LAZY evaluation.
+            # `structure_stream` is a generator that yields structures one by one.
+            # No list of structures is created in memory.
             structure_stream: Iterator[Structure]
             if not iterators:
                 # If no modifiers or strategy failed, fallback to base

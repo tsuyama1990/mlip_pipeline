@@ -317,6 +317,9 @@ run             {params.n_steps}
                 # Manual streaming loop
                 import select
 
+                # Use larger buffer size for I/O efficiency (64KB)
+                BUFFER_SIZE = 65536
+
                 # Check for output until process ends
                 while True:
                     reads = [process.stdout.fileno(), process.stderr.fileno()]
@@ -324,12 +327,12 @@ run             {params.n_steps}
 
                     for fd in ret[0]:
                         if fd == process.stdout.fileno():
-                            chunk = process.stdout.read(4096)
+                            chunk = process.stdout.read(BUFFER_SIZE)
                             if chunk:
                                 f_out.write(chunk)
                                 f_out.flush()
                         elif fd == process.stderr.fileno():
-                            chunk = process.stderr.read(4096)
+                            chunk = process.stderr.read(BUFFER_SIZE)
                             if chunk:
                                 f_err.write(chunk)
                                 f_err.flush()
@@ -403,7 +406,8 @@ run             {params.n_steps}
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
         # Read last frame safely using iread to avoid loading full trajectory into memory
-        # This iterates over the file and keeps only the latest frame reference
+        # This iterates over the file and keeps only the latest frame reference.
+        # This is memory-safe (O(1)) as we discard previous frames immediately.
         atoms = None
         for frame in ase.io.iread(traj_path, format="lammps-dump-text"): # type: ignore[no-untyped-call]
             atoms = frame
