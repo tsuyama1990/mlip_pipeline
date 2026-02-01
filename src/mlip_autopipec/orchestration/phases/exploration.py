@@ -17,7 +17,6 @@ from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.defects import DefectStrategy
 from mlip_autopipec.physics.structure_gen.strain import StrainStrategy
-from mlip_autopipec.constants import TRAJECTORY_FILE_EXTXYZ
 
 logger = logging.getLogger("mlip_autopipec.phases.exploration")
 
@@ -97,7 +96,7 @@ class ExplorationPhase:
 
         # Write 'fake' trajectory
         # We use extxyz because ASE cannot write lammps-dump-text, and extxyz supports arrays
-        traj_path = work_dir / TRAJECTORY_FILE_EXTXYZ
+        traj_path = work_dir / config.orchestrator.trajectory_file_extxyz
 
         # Add high gamma to ensure selection
         threshold = config.orchestrator.uncertainty_threshold

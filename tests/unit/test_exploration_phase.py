@@ -19,6 +19,7 @@ def mock_config():
     config.potential = MagicMock()
     config.orchestrator = MagicMock()
     config.orchestrator.uncertainty_threshold = 5.0
+    config.orchestrator.trajectory_file_extxyz = "dump.extxyz"
     return config
 
 @pytest.fixture

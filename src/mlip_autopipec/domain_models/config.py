@@ -103,6 +103,15 @@ class OrchestratorConfig(BaseModel):
     # Paths
     data_dir: Path = Path("data")
 
+    # File Naming Conventions
+    trajectory_file_lammps: str = "dump.lammpstrj"
+    trajectory_file_extxyz: str = "dump.extxyz"
+    lammps_log_file: str = "log.lammps"
+    lammps_input_file: str = "in.lammps"
+    lammps_data_file: str = "data.lammps"
+    stdout_log_file: str = "stdout.log"
+    stderr_log_file: str = "stderr.log"
+
     @field_validator("trajectory_sampling_stride", "dft_batch_size")
     @classmethod
     def validate_positive_ints(cls, v: int, info: ValidationInfo) -> int:

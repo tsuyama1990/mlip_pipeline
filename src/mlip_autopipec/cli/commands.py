@@ -4,12 +4,6 @@ from typing import Literal, cast
 
 import typer
 
-from mlip_autopipec.constants import (
-    DEFAULT_LOG_FILENAME,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_PROJECT_NAME,
-    DEFAULT_ELEMENTS,
-)
 from mlip_autopipec.domain_models.config import (
     Config,
     LoggingConfig,
@@ -38,17 +32,10 @@ def init_project(path: Path) -> None:
         typer.secho(f"File {path} already exists.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-    # Cast log level to Literal
-    log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
-
     # Create default configuration using Pydantic models with default values
+    # We explicitly set elements to provide a valid template
     config = Config(
-        project_name=DEFAULT_PROJECT_NAME,
-        logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
-        orchestrator=OrchestratorConfig(),
-        potential=PotentialConfig(elements=DEFAULT_ELEMENTS),
-        structure_gen=BulkStructureGenConfig(),
-        md=MDConfig(),
+        potential=PotentialConfig(elements=["Ti", "O"]),
         training=TrainingConfig(),
     )
 

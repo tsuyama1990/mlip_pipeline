@@ -17,14 +17,6 @@ from mlip_autopipec.domain_models.config import PotentialConfig
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dynamics.log_parser import LammpsLogParser
-from mlip_autopipec.constants import (
-    TRAJECTORY_FILE_LAMMPS,
-    LAMMPS_LOG_FILE,
-    LAMMPS_INPUT_FILE,
-    LAMMPS_DATA_FILE,
-    STDOUT_LOG_FILE,
-    STDERR_LOG_FILE,
-)
 
 
 class LammpsRunner:
@@ -82,7 +74,7 @@ class LammpsRunner:
             )
 
             # Read tail of log content for debugging
-            log_file = work_dir / STDOUT_LOG_FILE
+            log_file = work_dir / self.config.stdout_file
             log_content = self._read_log_tail(log_file)
 
             return LammpsResult(
@@ -104,7 +96,7 @@ class LammpsRunner:
                 duration_seconds=self.config.timeout,
                 log_content="Timeout Expired",
                 final_structure=structure,  # Return initial as fallback
-                trajectory_path=work_dir / TRAJECTORY_FILE_LAMMPS,
+                trajectory_path=work_dir / self.config.dump_file,
                 max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
@@ -121,7 +113,7 @@ class LammpsRunner:
                 )
             except Exception:
                 final_structure = structure
-                trajectory_path = work_dir / TRAJECTORY_FILE_LAMMPS
+                trajectory_path = work_dir / self.config.dump_file
                 max_gamma = None
 
             # Check if it was a halt
@@ -151,7 +143,7 @@ class LammpsRunner:
                 duration_seconds=0.0,
                 log_content=log_content,
                 final_structure=structure,
-                trajectory_path=work_dir / TRAJECTORY_FILE_LAMMPS,
+                trajectory_path=work_dir / self.config.dump_file,
                 max_gamma=None,
             )
 
@@ -166,7 +158,7 @@ class LammpsRunner:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
-        ase.io.write(work_dir / LAMMPS_DATA_FILE, atoms, format="lammps-data")  # type: ignore[no-untyped-call]
+        ase.io.write(work_dir / self.config.data_file, atoms, format="lammps-data")  # type: ignore[no-untyped-call]
 
         unique_elements = sorted(list(set(structure.symbols)))
 
@@ -208,7 +200,7 @@ units           metal
 atom_style      atomic
 boundary        p p p
 
-read_data       data.lammps
+read_data       {self.config.data_file}
 
 # Interaction
 {pair_style}
@@ -217,10 +209,10 @@ read_data       data.lammps
 timestep        {params.timestep}
 
 # Output
-dump            1 all custom 100 {TRAJECTORY_FILE_LAMMPS} {dump_vars}
+dump            1 all custom 100 {self.config.dump_file} {dump_vars}
 thermo          10
 thermo_style    custom {thermo_custom}
-log             {LAMMPS_LOG_FILE}
+log             {self.config.log_file}
 
 # UQ
 {uq_cmds}
@@ -234,7 +226,7 @@ log             {LAMMPS_LOG_FILE}
 run             {params.n_steps}
 """
         self._validate_input_script(input_script)
-        (work_dir / LAMMPS_INPUT_FILE).write_text(input_script)
+        (work_dir / self.config.input_file).write_text(input_script)
 
     def _validate_params(self, params: MDParams) -> None:
         """Validate MD parameters beyond Pydantic checks."""
@@ -252,7 +244,7 @@ run             {params.n_steps}
 
         # Security: Check for potential injection/forbidden commands
         # Expanding the list of forbidden commands to include system execution
-        forbidden = ["shell", "external", "python", "jump", "include", "print"]
+        forbidden_cmds = ["shell", "external", "python", "jump", "include", "print"]
 
         # Simple tokenization
         for line in script.splitlines():
@@ -262,10 +254,22 @@ run             {params.n_steps}
                 continue
 
             words = line.split()
-            if words:
-                cmd = words[0].lower()
-                if cmd in forbidden:
-                     raise ValueError(f"Forbidden command '{cmd}' found in generated script.")
+            if not words:
+                continue
+
+            cmd = words[0].lower()
+
+            # Check forbidden command keywords
+            if cmd in forbidden_cmds:
+                 raise ValueError(f"Forbidden command '{cmd}' found in generated script.")
+
+            # Special check for 'variable' command style
+            # variable name style args...
+            if cmd == "variable":
+                if len(words) >= 3:
+                    style = words[2].lower()
+                    if style in ["python", "system", "getenv", "file"]:
+                        raise ValueError(f"Forbidden variable style '{style}' found in generated script.")
 
     def _generate_potential_commands(
         self, unique_elements: list[str], potential_path: Optional[Path]
@@ -310,15 +314,15 @@ run             {params.n_steps}
             cmd_str = f"{self.config.mpi_command} {cmd_str}"
 
         # Safe splitting
-        cmd_list = shlex.split(cmd_str) + ["-in", LAMMPS_INPUT_FILE]
+        cmd_list = shlex.split(cmd_str) + ["-in", self.config.input_file]
 
         exe = cmd_list[0]
         if not shutil.which(exe):
             raise FileNotFoundError(f"Executable '{exe}' not found.")
 
         # Stream stdout/stderr to files
-        stdout_path = work_dir / STDOUT_LOG_FILE
-        stderr_path = work_dir / STDERR_LOG_FILE
+        stdout_path = work_dir / self.config.stdout_file
+        stderr_path = work_dir / self.config.stderr_file
 
         # Explicitly stream output in chunks to avoid memory buffer issues
         with open(stdout_path, "wb") as f_out, open(stderr_path, "wb") as f_err:
@@ -355,16 +359,6 @@ run             {params.n_steps}
                             if chunk:
                                 f_err.write(chunk)
 
-                    # Flush occasionally or if no data?
-                    # Actually, flushing too often kills performance.
-                    # Let Python's internal file buffering handle it mostly,
-                    # but maybe flush every loop if strict realtime needed?
-                    # For performance, we should rely on the file object's buffering
-                    # and only flush when needed or at end.
-                    # But if we want real-time logs visible to user, we might flush.
-                    # Let's flush every 1 second or so? Or just rely on buffer.
-                    # Given the feedback "excessive system calls", we should avoid flush in tight loop.
-
                     if process.poll() is not None:
                          # Process ended, drain remaining
                          remaining_out = process.stdout.read()
@@ -400,8 +394,8 @@ run             {params.n_steps}
 
     def _collect_log_content(self, work_dir: Path) -> str:
         """Helper to collect logs from stdout.log and stderr.log."""
-        stdout_path = work_dir / STDOUT_LOG_FILE
-        stderr_path = work_dir / STDERR_LOG_FILE
+        stdout_path = work_dir / self.config.stdout_file
+        stderr_path = work_dir / self.config.stderr_file
 
         log_content_parts = []
         if stdout_path.exists():
@@ -420,8 +414,8 @@ run             {params.n_steps}
         self, work_dir: Path, original_structure: Structure
     ) -> tuple[Structure, Path, Optional[float]]:
         """Parse trajectory and return final structure, path, and max_gamma."""
-        traj_path = work_dir / TRAJECTORY_FILE_LAMMPS
-        log_path = work_dir / LAMMPS_LOG_FILE
+        traj_path = work_dir / self.config.dump_file
+        log_path = work_dir / self.config.log_file
 
         max_gamma = None
 

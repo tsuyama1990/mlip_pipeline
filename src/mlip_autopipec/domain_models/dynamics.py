@@ -18,6 +18,14 @@ class LammpsConfig(BaseModel):
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
 
+    # File Naming Conventions (LAMMPS specific)
+    dump_file: str = "dump.lammpstrj"
+    log_file: str = "log.lammps"
+    input_file: str = "in.lammps"
+    data_file: str = "data.lammps"
+    stdout_file: str = "stdout.log"
+    stderr_file: str = "stderr.log"
+
     @field_validator("command")
     @classmethod
     def validate_command(cls, v: str) -> str:

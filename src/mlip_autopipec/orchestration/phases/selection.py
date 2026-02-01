@@ -12,7 +12,6 @@ from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.orchestration.candidate_processing import CandidateManager
 from mlip_autopipec.infrastructure.io import load_structures
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
-from mlip_autopipec.constants import TRAJECTORY_FILE_LAMMPS, TRAJECTORY_FILE_EXTXYZ
 
 logger = logging.getLogger("mlip_autopipec.phases.selection")
 
@@ -29,12 +28,16 @@ class SelectionPhase:
 
         latest_job = job_dirs[-1]
 
+        # Determine format and path from config
+        traj_path_lammps = latest_job / config.orchestrator.trajectory_file_lammps
+        traj_path_extxyz = latest_job / config.orchestrator.trajectory_file_extxyz
+
         # Determine format and path
-        traj_path = latest_job / TRAJECTORY_FILE_LAMMPS
+        traj_path = traj_path_lammps
         fmt = "lammps-dump-text"
 
         if not traj_path.exists():
-            traj_path = latest_job / TRAJECTORY_FILE_EXTXYZ
+            traj_path = traj_path_extxyz
             fmt = "extxyz"
 
         if not traj_path.exists():
@@ -81,7 +84,8 @@ class SelectionPhase:
         # Temporary path for all candidates if we use active set selection
         temp_dir = md_base_dir / "active_set_selection"
         temp_dir.mkdir(exist_ok=True)
-        all_cands_path = temp_dir / TRAJECTORY_FILE_EXTXYZ
+        # Use a temporary name, or could use extxyz convention
+        all_cands_path = temp_dir / config.orchestrator.trajectory_file_extxyz
 
         # Retrieve settings from TrainingConfig or use defaults
         use_active_set = False
