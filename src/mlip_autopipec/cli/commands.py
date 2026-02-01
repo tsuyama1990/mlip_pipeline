@@ -16,8 +16,10 @@ from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
+from mlip_autopipec.infrastructure.production import ProductionDeployer
 from mlip_autopipec.orchestration.workflow import run_one_shot
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.orchestration.state import StateManager
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -124,6 +126,42 @@ def run_cycle_02_cmd(config_path: Path) -> None:
     except Exception as e:
         typer.secho(f"Execution failed: {e}", fg=typer.colors.RED)
         logging.getLogger("mlip_autopipec").exception("Execution failed")
+        raise typer.Exit(code=1) from e
+
+
+def deploy_potential(
+    config_path: Path,
+    version: str,
+    author: str,
+    description: str = "Automated Release"
+) -> None:
+    """
+    Logic for deploying the potential.
+    """
+    if not config_path.exists():
+        typer.secho(f"Config file {config_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        config = Config.from_yaml(config_path)
+        logging_infra.setup_logging(config.logging)
+
+        # Load State
+        # StateManager handles loading state from disk
+        state_manager = StateManager(work_dir=Path.cwd())
+        state = state_manager.load()
+        if not state:
+             typer.secho("No existing workflow state found. Run 'run-loop' first.", fg=typer.colors.RED)
+             raise typer.Exit(code=1)
+
+        deployer = ProductionDeployer(config, output_dir=Path("dist"))
+        zip_path = deployer.deploy(state, version, author, description)
+
+        typer.secho(f"Deployment package created at: {zip_path}", fg=typer.colors.GREEN)
+
+    except Exception as e:
+        typer.secho(f"Deployment failed: {e}", fg=typer.colors.RED)
+        logging.getLogger("mlip_autopipec").exception("Deployment failed")
         raise typer.Exit(code=1) from e
 
 

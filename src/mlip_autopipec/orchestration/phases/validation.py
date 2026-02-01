@@ -2,6 +2,8 @@ import logging
 from pathlib import Path
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
+from typing import Optional
+from mlip_autopipec.domain_models.validation import ValidationResult
 from mlip_autopipec.domain_models.workflow import WorkflowState
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -9,11 +11,11 @@ from mlip_autopipec.physics.validation.runner import ValidationRunner
 logger = logging.getLogger("mlip_autopipec.phases.validation")
 
 class ValidationPhase:
-    def execute(self, state: WorkflowState, config: Config, work_dir: Path) -> bool:
+    def execute(self, state: WorkflowState, config: Config, work_dir: Path) -> Optional[ValidationResult]:
         logger.info("Validating potential...")
 
         if not state.latest_potential_path:
-            return False
+            return None
 
         # Generate bulk structure
         gen_config = config.structure_gen
@@ -32,4 +34,4 @@ class ValidationPhase:
         result = runner.validate(structure)
         logger.info(f"Validation Result: {result.overall_status}")
 
-        return True
+        return result

@@ -114,7 +114,10 @@ class Orchestrator:
                     return False
 
             elif phase == WorkflowPhase.VALIDATION:
-                self.validation_phase.execute(self.state, self.config, gen_dir)
+                val_result = self.validation_phase.execute(self.state, self.config, gen_dir)
+                if val_result:
+                    self.state.validation_history[self.state.generation] = val_result
+
                 self.state.generation += 1
                 self.transition_to(WorkflowPhase.EXPLORATION)
 

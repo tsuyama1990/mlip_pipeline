@@ -36,6 +36,7 @@ DEFAULT_INPUT_FILE_LAMMPS = "in.lammps"
 DEFAULT_DATA_FILE_LAMMPS = "data.lammps"
 DEFAULT_STDOUT_FILE = "stdout.log"
 DEFAULT_STDERR_FILE = "stderr.log"
+DEFAULT_ALLOWED_COMMAND_PREFIXES = ["lmp", "lammps", "mpirun", "srun"]
 
 # Structure Gen (Bulk)
 DEFAULT_BULK_STRATEGY = "bulk"

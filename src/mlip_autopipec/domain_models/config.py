@@ -5,7 +5,7 @@ import ase.data
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, ValidationInfo
 
 from mlip_autopipec.domain_models.calculation import DFTConfig
-from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
+from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig, EonConfig
 from mlip_autopipec.domain_models.training import TrainingConfig
 from mlip_autopipec import defaults
 
@@ -13,7 +13,7 @@ from mlip_autopipec import defaults
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = defaults.DEFAULT_LOG_LEVEL
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = defaults.DEFAULT_LOG_LEVEL  # type: ignore
     file_path: Path = Path(defaults.DEFAULT_LOG_FILENAME)
 
 
@@ -35,7 +35,7 @@ class PotentialConfig(BaseModel):
     lammps_command: str = defaults.DEFAULT_LAMMPS_COMMAND
 
     # Hybrid Potential Settings (ACE + ZBL)
-    pair_style: Literal["pace", "hybrid/overlay"] = defaults.DEFAULT_PAIR_STYLE
+    pair_style: Literal["pace", "hybrid/overlay"] = defaults.DEFAULT_PAIR_STYLE  # type: ignore
     zbl_inner_cutoff: float = defaults.DEFAULT_ZBL_INNER
     zbl_outer_cutoff: float = defaults.DEFAULT_ZBL_OUTER
 
@@ -176,6 +176,9 @@ class ValidationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # Production
+    package_name_format: str = "mlip_package_{version}.zip"
+
     # Phonon
     phonon_tolerance: float = defaults.DEFAULT_PHONON_TOL  # THz, strictly negative to allow numeric noise
     phonon_supercell: tuple[int, int, int] = defaults.DEFAULT_PHONON_SUPERCELL
@@ -217,12 +220,13 @@ class Config(BaseModel):
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig = Field(default_factory=PotentialConfig)
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
+    eon: EonConfig = Field(default_factory=EonConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
 
     # New configurations
     structure_gen: StructureGenConfig = Field(default_factory=BulkStructureGenConfig, discriminator="strategy")
-    md: MDConfig = Field(default_factory=lambda: MDConfig(temperature=defaults.DEFAULT_MD_TEMP, n_steps=defaults.DEFAULT_MD_STEPS, ensemble=defaults.DEFAULT_MD_ENSEMBLE))
+    md: MDConfig = Field(default_factory=lambda: MDConfig(temperature=defaults.DEFAULT_MD_TEMP, n_steps=defaults.DEFAULT_MD_STEPS, ensemble=defaults.DEFAULT_MD_ENSEMBLE))  # type: ignore
 
     # Optional components
     dft: Optional[DFTConfig] = None

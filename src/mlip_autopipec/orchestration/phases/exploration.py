@@ -4,16 +4,17 @@ import uuid
 import ase.io
 import numpy as np
 import itertools
-from typing import Iterator, List
+from typing import Iterator, List, Union
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
-from mlip_autopipec.domain_models.dynamics import LammpsResult
+from mlip_autopipec.domain_models.dynamics import LammpsResult, EonResult
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.exploration import ExplorationTask
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
+from mlip_autopipec.physics.dynamics.eon import EonWrapper
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.defects import DefectStrategy
 from mlip_autopipec.physics.structure_gen.strain import StrainStrategy
@@ -21,12 +22,12 @@ from mlip_autopipec.physics.structure_gen.strain import StrainStrategy
 logger = logging.getLogger("mlip_autopipec.phases.exploration")
 
 class ExplorationPhase:
-    def execute(self, state: WorkflowState, config: Config, work_dir: Path) -> LammpsResult:
+    def execute(self, state: WorkflowState, config: Config, work_dir: Path) -> Union[LammpsResult, EonResult]:
         """
         Execute the Exploration Phase:
         1. Consult Adaptive Policy.
         2. Generate starting structure.
-        3. Execute Task (MD or Static Generation).
+        3. Execute Task (MD, aKMC or Static Generation).
         """
         logger.info("Running Exploration Phase with Adaptive Policy...")
 
@@ -47,8 +48,36 @@ class ExplorationPhase:
         # 3. Execute Task
         if task.method == "Static":
             return self._execute_static(task, base_structure, config, md_work_dir)
+        elif task.method == "aKMC":
+            return self._execute_akmc(task, base_structure, state, config, md_work_dir)
         else:
             return self._execute_dynamic(task, base_structure, state, config, md_work_dir)
+
+    def _execute_akmc(
+        self,
+        task: ExplorationTask,
+        base_structure: Structure,
+        state: WorkflowState,
+        config: Config,
+        work_dir: Path
+    ) -> EonResult:
+        """
+        Executes aKMC using EON.
+        """
+        if not state.latest_potential_path:
+             raise RuntimeError("Cannot run aKMC without a potential.")
+
+        runner = EonWrapper(
+            config=config.eon,
+            potential_config=config.potential,
+            base_work_dir=work_dir,
+            uncertainty_threshold=config.orchestrator.uncertainty_threshold
+        )
+
+        return runner.run(
+            structure=base_structure,
+            potential_path=state.latest_potential_path
+        )
 
     def _execute_static(
         self,
@@ -107,39 +136,31 @@ class ExplorationPhase:
         last_structure = base_structure
         count = 0
 
-        # Batched writing for I/O efficiency
+        # Batched writing for I/O efficiency while maintaining memory safety
         BATCH_SIZE = 100
         batch: List[ase.Atoms] = []
 
-        # Use 'w' initially then 'a'
-        mode = "w"
-
-        # Explicitly stream write using ase.io.write in chunks
-        # This prevents accumulating batch in memory endlessly, we clear it.
-        # Note: We must manage the file handle or filename. ase.io.write handles filename with append=True.
-        # But for 'extxyz', ASE might write header every time if we are not careful or if using file handle.
-        # Best practice for extxyz streaming with ASE:
-        # Open file once, write atoms one by one or in chunks.
-
         with open(traj_path, "w") as f:
             for s in structure_stream:
+                # Update last structure reference immediately, old one can be GC'd if not in batch
+                last_structure = s
+
                 atoms = s.to_ase()
                 n_atoms = len(atoms)
                 gamma_array = np.full(n_atoms, fake_gamma)
                 atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
 
                 batch.append(atoms)
-                last_structure = s
                 count += 1
 
                 if len(batch) >= BATCH_SIZE:
                     ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
-                    batch = []
+                    batch.clear() # Explicitly clear to free memory
 
             # Flush remaining
             if batch:
                 ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
-                batch = [] # Explicit clear
+                batch.clear()
 
         if count == 0:
                 ase.io.write(traj_path, base_structure.to_ase(), format="extxyz") # type: ignore[no-untyped-call]

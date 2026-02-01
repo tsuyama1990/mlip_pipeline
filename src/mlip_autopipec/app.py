@@ -86,5 +86,21 @@ def run_loop(
     commands.run_loop_cmd(config_path)
 
 
+@app.command()
+def deploy(
+    version: str = typer.Option(..., "--version", "-v", help="SemVer version string (e.g. 1.0.0)"),  # noqa: B008
+    author: str = typer.Option(..., "--author", "-a", help="Author name"),  # noqa: B008
+    description: str = typer.Option("Automated Release", "--description", "-d", help="Description"),  # noqa: B008
+    config_path: Path = typer.Option(
+        Path(DEFAULT_CONFIG_FILENAME), "--config", "-c", help="Path to config file"
+    ),  # noqa: B008
+) -> None:
+    """
+    Deploy the potential for production (Cycle 08).
+    Creates a zip package with potential, report, and metadata.
+    """
+    commands.deploy_potential(config_path, version, author, description)
+
+
 if __name__ == "__main__":
     app()
