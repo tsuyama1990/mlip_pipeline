@@ -5,33 +5,16 @@ from typing import Literal, cast
 import typer
 
 from mlip_autopipec.constants import (
-    DEFAULT_ACE_FS_PARAMS,
-    DEFAULT_ACE_NDENSITY,
-    DEFAULT_ACE_NPOT,
-    DEFAULT_CUTOFF,
-    DEFAULT_ELEMENTS,
     DEFAULT_LOG_FILENAME,
     DEFAULT_LOG_LEVEL,
     DEFAULT_PROJECT_NAME,
-    DEFAULT_SEED,
-    DEFAULT_STRUCT_STRATEGY,
-    DEFAULT_STRUCT_ELEMENT,
-    DEFAULT_STRUCT_CRYSTAL,
-    DEFAULT_STRUCT_LATTICE,
-    DEFAULT_STRUCT_RATTLE,
-    DEFAULT_STRUCT_SUPERCELL,
-    DEFAULT_MD_TEMP,
-    DEFAULT_MD_STEPS,
-    DEFAULT_MD_TIMESTEP,
-    DEFAULT_MD_ENSEMBLE,
 )
 from mlip_autopipec.domain_models.config import (
-    ACEConfig,
-    BulkStructureGenConfig,
     Config,
     LoggingConfig,
     OrchestratorConfig,
     PotentialConfig,
+    BulkStructureGenConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -56,42 +39,14 @@ def init_project(path: Path) -> None:
     # Cast log level to Literal
     log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
 
-    # Create default configuration using Pydantic models
-    # This ensures consistency with the schema and leverages defaults
+    # Create default configuration using Pydantic models with default values
     config = Config(
         project_name=DEFAULT_PROJECT_NAME,
         logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
-        orchestrator=OrchestratorConfig(
-            max_iterations=5,
-            uncertainty_threshold=5.0,
-            halt_threshold=5,
-            validation_frequency=1
-        ),
-        potential=PotentialConfig(
-            elements=DEFAULT_ELEMENTS,
-            cutoff=DEFAULT_CUTOFF,
-            seed=DEFAULT_SEED,
-            pair_style="hybrid/overlay",
-            ace_params=ACEConfig(
-                npot=DEFAULT_ACE_NPOT,
-                fs_parameters=DEFAULT_ACE_FS_PARAMS,
-                ndensity=DEFAULT_ACE_NDENSITY,
-            ),
-        ),
-        structure_gen=BulkStructureGenConfig(
-            strategy=cast(Literal["bulk"], DEFAULT_STRUCT_STRATEGY),
-            element=DEFAULT_STRUCT_ELEMENT,
-            crystal_structure=DEFAULT_STRUCT_CRYSTAL,
-            lattice_constant=DEFAULT_STRUCT_LATTICE,
-            rattle_stdev=DEFAULT_STRUCT_RATTLE,
-            supercell=DEFAULT_STRUCT_SUPERCELL,
-        ),
-        md=MDConfig(
-            temperature=DEFAULT_MD_TEMP,
-            n_steps=DEFAULT_MD_STEPS,
-            timestep=DEFAULT_MD_TIMESTEP,
-            ensemble=cast(Literal["NVT", "NPT"], DEFAULT_MD_ENSEMBLE),
-        ),
+        orchestrator=OrchestratorConfig(),
+        potential=PotentialConfig(),
+        structure_gen=BulkStructureGenConfig(),
+        md=MDConfig(),
     )
 
     try:

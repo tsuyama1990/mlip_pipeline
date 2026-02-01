@@ -20,26 +20,26 @@ class ACEConfig(BaseModel):
     """Configuration for ACE (Pacemaker) basis set."""
     model_config = ConfigDict(extra="forbid")
 
-    npot: str = Field(..., description="Potential type (e.g. FinnisSinclair)")
-    fs_parameters: List[float] = Field(..., description="Finnis-Sinclair parameters")
-    ndensity: int = Field(..., description="Density of basis functions")
+    npot: str = Field(default="FinnisSinclair", description="Potential type (e.g. FinnisSinclair)")
+    fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5], description="Finnis-Sinclair parameters")
+    ndensity: int = Field(default=2, description="Density of basis functions")
 
 
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str]
-    cutoff: float
+    elements: list[str] = Field(default_factory=lambda: ["Ti", "O"])
+    cutoff: float = 5.0
     seed: int = 42
     lammps_command: str = "lmp"
 
     # Hybrid Potential Settings (ACE + ZBL)
-    pair_style: Literal["pace", "hybrid/overlay"] = "pace"
+    pair_style: Literal["pace", "hybrid/overlay"] = "hybrid/overlay"
     zbl_inner_cutoff: float = 1.0
     zbl_outer_cutoff: float = 2.0
 
     # Pacemaker / ACE Basis Parameters
-    ace_params: ACEConfig = Field(..., description="ACE basis parameters")
+    ace_params: ACEConfig = Field(default_factory=ACEConfig, description="ACE basis parameters")
 
     @field_validator("cutoff")
     @classmethod
@@ -109,9 +109,9 @@ class BulkStructureGenConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     strategy: Literal["bulk"] = "bulk"
-    element: str
-    crystal_structure: str
-    lattice_constant: float
+    element: str = "Si"
+    crystal_structure: str = "diamond"
+    lattice_constant: float = 5.43
     rattle_stdev: float = 0.0
     supercell: tuple[int, int, int] = (1, 1, 1)
 
@@ -195,16 +195,16 @@ class ValidationConfig(BaseModel):
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    project_name: str
+    project_name: str = "MyMLIPProject"
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
-    potential: PotentialConfig
+    potential: PotentialConfig = Field(default_factory=PotentialConfig)
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
 
     # New configurations
-    structure_gen: StructureGenConfig = Field(discriminator="strategy")
-    md: MDConfig
+    structure_gen: StructureGenConfig = Field(default_factory=BulkStructureGenConfig, discriminator="strategy")
+    md: MDConfig = Field(default_factory=lambda: MDConfig(temperature=300.0, n_steps=1000, ensemble="NVT"))
 
     # Optional components
     dft: Optional[DFTConfig] = None

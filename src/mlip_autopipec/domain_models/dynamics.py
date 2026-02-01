@@ -13,7 +13,7 @@ class LammpsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    command: str = "lmp_serial"
+    command: str = "lmp"
     timeout: int = 3600
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
@@ -45,11 +45,11 @@ class MDConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    temperature: float
+    temperature: float = 300.0
     pressure: Optional[float] = None
-    n_steps: int
+    n_steps: int = 1000
     timestep: float = 0.001
-    ensemble: Literal["NVT", "NPT"]
+    ensemble: Literal["NVT", "NPT"] = "NVT"
 
     # Uncertainty Quantification (UQ)
     uncertainty_threshold: Optional[float] = None
