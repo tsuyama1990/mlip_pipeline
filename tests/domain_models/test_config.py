@@ -14,6 +14,9 @@ from mlip_autopipec.domain_models import (
     TrainingConfig
 )
 
+# Test Constants
+TEST_ELEMENT = "Al"
+TEST_LATTICE = 4.05
 
 def test_config_valid() -> None:
     """Test valid configuration creation."""
@@ -76,7 +79,7 @@ def test_config_random_slice() -> None:
         project_name="TestSlice",
         # Al has Z=13, so must use hybrid/overlay
         potential=PotentialConfig(
-            elements=["Al"],
+            elements=[TEST_ELEMENT],
             cutoff=4.0,
             pair_style="hybrid/overlay",
             ace_params=ACEConfig(
@@ -87,9 +90,9 @@ def test_config_random_slice() -> None:
         ),
         structure_gen=RandomSliceStructureGenConfig(
             strategy="random_slice",
-            element="Al",
+            element=TEST_ELEMENT,
             crystal_structure="fcc",
-            lattice_constant=4.05,
+            lattice_constant=TEST_LATTICE,
             vacuum=15.0
         ),
         md=MDConfig(temperature=300, n_steps=100, ensemble="NVT")
