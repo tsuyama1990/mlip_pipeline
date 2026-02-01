@@ -4,17 +4,13 @@ from typing import Literal, cast
 
 import typer
 
-from mlip_autopipec.constants import (
-    DEFAULT_LOG_FILENAME,
-    DEFAULT_LOG_LEVEL,
-    DEFAULT_PROJECT_NAME,
-)
 from mlip_autopipec.domain_models.config import (
     Config,
     LoggingConfig,
     OrchestratorConfig,
     PotentialConfig,
     BulkStructureGenConfig,
+    TrainingConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -26,6 +22,12 @@ from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
+
+# Defaults
+DEFAULT_LOG_FILENAME = "mlip_pipeline.log"
+DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_PROJECT_NAME = "MyMLIPProject"
+DEFAULT_ELEMENTS = ["Ti", "O"]
 
 
 def init_project(path: Path) -> None:
@@ -40,13 +42,15 @@ def init_project(path: Path) -> None:
     log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
 
     # Create default configuration using Pydantic models with default values
+    # We explicitly set elements to provide a valid template
     config = Config(
         project_name=DEFAULT_PROJECT_NAME,
         logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
         orchestrator=OrchestratorConfig(),
-        potential=PotentialConfig(),
+        potential=PotentialConfig(elements=DEFAULT_ELEMENTS),
         structure_gen=BulkStructureGenConfig(),
         md=MDConfig(),
+        training=TrainingConfig(),
     )
 
     try:

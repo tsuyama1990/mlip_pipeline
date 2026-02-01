@@ -74,7 +74,7 @@ class LammpsRunner:
             )
 
             # Read tail of log content for debugging
-            log_file = work_dir / "stdout.log"
+            log_file = work_dir / self.config.stdout_file
             log_content = self._read_log_tail(log_file)
 
             return LammpsResult(
@@ -96,7 +96,7 @@ class LammpsRunner:
                 duration_seconds=self.config.timeout,
                 log_content="Timeout Expired",
                 final_structure=structure,  # Return initial as fallback
-                trajectory_path=work_dir / "dump.lammpstrj",
+                trajectory_path=work_dir / self.config.dump_file,
                 max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
@@ -113,7 +113,7 @@ class LammpsRunner:
                 )
             except Exception:
                 final_structure = structure
-                trajectory_path = work_dir / "dump.lammpstrj"
+                trajectory_path = work_dir / self.config.dump_file
                 max_gamma = None
 
             # Check if it was a halt
@@ -131,6 +131,7 @@ class LammpsRunner:
             )
         except Exception as e:
             log_content = self._collect_log_content(work_dir)
+            log_content += f"\nException: {repr(e)}"
 
             if not log_content.strip():
                 log_content = str(e)
@@ -142,7 +143,7 @@ class LammpsRunner:
                 duration_seconds=0.0,
                 log_content=log_content,
                 final_structure=structure,
-                trajectory_path=work_dir / "dump.lammpstrj",
+                trajectory_path=work_dir / self.config.dump_file,
                 max_gamma=None,
             )
 
@@ -157,7 +158,7 @@ class LammpsRunner:
         """Write data.lammps and in.lammps."""
         # Write Structure
         atoms = structure.to_ase()
-        ase.io.write(work_dir / "data.lammps", atoms, format="lammps-data")  # type: ignore[no-untyped-call]
+        ase.io.write(work_dir / self.config.data_file, atoms, format="lammps-data")  # type: ignore[no-untyped-call]
 
         unique_elements = sorted(list(set(structure.symbols)))
 
@@ -191,7 +192,12 @@ fix             watchdog all halt 10 v_max_gamma > {params.uncertainty_threshold
             fix_cmd = f"fix 1 all npt temp {params.temperature} {params.temperature} $(100.0*dt) iso {pres} {pres} $(1000.0*dt)"
 
         # Extra Commands
-        extras = "\n".join(extra_commands) if extra_commands else ""
+        extras = ""
+        if extra_commands:
+            # Validate each command individually
+            for cmd in extra_commands:
+                self._validate_input_script(cmd)
+            extras = "\n".join(extra_commands)
 
         input_script = f"""
 # Cycle 02/03 - MD
@@ -199,7 +205,7 @@ units           metal
 atom_style      atomic
 boundary        p p p
 
-read_data       data.lammps
+read_data       {self.config.data_file}
 
 # Interaction
 {pair_style}
@@ -208,10 +214,10 @@ read_data       data.lammps
 timestep        {params.timestep}
 
 # Output
-dump            1 all custom 100 dump.lammpstrj {dump_vars}
+dump            1 all custom 100 {self.config.dump_file} {dump_vars}
 thermo          10
 thermo_style    custom {thermo_custom}
-log             log.lammps
+log             {self.config.log_file}
 
 # UQ
 {uq_cmds}
@@ -225,7 +231,7 @@ log             log.lammps
 run             {params.n_steps}
 """
         self._validate_input_script(input_script)
-        (work_dir / "in.lammps").write_text(input_script)
+        (work_dir / self.config.input_file).write_text(input_script)
 
     def _validate_params(self, params: MDParams) -> None:
         """Validate MD parameters beyond Pydantic checks."""
@@ -236,16 +242,34 @@ run             {params.n_steps}
 
     def _validate_input_script(self, script: str) -> None:
         """Basic validation of generated LAMMPS script."""
-        if "pair_style" not in script:
-            raise ValueError("Generated script missing 'pair_style'.")
-        if "run" not in script:
-            raise ValueError("Generated script missing 'run' command.")
-        # Check for potential injection (simple check)
-        forbidden = ["shell", "external", "python"]
+        # Security: Check for potential injection/forbidden commands
+        # Expanding the list of forbidden commands to include system execution
+        forbidden_cmds = ["shell", "external", "python", "jump", "include", "print", "package"]
+
+        # Simple tokenization
         for line in script.splitlines():
+            # Remove comments
+            line = line.split('#')[0].strip()
+            if not line:
+                continue
+
             words = line.split()
-            if words and words[0] in forbidden:
-                raise ValueError(f"Forbidden command '{words[0]}' found in generated script.")
+            if not words:
+                continue
+
+            cmd = words[0].lower()
+
+            # Check forbidden command keywords
+            if cmd in forbidden_cmds:
+                 raise ValueError(f"Forbidden command '{cmd}' found in script.")
+
+            # Special check for 'variable' command style
+            # variable name style args...
+            if cmd == "variable":
+                if len(words) >= 3:
+                    style = words[2].lower()
+                    if style in ["python", "system", "getenv", "file"]:
+                        raise ValueError(f"Forbidden variable style '{style}' found in script.")
 
     def _generate_potential_commands(
         self, unique_elements: list[str], potential_path: Optional[Path]
@@ -290,15 +314,15 @@ run             {params.n_steps}
             cmd_str = f"{self.config.mpi_command} {cmd_str}"
 
         # Safe splitting
-        cmd_list = shlex.split(cmd_str) + ["-in", "in.lammps"]
+        cmd_list = shlex.split(cmd_str) + ["-in", self.config.input_file]
 
         exe = cmd_list[0]
         if not shutil.which(exe):
             raise FileNotFoundError(f"Executable '{exe}' not found.")
 
         # Stream stdout/stderr to files
-        stdout_path = work_dir / "stdout.log"
-        stderr_path = work_dir / "stderr.log"
+        stdout_path = work_dir / self.config.stdout_file
+        stderr_path = work_dir / self.config.stderr_file
 
         # Explicitly stream output in chunks to avoid memory buffer issues
         with open(stdout_path, "wb") as f_out, open(stderr_path, "wb") as f_err:
@@ -314,28 +338,26 @@ run             {params.n_steps}
             assert process.stderr is not None
 
             try:
-                # Manual streaming loop
+                # Manual streaming loop with select
                 import select
 
                 # Use larger buffer size for I/O efficiency (64KB)
                 BUFFER_SIZE = 65536
 
-                # Check for output until process ends
                 while True:
                     reads = [process.stdout.fileno(), process.stderr.fileno()]
-                    ret = select.select(reads, [], [], 0.5) # Timeout 0.5s to check process poll
+                    # Use a short timeout to prevent blocking indefinitely, but long enough to avoid tight loop
+                    ret = select.select(reads, [], [], 0.5)
 
                     for fd in ret[0]:
                         if fd == process.stdout.fileno():
                             chunk = process.stdout.read(BUFFER_SIZE)
                             if chunk:
                                 f_out.write(chunk)
-                                f_out.flush()
                         elif fd == process.stderr.fileno():
                             chunk = process.stderr.read(BUFFER_SIZE)
                             if chunk:
                                 f_err.write(chunk)
-                                f_err.flush()
 
                     if process.poll() is not None:
                          # Process ended, drain remaining
@@ -346,6 +368,10 @@ run             {params.n_steps}
                          if remaining_err:
                              f_err.write(remaining_err)
                          break
+
+                # Ensure all written
+                f_out.flush()
+                f_err.flush()
 
                 if process.returncode != 0:
                     raise subprocess.CalledProcessError(process.returncode, cmd_list)
@@ -368,8 +394,8 @@ run             {params.n_steps}
 
     def _collect_log_content(self, work_dir: Path) -> str:
         """Helper to collect logs from stdout.log and stderr.log."""
-        stdout_path = work_dir / "stdout.log"
-        stderr_path = work_dir / "stderr.log"
+        stdout_path = work_dir / self.config.stdout_file
+        stderr_path = work_dir / self.config.stderr_file
 
         log_content_parts = []
         if stdout_path.exists():
@@ -388,8 +414,8 @@ run             {params.n_steps}
         self, work_dir: Path, original_structure: Structure
     ) -> tuple[Structure, Path, Optional[float]]:
         """Parse trajectory and return final structure, path, and max_gamma."""
-        traj_path = work_dir / "dump.lammpstrj"
-        log_path = work_dir / "log.lammps"
+        traj_path = work_dir / self.config.dump_file
+        log_path = work_dir / self.config.log_file
 
         max_gamma = None
 
@@ -405,17 +431,19 @@ run             {params.n_steps}
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
-        # Read last frame safely using iread to avoid loading full trajectory into memory
-        # This iterates over the file and keeps only the latest frame reference.
-        # This is memory-safe (O(1)) as we discard previous frames immediately.
-        atoms = None
-        for frame in ase.io.iread(traj_path, format="lammps-dump-text"): # type: ignore[no-untyped-call]
-            atoms = frame
-            # Ensure we don't hold references to previous frames implicitly
-            # (though simple reassignment should handle it in CPython)
+        # Read last frame efficiently without loading all into memory
+        # We assume lammps-dump-text format which ASE reads efficiently via streaming
+        # if using iread. However, we must ensure we don't convert generator to list.
 
-        if atoms is None:
+        last_frame = None
+        # Iterate and discard immediately
+        for frame in ase.io.iread(traj_path, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+            last_frame = frame
+
+        if last_frame is None:
              raise ValueError(f"Trajectory {traj_path} is empty or invalid.")
+
+        atoms = last_frame
 
         # Restore symbols
         if len(atoms) == len(original_structure.symbols):

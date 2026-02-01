@@ -10,9 +10,13 @@ from mlip_autopipec.domain_models import (
     MDConfig,
     PotentialConfig,
     RandomSliceStructureGenConfig,
-    OrchestratorConfig
+    OrchestratorConfig,
+    TrainingConfig
 )
 
+# Test Constants
+TEST_ELEMENT = "Al"
+TEST_LATTICE = 4.05
 
 def test_config_valid() -> None:
     """Test valid configuration creation."""
@@ -44,6 +48,10 @@ def test_config_valid() -> None:
             ensemble="NVT",
             uncertainty_threshold=5.0
         ),
+        training=TrainingConfig(
+            batch_size=50,
+            max_epochs=10
+        )
     )
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
@@ -59,8 +67,10 @@ def test_config_valid() -> None:
     assert c.md.temperature == 300.0
     assert c.md.uncertainty_threshold == 5.0
 
-    # Check Orchestrator defaults
-    assert c.orchestrator.active_set_optimization is True
+    # Check Training defaults
+    assert c.training is not None
+    assert c.training.active_set_optimization is True
+    assert c.training.max_active_set_size == 1000
 
 
 def test_config_random_slice() -> None:
@@ -69,7 +79,7 @@ def test_config_random_slice() -> None:
         project_name="TestSlice",
         # Al has Z=13, so must use hybrid/overlay
         potential=PotentialConfig(
-            elements=["Al"],
+            elements=[TEST_ELEMENT],
             cutoff=4.0,
             pair_style="hybrid/overlay",
             ace_params=ACEConfig(
@@ -80,9 +90,9 @@ def test_config_random_slice() -> None:
         ),
         structure_gen=RandomSliceStructureGenConfig(
             strategy="random_slice",
-            element="Al",
+            element=TEST_ELEMENT,
             crystal_structure="fcc",
-            lattice_constant=4.05,
+            lattice_constant=TEST_LATTICE,
             vacuum=15.0
         ),
         md=MDConfig(temperature=300, n_steps=100, ensemble="NVT")
@@ -153,8 +163,9 @@ def test_from_yaml(tmp_path: Path) -> None:
       timestep: 0.002
       ensemble: "NVT"
       uncertainty_threshold: 10.0
-    orchestrator:
+    training:
       active_set_optimization: false
+      max_active_set_size: 500
     """
     yaml_file.write_text(yaml_content)
 
@@ -172,7 +183,9 @@ def test_from_yaml(tmp_path: Path) -> None:
 
     assert c.md.n_steps == 500
     assert c.md.uncertainty_threshold == 10.0
-    assert c.orchestrator.active_set_optimization is False
+    assert c.training is not None
+    assert c.training.active_set_optimization is False
+    assert c.training.max_active_set_size == 500
 
 def test_config_delta_learning_enforcement() -> None:
     """Test that heavy atoms require hybrid/overlay."""
@@ -213,10 +226,16 @@ def test_config_delta_learning_enforcement() -> None:
 def test_config_validators_positive():
     """Test positive int validators for orchestrator."""
     with pytest.raises(ValidationError):
-        OrchestratorConfig(max_active_set_size=-1)
+        TrainingConfig(max_active_set_size=-1)
 
     with pytest.raises(ValidationError):
         OrchestratorConfig(dft_batch_size=0)
 
     with pytest.raises(ValidationError):
         MDConfig(temperature=300, n_steps=0, ensemble="NVT")
+
+def test_config_empty_elements() -> None:
+    """Test validation for empty elements list."""
+    with pytest.raises(ValidationError) as excinfo:
+        PotentialConfig(elements=[])
+    assert "Elements list cannot be empty" in str(excinfo.value)

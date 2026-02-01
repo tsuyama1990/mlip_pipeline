@@ -27,7 +27,18 @@ class SelectionPhase:
             return []
 
         latest_job = job_dirs[-1]
-        traj_path = latest_job / "dump.lammpstrj"
+
+        # Determine format and path from config
+        traj_path_lammps = latest_job / config.orchestrator.trajectory_file_lammps
+        traj_path_extxyz = latest_job / config.orchestrator.trajectory_file_extxyz
+
+        # Determine format and path
+        traj_path = traj_path_lammps
+        fmt = "lammps-dump-text"
+
+        if not traj_path.exists():
+            traj_path = traj_path_extxyz
+            fmt = "extxyz"
 
         if not traj_path.exists():
             logger.warning("No trajectory found.")
@@ -37,10 +48,20 @@ class SelectionPhase:
         threshold = config.orchestrator.uncertainty_threshold
         candidate_manager = CandidateManager()
 
-        # Helper to stream candidates
+        # Helper to stream candidates without loading entire trajectory
         def stream_candidates() -> Iterator[CandidateStructure]:
-            traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
-            for i, atoms in enumerate(traj):
+            # Use iread with explicit indexing logic if 'index' param loads everything
+            # ase.io.iread is a generator, so it should be fine, but let's be careful.
+            # Using index=f"::{stride}" in iread works efficiently for most formats if supported.
+
+            # Streaming read
+            iterator = ase.io.iread(traj_path, format=fmt) # type: ignore[no-untyped-call]
+
+            for i, atoms in enumerate(iterator):
+                # Manual stride to avoid relying on index= slice which might not be implemented lazily for all formats
+                if i % stride != 0:
+                    continue
+
                 if not isinstance(atoms, Atoms):
                     continue
 
@@ -55,7 +76,7 @@ class SelectionPhase:
 
                     yield CandidateStructure(
                         structure=cluster,
-                        origin=f"{latest_job.name}_frame_{i*stride}",
+                        origin=f"{latest_job.name}_frame_{i}",
                         uncertainty_score=float(np.max(gammas)),
                         status=CandidateStatus.PENDING
                     )
@@ -63,16 +84,22 @@ class SelectionPhase:
         # Temporary path for all candidates if we use active set selection
         temp_dir = md_base_dir / "active_set_selection"
         temp_dir.mkdir(exist_ok=True)
-        all_cands_path = temp_dir / "candidates.extxyz"
+        # Use a temporary name, or could use extxyz convention
+        all_cands_path = temp_dir / config.orchestrator.trajectory_file_extxyz
 
-        # Stream writes to avoid OOM
-        count = 0
+        # Retrieve settings from TrainingConfig or use defaults
+        use_active_set = False
+        max_active_set_size = 1000  # Default fallback
 
-        if config.training and config.orchestrator.active_set_optimization:
+        if config.training:
+             use_active_set = config.training.active_set_optimization
+             max_active_set_size = config.training.max_active_set_size
+
+        if use_active_set and config.training:
              # Streaming Reservoir Sampling
-             target_max = config.orchestrator.max_active_set_size
-             reservoir_cap = target_max * 10
+             reservoir_cap = max_active_set_size * 10
              reservoir: List[Atoms] = []
+             count = 0
 
              for cand in stream_candidates():
                  if len(reservoir) < reservoir_cap:
@@ -94,18 +121,19 @@ class SelectionPhase:
                  shutil.rmtree(temp_dir)
                  return []
 
-             # Write reservoir to file in chunks
+             # Write reservoir to file in chunks (Buffered Writing)
              logger.info(f"Writing {len(reservoir)} pre-screened candidates to disk for Active Set Selection.")
 
-             chunk_size = 100
-             for i in range(0, len(reservoir), chunk_size):
-                 chunk = reservoir[i : i + chunk_size]
-                 # Use append=True for write if supported or just 'a' mode
-                 # ase.io.write supports append=True for some formats like extxyz
-                 if i == 0:
-                     ase.io.write(all_cands_path, chunk, format='extxyz') # type: ignore[no-untyped-call]
-                 else:
-                     ase.io.write(all_cands_path, chunk, format='extxyz', append=True) # type: ignore[no-untyped-call]
+             BATCH_SIZE = 100
+
+             # Clear file first
+             with open(all_cands_path, "w"):
+                 pass
+
+             for i in range(0, len(reservoir), BATCH_SIZE):
+                 chunk = reservoir[i : i + BATCH_SIZE]
+                 # Append mode
+                 ase.io.write(all_cands_path, chunk, format='extxyz', append=True) # type: ignore[no-untyped-call]
 
              # Run pace_activeset
              pm_runner = PacemakerRunner(
@@ -138,7 +166,7 @@ class SelectionPhase:
              except Exception as e:
                  logger.warning(f"Active set selection failed: {e}. Fallback to iterative subsampling.")
 
-                 target = config.orchestrator.max_active_set_size
+                 target = max_active_set_size
 
                  # Iterative Subsampling (Reservoir Sampling-like)
                  stride_fallback = max(1, int(np.ceil(count / target))) if target > 0 else 1
@@ -164,7 +192,7 @@ class SelectionPhase:
 
         else:
             # If no active set opt, use simple iterative subsampling on stream
-            max_size = config.orchestrator.max_active_set_size
+            max_size = max_active_set_size
             reservoir_result: List[CandidateStructure] = []
 
             for i, cand in enumerate(stream_candidates()):

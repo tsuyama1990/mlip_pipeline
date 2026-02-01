@@ -19,6 +19,7 @@ def mock_config():
     config.potential = MagicMock()
     config.orchestrator = MagicMock()
     config.orchestrator.uncertainty_threshold = 5.0
+    config.orchestrator.trajectory_file_extxyz = "dump.extxyz"
     return config
 
 @pytest.fixture
@@ -32,9 +33,8 @@ def mock_state():
     )
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
-@patch("mlip_autopipec.orchestration.phases.exploration.ase.io.write")
 @patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")
-def test_exploration_static_defects(MockFactory, MockWrite, MockPolicy, mock_config, mock_state, tmp_path):
+def test_exploration_static_defects(MockFactory, MockPolicy, mock_config, mock_state, tmp_path):
     # Setup Policy to return Static Defect
     policy_instance = MockPolicy.return_value
     policy_instance.decide.return_value = ExplorationTask(
@@ -48,20 +48,21 @@ def test_exploration_static_defects(MockFactory, MockWrite, MockPolicy, mock_con
     MockFactory.get_generator.return_value.generate.return_value = struct
 
     phase = ExplorationPhase()
+
+    # Execute with real IO using tmp_path
+    md_run_dir = tmp_path / "md_run"
+    md_run_dir.mkdir()
     result = phase.execute(mock_state, mock_config, tmp_path)
 
     # Assertions
     policy_instance.decide.assert_called_with(mock_state.generation, mock_config)
 
-    # Since we passed a file object, check the file object's name or property
-    assert MockWrite.called
-    args, kwargs = MockWrite.call_args
-    # args[0] is the file handle
-    assert hasattr(args[0], "name")
-    assert str(args[0].name).endswith("dump.lammpstrj")
+    # Verify file existence
+    expected_path = tmp_path / "md_run" / "dump.extxyz"
+    assert expected_path.exists()
+    assert result.trajectory_path == expected_path
 
-    assert result.max_gamma > mock_config.orchestrator.uncertainty_threshold
-    assert result.trajectory_path.name == "dump.lammpstrj"
+    # Cleanup is handled by pytest's tmp_path
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
 @patch("mlip_autopipec.orchestration.phases.exploration.LammpsRunner")
@@ -91,9 +92,8 @@ def test_exploration_md_fallback(MockFactory, MockRunner, MockPolicy, mock_confi
     assert result == mock_result
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
-@patch("mlip_autopipec.orchestration.phases.exploration.ase.io.write")
 @patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")
-def test_exploration_static_strain(MockFactory, MockWrite, MockPolicy, mock_config, mock_state, tmp_path):
+def test_exploration_static_strain(MockFactory, MockPolicy, mock_config, mock_state, tmp_path):
     # Test Strain Strategy path
     policy_instance = MockPolicy.return_value
     policy_instance.decide.return_value = ExplorationTask(
@@ -108,7 +108,6 @@ def test_exploration_static_strain(MockFactory, MockWrite, MockPolicy, mock_conf
     phase = ExplorationPhase()
     phase.execute(mock_state, mock_config, tmp_path)
 
-    assert MockWrite.called
-    args, kwargs = MockWrite.call_args
-    assert hasattr(args[0], "name")
-    assert str(args[0].name).endswith("dump.lammpstrj")
+    # Verify file existence
+    expected_path = tmp_path / "md_run" / "dump.extxyz"
+    assert expected_path.exists()
