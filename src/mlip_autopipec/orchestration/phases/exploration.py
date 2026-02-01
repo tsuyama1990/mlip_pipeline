@@ -136,8 +136,10 @@ class ExplorationPhase:
         last_structure = base_structure
         count = 0
 
-        # Explicitly stream write using ase.io.write ONE BY ONE
-        # To satisfy strict memory safety (no list accumulation)
+        # Batched writing for I/O efficiency while maintaining memory safety
+        BATCH_SIZE = 100
+        batch: List[ase.Atoms] = []
+
         with open(traj_path, "w") as f:
             for s in structure_stream:
                 atoms = s.to_ase()
@@ -145,11 +147,18 @@ class ExplorationPhase:
                 gamma_array = np.full(n_atoms, fake_gamma)
                 atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
 
-                # Write immediately, no accumulation in list
-                ase.io.write(f, atoms, format="extxyz") # type: ignore[no-untyped-call]
-
+                batch.append(atoms)
                 last_structure = s
                 count += 1
+
+                if len(batch) >= BATCH_SIZE:
+                    ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
+                    batch.clear() # Explicitly clear to free memory
+
+            # Flush remaining
+            if batch:
+                ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
+                batch.clear()
 
         if count == 0:
                 ase.io.write(traj_path, base_structure.to_ase(), format="extxyz") # type: ignore[no-untyped-call]

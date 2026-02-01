@@ -119,6 +119,15 @@ class EonWrapper:
                 except subprocess.TimeoutExpired:
                     process.terminate()
                     logger.warning("EON timed out")
+                    return EonResult(
+                        job_id=job_id,
+                        status=JobStatus.TIMEOUT,
+                        work_dir=work_dir,
+                        duration_seconds=self.config.timeout,
+                        log_content="Timeout Expired",
+                        final_structure=None,
+                        max_gamma=None
+                    )
 
             # 5. Check exit code
             # If driver exited with 100, EON might fail or return error.

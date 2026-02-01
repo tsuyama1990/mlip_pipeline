@@ -43,8 +43,7 @@ class LammpsConfig(BaseModel):
             raise ValueError(f"LAMMPS command '{v}' contains forbidden directory traversal '..'")
 
         # Allow standard lammps executable names
-        allowed_prefixes = ["lmp", "lammps", "mpirun", "srun"]
-        if any(v.startswith(prefix) for prefix in allowed_prefixes):
+        if any(v.startswith(prefix) for prefix in defaults.DEFAULT_ALLOWED_COMMAND_PREFIXES):
             return v
 
         # Allow absolute paths if they look safe (no shell metas)

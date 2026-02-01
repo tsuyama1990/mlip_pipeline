@@ -92,15 +92,9 @@ def test_eon_run_timeout(mock_popen, eon_config, potential_config, mock_structur
     #
     # return self._parse_output(work_dir)
 
-    # So it proceeds to parse output. If logs indicate failure/timeout or empty, it returns result.
-    # _parse_output reads stderr. If empty, it returns Result with max_gamma=0.0
-
-    # We assert status is COMPLETED because EonWrapper currently assumes completion if parse_output runs?
-    # No, default status in _parse_output is COMPLETED.
-    # We might want to set status=TIMEOUT/FAILED if timeout occurred.
-    # But current implementation continues.
-    # Let's verify it doesn't crash.
-    assert result.status == JobStatus.COMPLETED # As per current impl
+    # Should catch exception and return Result with TIMEOUT status
+    assert result.status == JobStatus.TIMEOUT
+    assert result.log_content == "Timeout Expired"
 
 def test_parse_output_high_gamma(eon_config, potential_config, tmp_path):
     wrapper = EonWrapper(eon_config, potential_config, tmp_path)

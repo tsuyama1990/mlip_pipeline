@@ -14,7 +14,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--zbl-inner", type=float, default=1.0, help="ZBL inner cutoff")
     parser.add_argument("--zbl-outer", type=float, default=2.0, help="ZBL outer cutoff")
     parser.add_argument("--lammps-cmd", default="lmp", help="LAMMPS executable")
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Validate elements
+    import re
+    for el in args.elements:
+        if not re.match(r"^[A-Z][a-z]?$", el):
+             sys.stderr.write(f"Invalid element symbol: {el}\n")
+             sys.exit(1)
+
+    return args
 
 def read_input() -> Tuple[int, List[List[float]], List[Dict[str, Any]]]:
     """
