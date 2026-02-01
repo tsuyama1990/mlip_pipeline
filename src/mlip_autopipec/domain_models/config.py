@@ -79,6 +79,15 @@ class PotentialConfig(BaseModel):
                  "See SPEC.md Section 3.3."
              )
 
+        if self.pair_style == "hybrid/overlay":
+            if self.zbl_inner_cutoff >= self.zbl_outer_cutoff:
+                raise ValueError(
+                    f"zbl_inner_cutoff ({self.zbl_inner_cutoff}) must be less than "
+                    f"zbl_outer_cutoff ({self.zbl_outer_cutoff})."
+                )
+            if self.zbl_inner_cutoff <= 0:
+                raise ValueError("zbl_inner_cutoff must be positive.")
+
 
 class OrchestratorConfig(BaseModel):
     """Configuration for the Orchestrator (Active Learning Loop)."""

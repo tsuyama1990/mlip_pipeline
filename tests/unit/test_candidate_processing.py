@@ -13,24 +13,25 @@ def test_extract_cluster():
 
     manager = CandidateManager()
 
-    # We expect extract_cluster to return a Structure that is a cluster centered at atom_index
-    # For now, we mock the logic or expect it to return a structure.
-    # Since implementation isn't there, we just define expectations.
-
+    # extract_cluster now wraps extract_periodic_box with box=2*radius
     cluster = manager.extract_cluster(s, center_atom_index=0, radius=3.0)
 
     assert isinstance(cluster, Structure)
-    # The cluster should contain at least the center atom
     assert len(cluster.positions) >= 1
-    # Check symbols
-    assert cluster.symbols[0] == "Si"
 
-def test_embed_cluster():
+    # New expectation: it is periodic
+    assert all(cluster.pbc)
+
+    # Check cell size: 2 * 3.0 = 6.0
+    assert np.isclose(cluster.cell[0,0], 6.0)
+
+def test_embed_cluster_legacy():
+    # Test legacy behavior for non-periodic input
     s = Structure(
         symbols=["Si"],
         positions=np.array([[0, 0, 0]]),
         cell=np.eye(3) * 5,
-        pbc=(False, False, False) # Cluster usually non-periodic initially or we make it periodic
+        pbc=(False, False, False)
     )
 
     manager = CandidateManager()
@@ -38,5 +39,23 @@ def test_embed_cluster():
 
     assert isinstance(embedded, Structure)
     assert all(embedded.pbc)
-    # Check cell size increased
+    # Check cell size increased (0->10 with vacuum centered, or existing cell + vacuum?)
+    # Implementation: atoms.center(vacuum=5.0).
+    # If atoms had cell, center() might change it.
     assert embedded.cell[0,0] >= 10.0
+
+def test_embed_cluster_passthrough():
+    # Test pass-through for already periodic input
+    s = Structure(
+        symbols=["Si"],
+        positions=np.array([[0, 0, 0]]),
+        cell=np.eye(3) * 5,
+        pbc=(True, True, True)
+    )
+
+    manager = CandidateManager()
+    embedded = manager.embed_cluster(s, vacuum=5.0)
+
+    # Should be identical
+    assert np.allclose(embedded.cell, s.cell)
+    assert all(embedded.pbc)

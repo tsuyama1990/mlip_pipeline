@@ -1,6 +1,7 @@
 import zipfile
 import logging
 from pathlib import Path
+from typing import Optional
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState

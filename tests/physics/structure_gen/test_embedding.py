@@ -13,49 +13,40 @@ def large_structure():
     return Structure.from_ase(atoms)
 
 
-def test_embed_cluster(large_structure):
+def test_extract_periodic_box(large_structure):
     handler = EmbeddingHandler()
 
-    # Center atom index 0
-    # Radius 4.0 A (should include nearest neighbors)
-    cluster = handler.embed_cluster(
-        large_structure, center_index=0, radius=4.0, vacuum=10.0
+    box_length = 8.0
+    # 4x4x4 Si is large enough (~20A)
+
+    cluster = handler.extract_periodic_box(
+        large_structure, center_index=0, box_length=box_length
     )
 
-    # Check it's a Structure
     assert isinstance(cluster, Structure)
-
-    # Original Si-Si bond is 2.35 A.
-    # Radius 4.0 should include 1st neighbor shell (4 atoms) and maybe 2nd (12 atoms at 3.84 A).
-    # Total atoms > 1.
-    assert len(cluster.positions) > 1
-
-    # Check pbc is true (for QE usually we run periodic, even if vacuum padded, or we treat it as molecule in box)
-    # The spec says "wrap it in a vacuum-padded periodic box".
     assert all(cluster.pbc)
 
-    # Check cell size
-    # Cell should be roughly 2*radius + vacuum? Or diameter + vacuum?
-    # Actually, usually 2*radius is the cluster diameter. + vacuum on each side?
-    # Let's just check it's large enough.
-    assert np.all(np.diag(cluster.cell) >= 10.0)
+    # Check cell is cubic box_length
+    expected_cell = np.eye(3) * box_length
+    assert np.allclose(cluster.cell, expected_cell)
 
-def test_embedding_vacuum_padding(large_structure):
-    handler = EmbeddingHandler()
-    radius = 3.0
-    vacuum = 5.0
+    # Check center atom position
+    # The center atom (index 0) should be at center of box (half_box, half_box, half_box)
+    # But note: extract_periodic_box creates a new list of atoms. We assume the first one is likely the center
+    # if it was index 0, but NeighborList order is not guaranteed to put center first unless we enforce it.
+    # However, my implementation added `if not new_positions: ...` fallback.
+    # Let's check if the center atom is actually in the list.
+    # The center atom has distance 0.
 
-    cluster = handler.embed_cluster(large_structure, center_index=0, radius=radius, vacuum=vacuum)
+    dists = cluster.arrays.get('cluster_dist')
+    assert dists is not None
+    assert 0.0 in dists
 
-    # Estimate extent
-    # At least one atom at 0,0,0
-    # Box should be extent + vacuum
-    # Since we don't know exact extent without calculation, we check the lower bound
-    # Box size > vacuum
-    assert np.all(np.diag(cluster.cell) >= vacuum)
+    # Check number of atoms > 1 (Si neighbors are at 2.35, so 8.0 box should catch them)
+    assert len(cluster.positions) > 1
 
-    # Check orthogonality (off-diagonal elements are 0)
-    # The current implementation creates a cubic box (np.eye(3) * length)
-    cell = cluster.cell
-    off_diagonals = cell - np.diag(np.diag(cell))
-    assert np.allclose(off_diagonals, 0.0)
+    # Verify strict containment
+    # All positions should be within [0, box_length]
+    pos = cluster.positions
+    assert np.all(pos >= 0.0)
+    assert np.all(pos <= box_length)

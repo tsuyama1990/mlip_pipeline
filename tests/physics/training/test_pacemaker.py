@@ -107,3 +107,20 @@ def test_train_failure(runner):
 
         result = runner.train(Path("data.pckl.gzip"))
         assert result.status == JobStatus.FAILED
+
+def test_input_generation_hybrid(runner):
+    """Verify ZBL repulsion block is added for hybrid potential."""
+    dataset_path = Path("dataset.pckl.gzip")
+    output_path = runner.work_dir / "input_test.yaml"
+
+    runner._generate_input_yaml(dataset_path, output_path)
+
+    with open(output_path) as f:
+        data = yaml.safe_load(f)
+
+    repulsion = data.get("potential", {}).get("repulsion")
+    assert repulsion is not None
+    assert repulsion["type"] == "zbl"
+    # Defaults in PotentialConfig
+    assert repulsion["inner_cutoff"] == 1.0
+    assert repulsion["outer_cutoff"] == 2.0

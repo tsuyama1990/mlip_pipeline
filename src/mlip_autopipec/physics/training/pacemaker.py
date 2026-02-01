@@ -2,7 +2,7 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 import yaml
 
@@ -117,7 +117,7 @@ class PacemakerRunner:
         Generate input.yaml for pace_train.
         """
         # Configuration from PotentialConfig
-        data = {
+        data: Dict[str, Any] = {
             "cutoff": self.pot_config.cutoff,
             "seed": self.pot_config.seed,
             "data": {
@@ -160,6 +160,14 @@ class PacemakerRunner:
                 "potential": "potential.yace"
             }
         }
+
+        # Add Repulsion if Hybrid
+        if self.pot_config.pair_style == "hybrid/overlay":
+            data["potential"]["repulsion"] = {
+                "type": "zbl",
+                "inner_cutoff": self.pot_config.zbl_inner_cutoff,
+                "outer_cutoff": self.pot_config.zbl_outer_cutoff
+            }
 
         with open(output_path, "w") as f:
             yaml.dump(data, f)
