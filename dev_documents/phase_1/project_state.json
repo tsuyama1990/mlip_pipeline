@@ -1,0 +1,112 @@
+{
+  "project_session_id": "sessions/7127703301354142264",
+  "feature_branch": "dev/int-20260129-1305",
+  "integration_branch": "dev/int-20260129-1305",
+  "cycles": [
+    {
+      "id": "01",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/12972580537654230680",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968095Z",
+      "updated_at": "2026-01-29T17:23:46.327002Z"
+    },
+    {
+      "id": "02",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/8306854393193679253",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968103Z",
+      "updated_at": "2026-01-30T15:58:42.661113Z"
+    },
+    {
+      "id": "03",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/16096088524546560819",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968106Z",
+      "updated_at": "2026-01-30T21:12:56.046166Z"
+    },
+    {
+      "id": "04",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/5143760877436801183",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968108Z",
+      "updated_at": "2026-01-31T01:42:50.586562Z"
+    },
+    {
+      "id": "05",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/4090433483090454253",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968109Z",
+      "updated_at": "2026-01-31T21:07:25.272624Z"
+    },
+    {
+      "id": "06",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/15122227966167115846",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968111Z",
+      "updated_at": "2026-02-01T02:36:20.158295Z"
+    },
+    {
+      "id": "07",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/6506693815788793193",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968113Z",
+      "updated_at": "2026-02-01T04:38:38.666119Z"
+    },
+    {
+      "id": "08",
+      "status": "completed",
+      "branch_name": null,
+      "jules_session_id": "sessions/677988624757619563",
+      "current_iteration": 1,
+      "pr_url": null,
+      "last_error": null,
+      "session_restart_count": 0,
+      "max_session_restarts": 2,
+      "created_at": "2026-01-29T13:16:18.968114Z",
+      "updated_at": "2026-02-01T07:57:32.399984Z"
+    }
+  ],
+  "last_updated": "2026-02-01T07:57:32.400139Z"
+}
