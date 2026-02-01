@@ -1,11 +1,18 @@
 import logging
 from pathlib import Path
+import uuid
+import ase.io
+import numpy as np
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
 from mlip_autopipec.domain_models.dynamics import LammpsResult
+from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
 from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
+from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
+from mlip_autopipec.physics.structure_gen.defects import DefectStrategy
+from mlip_autopipec.physics.structure_gen.strain import StrainStrategy
 
 logger = logging.getLogger("mlip_autopipec.phases.exploration")
 
@@ -13,34 +20,120 @@ class ExplorationPhase:
     def execute(self, state: WorkflowState, config: Config, work_dir: Path) -> LammpsResult:
         """
         Execute the Exploration Phase:
-        1. Generate a starting structure.
-        2. Run Molecular Dynamics (MD) with the current potential.
+        1. Consult Adaptive Policy.
+        2. Generate starting structure.
+        3. Execute Task (MD or Static Generation).
         """
-        logger.info("Running Exploration Phase...")
+        logger.info("Running Exploration Phase with Adaptive Policy...")
 
-        # 1. Generate Structure
+        # 1. Consult Policy
+        policy = AdaptivePolicy()
+        task = policy.decide(state.generation, config)
+        logger.info(f"Policy Decision: Method={task.method}, Modifiers={task.modifiers}")
+
+        # 2. Generate Initial Structure (Base)
         gen_config = config.structure_gen
         generator = StructureGenFactory.get_generator(gen_config)
-        structure = generator.generate(gen_config)
-        logger.info(f"Generated structure: {structure.get_chemical_formula()}")
+        base_structure = generator.generate(gen_config)
+        logger.info(f"Generated base structure: {base_structure.get_chemical_formula()}")
 
-        # 2. Run MD
-        md_config = config.md
-        # Inject uncertainty threshold from Orchestrator config
-        md_config.uncertainty_threshold = config.orchestrator.uncertainty_threshold
-
-        # Setup Runner
-        # We pass work_dir as base_work_dir. The runner will create subdirectories (e.g. job_timestamp)
-        # But we usually want it in 'md_run'.
         md_work_dir = work_dir / "md_run"
         md_work_dir.mkdir(exist_ok=True)
 
-        runner = LammpsRunner(
-            config=config.lammps,
-            potential_config=config.potential,
-            base_work_dir=md_work_dir
-        )
+        # 3. Execute Task
+        if task.method == "Static":
+            structures = []
 
-        result = runner.run(structure, md_config, potential_path=state.latest_potential_path)
+            # Apply strategies
+            if "defect" in task.modifiers:
+                logger.info("Applying DefectStrategy...")
+                ds = DefectStrategy()
+                # Apply multiple defect types for robust sampling
+                structures.extend(ds.apply(base_structure, defect_type="vacancy"))
+                structures.extend(ds.apply(base_structure, defect_type="interstitial"))
+                # Antisite only if multiple species
+                if len(set(base_structure.symbols)) > 1:
+                     structures.extend(ds.apply(base_structure, defect_type="antisite"))
 
-        return result
+            if "strain" in task.modifiers:
+                logger.info("Applying StrainStrategy...")
+                ss = StrainStrategy()
+                structures.extend(ss.apply(base_structure, strain_type="uniaxial"))
+                structures.extend(ss.apply(base_structure, strain_type="shear"))
+
+            if "rattle" in task.modifiers:
+                logger.info("Applying Rattle (via StrainStrategy)...")
+                ss = StrainStrategy()
+                structures.extend(ss.apply(base_structure, strain_type="rattle"))
+
+            # If no modifiers or strategy failed, fallback to base
+            if not structures:
+                structures = [base_structure]
+
+            # Write 'fake' trajectory
+            traj_path = md_work_dir / "dump.lammpstrj"
+
+            # Add high gamma to ensure selection
+            threshold = config.orchestrator.uncertainty_threshold
+            fake_gamma = threshold + 10.0
+
+            ase_atoms_list = []
+            for s in structures:
+                atoms = s.to_ase()
+                # Inject c_pace_gamma array
+                # Needs to be per-atom
+                n_atoms = len(atoms)
+                gamma_array = np.full(n_atoms, fake_gamma)
+                atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
+                ase_atoms_list.append(atoms)
+
+            ase.io.write(traj_path, ase_atoms_list, format="lammps-dump-text") # type: ignore[no-untyped-call]
+
+            return LammpsResult(
+                job_id="static_gen_" + str(uuid.uuid4())[:8],
+                status=JobStatus.COMPLETED,
+                work_dir=md_work_dir,
+                duration_seconds=0.0,
+                log_content="Generated by AdaptivePolicy (Static)",
+                final_structure=structures[-1],
+                trajectory_path=traj_path,
+                max_gamma=fake_gamma
+            )
+
+        else: # MD or MC (handled via MD engine)
+            md_config = config.md
+            # Inject uncertainty threshold from Orchestrator config
+            md_config.uncertainty_threshold = config.orchestrator.uncertainty_threshold
+
+            # Override params from task if present
+            if task.temperature:
+                md_config.temperature = task.temperature
+            if task.steps:
+                md_config.n_steps = task.steps
+
+            extra_commands = []
+            if "swap" in task.modifiers:
+                # Add fix atom/swap
+                # Syntax: fix ID group-ID atom/swap N X seed T
+                seed = config.potential.seed
+                temp = md_config.temperature
+                # Exchange every 10 steps, 1 exchange attempt per step (X=1)
+                # Note: LAMMPS 'fix atom/swap' syntax: fix ID group-ID atom/swap N X seed T [keyword values ...]
+                # N = invoke every N steps
+                # X = number of swaps to attempt every N steps
+                extra_commands.append(f"fix 2 all atom/swap 10 1 {seed} {temp}")
+
+            runner = LammpsRunner(
+                config=config.lammps,
+                potential_config=config.potential,
+                base_work_dir=md_work_dir
+            )
+
+            result = runner.run(
+                base_structure,
+                md_config,
+                potential_path=state.latest_potential_path,
+                extra_commands=extra_commands
+            )
+
+            return result

@@ -47,6 +47,7 @@ class LammpsRunner:
         structure: Structure,
         params: MDParams,
         potential_path: Optional[Path] = None,
+        extra_commands: Optional[list[str]] = None,
     ) -> LammpsResult:
         """
         Run a single MD simulation.
@@ -60,7 +61,7 @@ class LammpsRunner:
 
         try:
             # 1. Write Inputs
-            self._write_inputs(work_dir, structure, params, potential_path)
+            self._write_inputs(work_dir, structure, params, potential_path, extra_commands)
 
             # 2. Execute
             start_time = datetime.now()
@@ -151,6 +152,7 @@ class LammpsRunner:
         structure: Structure,
         params: MDParams,
         potential_path: Optional[Path],
+        extra_commands: Optional[list[str]] = None,
     ) -> None:
         """Write data.lammps and in.lammps."""
         # Write Structure
@@ -188,6 +190,9 @@ fix             watchdog all halt 10 v_max_gamma > {params.uncertainty_threshold
             pres = params.pressure if params.pressure is not None else 0.0
             fix_cmd = f"fix 1 all npt temp {params.temperature} {params.temperature} $(100.0*dt) iso {pres} {pres} $(1000.0*dt)"
 
+        # Extra Commands
+        extras = "\n".join(extra_commands) if extra_commands else ""
+
         input_script = f"""
 # Cycle 02/03 - MD
 units           metal
@@ -213,6 +218,9 @@ log             log.lammps
 
 # Ensemble
 {fix_cmd}
+
+# Extra Commands (e.g. fix atom/swap)
+{extras}
 
 run             {params.n_steps}
 """

@@ -192,6 +192,13 @@ class ValidationConfig(BaseModel):
         return v
 
 
+class PolicyConfig(BaseModel):
+    """Configuration for the Adaptive Exploration Policy."""
+    model_config = ConfigDict(extra="forbid")
+
+    is_metal: bool = False
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -201,6 +208,7 @@ class Config(BaseModel):
     potential: PotentialConfig = Field(default_factory=PotentialConfig)
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
+    policy: PolicyConfig = Field(default_factory=PolicyConfig)
 
     # New configurations
     structure_gen: StructureGenConfig = Field(default_factory=BulkStructureGenConfig, discriminator="strategy")
