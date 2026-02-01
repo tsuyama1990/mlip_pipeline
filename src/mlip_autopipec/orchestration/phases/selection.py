@@ -27,7 +27,14 @@ class SelectionPhase:
             return []
 
         latest_job = job_dirs[-1]
+
+        # Determine format and path
         traj_path = latest_job / "dump.lammpstrj"
+        fmt = "lammps-dump-text"
+
+        if not traj_path.exists():
+            traj_path = latest_job / "dump.extxyz"
+            fmt = "extxyz"
 
         if not traj_path.exists():
             logger.warning("No trajectory found.")
@@ -39,7 +46,7 @@ class SelectionPhase:
 
         # Helper to stream candidates
         def stream_candidates() -> Iterator[CandidateStructure]:
-            traj = ase.io.iread(traj_path, index=f"::{stride}", format="lammps-dump-text") # type: ignore[no-untyped-call]
+            traj = ase.io.iread(traj_path, index=f"::{stride}", format=fmt) # type: ignore[no-untyped-call]
             for i, atoms in enumerate(traj):
                 if not isinstance(atoms, Atoms):
                     continue

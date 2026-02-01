@@ -10,7 +10,8 @@ from mlip_autopipec.domain_models import (
     MDConfig,
     PotentialConfig,
     RandomSliceStructureGenConfig,
-    OrchestratorConfig
+    OrchestratorConfig,
+    TrainingConfig
 )
 
 
@@ -44,6 +45,10 @@ def test_config_valid() -> None:
             ensemble="NVT",
             uncertainty_threshold=5.0
         ),
+        training=TrainingConfig(
+            batch_size=50,
+            max_epochs=10
+        )
     )
     assert c.project_name == "TestProject"
     assert c.potential.cutoff == 5.0
@@ -59,8 +64,10 @@ def test_config_valid() -> None:
     assert c.md.temperature == 300.0
     assert c.md.uncertainty_threshold == 5.0
 
-    # Check Orchestrator defaults
-    assert c.orchestrator.active_set_optimization is True
+    # Check Training defaults
+    assert c.training is not None
+    assert c.training.active_set_optimization is True
+    assert c.training.max_active_set_size == 1000
 
 
 def test_config_random_slice() -> None:
@@ -153,8 +160,9 @@ def test_from_yaml(tmp_path: Path) -> None:
       timestep: 0.002
       ensemble: "NVT"
       uncertainty_threshold: 10.0
-    orchestrator:
+    training:
       active_set_optimization: false
+      max_active_set_size: 500
     """
     yaml_file.write_text(yaml_content)
 
@@ -172,7 +180,9 @@ def test_from_yaml(tmp_path: Path) -> None:
 
     assert c.md.n_steps == 500
     assert c.md.uncertainty_threshold == 10.0
-    assert c.orchestrator.active_set_optimization is False
+    assert c.training is not None
+    assert c.training.active_set_optimization is False
+    assert c.training.max_active_set_size == 500
 
 def test_config_delta_learning_enforcement() -> None:
     """Test that heavy atoms require hybrid/overlay."""
@@ -213,7 +223,7 @@ def test_config_delta_learning_enforcement() -> None:
 def test_config_validators_positive():
     """Test positive int validators for orchestrator."""
     with pytest.raises(ValidationError):
-        OrchestratorConfig(max_active_set_size=-1)
+        TrainingConfig(max_active_set_size=-1)
 
     with pytest.raises(ValidationError):
         OrchestratorConfig(dft_batch_size=0)

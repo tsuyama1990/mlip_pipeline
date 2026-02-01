@@ -52,18 +52,30 @@ def potential_config():
 def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
-    # Mock subprocess.run
+    # Mock subprocess.Popen
     with (
-        patch("subprocess.run") as mock_run,
+        patch("subprocess.Popen") as mock_popen,
         patch(
             "mlip_autopipec.physics.dynamics.lammps.LammpsRunner._parse_output"
         ) as mock_parse,
         patch("shutil.which") as mock_which,
+        patch("select.select") as mock_select,
     ):
         # Setup mocks
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Simulation done", stderr=""
-        )
+        process_mock = MagicMock()
+        process_mock.stdout.fileno.return_value = 1
+        process_mock.stderr.fileno.return_value = 2
+        process_mock.stdout.read.side_effect = [b"Simulation done", b"", b""]
+        process_mock.stderr.read.side_effect = [b"", b"", b""]
+        process_mock.poll.side_effect = [None, 0] # Running, then done
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        # Mock select to return ready FDs
+        # It returns (rlist, wlist, xlist)
+        # We return [1, 2] as ready
+        mock_select.return_value = ([1, 2], [], [])
+
         mock_which.return_value = "/usr/bin/lmp"
 
         # Mock parsing to return the same structure
@@ -73,12 +85,12 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, pote
         potential_path = Path("potential.yace")
         result = runner.run(dummy_structure, md_params, potential_path=potential_path)
 
-        assert result.status == JobStatus.COMPLETED
+        assert result.status == JobStatus.COMPLETED, f"Job failed with log: {result.log_content}"
         assert result.final_structure == dummy_structure
 
         # Verify subprocess called with correct command
         # Expected: lmp -in in.lammps
-        args, _ = mock_run.call_args
+        args, _ = mock_popen.call_args
         cmd = args[0]
         assert cmd[0] == "lmp"
         assert "-in" in cmd
@@ -108,12 +120,18 @@ def test_lammps_runner_execution(dummy_structure, md_params, lammps_config, pote
 def test_lammps_runner_failure(dummy_structure, md_params, lammps_config, potential_config, tmp_path):
     from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 
-    with patch("subprocess.run") as mock_run, patch("shutil.which") as mock_which:
-        import subprocess
+    with patch("subprocess.Popen") as mock_popen, patch("shutil.which") as mock_which, patch("select.select") as mock_select:
 
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, "lmp", stderr="Error"
-        )
+        process_mock = MagicMock()
+        process_mock.stdout.fileno.return_value = 1
+        process_mock.stderr.fileno.return_value = 2
+        process_mock.stdout.read.return_value = b""
+        process_mock.stderr.read.return_value = b"Error"
+        process_mock.poll.return_value = 1
+        process_mock.returncode = 1
+        mock_popen.return_value = process_mock
+
+        mock_select.return_value = ([1, 2], [], [])
         mock_which.return_value = "/usr/bin/lmp"
 
         runner = LammpsRunner(config=lammps_config, potential_config=potential_config, base_work_dir=tmp_path)

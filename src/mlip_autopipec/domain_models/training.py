@@ -18,6 +18,7 @@ class TrainingConfig(BaseModel):
 
     # Active Set
     active_set_optimization: bool = True
+    max_active_set_size: int = 1000
 
     # Potential initialization
     initial_potential: Optional[Path] = None
@@ -26,7 +27,7 @@ class TrainingConfig(BaseModel):
     dataset_path: Optional[Path] = None
     work_dir: Path = Path("training_work")
 
-    @field_validator("batch_size", "max_epochs")
+    @field_validator("batch_size", "max_epochs", "max_active_set_size")
     @classmethod
     def validate_positive(cls, v: int) -> int:
         if v <= 0:

@@ -91,10 +91,6 @@ class OrchestratorConfig(BaseModel):
     halt_threshold: int = 5
     validation_frequency: int = 1
 
-    # Active Set Selection
-    active_set_optimization: bool = True
-    max_active_set_size: int = 1000
-
     # Sampling & Batching
     trajectory_sampling_stride: int = 1
     dft_batch_size: int = 10
@@ -102,7 +98,7 @@ class OrchestratorConfig(BaseModel):
     # Paths
     data_dir: Path = Path("data")
 
-    @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
+    @field_validator("trajectory_sampling_stride", "dft_batch_size")
     @classmethod
     def validate_positive_ints(cls, v: int, info: ValidationInfo) -> int:
         if v <= 0:

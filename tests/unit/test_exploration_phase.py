@@ -58,10 +58,10 @@ def test_exploration_static_defects(MockFactory, MockWrite, MockPolicy, mock_con
     args, kwargs = MockWrite.call_args
     # args[0] is the file handle
     assert hasattr(args[0], "name")
-    assert str(args[0].name).endswith("dump.lammpstrj")
+    assert str(args[0].name).endswith("dump.extxyz")
 
     assert result.max_gamma > mock_config.orchestrator.uncertainty_threshold
-    assert result.trajectory_path.name == "dump.lammpstrj"
+    assert result.trajectory_path.name == "dump.extxyz"
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
 @patch("mlip_autopipec.orchestration.phases.exploration.LammpsRunner")
@@ -111,4 +111,4 @@ def test_exploration_static_strain(MockFactory, MockWrite, MockPolicy, mock_conf
     assert MockWrite.called
     args, kwargs = MockWrite.call_args
     assert hasattr(args[0], "name")
-    assert str(args[0].name).endswith("dump.lammpstrj")
+    assert str(args[0].name).endswith("dump.extxyz")
