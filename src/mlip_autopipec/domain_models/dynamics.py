@@ -23,21 +23,21 @@ class LammpsConfig(BaseModel):
     def validate_command(cls, v: str) -> str:
         """
         Validate LAMMPS command to prevent shell injection or execution of arbitrary binaries.
-        Allowlist approach:
-        - Must start with lmp, lammps, or be a specific safe path.
-        - OR match a safe pattern (alphanumeric, underscores, hyphens).
+        Strict Allowlist approach:
+        - Must match a safe pattern (alphanumeric, underscores, hyphens, periods, forward slashes).
+        - Explicitly reject '..' to prevent path traversal.
         """
-        # Allow standard lammps executable names
-        allowed_prefixes = ["lmp", "lammps", "mpirun", "srun"]
-        if any(v.startswith(prefix) for prefix in allowed_prefixes):
-            return v
+        # Reject path traversal
+        if ".." in v:
+             raise ValueError(f"LAMMPS command '{v}' contains illegal path traversal '..'")
 
-        # Allow absolute paths if they look safe (no shell metas)
+        # Strict regex enforcement
         # This regex allows alphanumeric, /, _, -, .
-        if re.match(r"^[\w/\.\-]+$", v):
-            return v
+        # It ensures the command does not contain shell metacharacters like ; | & etc.
+        if not re.match(r"^[\w/\.\-]+$", v):
+            raise ValueError(f"LAMMPS command '{v}' contains unsafe characters.")
 
-        raise ValueError(f"LAMMPS command '{v}' is not in allowlist or contains unsafe characters.")
+        return v
 
 
 class MDConfig(BaseModel):

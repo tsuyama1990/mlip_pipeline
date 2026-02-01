@@ -60,9 +60,9 @@ class PotentialConfig(BaseModel):
 
         if has_heavy_atoms and self.pair_style != "hybrid/overlay":
              raise ValueError(
-                 "Elements with Z >= 2 found. You MUST use 'hybrid/overlay' pair_style "
-                 "to enforce physical core repulsion (Delta Learning). "
-                 "See SPEC.md Section 3.3."
+                 "Elements with Z >= 2 found (e.g., non-Hydrogen). "
+                 "You MUST use 'hybrid/overlay' pair_style to enforce physical core repulsion (Delta Learning). "
+                 "This ensures physical robustness in high-energy collisions."
              )
 
         return self

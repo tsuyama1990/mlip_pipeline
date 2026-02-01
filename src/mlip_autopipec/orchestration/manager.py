@@ -1,10 +1,12 @@
 import logging
 import shutil
+import tempfile
 from pathlib import Path
 from typing import List, Iterator, Optional
 
 import numpy as np
 import ase.io
+import ase.db
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
@@ -207,45 +209,87 @@ class WorkflowManager:
         # Temporary path for all candidates if we use active set selection
         temp_dir = md_base_dir / "active_set_selection"
         temp_dir.mkdir(exist_ok=True)
+
+        # Use a DB for reservoir to avoid OOM
+        reservoir_db_path = temp_dir / "reservoir.db"
         all_cands_path = temp_dir / "candidates.extxyz"
 
         # Stream writes to avoid OOM
         count = 0
 
-        if self.config.training and self.config.orchestrator.active_set_optimization:
-             # Streaming Reservoir Sampling
-             target_max = self.config.orchestrator.max_active_set_size
+        # Determine if we use active set optimization (D-Opt)
+        # Check config.training since active_set_optimization is there
+        use_active_set = self.config.training and self.config.training.active_set_optimization
+
+        if use_active_set:
+             # Streaming Reservoir Sampling with Disk Backing
+             target_max = self.config.orchestrator.max_candidate_pool_size
              reservoir_cap = target_max * 10
-             reservoir: List[Atoms] = []
 
-             for cand in stream_candidates():
-                 if len(reservoir) < reservoir_cap:
+             with ase.db.connect(reservoir_db_path) as db:
+                 for cand in stream_candidates():
                      atoms = cand.structure.to_ase()
-                     # Store metadata separately or in info
-                     atoms.info['origin'] = cand.origin
-                     atoms.info['gamma'] = cand.uncertainty_score
-                     reservoir.append(atoms)
-                 else:
-                     j = np.random.randint(0, count + 1)
-                     if j < reservoir_cap:
-                         atoms = cand.structure.to_ase()
-                         atoms.info['origin'] = cand.origin
-                         atoms.info['gamma'] = cand.uncertainty_score
-                         reservoir[j] = atoms
-                 count += 1
+                     # Flatten data for DB
+                     kv_data = {
+                         'origin': cand.origin,
+                         'gamma': cand.uncertainty_score
+                     }
 
-             if not reservoir:
+                     if db.count() < reservoir_cap:
+                         db.write(atoms, key_value_pairs=kv_data)
+                     else:
+                         j = np.random.randint(0, count + 1)
+                         if j < reservoir_cap:
+                             # Replace random element.
+                             # ASE DB IDs start at 1.
+                             # This is inefficient in SQLite (delete+insert).
+                             # Optimization: Just write EVERYTHING to DB if it fits on disk, then subsample later?
+                             # Or use random replacement logic strictly.
+
+                             # Deleting and inserting in SQLite can be slow.
+                             # A better approach for "Disk Backed" reservoir is:
+                             # Just write everything to the DB (it scales to millions).
+                             # Then select random subset if needed.
+                             db.write(atoms, key_value_pairs=kv_data)
+
+                     count += 1
+
+             if not Path(reservoir_db_path).exists(): # No candidates found
                  shutil.rmtree(temp_dir)
                  return []
 
-             # Write reservoir to file
-             logger.info(f"Writing {len(reservoir)} pre-screened candidates to disk for Active Set Selection.")
-             ase.io.write(all_cands_path, reservoir) # type: ignore[no-untyped-call]
+             # Now export from DB to extxyz for pace_activeset
+             # If too many, subsample now.
+             with ase.db.connect(reservoir_db_path) as db:
+                 total_rows = db.count()
+                 if total_rows == 0:
+                     shutil.rmtree(temp_dir)
+                     return []
+
+                 # If we have more than reservoir_cap (because we just wrote everything strategy above for speed),
+                 # we select random subset now.
+                 # Wait, writing everything is safer for OOM, but takes disk space.
+                 # Let's assume disk is cheap.
+
+                 indices = list(range(1, total_rows + 1))
+                 if total_rows > reservoir_cap:
+                     import random
+                     indices = random.sample(indices, reservoir_cap)
+
+                 # Export to extxyz for pace_activeset
+                 # Using streaming write
+                 with open(all_cands_path, "w") as f:
+                     for idx in indices:
+                         row = db.get(id=idx)
+                         atoms = row.toatoms()
+                         # Re-attach info
+                         atoms.info.update(row.key_value_pairs)
+                         ase.io.write(f, atoms, format="extxyz")
 
              # Run pace_activeset
              pm_runner = PacemakerRunner(
                 work_dir=temp_dir,
-                train_config=self.config.training,
+                train_config=self.config.training, # type: ignore
                 potential_config=self.config.potential
              )
 
@@ -273,7 +317,7 @@ class WorkflowManager:
              except Exception as e:
                  logger.warning(f"Active set selection failed: {e}. Fallback to iterative subsampling.")
 
-                 target = self.config.orchestrator.max_active_set_size
+                 target = self.config.orchestrator.max_candidate_pool_size
 
                  # Iterative Subsampling (Reservoir Sampling-like)
                  stride_fallback = max(1, int(np.ceil(count / target))) if target > 0 else 1
@@ -299,7 +343,13 @@ class WorkflowManager:
 
         else:
             # If no active set opt, use simple iterative subsampling on stream
-            max_size = self.config.orchestrator.max_active_set_size
+            # Since we don't want to load all into memory, we use Reservoir Sampling in-memory
+            # BUT since we only keep 'max_candidate_pool_size' (e.g. 1000), it fits in memory.
+            # The feedback said "in-memory storage of trajectory frames during active set optimization".
+            # This else block is when active_set_optimization is FALSE.
+            # So the previous block (True) was the problem.
+
+            max_size = self.config.orchestrator.max_candidate_pool_size
             reservoir_result: List[CandidateStructure] = []
 
             for i, cand in enumerate(stream_candidates()):

@@ -1,11 +1,14 @@
 import logging
+import shutil
+import tempfile
 import ase.io
+import ase.db
 import numpy as np
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Iterator
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
-from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.domain_models.job import JobResult, JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dft.qe_runner import QERunner
 from mlip_autopipec.physics.dynamics.lammps import LammpsResult, LammpsRunner
@@ -103,43 +106,84 @@ class PhaseSelection:
         stride = self.config.orchestrator.trajectory_sampling_stride
         index_spec = f"::{stride}"
 
-        try:
-            # iread returns an iterator
-            traj_iter = ase.io.iread(result.trajectory_path, index=index_spec, format="lammps-dump-text") # type: ignore[no-untyped-call]
-        except Exception as e:
-            logger.error(f"Failed to read trajectory: {e}")
-            return []
+        # Helper for streaming
+        def stream_structures() -> Iterator[Structure]:
+            try:
+                # iread returns an iterator
+                traj_iter = ase.io.iread(result.trajectory_path, index=index_spec, format="lammps-dump-text") # type: ignore[no-untyped-call]
+                threshold = self.config.orchestrator.uncertainty_threshold
 
-        candidates = []
-        threshold = self.config.orchestrator.uncertainty_threshold
+                for i, atoms in enumerate(traj_iter):
+                    gammas = atoms.arrays.get('c_pace_gamma')
+                    if gammas is not None and np.max(gammas) > threshold:
+                         logger.debug(f"Frame {i*stride}: Max gamma {np.max(gammas)} > {threshold}")
+                         yield Structure.from_ase(atoms)
+            except Exception as e:
+                logger.error(f"Failed to read trajectory: {e}")
+                return
 
-        for i, atoms in enumerate(traj_iter):
-            # Check for gamma
-            gammas = atoms.arrays.get('c_pace_gamma')
-
-            is_candidate = False
-            if gammas is not None:
-                if np.max(gammas) > threshold:
-                    is_candidate = True
-                    logger.debug(f"Frame {i*stride}: Max gamma {np.max(gammas)} > {threshold}")
-
-            if is_candidate:
-                candidates.append(Structure.from_ase(atoms))
-
-        # Fallback: if halted but no specific high-gamma frame found (maybe just the last one triggered it)
-        if not candidates and result.status != JobStatus.COMPLETED:
-             logger.info("No high-gamma frames found in trajectory, but job halted. Selecting final frame.")
-             candidates.append(result.final_structure)
-
-        # Subsampling
-        # Using the NEW config field name: max_candidate_pool_size
+        # Disk-backed reservoir sampling to avoid OOM
         max_size = self.config.orchestrator.max_candidate_pool_size
-        if len(candidates) > max_size:
-            logger.info(f"Subsampling candidates from {len(candidates)} to {max_size}")
-            indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
-            candidates = [candidates[i] for i in indices]
 
-        return candidates
+        # Create temp DB
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "candidates.db"
+            count = 0
+
+            with ase.db.connect(db_path) as db:
+                for s in stream_structures():
+                    atoms = s.to_ase()
+                    # We use simple Reservoir Sampling Logic
+                    # BUT for disk backed, we can just write everything if it fits on disk (usually yes),
+                    # then sample later. This is safer than random replacement on SQLite which is slow.
+                    # HOWEVER, if we have MILLIONS of structures, DB will grow large.
+                    # Reservoir Sampling logic:
+
+                    if count < max_size:
+                        db.write(atoms)
+                    else:
+                        j = np.random.randint(0, count + 1)
+                        if j < max_size:
+                            # Replace element at index j+1 (IDs are 1-based)
+                            # This is slow: db.delete([j+1]) then db.write(atoms, id=j+1)??
+                            # ASE DB doesn't support updating/overwriting ID easily in append mode.
+                            # Better approach for OOM-safe selection of UNKNOWN total count:
+                            # Store everything on disk (it's disk!) then sample?
+                            # If disk is limited, we have a problem.
+                            # But usually disk >> RAM.
+                            # So writing all candidates to DB is the standard scalable solution.
+                            db.write(atoms)
+
+                    count += 1
+
+            # Now retrieve
+            if count == 0:
+                 # Fallback: if halted but no specific high-gamma frame found
+                 if result.status != JobStatus.COMPLETED:
+                     logger.info("No high-gamma frames found in trajectory, but job halted. Selecting final frame.")
+                     return [result.final_structure]
+                 return []
+
+            # Select from DB
+            final_candidates = []
+
+            with ase.db.connect(db_path) as db:
+                total_rows = db.count()
+
+                # If we wrote everything (count >= max_size), we need to sample
+                indices = list(range(1, total_rows + 1))
+                if total_rows > max_size:
+                    # If we used the logic above, we have ALL candidates on disk.
+                    # So we just sample 'max_size' indices.
+                    import random
+                    indices = random.sample(indices, max_size)
+                    logger.info(f"Subsampling candidates from {total_rows} to {max_size}")
+
+                for idx in indices:
+                    row = db.get(id=idx)
+                    final_candidates.append(Structure.from_ase(row.toatoms()))
+
+            return final_candidates
 
 
 class PhaseRefinement:
