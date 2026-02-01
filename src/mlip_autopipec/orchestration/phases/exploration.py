@@ -70,7 +70,8 @@ class ExplorationPhase:
             # Chain all iterators
             if not iterators:
                 # If no modifiers or strategy failed, fallback to base
-                structure_stream = iter([base_structure])
+                # Use a generator expression to avoid creating a list in memory
+                structure_stream = (base_structure for _ in range(1))
             else:
                 structure_stream = itertools.chain(*iterators)
 

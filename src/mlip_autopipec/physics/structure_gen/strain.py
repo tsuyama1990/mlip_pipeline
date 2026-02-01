@@ -1,6 +1,5 @@
 from typing import Iterator, List, Literal
 import numpy as np
-import ase
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.structure_gen.builder import StructureBuilder
 

@@ -304,14 +304,23 @@ run             {params.n_steps}
         # This is important for monitoring tools like `_read_log_tail` to work correctly during execution (if parallel)
         # and satisfies the requirement to minimize I/O bottlenecks related to large memory buffers holding data too long.
         with open(stdout_path, "w", buffering=1) as f_out, open(stderr_path, "w", buffering=1) as f_err:
-            subprocess.run(
+            # Use Popen to explicitly manage the process and ensure cleanup
+            process = subprocess.Popen(
                 cmd_list,
                 cwd=work_dir,
                 stdout=f_out,
-                stderr=f_err,
-                timeout=self.config.timeout,
-                check=True,
+                stderr=f_err
             )
+
+            try:
+                # Wait for completion with timeout
+                process.communicate(timeout=self.config.timeout)
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, cmd_list)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate() # Clean up zombie
+                raise
 
     def _read_log_tail(self, log_path: Path, lines: int = 100) -> str:
         """Read last N lines of log file efficiently."""
@@ -362,11 +371,14 @@ run             {params.n_steps}
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
-        # Read last frame
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text")  # type: ignore[no-untyped-call]
+        # Read last frame safely using iread to avoid loading full trajectory into memory
+        # This iterates over the file and keeps only the latest frame reference
+        atoms = None
+        for frame in ase.io.iread(traj_path, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+            atoms = frame
 
-        if isinstance(atoms, list):
-            atoms = atoms[-1]
+        if atoms is None:
+             raise ValueError(f"Trajectory {traj_path} is empty or invalid.")
 
         # Restore symbols
         if len(atoms) == len(original_structure.symbols):
