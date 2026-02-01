@@ -8,7 +8,6 @@ from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase
 from mlip_autopipec.domain_models.exploration import ExplorationTask
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.orchestration.phases.exploration import ExplorationPhase
-# We use real strategies to test integration
 
 @pytest.fixture
 def mock_config():
@@ -43,9 +42,7 @@ def test_exploration_static_defects(MockFactory, MockWrite, MockPolicy, mock_con
         modifiers=["defect"]
     )
 
-    # NOTE: We are NOT mocking DefectStrategy here, we let ExplorationPhase use the real one.
-
-    # Setup Initial Structure (for defect strategy to work on)
+    # Setup Initial Structure
     atoms = ase.build.bulk("Si")
     struct = Structure.from_ase(atoms)
     MockFactory.get_generator.return_value.generate.return_value = struct
@@ -54,16 +51,15 @@ def test_exploration_static_defects(MockFactory, MockWrite, MockPolicy, mock_con
     result = phase.execute(mock_state, mock_config, tmp_path)
 
     # Assertions
-    # 1. Policy was consulted
     policy_instance.decide.assert_called_with(mock_state.generation, mock_config)
 
-    # 2. Trajectory was written
-    # Since we used the real strategy, ase.io.write should have been called with the generated defects
+    # Since we passed a file object, check the file object's name or property
     assert MockWrite.called
     args, kwargs = MockWrite.call_args
-    assert str(args[0]).endswith("dump.lammpstrj")
+    # args[0] is the file handle
+    assert hasattr(args[0], "name")
+    assert str(args[0].name).endswith("dump.lammpstrj")
 
-    # 3. Result has high gamma
     assert result.max_gamma > mock_config.orchestrator.uncertainty_threshold
     assert result.trajectory_path.name == "dump.lammpstrj"
 
@@ -98,7 +94,7 @@ def test_exploration_md_fallback(MockFactory, MockRunner, MockPolicy, mock_confi
 @patch("mlip_autopipec.orchestration.phases.exploration.ase.io.write")
 @patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")
 def test_exploration_static_strain(MockFactory, MockWrite, MockPolicy, mock_config, mock_state, tmp_path):
-    # Test Strain Strategy path with real StrainStrategy
+    # Test Strain Strategy path
     policy_instance = MockPolicy.return_value
     policy_instance.decide.return_value = ExplorationTask(
         method="Static",
@@ -113,3 +109,6 @@ def test_exploration_static_strain(MockFactory, MockWrite, MockPolicy, mock_conf
     phase.execute(mock_state, mock_config, tmp_path)
 
     assert MockWrite.called
+    args, kwargs = MockWrite.call_args
+    assert hasattr(args[0], "name")
+    assert str(args[0].name).endswith("dump.lammpstrj")

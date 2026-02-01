@@ -55,6 +55,12 @@ class PotentialConfig(BaseModel):
         Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
         Spec Section 3.3.
         """
+        # Delegated to internal helper for cleanliness
+        self._validate_hybrid_style()
+        return self
+
+    def _validate_hybrid_style(self):
+        """Internal helper to validate hybrid style requirements."""
         has_heavy_atoms = False
         for el in self.elements:
             try:
@@ -71,8 +77,6 @@ class PotentialConfig(BaseModel):
                  "to enforce physical core repulsion (Delta Learning). "
                  "See SPEC.md Section 3.3."
              )
-
-        return self
 
 
 class OrchestratorConfig(BaseModel):

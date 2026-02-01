@@ -85,32 +85,32 @@ class ExplorationPhase:
             threshold = config.orchestrator.uncertainty_threshold
             fake_gamma = threshold + 10.0
 
-            # Stream writes to avoid OOM
+            # Stream writes to avoid OOM and excessive I/O operations
             # We track last structure to return it in result
             last_structure = base_structure
             count = 0
 
-            for i, s in enumerate(structure_stream):
-                atoms = s.to_ase()
-                n_atoms = len(atoms)
-                gamma_array = np.full(n_atoms, fake_gamma)
-                atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
+            # Use 'a' (append) mode but open once to minimize syscalls
+            # We need to ensure correct format for lammps-dump-text
+            # ase.io.write with handle is supported
+            with open(traj_path, "w") as f:
+                for s in structure_stream:
+                    atoms = s.to_ase()
+                    n_atoms = len(atoms)
+                    gamma_array = np.full(n_atoms, fake_gamma)
+                    atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
 
-                # Append to trajectory file
-                if i == 0:
-                    ase.io.write(traj_path, atoms, format="lammps-dump-text") # type: ignore[no-untyped-call]
-                else:
-                    ase.io.write(traj_path, atoms, format="lammps-dump-text", append=True) # type: ignore[no-untyped-call]
+                    # Write to file handle
+                    ase.io.write(f, atoms, format="lammps-dump-text") # type: ignore[no-untyped-call]
 
-                last_structure = s
-                count += 1
+                    last_structure = s
+                    count += 1
 
-                # Explicitly delete to encourage GC (though loop var reassignment handles it mostly)
-                del atoms
-                del s
+                    # Explicitly delete to encourage GC
+                    del atoms
+                    del s
 
             if count == 0:
-                 # Should theoretically not happen if logic is correct, but safe fallback
                  ase.io.write(traj_path, base_structure.to_ase(), format="lammps-dump-text") # type: ignore[no-untyped-call]
 
             return LammpsResult(

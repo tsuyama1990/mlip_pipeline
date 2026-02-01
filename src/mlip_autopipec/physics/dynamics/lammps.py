@@ -309,6 +309,10 @@ run             {params.n_steps}
                 stderr=subprocess.PIPE,
             )
 
+            # Assert stdout/stderr are not None for Mypy
+            assert process.stdout is not None
+            assert process.stderr is not None
+
             try:
                 # Manual streaming loop
                 import select
