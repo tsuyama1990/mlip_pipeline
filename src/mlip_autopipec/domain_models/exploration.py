@@ -8,7 +8,7 @@ class ExplorationTask(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["MD", "MC", "Minimization", "Static"]
+    method: Literal["MD", "MC", "Minimization", "Static", "aKMC"]
     temperature: Optional[float] = None
     pressure: Optional[float] = None
     steps: Optional[int] = None

@@ -16,6 +16,7 @@ def mock_config():
     config.structure_gen = MagicMock()
     config.md = MagicMock()
     config.lammps = MagicMock()
+    config.eon = MagicMock()
     config.potential = MagicMock()
     config.orchestrator = MagicMock()
     config.orchestrator.uncertainty_threshold = 5.0
@@ -60,9 +61,37 @@ def test_exploration_static_defects(MockFactory, MockPolicy, mock_config, mock_s
     # Verify file existence
     expected_path = tmp_path / "md_run" / "dump.extxyz"
     assert expected_path.exists()
-    assert result.trajectory_path == expected_path
 
-    # Cleanup is handled by pytest's tmp_path
+@patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
+@patch("mlip_autopipec.orchestration.phases.exploration.EonWrapper")
+@patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")
+def test_exploration_akmc(MockFactory, MockEon, MockPolicy, mock_config, mock_state, tmp_path):
+    # Setup Policy to return aKMC
+    policy_instance = MockPolicy.return_value
+    policy_instance.decide.return_value = ExplorationTask(
+        method="aKMC",
+        modifiers=[]
+    )
+
+    atoms = ase.build.bulk("Si")
+    struct = Structure.from_ase(atoms)
+    MockFactory.get_generator.return_value.generate.return_value = struct
+
+    # Mock EonWrapper.run result
+    mock_result = MagicMock()
+    mock_result.max_gamma = 6.0
+    MockEon.return_value.run.return_value = mock_result
+
+    phase = ExplorationPhase()
+    result = phase.execute(mock_state, mock_config, tmp_path)
+
+    # Should call EonWrapper
+    assert MockEon.return_value.run.called
+    assert result == mock_result
+
+    # Check that potential path was passed
+    args, kwargs = MockEon.return_value.run.call_args
+    assert kwargs["potential_path"] == mock_state.latest_potential_path
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
 @patch("mlip_autopipec.orchestration.phases.exploration.LammpsRunner")

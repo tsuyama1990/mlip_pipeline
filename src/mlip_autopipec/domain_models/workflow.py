@@ -1,10 +1,11 @@
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.domain_models.validation import ValidationResult
 
 
 class WorkflowPhase(str, Enum):
@@ -54,3 +55,4 @@ class WorkflowState(BaseModel):
     latest_potential_path: Optional[Path] = Field(default=None, description="Path to the current best potential")
     dataset_path: Path = Field(..., description="Path to the accumulated training dataset")
     candidates: List[CandidateStructure] = Field(default_factory=list, description="List of candidates for the current generation")
+    validation_history: Dict[int, ValidationResult] = Field(default_factory=dict, description="Validation results by generation")

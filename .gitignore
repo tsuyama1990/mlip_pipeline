@@ -36,6 +36,7 @@ tmp/
 mlip_pipeline.log
 .coverage
 build/
+dist/
 
 # Cycle 02 Artifacts
 _work_md/
@@ -44,3 +45,7 @@ log.lammps
 *.pckl.gzip
 *.yace
 training_data/
+
+# Cycle 08
+runs/
+client/
