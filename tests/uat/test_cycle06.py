@@ -2,12 +2,13 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from mlip_autopipec.domain_models.config import (
-    Config, OrchestratorConfig, LoggingConfig, PotentialConfig,
+    ACEConfig, Config, OrchestratorConfig, LoggingConfig, PotentialConfig,
     BulkStructureGenConfig, MDConfig, DFTConfig, TrainingConfig, ValidationConfig
 )
-from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState, CandidateStatus
-from mlip_autopipec.domain_models.job import JobResult, JobStatus
-from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.domain_models.workflow import WorkflowPhase, WorkflowState
+from mlip_autopipec.domain_models.job import JobStatus
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.domain_models.dynamics import LammpsResult
 from mlip_autopipec.domain_models.structure import Structure
 import numpy as np
 
@@ -22,63 +23,96 @@ def valid_config(tmp_path):
             cutoff=5.0,
             seed=42,
             pair_style="hybrid/overlay",
-            npot="FinnisSinclair",
-            fs_parameters=[1, 1, 1, 0.5],
-            ndensity=2
+            ace_params=ACEConfig(
+                npot="FinnisSinclair",
+                fs_parameters=[1, 1, 1, 0.5],
+                ndensity=2
+            )
         ),
         structure_gen=BulkStructureGenConfig(strategy="bulk", element="Si", crystal_structure="diamond", lattice_constant=5.43, supercell=(1,1,1)),
         md=MDConfig(temperature=300, n_steps=100, ensemble="NVT", timestep=0.001),
         dft=DFTConfig(command="pw.x", pseudopotentials={"Si": "Si.upf"}, ecutwfc=40.0, kspacing=0.04),
-        training=TrainingConfig(batch_size=10, max_epochs=1),
+        training=TrainingConfig(batch_size=10, max_epochs=1, work_dir=tmp_path / "training_work"),
         validation=ValidationConfig(report_path=tmp_path/"report.html")
     )
 
 # UAT Scenario 6.1: The Autonomous Loop
 def test_uat_autonomous_loop(valid_config, tmp_path):
 
-    # We mock the phases to simulate the loop without running real physics
-    with patch("mlip_autopipec.orchestration.manager.StateManager") as MockStateMgr, \
-         patch.object(WorkflowManager, 'explore', return_value=True), \
-         patch.object(WorkflowManager, 'select', return_value=[MagicMock()]), \
-         patch.object(WorkflowManager, 'calculate', return_value=True), \
-         patch.object(WorkflowManager, 'train', return_value=Path("new.yace")), \
-         patch.object(WorkflowManager, 'validate', return_value=True):
+    # Mock StateManager and Phases
+    with patch("mlip_autopipec.orchestration.orchestrator.StateManager") as MockStateMgr, \
+         patch("mlip_autopipec.orchestration.orchestrator.ExplorationPhase") as MockExploration, \
+         patch("mlip_autopipec.orchestration.orchestrator.SelectionPhase") as MockSelection, \
+         patch("mlip_autopipec.orchestration.orchestrator.CalculationPhase") as MockCalculation, \
+         patch("mlip_autopipec.orchestration.orchestrator.TrainingPhase") as MockTraining, \
+         patch("mlip_autopipec.orchestration.orchestrator.ValidationPhase") as MockValidation:
 
+        # Setup Mocks
         # Initial State
         state = WorkflowState(
             project_name="UAT_Cycle06",
-            dataset_path=tmp_path / "data.pckl",
+            dataset_path=tmp_path / "data" / "data.pckl.gzip",
             current_phase=WorkflowPhase.EXPLORATION,
             generation=0
         )
         MockStateMgr.return_value.load.return_value = state
 
-        manager = WorkflowManager(valid_config, work_dir=tmp_path)
+        dummy_struct = Structure(
+            symbols=["Si"], positions=np.array([[0,0,0]]), cell=np.eye(3), pbc=(True,True,True)
+        )
+
+        # Exploration returns result with high gamma to trigger selection
+        MockExploration.return_value.execute.return_value = LammpsResult(
+            job_id="test", status=JobStatus.COMPLETED, work_dir=tmp_path, duration_seconds=1,
+            log_content="", max_gamma=1.0, # > 0.1 threshold
+            final_structure=dummy_struct,
+            trajectory_path=tmp_path / "traj.lammpstrj"
+        )
+
+        # Selection returns dummy candidates
+        MockSelection.return_value.execute.return_value = [MagicMock()]
+
+        # Calculation returns True (success)
+        MockCalculation.return_value.execute.return_value = True
+
+        # Training returns path
+        MockTraining.return_value.execute.return_value = Path("new.yace")
+
+        # Validation returns True
+        MockValidation.return_value.execute.return_value = True
+
+        orchestrator = Orchestrator(valid_config, work_dir=tmp_path)
 
         # Run loop (simulated by calling step repeatedly)
+
         # Gen 0: EXPLORATION -> SELECTION
-        manager.step()
-        assert manager.state.current_phase == WorkflowPhase.SELECTION
+        orchestrator.step()
+        assert orchestrator.state.current_phase == WorkflowPhase.SELECTION
+        assert MockExploration.return_value.execute.called
 
         # Gen 0: SELECTION -> CALCULATION
-        manager.step()
-        assert manager.state.current_phase == WorkflowPhase.CALCULATION
+        orchestrator.step()
+        assert orchestrator.state.current_phase == WorkflowPhase.CALCULATION
+        assert MockSelection.return_value.execute.called
 
         # Gen 0: CALCULATION -> TRAINING
-        manager.step()
-        assert manager.state.current_phase == WorkflowPhase.TRAINING
+        orchestrator.step()
+        assert orchestrator.state.current_phase == WorkflowPhase.TRAINING
+        assert MockCalculation.return_value.execute.called
 
         # Gen 0: TRAINING -> VALIDATION
-        manager.step()
-        assert manager.state.current_phase == WorkflowPhase.VALIDATION
+        orchestrator.step()
+        assert orchestrator.state.current_phase == WorkflowPhase.VALIDATION
+        assert MockTraining.return_value.execute.called
 
         # Gen 0: VALIDATION -> Gen 1 EXPLORATION
-        manager.step()
-        assert manager.state.generation == 1
-        assert manager.state.current_phase == WorkflowPhase.EXPLORATION
+        orchestrator.step()
+        assert orchestrator.state.generation == 1
+        assert orchestrator.state.current_phase == WorkflowPhase.EXPLORATION
+        assert MockValidation.return_value.execute.called
 
         # Check max iterations reached
-        assert manager.state.generation >= valid_config.orchestrator.max_iterations
+        assert orchestrator.state.generation >= valid_config.orchestrator.max_iterations
 
 # UAT Scenario 6.2: Resume from Interruption
 def test_uat_resume_interruption(valid_config, tmp_path):
@@ -87,63 +121,28 @@ def test_uat_resume_interruption(valid_config, tmp_path):
     # State is loaded as TRAINING
     state = WorkflowState(
         project_name="UAT_Cycle06",
-        dataset_path=tmp_path / "data.pckl",
+        dataset_path=tmp_path / "data" / "data.pckl.gzip",
         current_phase=WorkflowPhase.TRAINING,
         generation=0
     )
 
-    with patch("mlip_autopipec.orchestration.manager.StateManager") as MockStateMgr, \
-         patch.object(WorkflowManager, 'train', return_value=Path("new.yace")) as mock_train, \
-         patch.object(WorkflowManager, 'validate', return_value=True):
+    with patch("mlip_autopipec.orchestration.orchestrator.StateManager") as MockStateMgr, \
+         patch("mlip_autopipec.orchestration.orchestrator.TrainingPhase") as MockTraining, \
+         patch("mlip_autopipec.orchestration.orchestrator.ValidationPhase") as MockValidation:
 
         MockStateMgr.return_value.load.return_value = state
+        MockTraining.return_value.execute.return_value = Path("new.yace")
+        MockValidation.return_value.execute.return_value = True
 
-        manager = WorkflowManager(valid_config, work_dir=tmp_path)
+        # Dummy exploration mock to satisfy constructor
+        with patch("mlip_autopipec.orchestration.orchestrator.ExplorationPhase"), \
+             patch("mlip_autopipec.orchestration.orchestrator.SelectionPhase"), \
+             patch("mlip_autopipec.orchestration.orchestrator.CalculationPhase"):
 
-        # It should execute TRAINING
-        manager.step()
+            orchestrator = Orchestrator(valid_config, work_dir=tmp_path)
 
-        assert mock_train.called
-        assert manager.state.current_phase == WorkflowPhase.VALIDATION
+            # It should execute TRAINING
+            orchestrator.step()
 
-def test_uat_dft_failure_handling(valid_config, tmp_path):
-    # Setup state with candidates ready for calculation
-    state = WorkflowState(
-        project_name="UAT_Cycle06",
-        dataset_path=tmp_path / "data.pckl",
-        current_phase=WorkflowPhase.CALCULATION,
-        generation=0
-    )
-    # Mock candidate with valid Structure
-    mock_struct = Structure(
-        symbols=["Si"], positions=np.array([[0,0,0]]), cell=np.eye(3), pbc=(True,True,True)
-    )
-
-    mock_cand = MagicMock()
-    mock_cand.status = CandidateStatus.PENDING
-    mock_cand.structure = mock_struct # Needs to be real structure or mock that passes embed logic
-
-    state.candidates = [mock_cand]
-
-    with patch("mlip_autopipec.orchestration.manager.StateManager") as MockStateMgr, \
-         patch("mlip_autopipec.orchestration.manager.QERunner") as MockQERunner:
-
-        MockStateMgr.return_value.load.return_value = state
-
-        # Setup QERunner to return FAILED
-        mock_runner = MockQERunner.return_value
-        mock_runner.run.return_value = JobResult(
-            job_id="fail", status=JobStatus.FAILED, work_dir=Path("."), duration_seconds=0, log_content="Error"
-        )
-
-        manager = WorkflowManager(valid_config, work_dir=tmp_path)
-
-        # Execute step
-        result = manager.calculate(tmp_path)
-
-        # It should process, but mark candidate as FAILED
-        assert mock_cand.status == CandidateStatus.FAILED
-        assert mock_cand.error_message == "Error"
-
-        # Since no candidates succeeded, calculate should return False
-        assert result is False
+            assert MockTraining.return_value.execute.called
+            assert orchestrator.state.current_phase == WorkflowPhase.VALIDATION

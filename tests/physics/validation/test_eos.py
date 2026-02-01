@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from mlip_autopipec.physics.validation.eos import EOSValidator
-from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
+from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig, ACEConfig
 from mlip_autopipec.domain_models.structure import Structure
 import numpy as np
 
@@ -21,9 +21,11 @@ def test_eos_validator_success(mock_calc):
         elements=["Si"],
         cutoff=5.0,
         pair_style="hybrid/overlay",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ACEConfig(
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )
     )
     validator = EOSValidator(val_config, pot_config, Path("pot.yace"))
 

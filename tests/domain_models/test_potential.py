@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from mlip_autopipec.domain_models.potential import Potential
-from mlip_autopipec.domain_models.config import PotentialConfig
+from mlip_autopipec.domain_models.config import PotentialConfig, ACEConfig
 from pathlib import Path
 from datetime import datetime
 
@@ -30,9 +30,11 @@ def test_potential_config_valid():
         elements=["Si", "C"],
         cutoff=4.5,
         pair_style="hybrid/overlay",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ACEConfig(
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )
     )
     assert pc.cutoff == 4.5
     assert pc.pair_style == "hybrid/overlay"
@@ -42,7 +44,9 @@ def test_potential_config_invalid_cutoff():
         PotentialConfig(
             elements=["Al"],
             cutoff=-1.0,
-            npot="FinnisSinclair",
-            fs_parameters=[1, 1, 1, 0.5],
-            ndensity=2
+            ace_params=ACEConfig(
+                npot="FinnisSinclair",
+                fs_parameters=[1, 1, 1, 0.5],
+                ndensity=2
+            )
         )

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from mlip_autopipec.physics.validation.elasticity import ElasticityValidator
-from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig
+from mlip_autopipec.domain_models.config import ValidationConfig, PotentialConfig, ACEConfig
 from mlip_autopipec.domain_models.structure import Structure
 import numpy as np
 
@@ -21,9 +21,11 @@ def test_elasticity_validator_success(mock_calc):
         elements=["Al"],
         cutoff=5.0,
         pair_style="hybrid/overlay",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ACEConfig(
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )
     )
     validator = ElasticityValidator(val_config, pot_config, Path("pot.yace"))
 
@@ -45,9 +47,11 @@ def test_elasticity_validator_failure(mock_calc):
         elements=["Al"],
         cutoff=5.0,
         pair_style="hybrid/overlay",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ACEConfig(
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )
     )
     validator = ElasticityValidator(val_config, pot_config, Path("pot.yace"))
 

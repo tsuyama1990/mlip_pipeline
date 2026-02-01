@@ -26,9 +26,10 @@ potential:
   elements: ["Si"]
   cutoff: 5.0
   pair_style: "hybrid/overlay"
-  npot: "FinnisSinclair"
-  fs_parameters: [1.0, 1.0, 1.0, 0.5]
-  ndensity: 2
+  ace_params:
+    npot: "FinnisSinclair"
+    fs_parameters: [1.0, 1.0, 1.0, 0.5]
+    ndensity: 2
 structure_gen:
   strategy: "bulk"
   element: "Si"

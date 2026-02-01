@@ -5,26 +5,23 @@ from typing import Literal, cast
 import typer
 
 from mlip_autopipec.constants import (
-    DEFAULT_CUTOFF,
-    DEFAULT_ELEMENTS,
     DEFAULT_LOG_FILENAME,
     DEFAULT_LOG_LEVEL,
     DEFAULT_PROJECT_NAME,
-    DEFAULT_SEED,
 )
 from mlip_autopipec.domain_models.config import (
-    BulkStructureGenConfig,
     Config,
     LoggingConfig,
     OrchestratorConfig,
     PotentialConfig,
+    BulkStructureGenConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
-from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -42,40 +39,14 @@ def init_project(path: Path) -> None:
     # Cast log level to Literal
     log_level = cast(Literal["DEBUG", "INFO", "WARNING", "ERROR"], DEFAULT_LOG_LEVEL)
 
-    # Create default configuration using Pydantic models
-    # This ensures consistency with the schema and leverages defaults
+    # Create default configuration using Pydantic models with default values
     config = Config(
         project_name=DEFAULT_PROJECT_NAME,
         logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
-        orchestrator=OrchestratorConfig(
-            max_iterations=5,
-            uncertainty_threshold=5.0,
-            halt_threshold=5,
-            validation_frequency=1
-        ),
-        potential=PotentialConfig(
-            elements=DEFAULT_ELEMENTS,
-            cutoff=DEFAULT_CUTOFF,
-            seed=DEFAULT_SEED,
-            pair_style="hybrid/overlay",
-            npot="FinnisSinclair",
-            fs_parameters=[1.0, 1.0, 1.0, 0.5],
-            ndensity=2,
-        ),
-        structure_gen=BulkStructureGenConfig(
-            strategy="bulk",
-            element="Si",
-            crystal_structure="diamond",
-            lattice_constant=5.43,
-            rattle_stdev=0.1,
-            supercell=(1, 1, 1),
-        ),
-        md=MDConfig(
-            temperature=300.0,
-            n_steps=1000,
-            timestep=0.001,
-            ensemble="NVT",
-        ),
+        orchestrator=OrchestratorConfig(),
+        potential=PotentialConfig(),
+        structure_gen=BulkStructureGenConfig(),
+        md=MDConfig(),
     )
 
     try:
@@ -293,11 +264,11 @@ def run_loop_cmd(config_path: Path) -> None:
         config = Config.from_yaml(config_path)
         logging_infra.setup_logging(config.logging)
 
-        # Initialize Manager
-        manager = WorkflowManager(config, work_dir=Path.cwd())
+        # Initialize Orchestrator
+        orchestrator = Orchestrator(config, work_dir=Path.cwd())
 
         # Run Loop
-        manager.run_loop()
+        orchestrator.run_loop()
 
         typer.secho("Autonomous Loop Finished.", fg=typer.colors.GREEN)
 
