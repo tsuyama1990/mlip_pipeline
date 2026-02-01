@@ -98,7 +98,12 @@ class LammpsRunner:
             )
         except subprocess.CalledProcessError as e:
             log_file = work_dir / "stdout.log"
-            log_content = self._read_log_tail(log_file) if log_file.exists() else f"Command failed.\nStderr: {e.stderr}"
+            log_content = ""
+            if log_file.exists():
+                log_content = self._read_log_tail(log_file)
+
+            if not log_content:
+                 log_content = f"Command failed.\nStderr: {e.stderr}"
 
             # Try to parse output even if failed (e.g. fix halt with error)
             try:
@@ -125,7 +130,12 @@ class LammpsRunner:
             )
         except Exception as e:
             log_file = work_dir / "stdout.log"
-            log_content = self._read_log_tail(log_file) if log_file.exists() else str(e)
+            log_content = ""
+            if log_file.exists():
+                 log_content = self._read_log_tail(log_file)
+
+            if not log_content:
+                 log_content = str(e)
 
             return LammpsResult(
                 job_id=job_id,

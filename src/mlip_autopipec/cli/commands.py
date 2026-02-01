@@ -24,7 +24,7 @@ from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
-from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -237,14 +237,21 @@ def validate_potential(config_path: Path, potential_path: Path) -> None:
         gen_config = config.structure_gen
 
         # Use model_copy(update=...) to avoid mutating original config
-        # Assuming BulkStructureGenConfig which has rattle_stdev
-        if isinstance(gen_config, BulkStructureGenConfig):
-            gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
-        elif not isinstance(gen_config, BulkStructureGenConfig):
-             # For validation, we prefer BulkStructureGenConfig if possible
-             # But if user configured something else, we try to use it.
-             # Warn if not bulk?
-             pass
+        if hasattr(gen_config, "rattle_stdev"):
+            # If the config supports rattle_stdev, override it.
+            # This handles BulkStructureGenConfig
+             gen_config = gen_config.model_copy(update={"rattle_stdev": config.validation.validation_rattle_stdev})
+        else:
+             # If using a strategy that doesn't support rattle_stdev (e.g., RandomSlice or Defect might not),
+             # we check if it is safe to proceed.
+             # Ideally, validation requires a "clean" structure.
+             # If we can't ensure it, we should warn or error.
+             # For now, we allow it but log a warning.
+             typer.secho(
+                 f"Warning: Structure generation strategy '{gen_config.strategy}' does not support 'rattle_stdev'. "
+                 "Validation structure may contain thermal noise or defects, affecting results.",
+                 fg=typer.colors.YELLOW
+             )
 
         generator = StructureGenFactory.get_generator(gen_config)
         structure = generator.generate(gen_config)
@@ -290,11 +297,11 @@ def run_loop_cmd(config_path: Path) -> None:
         config = Config.from_yaml(config_path)
         logging_infra.setup_logging(config.logging)
 
-        # Initialize Manager
-        manager = WorkflowManager(config, work_dir=Path.cwd())
+        # Use the Refactored Orchestrator
+        orchestrator = Orchestrator(config)
 
         # Run Loop
-        manager.run_loop()
+        orchestrator.run_pipeline()
 
         typer.secho("Autonomous Loop Finished.", fg=typer.colors.GREEN)
 

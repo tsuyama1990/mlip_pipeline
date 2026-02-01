@@ -18,7 +18,7 @@ def test_phonon_validator_pass(tmp_path):
     # Create dummy potential file
     (tmp_path / "pot.yace").touch()
 
-    val_config = ValidationConfig(phonon_tolerance=-0.1)
+    val_config = ValidationConfig(phonon_tolerance=0.1)
     pot_config = PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay")
     validator = PhononValidator(val_config, pot_config, tmp_path / "pot.yace")
 
@@ -51,7 +51,7 @@ def test_phonon_validator_pass(tmp_path):
 def test_phonon_validator_fail(tmp_path):
     (tmp_path / "pot.yace").touch()
 
-    val_config = ValidationConfig(phonon_tolerance=-0.1)
+    val_config = ValidationConfig(phonon_tolerance=0.1)
     pot_config = PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay")
     validator = PhononValidator(val_config, pot_config, tmp_path / "pot.yace")
 

@@ -29,7 +29,7 @@ class PotentialConfig(BaseModel):
     zbl_inner_cutoff: float = 1.0
     zbl_outer_cutoff: float = 2.0
 
-    # Pacemaker / ACE Basis Parameters (Moved from hardcoded values)
+    # Pacemaker / ACE Basis Parameters
     npot: str = "FinnisSinclair"
     fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5])
     ndensity: int = 2
@@ -60,9 +60,9 @@ class PotentialConfig(BaseModel):
 
         if has_heavy_atoms and self.pair_style != "hybrid/overlay":
              raise ValueError(
-                 "Elements with Z >= 2 found. You MUST use 'hybrid/overlay' pair_style "
-                 "to enforce physical core repulsion (Delta Learning). "
-                 "See SPEC.md Section 3.3."
+                 "Elements with Z >= 2 found (e.g., non-Hydrogen). "
+                 "You MUST use 'hybrid/overlay' pair_style to enforce physical core repulsion (Delta Learning). "
+                 "This ensures physical robustness in high-energy collisions."
              )
 
         return self
@@ -77,15 +77,15 @@ class OrchestratorConfig(BaseModel):
     halt_threshold: int = 5
     validation_frequency: int = 1
 
-    # Active Set Selection
-    active_set_optimization: bool = True
-    max_active_set_size: int = 1000
+    # Candidate Selection
+    # Renamed from max_active_set_size to avoid confusion with Pacemaker's active set
+    max_candidate_pool_size: int = 1000
 
     # Sampling & Batching
     trajectory_sampling_stride: int = 1
     dft_batch_size: int = 10
 
-    @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
+    @field_validator("max_candidate_pool_size", "trajectory_sampling_stride", "dft_batch_size")
     @classmethod
     def validate_positive_ints(cls, v: int, info: ValidationInfo) -> int:
         if v <= 0:
@@ -157,7 +157,7 @@ class ValidationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Phonon
-    phonon_tolerance: float = -0.05  # THz, strictly negative to allow numeric noise
+    phonon_tolerance: float = 0.05  # THz, strictly positive magnitude (e.g. 0.05 allows -0.05 imaginary freq)
     phonon_supercell: tuple[int, int, int] = (2, 2, 2)
 
     # Elastic
@@ -173,6 +173,13 @@ class ValidationConfig(BaseModel):
 
     # Structure Prep
     validation_rattle_stdev: float = 0.0
+
+    @field_validator("phonon_tolerance")
+    @classmethod
+    def validate_positive_tolerance(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("phonon_tolerance must be non-negative (it represents a magnitude).")
+        return v
 
 
 class Config(BaseModel):
