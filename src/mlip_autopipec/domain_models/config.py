@@ -28,7 +28,7 @@ class ACEConfig(BaseModel):
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str] = Field(default_factory=lambda: ["Ti", "O"])
+    elements: list[str] = Field(default_factory=list)
     cutoff: float = 5.0
     seed: int = 42
     lammps_command: str = "lmp"
@@ -55,15 +55,24 @@ class PotentialConfig(BaseModel):
         Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
         Spec Section 3.3.
         """
+        self._validate_hybrid_style()
+        return self
+
+    def _validate_hybrid_style(self):
+        """Internal helper to validate hybrid style requirements."""
+        if not self.elements:
+            # If elements list is empty, we can't validate yet, maybe allow it?
+            # Or fail? The field allows default_factory=list, so empty is possible initially.
+            return
+
         has_heavy_atoms = False
         for el in self.elements:
-            try:
-                z = ase.data.atomic_numbers[el]
-                if z >= 2:
-                    has_heavy_atoms = True
-                    break
-            except KeyError:
-                pass
+            if el not in ase.data.atomic_numbers:
+                raise ValueError(f"Invalid element symbol: {el}")
+
+            z = ase.data.atomic_numbers[el]
+            if z >= 2:
+                has_heavy_atoms = True
 
         if has_heavy_atoms and self.pair_style != "hybrid/overlay":
              raise ValueError(
@@ -71,8 +80,6 @@ class PotentialConfig(BaseModel):
                  "to enforce physical core repulsion (Delta Learning). "
                  "See SPEC.md Section 3.3."
              )
-
-        return self
 
 
 class OrchestratorConfig(BaseModel):
@@ -192,6 +199,13 @@ class ValidationConfig(BaseModel):
         return v
 
 
+class PolicyConfig(BaseModel):
+    """Configuration for the Adaptive Exploration Policy."""
+    model_config = ConfigDict(extra="forbid")
+
+    is_metal: bool = False
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -201,6 +215,7 @@ class Config(BaseModel):
     potential: PotentialConfig = Field(default_factory=PotentialConfig)
     lammps: LammpsConfig = Field(default_factory=LammpsConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
+    policy: PolicyConfig = Field(default_factory=PolicyConfig)
 
     # New configurations
     structure_gen: StructureGenConfig = Field(default_factory=BulkStructureGenConfig, discriminator="strategy")

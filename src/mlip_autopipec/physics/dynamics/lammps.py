@@ -47,6 +47,7 @@ class LammpsRunner:
         structure: Structure,
         params: MDParams,
         potential_path: Optional[Path] = None,
+        extra_commands: Optional[list[str]] = None,
     ) -> LammpsResult:
         """
         Run a single MD simulation.
@@ -60,7 +61,7 @@ class LammpsRunner:
 
         try:
             # 1. Write Inputs
-            self._write_inputs(work_dir, structure, params, potential_path)
+            self._write_inputs(work_dir, structure, params, potential_path, extra_commands)
 
             # 2. Execute
             start_time = datetime.now()
@@ -151,6 +152,7 @@ class LammpsRunner:
         structure: Structure,
         params: MDParams,
         potential_path: Optional[Path],
+        extra_commands: Optional[list[str]] = None,
     ) -> None:
         """Write data.lammps and in.lammps."""
         # Write Structure
@@ -188,6 +190,9 @@ fix             watchdog all halt 10 v_max_gamma > {params.uncertainty_threshold
             pres = params.pressure if params.pressure is not None else 0.0
             fix_cmd = f"fix 1 all npt temp {params.temperature} {params.temperature} $(100.0*dt) iso {pres} {pres} $(1000.0*dt)"
 
+        # Extra Commands
+        extras = "\n".join(extra_commands) if extra_commands else ""
+
         input_script = f"""
 # Cycle 02/03 - MD
 units           metal
@@ -213,6 +218,9 @@ log             log.lammps
 
 # Ensemble
 {fix_cmd}
+
+# Extra Commands (e.g. fix atom/swap)
+{extras}
 
 run             {params.n_steps}
 """
@@ -292,17 +300,61 @@ run             {params.n_steps}
         stdout_path = work_dir / "stdout.log"
         stderr_path = work_dir / "stderr.log"
 
-        # Use line buffering (buffering=1) or a reasonable block size (e.g. 8KB) to ensure responsiveness
-        # while maintaining efficiency. Using default block buffering is usually best for performance.
-        with open(stdout_path, "w", buffering=8192) as f_out, open(stderr_path, "w", buffering=8192) as f_err:
-            subprocess.run(
+        # Explicitly stream output in chunks to avoid memory buffer issues
+        with open(stdout_path, "wb") as f_out, open(stderr_path, "wb") as f_err:
+            process = subprocess.Popen(
                 cmd_list,
                 cwd=work_dir,
-                stdout=f_out,
-                stderr=f_err,
-                timeout=self.config.timeout,
-                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
+
+            # Assert stdout/stderr are not None for Mypy
+            assert process.stdout is not None
+            assert process.stderr is not None
+
+            try:
+                # Manual streaming loop
+                import select
+
+                # Use larger buffer size for I/O efficiency (64KB)
+                BUFFER_SIZE = 65536
+
+                # Check for output until process ends
+                while True:
+                    reads = [process.stdout.fileno(), process.stderr.fileno()]
+                    ret = select.select(reads, [], [], 0.5) # Timeout 0.5s to check process poll
+
+                    for fd in ret[0]:
+                        if fd == process.stdout.fileno():
+                            chunk = process.stdout.read(BUFFER_SIZE)
+                            if chunk:
+                                f_out.write(chunk)
+                                f_out.flush()
+                        elif fd == process.stderr.fileno():
+                            chunk = process.stderr.read(BUFFER_SIZE)
+                            if chunk:
+                                f_err.write(chunk)
+                                f_err.flush()
+
+                    if process.poll() is not None:
+                         # Process ended, drain remaining
+                         remaining_out = process.stdout.read()
+                         if remaining_out:
+                             f_out.write(remaining_out)
+                         remaining_err = process.stderr.read()
+                         if remaining_err:
+                             f_err.write(remaining_err)
+                         break
+
+                if process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, cmd_list)
+
+            except Exception:
+                # Cleanup if error
+                process.kill()
+                process.wait()
+                raise
 
     def _read_log_tail(self, log_path: Path, lines: int = 100) -> str:
         """Read last N lines of log file efficiently."""
@@ -353,11 +405,17 @@ run             {params.n_steps}
         if not traj_path.exists():
             raise FileNotFoundError(f"Trajectory {traj_path} not found.")
 
-        # Read last frame
-        atoms = ase.io.read(traj_path, index=-1, format="lammps-dump-text")  # type: ignore[no-untyped-call]
+        # Read last frame safely using iread to avoid loading full trajectory into memory
+        # This iterates over the file and keeps only the latest frame reference.
+        # This is memory-safe (O(1)) as we discard previous frames immediately.
+        atoms = None
+        for frame in ase.io.iread(traj_path, format="lammps-dump-text"): # type: ignore[no-untyped-call]
+            atoms = frame
+            # Ensure we don't hold references to previous frames implicitly
+            # (though simple reassignment should handle it in CPython)
 
-        if isinstance(atoms, list):
-            atoms = atoms[-1]
+        if atoms is None:
+             raise ValueError(f"Trajectory {traj_path} is empty or invalid.")
 
         # Restore symbols
         if len(atoms) == len(original_structure.symbols):

@@ -1,6 +1,6 @@
 # PyAceMaker: Automated MLIP Pipeline
 
-![Status](https://img.shields.io/badge/Status-Cycle_06_Verified-green)
+![Status](https://img.shields.io/badge/Status-Cycle_07_Verified-green)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 
@@ -15,6 +15,9 @@
 -   **Autonomous Active Learning Loop**:
     -   **State-Aware Orchestration**: Resumable workflow managing Exploration, Selection, Calculation, and Training phases.
     -   **Uncertainty Quantification**: Real-time detection of high-uncertainty configurations during MD (`fix halt`).
+    -   **Adaptive Exploration**:
+        -   **Smart Policy**: Automatically selects exploration strategies (MD, MC, Static) based on material type (Metal vs Insulator).
+        -   **Advanced Generators**: Creates defects (Vacancies, Interstitials, Antisites) and strained structures (Uniaxial, Shear) to probe phase space boundaries.
     -   **Self-Improvement**: Automatically refines potentials by learning from "confusing" structures.
 -   **Oracle (DFT Automation)**:
     -   **Self-Healing**: Robust Quantum Espresso wrapper that automatically detects and fixes SCF convergence failures (adjusts mixing beta, smearing).
@@ -36,6 +39,7 @@
 -   **Structure Generation**:
     -   Deterministic bulk crystal generation (e.g., Silicon Diamond).
     -   Thermal noise application (Rattling).
+    -   Defect and Strain sampling strategies.
 -   **Strict Data Validation**: Pydantic-based domain models ensure that every atomic structure and configuration parameter is valid before processing begins.
 -   **Configuration Management**:
     -   `init`: Generates valid template configurations instantly.
@@ -114,6 +118,8 @@ potential:
   elements: ["Si"]
   cutoff: 5.0
   seed: 42
+policy:
+  is_metal: false
 lammps:
   command: "lmp_serial"
   timeout: 3600
@@ -144,6 +150,9 @@ src/mlip_autopipec/
 │   ├── dynamics/           # LAMMPS (Runner)
 │   ├── training/           # Pacemaker (Dataset, Runner)
 │   └── structure_gen/      # Generation & Embedding
+│       ├── policy.py       # Adaptive Strategy
+│       ├── defects.py      # Defect Generator
+│       └── strain.py       # Strain Generator
 ├── orchestration/          # Workflow Management
 ├── infrastructure/         # Logging, IO
 └── app.py                  # CLI Entry Point
@@ -157,6 +166,7 @@ src/mlip_autopipec/
 -   **Cycle 04**: Training (Pacemaker) (Completed)
 -   **Cycle 05**: Validation Framework (Completed)
 -   **Cycle 06**: Active Learning Loop (Completed)
+-   **Cycle 07**: Adaptive Strategy (Completed)
 
 ## License
 
