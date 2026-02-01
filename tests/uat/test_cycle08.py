@@ -1,14 +1,8 @@
 from unittest.mock import patch
-from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
 from mlip_autopipec.app import app
-from mlip_autopipec.domain_models.exploration import ExplorationTask
-from mlip_autopipec.domain_models.dynamics import EonResult
-from mlip_autopipec.domain_models.job import JobStatus
-from mlip_autopipec.domain_models.structure import Structure
-import ase
 
 runner = CliRunner()
 

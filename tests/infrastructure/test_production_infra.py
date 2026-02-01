@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch
 from pathlib import Path
 from mlip_autopipec.infrastructure.production import ProductionDeployer
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric

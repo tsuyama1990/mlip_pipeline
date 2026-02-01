@@ -1,11 +1,10 @@
+import os
 from typing import List, Tuple
 
 # General
 DEFAULT_LOG_FILENAME = "mlip_pipeline.log"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_PROJECT_NAME = "MyMLIPProject"
-
-import os
 
 # Potential
 DEFAULT_ELEMENTS: List[str] = []
