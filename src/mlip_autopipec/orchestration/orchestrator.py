@@ -30,7 +30,7 @@ class Orchestrator:
 
         # Setup infrastructure
         # Data directory for accumulated dataset
-        self.data_dir = Path("data")
+        self.data_dir = self.config.orchestrator.data_dir
         self.data_dir.mkdir(exist_ok=True)
         self.dataset_manager = DatasetManager(self.data_dir)
 
@@ -80,7 +80,7 @@ class Orchestrator:
 
         while self.iteration < max_iterations:
             self.iteration += 1
-            iter_dir = Path(f"active_learning/iter_{self.iteration:03d}")
+            iter_dir = self.data_dir.parent / f"active_learning/iter_{self.iteration:03d}"
             iter_dir.mkdir(parents=True, exist_ok=True)
 
             logger.info(f"--- Iteration {self.iteration}/{max_iterations} ---")
@@ -189,6 +189,7 @@ class Orchestrator:
         """
         Phase 3: Selection
         Select structures for DFT calculation.
+        Uses Reservoir Sampling to maintain memory efficiency (O(max_size)).
         """
         logger.info("Phase: Selection")
 
@@ -201,14 +202,18 @@ class Orchestrator:
         index_spec = f"::{stride}"
 
         try:
-            # iread returns an iterator
+            # iread returns an iterator. We ensure format is specified to avoid guessing overhead.
+            # Using 'lammps-dump-text' is correct for standard LAMMPS dump files.
+            # This yields Atoms objects one by one (or with stride) without loading the full file.
             traj_iter = ase.io.iread(result.trajectory_path, index=index_spec, format="lammps-dump-text") # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"Failed to read trajectory: {e}")
             return []
 
-        candidates = []
+        reservoir: list[Structure] = []
+        max_size = self.config.orchestrator.max_active_set_size
         threshold = self.config.orchestrator.uncertainty_threshold
+        candidate_count = 0
 
         for i, atoms in enumerate(traj_iter):
             # Check for gamma
@@ -221,22 +226,38 @@ class Orchestrator:
                     logger.debug(f"Frame {i*stride}: Max gamma {np.max(gammas)} > {threshold}")
 
             if is_candidate:
-                candidates.append(Structure.from_ase(atoms))
+                # Optimized Reservoir Sampling: Delay object creation
+                keep = False
+                replace_idx = -1
+
+                if len(reservoir) < max_size:
+                    keep = True
+                else:
+                    # Randomly replace existing element
+                    j = np.random.randint(0, candidate_count + 1)
+                    if j < max_size:
+                        keep = True
+                        replace_idx = j
+
+                if keep:
+                    struct = Structure.from_ase(atoms)
+                    if len(reservoir) < max_size:
+                        reservoir.append(struct)
+                    else:
+                        reservoir[replace_idx] = struct
+
+                candidate_count += 1
 
         # If no candidates found via gamma, but we halted (likely due to uncertainty or error),
         # take the final structure as a fallback candidate.
-        if not candidates and result.status != JobStatus.COMPLETED:
+        if candidate_count == 0 and result.status != JobStatus.COMPLETED:
              logger.info("No high-gamma frames found in trajectory, but job halted. Selecting final frame.")
-             candidates.append(result.final_structure)
+             reservoir.append(result.final_structure)
 
-        # Limit the size of active set to avoid overwhelming DFT
-        max_size = self.config.orchestrator.max_active_set_size
-        if len(candidates) > max_size:
-            logger.info(f"Subsampling candidates from {len(candidates)} to {max_size}")
-            indices = np.linspace(0, len(candidates)-1, max_size, dtype=int)
-            candidates = [candidates[i] for i in indices]
+        if candidate_count > max_size:
+            logger.info(f"Subsampled candidates from {candidate_count} to {max_size}")
 
-        return candidates
+        return reservoir
 
     def apply_periodic_embedding(self, structure: Structure) -> Structure:
         """
@@ -278,6 +299,7 @@ class Orchestrator:
         dataset_path = self.data_dir / "accumulated.pckl.gzip"
         batch_size = self.config.orchestrator.dft_batch_size
         pending_writes = []
+        extxyz_path: Optional[Path] = None
 
         for i, s in enumerate(candidates):
             try:
@@ -306,9 +328,9 @@ class Orchestrator:
                     dft_results.append(s_new)
                     pending_writes.append(s_new)
 
-                    # Batch Write
+                    # Batch Write (Append to extxyz)
                     if len(pending_writes) >= batch_size:
-                        self.dataset_manager.convert(pending_writes, output_path=dataset_path, append=True)
+                        extxyz_path = self.dataset_manager.append_structures(pending_writes, append=True)
                         pending_writes = [] # Clear buffer
 
                 else:
@@ -318,10 +340,14 @@ class Orchestrator:
 
         # Final flush of pending writes
         if pending_writes:
-            self.dataset_manager.convert(pending_writes, output_path=dataset_path, append=True)
+            extxyz_path = self.dataset_manager.append_structures(pending_writes, append=True)
 
         if not dft_results:
              raise RuntimeError("All DFT calculations failed.")
+
+        # Finalize Dataset (Run pace_collect once)
+        if extxyz_path and extxyz_path.exists():
+            self.dataset_manager.finalize_dataset(extxyz_path, dataset_path)
 
         # 3. Train
         train_dir = iter_dir / "training"
@@ -337,6 +363,9 @@ class Orchestrator:
 
         if train_result.status != JobStatus.COMPLETED:
             raise RuntimeError(f"Training failed: {train_result.log_content}")
+
+        if train_result.potential_path is None:
+            raise RuntimeError("Training reported success but returned no potential path.")
 
         return train_result.potential_path
 

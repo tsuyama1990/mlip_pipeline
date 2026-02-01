@@ -19,7 +19,14 @@ def test_phonon_validator_pass(tmp_path):
     (tmp_path / "pot.yace").touch()
 
     val_config = ValidationConfig(phonon_tolerance=-0.1)
-    pot_config = PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay")
+    pot_config = PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
+    )
     validator = PhononValidator(val_config, pot_config, tmp_path / "pot.yace")
 
     structure = Structure(
@@ -52,7 +59,14 @@ def test_phonon_validator_fail(tmp_path):
     (tmp_path / "pot.yace").touch()
 
     val_config = ValidationConfig(phonon_tolerance=-0.1)
-    pot_config = PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay")
+    pot_config = PotentialConfig(
+        elements=["Si"],
+        cutoff=5.0,
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
+    )
     validator = PhononValidator(val_config, pot_config, tmp_path / "pot.yace")
 
     structure = Structure(

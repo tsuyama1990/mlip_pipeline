@@ -17,7 +17,14 @@ def mock_calc():
 
 def test_elasticity_validator_success(mock_calc):
     val_config = ValidationConfig()
-    pot_config = PotentialConfig(elements=["Al"], cutoff=5.0, pair_style="hybrid/overlay")
+    pot_config = PotentialConfig(
+        elements=["Al"],
+        cutoff=5.0,
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
+    )
     validator = ElasticityValidator(val_config, pot_config, Path("pot.yace"))
 
     structure = Structure(
@@ -34,7 +41,14 @@ def test_elasticity_validator_success(mock_calc):
 
 def test_elasticity_validator_failure(mock_calc):
     val_config = ValidationConfig()
-    pot_config = PotentialConfig(elements=["Al"], cutoff=5.0, pair_style="hybrid/overlay")
+    pot_config = PotentialConfig(
+        elements=["Al"],
+        cutoff=5.0,
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
+    )
     validator = ElasticityValidator(val_config, pot_config, Path("pot.yace"))
 
     structure = Structure(

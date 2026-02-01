@@ -20,7 +20,10 @@ def mock_pot_config():
     return PotentialConfig(
         elements=["Si"],
         cutoff=5.0,
-        pair_style="hybrid/overlay"
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
     )
 
 @pytest.fixture

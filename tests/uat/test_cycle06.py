@@ -17,7 +17,15 @@ def valid_config(tmp_path):
         project_name="UAT_Cycle06",
         logging=LoggingConfig(level="INFO", file_path=tmp_path / "log.txt"),
         orchestrator=OrchestratorConfig(max_iterations=1, uncertainty_threshold=0.1, validation_frequency=1),
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0, seed=42, pair_style="hybrid/overlay"),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=5.0,
+            seed=42,
+            pair_style="hybrid/overlay",
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        ),
         structure_gen=BulkStructureGenConfig(strategy="bulk", element="Si", crystal_structure="diamond", lattice_constant=5.43, supercell=(1,1,1)),
         md=MDConfig(temperature=300, n_steps=100, ensemble="NVT", timestep=0.001),
         dft=DFTConfig(command="pw.x", pseudopotentials={"Si": "Si.upf"}, ecutwfc=40.0, kspacing=0.04),

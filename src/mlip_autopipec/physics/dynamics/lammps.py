@@ -51,6 +51,8 @@ class LammpsRunner:
         """
         Run a single MD simulation.
         """
+        self._validate_params(params)
+
         job_id = str(uuid.uuid4())
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         work_dir = self.base_work_dir / f"job_{timestamp}_{job_id[:8]}"
@@ -97,8 +99,11 @@ class LammpsRunner:
                 max_gamma=None,
             )
         except subprocess.CalledProcessError as e:
-            log_file = work_dir / "stdout.log"
-            log_content = self._read_log_tail(log_file) if log_file.exists() else f"Command failed.\nStderr: {e.stderr}"
+            log_content = self._collect_log_content(work_dir)
+
+            # Fallback to exception info if logs are empty
+            if not log_content.strip():
+                log_content = f"Command failed.\nStderr: {e.stderr}"
 
             # Try to parse output even if failed (e.g. fix halt with error)
             try:
@@ -124,8 +129,10 @@ class LammpsRunner:
                 max_gamma=max_gamma,
             )
         except Exception as e:
-            log_file = work_dir / "stdout.log"
-            log_content = self._read_log_tail(log_file) if log_file.exists() else str(e)
+            log_content = self._collect_log_content(work_dir)
+
+            if not log_content.strip():
+                log_content = str(e)
 
             return LammpsResult(
                 job_id=job_id,
@@ -153,35 +160,9 @@ class LammpsRunner:
         unique_elements = sorted(list(set(structure.symbols)))
 
         # Interaction
-        pair_style = ""
-        pair_coeff = ""
-
-        if potential_path and self.potential_config.pair_style == "hybrid/overlay":
-             zbl_in = self.potential_config.zbl_inner_cutoff
-             zbl_out = self.potential_config.zbl_outer_cutoff
-
-             pair_style = f"pair_style      hybrid/overlay pace zbl {zbl_in} {zbl_out}"
-             pot_file_str = str(potential_path.resolve())
-
-             elem_str = " ".join(unique_elements)
-             pair_coeff += f"pair_coeff      * * pace {pot_file_str} {elem_str}\n"
-
-             for i, el1 in enumerate(unique_elements):
-                 z1 = ase.data.atomic_numbers[el1]
-                 for j, el2 in enumerate(unique_elements):
-                     if j < i:
-                         continue
-                     z2 = ase.data.atomic_numbers[el2]
-                     pair_coeff += f"pair_coeff      {i+1} {j+1} zbl {z1} {z2}\n"
-
-        elif potential_path:
-             pair_style = "pair_style      pace"
-             pot_file_str = str(potential_path.resolve())
-             elem_str = " ".join(unique_elements)
-             pair_coeff = f"pair_coeff      * * pace {pot_file_str} {elem_str}"
-        else:
-             pair_style = "pair_style      lj/cut 2.5"
-             pair_coeff = "pair_coeff      * * 1.0 1.0"
+        pair_style, pair_coeff = self._generate_potential_commands(
+            unique_elements, potential_path
+        )
 
         # UQ / Watchdog
         uq_cmds = ""
@@ -235,7 +216,64 @@ log             log.lammps
 
 run             {params.n_steps}
 """
+        self._validate_input_script(input_script)
         (work_dir / "in.lammps").write_text(input_script)
+
+    def _validate_params(self, params: MDParams) -> None:
+        """Validate MD parameters beyond Pydantic checks."""
+        if params.timestep <= 0:
+            raise ValueError("Timestep must be positive.")
+        if params.temperature < 0:
+            raise ValueError("Temperature cannot be negative (unless exotic physics intended, assuming error).")
+
+    def _validate_input_script(self, script: str) -> None:
+        """Basic validation of generated LAMMPS script."""
+        if "pair_style" not in script:
+            raise ValueError("Generated script missing 'pair_style'.")
+        if "run" not in script:
+            raise ValueError("Generated script missing 'run' command.")
+        # Check for potential injection (simple check)
+        forbidden = ["shell", "external", "python"]
+        for line in script.splitlines():
+            words = line.split()
+            if words and words[0] in forbidden:
+                raise ValueError(f"Forbidden command '{words[0]}' found in generated script.")
+
+    def _generate_potential_commands(
+        self, unique_elements: list[str], potential_path: Optional[Path]
+    ) -> tuple[str, str]:
+        """Generate pair_style and pair_coeff commands."""
+        pair_style = ""
+        pair_coeff = ""
+
+        if potential_path and self.potential_config.pair_style == "hybrid/overlay":
+             zbl_in = self.potential_config.zbl_inner_cutoff
+             zbl_out = self.potential_config.zbl_outer_cutoff
+
+             pair_style = f"pair_style      hybrid/overlay pace zbl {zbl_in} {zbl_out}"
+             pot_file_str = str(potential_path.resolve())
+
+             elem_str = " ".join(unique_elements)
+             pair_coeff += f"pair_coeff      * * pace {pot_file_str} {elem_str}\n"
+
+             for i, el1 in enumerate(unique_elements):
+                 z1 = ase.data.atomic_numbers[el1]
+                 for j, el2 in enumerate(unique_elements):
+                     if j < i:
+                         continue
+                     z2 = ase.data.atomic_numbers[el2]
+                     pair_coeff += f"pair_coeff      {i+1} {j+1} zbl {z1} {z2}\n"
+
+        elif potential_path:
+             pair_style = "pair_style      pace"
+             pot_file_str = str(potential_path.resolve())
+             elem_str = " ".join(unique_elements)
+             pair_coeff = f"pair_coeff      * * pace {pot_file_str} {elem_str}"
+        else:
+             pair_style = "pair_style      lj/cut 2.5"
+             pair_coeff = "pair_coeff      * * 1.0 1.0"
+
+        return pair_style, pair_coeff
 
     def _execute(self, work_dir: Path) -> None:
         """Execute LAMMPS subprocess, streaming output to file."""
@@ -254,7 +292,9 @@ run             {params.n_steps}
         stdout_path = work_dir / "stdout.log"
         stderr_path = work_dir / "stderr.log"
 
-        with open(stdout_path, "w") as f_out, open(stderr_path, "w") as f_err:
+        # Use line buffering (buffering=1) or a reasonable block size (e.g. 8KB) to ensure responsiveness
+        # while maintaining efficiency. Using default block buffering is usually best for performance.
+        with open(stdout_path, "w", buffering=8192) as f_out, open(stderr_path, "w", buffering=8192) as f_err:
             subprocess.run(
                 cmd_list,
                 cwd=work_dir,
@@ -273,6 +313,24 @@ run             {params.n_steps}
         from collections import deque
         with open(log_path, 'r') as f:
             return "".join(deque(f, lines))
+
+    def _collect_log_content(self, work_dir: Path) -> str:
+        """Helper to collect logs from stdout.log and stderr.log."""
+        stdout_path = work_dir / "stdout.log"
+        stderr_path = work_dir / "stderr.log"
+
+        log_content_parts = []
+        if stdout_path.exists():
+            out_tail = self._read_log_tail(stdout_path)
+            if out_tail.strip():
+                log_content_parts.append(f"--- STDOUT ---\n{out_tail}")
+
+        if stderr_path.exists():
+            err_tail = self._read_log_tail(stderr_path)
+            if err_tail.strip():
+                log_content_parts.append(f"--- STDERR ---\n{err_tail}")
+
+        return "\n".join(log_content_parts)
 
     def _parse_output(
         self, work_dir: Path, original_structure: Structure

@@ -30,9 +30,9 @@ class PotentialConfig(BaseModel):
     zbl_outer_cutoff: float = 2.0
 
     # Pacemaker / ACE Basis Parameters (Moved from hardcoded values)
-    npot: str = "FinnisSinclair"
-    fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5])
-    ndensity: int = 2
+    npot: str = Field(..., description="Potential type (e.g. FinnisSinclair)")
+    fs_parameters: List[float] = Field(..., description="Finnis-Sinclair parameters")
+    ndensity: int = Field(..., description="Density of basis functions")
 
     @field_validator("cutoff")
     @classmethod
@@ -84,6 +84,9 @@ class OrchestratorConfig(BaseModel):
     # Sampling & Batching
     trajectory_sampling_stride: int = 1
     dft_batch_size: int = 10
+
+    # Paths
+    data_dir: Path = Path("data")
 
     @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
     @classmethod

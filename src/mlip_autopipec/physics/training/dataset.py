@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable
 
 import numpy as np
 from ase import Atoms
@@ -27,57 +27,70 @@ class DatasetManager:
     ) -> Path:
         """
         Convert a list (or iterator) of Structure objects to a .pckl.gzip dataset.
-
-        Uses streaming to avoid loading all atoms into memory.
-        If append=True, appends to the intermediate extxyz file, effectively adding to the dataset.
-
-        Args:
-            structures: Iterable of Structure objects.
-            output_path: Path to the output .pckl.gzip file.
-            append: If True, append to existing dataset.extxyz.
-
-        Returns:
-            Path to the generated dataset.
+        Wraps append_structures and finalize_dataset.
         """
-        logger.info(f"Converting structures to Pacemaker dataset: {output_path}")
+        extxyz_path = self.append_structures(structures, append=append)
+        return self.finalize_dataset(extxyz_path, output_path)
 
-        # 1. Write structures to extxyz
+    def append_structures(
+        self, structures: Iterable[Structure], append: bool = True, chunk_size: int = 100
+    ) -> Path:
+        """
+        Append structures to the intermediate extxyz file.
+        Uses chunking to maintain low memory usage even for large iterables.
+        """
         extxyz_path = self.work_dir / "dataset.extxyz"
 
-        # Check if iterable is empty without consuming it if possible, or handle via counter
-        def atoms_generator() -> Iterator[Atoms]:
-            count = 0
-            for s in structures:
-                yield self._prepare_atoms(s)
-                count += 1
-            # If count == 0, ase.io.write might do nothing or create empty file depending on version/format
-            if count == 0:
-                logger.warning("No structures provided to convert.")
+        iterator = iter(structures)
+        first_chunk = True
 
-        # Write to file
-        # ase.io.write supports generator for many formats including extxyz
-        # append=True allows accumulation
-        # Note: If streaming from disk (iread), this streams to disk (extxyz), keeping memory O(1) wrt N_structures
-        write(extxyz_path, atoms_generator(), format="extxyz", append=append)  # type: ignore[arg-type]
+        while True:
+            chunk = []
+            try:
+                for _ in range(chunk_size):
+                    chunk.append(next(iterator))
+            except StopIteration:
+                pass
 
-        # Check if file is empty or not created (if generator was empty)
+            if not chunk:
+                if first_chunk:
+                    logger.debug("No structures provided to append.")
+                break
+
+            atoms_list = [self._prepare_atoms(s) for s in chunk]
+
+            # Determine write mode logic for the first chunk
+            mode = "a" if append else "w"
+            if not first_chunk:
+                mode = "a"
+
+            # Open file once per chunk (or could keep open, but chunking implies separation)
+            # Efficiently write chunk
+            with open(extxyz_path, mode) as f:
+                write(f, atoms_list, format="extxyz")  # type: ignore[arg-type]
+
+            first_chunk = False
+            del chunk
+            del atoms_list
+
+        return extxyz_path
+
+    def finalize_dataset(self, extxyz_path: Path, output_path: Path) -> Path:
+        """
+        Run pace_collect to convert the accumulated extxyz to pckl.gzip.
+        """
+        logger.info(f"Finalizing dataset: {output_path}")
+
         if not extxyz_path.exists() or extxyz_path.stat().st_size == 0:
-             logger.warning("dataset.extxyz is empty or does not exist.")
-             if not append:
-                 # If we are starting fresh and have no data, we can't create a valid dataset.
-                 # But maybe we just return output_path (which won't exist) and let caller handle?
-                 # Or raise Error? Pacemaker will fail on empty file.
-                 pass
+            logger.warning(f"ExtXYZ file {extxyz_path} is empty or missing.")
+            # We cannot run pace_collect on empty file
+            return output_path
 
-        # 2. Call pace_collect
-        # usage: pace_collect dataset.extxyz -o dataset.pckl.gzip
-        # Note: pace_collect might load the whole extxyz into memory. This is a limitation of the tool.
-        # But we satisfied the requirement to not buffer in python memory.
         cmd = ["pace_collect", str(extxyz_path), "--output", str(output_path)]
 
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
-            logger.info("Dataset conversion successful")
+            logger.info("Dataset finalization successful")
         except subprocess.CalledProcessError as e:
             logger.error(f"pace_collect failed: {e.stderr}")
             raise RuntimeError(f"pace_collect failed: {e.stderr}") from e

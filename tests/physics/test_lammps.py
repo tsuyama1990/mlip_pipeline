@@ -40,7 +40,10 @@ def potential_config():
         cutoff=5.0,
         pair_style="hybrid/overlay",
         zbl_inner_cutoff=0.5,
-        zbl_outer_cutoff=1.2
+        zbl_outer_cutoff=1.2,
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
     )
 
 

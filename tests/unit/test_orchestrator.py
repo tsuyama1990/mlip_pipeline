@@ -19,6 +19,7 @@ from mlip_autopipec.domain_models import (
     TrainingConfig
 )
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.structure_gen.strategies import StructureGenerator
 import numpy as np
 
 @pytest.fixture
@@ -26,7 +27,14 @@ def mock_config():
     return Config(
         project_name="TestProject",
         logging=LoggingConfig(),
-        potential=PotentialConfig(elements=["Si"], cutoff=5.0, pair_style="hybrid/overlay"),
+        potential=PotentialConfig(
+            elements=["Si"],
+            cutoff=5.0,
+            pair_style="hybrid/overlay",
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
             element="Si",
@@ -55,7 +63,7 @@ def test_orchestrator_one_shot(mock_config, mock_structure):
          patch("mlip_autopipec.orchestration.orchestrator.LammpsRunner") as mock_runner_cls:
 
         # Setup mocks
-        mock_generator = MagicMock()
+        mock_generator = MagicMock(spec=StructureGenerator)
         mock_generator.generate.return_value = mock_structure
         mock_gen_factory.get_generator.return_value = mock_generator
 
@@ -87,7 +95,7 @@ def test_orchestrator_loop_with_uncertainty(mock_config, mock_structure):
     with patch("mlip_autopipec.orchestration.orchestrator.StructureGenFactory") as mock_gen_factory, \
          patch("mlip_autopipec.orchestration.orchestrator.LammpsRunner") as mock_runner_cls:
 
-        mock_generator = MagicMock()
+        mock_generator = MagicMock(spec=StructureGenerator)
         mock_generator.generate.return_value = mock_structure
         mock_gen_factory.get_generator.return_value = mock_generator
 
@@ -170,8 +178,8 @@ def test_orchestrator_partial_dft_failure(mock_config, mock_structure):
         assert new_pot == Path("new.yace")
         assert mock_dft_runner.run.call_count == 2
         # Dataset manager should only be called with 1 result (the successful one)
-        orchestrator.dataset_manager.convert.assert_called_once()
-        args, _ = orchestrator.dataset_manager.convert.call_args
+        orchestrator.dataset_manager.append_structures.assert_called_once()
+        args, _ = orchestrator.dataset_manager.append_structures.call_args
         assert len(args[0]) == 1 # List of 1 structure
 
 def test_force_masking(mock_config, mock_structure):
@@ -209,10 +217,13 @@ def test_force_masking(mock_config, mock_structure):
         iter_dir = Path("test_iter_mask")
         (iter_dir / "dft_calc").mkdir(parents=True, exist_ok=True)
 
+        # Ensure append_structures returns a Path so finalize_dataset is called
+        orchestrator.dataset_manager.append_structures.return_value = Path("test.extxyz")
+
         orchestrator.refine(candidates, iter_dir)
 
         # Check that the structure passed to dataset_manager has masked forces
-        args, _ = orchestrator.dataset_manager.convert.call_args
+        args, _ = orchestrator.dataset_manager.append_structures.call_args
         struct_saved = args[0][0]
         # Force should be zeroed out
         assert np.allclose(struct_saved.properties['forces'], 0.0)

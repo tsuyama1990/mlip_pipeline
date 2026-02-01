@@ -23,7 +23,10 @@ def test_config_valid() -> None:
             seed=42,
             pair_style="hybrid/overlay",
             zbl_inner_cutoff=0.8,
-            zbl_outer_cutoff=1.5
+            zbl_outer_cutoff=1.5,
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
@@ -61,7 +64,14 @@ def test_config_random_slice() -> None:
     c = Config(
         project_name="TestSlice",
         # Al has Z=13, so must use hybrid/overlay
-        potential=PotentialConfig(elements=["Al"], cutoff=4.0, pair_style="hybrid/overlay"),
+        potential=PotentialConfig(
+            elements=["Al"],
+            cutoff=4.0,
+            pair_style="hybrid/overlay",
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        ),
         structure_gen=RandomSliceStructureGenConfig(
             strategy="random_slice",
             element="Al",
@@ -85,6 +95,9 @@ def test_config_invalid_cutoff() -> None:
                 elements=["Ti"],
                 cutoff=-1.0,  # Invalid
                 seed=42,
+                npot="FinnisSinclair",
+                fs_parameters=[1, 1, 1, 0.5],
+                ndensity=2
             ),
             structure_gen=BulkStructureGenConfig(
                 element="Ti", crystal_structure="hcp", lattice_constant=2.95
@@ -115,6 +128,9 @@ def test_from_yaml(tmp_path: Path) -> None:
       cutoff: 3.0
       seed: 123
       pair_style: "hybrid/overlay"
+      npot: "FinnisSinclair"
+      fs_parameters: [1.0, 1.0, 1.0, 0.5]
+      ndensity: 2
     logging:
       level: "DEBUG"
     structure_gen:
@@ -155,7 +171,10 @@ def test_config_delta_learning_enforcement() -> None:
         PotentialConfig(
             elements=["He"],
             cutoff=3.0,
-            pair_style="pace"
+            pair_style="pace",
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
         )
     assert "MUST use 'hybrid/overlay'" in str(excinfo.value)
 
@@ -163,7 +182,10 @@ def test_config_delta_learning_enforcement() -> None:
     pc = PotentialConfig(
         elements=["He"],
         cutoff=3.0,
-        pair_style="hybrid/overlay"
+        pair_style="hybrid/overlay",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
     )
     assert pc.pair_style == "hybrid/overlay"
 
@@ -171,7 +193,10 @@ def test_config_delta_learning_enforcement() -> None:
     pc_h = PotentialConfig(
         elements=["H"],
         cutoff=3.0,
-        pair_style="pace"
+        pair_style="pace",
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
     )
     assert pc_h.pair_style == "pace"
 
