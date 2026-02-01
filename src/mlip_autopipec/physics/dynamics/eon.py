@@ -32,11 +32,12 @@ class EonWrapper:
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
 
         # Resolve driver path
-        # Configuration/Env var takes precedence, else fallback to relative path
+        # Configuration > Env var > Default
         import os
-        env_driver_path = os.environ.get("PACE_DRIVER_PATH")
-        if env_driver_path:
-            self.driver_path = Path(env_driver_path).resolve()
+        if self.config.driver_path:
+            self.driver_path = self.config.driver_path.resolve()
+        elif os.environ.get("PACE_DRIVER_PATH"):
+            self.driver_path = Path(os.environ["PACE_DRIVER_PATH"]).resolve()
         else:
             # Fallback to default relative location
             current_file = Path(__file__).resolve()

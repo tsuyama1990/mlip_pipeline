@@ -65,12 +65,10 @@ class ProductionDeployer:
 
         # 3. Create Manifest
         # Training set size is not easily available in state unless we track it.
-        # We can read dataset size if available?
-        # For now, placeholder or read pckl if possible.
-        training_size = 0
+        # We assume None if not tracked, compliant with schema optionality.
+        training_size: Optional[int] = None
         if state.dataset_path and state.dataset_path.exists():
-            # Counting atoms/frames in dataset is slow.
-            # We'll set 0 or Estimate.
+            # TODO: Implement fast counting logic if needed.
             pass
 
         manifest = ProductionManifest(

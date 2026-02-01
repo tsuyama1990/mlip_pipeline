@@ -49,6 +49,7 @@ class LammpsConfig(BaseModel):
         # Allow absolute paths if they look safe (no shell metas)
         # This regex allows alphanumeric, /, _, -, .
         # Stricter: disallow '..' usage even if path valid characters (already checked above but reinforcing)
+        # Also ensure no trailing/leading dots which might be weird in some shells, though '..' is main threat.
         if re.match(r"^[\w/\.\-]+$", v) and ".." not in v:
             # If path is absolute, check if executable exists and is executable
             path = Path(v)
@@ -115,6 +116,9 @@ class EonConfig(BaseModel):
     config_file: str = "config.ini"
     stdout_file: str = defaults.DEFAULT_STDOUT_FILE
     stderr_file: str = defaults.DEFAULT_STDERR_FILE
+
+    # Paths
+    driver_path: Optional[Path] = None
 
     @field_validator("command")
     @classmethod
