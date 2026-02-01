@@ -157,7 +157,7 @@ class ValidationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Phonon
-    phonon_tolerance: float = -0.05  # THz, strictly negative to allow numeric noise
+    phonon_tolerance: float = 0.05  # THz, strictly positive magnitude (e.g. 0.05 allows -0.05 imaginary freq)
     phonon_supercell: tuple[int, int, int] = (2, 2, 2)
 
     # Elastic
@@ -173,6 +173,13 @@ class ValidationConfig(BaseModel):
 
     # Structure Prep
     validation_rattle_stdev: float = 0.0
+
+    @field_validator("phonon_tolerance")
+    @classmethod
+    def validate_positive_tolerance(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("phonon_tolerance must be non-negative (it represents a magnitude).")
+        return v
 
 
 class Config(BaseModel):

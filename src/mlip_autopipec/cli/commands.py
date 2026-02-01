@@ -24,7 +24,7 @@ from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
-from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -297,11 +297,11 @@ def run_loop_cmd(config_path: Path) -> None:
         config = Config.from_yaml(config_path)
         logging_infra.setup_logging(config.logging)
 
-        # Initialize Manager
-        manager = WorkflowManager(config, work_dir=Path.cwd())
+        # Use the Refactored Orchestrator
+        orchestrator = Orchestrator(config)
 
         # Run Loop
-        manager.run_loop()
+        orchestrator.run_pipeline()
 
         typer.secho("Autonomous Loop Finished.", fg=typer.colors.GREEN)
 

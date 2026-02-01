@@ -1,6 +1,5 @@
 import logging
 import shutil
-import tempfile
 import ase.io
 import ase.db
 import numpy as np
@@ -8,7 +7,7 @@ from pathlib import Path
 from typing import Optional, List, Iterator
 
 from mlip_autopipec.domain_models.config import Config, BulkStructureGenConfig
-from mlip_autopipec.domain_models.job import JobResult, JobStatus
+from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dft.qe_runner import QERunner
 from mlip_autopipec.physics.dynamics.lammps import LammpsResult, LammpsRunner
@@ -122,68 +121,30 @@ class PhaseSelection:
                 logger.error(f"Failed to read trajectory: {e}")
                 return
 
-        # Disk-backed reservoir sampling to avoid OOM
+        # Correct In-Memory Reservoir Sampling
+        # max_candidate_pool_size is typically small (e.g. 1000), so keeping 1000 structures in memory is safe.
         max_size = self.config.orchestrator.max_candidate_pool_size
+        reservoir: List[Structure] = []
+        count = 0
 
-        # Create temp DB
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "candidates.db"
-            count = 0
+        for s in stream_structures():
+            if len(reservoir) < max_size:
+                reservoir.append(s)
+            else:
+                j = np.random.randint(0, count + 1)
+                if j < max_size:
+                    reservoir[j] = s
+            count += 1
 
-            with ase.db.connect(db_path) as db:
-                for s in stream_structures():
-                    atoms = s.to_ase()
-                    # We use simple Reservoir Sampling Logic
-                    # BUT for disk backed, we can just write everything if it fits on disk (usually yes),
-                    # then sample later. This is safer than random replacement on SQLite which is slow.
-                    # HOWEVER, if we have MILLIONS of structures, DB will grow large.
-                    # Reservoir Sampling logic:
+        if count == 0:
+             # Fallback: if halted but no specific high-gamma frame found
+             if result.status != JobStatus.COMPLETED:
+                 logger.info("No high-gamma frames found in trajectory, but job halted. Selecting final frame.")
+                 return [result.final_structure]
+             return []
 
-                    if count < max_size:
-                        db.write(atoms)
-                    else:
-                        j = np.random.randint(0, count + 1)
-                        if j < max_size:
-                            # Replace element at index j+1 (IDs are 1-based)
-                            # This is slow: db.delete([j+1]) then db.write(atoms, id=j+1)??
-                            # ASE DB doesn't support updating/overwriting ID easily in append mode.
-                            # Better approach for OOM-safe selection of UNKNOWN total count:
-                            # Store everything on disk (it's disk!) then sample?
-                            # If disk is limited, we have a problem.
-                            # But usually disk >> RAM.
-                            # So writing all candidates to DB is the standard scalable solution.
-                            db.write(atoms)
-
-                    count += 1
-
-            # Now retrieve
-            if count == 0:
-                 # Fallback: if halted but no specific high-gamma frame found
-                 if result.status != JobStatus.COMPLETED:
-                     logger.info("No high-gamma frames found in trajectory, but job halted. Selecting final frame.")
-                     return [result.final_structure]
-                 return []
-
-            # Select from DB
-            final_candidates = []
-
-            with ase.db.connect(db_path) as db:
-                total_rows = db.count()
-
-                # If we wrote everything (count >= max_size), we need to sample
-                indices = list(range(1, total_rows + 1))
-                if total_rows > max_size:
-                    # If we used the logic above, we have ALL candidates on disk.
-                    # So we just sample 'max_size' indices.
-                    import random
-                    indices = random.sample(indices, max_size)
-                    logger.info(f"Subsampling candidates from {total_rows} to {max_size}")
-
-                for idx in indices:
-                    row = db.get(id=idx)
-                    final_candidates.append(Structure.from_ase(row.toatoms()))
-
-            return final_candidates
+        logger.info(f"Selected {len(reservoir)} candidates from {count} high-uncertainty frames.")
+        return reservoir
 
 
 class PhaseRefinement:
