@@ -230,3 +230,9 @@ def test_config_validators_positive():
 
     with pytest.raises(ValidationError):
         MDConfig(temperature=300, n_steps=0, ensemble="NVT")
+
+def test_config_empty_elements() -> None:
+    """Test validation for empty elements list."""
+    with pytest.raises(ValidationError) as excinfo:
+        PotentialConfig(elements=[])
+    assert "Elements list cannot be empty" in str(excinfo.value)

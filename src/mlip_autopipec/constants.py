@@ -24,3 +24,13 @@ DEFAULT_MD_TEMP = 300.0
 DEFAULT_MD_STEPS = 1000
 DEFAULT_MD_TIMESTEP = 0.001
 DEFAULT_MD_ENSEMBLE = "NVT"
+
+# File names
+TRAJECTORY_FILE_LAMMPS = "dump.lammpstrj"
+TRAJECTORY_FILE_EXTXYZ = "dump.extxyz"
+LAMMPS_LOG_FILE = "log.lammps"
+LAMMPS_INPUT_FILE = "in.lammps"
+LAMMPS_DATA_FILE = "data.lammps"
+STDOUT_LOG_FILE = "stdout.log"
+STDERR_LOG_FILE = "stderr.log"
+POTENTIAL_FILE = "potential.yace"

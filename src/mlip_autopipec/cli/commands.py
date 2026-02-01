@@ -8,6 +8,7 @@ from mlip_autopipec.constants import (
     DEFAULT_LOG_FILENAME,
     DEFAULT_LOG_LEVEL,
     DEFAULT_PROJECT_NAME,
+    DEFAULT_ELEMENTS,
 )
 from mlip_autopipec.domain_models.config import (
     Config,
@@ -15,6 +16,7 @@ from mlip_autopipec.domain_models.config import (
     OrchestratorConfig,
     PotentialConfig,
     BulkStructureGenConfig,
+    TrainingConfig,
 )
 from mlip_autopipec.domain_models.dynamics import LammpsResult, MDConfig
 from mlip_autopipec.domain_models.job import JobStatus
@@ -44,9 +46,10 @@ def init_project(path: Path) -> None:
         project_name=DEFAULT_PROJECT_NAME,
         logging=LoggingConfig(level=log_level, file_path=Path(DEFAULT_LOG_FILENAME)),
         orchestrator=OrchestratorConfig(),
-        potential=PotentialConfig(),
+        potential=PotentialConfig(elements=DEFAULT_ELEMENTS),
         structure_gen=BulkStructureGenConfig(),
         md=MDConfig(),
+        training=TrainingConfig(),
     )
 
     try:

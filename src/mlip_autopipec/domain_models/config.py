@@ -55,14 +55,19 @@ class PotentialConfig(BaseModel):
         Enforce Delta Learning (hybrid/overlay) for physical elements (Z >= 2).
         Spec Section 3.3.
         """
+        self._validate_elements()
         self._validate_hybrid_style()
         return self
+
+    def _validate_elements(self):
+        """Internal helper to validate elements list."""
+        if not self.elements:
+            raise ValueError("Elements list cannot be empty.")
 
     def _validate_hybrid_style(self):
         """Internal helper to validate hybrid style requirements."""
         if not self.elements:
-            # If elements list is empty, we can't validate yet, maybe allow it?
-            # Or fail? The field allows default_factory=list, so empty is possible initially.
+            # Should be caught by _validate_elements, but for safety
             return
 
         has_heavy_atoms = False

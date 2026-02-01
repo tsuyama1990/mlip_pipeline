@@ -17,6 +17,7 @@ from mlip_autopipec.physics.dynamics.lammps import LammpsRunner
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.defects import DefectStrategy
 from mlip_autopipec.physics.structure_gen.strain import StrainStrategy
+from mlip_autopipec.constants import TRAJECTORY_FILE_EXTXYZ
 
 logger = logging.getLogger("mlip_autopipec.phases.exploration")
 
@@ -96,7 +97,7 @@ class ExplorationPhase:
 
         # Write 'fake' trajectory
         # We use extxyz because ASE cannot write lammps-dump-text, and extxyz supports arrays
-        traj_path = work_dir / "dump.extxyz"
+        traj_path = work_dir / TRAJECTORY_FILE_EXTXYZ
 
         # Add high gamma to ensure selection
         threshold = config.orchestrator.uncertainty_threshold
@@ -107,7 +108,10 @@ class ExplorationPhase:
         last_structure = base_structure
         count = 0
 
-        # Use 'a' (append) mode but open once to minimize syscalls
+        # Batched writing for I/O efficiency
+        BATCH_SIZE = 100
+        batch: List[ase.Atoms] = []
+
         with open(traj_path, "w") as f:
             for s in structure_stream:
                 atoms = s.to_ase()
@@ -115,15 +119,17 @@ class ExplorationPhase:
                 gamma_array = np.full(n_atoms, fake_gamma)
                 atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
 
-                # Write to file handle
-                ase.io.write(f, atoms, format="extxyz") # type: ignore[no-untyped-call]
-
+                batch.append(atoms)
                 last_structure = s
                 count += 1
 
-                # Explicitly delete to encourage GC
-                del atoms
-                del s
+                if len(batch) >= BATCH_SIZE:
+                    ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
+                    batch = []
+
+            # Flush remaining
+            if batch:
+                ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
 
         if count == 0:
                 ase.io.write(traj_path, base_structure.to_ase(), format="extxyz") # type: ignore[no-untyped-call]
