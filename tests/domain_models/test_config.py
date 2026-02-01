@@ -52,9 +52,6 @@ def test_config_valid() -> None:
     assert c.md.temperature == 300.0
     assert c.md.uncertainty_threshold == 5.0
 
-    # Check Orchestrator defaults
-    assert c.orchestrator.active_set_optimization is True
-
 
 def test_config_random_slice() -> None:
     """Test RandomSlice configuration."""
@@ -129,7 +126,7 @@ def test_from_yaml(tmp_path: Path) -> None:
       ensemble: "NVT"
       uncertainty_threshold: 10.0
     orchestrator:
-      active_set_optimization: false
+      max_candidate_pool_size: 500
     """
     yaml_file.write_text(yaml_content)
 
@@ -146,7 +143,7 @@ def test_from_yaml(tmp_path: Path) -> None:
 
     assert c.md.n_steps == 500
     assert c.md.uncertainty_threshold == 10.0
-    assert c.orchestrator.active_set_optimization is False
+    assert c.orchestrator.max_candidate_pool_size == 500
 
 def test_config_delta_learning_enforcement() -> None:
     """Test that heavy atoms require hybrid/overlay."""
@@ -178,7 +175,7 @@ def test_config_delta_learning_enforcement() -> None:
 def test_config_validators_positive():
     """Test positive int validators for orchestrator."""
     with pytest.raises(ValidationError):
-        OrchestratorConfig(max_active_set_size=-1)
+        OrchestratorConfig(max_candidate_pool_size=-1)
 
     with pytest.raises(ValidationError):
         OrchestratorConfig(dft_batch_size=0)

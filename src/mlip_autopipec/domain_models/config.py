@@ -29,7 +29,7 @@ class PotentialConfig(BaseModel):
     zbl_inner_cutoff: float = 1.0
     zbl_outer_cutoff: float = 2.0
 
-    # Pacemaker / ACE Basis Parameters (Moved from hardcoded values)
+    # Pacemaker / ACE Basis Parameters
     npot: str = "FinnisSinclair"
     fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5])
     ndensity: int = 2
@@ -77,15 +77,15 @@ class OrchestratorConfig(BaseModel):
     halt_threshold: int = 5
     validation_frequency: int = 1
 
-    # Active Set Selection
-    active_set_optimization: bool = True
-    max_active_set_size: int = 1000
+    # Candidate Selection
+    # Renamed from max_active_set_size to avoid confusion with Pacemaker's active set
+    max_candidate_pool_size: int = 1000
 
     # Sampling & Batching
     trajectory_sampling_stride: int = 1
     dft_batch_size: int = 10
 
-    @field_validator("max_active_set_size", "trajectory_sampling_stride", "dft_batch_size")
+    @field_validator("max_candidate_pool_size", "trajectory_sampling_stride", "dft_batch_size")
     @classmethod
     def validate_positive_ints(cls, v: int, info: ValidationInfo) -> int:
         if v <= 0:
