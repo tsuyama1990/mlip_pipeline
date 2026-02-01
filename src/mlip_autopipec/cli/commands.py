@@ -13,6 +13,7 @@ from mlip_autopipec.constants import (
     DEFAULT_SEED,
 )
 from mlip_autopipec.domain_models.config import (
+    ACEConfig,
     BulkStructureGenConfig,
     Config,
     LoggingConfig,
@@ -24,7 +25,7 @@ from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.infrastructure import io
 from mlip_autopipec.infrastructure import logging as logging_infra
 from mlip_autopipec.orchestration.workflow import run_one_shot
-from mlip_autopipec.orchestration.manager import WorkflowManager
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.training.dataset import DatasetManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.physics.validation.runner import ValidationRunner
@@ -58,9 +59,11 @@ def init_project(path: Path) -> None:
             cutoff=DEFAULT_CUTOFF,
             seed=DEFAULT_SEED,
             pair_style="hybrid/overlay",
-            npot="FinnisSinclair",
-            fs_parameters=[1.0, 1.0, 1.0, 0.5],
-            ndensity=2,
+            ace_params=ACEConfig(
+                npot="FinnisSinclair",
+                fs_parameters=[1.0, 1.0, 1.0, 0.5],
+                ndensity=2,
+            ),
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
@@ -293,11 +296,11 @@ def run_loop_cmd(config_path: Path) -> None:
         config = Config.from_yaml(config_path)
         logging_infra.setup_logging(config.logging)
 
-        # Initialize Manager
-        manager = WorkflowManager(config, work_dir=Path.cwd())
+        # Initialize Orchestrator
+        orchestrator = Orchestrator(config, work_dir=Path.cwd())
 
         # Run Loop
-        manager.run_loop()
+        orchestrator.run_loop()
 
         typer.secho("Autonomous Loop Finished.", fg=typer.colors.GREEN)
 

@@ -1,70 +1,41 @@
 from pathlib import Path
+from unittest.mock import patch, MagicMock
+import pytest
+from mlip_autopipec.orchestration.state import StateManager
+from mlip_autopipec.domain_models.workflow import WorkflowState, WorkflowPhase
 
-from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.domain_models.workflow import (
-    CandidateStatus,
-    CandidateStructure,
-    WorkflowPhase,
-    WorkflowState,
-)
-import numpy as np
-
-
-def test_candidate_structure_valid():
-    s = Structure(
-        symbols=["Si"],
-        positions=np.array([[0, 0, 0]]),
-        cell=np.eye(3),
-        pbc=(True, True, True),
-    )
-    c = CandidateStructure(
-        structure=s,
-        origin="test",
-        uncertainty_score=0.5,
-        status=CandidateStatus.PENDING
-    )
-    assert c.status == CandidateStatus.PENDING
-    assert c.uncertainty_score == 0.5
-
-
-def test_workflow_state_valid(tmp_path):
-    dataset = tmp_path / "data.pckl"
-    s = Structure(
-        symbols=["Si"],
-        positions=np.array([[0, 0, 0]]),
-        cell=np.eye(3),
-        pbc=(True, True, True),
-    )
-    cand = CandidateStructure(
-        structure=s,
-        origin="test",
-        uncertainty_score=0.1
-    )
-
-    ws = WorkflowState(
-        project_name="TestProject",
-        generation=1,
-        current_phase=WorkflowPhase.SELECTION,
-        dataset_path=dataset,
-        candidates=[cand]
-    )
-
-    assert ws.generation == 1
-    assert ws.current_phase == WorkflowPhase.SELECTION
-    assert len(ws.candidates) == 1
-
-
-def test_workflow_state_serialization(tmp_path):
-    dataset = Path("data.pckl")
-    ws = WorkflowState(
-        project_name="TestProject",
-        dataset_path=dataset,
+@pytest.fixture
+def mock_state():
+    return WorkflowState(
+        project_name="Test",
+        dataset_path=Path("data.pckl"),
         current_phase=WorkflowPhase.EXPLORATION
     )
 
-    json_str = ws.model_dump_json()
-    loaded = WorkflowState.model_validate_json(json_str)
+def test_state_atomic_save(tmp_path, mock_state):
+    manager = StateManager(tmp_path)
+    manager.save(mock_state)
 
-    assert loaded.project_name == ws.project_name
-    assert loaded.current_phase == ws.current_phase
-    assert loaded.dataset_path == dataset
+    assert (tmp_path / "workflow_state.json").exists()
+    assert not (tmp_path / "workflow_state.json.tmp").exists()
+
+def test_state_save_failure_cleanup(tmp_path, mock_state):
+    manager = StateManager(tmp_path)
+
+    # Mock rename to fail
+    with patch("pathlib.Path.rename", side_effect=OSError("Rename failed")):
+        with pytest.raises(OSError):
+            manager.save(mock_state)
+
+    # Tmp file should be cleaned up
+    assert not (tmp_path / "workflow_state.json.tmp").exists()
+    # Original file (if any) remains?
+    # Here we started with nothing, so nothing.
+
+def test_state_load(tmp_path, mock_state):
+    manager = StateManager(tmp_path)
+    manager.save(mock_state)
+
+    loaded = manager.load()
+    assert loaded is not None
+    assert loaded.project_name == mock_state.project_name

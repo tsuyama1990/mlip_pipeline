@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from mlip_autopipec.domain_models import (
+    ACEConfig,
     BulkStructureGenConfig,
     Config,
     MDConfig,
@@ -24,9 +25,11 @@ def test_config_valid() -> None:
             pair_style="hybrid/overlay",
             zbl_inner_cutoff=0.8,
             zbl_outer_cutoff=1.5,
-            npot="FinnisSinclair",
-            fs_parameters=[1, 1, 1, 0.5],
-            ndensity=2
+            ace_params=ACEConfig(
+                npot="FinnisSinclair",
+                fs_parameters=[1, 1, 1, 0.5],
+                ndensity=2
+            )
         ),
         structure_gen=BulkStructureGenConfig(
             strategy="bulk",
@@ -47,6 +50,7 @@ def test_config_valid() -> None:
     assert c.potential.pair_style == "hybrid/overlay"
     assert c.potential.zbl_inner_cutoff == 0.8
     assert c.logging.level == "INFO"  # Default
+    assert c.potential.ace_params.npot == "FinnisSinclair"
 
     # Check structure_gen fields
     assert isinstance(c.structure_gen, BulkStructureGenConfig)
@@ -68,9 +72,11 @@ def test_config_random_slice() -> None:
             elements=["Al"],
             cutoff=4.0,
             pair_style="hybrid/overlay",
-            npot="FinnisSinclair",
-            fs_parameters=[1, 1, 1, 0.5],
-            ndensity=2
+            ace_params=ACEConfig(
+                npot="FinnisSinclair",
+                fs_parameters=[1, 1, 1, 0.5],
+                ndensity=2
+            )
         ),
         structure_gen=RandomSliceStructureGenConfig(
             strategy="random_slice",
@@ -95,9 +101,11 @@ def test_config_invalid_cutoff() -> None:
                 elements=["Ti"],
                 cutoff=-1.0,  # Invalid
                 seed=42,
-                npot="FinnisSinclair",
-                fs_parameters=[1, 1, 1, 0.5],
-                ndensity=2
+                ace_params=ACEConfig(
+                    npot="FinnisSinclair",
+                    fs_parameters=[1, 1, 1, 0.5],
+                    ndensity=2
+                )
             ),
             structure_gen=BulkStructureGenConfig(
                 element="Ti", crystal_structure="hcp", lattice_constant=2.95
@@ -128,9 +136,10 @@ def test_from_yaml(tmp_path: Path) -> None:
       cutoff: 3.0
       seed: 123
       pair_style: "hybrid/overlay"
-      npot: "FinnisSinclair"
-      fs_parameters: [1.0, 1.0, 1.0, 0.5]
-      ndensity: 2
+      ace_params:
+        npot: "FinnisSinclair"
+        fs_parameters: [1.0, 1.0, 1.0, 0.5]
+        ndensity: 2
     logging:
       level: "DEBUG"
     structure_gen:
@@ -155,6 +164,7 @@ def test_from_yaml(tmp_path: Path) -> None:
     assert c.potential.elements == ["Cu"]
     assert c.potential.pair_style == "hybrid/overlay"
     assert c.logging.level == "DEBUG"
+    assert c.potential.ace_params.npot == "FinnisSinclair"
 
     # Verify strict union validation (it should instantiate BulkStructureGenConfig)
     assert isinstance(c.structure_gen, BulkStructureGenConfig)
@@ -166,15 +176,19 @@ def test_from_yaml(tmp_path: Path) -> None:
 
 def test_config_delta_learning_enforcement() -> None:
     """Test that heavy atoms require hybrid/overlay."""
+    ace_config = ACEConfig(
+        npot="FinnisSinclair",
+        fs_parameters=[1, 1, 1, 0.5],
+        ndensity=2
+    )
+
     # He (Z=2) with pace should fail
     with pytest.raises(ValidationError) as excinfo:
         PotentialConfig(
             elements=["He"],
             cutoff=3.0,
             pair_style="pace",
-            npot="FinnisSinclair",
-            fs_parameters=[1, 1, 1, 0.5],
-            ndensity=2
+            ace_params=ace_config
         )
     assert "MUST use 'hybrid/overlay'" in str(excinfo.value)
 
@@ -183,9 +197,7 @@ def test_config_delta_learning_enforcement() -> None:
         elements=["He"],
         cutoff=3.0,
         pair_style="hybrid/overlay",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ace_config
     )
     assert pc.pair_style == "hybrid/overlay"
 
@@ -194,9 +206,7 @@ def test_config_delta_learning_enforcement() -> None:
         elements=["H"],
         cutoff=3.0,
         pair_style="pace",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ace_config
     )
     assert pc_h.pair_style == "pace"
 

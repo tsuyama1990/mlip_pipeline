@@ -128,9 +128,9 @@ class PacemakerRunner:
                 "deltaSplineBins": 0.001,
                 "embeddings": {
                     "ALL": {
-                        "npot": self.pot_config.npot,
-                        "fs_parameters": self.pot_config.fs_parameters,
-                        "ndensity": self.pot_config.ndensity
+                        "npot": self.pot_config.ace_params.npot,
+                        "fs_parameters": self.pot_config.ace_params.fs_parameters,
+                        "ndensity": self.pot_config.ace_params.ndensity
                     }
                 },
                 "bonds": {

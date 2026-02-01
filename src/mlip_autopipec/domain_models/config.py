@@ -16,6 +16,15 @@ class LoggingConfig(BaseModel):
     file_path: Path = Path("mlip_pipeline.log")
 
 
+class ACEConfig(BaseModel):
+    """Configuration for ACE (Pacemaker) basis set."""
+    model_config = ConfigDict(extra="forbid")
+
+    npot: str = Field(..., description="Potential type (e.g. FinnisSinclair)")
+    fs_parameters: List[float] = Field(..., description="Finnis-Sinclair parameters")
+    ndensity: int = Field(..., description="Density of basis functions")
+
+
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -29,10 +38,8 @@ class PotentialConfig(BaseModel):
     zbl_inner_cutoff: float = 1.0
     zbl_outer_cutoff: float = 2.0
 
-    # Pacemaker / ACE Basis Parameters (Moved from hardcoded values)
-    npot: str = Field(..., description="Potential type (e.g. FinnisSinclair)")
-    fs_parameters: List[float] = Field(..., description="Finnis-Sinclair parameters")
-    ndensity: int = Field(..., description="Density of basis functions")
+    # Pacemaker / ACE Basis Parameters
+    ace_params: ACEConfig = Field(..., description="ACE basis parameters")
 
     @field_validator("cutoff")
     @classmethod

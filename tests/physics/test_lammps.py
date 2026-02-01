@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from mlip_autopipec.domain_models import LammpsConfig, MDParams, PotentialConfig
+from mlip_autopipec.domain_models import LammpsConfig, MDParams, PotentialConfig, ACEConfig
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.job import JobStatus
 import numpy as np
@@ -41,9 +41,11 @@ def potential_config():
         pair_style="hybrid/overlay",
         zbl_inner_cutoff=0.5,
         zbl_outer_cutoff=1.2,
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ACEConfig(
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )
     )
 
 

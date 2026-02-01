@@ -1,4 +1,5 @@
 from mlip_autopipec.domain_models.config import (
+    ACEConfig,
     BulkStructureGenConfig,
     Config,
     DefectStructureGenConfig,
@@ -28,6 +29,7 @@ from mlip_autopipec.domain_models.workflow import (
 )
 
 __all__ = [
+    "ACEConfig",
     "BulkStructureGenConfig",
     "Config",
     "DefectStructureGenConfig",

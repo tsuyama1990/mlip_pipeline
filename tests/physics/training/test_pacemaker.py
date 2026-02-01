@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from mlip_autopipec.physics.training.pacemaker import PacemakerRunner
 from mlip_autopipec.domain_models.training import TrainingConfig
-from mlip_autopipec.domain_models.config import PotentialConfig
+from mlip_autopipec.domain_models.config import PotentialConfig, ACEConfig
 from mlip_autopipec.domain_models.job import JobStatus
 import subprocess
 
@@ -21,9 +21,11 @@ def mock_pot_config():
         elements=["Si"],
         cutoff=5.0,
         pair_style="hybrid/overlay",
-        npot="FinnisSinclair",
-        fs_parameters=[1, 1, 1, 0.5],
-        ndensity=2
+        ace_params=ACEConfig(
+            npot="FinnisSinclair",
+            fs_parameters=[1, 1, 1, 0.5],
+            ndensity=2
+        )
     )
 
 @pytest.fixture
