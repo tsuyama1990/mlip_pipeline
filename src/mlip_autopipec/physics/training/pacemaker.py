@@ -125,7 +125,7 @@ class PacemakerRunner:
             },
             "potential": {
                 "elements": self.pot_config.elements,
-                "deltaSplineBins": 0.001,
+                "deltaSplineBins": self.pot_config.delta_spline_bins,
                 "embeddings": {
                     "ALL": {
                         "npot": self.pot_config.ace_params.npot,
@@ -143,9 +143,9 @@ class PacemakerRunner:
             "fit": {
                 "loss": {
                     "kappa": self.config.kappa,
-                    "w_energy": 1.0,
-                    "w_forces": 1.0,
-                    "w_stress": 0.1,
+                    "w_energy": self.pot_config.loss_weight_energy,
+                    "w_forces": self.pot_config.loss_weight_forces,
+                    "w_stress": self.pot_config.loss_weight_stress,
                 },
                 "optimizer": {
                     "max_epochs": self.config.max_epochs,

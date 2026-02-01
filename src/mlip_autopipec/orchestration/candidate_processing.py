@@ -23,6 +23,11 @@ class CandidateManager:
         Extracts a cubic periodic box centered at a specific atom.
         Delegates to EmbeddingHandler.
         """
+        # Audit: Bounds checking for center_index
+        n_atoms = len(supercell.positions)
+        if center_index < 0 or center_index >= n_atoms:
+            raise ValueError(f"center_index {center_index} is out of bounds for structure with {n_atoms} atoms.")
+
         return self.embedding_handler.extract_periodic_box(supercell, center_index, box_length)
 
     def embed_cluster(self, cluster: Structure, vacuum: float = 10.0) -> Structure:

@@ -42,6 +42,12 @@ class PotentialConfig(BaseModel):
     # Pacemaker / ACE Basis Parameters
     ace_params: ACEConfig = Field(default_factory=ACEConfig, description="ACE basis parameters")
 
+    # Fitting Parameters (Moved from hardcoded values)
+    delta_spline_bins: float = defaults.DEFAULT_PACEMAKER_DELTA_SPLINE_BINS
+    loss_weight_energy: float = defaults.DEFAULT_PACEMAKER_LOSS_WEIGHT_ENERGY
+    loss_weight_forces: float = defaults.DEFAULT_PACEMAKER_LOSS_WEIGHT_FORCES
+    loss_weight_stress: float = defaults.DEFAULT_PACEMAKER_LOSS_WEIGHT_STRESS
+
     @field_validator("cutoff")
     @classmethod
     def validate_cutoff(cls, v: float) -> float:

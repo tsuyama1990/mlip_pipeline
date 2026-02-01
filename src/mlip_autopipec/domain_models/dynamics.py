@@ -49,16 +49,19 @@ class LammpsConfig(BaseModel):
         # Allow absolute paths if they look safe (no shell metas)
         # This regex allows alphanumeric, /, _, -, .
         # Stricter: disallow '..' usage even if path valid characters (already checked above but reinforcing)
-        # Also ensure no trailing/leading dots which might be weird in some shells, though '..' is main threat.
         if re.match(r"^[\w/\.\-]+$", v) and ".." not in v:
             # If path is absolute, check if executable exists and is executable
             path = Path(v)
             if path.is_absolute():
-                if not path.exists():
-                     raise ValueError(f"Executable not found at absolute path: {v}")
+                # We use shutil.which for robust executability check
                 if not shutil.which(v):
-                     # shutil.which checks executability
-                     raise ValueError(f"File at {v} is not executable or not in PATH.")
+                     raise ValueError(f"Executable not found or not executable at absolute path: {v}")
+
+                # Double check with os.access for explicit R_OK | X_OK if possible,
+                # but shutil.which is standard.
+                import os
+                if not (os.path.isfile(v) and os.access(v, os.X_OK)):
+                    raise ValueError(f"Path {v} points to a non-executable file.")
             return v
 
         raise ValueError(f"LAMMPS command '{v}' is not in allowlist or contains unsafe characters.")

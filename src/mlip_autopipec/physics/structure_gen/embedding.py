@@ -61,10 +61,12 @@ class EmbeddingHandler:
         new_cell = np.eye(3) * box_length
 
         # Fallback if somehow empty (should at least have center)
+        # Audit: Explicitly check for empty atoms and raise/warn
         if not new_positions:
-             new_positions = [np.array([half_box, half_box, half_box])]
-             new_symbols = [atoms.symbols[center_index]]
-             distances = [0.0]
+             # This implies even the center atom wasn't found, which is weird if we include self_interaction=True
+             # But if it happens, we shouldn't return an empty structure or silently mock it without knowing context.
+             # However, previous logic tried to recover. Let's make it robust but explicit.
+             raise ValueError("Extraction failed: No atoms found within the specified box, not even the center atom.")
 
         struct = Structure(
             symbols=new_symbols,
