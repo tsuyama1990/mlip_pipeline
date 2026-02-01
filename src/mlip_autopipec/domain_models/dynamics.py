@@ -1,11 +1,13 @@
 from typing import Literal, Optional
 from pathlib import Path
 import re
+import shutil
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from mlip_autopipec.domain_models.job import JobResult
 from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec import defaults
 
 
 class LammpsConfig(BaseModel):
@@ -13,18 +15,18 @@ class LammpsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    command: str = "lmp"
+    command: str = defaults.DEFAULT_LAMMPS_COMMAND
     timeout: int = 3600
     use_mpi: bool = False
     mpi_command: str = "mpirun -np 4"
 
     # File Naming Conventions (LAMMPS specific)
-    dump_file: str = "dump.lammpstrj"
-    log_file: str = "log.lammps"
-    input_file: str = "in.lammps"
-    data_file: str = "data.lammps"
-    stdout_file: str = "stdout.log"
-    stderr_file: str = "stderr.log"
+    dump_file: str = defaults.DEFAULT_TRAJ_FILE_LAMMPS
+    log_file: str = defaults.DEFAULT_LOG_FILE_LAMMPS
+    input_file: str = defaults.DEFAULT_INPUT_FILE_LAMMPS
+    data_file: str = defaults.DEFAULT_DATA_FILE_LAMMPS
+    stdout_file: str = defaults.DEFAULT_STDOUT_FILE
+    stderr_file: str = defaults.DEFAULT_STDERR_FILE
 
     @field_validator("command")
     @classmethod
@@ -48,6 +50,14 @@ class LammpsConfig(BaseModel):
         # Allow absolute paths if they look safe (no shell metas)
         # This regex allows alphanumeric, /, _, -, .
         if re.match(r"^[\w/\.\-]+$", v):
+            # If path is absolute, check if executable exists and is executable
+            path = Path(v)
+            if path.is_absolute():
+                if not path.exists():
+                     raise ValueError(f"Executable not found at absolute path: {v}")
+                if not shutil.which(v):
+                     # shutil.which checks executability
+                     raise ValueError(f"File at {v} is not executable or not in PATH.")
             return v
 
         raise ValueError(f"LAMMPS command '{v}' is not in allowlist or contains unsafe characters.")
@@ -58,10 +68,10 @@ class MDConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    temperature: float = 300.0
+    temperature: float = defaults.DEFAULT_MD_TEMP
     pressure: Optional[float] = None
-    n_steps: int = 1000
-    timestep: float = 0.001
+    n_steps: int = defaults.DEFAULT_MD_STEPS
+    timestep: float = defaults.DEFAULT_MD_TIMESTEP
     ensemble: Literal["NVT", "NPT"] = "NVT"
 
     # Uncertainty Quantification (UQ)

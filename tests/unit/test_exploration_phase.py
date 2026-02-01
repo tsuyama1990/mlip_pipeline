@@ -106,7 +106,7 @@ def test_exploration_static_strain(MockFactory, MockPolicy, mock_config, mock_st
     MockFactory.get_generator.return_value.generate.return_value = struct
 
     phase = ExplorationPhase()
-    result = phase.execute(mock_state, mock_config, tmp_path)
+    phase.execute(mock_state, mock_config, tmp_path)
 
     # Verify file existence
     expected_path = tmp_path / "md_run" / "dump.extxyz"

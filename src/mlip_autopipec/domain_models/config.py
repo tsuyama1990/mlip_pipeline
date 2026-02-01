@@ -7,36 +7,37 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from mlip_autopipec.domain_models.calculation import DFTConfig
 from mlip_autopipec.domain_models.dynamics import LammpsConfig, MDConfig
 from mlip_autopipec.domain_models.training import TrainingConfig
+from mlip_autopipec import defaults
 
 
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    file_path: Path = Path("mlip_pipeline.log")
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = defaults.DEFAULT_LOG_LEVEL
+    file_path: Path = Path(defaults.DEFAULT_LOG_FILENAME)
 
 
 class ACEConfig(BaseModel):
     """Configuration for ACE (Pacemaker) basis set."""
     model_config = ConfigDict(extra="forbid")
 
-    npot: str = Field(default="FinnisSinclair", description="Potential type (e.g. FinnisSinclair)")
-    fs_parameters: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0, 0.5], description="Finnis-Sinclair parameters")
-    ndensity: int = Field(default=2, description="Density of basis functions")
+    npot: str = Field(default=defaults.DEFAULT_ACE_NPOT, description="Potential type (e.g. FinnisSinclair)")
+    fs_parameters: List[float] = Field(default_factory=lambda: defaults.DEFAULT_ACE_FS_PARAMS, description="Finnis-Sinclair parameters")
+    ndensity: int = Field(default=defaults.DEFAULT_ACE_NDENSITY, description="Density of basis functions")
 
 
 class PotentialConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    elements: list[str] = Field(default_factory=list)
-    cutoff: float = 5.0
-    seed: int = 42
-    lammps_command: str = "lmp"
+    elements: list[str] = Field(default_factory=lambda: defaults.DEFAULT_ELEMENTS)
+    cutoff: float = defaults.DEFAULT_CUTOFF
+    seed: int = defaults.DEFAULT_SEED
+    lammps_command: str = defaults.DEFAULT_LAMMPS_COMMAND
 
     # Hybrid Potential Settings (ACE + ZBL)
-    pair_style: Literal["pace", "hybrid/overlay"] = "hybrid/overlay"
-    zbl_inner_cutoff: float = 1.0
-    zbl_outer_cutoff: float = 2.0
+    pair_style: Literal["pace", "hybrid/overlay"] = defaults.DEFAULT_PAIR_STYLE
+    zbl_inner_cutoff: float = defaults.DEFAULT_ZBL_INNER
+    zbl_outer_cutoff: float = defaults.DEFAULT_ZBL_OUTER
 
     # Pacemaker / ACE Basis Parameters
     ace_params: ACEConfig = Field(default_factory=ACEConfig, description="ACE basis parameters")
@@ -83,26 +84,26 @@ class OrchestratorConfig(BaseModel):
     """Configuration for the Orchestrator (Active Learning Loop)."""
 
     model_config = ConfigDict(extra="forbid")
-    max_iterations: int = 1
-    uncertainty_threshold: float = 5.0
-    halt_threshold: int = 5
-    validation_frequency: int = 1
+    max_iterations: int = defaults.DEFAULT_MAX_ITERATIONS
+    uncertainty_threshold: float = defaults.DEFAULT_UNCERTAINTY_THRESHOLD
+    halt_threshold: int = defaults.DEFAULT_HALT_THRESHOLD
+    validation_frequency: int = defaults.DEFAULT_VALIDATION_FREQUENCY
 
     # Sampling & Batching
-    trajectory_sampling_stride: int = 1
-    dft_batch_size: int = 10
+    trajectory_sampling_stride: int = defaults.DEFAULT_TRAJECTORY_STRIDE
+    dft_batch_size: int = defaults.DEFAULT_DFT_BATCH_SIZE
 
     # Paths
-    data_dir: Path = Path("data")
+    data_dir: Path = Path(defaults.DEFAULT_DATA_DIR)
 
     # File Naming Conventions
-    trajectory_file_lammps: str = "dump.lammpstrj"
-    trajectory_file_extxyz: str = "dump.extxyz"
-    lammps_log_file: str = "log.lammps"
-    lammps_input_file: str = "in.lammps"
-    lammps_data_file: str = "data.lammps"
-    stdout_log_file: str = "stdout.log"
-    stderr_log_file: str = "stderr.log"
+    trajectory_file_lammps: str = defaults.DEFAULT_TRAJ_FILE_LAMMPS
+    trajectory_file_extxyz: str = defaults.DEFAULT_TRAJ_FILE_EXTXYZ
+    lammps_log_file: str = defaults.DEFAULT_LOG_FILE_LAMMPS
+    lammps_input_file: str = defaults.DEFAULT_INPUT_FILE_LAMMPS
+    lammps_data_file: str = defaults.DEFAULT_DATA_FILE_LAMMPS
+    stdout_log_file: str = defaults.DEFAULT_STDOUT_FILE
+    stderr_log_file: str = defaults.DEFAULT_STDERR_FILE
 
     @field_validator("trajectory_sampling_stride", "dft_batch_size")
     @classmethod
@@ -118,11 +119,11 @@ class BulkStructureGenConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     strategy: Literal["bulk"] = "bulk"
-    element: str = "Si"
-    crystal_structure: str = "diamond"
-    lattice_constant: float = 5.43
-    rattle_stdev: float = 0.0
-    supercell: tuple[int, int, int] = (1, 1, 1)
+    element: str = defaults.DEFAULT_BULK_ELEMENT
+    crystal_structure: str = defaults.DEFAULT_BULK_CRYSTAL
+    lattice_constant: float = defaults.DEFAULT_BULK_LATTICE
+    rattle_stdev: float = defaults.DEFAULT_BULK_RATTLE
+    supercell: tuple[int, int, int] = defaults.DEFAULT_BULK_SUPERCELL
 
 
 class RandomSliceStructureGenConfig(BaseModel):
@@ -176,22 +177,22 @@ class ValidationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Phonon
-    phonon_tolerance: float = -0.05  # THz, strictly negative to allow numeric noise
-    phonon_supercell: tuple[int, int, int] = (2, 2, 2)
+    phonon_tolerance: float = defaults.DEFAULT_PHONON_TOL  # THz, strictly negative to allow numeric noise
+    phonon_supercell: tuple[int, int, int] = defaults.DEFAULT_PHONON_SUPERCELL
 
     # Elastic
-    elastic_stability_tolerance: float = 1e-4  # GPa
+    elastic_stability_tolerance: float = defaults.DEFAULT_ELASTIC_TOL  # GPa
 
     # EOS
-    eos_vol_range: float = 0.1  # +/- 10%
-    eos_n_points: int = 10
+    eos_vol_range: float = defaults.DEFAULT_EOS_RANGE  # +/- 10%
+    eos_n_points: int = defaults.DEFAULT_EOS_POINTS
 
     # Reporting
-    report_path: Path = Path("validation_report.html")
+    report_path: Path = Path(defaults.DEFAULT_REPORT_PATH)
     template_dir: Optional[Path] = None
 
     # Structure Prep
-    validation_rattle_stdev: float = 0.0
+    validation_rattle_stdev: float = defaults.DEFAULT_VAL_RATTLE
 
     @field_validator("validation_rattle_stdev")
     @classmethod
@@ -211,7 +212,7 @@ class PolicyConfig(BaseModel):
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    project_name: str = "MyMLIPProject"
+    project_name: str = defaults.DEFAULT_PROJECT_NAME
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     potential: PotentialConfig = Field(default_factory=PotentialConfig)
@@ -221,7 +222,7 @@ class Config(BaseModel):
 
     # New configurations
     structure_gen: StructureGenConfig = Field(default_factory=BulkStructureGenConfig, discriminator="strategy")
-    md: MDConfig = Field(default_factory=lambda: MDConfig(temperature=300.0, n_steps=1000, ensemble="NVT"))
+    md: MDConfig = Field(default_factory=lambda: MDConfig(temperature=defaults.DEFAULT_MD_TEMP, n_steps=defaults.DEFAULT_MD_STEPS, ensemble=defaults.DEFAULT_MD_ENSEMBLE))
 
     # Optional components
     dft: Optional[DFTConfig] = None

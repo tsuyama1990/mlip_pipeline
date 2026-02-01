@@ -111,6 +111,16 @@ class ExplorationPhase:
         BATCH_SIZE = 100
         batch: List[ase.Atoms] = []
 
+        # Use 'w' initially then 'a'
+        mode = "w"
+
+        # Explicitly stream write using ase.io.write in chunks
+        # This prevents accumulating batch in memory endlessly, we clear it.
+        # Note: We must manage the file handle or filename. ase.io.write handles filename with append=True.
+        # But for 'extxyz', ASE might write header every time if we are not careful or if using file handle.
+        # Best practice for extxyz streaming with ASE:
+        # Open file once, write atoms one by one or in chunks.
+
         with open(traj_path, "w") as f:
             for s in structure_stream:
                 atoms = s.to_ase()
@@ -129,6 +139,7 @@ class ExplorationPhase:
             # Flush remaining
             if batch:
                 ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
+                batch = [] # Explicit clear
 
         if count == 0:
                 ase.io.write(traj_path, base_structure.to_ase(), format="extxyz") # type: ignore[no-untyped-call]
