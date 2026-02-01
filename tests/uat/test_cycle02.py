@@ -83,26 +83,45 @@ def test_uat_c02_02_missing_executable(tmp_path):
     """
     Scenario 2.2: Missing Executable Handling
     """
-    # This tests validation logic in LammpsRunner or Config before execution?
-    # LammpsConfig doesn't validate existence on init.
-    # The runner checks `shutil.which` usually.
-    # Since we are mocking ExplorationPhase in the other test, here we might need to test the real runner failure OR mock it failing.
-    # The prompt asked for mocking to ensure isolation.
-
     with runner.isolated_filesystem(temp_dir=tmp_path) as td:
         setup_config(Path(td))
 
-        # We can mock ExplorationPhase to raise an error
-        with patch("mlip_autopipec.orchestration.workflow.ExplorationPhase") as MockPhase:
+        # IMPORTANT: We want to test that if LammpsRunner checks for the executable and fails,
+        # the error is propagated.
+        # However, `run-one-shot` uses `ExplorationPhase`.
+        # `ExplorationPhase` instantiates `LammpsRunner`.
+        # `LammpsRunner` checks `validate_command` on init, and `shutil.which` during `_execute` (or maybe init?).
+        # My `LammpsRunner` code shows `validate_command` in init, but `shutil.which` in `_execute`.
 
-            MockPhase.return_value.execute.side_effect = Exception("Executable 'lmp' not found")
+        # So we allow `ExplorationPhase` to run, but we mock `LammpsRunner._execute` or `shutil.which`.
+        # If we mock `ExplorationPhase`, we are not testing the runner's behavior.
 
-            result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
+        # Strategy: Allow ExplorationPhase to run logic, but mock internal subprocess/shutil.which
+        # This requires not mocking ExplorationPhase class, but its dependencies.
 
-            # It should exit with error
-            assert result.exit_code != 0
-            assert "Execution failed" in result.stdout
-            assert "Executable 'lmp' not found" in result.stdout
+        with patch("mlip_autopipec.physics.dynamics.lammps.shutil.which", return_value=None):
+             # Also assume StructureGenFactory works (it generates structure)
+             # But running actual ExplorationPhase requires StructureGen.
+             # Let's assume default config works for generation.
+
+             # We might need to mock StructureGenFactory if it's too slow/complex, but for bulk it's fast.
+
+             result = runner.invoke(app, ["run-one-shot", "--config", "config.yaml"])
+
+             # It should exit with error
+             assert result.exit_code != 0
+             assert "Execution failed" in result.stdout
+             # The error message from LammpsRunner._execute should be "Executable ... not found"
+             # OR FileNotFoundError caught and re-raised.
+
+             # Wait, ExplorationPhase calls runner.run(). runner.run() calls _execute().
+             # _execute raises FileNotFoundError if shutil.which is None.
+             # runner.run catches Exception and returns LammpsResult(status=FAILED, log_content=str(e)).
+             # So run_one_shot gets FAILED result.
+             # command.py raises Exit(1) if status != COMPLETED.
+
+             # Check output for "Executable 'lmp' not found" (log content is printed on failure)
+             assert "Executable 'lmp' not found" in result.stdout
 
 
 if __name__ == "__main__":

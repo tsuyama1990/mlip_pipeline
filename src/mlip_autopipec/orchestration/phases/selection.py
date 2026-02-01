@@ -94,9 +94,18 @@ class SelectionPhase:
                  shutil.rmtree(temp_dir)
                  return []
 
-             # Write reservoir to file
+             # Write reservoir to file in chunks
              logger.info(f"Writing {len(reservoir)} pre-screened candidates to disk for Active Set Selection.")
-             ase.io.write(all_cands_path, reservoir) # type: ignore[no-untyped-call]
+
+             chunk_size = 100
+             for i in range(0, len(reservoir), chunk_size):
+                 chunk = reservoir[i : i + chunk_size]
+                 # Use append=True for write if supported or just 'a' mode
+                 # ase.io.write supports append=True for some formats like extxyz
+                 if i == 0:
+                     ase.io.write(all_cands_path, chunk, format='extxyz') # type: ignore[no-untyped-call]
+                 else:
+                     ase.io.write(all_cands_path, chunk, format='extxyz', append=True) # type: ignore[no-untyped-call]
 
              # Run pace_activeset
              pm_runner = PacemakerRunner(
