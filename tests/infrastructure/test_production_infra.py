@@ -1,8 +1,7 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from pathlib import Path
 from mlip_autopipec.infrastructure.production import ProductionDeployer
-from mlip_autopipec.domain_models.production import ProductionManifest
 from mlip_autopipec.domain_models.validation import ValidationResult, ValidationMetric
 from mlip_autopipec.domain_models.config import Config, PotentialConfig, ValidationConfig
 from mlip_autopipec.domain_models.workflow import WorkflowState

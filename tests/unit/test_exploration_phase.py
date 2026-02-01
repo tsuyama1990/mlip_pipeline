@@ -53,7 +53,7 @@ def test_exploration_static_defects(MockFactory, MockPolicy, mock_config, mock_s
     # Execute with real IO using tmp_path
     md_run_dir = tmp_path / "md_run"
     md_run_dir.mkdir()
-    result = phase.execute(mock_state, mock_config, tmp_path)
+    actual_result = phase.execute(mock_state, mock_config, tmp_path)
 
     # Assertions
     policy_instance.decide.assert_called_with(mock_state.generation, mock_config)
@@ -61,6 +61,7 @@ def test_exploration_static_defects(MockFactory, MockPolicy, mock_config, mock_s
     # Verify file existence
     expected_path = tmp_path / "md_run" / "dump.extxyz"
     assert expected_path.exists()
+    assert actual_result.trajectory_path == expected_path
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
 @patch("mlip_autopipec.orchestration.phases.exploration.EonWrapper")
@@ -114,11 +115,11 @@ def test_exploration_md_fallback(MockFactory, MockRunner, MockPolicy, mock_confi
     MockRunner.return_value.run.return_value = mock_result
 
     phase = ExplorationPhase()
-    result = phase.execute(mock_state, mock_config, tmp_path)
+    actual_result = phase.execute(mock_state, mock_config, tmp_path)
 
     # Should call LammpsRunner
     assert MockRunner.return_value.run.called
-    assert result == mock_result
+    assert actual_result == mock_result
 
 @patch("mlip_autopipec.orchestration.phases.exploration.AdaptivePolicy")
 @patch("mlip_autopipec.orchestration.phases.exploration.StructureGenFactory")

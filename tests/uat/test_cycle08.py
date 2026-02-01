@@ -1,6 +1,5 @@
 import os
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from pathlib import Path
 import pytest
 from typer.testing import CliRunner
@@ -21,11 +20,6 @@ def mock_policy():
 
 @pytest.fixture
 def mock_eon():
-    with patch("mlip_autopipec.orchestration.phases.exploration.LammpsRunner") as mock_lammps: # We might need to patch where EonWrapper is used
-        # Actually EonWrapper will be instantiated in ExplorationPhase.
-        # So we should patch EonWrapper class
-        pass
-
     with patch("mlip_autopipec.orchestration.phases.exploration.EonWrapper") as mock:
         yield mock
 

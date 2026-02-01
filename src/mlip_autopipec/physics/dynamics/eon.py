@@ -4,14 +4,12 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import ase.io
 from mlip_autopipec.domain_models.dynamics import EonConfig, EonResult
 from mlip_autopipec.domain_models.config import PotentialConfig
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec import defaults
 
 logger = logging.getLogger("mlip_autopipec.physics.dynamics.eon")
 
@@ -25,10 +23,12 @@ class EonWrapper:
         config: EonConfig,
         potential_config: PotentialConfig,
         base_work_dir: Path,
+        uncertainty_threshold: float = 5.0,
     ):
         self.config = config
         self.potential_config = potential_config
         self.base_work_dir = base_work_dir
+        self.uncertainty_threshold = uncertainty_threshold
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
 
         # Resolve driver path
@@ -143,14 +143,30 @@ class EonWrapper:
         """Write config.ini for EON."""
         # Construct command to run driver
         # We wrap it in python call to be safe
-        driver_cmd = f"{sys.executable} {self.driver_path}"
+        # EON reads 'script_path' as a string and executes it.
+        # We MUST NOT use shell=True or unsafe string interpolation blindly.
+        # However, EON is the one executing it.
+        # We can construct a safe command string where arguments are properly quoted/escaped.
+        import shlex
 
-        # Args
-        elements_str = " ".join(self.potential_config.elements)
-        # Using simplified potential argument (just path)
-        driver_args = f"--potential {potential_path.resolve()} --elements {elements_str} --threshold 5.0"
+        # Quote paths to handle spaces
+        safe_exe = shlex.quote(sys.executable)
+        safe_driver = shlex.quote(str(self.driver_path.resolve()))
+        safe_pot = shlex.quote(str(potential_path.resolve()))
 
-        full_pot_cmd = f"{driver_cmd} {driver_args}"
+        # Elements are alpha chars usually, but we quote them safe measure
+        safe_elements = [shlex.quote(e) for e in self.potential_config.elements]
+        elements_str = " ".join(safe_elements)
+
+        # Construct command with dynamic parameters
+        full_pot_cmd = (
+            f"{safe_exe} {safe_driver} "
+            f"--potential {safe_pot} "
+            f"--elements {elements_str} "
+            f"--threshold {self.uncertainty_threshold} "
+            f"--zbl-inner {self.potential_config.zbl_inner_cutoff} "
+            f"--zbl-outer {self.potential_config.zbl_outer_cutoff}"
+        )
 
         # EON Config.ini format
         config_content = f"""[Main]

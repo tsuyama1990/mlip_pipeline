@@ -1,5 +1,4 @@
 import pytest
-from pydantic import ValidationError
 from mlip_autopipec.domain_models.dynamics import EonConfig, EonResult
 from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.structure import Structure

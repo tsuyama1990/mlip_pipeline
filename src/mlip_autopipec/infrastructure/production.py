@@ -1,9 +1,6 @@
-import shutil
 import zipfile
-import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
@@ -83,6 +80,7 @@ class ProductionDeployer:
         )
 
         # 4. Package
+        # Naming convention can be customized if needed, but versioned is standard
         zip_name = f"mlip_package_{version}.zip"
         zip_path = self.output_dir / zip_name
 

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 from mlip_autopipec.domain_models.dynamics import EonConfig, EonResult
 from mlip_autopipec.domain_models.job import JobStatus
@@ -8,7 +8,6 @@ from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.physics.dynamics.eon import EonWrapper
 import subprocess
 import ase
-import shutil
 
 @pytest.fixture
 def mock_structure():

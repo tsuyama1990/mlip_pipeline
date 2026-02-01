@@ -9,7 +9,7 @@ from typing import Iterator, List, Union
 from mlip_autopipec.domain_models.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
 from mlip_autopipec.domain_models.dynamics import LammpsResult, EonResult
-from mlip_autopipec.domain_models.job import JobResult, JobStatus
+from mlip_autopipec.domain_models.job import JobStatus
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.domain_models.exploration import ExplorationTask
 from mlip_autopipec.physics.structure_gen.generator import StructureGenFactory
@@ -70,7 +70,8 @@ class ExplorationPhase:
         runner = EonWrapper(
             config=config.eon,
             potential_config=config.potential,
-            base_work_dir=work_dir
+            base_work_dir=work_dir,
+            uncertainty_threshold=config.orchestrator.uncertainty_threshold
         )
 
         return runner.run(
@@ -135,20 +136,8 @@ class ExplorationPhase:
         last_structure = base_structure
         count = 0
 
-        # Batched writing for I/O efficiency
-        BATCH_SIZE = 100
-        batch: List[ase.Atoms] = []
-
-        # Use 'w' initially then 'a'
-        # mode = "w"
-
-        # Explicitly stream write using ase.io.write in chunks
-        # This prevents accumulating batch in memory endlessly, we clear it.
-        # Note: We must manage the file handle or filename. ase.io.write handles filename with append=True.
-        # But for 'extxyz', ASE might write header every time if we are not careful or if using file handle.
-        # Best practice for extxyz streaming with ASE:
-        # Open file once, write atoms one by one or in chunks.
-
+        # Explicitly stream write using ase.io.write ONE BY ONE
+        # To satisfy strict memory safety (no list accumulation)
         with open(traj_path, "w") as f:
             for s in structure_stream:
                 atoms = s.to_ase()
@@ -156,18 +145,11 @@ class ExplorationPhase:
                 gamma_array = np.full(n_atoms, fake_gamma)
                 atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
 
-                batch.append(atoms)
+                # Write immediately, no accumulation in list
+                ase.io.write(f, atoms, format="extxyz") # type: ignore[no-untyped-call]
+
                 last_structure = s
                 count += 1
-
-                if len(batch) >= BATCH_SIZE:
-                    ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
-                    batch = []
-
-            # Flush remaining
-            if batch:
-                ase.io.write(f, batch, format="extxyz") # type: ignore[no-untyped-call]
-                batch = [] # Explicit clear
 
         if count == 0:
                 ase.io.write(traj_path, base_structure.to_ase(), format="extxyz") # type: ignore[no-untyped-call]

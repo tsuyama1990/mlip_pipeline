@@ -150,6 +150,9 @@ def deploy_potential(
         # StateManager handles loading state from disk
         state_manager = StateManager(work_dir=Path.cwd())
         state = state_manager.load()
+        if not state:
+             typer.secho("No existing workflow state found. Run 'run-loop' first.", fg=typer.colors.RED)
+             raise typer.Exit(code=1)
 
         deployer = ProductionDeployer(config, output_dir=Path("dist"))
         zip_path = deployer.deploy(state, version, author, description)
