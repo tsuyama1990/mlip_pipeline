@@ -142,13 +142,15 @@ class ExplorationPhase:
 
         with open(traj_path, "w") as f:
             for s in structure_stream:
+                # Update last structure reference immediately, old one can be GC'd if not in batch
+                last_structure = s
+
                 atoms = s.to_ase()
                 n_atoms = len(atoms)
                 gamma_array = np.full(n_atoms, fake_gamma)
                 atoms.new_array("c_pace_gamma", gamma_array) # type: ignore[no-untyped-call]
 
                 batch.append(atoms)
-                last_structure = s
                 count += 1
 
                 if len(batch) >= BATCH_SIZE:

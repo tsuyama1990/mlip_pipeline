@@ -9,7 +9,7 @@ class ProductionManifest(BaseModel):
 
     version: str = Field(..., pattern=r"^\d+\.\d+\.\d+$", description="Semantic Versioning (X.Y.Z)")
     author: str
-    training_set_size: int = Field(..., ge=0)
+    training_set_size: int = Field(default=0, ge=0)
     validation_metrics: ValidationResult
     license: str = "MIT"
     description: str = "Auto-generated MLIP potential"

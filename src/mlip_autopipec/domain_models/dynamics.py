@@ -48,7 +48,8 @@ class LammpsConfig(BaseModel):
 
         # Allow absolute paths if they look safe (no shell metas)
         # This regex allows alphanumeric, /, _, -, .
-        if re.match(r"^[\w/\.\-]+$", v):
+        # Stricter: disallow '..' usage even if path valid characters (already checked above but reinforcing)
+        if re.match(r"^[\w/\.\-]+$", v) and ".." not in v:
             # If path is absolute, check if executable exists and is executable
             path = Path(v)
             if path.is_absolute():

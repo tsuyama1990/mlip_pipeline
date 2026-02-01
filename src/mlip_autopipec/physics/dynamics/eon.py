@@ -32,21 +32,21 @@ class EonWrapper:
         self.base_work_dir.mkdir(parents=True, exist_ok=True)
 
         # Resolve driver path
-        # Assuming src structure: src/mlip_autopipec/physics/dynamics/eon.py
-        # Driver: src/mlip_autopipec/inference/pace_driver.py
-        # This logic handles both dev (src) and installed package cases if structure is preserved
-        current_file = Path(__file__).resolve()
-        # Go up to mlip_autopipec
-        pkg_root = current_file.parent.parent.parent
-        self.driver_path = pkg_root / "inference" / "pace_driver.py"
+        # Configuration/Env var takes precedence, else fallback to relative path
+        import os
+        env_driver_path = os.environ.get("PACE_DRIVER_PATH")
+        if env_driver_path:
+            self.driver_path = Path(env_driver_path).resolve()
+        else:
+            # Fallback to default relative location
+            current_file = Path(__file__).resolve()
+            # src/mlip_autopipec/physics/dynamics/eon.py -> src/mlip_autopipec/inference/pace_driver.py
+            pkg_root = current_file.parent.parent.parent
+            self.driver_path = pkg_root / "inference" / "pace_driver.py"
 
         if not self.driver_path.exists():
-            # Fallback for installed package where inference might be a sibling module
-            # Trying standard import discovery if needed, but file path is safer for subprocess
-            logger.warning(f"pace_driver.py not found at {self.driver_path}. Checking alternative locations...")
-            # Try finding it in the same directory as 'app.py' might be?
-            # If installed via pip, it might be in site-packages/mlip_autopipec/inference/pace_driver.py
-            pass
+             logger.warning(f"pace_driver.py not found at {self.driver_path}.")
+             # We rely on Config validation usually, but here we warn.
 
     def run(
         self,

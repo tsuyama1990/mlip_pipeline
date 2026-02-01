@@ -23,32 +23,31 @@ def mock_eon():
     with patch("mlip_autopipec.orchestration.phases.exploration.EonWrapper") as mock:
         yield mock
 
-def test_uat_cycle08_akmc_flow(tmp_path, mock_policy, mock_eon):
-    current_dir = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        # 1. Init
-        runner.invoke(app, ["init"])
+def test_uat_cycle08_akmc_flow(tmp_path, mock_policy, mock_eon, monkeypatch):
+    monkeypatch.chdir(tmp_path)
 
-        # 2. Configure mock policy to return aKMC task
-        mock_policy.return_value = ExplorationTask(method="aKMC", modifiers=[])
+    # 1. Init
+    runner.invoke(app, ["init"])
 
-        # 3. Configure mock EonWrapper
-        instance = mock_eon.return_value
+    # 2. Configure mock policy to return aKMC task
+    mock_policy.return_value = ExplorationTask(method="aKMC", modifiers=[])
 
-        # Create a dummy structure
-        atoms = ase.Atoms("Al4", positions=[[0,0,0]]*4, cell=[4,4,4], pbc=True)
-        final_structure = Structure.from_ase(atoms)
+    # 3. Configure mock EonWrapper
+    instance = mock_eon.return_value
 
-        instance.run.return_value = EonResult(
-            job_id="test_akmc",
-            status=JobStatus.COMPLETED,
-            work_dir=Path("runs/0001"),
-            duration_seconds=10.0,
-            log_content="done",
-            final_structure=final_structure,
-            max_gamma=6.0 # High gamma to trigger learning?
-        )
+    # Create a dummy structure
+    atoms = ase.Atoms("Al4", positions=[[0,0,0]]*4, cell=[4,4,4], pbc=True)
+    final_structure = Structure.from_ase(atoms)
+
+    instance.run.return_value = EonResult(
+        job_id="test_akmc",
+        status=JobStatus.COMPLETED,
+        work_dir=Path("runs/0001"),
+        duration_seconds=10.0,
+        log_content="done",
+        final_structure=final_structure,
+        max_gamma=6.0 # High gamma to trigger learning?
+    )
 
         # 4. Mock other components to make run-loop proceed (Validation, Training, etc.)
         # This is getting complex for a full loop.
@@ -64,11 +63,11 @@ def test_uat_cycle08_akmc_flow(tmp_path, mock_policy, mock_eon):
         # But wait, run-loop runs phases. ExplorationPhase calls EonWrapper.
         # So if we mock EonWrapper, we verify interaction.
 
-        # Trigger run-loop for 1 iteration
-        # We need to ensure we have a 'potential.yace' so dynamics can run (or mock it)
-        (tmp_path / "potential.yace").touch()
+    # Trigger run-loop for 1 iteration
+    # We need to ensure we have a 'potential.yace' so dynamics can run (or mock it)
+    (tmp_path / "potential.yace").touch()
 
-        # We need to update state to have potential
+    # We need to update state to have potential
         # The Orchestrator loads state. We can mock state loading or just let it start from 0.
         # If it starts from 0, it might try to do cold start (Bulk Generation) which is Static.
         # We need to force it to use aKMC.
@@ -77,55 +76,49 @@ def test_uat_cycle08_akmc_flow(tmp_path, mock_policy, mock_eon):
         # Patch Orchestrator logic or state to force usage of potential?
         # If generation=1, it uses potential.
 
-        # For this test, verifying 'deploy' is easier and sufficient for Cycle 08 UAT Part 2.
-        # Part 1 (aKMC) is tested by verifying ExplorationPhase calls EonWrapper (Unit test logic but via CLI trigger).
+    # For this test, verifying 'deploy' is easier and sufficient for Cycle 08 UAT Part 2.
+    # Part 1 (aKMC) is tested by verifying ExplorationPhase calls EonWrapper (Unit test logic but via CLI trigger).
+    pass
 
-    finally:
-        os.chdir(current_dir)
+def test_uat_cycle08_deploy(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
 
-def test_uat_cycle08_deploy(tmp_path):
-    current_dir = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        runner.invoke(app, ["init"])
+    runner.invoke(app, ["init"])
 
-        # Create artifacts
-        (tmp_path / "potential.yace").touch()
-        (tmp_path / "validation_report.html").touch()
+    # Create artifacts
+    (tmp_path / "potential.yace").touch()
+    (tmp_path / "validation_report.html").touch()
 
         # We need a valid state with validation history
         # We can inject it by writing workflow_state.json?
         # Or mock state loading.
 
-        # Writing workflow_state.json is better integration test
-        import json
-        state_data = {
-                "project_name": "TestProject",
-                "dataset_path": "data.pckl",
-            "generation": 5,
-                "current_phase": "EXPLORATION", # "IDLE" is not in Enum, use "EXPLORATION"
-            "latest_potential_path": str(tmp_path / "potential.yace"),
-                # "latest_dataset_path": "data.pckl", # Removed
-            "validation_history": {
-                "5": {
-                    "potential_id": "pot_5",
-                    "metrics": [
-                        {"name": "RMSE", "value": 0.01, "passed": True}
-                    ],
-                    "plots": {},
-                    "overall_status": "PASS"
-                }
+    # Writing workflow_state.json is better integration test
+    import json
+    state_data = {
+            "project_name": "TestProject",
+            "dataset_path": "data.pckl",
+        "generation": 5,
+            "current_phase": "EXPLORATION", # "IDLE" is not in Enum, use "EXPLORATION"
+        "latest_potential_path": str(tmp_path / "potential.yace"),
+            # "latest_dataset_path": "data.pckl", # Removed
+        "validation_history": {
+            "5": {
+                "potential_id": "pot_5",
+                "metrics": [
+                    {"name": "RMSE", "value": 0.01, "passed": True}
+                ],
+                "plots": {},
+                "overall_status": "PASS"
             }
         }
-        with open("workflow_state.json", "w") as f:
-            json.dump(state_data, f)
+    }
+    with open("workflow_state.json", "w") as f:
+        json.dump(state_data, f)
 
-        # Run deploy
-        result = runner.invoke(app, ["deploy", "--author", "Tester", "--version", "1.0.0"])
+    # Run deploy
+    result = runner.invoke(app, ["deploy", "--author", "Tester", "--version", "1.0.0"])
 
-        assert result.exit_code == 0, f"Deploy failed: {result.stdout}"
-        assert "Deployment package created" in result.stdout
-        assert (tmp_path / "dist" / "mlip_package_1.0.0.zip").exists()
-
-    finally:
-        os.chdir(current_dir)
+    assert result.exit_code == 0, f"Deploy failed: {result.stdout}"
+    assert "Deployment package created" in result.stdout
+    assert (tmp_path / "dist" / "mlip_package_1.0.0.zip").exists()

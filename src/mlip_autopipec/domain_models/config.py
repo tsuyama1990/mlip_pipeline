@@ -176,6 +176,9 @@ class ValidationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # Production
+    package_name_format: str = "mlip_package_{version}.zip"
+
     # Phonon
     phonon_tolerance: float = defaults.DEFAULT_PHONON_TOL  # THz, strictly negative to allow numeric noise
     phonon_supercell: tuple[int, int, int] = defaults.DEFAULT_PHONON_SUPERCELL

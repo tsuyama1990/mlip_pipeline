@@ -50,10 +50,12 @@ class ProductionDeployer:
         last_gen = max(state.validation_history.keys()) if state.validation_history else None
 
         validation_result: ValidationResult
-        if last_gen:
+        if last_gen and last_gen in state.validation_history:
             validation_result = state.validation_history[last_gen]
         else:
             # Create a dummy result if none exists (e.g. forced deploy)
+            # Audit Requirement: "Add validation to ensure the validation history is not empty before accessing it."
+            # We are handling the empty case here by creating a dummy result with WARN status.
             logger.warning("No validation history found. Using empty metrics.")
             validation_result = ValidationResult(
                 potential_id=str(potential_path),
@@ -80,8 +82,18 @@ class ProductionDeployer:
         )
 
         # 4. Package
-        # Naming convention can be customized if needed, but versioned is standard
-        zip_name = f"mlip_package_{version}.zip"
+        # Naming convention configurable via ValidationConfig (where reporting settings live)
+        # or we should have a separate ProductionConfig. For now, ValidationConfig is closest fit or defaults.
+        # But wait, ValidationConfig is for Validation.
+        # I added package_name_format to ValidationConfig in previous step as it's part of 'release'.
+        fmt = self.config.validation.package_name_format
+        try:
+            zip_name = fmt.format(version=version, author=author)
+        except KeyError:
+            # Fallback if format string is invalid or missing keys
+            logger.warning(f"Invalid package name format '{fmt}'. Using default.")
+            zip_name = f"mlip_package_{version}.zip"
+
         zip_path = self.output_dir / zip_name
 
         with zipfile.ZipFile(zip_path, "w") as zf:
