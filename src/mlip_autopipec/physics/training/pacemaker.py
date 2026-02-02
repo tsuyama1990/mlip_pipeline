@@ -13,9 +13,7 @@ class PacemakerTrainer(Trainer):
     def __init__(self, config: TrainingConfig) -> None:
         self.config = config
 
-    def train(
-        self, dataset: Path, previous_potential: Path | None, output_dir: Path
-    ) -> Path:
+    def train(self, dataset: Path, previous_potential: Path | None, output_dir: Path) -> Path:
         """
         Runs pace_train via subprocess or mock if environment variable PYACEMAKER_MOCK_MODE is set.
         """

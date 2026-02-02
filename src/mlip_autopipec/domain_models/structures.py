@@ -15,5 +15,8 @@ class CandidateStructure(BaseModel):
     # or an identifier.
     structure_path: Path
     metadata: StructureMetadata = Field(default_factory=StructureMetadata)
+    energy: float | None = None
+    forces: list[list[float]] | None = None
+    stress: list[list[float]] | None = None
 
     model_config = ConfigDict(extra="forbid")

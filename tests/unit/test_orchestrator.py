@@ -5,6 +5,7 @@ import pytest
 
 from mlip_autopipec.config import (
     Config,
+    DFTConfig,
     ExplorationConfig,
     OracleConfig,
     OrchestratorConfig,
@@ -28,6 +29,7 @@ def mock_config(temp_dir: Path) -> Config:
         exploration=ExplorationConfig(),
         oracle=OracleConfig(),
         validation=ValidationConfig(),
+        dft=DFTConfig(pseudopotentials={"Si": "Si.upf"}),
     )
 
 

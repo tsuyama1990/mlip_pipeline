@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -14,6 +14,7 @@ def test_cli_integration(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         "training": {"dataset_path": str(temp_dir / "data.pckl"), "max_epochs": 1},
         "orchestrator": {"max_iterations": 1},
         "validation": {"run_validation": False},
+        "dft": {"pseudopotentials": {"Si": "Si.upf"}},
     }
     config_file = temp_dir / "config.yaml"
     with config_file.open("w") as f:

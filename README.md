@@ -15,6 +15,7 @@
 
 *   **Zero-Config Workflow**: Initialize complex pipelines with a single `config.yaml`.
 *   **Robust State Management**: Automatic state persistence ensures jobs can be resumed after interruptions.
+*   **Self-Healing DFT Oracle**: Built-in resilience for Quantum Espresso calculations, automatically retrying failed SCF cycles with adjusted parameters (mixing beta, smearing, etc.).
 *   **Modular Architecture**: Plug-and-play components for Structure Generation, Oracle (DFT), and Training.
 *   **Mock Mode**: Skeleton execution mode for rapid development and testing without expensive physics backends.
 *   **Strict Validation**: Pydantic-based configuration ensures fail-fast behavior for invalid inputs.
@@ -23,8 +24,9 @@
 
 *   Python 3.12+
 *   `uv` (recommended) or `pip`
-*   External Dependencies (Optional for Cycle 01):
-    *   `pace_train` (Pacemaker)
+*   External Dependencies:
+    *   `pw.x` (Quantum Espresso) - Required for DFT Oracle
+    *   `pace_train` (Pacemaker) - Required for Training
 
 ## Installation
 
@@ -36,39 +38,67 @@ uv sync
 
 ## Usage
 
-1.  **Prepare Configuration**: Create a `config.yaml` file.
+### 1. Minimal Mock Configuration (Quick Start)
+To run the pipeline in Mock Mode (no external physics codes required), use this minimal config:
 
-    ```yaml
-    project:
-      name: "TitaniumOxide"
-      seed: 42
+```yaml
+project:
+  name: "MockRun"
+  seed: 42
 
-    training:
-      dataset_path: "/path/to/data.pckl"
-      max_epochs: 100
+training:
+  dataset_path: "data.pckl"
+  max_epochs: 5
 
-    orchestrator:
-      max_iterations: 10
-    ```
+orchestrator:
+  max_iterations: 3
 
-2.  **Run the Pipeline**:
+oracle:
+  method: "mock"
+```
 
-    ```bash
-    uv run python -m mlip_autopipec.main config.yaml
-    ```
+### 2. Production Configuration (DFT + ACE)
+For production runs using Quantum Espresso:
 
-3.  **Output**:
-    *   `state.json`: Tracks the progress of the active learning loop.
-    *   `output.yace`: The trained potential (in production mode).
-    *   Logs are printed to stdout (and optionally to file).
+```yaml
+project:
+  name: "TitaniumOxide"
+  seed: 42
+
+training:
+  dataset_path: "/path/to/data.pckl"
+  max_epochs: 100
+
+orchestrator:
+  max_iterations: 10
+
+oracle:
+  method: "dft"
+
+dft:
+  command: "pw.x"
+  pseudopotentials:
+    Ti: "Ti.pbe-spn-kjpaw_psl.1.0.0.UPF"
+    O: "O.pbe-n-kjpaw_psl.1.0.0.UPF"
+  ecutwfc: 50.0
+  kspacing: 0.04
+```
+
+### 3. Run the Pipeline
+
+```bash
+uv run python -m mlip_autopipec.main config.yaml
+```
 
 ## Architecture
 
 ```
 src/mlip_autopipec/
 ├── config/             # Pydantic Configuration Models
-├── domain_models/      # Core Data Structures (WorkflowState, Potential)
+├── domain_models/      # Core Data Structures (WorkflowState, Potential, Structures)
 ├── orchestration/      # State Machine & Main Loop
-├── physics/            # Interfaces for Physics Engines (Training, DFT, MD)
-└── utils/              # Shared Utilities (File Ops, Logging)
+├── physics/            # Interfaces for Physics Engines
+│   ├── oracle/         # DFT Implementation (Quantum Espresso) with Self-Healing
+│   └── training/       # Potential Training (Pacemaker)
+└── utils/              # Shared Utilities (Parsers, File Ops, Logging)
 ```
