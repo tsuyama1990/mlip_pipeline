@@ -6,6 +6,7 @@ from mlip_autopipec.utils.file_ops import atomic_write
 
 
 def test_atomic_write_success(temp_dir: Path) -> None:
+    # Test successful atomic write
     target = temp_dir / "target.txt"
     with atomic_write(target) as temp:
         temp.write_text("success")
@@ -17,12 +18,17 @@ def test_atomic_write_success(temp_dir: Path) -> None:
 
 
 def test_atomic_write_failure(temp_dir: Path) -> None:
+    # Test failure during atomic write cleans up temp file
     target = temp_dir / "target.txt"
 
-    with pytest.raises(RuntimeError):  # noqa: PT012, SIM117
+    def _fail_operation() -> None:
         with atomic_write(target) as temp:
             temp.write_text("fail")
-            raise RuntimeError("Boom")  # noqa: EM101
+            msg = "Boom"
+            raise RuntimeError(msg)
+
+    with pytest.raises(RuntimeError):
+        _fail_operation()
 
     assert not target.exists()
     # Ensure temp file is cleaned up

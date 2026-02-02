@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,36 +19,43 @@ def mock_config(temp_dir: Path) -> Config:
 
 
 def test_orchestrator_initialization(mock_config: Config) -> None:
+    explorer = MagicMock()
+    oracle = MagicMock()
+    trainer = MagicMock()
+
     with (
         patch("mlip_autopipec.orchestration.orchestrator.StateManager") as MockState,
-        patch("mlip_autopipec.orchestration.orchestrator.PacemakerTrainer") as MockTrainer,
     ):
-        orch = Orchestrator(mock_config)
+        orch = Orchestrator(mock_config, explorer, oracle, trainer)
         assert orch.config == mock_config
         MockState.assert_called_once()
-        MockTrainer.assert_called_once()
 
 
 def test_orchestrator_run_loop(mock_config: Config) -> None:
+    explorer = MagicMock()
+    oracle = MagicMock()
+    trainer = MagicMock()
+
     with (
         patch("mlip_autopipec.orchestration.orchestrator.StateManager") as MockState,
-        patch("mlip_autopipec.orchestration.orchestrator.PacemakerTrainer") as MockTrainer,
     ):
         # Setup mocks
         mock_state_instance = MockState.return_value
-        # We need a state that updates.
-        # Since logic is in orchestrator, we can assume it updates the state object.
-        # But load() is called once at start.
         mock_state_instance.load.return_value = WorkflowState(iteration=0)
 
-        mock_trainer_instance = MockTrainer.return_value
-        mock_trainer_instance.train.return_value = Path("output.yace")
+        trainer.train.return_value = Path("output.yace")
 
-        orch = Orchestrator(mock_config)
+        # Explorer and Oracle mocks should return something
+        explorer.explore.return_value = {"status": "ok"}
+        oracle.compute.return_value = {"status": "ok"}
+
+        orch = Orchestrator(mock_config, explorer, oracle, trainer)
         orch.run()
 
         # 0 < 2 -> Run -> iteration becomes 1
         # 1 < 2 -> Run -> iteration becomes 2
         # 2 < 2 -> Stop.
-        assert mock_trainer_instance.train.call_count == 2
+        assert trainer.train.call_count == 2
         assert mock_state_instance.save.call_count >= 2
+        assert explorer.explore.call_count == 2
+        assert oracle.compute.call_count == 2
