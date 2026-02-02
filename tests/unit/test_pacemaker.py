@@ -12,25 +12,23 @@ def test_pacemaker_train_command(temp_dir: Path) -> None:
     dataset.touch()
     config = TrainingConfig(dataset_path=dataset, max_epochs=10, command="pace_train")
     trainer = PacemakerTrainer(config)
+    output_dir = temp_dir / "output"
 
     with patch("subprocess.run") as mock_run:
         # Mock successful run
         mock_run.return_value.returncode = 0
 
-        # We also need to mock output file existence check, or create it
-        # Since logic checks "output.yace" in CWD, we can touch it.
-        # But CWD might not be temp_dir.
-        # We should patch Path.exists but specifically for output.yace
-        # Easier to just let it run and mock existence.
+        # We also need to mock output file existence check
         with patch("pathlib.Path.exists", return_value=True):
-            trainer.train(dataset)
+            trainer.train(dataset, previous_potential=None, output_dir=output_dir)
 
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "pace_train"
         assert "--dataset" in cmd
-        assert "--max-epochs" in cmd
+        assert "--max_num_epochs" in cmd
         assert "10" in cmd
+        assert "--output_dir" in cmd
 
 
 def test_pacemaker_mock_mode(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,12 +37,10 @@ def test_pacemaker_mock_mode(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) ->
     dataset.touch()
     config = TrainingConfig(dataset_path=dataset)
     trainer = PacemakerTrainer(config)
-
-    # We need to run in temp_dir so output.yace is created there
-    monkeypatch.chdir(temp_dir)
+    output_dir = temp_dir / "output"
 
     with patch("subprocess.run") as mock_run:
-        output = trainer.train(dataset)
+        output = trainer.train(dataset, previous_potential=None, output_dir=output_dir)
         mock_run.assert_not_called()
-        assert output.name == "output.yace"
+        assert output.name == "output_potential.yace"
         assert output.exists()

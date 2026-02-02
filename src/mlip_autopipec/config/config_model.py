@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel, ConfigDict, Field, FilePath
 
 
@@ -19,9 +20,27 @@ class OrchestratorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ExplorationConfig(BaseModel):
+    strategy: str = "random"
+    model_config = ConfigDict(extra="forbid")
+
+
+class OracleConfig(BaseModel):
+    method: str = "dft"
+    model_config = ConfigDict(extra="forbid")
+
+
+class ValidationConfig(BaseModel):
+    run_validation: bool = True
+    model_config = ConfigDict(extra="forbid")
+
+
 class Config(BaseModel):
     project: ProjectConfig
     training: TrainingConfig
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
+    exploration: ExplorationConfig = Field(default_factory=ExplorationConfig)
+    oracle: OracleConfig = Field(default_factory=OracleConfig)
+    validation: ValidationConfig = Field(default_factory=ValidationConfig)
 
     model_config = ConfigDict(extra="forbid")

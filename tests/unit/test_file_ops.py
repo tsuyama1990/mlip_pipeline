@@ -1,31 +1,45 @@
 from pathlib import Path
 
-import pytest
-
 from mlip_autopipec.utils.file_ops import atomic_write
 
 
-def test_atomic_write_success(temp_dir: Path) -> None:
-    target = temp_dir / "target.txt"
-    with atomic_write(target) as temp:
-        temp.write_text("success")
-        assert temp.exists()
-        assert not target.exists()
+def test_atomic_write(temp_dir: Path) -> None:
+    target_file = temp_dir / "test.txt"
 
-    assert target.exists()
-    assert target.read_text() == "success"
+    with atomic_write(target_file) as temp_path:
+        # Check temp path is different
+        assert temp_path != target_file
+        # Check temp path is in same directory
+        assert temp_path.parent == target_file.parent
+        # Check temp path has .tmp suffix
+        assert temp_path.name.endswith(".tmp")
+
+        # Write to temp path
+        with temp_path.open("w") as f:
+            f.write("hello")
+
+        # Target file should not exist yet
+        assert not target_file.exists()
+
+    # After context manager exit, target file should exist
+    assert target_file.exists()
+    with target_file.open("r") as f:
+        assert f.read() == "hello"
 
 
 def test_atomic_write_failure(temp_dir: Path) -> None:
-    target = temp_dir / "target.txt"
+    target_file = temp_dir / "fail.txt"
 
-    with pytest.raises(RuntimeError):  # noqa: PT012, SIM117
-        with atomic_write(target) as temp:
-            temp.write_text("fail")
-            raise RuntimeError("Boom")  # noqa: EM101
+    try:
+        with atomic_write(target_file) as temp_path:
+            with temp_path.open("w") as f:
+                f.write("partial")
+            raise RuntimeError("Something went wrong")
+    except RuntimeError:
+        pass
 
-    assert not target.exists()
-    # Ensure temp file is cleaned up
-    # The temp file name logic is target.name + ".tmp"
-    temp_file = target.with_name(target.name + ".tmp")
-    assert not temp_file.exists()
+    # Target file should not exist
+    assert not target_file.exists()
+    # Temp file should be cleaned up
+    # Since atomic_write uses .tmp, check for any .tmp file
+    assert not any(temp_dir.glob("*.tmp"))

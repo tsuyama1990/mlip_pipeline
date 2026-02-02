@@ -1,20 +1,36 @@
 import logging
+import shutil
 from pathlib import Path
 
 from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
+from mlip_autopipec.orchestration.interfaces import (
+    Explorer,
+    Oracle,
+    Trainer,
+    Validator,
+)
 from mlip_autopipec.orchestration.state import StateManager
-from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
-    def __init__(self, config: Config) -> None:
+    def __init__(
+        self,
+        config: Config,
+        explorer: Explorer,
+        oracle: Oracle,
+        trainer: Trainer,
+        validator: Validator | None = None,
+    ) -> None:
         self.config = config
         self.state_manager = StateManager(Path("state.json"))
 
-        self.trainer = PacemakerTrainer(config.training)
+        self.explorer = explorer
+        self.oracle = oracle
+        self.trainer = trainer
+        self.validator = validator
 
         # Initialize or load state
         loaded_state = self.state_manager.load()
@@ -30,33 +46,75 @@ class Orchestrator:
         while self.state.iteration < self.config.orchestrator.max_iterations:
             logger.info(f"Starting Cycle {self.state.iteration}")
 
-            # Phase 1: Exploration (Mock for Cycle 01)
-            self._run_exploration()
+            # Setup work directory for this iteration
+            work_dir = Path(f"active_learning/iter_{self.state.iteration:03d}")
+            work_dir.mkdir(parents=True, exist_ok=True)
 
-            # Phase 2: Selection & Calculation (Mock for Cycle 01)
-            self._run_oracle()
-
-            # Phase 3: Training (Real implementation)
-            logger.info("Starting Training Phase")
             try:
-                potential_path = self.trainer.train(
-                    dataset=self.config.training.dataset_path,
-                    previous_potential=self.state.current_potential_path,
+                # Phase 1: Exploration
+                logger.info("Phase: Exploration")
+                exploration_dir = work_dir / "exploration"
+                exploration_dir.mkdir(parents=True, exist_ok=True)
+                candidates = self.explorer.explore(
+                    potential_path=self.state.current_potential_path,
+                    work_dir=exploration_dir,
                 )
+                logger.info(f"Exploration found {len(candidates)} candidates")
 
-                # Rename to unique filename to preserve history
-                unique_path = Path(f"potential_iter_{self.state.iteration}.yace")
-                if potential_path.exists():
-                    potential_path.replace(unique_path)
-                    potential_path = unique_path
+                # Phase 2: Oracle
+                logger.info("Phase: Oracle")
+                # Ensure oracle directory exists
+                oracle_dir = work_dir / "oracle"
+                oracle_dir.mkdir(parents=True, exist_ok=True)
+                new_data_paths = self.oracle.compute(
+                    candidates=candidates, work_dir=oracle_dir
+                )
+                logger.info(f"Oracle returned {len(new_data_paths)} new data files")
+
+                # Phase 3: Training
+                logger.info("Phase: Training")
+                # Update dataset
+                current_dataset = self.trainer.update_dataset(new_data_paths)
+
+                training_dir = work_dir / "training"
+                training_dir.mkdir(parents=True, exist_ok=True)
+
+                potential_path = self.trainer.train(
+                    dataset=current_dataset,
+                    previous_potential=self.state.current_potential_path,
+                    output_dir=training_dir,
+                )
+                logger.info(f"Training completed. Potential at {potential_path}")
+
+                # Phase 4: Validation
+                if self.validator and self.config.validation.run_validation:
+                    logger.info("Phase: Validation")
+                    validation_dir = work_dir / "validation"
+                    validation_dir.mkdir(parents=True, exist_ok=True)
+                    val_result = self.validator.validate(potential_path, validation_dir)
+                    logger.info(f"Validation passed: {val_result.passed}")
+                    if not val_result.passed:
+                        logger.warning(f"Validation failed: {val_result.reason}")
+                        # In strict mode, we might stop here. For now, we log and proceed or store status.
+
+                # Finalize Cycle
+                # Rename/Move potential to potentials/ directory to preserve history as per spec
+                potentials_dir = Path("potentials")
+                potentials_dir.mkdir(exist_ok=True)
+                final_potential_path = (
+                    potentials_dir / f"generation_{self.state.iteration:03d}.yace"
+                )
+                shutil.copy(potential_path, final_potential_path)
 
                 # Update state
-                self.state.current_potential_path = potential_path
+                self.state.current_potential_path = final_potential_path
                 self.state.history.append(
                     {
                         "iteration": self.state.iteration,
-                        "potential": str(potential_path),
+                        "potential": str(final_potential_path),
                         "status": "success",
+                        "candidates_count": len(candidates),
+                        "new_data_count": len(new_data_paths),
                     }
                 )
 
@@ -68,9 +126,3 @@ class Orchestrator:
             except Exception:
                 logger.exception(f"Cycle {self.state.iteration} failed")
                 raise
-
-    def _run_exploration(self) -> None:
-        logger.info("Phase: Exploration (Mock)")
-
-    def _run_oracle(self) -> None:
-        logger.info("Phase: Oracle (Mock)")
