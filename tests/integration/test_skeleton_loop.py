@@ -23,6 +23,7 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "training": {"dataset_path": str(data_file), "max_epochs": 10},
         "orchestrator": {"max_iterations": 1},
         "validation": {"run_validation": True},
+        "dft": {"pseudopotentials": {"Si": "Si.upf"}},
     }
     config_file = temp_dir / "config.yaml"
     with config_file.open("w") as f:

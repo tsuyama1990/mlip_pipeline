@@ -1,5 +1,6 @@
 from .config_model import (
     Config,
+    DFTConfig,
     ExplorationConfig,
     OracleConfig,
     OrchestratorConfig,
@@ -10,6 +11,7 @@ from .config_model import (
 
 __all__ = [
     "Config",
+    "DFTConfig",
     "ExplorationConfig",
     "OracleConfig",
     "OrchestratorConfig",

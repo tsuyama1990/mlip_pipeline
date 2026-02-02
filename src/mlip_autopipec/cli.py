@@ -5,8 +5,10 @@ from pathlib import Path
 
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.logging_config import setup_logging
+from mlip_autopipec.orchestration.interfaces import Oracle
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.oracle.manager import DFTManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
@@ -39,8 +41,17 @@ def main() -> None:
         explorer = MockExplorer()
 
         # Oracle
-        # TODO: Implement factory for oracle based on config.oracle.method
-        oracle = MockOracle()
+        oracle: Oracle
+        if config.oracle.method == "dft":
+            if config.dft is None:
+                msg = "DFT configuration missing but oracle method is 'dft'"
+                logger.error(msg)
+                raise ValueError(msg)  # noqa: TRY301
+            logger.info("Using DFT Oracle")
+            oracle = DFTManager(config.dft)
+        else:
+            logger.info(f"Using Mock Oracle (method={config.oracle.method})")
+            oracle = MockOracle()
 
         # Trainer
         trainer = PacemakerTrainer(config.training)
