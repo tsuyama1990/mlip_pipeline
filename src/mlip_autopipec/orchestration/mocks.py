@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class MockExplorer(Explorer):
-    def explore(
-        self, potential_path: Path | None, work_dir: Path
-    ) -> list[CandidateStructure]:
+    def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
         logger.info("MockExplorer: exploring...")
         # Create a dummy structure file
         structure_file = work_dir / "candidate_0.xyz"
@@ -25,9 +23,7 @@ class MockExplorer(Explorer):
 
 
 class MockOracle(Oracle):
-    def compute(
-        self, candidates: list[CandidateStructure], work_dir: Path
-    ) -> list[Path]:
+    def compute(self, candidates: list[CandidateStructure], work_dir: Path) -> list[Path]:
         logger.info(f"MockOracle: computing for {len(candidates)} candidates...")
         results = []
         for i, _ in enumerate(candidates):

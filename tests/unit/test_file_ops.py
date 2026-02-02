@@ -34,7 +34,8 @@ def test_atomic_write_failure(temp_dir: Path) -> None:
         with atomic_write(target_file) as temp_path:
             with temp_path.open("w") as f:
                 f.write("partial")
-            raise RuntimeError("Something went wrong")
+            msg = "Something went wrong"
+            raise RuntimeError(msg)  # noqa: TRY301
     except RuntimeError:
         pass
 

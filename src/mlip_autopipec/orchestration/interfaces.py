@@ -6,9 +6,7 @@ from mlip_autopipec.domain_models.validation import ValidationResult
 
 
 class Explorer(Protocol):
-    def explore(
-        self, potential_path: Path | None, work_dir: Path
-    ) -> list[CandidateStructure]:
+    def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
         """
         Explores the configuration space to find candidate structures.
 
@@ -23,9 +21,7 @@ class Explorer(Protocol):
 
 
 class Oracle(Protocol):
-    def compute(
-        self, candidates: list[CandidateStructure], work_dir: Path
-    ) -> list[Path]:
+    def compute(self, candidates: list[CandidateStructure], work_dir: Path) -> list[Path]:
         """
         Computes properties (energy, forces, etc.) for the candidate structures.
 
@@ -40,9 +36,7 @@ class Oracle(Protocol):
 
 
 class Trainer(Protocol):
-    def train(
-        self, dataset: Path, previous_potential: Path | None, output_dir: Path
-    ) -> Path:
+    def train(self, dataset: Path, previous_potential: Path | None, output_dir: Path) -> Path:
         """
         Trains the potential using the provided dataset.
 

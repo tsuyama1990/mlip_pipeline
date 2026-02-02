@@ -66,9 +66,7 @@ class Orchestrator:
                 # Ensure oracle directory exists
                 oracle_dir = work_dir / "oracle"
                 oracle_dir.mkdir(parents=True, exist_ok=True)
-                new_data_paths = self.oracle.compute(
-                    candidates=candidates, work_dir=oracle_dir
-                )
+                new_data_paths = self.oracle.compute(candidates=candidates, work_dir=oracle_dir)
                 logger.info(f"Oracle returned {len(new_data_paths)} new data files")
 
                 # Phase 3: Training

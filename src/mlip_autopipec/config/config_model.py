@@ -1,5 +1,13 @@
-
 from pydantic import BaseModel, ConfigDict, Field, FilePath
+
+
+class DFTConfig(BaseModel):
+    command: str = "pw.x"
+    pseudopotentials: dict[str, str]  # Element -> Filename
+    kspacing: float = 0.04  # Inverse distance for K-grid
+    ecutwfc: float = 50.0  # Wavefunction cutoff (Ry)
+    max_retries: int = 3
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProjectConfig(BaseModel):
@@ -42,5 +50,6 @@ class Config(BaseModel):
     exploration: ExplorationConfig = Field(default_factory=ExplorationConfig)
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
+    dft: DFTConfig | None = None
 
     model_config = ConfigDict(extra="forbid")
