@@ -39,3 +39,8 @@ build/
 
 # Cycle 1 specific
 workflow_state.json
+
+# Added by Cycle 01
+htmlcov/
+state.json
+output.yace
