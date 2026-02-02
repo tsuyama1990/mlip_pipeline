@@ -10,11 +10,12 @@
 
 ## Key Features
 
-*   **Zero-Config Workflow**: Define your system in a single `config.yaml` and let the Orchestrator handle the rest. No complex Python scripting needed.
-*   **Active Learning**: Drastically reduces DFT costs (by ~90%) by intelligently selecting only the most informative structures using uncertainty quantification ($\gamma$).
-*   **Physics-Informed Robustness**: Automatically constructs hybrid potentials (ACE + ZBL/LJ) to ensure simulations never crash due to non-physical atomic overlaps, even in high-energy regimes.
-*   **Self-Healing Oracle**: The DFT interface automatically detects convergence failures (SCF errors) and adjusts parameters to recover, minimizing manual intervention.
-*   **Automated Validation**: Every generated potential is rigorously tested for Phonon stability, Elastic properties, and Equation of State before being released.
+*   **Zero-Config Workflow**: Define your system in a single `config.yaml` and let the Orchestrator handle the rest.
+*   **Robust Architecture**: Pydantic-based strict configuration validation and atomic state persistence ensures your long-running jobs are safe from crashes.
+*   **Mock/Dry-Run Mode**: Test your pipeline logic without expensive DFT/MD calculations using the built-in mock mode.
+*   **(Planned) Active Learning**: Drastically reduces DFT costs by intelligently selecting structures.
+*   **(Planned) Physics-Informed Robustness**: Hybrid potentials (ACE + ZBL/LJ) for stability.
+*   **(Planned) Automated Validation**: Rigorous Phonon and Elasticity tests.
 
 ## Architecture Overview
 
@@ -39,13 +40,11 @@ graph TD
 
 ## Prerequisites
 
-To run PYACEMAKER in "Real Mode", you need the following tools installed and accessible in your `$PATH`:
-
 *   **Python 3.12+**
-*   **Quantum Espresso** (`pw.x`)
-*   **LAMMPS** (`lmp` or `lmp_serial`) with `USER-PACE` package installed.
-*   **Pacemaker** (`pace_train`, `pace_activeset`)
 *   **uv** (recommended for Python dependency management)
+*   *(Optional)* **Pacemaker** (`pace_train`)
+*   *(Optional)* **LAMMPS** (`lmp`)
+*   *(Optional)* **Quantum Espresso** (`pw.x`)
 
 ## Installation
 
@@ -58,16 +57,8 @@ To run PYACEMAKER in "Real Mode", you need the following tools installed and acc
 2.  **Install dependencies using `uv`**:
     ```bash
     uv sync
-    ```
-    *Alternatively, use pip:*
-    ```bash
-    pip install .
-    ```
-
-3.  **Setup Environment**:
-    Copy the example environment file (if available) or ensure your physics codes are in the path.
-    ```bash
-    export PATH=$PATH:/path/to/quantum-espresso/bin:/path/to/lammps/bin
+    # Or install in editable mode
+    uv pip install -e .
     ```
 
 ## Usage
@@ -77,9 +68,18 @@ To run PYACEMAKER in "Real Mode", you need the following tools installed and acc
 1.  **Initialize a new project**:
     Create a working directory and a configuration file.
     ```bash
-    mkdir my_silicon_project
-    cd my_silicon_project
-    # Create a config.yaml (see examples/config.yaml)
+    mkdir my_project
+    cd my_project
+    ```
+    Create `config.yaml`:
+    ```yaml
+    project:
+      name: "MyProject"
+    training:
+      dataset_path: "data.pckl"
+      max_epochs: 100
+    orchestrator:
+      max_iterations: 5
     ```
 
 2.  **Run the Orchestrator**:
@@ -88,20 +88,15 @@ To run PYACEMAKER in "Real Mode", you need the following tools installed and acc
     ```
 
 3.  **Monitor Progress**:
-    The system will create an `active_learning/` directory. You can track the progress by checking the logs or the generated validation reports.
+    The system will create `workflow_state.json` and logs to track progress.
 
-## Development Workflow
+## Development
 
-We use a strict cycle-based development process.
-
-### Running Tests
 ```bash
+# Run tests
 uv run pytest
-```
 
-### Linting & Code Quality
-We enforce strict typing and style rules.
-```bash
+# Linting
 uv run ruff check .
 uv run mypy .
 ```
@@ -110,17 +105,11 @@ uv run mypy .
 
 ```
 mlip-autopipec/
-├── src/                    # Source code
-│   └── mlip_autopipec/
-│       ├── orchestration/  # Main logic
-│       ├── physics/        # MD/DFT/Gen interfaces
-│       └── validation/     # QA tools
-├── tests/                  # Unit and Integration tests
-├── dev_documents/          # Specs and Design docs
-├── tutorials/              # Jupyter notebooks
-└── pyproject.toml          # Project configuration
+├── src/mlip_autopipec/     # Main package
+│   ├── config/             # Pydantic schemas
+│   ├── domain_models/      # Core data structures
+│   ├── orchestration/      # Logic flow and State
+│   └── physics/            # Interface adapters
+├── tests/                  # Test suite
+└── dev_documents/          # Documentation
 ```
-
-## License
-
-MIT License. See `LICENSE` file for details.
