@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mlip_autopipec.main import main
+from mlip_autopipec.cli import main
 
 
 def test_main_success(temp_dir: Path) -> None:
@@ -12,12 +12,12 @@ def test_main_success(temp_dir: Path) -> None:
 
     with (
         patch("argparse.ArgumentParser.parse_args") as mock_args,
-        patch("mlip_autopipec.main.load_config") as mock_load,
-        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
-        patch("mlip_autopipec.main.MockExplorer") as MockExp,
-        patch("mlip_autopipec.main.MockOracle") as MockOra,
-        patch("mlip_autopipec.main.PacemakerTrainer") as MockTra,
-        patch("mlip_autopipec.main.MockValidator") as MockVal,
+        patch("mlip_autopipec.cli.load_config") as mock_load,
+        patch("mlip_autopipec.cli.Orchestrator") as MockOrch,
+        patch("mlip_autopipec.cli.MockExplorer") as MockExp,
+        patch("mlip_autopipec.cli.MockOracle") as MockOra,
+        patch("mlip_autopipec.cli.PacemakerTrainer") as MockTra,
+        patch("mlip_autopipec.cli.MockValidator") as MockVal,
     ):
         mock_args.return_value.config = config_file
 
