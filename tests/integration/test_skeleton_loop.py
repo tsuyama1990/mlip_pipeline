@@ -5,7 +5,9 @@ import pytest
 import yaml
 
 from mlip_autopipec.config.loader import load_config
+from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 
 def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -20,13 +22,21 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "project": {"name": "IntegrationTest"},
         "training": {"dataset_path": str(data_file), "max_epochs": 10},
         "orchestrator": {"max_iterations": 1},
+        "validation": {"run_validation": True},
     }
     config_file = temp_dir / "config.yaml"
     with config_file.open("w") as f:
         yaml.dump(config_data, f)
 
     config = load_config(config_file)
-    orch = Orchestrator(config)
+
+    # Initialize components
+    explorer = MockExplorer()
+    oracle = MockOracle()
+    trainer = PacemakerTrainer(config.training)
+    validator = MockValidator()
+
+    orch = Orchestrator(config, explorer, oracle, trainer, validator)
 
     # Run
     orch.run()
@@ -40,6 +50,7 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         state = json.load(f)
     assert state["iteration"] == 1
 
-    # Check output potential (MockTrainer should create it)
-    # Orchestrator renames it to potential_iter_0.yace
-    assert (temp_dir / "potential_iter_0.yace").exists()
+    # Check output potential (MockTrainer should create it in active_learning/iter_000/training/output_potential.yace)
+    # And copy to potentials/generation_000.yace
+
+    assert (temp_dir / "potentials/generation_000.yace").exists()
