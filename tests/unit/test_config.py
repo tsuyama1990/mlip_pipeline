@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from mlip_autopipec.config.loader import load_config
 from pydantic import ValidationError
+
+from mlip_autopipec.config.loader import load_config
 
 
 def test_load_valid_config(temp_dir: Path) -> None:
@@ -13,6 +14,9 @@ def test_load_valid_config(temp_dir: Path) -> None:
     config_data = {
         "project": {"name": "TestProject", "seed": 123},
         "training": {"dataset_path": str(data_file), "max_epochs": 50, "command": "mock_train"},
+        "exploration": {"method": "mc", "steps": 500},
+        "oracle": {"method": "vasp"},
+        "validation": {"run_validation": False},
         "orchestrator": {"max_iterations": 5},
     }
     config_file = temp_dir / "config.yaml"
@@ -25,7 +29,33 @@ def test_load_valid_config(temp_dir: Path) -> None:
     assert config.project.seed == 123
     assert config.training.dataset_path == data_file
     assert config.training.max_epochs == 50
+    assert config.exploration.method == "mc"
+    assert config.exploration.steps == 500
+    assert config.oracle.method == "vasp"
+    assert config.validation.run_validation is False
     assert config.orchestrator.max_iterations == 5
+
+
+def test_load_config_defaults(temp_dir: Path) -> None:
+    """Test that optional sections use defaults."""
+    data_file = temp_dir / "data.pckl"
+    data_file.touch()
+
+    config_data = {
+        "project": {"name": "DefaultProject"},
+        "training": {"dataset_path": str(data_file)},
+    }
+    config_file = temp_dir / "config.yaml"
+    with config_file.open("w") as f:
+        yaml.dump(config_data, f)
+
+    config = load_config(config_file)
+
+    # Check defaults
+    assert config.exploration.method == "md"
+    assert config.oracle.method == "dft_mock"
+    assert config.validation.run_validation is True
+    assert config.orchestrator.max_iterations == 10
 
 
 def test_load_config_missing_file(temp_dir: Path) -> None:

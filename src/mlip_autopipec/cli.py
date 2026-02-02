@@ -5,7 +5,9 @@ from pathlib import Path
 
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.logging_config import setup_logging
+from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +30,21 @@ def main() -> None:
         logger.info(f"Loading configuration from {config_path}")
         config = load_config(config_path)
 
+        # Instantiate components
+        # In the future, these could be chosen based on config (e.g. config.exploration.method)
+        explorer = MockExplorer()
+        oracle = MockOracle()
+        trainer = PacemakerTrainer(config.training)
+        validator = MockValidator()
+
         logger.info("Initializing Orchestrator")
-        orch = Orchestrator(config)
+        orch = Orchestrator(
+            config=config,
+            explorer=explorer,
+            oracle=oracle,
+            trainer=trainer,
+            validator=validator,
+        )
 
         logger.info("Starting Workflow")
         orch.run()
