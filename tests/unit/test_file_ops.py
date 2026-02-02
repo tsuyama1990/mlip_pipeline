@@ -1,26 +1,30 @@
-import pytest
-from mlip_autopipec.utils.file_ops import atomic_write
 from pathlib import Path
 
-def test_atomic_write_success(tmp_path):
+from mlip_autopipec.utils.file_ops import atomic_write
+
+
+def test_atomic_write_success(tmp_path: Path) -> None:
     dest = tmp_path / "success.txt"
-    with atomic_write(dest) as temp:
-        with open(temp, "w") as f:
-            f.write("content")
+    with atomic_write(dest) as temp, temp.open("w") as f:
+        f.write("content")
 
     assert dest.exists()
     assert dest.read_text() == "content"
 
-def test_atomic_write_exception(tmp_path):
+def test_atomic_write_exception(tmp_path: Path) -> None:
     dest = tmp_path / "fail.txt"
-    try:
+
+    def _should_raise() -> None:
         with atomic_write(dest) as temp:
             # Manually create the temp file to ensure it exists for cleanup check
-            with open(temp, "w") as f:
+            with temp.open("w") as f:
                 f.write("partial")
-            raise RuntimeError("Fail")
-    except RuntimeError:
-        pass
+            msg = "Fail"
+            raise RuntimeError(msg)
+
+    import contextlib
+    with contextlib.suppress(RuntimeError):
+        _should_raise()
 
     assert not dest.exists()
     # Check temp file is cleaned up.

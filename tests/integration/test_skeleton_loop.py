@@ -1,18 +1,18 @@
+from pathlib import Path
 
 import pytest
 import yaml
 
 # Imports that might fail
 try:
-    from mlip_autopipec.orchestration.orchestrator import Orchestrator
-
     from mlip_autopipec.config.config_model import Config
+    from mlip_autopipec.orchestration.orchestrator import Orchestrator
 except ImportError:
     Orchestrator = None # type: ignore
     Config = None # type: ignore
 
 @pytest.mark.skipif(Orchestrator is None, reason="Orchestrator not implemented yet")
-def test_skeleton_loop_execution(temp_project_dir, valid_config_yaml, dummy_dataset, monkeypatch):
+def test_skeleton_loop_execution(temp_project_dir: Path, valid_config_yaml: Path, dummy_dataset: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Runs the full skeleton loop for 1 iteration.
     Uses PYACEMAKER_MOCK_MODE to simulate training.
@@ -23,7 +23,7 @@ def test_skeleton_loop_execution(temp_project_dir, valid_config_yaml, dummy_data
     # Load config
     with valid_config_yaml.open("r") as f:
         data = yaml.safe_load(f)
-    config = Config(**data)
+    config = Config.model_validate(data)
 
     # Initialize Orchestrator
     # We assume Orchestrator takes config and work_dir?

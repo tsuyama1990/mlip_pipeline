@@ -17,7 +17,7 @@ class StateManager:
         Loads the state from JSON. Returns a fresh state if file doesn't exist.
         """
         if not self.state_file.exists():
-            return WorkflowState()
+            return WorkflowState(iteration=0, current_potential_path=None)
 
         with self.state_file.open("r") as f:
             data = json.load(f)

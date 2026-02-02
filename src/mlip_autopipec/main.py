@@ -1,11 +1,13 @@
 import argparse
 import sys
-import yaml
 from pathlib import Path
 
+import yaml
+
 from mlip_autopipec.config.config_model import Config
-from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.logging_config import setup_logging
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PYACEMAKER: Automated MLIP Construction")

@@ -1,8 +1,10 @@
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 
-def test_uat_01_01_first_breath(temp_project_dir, valid_config_yaml, dummy_dataset):
+def test_uat_01_01_first_breath(temp_project_dir: Path, valid_config_yaml: Path, dummy_dataset: Path) -> None:
     """
     Scenario 01-01: The First Breath
     Verify that the system can initialize, read configuration, and complete a single "Skeleton Cycle" without crashing.
@@ -11,7 +13,7 @@ def test_uat_01_01_first_breath(temp_project_dir, valid_config_yaml, dummy_datas
     # We set CWD to the project dir.
 
     # We also need to enforce Mock mode via env var
-    env = {"PYACEMAKER_MOCK_MODE": "1", "PATH": subprocess.os.environ["PATH"]}
+    env = {"PYACEMAKER_MOCK_MODE": "1", "PATH": os.environ["PATH"]}
 
     # Run command
     # python -m mlip_autopipec.main config.yaml
@@ -36,7 +38,8 @@ def test_uat_01_01_first_breath(temp_project_dir, valid_config_yaml, dummy_datas
     assert (temp_project_dir / "workflow_state.json").exists()
     assert (temp_project_dir / "output_potential.yace").exists()
 
-def test_uat_01_02_guard_rails(temp_project_dir):
+
+def test_uat_01_02_guard_rails(temp_project_dir: Path) -> None:
     """
     Scenario 01-02: The Guard Rails
     Verify that the system provides helpful feedback when the configuration is invalid.

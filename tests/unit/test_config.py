@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 import yaml
 from pydantic import ValidationError
@@ -5,17 +7,18 @@ from pydantic import ValidationError
 from mlip_autopipec.config.config_model import Config
 
 
-def test_load_valid_config(valid_config_yaml):
+def test_load_valid_config(valid_config_yaml: Path) -> None:
     """Test loading a valid configuration."""
     with valid_config_yaml.open("r") as f:
         data = yaml.safe_load(f)
 
-    config = Config(**data)
+    config = Config.model_validate(data)
     assert config.project.name == "TestProject"
     assert config.training.max_epochs == 10
     assert config.orchestrator.max_iterations == 1
 
-def test_missing_dataset(temp_project_dir):
+
+def test_missing_dataset(temp_project_dir: Path) -> None:
     """Test that missing dataset raises ValidationError."""
     config_path = temp_project_dir / "bad_config.yaml"
     config_content = """
@@ -35,11 +38,12 @@ training:
     # We might need to handle CWD carefully. Pydantic FilePath checks existence.
 
     with pytest.raises(ValidationError) as excinfo:
-        Config(**data)
+        Config.model_validate(data)
 
     assert "path" in str(excinfo.value)
 
-def test_invalid_epochs(temp_project_dir, dummy_dataset):
+
+def test_invalid_epochs(temp_project_dir: Path, dummy_dataset: Path) -> None:
     """Test validation of numeric constraints."""
     config_data = {
         "project": {"name": "Test"},
@@ -51,4 +55,4 @@ def test_invalid_epochs(temp_project_dir, dummy_dataset):
     }
 
     with pytest.raises(ValidationError):
-        Config(**config_data)
+        Config.model_validate(config_data)
