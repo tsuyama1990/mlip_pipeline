@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from mlip_autopipec.config.loader import load_config
 from pydantic import ValidationError
+
+from mlip_autopipec.config.loader import load_config
 
 
 def test_load_valid_config(temp_dir: Path) -> None:

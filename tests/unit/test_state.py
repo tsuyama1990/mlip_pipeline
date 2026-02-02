@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
 
-from mlip_autopipec.orchestration.state import StateManager
-
 from mlip_autopipec.domain_models.workflow import WorkflowState
+from mlip_autopipec.orchestration.state import StateManager
 
 
 def test_state_manager_save_load(temp_dir: Path) -> None:

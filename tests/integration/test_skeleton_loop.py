@@ -5,7 +5,9 @@ import pytest
 import yaml
 
 from mlip_autopipec.config.loader import load_config
+from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 
 def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -26,7 +28,20 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         yaml.dump(config_data, f)
 
     config = load_config(config_file)
-    orch = Orchestrator(config)
+
+    # Instantiate Mocks
+    explorer = MockExplorer()
+    oracle = MockOracle()
+    validator = MockValidator()
+    trainer = PacemakerTrainer(config.training)
+
+    orch = Orchestrator(
+        config=config,
+        explorer=explorer,
+        oracle=oracle,
+        trainer=trainer,
+        validator=validator,
+    )
 
     # Run
     orch.run()

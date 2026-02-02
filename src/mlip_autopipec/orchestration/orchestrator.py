@@ -3,18 +3,28 @@ from pathlib import Path
 
 from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.workflow import WorkflowState
+from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Trainer, Validator
 from mlip_autopipec.orchestration.state import StateManager
-from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
-    def __init__(self, config: Config) -> None:
+    def __init__(
+        self,
+        config: Config,
+        explorer: Explorer,
+        oracle: Oracle,
+        trainer: Trainer,
+        validator: Validator | None = None,
+    ) -> None:
         self.config = config
-        self.state_manager = StateManager(Path("state.json"))
+        self.explorer = explorer
+        self.oracle = oracle
+        self.trainer = trainer
+        self.validator = validator
 
-        self.trainer = PacemakerTrainer(config.training)
+        self.state_manager = StateManager(Path("state.json"))
 
         # Initialize or load state
         loaded_state = self.state_manager.load()
@@ -30,17 +40,29 @@ class Orchestrator:
         while self.state.iteration < self.config.orchestrator.max_iterations:
             logger.info(f"Starting Cycle {self.state.iteration}")
 
-            # Phase 1: Exploration (Mock for Cycle 01)
-            self._run_exploration()
+            cycle_work_dir = Path(f"cycle_{self.state.iteration}")
+            cycle_work_dir.mkdir(exist_ok=True)
 
-            # Phase 2: Selection & Calculation (Mock for Cycle 01)
-            self._run_oracle()
+            # Phase 1: Exploration
+            logger.info("Phase: Exploration")
+            # In a real impl, we'd pass structures from exploration_result
+            exploration_result = self.explorer.explore(
+                self.state.current_potential_path, cycle_work_dir / "exploration"
+            )
 
-            # Phase 3: Training (Real implementation)
-            logger.info("Starting Training Phase")
+            # Phase 2: Selection & Calculation (Oracle)
+            logger.info("Phase: Oracle")
+            # In a real impl, we'd pass structures from exploration_result
+            self.oracle.compute(exploration_result, cycle_work_dir / "oracle")
+
+            # Phase 3: Training
+            logger.info("Phase: Training")
             try:
+                # In real impl, dataset path might come from oracle_result
+                dataset_path = self.config.training.dataset_path
+
                 potential_path = self.trainer.train(
-                    dataset=self.config.training.dataset_path,
+                    dataset=dataset_path,
                     previous_potential=self.state.current_potential_path,
                 )
 
@@ -50,12 +72,17 @@ class Orchestrator:
                     potential_path.replace(unique_path)
                     potential_path = unique_path
 
+                # Phase 4: Validation
+                if self.validator:
+                    logger.info("Phase: Validation")
+                    self.validator.validate(unique_path)
+
                 # Update state
-                self.state.current_potential_path = potential_path
+                self.state.current_potential_path = unique_path
                 self.state.history.append(
                     {
                         "iteration": self.state.iteration,
-                        "potential": str(potential_path),
+                        "potential": str(unique_path),
                         "status": "success",
                     }
                 )
@@ -68,9 +95,3 @@ class Orchestrator:
             except Exception:
                 logger.exception(f"Cycle {self.state.iteration} failed")
                 raise
-
-    def _run_exploration(self) -> None:
-        logger.info("Phase: Exploration (Mock)")
-
-    def _run_oracle(self) -> None:
-        logger.info("Phase: Oracle (Mock)")
