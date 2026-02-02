@@ -7,6 +7,7 @@ from mlip_autopipec.main import main
 
 
 def test_main_success_no_validation(temp_dir: Path) -> None:
+    # Refactored for lint compliance
     config_file = temp_dir / "config.yaml"
     config_file.touch()
 
