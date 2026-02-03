@@ -6,7 +6,7 @@ from ase import Atoms
 from ase.io import write
 
 from mlip_autopipec.domain_models.dynamics import MDResult, MDStatus
-from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
+from mlip_autopipec.domain_models.exploration import MDParameters, MDTask
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
 from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
 
@@ -22,7 +22,7 @@ def test_otf_loop_completed(mock_runner: MagicMock, temp_dir: Path) -> None:
     otf_loop = OTFLoop(mock_runner)
 
     seed = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1]], cell=[10, 10, 10])
-    task = ExplorationTask(method=ExplorationMethod.MD, parameters={})
+    task = MDTask()
 
     # Run
     candidates = otf_loop.execute_task(task, seed, None, temp_dir)
@@ -47,7 +47,7 @@ def test_otf_loop_halted(mock_runner: MagicMock, temp_dir: Path) -> None:
     otf_loop = OTFLoop(mock_runner)
 
     seed = Atoms("Si2", positions=[[0, 0, 0], [1, 1, 1]], cell=[5, 5, 5], pbc=True)
-    task = ExplorationTask(method=ExplorationMethod.MD, parameters={"local_sampling_count": 3})
+    task = MDTask(parameters=MDParameters(local_sampling_count=3))
 
     # Run
     candidates = otf_loop.execute_task(task, seed, None, temp_dir)

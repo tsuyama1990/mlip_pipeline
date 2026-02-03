@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from mlip_autopipec.domain_models.production import ProductionManifest
 
 
-def test_production_manifest_valid():
+def test_production_manifest_valid() -> None:
     """Test valid manifest creation."""
     data = {
         "version": "1.0.0",
@@ -22,7 +22,7 @@ def test_production_manifest_valid():
     assert manifest.validation_metrics["rmse_e"] == 0.001
 
 
-def test_production_manifest_defaults():
+def test_production_manifest_defaults() -> None:
     """Test default creation_date."""
     data = {
         "version": "1.0.0",
@@ -34,7 +34,7 @@ def test_production_manifest_defaults():
     assert isinstance(manifest.creation_date, datetime)
 
 
-def test_production_manifest_extra_forbid():
+def test_production_manifest_extra_forbid() -> None:
     """Test strict config."""
     data = {
         "version": "1.0.0",
@@ -47,7 +47,7 @@ def test_production_manifest_extra_forbid():
         ProductionManifest(**data)
 
 
-def test_production_manifest_types():
+def test_production_manifest_types() -> None:
     """Test strict typing."""
     data = {
         "version": "1.0.0",

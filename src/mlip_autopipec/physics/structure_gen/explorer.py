@@ -5,7 +5,12 @@ from typing import Any
 from ase.io import read, write
 
 from mlip_autopipec.config import Config
-from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
+from mlip_autopipec.domain_models.exploration import (
+    AKMCTask,
+    ExplorationTask,
+    MDTask,
+    StaticTask,
+)
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
 from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
@@ -57,13 +62,13 @@ class AdaptiveExplorer:
         potential_path: Path | None,
         work_dir: Path,
     ) -> list[CandidateStructure]:
-        if task.method == ExplorationMethod.STATIC:
+        if isinstance(task, StaticTask):
             return self._run_static_task(index, task, seed_atoms, work_dir)
 
-        if task.method == ExplorationMethod.MD:
+        if isinstance(task, MDTask):
             return self._run_md_task(index, task, seed_atoms, potential_path, work_dir)
 
-        if task.method == ExplorationMethod.AKMC:
+        if isinstance(task, AKMCTask):
             return self._run_akmc_task(
                 index, task, seed_atoms, potential_path, work_dir
             )
@@ -71,20 +76,22 @@ class AdaptiveExplorer:
         return []
 
     def _run_static_task(
-        self, index: int, task: ExplorationTask, seed_atoms: Any, work_dir: Path
+        self, index: int, task: StaticTask, seed_atoms: Any, work_dir: Path
     ) -> list[CandidateStructure]:
         candidates = []
         new_structs = []
         gen: StructureGenerator
 
         if "strain" in task.modifiers:
-            rng = task.parameters.get("strain_range", 0.05)
+            # Type safe access
+            rng = task.parameters.strain_range
             gen = StrainGenerator(strain_range=rng)
             count = 20
             new_structs = gen.generate(seed_atoms, count=count)
 
         elif "defect" in task.modifiers:
-            dtype = task.parameters.get("defect_type", "vacancy")
+            # Type safe access
+            dtype = task.parameters.defect_type
             gen = DefectGenerator(defect_type=dtype)
             count = 1
             new_structs = gen.generate(seed_atoms, count=count)
@@ -105,7 +112,7 @@ class AdaptiveExplorer:
     def _run_md_task(
         self,
         index: int,
-        task: ExplorationTask,
+        task: MDTask,
         seed_atoms: Any,
         potential_path: Path | None,
         work_dir: Path,
@@ -122,7 +129,7 @@ class AdaptiveExplorer:
     def _run_akmc_task(
         self,
         index: int,
-        task: ExplorationTask,
+        task: AKMCTask,
         seed_atoms: Any,
         potential_path: Path | None,
         work_dir: Path,

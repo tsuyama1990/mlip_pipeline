@@ -3,17 +3,23 @@ from unittest.mock import patch
 
 import pytest
 
-from mlip_autopipec.main import main
+from mlip_autopipec.config.loader import load_config
+from mlip_autopipec.main import create_components, main
+from mlip_autopipec.validation.runner import ValidationRunner
 
 
 @pytest.fixture
 def valid_config_yaml(tmp_path: Path) -> Path:
+    # Ensure dataset exists
+    data_path = tmp_path / "data.pckl"
+    data_path.touch()
+
     config_path = tmp_path / "config.yaml"
-    config_path.write_text("""
+    config_path.write_text(f"""
 project:
   name: "TestProject"
 training:
-  dataset_path: "data.pckl"
+  dataset_path: "{data_path}"
   max_epochs: 10
 orchestrator:
   max_iterations: 1
@@ -70,3 +76,17 @@ def test_main_exception(valid_config_yaml: Path) -> None:
             main()
 
         assert exc.value.code == 1
+
+
+def test_create_components_wiring(valid_config_yaml: Path) -> None:
+    # 1. Test with validation DISABLED
+    config = load_config(valid_config_yaml)
+
+    explorer, selector, oracle, trainer, validator = create_components(config)
+    assert validator is None
+
+    # 2. Test with validation ENABLED
+    config.validation.run_validation = True
+    explorer, selector, oracle, trainer, validator = create_components(config)
+
+    assert isinstance(validator, ValidationRunner)
