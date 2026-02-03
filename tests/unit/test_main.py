@@ -44,7 +44,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.load_config") as mock_load,
-        patch("mlip_autopipec.main.create_components") as mock_create,
+        patch("mlip_autopipec.factory.create_components") as mock_create,
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
     ):
         # Setup mocks

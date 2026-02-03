@@ -3,9 +3,11 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.domain_models.structures import CandidateStructure
+from mlip_autopipec.domain_models.workflow import HistoryEntry
 from mlip_autopipec.orchestration.interfaces import Selector
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
@@ -83,3 +85,15 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # And copy to potentials/generation_000.yace
 
     assert (temp_dir / "potentials/generation_000.yace").exists()
+
+
+def test_history_entry_strictness() -> None:
+    """Verify that HistoryEntry forbids extra fields."""
+    with pytest.raises(ValidationError) as exc:
+        HistoryEntry(
+            iteration=1,
+            potential_path="path/to/pot",
+            status="success",
+            extra_field="invalid",  # type: ignore[call-arg]
+        )
+    assert "extra_field" in str(exc.value)
