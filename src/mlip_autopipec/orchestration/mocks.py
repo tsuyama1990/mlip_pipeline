@@ -13,7 +13,9 @@ class MockExplorer(Explorer):
         logger.info("MockExplorer: exploring...")
         # Create a dummy structure file
         structure_file = work_dir / "candidate_0.xyz"
-        structure_file.touch()
+        with structure_file.open("w") as f:
+            f.write("1\nProperties=species:S:1:pos:R:3 energy=0.0\nSi 0.0 0.0 0.0\n")
+
         return [
             CandidateStructure(
                 structure_path=structure_file,
@@ -28,7 +30,9 @@ class MockOracle(Oracle):
         results = []
         for i, _ in enumerate(candidates):
             result_file = work_dir / f"result_{i}.extxyz"
-            result_file.touch()
+            with result_file.open("w") as f:
+                # Minimal valid extxyz with energy and forces
+                f.write("1\nProperties=species:S:1:pos:R:3:forces:R:3 energy=-10.0\nSi 0.0 0.0 0.0 0.0 0.0 0.0\n")
             results.append(result_file)
         return results
 

@@ -45,10 +45,32 @@ cd mlip-autopipec
 uv sync
 ```
 
+## Tutorials
+
+We provide Jupyter Notebook tutorials in the `tutorials/` directory to help you get started.
+
+*   **01_quickstart_silicon.ipynb**: The "Zero-Config" experience running in Mock Mode.
+*   **02_advanced_tio2.ipynb**: Demonstrates advanced configuration for complex oxide systems.
+*   **03_validation_suite.ipynb**: A deep dive into the QA/Validation module.
+
+To run these tutorials, ensure you have the dev dependencies installed:
+
+```bash
+uv sync --group dev
+jupyter notebook tutorials/
+```
+
 ## Usage
 
 ### 1. Minimal Mock Configuration (Quick Start)
-To run the pipeline in Mock Mode (no external physics codes required), use this minimal config:
+To run the pipeline in **Mock Mode** (simulated physics, no external binaries required), set the environment variable `PYACEMAKER_MOCK_MODE=1`. This will force all components (Oracle, Explorer) to use their mock implementations regardless of the configuration file.
+
+```bash
+export PYACEMAKER_MOCK_MODE=1
+uv run python -m mlip_autopipec.main config.yaml
+```
+
+Alternatively, you can configure mocks explicitly in `config.yaml`:
 
 ```yaml
 project:
