@@ -43,9 +43,7 @@ class DefectGenerator:
             # 1. Supercell
             # If small, make supercell
             supercell = (
-                atoms * self.supercell_dim
-                if len(atoms) < 20
-                else atoms.copy()  # type: ignore[no-untyped-call]
+                atoms * self.supercell_dim if len(atoms) < 20 else atoms.copy()  # type: ignore[no-untyped-call]
             )
 
             # 2. Defect

@@ -31,7 +31,9 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     data_file = temp_dir / "data.xyz"
     with data_file.open("w") as f:
         f.write("2\n")
-        f.write("Lattice=\"5.43 0.0 0.0 0.0 5.43 0.0 0.0 0.0 5.43\" Properties=species:S:1:pos:R:3:forces:R:3 energy=-10.0\n")
+        f.write(
+            'Lattice="5.43 0.0 0.0 0.0 5.43 0.0 0.0 0.0 5.43" Properties=species:S:1:pos:R:3:forces:R:3 energy=-10.0\n'
+        )
         f.write("Si 0.0 0.0 0.0 0.0 0.0 0.0\n")
         f.write("Si 1.35 1.35 1.35 0.0 0.0 0.0\n")
 

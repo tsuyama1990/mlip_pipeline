@@ -12,6 +12,12 @@ class DFTConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class LammpsConfig(BaseModel):
+    command: str = "lmp"
+    num_processors: int = 1
+    model_config = ConfigDict(extra="forbid")
+
+
 class ProjectConfig(BaseModel):
     name: str
     seed: int = 42
@@ -61,5 +67,6 @@ class Config(BaseModel):
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     dft: DFTConfig | None = None
+    lammps: LammpsConfig | None = None
 
     model_config = ConfigDict(extra="forbid")
