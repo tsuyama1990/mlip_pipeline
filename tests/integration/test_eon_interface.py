@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,7 +11,7 @@ from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 
 
 @pytest.fixture
-def akmc_config(tmp_path):
+def akmc_config(tmp_path: Path) -> Config:
     conf = MagicMock(spec=Config)
     conf.exploration = StructureGenConfig(
         strategy="adaptive",
@@ -27,7 +28,7 @@ def akmc_config(tmp_path):
 
     return conf
 
-def test_adaptive_explorer_akmc_integration(akmc_config, tmp_path):
+def test_adaptive_explorer_akmc_integration(akmc_config: Config, tmp_path: Path) -> None:
     # Setup Policy to return AKMC task
     with patch("mlip_autopipec.physics.structure_gen.policy.AdaptivePolicy.decide_strategy") as mock_policy:
         from mlip_autopipec.domain_models.exploration import ExplorationTask
