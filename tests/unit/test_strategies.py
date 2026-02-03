@@ -1,7 +1,11 @@
 import numpy as np
 from ase.build import bulk
 
-from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
+from mlip_autopipec.physics.structure_gen.strategies import (
+    DefectGenerator,
+    RandomDisplacementGenerator,
+    StrainGenerator,
+)
 
 
 def test_strain_generator_basics() -> None:
@@ -33,3 +37,22 @@ def test_defect_generator_vacancy() -> None:
 
     # Expect 1 atom less
     assert len(defect_struct) == original_count - 1
+
+
+def test_random_displacement_generator() -> None:
+    atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
+    original_positions = atoms.positions.copy()
+
+    displacement = 0.05
+    gen = RandomDisplacementGenerator(displacement_range=displacement)
+    count = 10
+    candidates = gen.generate(atoms, count=count)
+
+    assert len(candidates) == count
+
+    for cand in candidates:
+        # Check positions are different
+        assert not np.allclose(cand.positions, original_positions)
+        # Check displacement magnitude is within range
+        diff = cand.positions - original_positions
+        assert np.all(np.abs(diff) <= displacement)

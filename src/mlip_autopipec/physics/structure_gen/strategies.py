@@ -55,3 +55,25 @@ class DefectGenerator:
             candidates.append(supercell)
 
         return candidates
+
+
+class RandomDisplacementGenerator:
+    """Generates structures with random atomic displacements."""
+
+    def __init__(self, displacement_range: float = 0.05) -> None:
+        self.displacement_range = displacement_range
+
+    def generate(self, atoms: Atoms, count: int) -> list[Atoms]:
+        candidates = []
+        for _ in range(count):
+            new_atoms = atoms.copy()  # type: ignore[no-untyped-call]
+            # Generate random displacements
+            disp = np.random.uniform(
+                -self.displacement_range,
+                self.displacement_range,
+                size=new_atoms.positions.shape,
+            )
+            new_atoms.positions += disp
+            candidates.append(new_atoms)
+
+        return candidates
