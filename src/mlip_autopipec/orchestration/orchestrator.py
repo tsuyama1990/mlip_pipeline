@@ -151,11 +151,11 @@ class Orchestrator:
             self.state_manager.save(self.state)
             logger.info(f"Cycle {self.state.iteration - 1} completed")
 
-            return val_result
-
         except Exception:
             logger.exception(f"Cycle {self.state.iteration} failed")
             raise
+
+        return val_result
 
     def _finalize_deployment(self, last_validation_result):
         # Finalize Deployment

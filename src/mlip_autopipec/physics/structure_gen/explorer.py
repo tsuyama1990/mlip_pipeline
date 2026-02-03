@@ -106,8 +106,8 @@ class AKMCExplorer:
             seed_atoms = (
                 atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
             )
-        except Exception as e:
-            logger.error(f"Failed to read seed: {e}")
+        except Exception:
+            logger.exception("Failed to read seed")
             return []
 
         # Run AKMC

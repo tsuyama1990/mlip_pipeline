@@ -8,7 +8,8 @@ def read_geometry(input_stream) -> Atoms:
     """Reads geometry from EON client format (stdin)."""
     lines = input_stream.readlines()
     if not lines:
-        raise ValueError("Empty input")
+        msg = "Empty input"
+        raise ValueError(msg)
 
     try:
         # Line 1: Number of atoms
@@ -17,7 +18,8 @@ def read_geometry(input_stream) -> Atoms:
         # Line 2: Box vectors (9 floats)
         box_line = lines[1].strip().split()
         if len(box_line) != 9:
-             raise ValueError(f"Expected 9 box components, got {len(box_line)}")
+             msg = f"Expected 9 box components, got {len(box_line)}"
+             raise ValueError(msg)
 
         box = [float(x) for x in box_line]
         cell = [box[0:3], box[3:6], box[6:9]]
@@ -30,10 +32,10 @@ def read_geometry(input_stream) -> Atoms:
             symbols.append(line[0])
             positions.append([float(x) for x in line[1:4]])
 
-        atoms = Atoms(symbols=symbols, positions=positions, cell=cell, pbc=True)
-        return atoms
+        return Atoms(symbols=symbols, positions=positions, cell=cell, pbc=True)
     except Exception as e:
-        raise ValueError(f"Failed to parse EON geometry: {e}")
+        msg = f"Failed to parse EON geometry: {e}"
+        raise ValueError(msg) from e
 
 def print_results(atoms: Atoms, output_stream):
     """Prints energy and forces in EON client format."""

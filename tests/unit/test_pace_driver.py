@@ -53,9 +53,6 @@ def test_read_geometry_structure():
 
 def test_write_results():
     # Check output format
-    # Expects: Energy
-    # Forces (fx fy fz per atom)
-
     atoms = Atoms("CO", positions=[[0,0,0], [1.2,0,0]])
     atoms.get_potential_energy = MagicMock(return_value=-10.5)
     atoms.get_forces = MagicMock(return_value=[[0,0,1], [0,0,-1]])
@@ -97,9 +94,11 @@ def test_main_execution():
         atoms.get_forces.return_value = [[0,0,0]]
         atoms.__len__.return_value = 1
 
-        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-             with patch("sys.stdin", new_callable=io.StringIO):
-                 pace_driver.main()
+        with (
+            patch("sys.stdout", new_callable=io.StringIO) as mock_stdout,
+            patch("sys.stdin", new_callable=io.StringIO),
+        ):
+            pace_driver.main()
 
         output = mock_stdout.getvalue()
         assert "-1.0500000000000000e+01" in output
@@ -129,9 +128,11 @@ def test_main_gamma_halt():
         atoms.get_forces.return_value = [[0,0,0]] * 2
         atoms.__len__.return_value = 2
 
-        with patch("sys.stdout", new_callable=io.StringIO):
-             with patch("sys.stdin", new_callable=io.StringIO):
-                 with patch.dict("os.environ", {"MLIP_GAMMA_THRESHOLD": "1.0"}):
-                     with pytest.raises(SystemExit) as exc:
-                         pace_driver.main()
-                     assert exc.value.code == 100
+        with (
+            patch("sys.stdout", new_callable=io.StringIO),
+            patch("sys.stdin", new_callable=io.StringIO),
+            patch.dict("os.environ", {"MLIP_GAMMA_THRESHOLD": "1.0"}),
+            pytest.raises(SystemExit) as exc,
+        ):
+            pace_driver.main()
+        assert exc.value.code == 100

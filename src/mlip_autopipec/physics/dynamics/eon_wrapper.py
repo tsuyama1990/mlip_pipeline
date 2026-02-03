@@ -30,7 +30,7 @@ class EonWrapper:
 
         try:
             # We assume eonclient runs a search and exits
-            subprocess.run(
+            subprocess.run(  # noqa: S603
                 cmd,
                 cwd=work_dir,
                 capture_output=True,

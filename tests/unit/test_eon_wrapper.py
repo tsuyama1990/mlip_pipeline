@@ -17,7 +17,7 @@ def test_prepare_directory_copies_driver(mock_copy, tmp_path):
     # We mock the return value of getting the driver path if we implement a helper for it
     # For now, just test that it tries to copy something to 'pace_driver.py'
 
-    with patch("mlip_autopipec.physics.dynamics.eon_wrapper.Path") as mock_path:
+    with patch("mlip_autopipec.physics.dynamics.eon_wrapper.Path"):
          # We rely on the implementation to exist to be patched.
          pass
 
@@ -39,7 +39,6 @@ def test_prepare_directory_copies_driver(mock_copy, tmp_path):
 
     # Check if shutil.copy was called
     # We expect it to copy pace_driver.py to tmp_path / "pace_driver.py"
-    # assert mock_copy.call_count >= 1 # At least one copy
 
 @patch("subprocess.run")
 def test_run_akmc_success(mock_run, tmp_path):

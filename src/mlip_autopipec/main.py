@@ -39,7 +39,8 @@ def create_components(
     if config.exploration.strategy == "akmc":
         logger.info("Using AKMC Explorer")
         if not config.eon:
-            raise ValueError("AKMC strategy requires 'eon' configuration.")
+            msg = "AKMC strategy requires 'eon' configuration."
+            raise ValueError(msg)
         eon_wrapper = EonWrapper(config.eon)
         explorer = AKMCExplorer(config, eon_wrapper)
     elif config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
