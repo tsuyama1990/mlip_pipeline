@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -16,11 +16,6 @@ from mlip_autopipec.config.config_model import (
     ValidationConfig,
 )
 from mlip_autopipec.factory import create_components
-from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Trainer, Validator
-from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle
-from mlip_autopipec.physics.oracle.manager import DFTManager
-from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
-from mlip_autopipec.validation.runner import ValidationRunner
 
 
 @pytest.fixture

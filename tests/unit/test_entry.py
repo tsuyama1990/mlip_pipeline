@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mlip_autopipec.main import main
+from mlip_autopipec.entry import main
 
 
 @pytest.fixture
@@ -31,8 +31,9 @@ validation:
 
 
 def test_main_no_config() -> None:
+    # Ensure no unused variables and correct exception handling
     with (
-        patch("sys.argv", ["main", "ghost.yaml"]),
+        patch("sys.argv", ["entry", "ghost.yaml"]),
         patch("sys.stderr"),
         pytest.raises(SystemExit) as exc,
     ):
@@ -42,10 +43,10 @@ def test_main_no_config() -> None:
 
 def test_main_success(valid_config_yaml: Path) -> None:
     with (
-        patch("sys.argv", ["main", str(valid_config_yaml)]),
-        patch("mlip_autopipec.main.load_config") as mock_load,
-        patch("mlip_autopipec.main.create_components") as mock_create,
-        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("sys.argv", ["entry", str(valid_config_yaml)]),
+        patch("mlip_autopipec.entry.load_config") as mock_load,
+        patch("mlip_autopipec.entry.create_components") as mock_create,
+        patch("mlip_autopipec.entry.Orchestrator") as MockOrch,
     ):
         # Setup mocks
         mock_orch_instance = MockOrch.return_value
@@ -62,12 +63,13 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
 def test_main_exception(valid_config_yaml: Path) -> None:
     with (
-        patch("sys.argv", ["main", str(valid_config_yaml)]),
-        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("sys.argv", ["entry", str(valid_config_yaml)]),
+        patch("mlip_autopipec.entry.Orchestrator") as MockOrch,
         patch("sys.stderr"),
     ):
         MockOrch.side_effect = Exception("Boom")
 
+        # Nested pytest.raises to satisfy PT012
         with pytest.raises(SystemExit) as exc:
             main()
 

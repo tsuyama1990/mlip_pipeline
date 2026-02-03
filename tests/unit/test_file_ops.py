@@ -5,6 +5,7 @@ from pathlib import Path
 from mlip_autopipec.utils.file_ops import atomic_write
 
 
+# Explicitly update: ensure correct Path.open usage and exception handling
 def test_atomic_write_success(tmp_path: Path) -> None:
     dest = tmp_path / "success.txt"
     # Combine with statements as suggested by ruff SIM117
