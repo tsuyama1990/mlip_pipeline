@@ -7,7 +7,7 @@ from mlip_autopipec.config import Config
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.logging_config import setup_logging
 from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Trainer, Validator
-from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
+from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
 from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
@@ -15,6 +15,7 @@ from mlip_autopipec.physics.oracle.manager import DFTManager
 from mlip_autopipec.physics.selection.selector import ActiveSetSelector
 from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
+from mlip_autopipec.validation.runner import ValidationRunner
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,19 @@ def create_components(
     explorer: Explorer
     if config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
         logger.info(f"Using Adaptive Explorer ({config.exploration.strategy})")
+        if otf_loop is None:
+            logger.warning(
+                "Adaptive Explorer initialized without OTF Loop (Lammps). "
+                "MD-based exploration will be skipped."
+            )
         explorer = AdaptiveExplorer(config, otf_loop=otf_loop)
-    else:
-        logger.warning(
-            f"Unknown exploration strategy '{config.exploration.strategy}', falling back to Mock"
-        )
+    elif config.exploration.strategy == "mock":
+        logger.info("Using Mock Explorer")
         explorer = MockExplorer()
+    else:
+        msg = f"Unknown exploration strategy '{config.exploration.strategy}'"
+        logger.error(msg)
+        raise ValueError(msg)
 
     # Selector
     logger.info(f"Using ActiveSetSelector ({config.selection.method})")
@@ -56,15 +64,23 @@ def create_components(
             raise ValueError(msg)
         logger.info("Using DFT Oracle")
         oracle = DFTManager(config.dft)
-    else:
+    elif config.oracle.method == "mock":
         logger.info(f"Using Mock Oracle (method={config.oracle.method})")
+        oracle = MockOracle()
+    else:
+        logger.warning(
+            f"Unknown oracle method '{config.oracle.method}', falling back to MockOracle"
+        )
         oracle = MockOracle()
 
     # Trainer
     trainer = PacemakerTrainer(config.training)
 
     # Validator
-    validator = MockValidator() if config.validation.run_validation else None
+    validator: Validator | None = None
+    if config.validation.run_validation:
+        logger.info("Initializing ValidationRunner")
+        validator = ValidationRunner(config.validation)
 
     return explorer, selector, oracle, trainer, validator
 
