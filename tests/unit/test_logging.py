@@ -1,3 +1,5 @@
+"""Unit tests for logging configuration."""
+
 import logging
 from pathlib import Path
 

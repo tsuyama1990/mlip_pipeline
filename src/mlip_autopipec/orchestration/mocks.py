@@ -3,7 +3,7 @@ from pathlib import Path
 
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.domain_models.validation import MetricResult, ValidationResult
-from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Validator
+from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Validator
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,18 @@ class MockExplorer(Explorer):
                 metadata=StructureMetadata(source="mock_exploration", uncertainty=0.1),
             )
         ]
+
+
+class MockSelector(Selector):
+    def select(
+        self,
+        candidates: list[CandidateStructure],
+        potential_path: Path | None,
+        work_dir: Path,
+    ) -> list[CandidateStructure]:
+        logger.info(f"MockSelector: selecting from {len(candidates)} candidates...")
+        # Return all candidates by default
+        return candidates
 
 
 class MockOracle(Oracle):

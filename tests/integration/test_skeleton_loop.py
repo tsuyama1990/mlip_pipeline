@@ -1,25 +1,14 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 
 from mlip_autopipec.config.loader import load_config
-from mlip_autopipec.domain_models.structures import CandidateStructure
-from mlip_autopipec.orchestration.interfaces import Selector
-from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
+from mlip_autopipec.factory import create_components
+from mlip_autopipec.orchestration.mocks import MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
-from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
-
-
-class MockSelector(Selector):
-    def select(
-        self,
-        candidates: list[CandidateStructure],
-        potential_path: Path | None,
-        work_dir: Path,
-    ) -> list[CandidateStructure]:
-        return candidates  # Pass all
 
 
 def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -41,6 +30,9 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "project": {"name": "IntegrationTest"},
         "training": {"dataset_path": str(data_file), "max_epochs": 10},
         "orchestrator": {"max_iterations": 1},
+        "exploration": {"strategy": "mock"},  # Force mock explorer via factory
+        "selection": {"method": "mock"},      # Force mock selector via factory
+        "oracle": {"method": "mock"},         # Force mock oracle via factory
         "validation": {"run_validation": True},
         "dft": {"pseudopotentials": {"Si": "Si.upf"}},
     }
@@ -50,14 +42,19 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     config = load_config(config_file)
 
-    # Initialize components
-    explorer = MockExplorer()
-    selector = MockSelector()
-    oracle = MockOracle()
-    trainer = PacemakerTrainer(config.training)
-    validator = MockValidator()
+    # Initialize components using the Factory
+    # We patch ValidationRunner to use MockValidator because we don't have LAMMPS/ASE-LAMMPS in this env
+    with patch("mlip_autopipec.factory.ValidationRunner", side_effect=lambda _: MockValidator()):
+        explorer, selector, oracle, trainer, validator = create_components(config)
 
-    orch = Orchestrator(config, explorer, selector, oracle, trainer, validator)
+    orch = Orchestrator(
+        config=config,
+        explorer=explorer,
+        selector=selector,
+        oracle=oracle,
+        trainer=trainer,
+        validator=validator,
+    )
 
     # Run
     orch.run()

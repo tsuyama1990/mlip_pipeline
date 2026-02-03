@@ -12,7 +12,7 @@ class HistoryEntry(BaseModel):
     candidates_count: int = 0
     new_data_count: int = 0
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
 
 class WorkflowState(BaseModel):
