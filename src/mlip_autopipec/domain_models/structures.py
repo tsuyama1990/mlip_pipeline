@@ -10,7 +10,7 @@ class StructureMetadata(BaseModel):
     generation_method: str = "unknown"
     selection_score: float | None = None
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
 
 class CandidateStructure(BaseModel):
