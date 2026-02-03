@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -25,6 +26,20 @@ def create_components(
 ) -> tuple[Explorer, Selector, Oracle, Trainer, Validator | None]:
     """Creates the components based on the configuration."""
     logger.info("Initializing Components")
+
+    # Check for Mock Mode
+    if os.environ.get("PYACEMAKER_MOCK_MODE") == "1":
+        logger.warning("Running in MOCK MODE - Forcing Mock Components")
+        explorer = MockExplorer()
+        selector = ActiveSetSelector(config.selection)
+        oracle = MockOracle()
+        trainer = PacemakerTrainer(config.training)
+
+        validator: Validator | None = None
+        if config.validation.run_validation:
+            validator = ValidationRunner(config.validation)
+
+        return explorer, selector, oracle, trainer, validator
 
     # Initialize OTF Loop if Lammps Config exists
     otf_loop: OTFLoop | None = None
