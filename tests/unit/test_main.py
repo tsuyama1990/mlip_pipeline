@@ -31,6 +31,8 @@ validation:
 
 
 def test_main_no_config() -> None:
+    # Split the complex context manager to avoid PT012 if necessary,
+    # but strictly following the structure:
     with (
         patch("sys.argv", ["main", "ghost.yaml"]),
         patch("sys.stderr"),
@@ -44,7 +46,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.load_config") as mock_load,
-        patch("mlip_autopipec.main.create_components") as mock_create,
+        patch("mlip_autopipec.factory.create_components") as mock_create,
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
     ):
         # Setup mocks
