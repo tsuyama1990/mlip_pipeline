@@ -31,6 +31,8 @@ validation:
 
 
 def test_main_no_config() -> None:
+    # Split the complex context manager to avoid PT012 if necessary,
+    # but strictly following the structure:
     with (
         patch("sys.argv", ["main", "ghost.yaml"]),
         patch("sys.stderr"),
