@@ -16,6 +16,7 @@ def valid_config_yaml(temp_dir: Path) -> Path:
         "project": {"name": "TestProject"},
         "training": {"dataset_path": str(data_file)},
         "orchestrator": {"max_iterations": 1},
+        "selection": {"method": "maxvol", "n_selection": 5},
         "oracle": {"method": "mock"},
         "validation": {"run_validation": False},
         "exploration": {"strategy": "adaptive"},
