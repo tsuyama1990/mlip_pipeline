@@ -14,9 +14,11 @@
 ## Features
 
 *   **Active Learning with MD**: Integrated Molecular Dynamics engine (LAMMPS) for exploring phase space.
+*   **Kinetic Monte Carlo (EON)**: Integration with EON for long-timescale exploration (aKMC) to find saddle points and new basins.
 *   **On-the-Fly Safety Net**: Automatically detects high-uncertainty configurations ("Halt") during MD and extracts them for labeling, preventing simulation crashes.
 *   **Hybrid Potential**: Programmatically mixes Machine Learning potentials with physics-based baselines (ZBL) to ensure stability at short interatomic distances.
 *   **Adaptive Exploration**: Automatically generates new candidate structures using smart policies (Strain, Defects) to explore the potential energy surface efficiently.
+*   **Production Deployment**: Automated packaging of the final potential into a release-ready zip file with manifest and validation report.
 *   **Periodic Embedding**: Intelligent extraction of local defect environments into computable periodic supercells for DFT.
 *   **Zero-Config Workflow**: Initialize complex pipelines with a single `config.yaml`.
 *   **Robust State Management**: Automatic state persistence ensures jobs can be resumed after interruptions.
@@ -33,6 +35,7 @@
     *   `pw.x` (Quantum Espresso) - Required for DFT Oracle
     *   `pace_train` (Pacemaker) - Required for Training
     *   `lmp` (LAMMPS) - Required for MD Exploration
+    *   `eonclient` (EON) - Required for aKMC Exploration
 
 ## Installation
 
@@ -103,7 +106,20 @@ lammps:
   num_processors: 4
 ```
 
-### 3. Run the Pipeline
+### 3. Kinetic Monte Carlo Configuration
+To use EON for long-timescale exploration:
+
+```yaml
+exploration:
+  strategy: "akmc"
+
+eon:
+  command: "eonclient"
+  parameters:
+    temperature: 300.0
+```
+
+### 4. Run the Pipeline
 
 ```bash
 uv run python -m mlip_autopipec.main config.yaml
@@ -115,9 +131,11 @@ uv run python -m mlip_autopipec.main config.yaml
 src/mlip_autopipec/
 ├── config/             # Pydantic Configuration Models
 ├── domain_models/      # Core Data Structures (WorkflowState, Potential, Structures)
+├── inference/          # Inference Bridges (EON Driver)
+├── infrastructure/     # Deployment & Production Logic
 ├── orchestration/      # State Machine & Main Loop
 ├── physics/            # Interfaces for Physics Engines
-│   ├── dynamics/       # MD Engine (LAMMPS) & Log Parsing
+│   ├── dynamics/       # MD Engine (LAMMPS), EON Wrapper & Log Parsing
 │   ├── oracle/         # DFT Implementation (Quantum Espresso) with Self-Healing
 │   ├── structure_gen/  # Exploration Logic (Generators, Embedding, Policy)
 │   └── training/       # Potential Training (Pacemaker)
