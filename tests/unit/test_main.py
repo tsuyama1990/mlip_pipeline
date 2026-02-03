@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -46,6 +46,14 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
         # Setup mocks
         mock_orch_instance = MockOrch.return_value
+        # create_components returns 5 values
+        mock_create.return_value = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
 
         main()
 
@@ -57,12 +65,21 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
 def test_main_exception(valid_config_yaml: Path) -> None:
     with patch("sys.argv", ["main", str(valid_config_yaml)]), \
+         patch("mlip_autopipec.main.load_config"), \
+         patch("mlip_autopipec.main.create_components") as mock_create, \
          patch("mlip_autopipec.main.Orchestrator") as MockOrch, \
          patch("sys.stderr"):
 
+        mock_create.return_value = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
         MockOrch.side_effect = Exception("Boom")
 
         with pytest.raises(SystemExit) as exc:
-             main()
+            main()
 
         assert exc.value.code == 1
