@@ -1,0 +1,12 @@
+project_name: "MyProject"
+dft:
+  code: "qe"
+  ecutwfc: 50.0
+  kpoints: [4, 4, 4]
+training:
+  code: "pacemaker"
+  cutoff: 6.0
+exploration:
+  strategy: "random"
+  max_temperature: 1000.0
+  steps: 50
