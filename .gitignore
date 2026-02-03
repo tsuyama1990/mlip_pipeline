@@ -44,3 +44,4 @@ workflow_state.json
 htmlcov/
 state.json
 output.yace
+*.zip
