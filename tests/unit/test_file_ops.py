@@ -12,6 +12,11 @@ def test_atomic_write_success(tmp_path: Path) -> None:
     assert dest.read_text() == "content"
 
 
+def _raise_error() -> None:
+    msg = "Fail"
+    raise RuntimeError(msg)
+
+
 def test_atomic_write_failure(tmp_path: Path) -> None:
     dest = tmp_path / "fail.txt"
     try:
@@ -19,8 +24,7 @@ def test_atomic_write_failure(tmp_path: Path) -> None:
             # Manually create the temp file to ensure it exists for cleanup check
             with temp.open("w") as f:
                 f.write("partial")
-            msg = "Fail"
-            raise RuntimeError(msg)  # noqa: TRY301
+            _raise_error()
     except RuntimeError:
         pass
 
