@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -70,7 +71,7 @@ def test_create_components(temp_dir: Path) -> None:
     data_file.touch()
 
     # 1. Test with Mock Oracle and Validator
-    config_data = {
+    config_data: dict[str, Any] = {
         "project": {"name": "Test"},
         "training": {"dataset_path": str(data_file), "max_epochs": 1},
         "orchestrator": {"max_iterations": 1},
@@ -89,9 +90,9 @@ def test_create_components(temp_dir: Path) -> None:
     assert isinstance(validator, MockValidator)
 
     # 2. Test with DFT Oracle and No Validator
-    config_data["oracle"]["method"] = "dft"  # type: ignore
-    config_data["dft"] = {"pseudopotentials": {"Si": "Si.upf"}}  # type: ignore
-    config_data["validation"]["run_validation"] = False  # type: ignore
+    config_data["oracle"]["method"] = "dft"
+    config_data["dft"] = {"pseudopotentials": {"Si": "Si.upf"}}
+    config_data["validation"]["run_validation"] = False
 
     config_file_dft = temp_dir / "config_dft.yaml"
     with config_file_dft.open("w") as f:
