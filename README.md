@@ -1,135 +1,77 @@
-# PYACEMAKER
+# MLIP Pipeline
 
-**The Zero-Configuration Autonomous Pipeline for Machine Learning Interatomic Potentials.**
-
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/example/pyacemaker)
+![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-PYACEMAKER democratizes atomistic modeling by automating the complex lifecycle of ACE (Atomic Cluster Expansion) potentials. It orchestrates Structure Generation, DFT Calculations (Quantum Espresso), and Model Training (Pacemaker) into a self-healing, active-learning loop that delivers "State-of-the-Art" accuracy with minimal human intervention.
+**The Zero-Configuration Autonomous Pipeline for Machine Learning Interatomic Potentials.**
 
-## Key Features
+## Overview
 
--   **Zero-Config Workflow**: Define your material in a single `config.yaml` and let the system handle the rest.
--   **Active Learning**: Automatically identifies and explores "uncertain" regions of the chemical space using Extrapolation Grade ($\gamma$) monitoring.
--   **Physics-Informed Robustness**: Enforces physical baselines (Lennard-Jones/ZBL) to ensure stability in high-energy regimes where data is scarce.
--   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures by adjusting mixing parameters and smearing settings.
--   **Timescale Bridging**: Seamlessly integrates with Adaptive Kinetic Monte Carlo (EON) to explore rare events beyond the reach of standard MD.
+### What
+MLIP Pipeline is a robust orchestration framework designed to automate the development of Machine Learning Interatomic Potentials (MLIPs). It integrates structure generation, First-Principles calculations (DFT), and potential training into a unified active learning loop.
 
-## Architecture Overview
+### Why
+Developing MLIPs typically involves managing complex, manual workflows across multiple software packages (LAMMPS, Quantum Espresso, Pacemaker). This tool creates a "Self-Driving" pipeline that handles data generation, training, and validation autonomously, reducing human error and accelerating discovery.
 
-PYACEMAKER follows a Hub-and-Spoke architecture centered around an intelligent Orchestrator.
+## Features
 
-```mermaid
-graph TD
-    subgraph User Space
-        Config[config.yaml] --> Orch[Orchestrator]
-    end
+-   **Robust Configuration**: Strict schema validation ensures your experiment settings are always correct before execution.
+-   **Modular Architecture**: Built on clean interfaces, allowing easy swapping of DFT codes (Quantum Espresso, VASP) or ML trainers.
+-   **Orchestration**: Automated workflow management connecting exploration, labeling, training, and validation phases.
+-   **Developer Experience**: Fully typed codebase with comprehensive logging and error handling.
+-   **Mock Mode**: Built-in mock components allow verifying the workflow logic without expensive backend codes installed.
 
-    subgraph Core System
-        Orch -->|1. Request Structures| Explorer[Structure Generator]
-        Explorer -->|2. Candidate Structures| Orch
-
-        Orch -->|3. Filter & Request Energy| Oracle[Oracle (DFT)]
-        Oracle -->|4. Labelled Data (E, F, V)| Orch
-
-        Orch -->|5. Update Dataset| Trainer[Trainer (Pacemaker)]
-        Trainer -->|6. New Potential (.yace)| Orch
-
-        Orch -->|7. Run Validation| Validator[Validator]
-        Validator -->|8. Report & Pass/Fail| Orch
-    end
-
-    subgraph External Engines
-        Explorer -.-> LAMMPS[LAMMPS (MD)]
-        Oracle -.-> QE[Quantum Espresso]
-        Trainer -.-> PACE[Pacemaker]
-    end
-```
-
-## Prerequisites
+## Requirements
 
 -   **Python**: 3.12+
 -   **Package Manager**: `uv` (Recommended) or `pip`
--   **External Tools** (For "Real Mode"):
-    -   Quantum Espresso (`pw.x`)
-    -   LAMMPS (`lmp_serial` or `lmp_mpi`) with USER-PACE package
-    -   Pacemaker (TensorFlow-based)
--   **Docker** (Optional, for containerized execution)
+-   **Operating System**: Linux or macOS
 
-## Installation & Setup
+## Installation
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/your-org/pyacemaker.git
-    cd pyacemaker
-    ```
+```bash
+# Clone the repository
+git clone https://github.com/your-org/mlip-pipeline.git
+cd mlip-pipeline
 
-2.  **Install Dependencies**
-    Using `uv` for fast dependency resolution:
-    ```bash
-    uv sync
-    ```
-
-3.  **Environment Setup**
-    Copy the example configuration:
-    ```bash
-    cp config.example.yaml config.yaml
-    # Edit config.yaml with your specific settings (pseudopotential paths, etc.)
-    ```
+# Install dependencies using uv
+uv sync
+```
 
 ## Usage
 
-### Quick Start
-To run the full pipeline in default mode:
+1.  **Prepare Configuration**
+    Copy the example configuration file:
+    ```bash
+    cp config.example.yaml config.yaml
+    ```
 
-```bash
-uv run python -m mlip_autopipec run config.yaml
-```
+2.  **Run the Pipeline**
+    Execute the workflow using the CLI:
+    ```bash
+    uv run mlip-pipeline run config.yaml
+    ```
 
-### Running Tutorials
-We provide a set of Jupyter Notebooks to guide you from basic usage to advanced scenarios.
+    You should see output indicating the successful execution of the orchestration cycle (Mock mode by default).
 
-```bash
-uv run jupyter notebook tutorials/
-```
-
--   **`01_quickstart_silicon.ipynb`**: Train a simple Silicon potential in under 5 minutes (Mock Mode available).
--   **`04_grand_challenge_fept.ipynb`**: Full workflow for Fe/Pt deposition on MgO.
-
-## Development Workflow
-
-We enforce strict code quality standards.
-
-### Running Tests
-```bash
-uv run pytest
-```
-
-### Linting & Formatting
-```bash
-uv run ruff check .
-uv run mypy .
-```
-
-### Cycle-Based Development
-This project follows a cycle-based implementation plan. Check `dev_documents/system_prompts/` for detailed specifications of each development cycle (CYCLE01 to CYCLE06).
-
-## Project Structure
+## Architecture/Structure
 
 ```text
-.
-├── config.yaml             # Main configuration
-├── src/                    # Source code
-│   └── mlip_autopipec/
-│       ├── orchestration/  # Workflow logic
-│       ├── physics/        # Scientific modules (DFT, MD, ML)
-│       └── domain_models/  # Pydantic data models
-├── tests/                  # Unit and Integration tests
-├── tutorials/              # User guides (Jupyter Notebooks)
-└── dev_documents/          # Architecture and Design specs
+src/mlip_autopipec/
+├── config/             # Configuration schemas (Pydantic)
+├── domain_models/      # Data transfer objects
+├── interfaces/         # Core abstract protocols
+├── orchestration/      # Workflow logic and State Machine
+├── physics/            # Scientific implementations (DFT, MD)
+├── utils/              # Logging and helpers
+└── validation/         # Verification logic
 ```
 
-## License
+## Roadmap
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+-   **Cycle 02**: Integration of Real DFT (Quantum Espresso) Oracle.
+-   **Cycle 03**: Advanced Structure Exploration Strategies.
+-   **Cycle 04**: Pacemaker Training Integration.
+-   **Cycle 05**: Full Active Learning Loop with LAMMPS.
+-   **Cycle 06**: Deployment and Production Readiness.

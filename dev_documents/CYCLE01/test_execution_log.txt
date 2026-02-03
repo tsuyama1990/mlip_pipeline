@@ -1,0 +1,31 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 11 items
+
+tests/integration/test_skeleton_loop.py .                                [  9%]
+tests/unit/test_config.py .....                                          [ 54%]
+tests/unit/test_main.py ..                                               [ 72%]
+tests/unit/test_orchestrator.py ...                                      [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                               Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                         0      0   100%
+src/mlip_autopipec/config/config_model.py             22      0   100%
+src/mlip_autopipec/domain_models/dynamics.py           7      0   100%
+src/mlip_autopipec/domain_models/structures.py         9      0   100%
+src/mlip_autopipec/domain_models/validation.py        13      0   100%
+src/mlip_autopipec/interfaces/core_interfaces.py      16      0   100%
+src/mlip_autopipec/main.py                            29      3    90%   44-46
+src/mlip_autopipec/orchestration/mocks.py             24      0   100%
+src/mlip_autopipec/orchestration/orchestrator.py      28      1    96%   53
+src/mlip_autopipec/utils/logging.py                   22      2    91%   10-11
+--------------------------------------------------------------------------------
+TOTAL                                                170      6    96%
+============================== 11 passed in 2.39s ==============================

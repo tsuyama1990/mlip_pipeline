@@ -1,8 +1,9 @@
 from pathlib import Path
 
-from mlip_autopipec.config.config_model import SimulationConfig
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.utils.logging import setup_logging
+
+from mlip_autopipec.config.config_model import SimulationConfig
 
 
 def test_skeleton_loop_execution(tmp_path: Path) -> None:
@@ -12,22 +13,11 @@ def test_skeleton_loop_execution(tmp_path: Path) -> None:
 
     config_data = {
         "project_name": "SkeletonProject",
-        "dft": {
-            "code": "qe",
-            "ecutwfc": 30.0,
-            "kpoints": [1, 1, 1]
-        },
-        "training": {
-            "code": "pacemaker",
-            "cutoff": 4.0
-        },
-        "exploration": {
-            "strategy": "random",
-            "max_temperature": 300.0,
-            "steps": 10
-        }
+        "dft": {"code": "qe", "ecutwfc": 30.0, "kpoints": [1, 1, 1]},
+        "training": {"code": "pacemaker", "cutoff": 4.0},
+        "exploration": {"strategy": "random", "max_temperature": 300.0, "steps": 10},
     }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
+    config = SimulationConfig(**config_data)  # type: ignore[arg-type]
 
     orchestrator = Orchestrator(config)
 
