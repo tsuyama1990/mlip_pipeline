@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 
 from mlip_autopipec.config import Config
-from mlip_autopipec.domain_models.workflow import WorkflowState
+from mlip_autopipec.domain_models.workflow import HistoryEntry, WorkflowState
 from mlip_autopipec.orchestration.interfaces import (
     Explorer,
     Oracle,
@@ -85,6 +85,7 @@ class Orchestrator:
                 logger.info(f"Training completed. Potential at {potential_path}")
 
                 # Phase 4: Validation
+                val_result = None
                 if self.validator and self.config.validation.run_validation:
                     logger.info("Phase: Validation")
                     validation_dir = work_dir / "validation"
@@ -106,15 +107,15 @@ class Orchestrator:
 
                 # Update state
                 self.state.current_potential_path = final_potential_path
-                self.state.history.append(
-                    {
-                        "iteration": self.state.iteration,
-                        "potential": str(final_potential_path),
-                        "status": "success",
-                        "candidates_count": len(candidates),
-                        "new_data_count": len(new_data_paths),
-                    }
+                history_entry = HistoryEntry(
+                    iteration=self.state.iteration,
+                    potential=str(final_potential_path),
+                    status="success",
+                    candidates_count=len(candidates),
+                    new_data_count=len(new_data_paths),
+                    validation_result=val_result,
                 )
+                self.state.history.append(history_entry)
 
                 # Increment iteration
                 self.state.iteration += 1

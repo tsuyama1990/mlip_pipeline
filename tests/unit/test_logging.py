@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+import pytest
+
 from mlip_autopipec.logging_config import setup_logging
 
 
@@ -20,14 +22,13 @@ def test_setup_logging(temp_dir: Path) -> None:
         assert "Info message" in content
 
 
-def test_setup_logging_console(capsys: object) -> None:
-    # Type hint object for capsys fixture if we don't want to import pytest specific types
+def test_setup_logging_console(capsys: pytest.CaptureFixture[str]) -> None:
     setup_logging(log_level="INFO")
     logger = logging.getLogger("console_logger")
     logger.info("Console message")
     logger.debug("Hidden debug")
 
-    # Capture stdout/stderr (using capsys from pytest, but passed as arg)
-    # Since I cannot use fixture directly in code block without defining test properly with pytest
-    # But this is a test file.
-    # I'll rely on integration test or manual check if needed, but logging to file is sufficient coverage for configuration logic.
+    captured = capsys.readouterr()
+    # logging uses StreamHandler(sys.stdout) per logging_config.py
+    assert "Console message" in captured.out
+    assert "Hidden debug" not in captured.out
