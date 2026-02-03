@@ -1,11 +1,13 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
+
+import pytest
 from ase import Atoms
-from mlip_autopipec.config.config_model import Config, StructureGenConfig, EonConfig, TrainingConfig
+
+from mlip_autopipec.config.config_model import Config, EonConfig, StructureGenConfig, TrainingConfig
 from mlip_autopipec.domain_models.exploration import ExplorationMethod
-from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 from mlip_autopipec.domain_models.structures import CandidateStructure
+from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
+
 
 @pytest.fixture
 def akmc_config(tmp_path):
@@ -37,19 +39,20 @@ def test_adaptive_explorer_akmc_integration(akmc_config, tmp_path):
         potential_path.touch()
 
         # Mock EonWrapper.run_akmc to avoid running real subprocess
-        with patch("mlip_autopipec.physics.dynamics.eon_wrapper.EonWrapper.run_akmc", return_value=0) as mock_run:
-            # Mock _collect_eon_results to return some candidates
-            with patch.object(explorer, "_collect_eon_results") as mock_collect:
-                mock_collect.return_value = [MagicMock(spec=CandidateStructure)]
+        with (
+            patch("mlip_autopipec.physics.dynamics.eon_wrapper.EonWrapper.run_akmc", return_value=0) as mock_run,
+            patch.object(explorer, "_collect_eon_results") as mock_collect,
+        ):
+            mock_collect.return_value = [MagicMock(spec=CandidateStructure)]
 
-                candidates = explorer.explore(potential_path, tmp_path)
+            candidates = explorer.explore(potential_path, tmp_path)
 
-                assert len(candidates) == 1
-                mock_run.assert_called_once()
-                mock_collect.assert_called_once()
+            assert len(candidates) == 1
+            mock_run.assert_called_once()
+            mock_collect.assert_called_once()
 
-                # Check arguments
-                args, _ = mock_run.call_args
-                assert args[0] == potential_path
-                # args[1] is seed atoms, hard to compare directly if object copy, but we can check type
-                assert isinstance(args[1], Atoms)
+            # Check arguments
+            args, _ = mock_run.call_args
+            assert args[0] == potential_path
+            # args[1] is seed atoms, hard to compare directly if object copy, but we can check type
+            assert isinstance(args[1], Atoms)

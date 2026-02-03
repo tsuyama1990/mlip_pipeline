@@ -1,4 +1,5 @@
 import sys
+
 from ase.io import read
 
 # We use conditional import to avoid ImportErrors during dev/testing if pyacemaker is missing
@@ -22,7 +23,8 @@ def read_eon_geometry(stream) -> Atoms:
     """
     lines = stream.readlines()
     if not lines:
-        raise ValueError("Empty input")
+        msg = "Empty input"
+        raise ValueError(msg)
 
     try:
         n_atoms = int(lines[0].strip())
@@ -33,7 +35,8 @@ def read_eon_geometry(stream) -> Atoms:
         if len(box_parts) != 9:
              # Try falling back to ASE read if format is not as expected
              # But here we assume strict EON format
-             raise ValueError("Expected 9 floats for box matrix")
+             msg = "Expected 9 floats for box matrix"
+             raise ValueError(msg)  # noqa: TRY301
 
         cell = [box_parts[0:3], box_parts[3:6], box_parts[6:9]]
 
@@ -50,7 +53,6 @@ def read_eon_geometry(stream) -> Atoms:
         # Stream might be consumed.
         # Since we read lines, we can try to make a new stream or just fallback to ASE read on string.
         # Let's try ASE read on the content string as fallback (e.g. for extxyz)
-        from io import StringIO
         stream.seek(0)
         return read(stream, format="extxyz")
 
@@ -67,7 +69,8 @@ def run_driver() -> int:
          if not content:
              # It might be that sys.stdin.read() returned empty because it was already consumed?
              # No, we start here.
-             raise ValueError("Empty input")
+             msg = "Empty input"
+             raise ValueError(msg)  # noqa: TRY301
 
          from io import StringIO
          s = StringIO(content)
@@ -117,9 +120,9 @@ def run_driver() -> int:
     energy = getattr(results, "energy", 0.0)
     forces = getattr(results, "forces", [])
 
-    print(f"{energy:.16e}")
+    sys.stdout.write(f"{energy:.16e}\n")
     for f in forces:
-        print(f"{f[0]:.16e} {f[1]:.16e} {f[2]:.16e}")
+        sys.stdout.write(f"{f[0]:.16e} {f[1]:.16e} {f[2]:.16e}\n")
 
     return 0
 

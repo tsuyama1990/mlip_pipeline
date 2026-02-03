@@ -33,7 +33,6 @@ validation:
 def test_main_no_config() -> None:
     with (
         patch("sys.argv", ["main", "ghost.yaml"]),
-        patch("sys.stderr"),
         pytest.raises(SystemExit) as exc,
     ):
         main()
@@ -64,7 +63,6 @@ def test_main_exception(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
-        patch("sys.stderr"),
     ):
         MockOrch.side_effect = Exception("Boom")
 

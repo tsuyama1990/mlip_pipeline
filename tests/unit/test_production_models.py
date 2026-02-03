@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -14,7 +13,7 @@ def test_production_manifest_valid():
         "author": "Jane Doe",
         "training_set_size": 500,
         "validation_metrics": {"rmse_e": 0.001, "rmse_f": 0.05},
-        "creation_date": datetime.now(),
+        "creation_date": datetime.now(UTC),
     }
     manifest = ProductionManifest(**data)
     assert manifest.version == "1.0.0"

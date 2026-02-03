@@ -34,7 +34,7 @@ def test_eon_wrapper_setup(mock_config, tmp_path):
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
 
-        exit_code = wrapper.run_akmc(potential_path, structure, work_dir)
+        wrapper.run_akmc(potential_path, structure, work_dir)
 
         # Check config.ini creation
         config_ini = work_dir / "config.ini"

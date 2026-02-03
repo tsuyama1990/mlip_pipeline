@@ -8,7 +8,7 @@ from mlip_autopipec.domain_models.production import ProductionManifest
 logger = logging.getLogger(__name__)
 
 class ProductionDeployer:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         self.config = config
 
     def deploy(

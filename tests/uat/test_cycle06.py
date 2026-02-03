@@ -1,14 +1,25 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
-from mlip_autopipec.config.config_model import Config, StructureGenConfig, OrchestratorConfig, TrainingConfig, EonConfig, ProjectConfig, ValidationConfig, SelectionConfig, OracleConfig
-from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
-from mlip_autopipec.orchestration.orchestrator import Orchestrator
-from mlip_autopipec.orchestration.interfaces import Explorer, Selector, Oracle, Trainer, Validator
-from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
-from mlip_autopipec.domain_models.workflow import WorkflowState, HistoryEntry
-from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
+
+import pytest
 from ase import Atoms
+
+from mlip_autopipec.config.config_model import (
+    Config,
+    EonConfig,
+    OracleConfig,
+    OrchestratorConfig,
+    ProjectConfig,
+    SelectionConfig,
+    StructureGenConfig,
+    TrainingConfig,
+    ValidationConfig,
+)
+from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
+from mlip_autopipec.domain_models.workflow import WorkflowState
+from mlip_autopipec.orchestration.interfaces import Oracle, Selector, Trainer, Validator
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
+
 
 @pytest.fixture
 def uat_config(tmp_path):
@@ -17,7 +28,7 @@ def uat_config(tmp_path):
     from ase.io import write
     write(dataset_path, Atoms("Cu"))
 
-    conf = Config(
+    return Config(
         project=ProjectConfig(name="UAT_Cycle06"),
         training=TrainingConfig(dataset_path=dataset_path),
         orchestrator=OrchestratorConfig(max_iterations=1),
@@ -27,7 +38,6 @@ def uat_config(tmp_path):
         validation=ValidationConfig(run_validation=False),
         eon=EonConfig()
     )
-    return conf
 
 def test_uat_cycle06_akmc_production(uat_config, tmp_path):
     # This UAT verifies that Orchestrator runs AKMC and then Finalizes.
@@ -52,46 +62,46 @@ def test_uat_cycle06_akmc_production(uat_config, tmp_path):
     real_explorer = AdaptiveExplorer(uat_config)
 
     # Mock Policy to return AKMC
-    with patch("mlip_autopipec.physics.structure_gen.policy.AdaptivePolicy.decide_strategy") as mock_policy:
+    with (
+        patch("mlip_autopipec.physics.structure_gen.policy.AdaptivePolicy.decide_strategy") as mock_policy,
+        patch("mlip_autopipec.physics.dynamics.eon_wrapper.EonWrapper.run_akmc", return_value=0) as mock_eon_run,
+        patch("mlip_autopipec.physics.structure_gen.explorer.AdaptiveExplorer._collect_eon_results", return_value=[]),
+    ):
         mock_policy.return_value = [ExplorationTask(method=ExplorationMethod.AKMC)]
 
-        # Mock EonWrapper inside AdaptiveExplorer
-        with patch("mlip_autopipec.physics.dynamics.eon_wrapper.EonWrapper.run_akmc", return_value=0) as mock_eon_run:
-             with patch("mlip_autopipec.physics.structure_gen.explorer.AdaptiveExplorer._collect_eon_results", return_value=[]) as mock_collect:
+        orchestrator = Orchestrator(
+            config=uat_config,
+            explorer=real_explorer, # Use real explorer to test AKMC wiring
+            selector=mock_selector,
+            oracle=mock_oracle,
+            trainer=mock_trainer,
+            validator=mock_validator
+        )
 
-                 orchestrator = Orchestrator(
-                     config=uat_config,
-                     explorer=real_explorer, # Use real explorer to test AKMC wiring
-                     selector=mock_selector,
-                     oracle=mock_oracle,
-                     trainer=mock_trainer,
-                     validator=mock_validator
-                 )
+        # Patch state manager to avoid file writes/reads of state.json
+        orchestrator.state_manager = MagicMock()
 
-                 # Patch state manager to avoid file writes/reads of state.json
-                 orchestrator.state_manager = MagicMock()
+        # Pre-create a potential so AKMC can run (it requires a potential)
+        initial_pot = tmp_path / "initial_pot.yace"
+        initial_pot.touch()
 
-                 # Pre-create a potential so AKMC can run (it requires a potential)
-                 initial_pot = tmp_path / "initial_pot.yace"
-                 initial_pot.touch()
+        orchestrator.state = WorkflowState(
+            current_potential_path=initial_pot
+        )
 
-                 orchestrator.state = WorkflowState(
-                     current_potential_path=initial_pot
-                 )
+        # Run
+        with patch("mlip_autopipec.infrastructure.production.ProductionDeployer.deploy") as mock_deploy:
+            orchestrator.run()
 
-                 # Run
-                 with patch("mlip_autopipec.infrastructure.production.ProductionDeployer.deploy") as mock_deploy:
-                     orchestrator.run()
+            # Verify AKMC was run
+            mock_eon_run.assert_called()
 
-                     # Verify AKMC was run
-                     mock_eon_run.assert_called()
+            # Verify Finalize (Production) was run
+            mock_deploy.assert_called()
 
-                     # Verify Finalize (Production) was run
-                     mock_deploy.assert_called()
-
-                     # Verify manifest content passed to deploy
-                     call_args = mock_deploy.call_args
-                     assert call_args
-                     manifest = call_args.kwargs['manifest']
-                     assert manifest.version == "1.0.0"
-                     assert manifest.author == "UAT_Cycle06"
+            # Verify manifest content passed to deploy
+            call_args = mock_deploy.call_args
+            assert call_args
+            manifest = call_args.kwargs['manifest']
+            assert manifest.version == "1.0.0"
+            assert manifest.author == "UAT_Cycle06"

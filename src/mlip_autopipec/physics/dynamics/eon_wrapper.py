@@ -3,7 +3,6 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from ase import Atoms
 from ase.io import write
@@ -13,8 +12,9 @@ from mlip_autopipec.inference import pace_driver
 
 logger = logging.getLogger(__name__)
 
+
 class EonWrapper:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         self.config = config
 
     def run_akmc(self, potential_path: Path, structure: Atoms, work_dir: Path) -> int:
@@ -45,30 +45,31 @@ class EonWrapper:
             # but usually fine.
             cmd_parts = eon_cmd_str.split()
             if not shutil.which(cmd_parts[0]) and not Path(cmd_parts[0]).exists():
-                 logger.warning(f"EON command '{cmd_parts[0]}' not found in PATH.")
+                logger.warning(f"EON command '{cmd_parts[0]}' not found in PATH.")
 
             # Run EON
             with (work_dir / "eon.log").open("w") as log_file:
                 # We assume eonclient runs in foreground and exits when done or error
-                process = subprocess.run(
+                process = subprocess.run(  # noqa: S603
                     cmd_parts,
                     cwd=work_dir,
                     stdout=log_file,
-                    stderr=subprocess.STDOUT
+                    stderr=subprocess.STDOUT,
+                    check=False,
                 )
 
+        except Exception:
+            logger.exception("EON execution failed")
+            return 1
+        else:
             if process.returncode != 0:
                 logger.warning(f"EON exited with code {process.returncode}")
 
             return process.returncode
 
-        except Exception as e:
-            logger.exception(f"EON execution failed: {e}")
-            return 1
-
     def _write_config_ini(self, work_dir: Path) -> None:
         config = configparser.ConfigParser()
-        config.optionxform = str # type: ignore # Preserve case
+        config.optionxform = str  # type: ignore # Preserve case
 
         # Default EON settings
         config["Main"] = {

@@ -57,7 +57,7 @@ src/mlip_autopipec/domain_models/production.py              10      0   100%
 src/mlip_autopipec/domain_models/structures.py              16      0   100%
 src/mlip_autopipec/domain_models/validation.py              16      0   100%
 src/mlip_autopipec/domain_models/workflow.py                16      0   100%
-src/mlip_autopipec/inference/pace_driver.py                 70      7    90%   25, 36, 70, 98-100, 127
+src/mlip_autopipec/inference/pace_driver.py                 72     10    86%   26-27, 38-39, 72-73, 101-103, 130
 src/mlip_autopipec/infrastructure/production.py             31      0   100%
 src/mlip_autopipec/logging_config.py                        12      2    83%   16-17
 src/mlip_autopipec/main.py                                  66     26    61%   26-69, 113
@@ -69,7 +69,7 @@ src/mlip_autopipec/orchestration/otf_loop.py                53      6    89%   4
 src/mlip_autopipec/orchestration/state.py                   16      0   100%
 src/mlip_autopipec/physics/__init__.py                       0      0   100%
 src/mlip_autopipec/physics/dynamics/__init__.py              0      0   100%
-src/mlip_autopipec/physics/dynamics/eon_wrapper.py          60      8    87%   65-67, 84-87, 104
+src/mlip_autopipec/physics/dynamics/eon_wrapper.py          59      8    86%   61-63, 85-88, 105
 src/mlip_autopipec/physics/dynamics/input_generator.py      40      1    98%   53
 src/mlip_autopipec/physics/dynamics/lammps_runner.py        49     14    71%   64-66, 75-91
 src/mlip_autopipec/physics/dynamics/log_parser.py           38      7    82%   12-13, 52, 57-58, 62-63
@@ -80,7 +80,7 @@ src/mlip_autopipec/physics/oracle/manager.py                27     17    37%   1
 src/mlip_autopipec/physics/selection/selector.py            17      0   100%
 src/mlip_autopipec/physics/structure_gen/__init__.py         2      0   100%
 src/mlip_autopipec/physics/structure_gen/embedding.py       26      0   100%
-src/mlip_autopipec/physics/structure_gen/explorer.py        78     16    79%   79, 87-88, 96-113
+src/mlip_autopipec/physics/structure_gen/explorer.py        89     18    80%   71, 119-120, 135-136, 142-158
 src/mlip_autopipec/physics/structure_gen/generator.py        4      0   100%
 src/mlip_autopipec/physics/structure_gen/policy.py           8      0   100%
 src/mlip_autopipec/physics/structure_gen/strategies.py      41      0   100%
@@ -95,5 +95,5 @@ src/mlip_autopipec/validation/metrics.py                    50     13    74%   1
 src/mlip_autopipec/validation/report_generator.py           16      1    94%   23
 src/mlip_autopipec/validation/runner.py                     59     18    69%   28-29, 56-57, 63-77, 105-106
 --------------------------------------------------------------------------------------
-TOTAL                                                     1298    202    84%
-============================== 87 passed in 5.34s ==============================
+TOTAL                                                     1310    207    84%
+============================== 87 passed in 5.33s ==============================

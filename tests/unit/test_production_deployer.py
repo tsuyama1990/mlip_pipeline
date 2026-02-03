@@ -1,9 +1,6 @@
 import json
 import zipfile
-from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 from mlip_autopipec.config.config_model import Config
 from mlip_autopipec.domain_models.production import ProductionManifest

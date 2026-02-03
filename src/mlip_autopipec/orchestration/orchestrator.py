@@ -3,8 +3,8 @@ import shutil
 from pathlib import Path
 
 from mlip_autopipec.config import Config
-from mlip_autopipec.domain_models.workflow import HistoryEntry, WorkflowState
 from mlip_autopipec.domain_models.production import ProductionManifest
+from mlip_autopipec.domain_models.workflow import HistoryEntry, WorkflowState
 from mlip_autopipec.infrastructure.production import ProductionDeployer
 from mlip_autopipec.orchestration.interfaces import (
     Explorer,
@@ -184,5 +184,5 @@ class Orchestrator:
             potential_path=self.state.current_potential_path,
             manifest=manifest,
             report_path=report_path,
-            output_dir=Path("."),
+            output_dir=Path(),
         )
