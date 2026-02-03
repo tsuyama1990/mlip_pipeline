@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from ase.build import bulk
 
 from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
@@ -14,7 +13,7 @@ def test_strain_generator_basics() -> None:
     assert len(candidates) == 5
 
     # Check if volumes vary
-    vols = [a.get_volume() for a in candidates]
+    vols = [a.get_volume() for a in candidates]  # type: ignore[no-untyped-call]
     # At least some variation should exist
     assert np.std(vols) > 0.0
 

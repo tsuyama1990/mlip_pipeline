@@ -5,9 +5,9 @@ from mlip_autopipec.domain_models.exploration import ExplorationMethod, Explorat
 
 
 def test_exploration_method_values() -> None:
-    assert ExplorationMethod.MD == "molecular_dynamics"
-    assert ExplorationMethod.STATIC == "static_displacement"
-    assert ExplorationMethod.AKMC == "adaptive_kmc"
+    assert ExplorationMethod.MD.value == "molecular_dynamics"
+    assert ExplorationMethod.STATIC.value == "static_displacement"
+    assert ExplorationMethod.AKMC.value == "adaptive_kmc"
 
 
 def test_exploration_task_valid() -> None:

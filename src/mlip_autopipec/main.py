@@ -23,6 +23,7 @@ def create_components(
     logger.info("Initializing Components")
 
     # Explorer
+    explorer: Explorer
     if config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
         logger.info(f"Using Adaptive Explorer ({config.exploration.strategy})")
         explorer = AdaptiveExplorer(config)

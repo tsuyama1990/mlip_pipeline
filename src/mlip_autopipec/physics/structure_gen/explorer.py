@@ -1,10 +1,12 @@
 from pathlib import Path
+from typing import Any
 
 from ase.io import read, write
 
 from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.exploration import ExplorationMethod
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
+from mlip_autopipec.physics.structure_gen.generator import StructureGenerator
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
 
@@ -26,7 +28,13 @@ class AdaptiveExplorer:
         # Read the last structure as seed (most relevant?)
         # For simplicity, read last one (index -1)
         # Using type ignore because read return type is dynamic
-        seed_atoms = read(seed_path, index=-1)  # type: ignore[no-untyped-call]
+        atoms_or_list: Any = read(seed_path, index=-1)
+
+        # ASE read with index=-1 returns a single Atoms object usually,
+        # but type checkers might not know.
+        seed_atoms = (
+            atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
+        )
 
         # 2. Decide Strategy
         # Uncertainty: We don't have uncertainty calculation yet.
@@ -40,6 +48,8 @@ class AdaptiveExplorer:
         for i, task in enumerate(tasks):
             if task.method == ExplorationMethod.STATIC:
                 new_structs = []
+                gen: StructureGenerator
+
                 # Check modifiers
                 if "strain" in task.modifiers:
                     rng = task.parameters.get("strain_range", 0.05)
@@ -56,10 +66,9 @@ class AdaptiveExplorer:
 
                 # Save and wrap
                 for j, at in enumerate(new_structs):
-                    # Filename: candidate_task_i_j.xyz
                     fname = f"candidate_t{i}_{j}.xyz"
                     fpath = work_dir / fname
-                    write(fpath, at)  # type: ignore[no-untyped-call]
+                    write(fpath, at)
 
                     meta = StructureMetadata(generation_method=f"static_{task.modifiers[0]}")
                     cand = CandidateStructure(

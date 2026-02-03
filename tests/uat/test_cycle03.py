@@ -1,4 +1,3 @@
-import numpy as np
 from ase.build import bulk
 
 from mlip_autopipec.physics.structure_gen.embedding import extract_periodic_box
@@ -21,8 +20,8 @@ def test_uat_03_01_strain_samples() -> None:
 
     # AND the volume of the smallest structure should be ~90% of original
     # AND the volume of the largest structure should be ~110% of original
-    original_vol = atoms.get_volume()
-    volumes = sorted([c.get_volume() for c in candidates])
+    original_vol = atoms.get_volume()  # type: ignore[no-untyped-call]
+    volumes = sorted([c.get_volume() for c in candidates])  # type: ignore[no-untyped-call]
 
     # Check bounds (approximate)
     # With random strain, we might not hit exact -10% or +10%, but should be close/within range.
@@ -52,7 +51,7 @@ def test_uat_03_02_embedding_logic() -> None:
     box = extract_periodic_box(supercell, center_index=center_atom_index, cutoff=cutoff)
 
     # THEN the new box dimensions should be at least 10.0 Angstroms (2 * cutoff)
-    cell = box.get_cell()
+    cell = box.get_cell()  # type: ignore[no-untyped-call]
     assert cell[0, 0] >= 2 * cutoff
     assert cell[1, 1] >= 2 * cutoff
     assert cell[2, 2] >= 2 * cutoff

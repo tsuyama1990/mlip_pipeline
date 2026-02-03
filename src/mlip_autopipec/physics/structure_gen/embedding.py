@@ -21,12 +21,14 @@ def extract_periodic_box(large_atoms: Atoms, center_index: int, cutoff: float) -
     search_radius = box_size * np.sqrt(3) / 2.0 + 0.5
 
     cutoffs = [search_radius] * len(large_atoms)
-    nl = NeighborList(cutoffs, skin=0.0, self_interaction=True, bothways=True)
-    nl.update(large_atoms)
-    indices, offsets = nl.get_neighbors(center_index)
+    nl = NeighborList(  # type: ignore[no-untyped-call]
+        cutoffs, skin=0.0, self_interaction=True, bothways=True
+    )
+    nl.update(large_atoms)  # type: ignore[no-untyped-call]
+    indices, offsets = nl.get_neighbors(center_index)  # type: ignore[no-untyped-call]
 
-    uc_cell = large_atoms.get_cell()
-    uc_pos = large_atoms.get_positions()
+    uc_cell = large_atoms.get_cell()  # type: ignore[no-untyped-call]
+    uc_pos = large_atoms.get_positions()  # type: ignore[no-untyped-call]
     # Shift center slightly to avoid atoms falling exactly on boundary
     # This ensures we pick exactly one image of boundary atoms
     shift = np.array([1e-5, 1e-5, 1e-5])
@@ -50,8 +52,4 @@ def extract_periodic_box(large_atoms: Atoms, center_index: int, cutoff: float) -
     # Shift positions to [0, L]
     final_positions = np.array(cluster_positions) + half_box
 
-    new_atoms = Atoms(
-        numbers=cluster_numbers, positions=final_positions, cell=cell, pbc=True
-    )
-
-    return new_atoms
+    return Atoms(numbers=cluster_numbers, positions=final_positions, cell=cell, pbc=True)

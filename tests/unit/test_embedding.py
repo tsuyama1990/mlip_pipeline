@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from ase.build import bulk
 
 from mlip_autopipec.physics.structure_gen.embedding import extract_periodic_box
@@ -18,7 +17,7 @@ def test_extract_periodic_box_geometry() -> None:
 
     # 3. Checks
     # a) Orthogonal cell?
-    cell = box.get_cell()
+    cell = box.get_cell()  # type: ignore[no-untyped-call]
     assert np.allclose(cell[0, 1], 0)
     assert np.allclose(cell[0, 2], 0)
     assert np.allclose(cell[1, 0], 0)
@@ -27,7 +26,6 @@ def test_extract_periodic_box_geometry() -> None:
     assert np.allclose(cell[2, 1], 0)
 
     # b) Sufficiently large?
-    # box_size = 2.0 * cutoff
     assert cell[0, 0] >= 2 * cutoff
     assert cell[1, 1] >= 2 * cutoff
     assert cell[2, 2] >= 2 * cutoff
