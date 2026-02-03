@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,7 +18,6 @@ from mlip_autopipec.config.config_model import (
 from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
 from mlip_autopipec.domain_models.workflow import WorkflowState
 from mlip_autopipec.orchestration.interfaces import Oracle, Selector, Trainer, Validator
-from pathlib import Path
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 
