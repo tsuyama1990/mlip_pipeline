@@ -22,6 +22,7 @@ def test_atomic_write_failure(tmp_path: Path) -> None:
     try:
         with atomic_write(dest) as temp:
             # Manually create the temp file to ensure it exists for cleanup check
+            # Use temp.open() to satisfy PTH123
             with temp.open("w") as f:
                 f.write("partial")
 
