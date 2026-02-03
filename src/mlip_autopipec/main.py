@@ -6,10 +6,11 @@ from pathlib import Path
 from mlip_autopipec.config import Config
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.logging_config import setup_logging
-from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Trainer, Validator
+from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Trainer, Validator
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.oracle.manager import DFTManager
+from mlip_autopipec.physics.selection.selector import ActiveSetSelector
 from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def create_components(
     config: Config,
-) -> tuple[Explorer, Oracle, Trainer, Validator | None]:
+) -> tuple[Explorer, Selector, Oracle, Trainer, Validator | None]:
     """Creates the components based on the configuration."""
     logger.info("Initializing Components")
 
@@ -32,6 +33,10 @@ def create_components(
             f"Unknown exploration strategy '{config.exploration.strategy}', falling back to Mock"
         )
         explorer = MockExplorer()
+
+    # Selector
+    logger.info(f"Using ActiveSetSelector ({config.selection.method})")
+    selector = ActiveSetSelector(config.selection)
 
     # Oracle
     oracle: Oracle
@@ -52,7 +57,7 @@ def create_components(
     # Validator
     validator = MockValidator() if config.validation.run_validation else None
 
-    return explorer, oracle, trainer, validator
+    return explorer, selector, oracle, trainer, validator
 
 
 def main() -> None:
@@ -73,12 +78,13 @@ def main() -> None:
         logger.info(f"Loading configuration from {config_path}")
         config = load_config(config_path)
 
-        explorer, oracle, trainer, validator = create_components(config)
+        explorer, selector, oracle, trainer, validator = create_components(config)
 
         logger.info("Initializing Orchestrator")
         orch = Orchestrator(
             config=config,
             explorer=explorer,
+            selector=selector,
             oracle=oracle,
             trainer=trainer,
             validator=validator,

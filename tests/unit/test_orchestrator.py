@@ -35,24 +35,30 @@ def mock_config(temp_dir: Path) -> Config:
 
 def test_orchestrator_initialization(mock_config: Config) -> None:
     explorer = MagicMock()
+    selector = MagicMock()
     oracle = MagicMock()
     trainer = MagicMock()
     validator = MagicMock()
 
     with patch("mlip_autopipec.orchestration.orchestrator.StateManager") as MockState:
-        orch = Orchestrator(mock_config, explorer, oracle, trainer, validator)
+        orch = Orchestrator(mock_config, explorer, selector, oracle, trainer, validator)
         assert orch.config == mock_config
         MockState.assert_called_once()
 
 
 def test_orchestrator_run_loop(mock_config: Config) -> None:
     explorer = MagicMock()
+    selector = MagicMock()
     oracle = MagicMock()
     trainer = MagicMock()
     validator = MagicMock()
 
     # Setup Explorer
-    explorer.explore.return_value = [CandidateStructure(structure_path=Path("cand.xyz"))]
+    candidates = [CandidateStructure(structure_path=Path("cand.xyz"))]
+    explorer.explore.return_value = candidates
+
+    # Setup Selector
+    selector.select.return_value = candidates
 
     # Setup Oracle
     oracle.compute.return_value = [Path("data.extxyz")]
@@ -68,7 +74,7 @@ def test_orchestrator_run_loop(mock_config: Config) -> None:
         mock_state_instance = MockState.return_value
         mock_state_instance.load.return_value = WorkflowState(iteration=0)
 
-        orch = Orchestrator(mock_config, explorer, oracle, trainer, validator)
+        orch = Orchestrator(mock_config, explorer, selector, oracle, trainer, validator)
 
         with patch("shutil.copy"):
             orch.run()
@@ -79,5 +85,6 @@ def test_orchestrator_run_loop(mock_config: Config) -> None:
         assert trainer.train.call_count == 2
         assert mock_state_instance.save.call_count >= 2
         assert explorer.explore.call_count == 2
+        assert selector.select.call_count == 2
         assert oracle.compute.call_count == 2
         assert validator.validate.call_count == 2

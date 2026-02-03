@@ -95,7 +95,8 @@ class QEParser:
 
     def check_convergence(self) -> None:
         """Checks for convergence errors in output."""
-        if "convergence not achieved" in self.stdout:
+        stdout_lower = self.stdout.lower()
+        if "convergence not achieved" in stdout_lower:
             msg = "SCF convergence not achieved"
             raise DFTConvergenceError(msg)
 

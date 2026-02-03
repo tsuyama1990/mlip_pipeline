@@ -29,8 +29,7 @@ def valid_config_yaml(temp_dir: Path) -> Path:
 def test_main_no_config() -> None:
     with (
         patch("sys.argv", ["main", "ghost.yaml"]),
-        patch("sys.stderr"),
-        pytest.raises(SystemExit) as exc,
+        patch("sys.stderr"),pytest.raises(SystemExit) as exc
     ):
         main()
     assert exc.value.code == 1
@@ -56,6 +55,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("mlip_autopipec.main.ActiveSetSelector"),  # Mock Selector instantiation
     ):
         mock_instance = MockOrch.return_value
         main()

@@ -8,6 +8,7 @@ class StructureMetadata(BaseModel):
     source: str = "unknown"
     parent_structure_id: str | None = None
     generation_method: str = "unknown"
+    selection_score: float | None = None
 
     model_config = ConfigDict(extra="allow")
 
