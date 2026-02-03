@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from mlip_autopipec.config import TrainingConfig
+from mlip_autopipec.domain_models.structures import CandidateStructure
 from mlip_autopipec.orchestration.interfaces import Trainer
 
 logger = logging.getLogger(__name__)
@@ -63,3 +64,31 @@ class PacemakerTrainer(Trainer):
         )
         # TODO: Implement actual dataset merging (requires ASE/Pandas/etc.)
         return self.config.dataset_path
+
+    def select_candidates(
+        self, candidates: list[CandidateStructure], count: int
+    ) -> list[CandidateStructure]:
+        """
+        Selects candidates using Active Set optimization.
+        Currently a placeholder/mock implementation.
+        """
+        logger.info(f"Selecting {count} candidates from {len(candidates)} available.")
+
+        # In a real implementation, we would:
+        # 1. Write candidates to a file.
+        # 2. Run pace_activeset.
+        # 3. Read back selected indices.
+
+        # For now, simply return the first 'count' candidates.
+        # This fulfills the interface contract.
+
+        if not candidates:
+            return []
+
+        selected = candidates[:count]
+
+        # Update metadata to indicate selection
+        for cand in selected:
+            cand.metadata.selection_score = 1.0  # Dummy score
+
+        return selected

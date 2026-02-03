@@ -61,15 +61,28 @@ class Orchestrator:
                 )
                 logger.info(f"Exploration found {len(candidates)} candidates")
 
-                # Phase 2: Oracle
+                # Phase 2: Selection
+                logger.info("Phase: Selection")
+                # Select candidates using Active Set (D-Optimality)
+                # If too many candidates, we select a subset.
+                # Default to keeping up to limit from config, or all if less.
+                limit = self.config.selection.limit
+                selected_candidates = self.trainer.select_candidates(candidates, count=limit)
+                logger.info(
+                    f"Selected {len(selected_candidates)} candidates from {len(candidates)}"
+                )
+
+                # Phase 3: Oracle
                 logger.info("Phase: Oracle")
                 # Ensure oracle directory exists
                 oracle_dir = work_dir / "oracle"
                 oracle_dir.mkdir(parents=True, exist_ok=True)
-                new_data_paths = self.oracle.compute(candidates=candidates, work_dir=oracle_dir)
+                new_data_paths = self.oracle.compute(
+                    candidates=selected_candidates, work_dir=oracle_dir
+                )
                 logger.info(f"Oracle returned {len(new_data_paths)} new data files")
 
-                # Phase 3: Training
+                # Phase 4: Training
                 logger.info("Phase: Training")
                 # Update dataset
                 current_dataset = self.trainer.update_dataset(new_data_paths)
@@ -84,7 +97,7 @@ class Orchestrator:
                 )
                 logger.info(f"Training completed. Potential at {potential_path}")
 
-                # Phase 4: Validation
+                # Phase 5: Validation
                 if self.validator and self.config.validation.run_validation:
                     logger.info("Phase: Validation")
                     validation_dir = work_dir / "validation"
