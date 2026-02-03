@@ -12,7 +12,7 @@ sys.modules["pyacemaker.calculator"] = MagicMock()
 from mlip_autopipec.inference import pace_driver  # noqa: E402
 
 
-def test_read_geometry_structure():
+def test_read_geometry_structure() -> None:
     # Input matching EON client format
     # Line 1: number of atoms (N)
     # Line 2: Energy (ignored for input usually)
@@ -48,14 +48,18 @@ def test_read_geometry_structure():
 
     assert isinstance(atoms, Atoms)
     assert len(atoms) == 2
-    assert atoms.get_chemical_symbols() == ["C", "O"]
+    assert atoms.get_chemical_symbols() == ["C", "O"]  # type: ignore[no-untyped-call]
     assert atoms.cell[0, 0] == 10.0
 
-def test_write_results():
+def test_write_results() -> None:
     # Check output format
     atoms = Atoms("CO", positions=[[0,0,0], [1.2,0,0]])
-    atoms.get_potential_energy = MagicMock(return_value=-10.5)
-    atoms.get_forces = MagicMock(return_value=[[0,0,1], [0,0,-1]])
+    # Use object.__setattr__ to avoid "Cannot assign to a method" error in mypy if needed
+    # But usually mocking methods on instances is standard.
+    # The error "Cannot assign to a method [method-assign]" means ASE defines these as methods.
+    # We can use MagicMock but cleaner to just mock the return values if possible or use ignore.
+    atoms.get_potential_energy = MagicMock(return_value=-10.5)  # type: ignore[method-assign]
+    atoms.get_forces = MagicMock(return_value=[[0,0,1], [0,0,-1]])  # type: ignore[method-assign]
 
     output = io.StringIO()
 
@@ -71,7 +75,7 @@ def test_write_results():
     assert abs(float(parts[2]) - 1.0) < 1e-6
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="requires python3.7 or higher")
-def test_main_execution():
+def test_main_execution() -> None:
     # Setup mocks
     mock_calc_class = sys.modules["pyacemaker.calculator"].PaceCalculator
     mock_calc_instance = mock_calc_class.return_value
@@ -103,17 +107,17 @@ def test_main_execution():
         output = mock_stdout.getvalue()
         assert "-1.0500000000000000e+01" in output
 
-def test_read_geometry_empty():
+def test_read_geometry_empty() -> None:
     with pytest.raises(ValueError, match="Empty input"):
         pace_driver.read_geometry(io.StringIO(""))
 
-def test_read_geometry_malformed_box():
+def test_read_geometry_malformed_box() -> None:
     input_str = "2\n1.0 2.0\nAtom..."
     with pytest.raises(ValueError, match="Failed to parse EON geometry"):
         pace_driver.read_geometry(io.StringIO(input_str))
 
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="requires python3.7 or higher")
-def test_main_gamma_halt():
+def test_main_gamma_halt() -> None:
     # Setup mocks
     mock_calc_class = sys.modules["pyacemaker.calculator"].PaceCalculator
     mock_calc_instance = mock_calc_class.return_value

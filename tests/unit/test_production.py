@@ -1,11 +1,12 @@
 import json
 import zipfile
+from pathlib import Path
 
 from mlip_autopipec.domain_models.production import ProductionManifest
 from mlip_autopipec.infrastructure.production import ProductionDeployer
 
 
-def test_manifest_creation():
+def test_manifest_creation() -> None:
     manifest = ProductionManifest(
         version="1.0.0",
         author="User",
@@ -16,7 +17,7 @@ def test_manifest_creation():
     assert manifest.version == "1.0.0"
     assert manifest.training_set_size == 100
 
-def test_deployer_creates_zip(tmp_path):
+def test_deployer_creates_zip(tmp_path: Path) -> None:
     potential_path = tmp_path / "potential.yace"
     potential_path.write_text("potential data")
 
@@ -50,7 +51,7 @@ def test_deployer_creates_zip(tmp_path):
             assert data["version"] == "1.0.0"
             assert data["author"] == "Tester"
 
-def test_deployer_handles_missing_report(tmp_path):
+def test_deployer_handles_missing_report(tmp_path: Path) -> None:
     potential_path = tmp_path / "potential.yace"
     potential_path.write_text("potential data")
 

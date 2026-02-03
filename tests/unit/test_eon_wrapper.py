@@ -1,16 +1,17 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from mlip_autopipec.config.config_model import EonConfig
 from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
 
 
-def test_eon_wrapper_init():
+def test_eon_wrapper_init() -> None:
     config = EonConfig()
     wrapper = EonWrapper(config)
     assert wrapper.config.command == "eonclient"
 
 @patch("shutil.copy")
-def test_prepare_directory_copies_driver(mock_copy, tmp_path):
+def test_prepare_directory_copies_driver(mock_copy: MagicMock, tmp_path: Path) -> None:
     config = EonConfig()
     wrapper = EonWrapper(config)
 
@@ -41,7 +42,7 @@ def test_prepare_directory_copies_driver(mock_copy, tmp_path):
     # We expect it to copy pace_driver.py to tmp_path / "pace_driver.py"
 
 @patch("subprocess.run")
-def test_run_akmc_success(mock_run, tmp_path):
+def test_run_akmc_success(mock_run: MagicMock, tmp_path: Path) -> None:
     config = EonConfig()
     wrapper = EonWrapper(config)
     structure = MagicMock()
@@ -65,7 +66,7 @@ def test_run_akmc_success(mock_run, tmp_path):
     assert len(cands) == 0 # No product files mocked
 
 @patch("subprocess.run")
-def test_run_akmc_finds_products(mock_run, tmp_path):
+def test_run_akmc_finds_products(mock_run: MagicMock, tmp_path: Path) -> None:
     config = EonConfig()
     wrapper = EonWrapper(config)
     structure = MagicMock()
@@ -82,7 +83,7 @@ def test_run_akmc_finds_products(mock_run, tmp_path):
 
     assert len(cands) == 0
 
-def test_write_config(tmp_path):
+def test_write_config(tmp_path: Path) -> None:
     config = EonConfig(parameters={"Main": {"temperature": 300}, "Potentials": {"use_mpi": False}})
     wrapper = EonWrapper(config)
 

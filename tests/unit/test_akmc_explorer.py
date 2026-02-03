@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from mlip_autopipec.config.config_model import (
@@ -14,7 +15,7 @@ from mlip_autopipec.physics.structure_gen.explorer import AKMCExplorer
 
 @patch("mlip_autopipec.physics.structure_gen.explorer.read")
 @patch("mlip_autopipec.physics.structure_gen.explorer.write")
-def test_akmc_explorer(mock_write, mock_read, tmp_path):
+def test_akmc_explorer(mock_write: MagicMock, mock_read: MagicMock, tmp_path: Path) -> None:
     # Prepare data
     (tmp_path/"data.xyz").touch()
 

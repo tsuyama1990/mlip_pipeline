@@ -2,6 +2,7 @@ import logging
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.production import ProductionManifest
@@ -58,7 +59,7 @@ class Orchestrator:
 
         self._finalize_deployment(last_validation_result)
 
-    def _run_cycle(self):
+    def _run_cycle(self) -> Any:
         logger.info(f"Starting Cycle {self.state.iteration}")
 
         # Setup work directory for this iteration
@@ -157,7 +158,7 @@ class Orchestrator:
 
         return val_result
 
-    def _finalize_deployment(self, last_validation_result):
+    def _finalize_deployment(self, last_validation_result: Any) -> None:
         # Finalize Deployment
         if self.production_deployer and self.state.current_potential_path:
             logger.info("Deploying Production Release...")

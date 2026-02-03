@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from mlip_autopipec.config.config_model import (
@@ -14,7 +15,7 @@ from mlip_autopipec.orchestration.orchestrator import Orchestrator
 
 
 @patch("mlip_autopipec.orchestration.orchestrator.StateManager")
-def test_orchestrator_akmc_flow(mock_state_manager, tmp_path):
+def test_orchestrator_akmc_flow(mock_state_manager: MagicMock, tmp_path: Path) -> None:
     # Setup mocks
     # Mock state manager to return no state (fresh start)
     mock_state_manager.return_value.load.return_value = None

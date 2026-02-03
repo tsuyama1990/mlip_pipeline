@@ -1,10 +1,11 @@
 import os
 import sys
+from typing import TextIO
 
 from ase import Atoms
 
 
-def read_geometry(input_stream) -> Atoms:
+def read_geometry(input_stream: TextIO) -> Atoms:
     """Reads geometry from EON client format (stdin)."""
     lines = input_stream.readlines()
     if not lines:
@@ -18,8 +19,7 @@ def read_geometry(input_stream) -> Atoms:
         # Line 2: Box vectors (9 floats)
         box_line = lines[1].strip().split()
         if len(box_line) != 9:
-             msg = f"Expected 9 box components, got {len(box_line)}"
-             raise ValueError(msg)
+             _raise_box_error(len(box_line))
 
         box = [float(x) for x in box_line]
         cell = [box[0:3], box[3:6], box[6:9]]
@@ -37,16 +37,22 @@ def read_geometry(input_stream) -> Atoms:
         msg = f"Failed to parse EON geometry: {e}"
         raise ValueError(msg) from e
 
-def print_results(atoms: Atoms, output_stream):
+def _raise_box_error(count: int) -> None:
+    msg = f"Expected 9 box components, got {count}"
+    raise ValueError(msg)
+
+
+def print_results(atoms: Atoms, output_stream) -> None:  # type: ignore[no-untyped-def]
     """Prints energy and forces in EON client format."""
-    energy = atoms.get_potential_energy()
-    forces = atoms.get_forces()
+    energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+    forces = atoms.get_forces()  # type: ignore[no-untyped-call]
 
     output_stream.write(f"{energy:.16e}\n")
     for f in forces:
         output_stream.write(f"{f[0]:.16e} {f[1]:.16e} {f[2]:.16e}\n")
 
-def main():
+
+def main() -> None:
     try:
         from pyacemaker.calculator import PaceCalculator
     except ImportError:
@@ -62,7 +68,7 @@ def main():
         atoms.calc = calc
 
         # Trigger calculation
-        _ = atoms.get_potential_energy()
+        _ = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
 
         # Check extrapolation grade / gamma if available
         # Threshold from environment or default 10.0
