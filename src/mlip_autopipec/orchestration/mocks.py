@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
-from mlip_autopipec.domain_models.validation import ValidationResult
+from mlip_autopipec.domain_models.validation import MetricResult, ValidationResult
 from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Validator
 
 logger = logging.getLogger(__name__)
@@ -36,4 +36,7 @@ class MockOracle(Oracle):
 class MockValidator(Validator):
     def validate(self, potential_path: Path, work_dir: Path) -> ValidationResult:
         logger.info("MockValidator: validating...")
-        return ValidationResult(passed=True, metrics={"rmse_energy": 0.001})
+        metric = MetricResult(
+            name="mock_metric", passed=True, score=0.001, details={"rmse_energy": 0.001}
+        )
+        return ValidationResult(passed=True, metrics=[metric])

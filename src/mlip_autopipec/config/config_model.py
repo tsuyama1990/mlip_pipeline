@@ -49,6 +49,8 @@ class OracleConfig(BaseModel):
 
 class ValidationConfig(BaseModel):
     run_validation: bool = True
+    check_phonons: bool = True
+    check_elastic: bool = True
     model_config = ConfigDict(extra="forbid")
 
 
