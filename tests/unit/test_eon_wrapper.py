@@ -10,7 +10,7 @@ from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> Config:
     conf = MagicMock(spec=Config)
     conf.eon = EonConfig(
         command="eonclient",
@@ -20,7 +20,7 @@ def mock_config():
     conf.training.dataset_path = Path("data.xyz")
     return conf
 
-def test_eon_wrapper_setup(mock_config, tmp_path):
+def test_eon_wrapper_setup(mock_config: Config, tmp_path: Path) -> None:
     wrapper = EonWrapper(config=mock_config)
 
     # Create dummy potential file
@@ -59,7 +59,7 @@ def test_eon_wrapper_setup(mock_config, tmp_path):
         args = mock_run.call_args[0][0]
         assert "eonclient" in args
 
-def test_eon_wrapper_halt_detection(mock_config, tmp_path):
+def test_eon_wrapper_halt_detection(mock_config: Config, tmp_path: Path) -> None:
     wrapper = EonWrapper(config=mock_config)
 
     potential_path = tmp_path / "test.yace"

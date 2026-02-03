@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from mlip_autopipec.inference import pace_driver
 
 
-def test_pace_driver_logic():
+def test_pace_driver_logic() -> None:
     # Mock PaceCalculator directly on the module
     mock_calc_class = MagicMock()
     mock_calc_instance = mock_calc_class.return_value
@@ -38,7 +38,7 @@ Cu 1.5 1.5 1.5
             assert "1.0000000000000001e-01" in output
 
 
-def test_pace_driver_high_uncertainty():
+def test_pace_driver_high_uncertainty() -> None:
     mock_calc_class = MagicMock()
     mock_calc_instance = mock_calc_class.return_value
 
@@ -61,7 +61,7 @@ Cu 1.5 1.5 1.5
             assert exit_code == 100
 
 
-def test_pace_driver_missing_calculator():
+def test_pace_driver_missing_calculator() -> None:
     # Patch PaceCalculator to be None
     with (
         patch.object(pace_driver, "PaceCalculator", None),
@@ -74,7 +74,7 @@ def test_pace_driver_missing_calculator():
         assert "pyacemaker not installed" in mock_stderr.getvalue()
 
 
-def test_pace_driver_read_fail():
+def test_pace_driver_read_fail() -> None:
     # Force read to fail (both attempts)
     with (
         patch("mlip_autopipec.inference.pace_driver.read", side_effect=Exception("Bad format")),
@@ -89,7 +89,7 @@ def test_pace_driver_read_fail():
         assert exit_code == 1
 
 
-def test_pace_driver_eon_format():
+def test_pace_driver_eon_format() -> None:
     # Test strict EON format
     input_data = """2
 10.0 0.0 0.0 0.0 10.0 0.0 0.0 0.0 10.0

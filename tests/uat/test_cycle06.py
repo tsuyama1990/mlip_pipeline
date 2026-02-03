@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ from mlip_autopipec.config.config_model import (
     TrainingConfig,
     ValidationConfig,
 )
-from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
+from mlip_autopipec.domain_models.exploration import AKMCTask
 from mlip_autopipec.domain_models.workflow import WorkflowState
 from mlip_autopipec.orchestration.interfaces import Oracle, Selector, Trainer, Validator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
@@ -22,7 +23,7 @@ from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 
 
 @pytest.fixture
-def uat_config(tmp_path):
+def uat_config(tmp_path: Path) -> Config:
     # Create seed first because Pydantic FilePath validates existence
     dataset_path = tmp_path / "seed.xyz"
     from ase.io import write
@@ -39,7 +40,7 @@ def uat_config(tmp_path):
         eon=EonConfig()
     )
 
-def test_uat_cycle06_akmc_production(uat_config, tmp_path):
+def test_uat_cycle06_akmc_production(uat_config: Config, tmp_path: Path) -> None:
     # This UAT verifies that Orchestrator runs AKMC and then Finalizes.
 
     # Mocks
@@ -67,7 +68,7 @@ def test_uat_cycle06_akmc_production(uat_config, tmp_path):
         patch("mlip_autopipec.physics.dynamics.eon_wrapper.EonWrapper.run_akmc", return_value=0) as mock_eon_run,
         patch("mlip_autopipec.physics.structure_gen.explorer.AdaptiveExplorer._collect_eon_results", return_value=[]),
     ):
-        mock_policy.return_value = [ExplorationTask(method=ExplorationMethod.AKMC)]
+        mock_policy.return_value = [AKMCTask()]
 
         orchestrator = Orchestrator(
             config=uat_config,

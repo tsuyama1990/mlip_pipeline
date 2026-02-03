@@ -1,6 +1,10 @@
 from ase import Atoms
 
-from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
+from mlip_autopipec.domain_models.exploration import (
+    ExplorationTask,
+    StaticParameters,
+    StaticTask,
+)
 
 
 class AdaptivePolicy:
@@ -11,25 +15,23 @@ class AdaptivePolicy:
         Analyzes the state and returns a list of tasks.
         For Cycle 03, we return a mix of Strain and Defect tasks.
         """
-        tasks = []
+        tasks: list[ExplorationTask] = []
 
         # 1. Strain Task (Elastic exploration)
         # Higher uncertainty -> larger strain range?
         # For now, fixed.
         tasks.append(
-            ExplorationTask(
-                method=ExplorationMethod.STATIC,
+            StaticTask(
                 modifiers=["strain"],
-                parameters={"strain_range": 0.1},
+                parameters=StaticParameters(strain_range=0.1),
             )
         )
 
         # 2. Defect Task (Robustness)
         tasks.append(
-            ExplorationTask(
-                method=ExplorationMethod.STATIC,
+            StaticTask(
                 modifiers=["defect"],
-                parameters={"defect_type": "vacancy"},
+                parameters=StaticParameters(defect_type="vacancy"),
             )
         )
 

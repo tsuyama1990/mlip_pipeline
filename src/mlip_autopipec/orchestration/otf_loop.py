@@ -7,7 +7,7 @@ from ase import Atoms
 from ase.io import read, write
 
 from mlip_autopipec.domain_models.dynamics import MDStatus
-from mlip_autopipec.domain_models.exploration import ExplorationTask
+from mlip_autopipec.domain_models.exploration import MDTask
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
 from mlip_autopipec.physics.structure_gen.embedding import extract_periodic_box
@@ -22,7 +22,7 @@ class OTFLoop:
 
     def execute_task(
         self,
-        task: ExplorationTask,
+        task: MDTask,
         seed: Atoms,
         potential_path: Path | None,
         work_dir: Path,
@@ -30,8 +30,8 @@ class OTFLoop:
         """
         Executes an MD exploration task with OTF monitoring.
         """
-        # Merge parameters
-        params = task.parameters.copy()
+        # Convert MDParameters to dict for LammpsRunner
+        params = task.parameters.model_dump()
 
         # Run MD
         result = self.runner.run(seed, potential_path, work_dir, params)
@@ -61,7 +61,8 @@ class OTFLoop:
                         # Fallback heuristic if ID extraction failed
                         center_index = random.randint(0, len(bad_structure) - 1)  # noqa: S311
 
-                    cutoff = params.get("embedding_cutoff", 5.0)
+                    # Use typed parameters
+                    cutoff = task.parameters.embedding_cutoff
 
                     embedded_anchor = extract_periodic_box(bad_structure, center_index, cutoff)
 
@@ -82,8 +83,8 @@ class OTFLoop:
                     )
 
                     # 3. Generate Local Candidates
-                    disp_range = params.get("local_displacement_range", 0.05)
-                    count = params.get("local_sampling_count", 5)
+                    disp_range = task.parameters.local_displacement_range
+                    count = task.parameters.local_sampling_count
 
                     generator = RandomDisplacementGenerator(displacement_range=disp_range)
                     local_candidates = generator.generate(embedded_anchor, count=count)

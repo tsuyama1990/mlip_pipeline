@@ -13,7 +13,11 @@ from mlip_autopipec.config import (
     TrainingConfig,
     ValidationConfig,
 )
-from mlip_autopipec.domain_models.exploration import ExplorationMethod, ExplorationTask
+from mlip_autopipec.domain_models.exploration import (
+    MDTask,
+    StaticParameters,
+    StaticTask,
+)
 from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 
 
@@ -51,15 +55,13 @@ def test_explorer_execution(mock_config: Config, temp_dir: Path) -> None:
     # Mock Policy to return deterministic tasks
     with patch.object(explorer, "policy") as mock_policy:
         mock_policy.decide_strategy.return_value = [
-            ExplorationTask(
-                method=ExplorationMethod.STATIC,
+            StaticTask(
                 modifiers=["strain"],
-                parameters={"strain_range": 0.01},
+                parameters=StaticParameters(strain_range=0.01),
             ),
-            ExplorationTask(
-                method=ExplorationMethod.STATIC,
+            StaticTask(
                 modifiers=["defect"],
-                parameters={"defect_type": "vacancy"},
+                parameters=StaticParameters(defect_type="vacancy"),
             ),
         ]
 
@@ -83,7 +85,7 @@ def test_explorer_unknown_modifier(mock_config: Config, temp_dir: Path) -> None:
 
     with patch.object(explorer, "policy") as mock_policy:
         mock_policy.decide_strategy.return_value = [
-            ExplorationTask(method=ExplorationMethod.STATIC, modifiers=["unknown"])
+            StaticTask(modifiers=["unknown"])
         ]
 
         candidates = explorer.explore(potential_path=None, work_dir=temp_dir)
@@ -103,7 +105,7 @@ def test_explorer_md_task_with_otf_loop(mock_config: Config, temp_dir: Path) -> 
 
     with patch.object(explorer, "policy") as mock_policy:
         mock_policy.decide_strategy.return_value = [
-            ExplorationTask(method=ExplorationMethod.MD, modifiers=[], parameters={})
+            MDTask()
         ]
 
         explorer.explore(potential_path=None, work_dir=temp_dir)

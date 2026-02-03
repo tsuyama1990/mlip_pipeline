@@ -136,3 +136,11 @@ def test_skeleton_loop_adaptive(temp_dir: Path, monkeypatch: pytest.MonkeyPatch)
     # Verify
     state_file = temp_dir / "state.json"
     assert state_file.exists()
+
+    # Check that AdaptiveExplorer actually produced candidates (via Strain/Defect generator)
+    # Since AdaptivePolicy creates StaticTasks, they run even if mock_otf is just a mock for MD
+    with state_file.open() as f:
+        state = json.load(f)
+
+    # We expect some candidates from Static/Strain/Defect tasks
+    assert state["history"][0]["candidates_count"] > 0
