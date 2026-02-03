@@ -55,9 +55,12 @@ class OTFLoop:
                     bad_structure = traj[-1]
 
                     # 2. Embed (Periodic Box)
-                    # Heuristic: Pick a random atom as center since we don't have the exact high-gamma atom ID yet.
-                    # Ideally, this should come from the LogParser result.
-                    center_index = random.randint(0, len(bad_structure) - 1)  # noqa: S311
+                    if result.halt_atom_id is not None:
+                        center_index = result.halt_atom_id
+                    else:
+                        # Fallback heuristic if ID extraction failed
+                        center_index = random.randint(0, len(bad_structure) - 1)  # noqa: S311
+
                     cutoff = params.get("embedding_cutoff", 5.0)
 
                     embedded_anchor = extract_periodic_box(bad_structure, center_index, cutoff)

@@ -15,6 +15,7 @@ class MDResult(BaseModel):
     trajectory_path: Path | None = None
     log_path: Path | None = None
     halt_step: int | None = None
+    halt_atom_id: int | None = None
     final_structure_path: Path | None = None
 
     model_config = ConfigDict(extra="forbid")

@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from ase import Atoms
@@ -88,3 +88,24 @@ def test_explorer_unknown_modifier(mock_config: Config, temp_dir: Path) -> None:
 
         candidates = explorer.explore(potential_path=None, work_dir=temp_dir)
         assert len(candidates) == 0
+
+
+def test_explorer_md_task_with_otf_loop(mock_config: Config, temp_dir: Path) -> None:
+    seed_path = mock_config.training.dataset_path.with_suffix(".xyz")
+    mock_config.training.dataset_path = seed_path
+    atoms = Atoms("Cu", cell=[3.6, 3.6, 3.6], pbc=True)
+    write(seed_path, atoms)
+
+    mock_otf = MagicMock()
+    mock_otf.execute_task.return_value = []
+
+    explorer = AdaptiveExplorer(mock_config, otf_loop=mock_otf)
+
+    with patch.object(explorer, "policy") as mock_policy:
+        mock_policy.decide_strategy.return_value = [
+            ExplorationTask(method=ExplorationMethod.MD, modifiers=[], parameters={})
+        ]
+
+        explorer.explore(potential_path=None, work_dir=temp_dir)
+
+        mock_otf.execute_task.assert_called_once()

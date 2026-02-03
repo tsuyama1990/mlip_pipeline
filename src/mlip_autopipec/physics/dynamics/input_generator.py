@@ -84,14 +84,14 @@ class LammpsInputGenerator:
 
         # To satisfy the test `v_max_gamma > 5.0`
         lines.append("compute gamma_val all pace/gamma")  # Hypothetical compute name
-        lines.append("variable max_gamma equal c_gamma_val")
+        lines.append("variable max_gamma equal max(c_gamma_val)")
 
         lines.append(f"fix watchdog all halt 10 v_max_gamma > {gamma_thresh} error hard")
 
         # 5. Run
         steps = parameters.get("steps", 1000)
         lines.append("thermo 10")
-        lines.append("dump 1 all custom 10 traj.lammpstrj id type x y z")
+        lines.append("dump 1 all custom 10 traj.lammpstrj id type x y z c_gamma_val")
         lines.append(f"run {steps}")
 
         return "\n".join(lines)

@@ -8,7 +8,6 @@ from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.exploration import ExplorationMethod
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
-from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
 from mlip_autopipec.physics.structure_gen.generator import StructureGenerator
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
@@ -17,17 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class AdaptiveExplorer:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, otf_loop: OTFLoop | None = None) -> None:
         self.config = config
         self.policy = AdaptivePolicy()
-
-        # Initialize MD components
-        self.otf_loop: OTFLoop | None = None
-        if self.config.lammps:
-            self.lammps_runner = LammpsRunner(self.config.lammps)
-            self.otf_loop = OTFLoop(self.lammps_runner)
-        else:
-            logger.info("LammpsConfig not found. MD exploration will be disabled or mocked.")
+        self.otf_loop = otf_loop
 
     def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
         # 1. Load Seed
