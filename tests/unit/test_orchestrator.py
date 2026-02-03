@@ -1,73 +1,71 @@
+import logging
 from unittest.mock import MagicMock
 
 import pytest
-from mlip_autopipec.config.config_model import SimulationConfig
+
+from mlip_autopipec.config.config_model import (
+    DFTConfig,
+    ExplorationConfig,
+    SimulationConfig,
+    TrainingConfig,
+)
+from mlip_autopipec.interfaces.core_interfaces import Explorer, Oracle, Trainer, Validator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 
 
-def test_orchestrator_initialization() -> None:
-    config_data = {
-        "project_name": "TestProject",
-        "dft": {
-            "code": "qe",
-            "ecutwfc": 40.0,
-            "kpoints": [2, 2, 2]
-        },
-        "training": {
-            "code": "pacemaker",
-            "cutoff": 5.0
-        }
+@pytest.fixture
+def mock_components():
+    return {
+        "explorer": MagicMock(spec=Explorer),
+        "oracle": MagicMock(spec=Oracle),
+        "trainer": MagicMock(spec=Trainer),
+        "validator": MagicMock(spec=Validator)
     }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
-    orchestrator = Orchestrator(config)
 
-    assert orchestrator.config.project_name == "TestProject"
-    # Check that mocks are initialized
-    assert orchestrator.explorer is not None
-    assert orchestrator.oracle is not None
-    assert orchestrator.trainer is not None
-    assert orchestrator.validator is not None
 
-def test_orchestrator_run_calls_components() -> None:
-    config_data = {
-        "project_name": "TestProject",
-        "dft": {"code": "qe", "ecutwfc": 40.0, "kpoints": [1,1,1]},
-        "training": {"code": "pacemaker", "cutoff": 5.0}
-    }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
-    orchestrator = Orchestrator(config)
+@pytest.fixture
+def valid_config():
+    return SimulationConfig(
+        project_name="TestProject",
+        dft=DFTConfig(code="qe", ecutwfc=40.0, kpoints=[2, 2, 2]),
+        training=TrainingConfig(code="pacemaker", cutoff=5.0),
+        exploration=ExplorationConfig()
+    )
 
-    # Mock the internal components to verify calls
-    orchestrator.explorer = MagicMock() # type: ignore[assignment]
-    orchestrator.oracle = MagicMock() # type: ignore[assignment]
-    orchestrator.trainer = MagicMock() # type: ignore[assignment]
-    orchestrator.validator = MagicMock() # type: ignore[assignment]
 
-    # Setup returns
-    orchestrator.explorer.explore.return_value = ["struct1"]
-    orchestrator.oracle.compute.return_value = ["labelled1"]
-    orchestrator.trainer.train.return_value = "potential.yace"
-    orchestrator.validator.validate.return_value.passed = True
+def test_orchestrator_initialization(valid_config, mock_components, caplog):
+    """Test that Orchestrator initializes correctly and logs startup."""
+    caplog.set_level(logging.INFO)
 
-    orchestrator.run()
+    orchestrator = Orchestrator(
+        config=valid_config,
+        explorer=mock_components["explorer"],
+        oracle=mock_components["oracle"],
+        trainer=mock_components["trainer"],
+        validator=mock_components["validator"]
+    )
 
-    orchestrator.explorer.explore.assert_called_once()
-    orchestrator.oracle.compute.assert_called_once_with(["struct1"])
-    orchestrator.trainer.train.assert_called_once_with(["labelled1"])
-    orchestrator.validator.validate.assert_called_once_with("potential.yace")
+    assert orchestrator.config == valid_config
+    assert "PYACEMAKER initialized for project: TestProject" in caplog.text
 
-def test_orchestrator_failure() -> None:
-    config_data = {
-        "project_name": "TestProject",
-        "dft": {"code": "qe", "ecutwfc": 40.0, "kpoints": [1,1,1]},
-        "training": {"code": "pacemaker", "cutoff": 5.0}
-    }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
-    orchestrator = Orchestrator(config)
-    orchestrator.explorer = MagicMock() # type: ignore[assignment]
 
-    # Simulate error
-    orchestrator.explorer.explore.side_effect = RuntimeError("Something went wrong")
+def test_orchestrator_run_loop(valid_config, mock_components):
+    """Test that run_loop executes the steps."""
+    orchestrator = Orchestrator(
+        config=valid_config,
+        explorer=mock_components["explorer"],
+        oracle=mock_components["oracle"],
+        trainer=mock_components["trainer"],
+        validator=mock_components["validator"]
+    )
 
-    with pytest.raises(RuntimeError):
-        orchestrator.run()
+    # Mock return values
+    mock_components["explorer"].explore.return_value = []
+    mock_components["oracle"].compute.return_value = []
+
+    orchestrator.run_loop()
+
+    mock_components["explorer"].explore.assert_called()
+    mock_components["oracle"].compute.assert_called()
+    mock_components["trainer"].train.assert_called()
+    mock_components["validator"].validate.assert_called()

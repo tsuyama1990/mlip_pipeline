@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import yaml
-from mlip_autopipec.main import app
 from typer.testing import CliRunner
+
+from mlip_autopipec.main import app
 
 runner = CliRunner()
 

@@ -1,0 +1,40 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 9 items
+
+tests/integration/test_skeleton_loop.py .                                [ 11%]
+tests/unit/test_config.py ....                                           [ 55%]
+tests/unit/test_main.py ..                                               [ 77%]
+tests/unit/test_orchestrator.py ..                                       [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                               Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                         0      0   100%
+src/mlip_autopipec/__main__.py                         3      3     0%   1-4
+src/mlip_autopipec/config/__init__.py                  0      0   100%
+src/mlip_autopipec/config/config_model.py             23      0   100%
+src/mlip_autopipec/domain_models/__init__.py           3      0   100%
+src/mlip_autopipec/domain_models/structures.py         8      0   100%
+src/mlip_autopipec/domain_models/validation.py        12      0   100%
+src/mlip_autopipec/interfaces/__init__.py              0      0   100%
+src/mlip_autopipec/interfaces/core_interfaces.py      16      0   100%
+src/mlip_autopipec/main.py                            42      6    86%   35-36, 72-74, 78
+src/mlip_autopipec/orchestration/__init__.py           3      0   100%
+src/mlip_autopipec/orchestration/mocks.py             23      0   100%
+src/mlip_autopipec/orchestration/orchestrator.py      33      0   100%
+src/mlip_autopipec/physics/__init__.py                 0      0   100%
+src/mlip_autopipec/utils/__init__.py                   0      0   100%
+src/mlip_autopipec/utils/logging.py                   17      3    82%   35-37
+src/mlip_autopipec/validation/__init__.py              0      0   100%
+--------------------------------------------------------------------------------
+TOTAL                                                183     12    93%
+============================== 9 passed in 0.96s ===============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
