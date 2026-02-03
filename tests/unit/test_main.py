@@ -31,19 +31,22 @@ validation:
 
 
 def test_main_no_config() -> None:
-    with patch("sys.argv", ["main", "ghost.yaml"]), \
-         patch("sys.stderr"), \
-         pytest.raises(SystemExit) as exc:
+    with (
+        patch("sys.argv", ["main", "ghost.yaml"]),
+        patch("sys.stderr"),
+        pytest.raises(SystemExit) as exc,
+    ):
         main()
     assert exc.value.code == 1
 
 
 def test_main_success(valid_config_yaml: Path) -> None:
-    with patch("sys.argv", ["main", str(valid_config_yaml)]), \
-         patch("mlip_autopipec.main.load_config") as mock_load, \
-         patch("mlip_autopipec.main.create_components") as mock_create, \
-         patch("mlip_autopipec.main.Orchestrator") as MockOrch:
-
+    with (
+        patch("sys.argv", ["main", str(valid_config_yaml)]),
+        patch("mlip_autopipec.main.load_config") as mock_load,
+        patch("mlip_autopipec.main.create_components") as mock_create,
+        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+    ):
         # Setup mocks
         mock_orch_instance = MockOrch.return_value
         # mock_create must return 5 values to unpack
@@ -58,13 +61,14 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
 
 def test_main_exception(valid_config_yaml: Path) -> None:
-    with patch("sys.argv", ["main", str(valid_config_yaml)]), \
-         patch("mlip_autopipec.main.Orchestrator") as MockOrch, \
-         patch("sys.stderr"):
-
+    with (
+        patch("sys.argv", ["main", str(valid_config_yaml)]),
+        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("sys.stderr"),
+    ):
         MockOrch.side_effect = Exception("Boom")
 
         with pytest.raises(SystemExit) as exc:
-             main()
+            main()
 
         assert exc.value.code == 1

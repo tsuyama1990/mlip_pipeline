@@ -27,22 +27,16 @@ class AdaptiveExplorer:
             self.lammps_runner = LammpsRunner(self.config.lammps)
             self.otf_loop = OTFLoop(self.lammps_runner)
         else:
-            logger.info(
-                "LammpsConfig not found. MD exploration will be disabled or mocked."
-            )
+            logger.info("LammpsConfig not found. MD exploration will be disabled or mocked.")
 
-    def explore(
-        self, potential_path: Path | None, work_dir: Path
-    ) -> list[CandidateStructure]:
+    def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
         # 1. Load Seed
         seed_path = self.config.training.dataset_path
         if not seed_path.exists():
             return []
 
         atoms_or_list: Any = read(seed_path, index=-1)
-        seed_atoms = (
-            atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
-        )
+        seed_atoms = atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
 
         # 2. Decide Strategy
         uncertainty = 1.0 if potential_path is None else 0.5
@@ -73,9 +67,7 @@ class AdaptiveExplorer:
                     fpath = work_dir / fname
                     write(fpath, at)
 
-                    meta = StructureMetadata(
-                        generation_method=f"static_{task.modifiers[0]}"
-                    )
+                    meta = StructureMetadata(generation_method=f"static_{task.modifiers[0]}")
                     cand = CandidateStructure(
                         structure_path=fpath,
                         metadata=meta,
