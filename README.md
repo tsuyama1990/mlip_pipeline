@@ -13,9 +13,11 @@
 
 ## Features
 
+*   **Adaptive Exploration**: Automatically generates new candidate structures using smart policies (Strain, Defects) to explore the potential energy surface efficiently.
+*   **Periodic Embedding**: Intelligent extraction of local defect environments into computable periodic supercells for DFT.
 *   **Zero-Config Workflow**: Initialize complex pipelines with a single `config.yaml`.
 *   **Robust State Management**: Automatic state persistence ensures jobs can be resumed after interruptions.
-*   **Self-Healing DFT Oracle**: Built-in resilience for Quantum Espresso calculations, automatically retrying failed SCF cycles with adjusted parameters (mixing beta, smearing, etc.).
+*   **Self-Healing DFT Oracle**: Built-in resilience for Quantum Espresso calculations, automatically retrying failed SCF cycles with adjusted parameters.
 *   **Modular Architecture**: Plug-and-play components for Structure Generation, Oracle (DFT), and Training.
 *   **Mock Mode**: Skeleton execution mode for rapid development and testing without expensive physics backends.
 *   **Strict Validation**: Pydantic-based configuration ensures fail-fast behavior for invalid inputs.
@@ -55,10 +57,13 @@ orchestrator:
 
 oracle:
   method: "mock"
+
+exploration:
+  strategy: "adaptive"
 ```
 
-### 2. Production Configuration (DFT + ACE)
-For production runs using Quantum Espresso:
+### 2. Production Configuration (DFT + ACE + Exploration)
+For production runs using Quantum Espresso and Adaptive Exploration:
 
 ```yaml
 project:
@@ -71,6 +76,12 @@ training:
 
 orchestrator:
   max_iterations: 10
+
+exploration:
+  strategy: "adaptive"
+  parameters:
+    strain_range: 0.1
+    defect_type: "vacancy"
 
 oracle:
   method: "dft"
@@ -99,6 +110,7 @@ src/mlip_autopipec/
 ├── orchestration/      # State Machine & Main Loop
 ├── physics/            # Interfaces for Physics Engines
 │   ├── oracle/         # DFT Implementation (Quantum Espresso) with Self-Healing
+│   ├── structure_gen/  # Exploration Logic (Generators, Embedding, Policy)
 │   └── training/       # Potential Training (Pacemaker)
 └── utils/              # Shared Utilities (Parsers, File Ops, Logging)
 ```

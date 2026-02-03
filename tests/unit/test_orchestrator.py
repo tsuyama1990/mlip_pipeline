@@ -6,10 +6,10 @@ import pytest
 from mlip_autopipec.config import (
     Config,
     DFTConfig,
-    ExplorationConfig,
     OracleConfig,
     OrchestratorConfig,
     ProjectConfig,
+    StructureGenConfig,
     TrainingConfig,
     ValidationConfig,
 )
@@ -26,7 +26,7 @@ def mock_config(temp_dir: Path) -> Config:
         project=ProjectConfig(name="Test"),
         training=TrainingConfig(dataset_path=temp_dir / "data.pckl"),
         orchestrator=OrchestratorConfig(max_iterations=2),
-        exploration=ExplorationConfig(),
+        exploration=StructureGenConfig(),
         oracle=OracleConfig(),
         validation=ValidationConfig(),
         dft=DFTConfig(pseudopotentials={"Si": "Si.upf"}),

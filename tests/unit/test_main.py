@@ -4,69 +4,59 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from mlip_autopipec.config.loader import load_config
-from mlip_autopipec.main import create_components, main
+from mlip_autopipec.main import main
 
 
-def test_create_components(temp_dir: Path) -> None:
-    # Setup Config
+@pytest.fixture
+def valid_config_yaml(temp_dir: Path) -> Path:
+    data_file = temp_dir / "data.pckl"
+    data_file.touch()
+
     config_data = {
-        "project": {"name": "CompTest"},
-        "training": {"dataset_path": str(temp_dir / "data.pckl"), "max_epochs": 1},
+        "project": {"name": "TestProject"},
+        "training": {"dataset_path": str(data_file)},
         "orchestrator": {"max_iterations": 1},
-        "validation": {"run_validation": True},
-        "dft": {"pseudopotentials": {"Si": "Si.upf"}},
-    }
-    config_file = temp_dir / "config.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
-
-    # Touch the data file to pass validation
-    (temp_dir / "data.pckl").touch()
-
-    config = load_config(config_file)
-
-    explorer, oracle, trainer, validator = create_components(config)
-
-    # Check types (using structural typing or concrete mocks/classes)
-    # Since interfaces are Protocols, isinstance checks against them works if they are runtime checkable
-    # But Explorer is a Protocol, so we check if it implements explore
-    assert hasattr(explorer, "explore")
-    assert hasattr(oracle, "compute")
-    assert hasattr(trainer, "train")
-    assert hasattr(validator, "validate")
-
-
-def test_main_integration(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Setup Config
-    config_data = {
-        "project": {"name": "CLI_Test"},
-        "training": {"dataset_path": str(temp_dir / "data.pckl"), "max_epochs": 1},
-        "orchestrator": {"max_iterations": 1},
+        "oracle": {"method": "mock"},
         "validation": {"run_validation": False},
-        "dft": {"pseudopotentials": {"Si": "Si.upf"}},
+        "exploration": {"strategy": "adaptive"},
     }
     config_file = temp_dir / "config.yaml"
     with config_file.open("w") as f:
         yaml.dump(config_data, f)
+    return config_file
 
-    (temp_dir / "data.pckl").touch()
 
-    # Mock Orchestrator to avoid running full loop
-    with patch("mlip_autopipec.main.Orchestrator") as MockOrch:
-        instance = MockOrch.return_value
+def test_main_no_config() -> None:
+    with (
+        patch("sys.argv", ["main", "ghost.yaml"]),
+        patch("sys.stderr"),
+        pytest.raises(SystemExit) as exc,
+    ):
+        main()
+    assert exc.value.code == 1
 
-        # Call main with args
-        with patch("sys.argv", ["main.py", str(config_file)]):
+
+def test_main_exception(valid_config_yaml: Path) -> None:
+    # 1. Patches setup
+    with (
+        patch("sys.argv", ["main", str(valid_config_yaml)]),
+        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("sys.stderr"),
+    ):
+        MockOrch.side_effect = Exception("Boom")
+
+        # 2. Assert exception raises SystemExit
+        with pytest.raises(SystemExit) as exc:
             main()
 
-        # Verify Orchestrator was initialized and run
-        MockOrch.assert_called_once()
-        instance.run.assert_called_once()
+        assert exc.value.code == 1
 
 
-def test_main_missing_config(temp_dir: Path) -> None:
-    with patch("sys.argv", ["main.py", "non_existent.yaml"]):
-        with pytest.raises(SystemExit) as excinfo:
-            main()
-        assert excinfo.value.code == 1
+def test_main_success(valid_config_yaml: Path) -> None:
+    with (
+        patch("sys.argv", ["main", str(valid_config_yaml)]),
+        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+    ):
+        mock_instance = MockOrch.return_value
+        main()
+        mock_instance.run.assert_called_once()

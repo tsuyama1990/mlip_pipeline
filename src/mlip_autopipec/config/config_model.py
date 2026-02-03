@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, FilePath
 
 
@@ -28,8 +30,9 @@ class OrchestratorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ExplorationConfig(BaseModel):
-    strategy: str = "random"
+class StructureGenConfig(BaseModel):
+    strategy: str = "adaptive"
+    parameters: dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid")
 
 
@@ -47,7 +50,7 @@ class Config(BaseModel):
     project: ProjectConfig
     training: TrainingConfig
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
-    exploration: ExplorationConfig = Field(default_factory=ExplorationConfig)
+    exploration: StructureGenConfig = Field(default_factory=StructureGenConfig)
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     dft: DFTConfig | None = None

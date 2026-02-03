@@ -25,7 +25,7 @@ def test_load_valid_config(temp_dir: Path) -> None:
     assert config.training.max_epochs == 50
     assert config.orchestrator.max_iterations == 5
     # Default factories
-    assert config.exploration.strategy == "random"
+    assert config.exploration.strategy == "adaptive"
     assert config.oracle.method == "dft"
     assert config.validation.run_validation is True
     assert config.dft is None
