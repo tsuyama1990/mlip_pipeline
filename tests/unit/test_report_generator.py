@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from mlip_autopipec.domain_models.validation import MetricResult, ValidationResult
 from mlip_autopipec.validation.report_generator import ReportGenerator
 
