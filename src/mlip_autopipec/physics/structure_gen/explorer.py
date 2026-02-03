@@ -8,6 +8,7 @@ from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.exploration import ExplorationMethod
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
+from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
 from mlip_autopipec.physics.structure_gen.generator import StructureGenerator
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
@@ -76,5 +77,53 @@ class AdaptiveExplorer:
                     candidates.extend(new_cands)
                 else:
                     logger.warning("MD task requested but Lammps not configured.")
+
+        return candidates
+
+
+class AKMCExplorer:
+    def __init__(self, config: Config, eon_wrapper: EonWrapper | None = None) -> None:
+        self.config = config
+        self.eon_wrapper = eon_wrapper
+
+    def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
+        if not potential_path:
+            logger.warning("AKMC requires a potential. Skipping exploration.")
+            return []
+
+        if not self.eon_wrapper:
+            logger.warning("EonWrapper not provided. Skipping.")
+            return []
+
+        # Load seed
+        seed_path = self.config.training.dataset_path
+        if not seed_path.exists():
+            return []
+
+        # Use last frame as seed
+        try:
+            atoms_or_list: Any = read(seed_path, index=-1)
+            seed_atoms = (
+                atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
+            )
+        except Exception:
+            logger.exception("Failed to read seed")
+            return []
+
+        # Run AKMC
+        new_atoms = self.eon_wrapper.run_akmc(seed_atoms, work_dir, potential_path)
+
+        candidates = []
+        for j, at in enumerate(new_atoms):
+            fname = f"akmc_candidate_{j}.xyz"
+            fpath = work_dir / fname
+            write(fpath, at)
+
+            meta = StructureMetadata(generation_method="akmc")
+            cand = CandidateStructure(
+                structure_path=fpath,
+                metadata=meta,
+            )
+            candidates.append(cand)
 
         return candidates

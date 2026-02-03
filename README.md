@@ -17,6 +17,8 @@
 *   **On-the-Fly Safety Net**: Automatically detects high-uncertainty configurations ("Halt") during MD and extracts them for labeling, preventing simulation crashes.
 *   **Hybrid Potential**: Programmatically mixes Machine Learning potentials with physics-based baselines (ZBL) to ensure stability at short interatomic distances.
 *   **Adaptive Exploration**: Automatically generates new candidate structures using smart policies (Strain, Defects) to explore the potential energy surface efficiently.
+*   **aKMC Integration**: Interface with EON software for long-timescale Kinetic Monte Carlo exploration.
+*   **Production Deployment**: Automated packaging of the final potential into a deployable release (Zip file with Manifest and Report).
 *   **Periodic Embedding**: Intelligent extraction of local defect environments into computable periodic supercells for DFT.
 *   **Zero-Config Workflow**: Initialize complex pipelines with a single `config.yaml`.
 *   **Robust State Management**: Automatic state persistence ensures jobs can be resumed after interruptions.
@@ -33,6 +35,7 @@
     *   `pw.x` (Quantum Espresso) - Required for DFT Oracle
     *   `pace_train` (Pacemaker) - Required for Training
     *   `lmp` (LAMMPS) - Required for MD Exploration
+    *   `eonclient` (EON) - Required for aKMC Exploration
 
 ## Installation
 
