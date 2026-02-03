@@ -10,7 +10,7 @@ class ExplorationMethod(str, Enum):
     AKMC = "adaptive_kmc"
 
 
-class ExplorationTask(BaseModel):
+class ExplorationTask(BaseModel):  # type: ignore[misc]
     method: ExplorationMethod
     parameters: dict[str, Any] = Field(default_factory=dict)
     modifiers: list[str] = Field(default_factory=list)

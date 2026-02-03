@@ -9,7 +9,7 @@ from mlip_autopipec.domain_models.validation import MetricResult
 from mlip_autopipec.validation.runner import ValidationRunner
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[untyped-decorator]
 def validation_config() -> ValidationConfig:
     return ValidationConfig(
         run_validation=True,

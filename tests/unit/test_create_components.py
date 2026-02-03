@@ -6,7 +6,7 @@ from mlip_autopipec.main import create_components
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[untyped-decorator]
 def mock_config() -> MagicMock:
     config = MagicMock()
     # Remove spec=Config to avoid attribute errors if Config definition is complex or not fully loaded

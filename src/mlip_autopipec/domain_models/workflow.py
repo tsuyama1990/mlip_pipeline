@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class HistoryEntry(BaseModel):
+class HistoryEntry(BaseModel):  # type: ignore[misc]
     iteration: int
     potential_path: str
     status: str
@@ -15,7 +15,7 @@ class HistoryEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class WorkflowState(BaseModel):
+class WorkflowState(BaseModel):  # type: ignore[misc]
     iteration: int = 0
     current_potential_path: Path | None = None
     history: list[HistoryEntry] = Field(default_factory=list)
