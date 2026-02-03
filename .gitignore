@@ -44,3 +44,6 @@ workflow_state.json
 htmlcov/
 state.json
 output.yace
+
+# Cycle 04/05
+active_learning/

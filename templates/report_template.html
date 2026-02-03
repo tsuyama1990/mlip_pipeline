@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Validation Report - {{ timestamp }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .passed { color: green; font-weight: bold; }
+        .failed { color: red; font-weight: bold; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .metric-block { margin-bottom: 30px; border: 1px solid #eee; padding: 15px; border-radius: 5px; }
+        .details { background-color: #fafafa; padding: 10px; margin-top: 10px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Validation Report</h1>
+    <p><strong>Date:</strong> {{ timestamp }}</p>
+    <p><strong>Status:</strong> <span class="{{ 'passed' if result.passed else 'failed' }}">{{ 'PASSED' if result.passed else 'FAILED' }}</span></p>
+
+    {% if result.reason %}
+    <p><strong>Reason:</strong> {{ result.reason }}</p>
+    {% endif %}
+
+    <h2>Metrics Summary</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Name</th>
+                <th>Status</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for metric in result.metrics %}
+            <tr>
+                <td>{{ metric.name }}</td>
+                <td class="{{ 'passed' if metric.passed else 'failed' }}">{{ 'PASS' if metric.passed else 'FAIL' }}</td>
+                <td>{{ metric.score if metric.score is not none else 'N/A' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Detailed Results</h2>
+    {% for metric in result.metrics %}
+    <div class="metric-block">
+        <h3>{{ metric.name }}</h3>
+        <p><strong>Status:</strong> <span class="{{ 'passed' if metric.passed else 'failed' }}">{{ 'PASS' if metric.passed else 'FAIL' }}</span></p>
+
+        {% if metric.details %}
+        <div class="details">
+            {{ metric.details | tojson(indent=2) }}
+        </div>
+        {% endif %}
+
+        {% if metric.plot_path %}
+            <!-- If plot path is an HTML string (embedded plot), render it safely -->
+            <!-- Note: logic in generator will handle reading the file or passing the string -->
+            <!-- For now, assuming plot_path points to a file, we might link it or iframe it. -->
+            <!-- But better: pass plot_html content directly if possible. -->
+            <!-- Let's assume metric.details might contain 'plot_html' or we handle it via plot_path which is a file relative to report. -->
+            <p><a href="{{ metric.plot_path }}">View Plot</a></p>
+        {% endif %}
+
+        <!-- Support embedded plots passed via details for now -->
+        {% if metric.details.get('plot_html') %}
+            <div>
+                {{ metric.details['plot_html'] | safe }}
+            </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+</body>
+</html>

@@ -13,6 +13,8 @@
 
 ## Features
 
+*   **Validation Suite**: Automated physical validation (Phonon Stability, Elastic Constants) acting as a gatekeeper for potential acceptance.
+*   **Report Generator**: Generates comprehensive HTML reports visualizing training metrics, validation results, and band structures.
 *   **Active Learning with MD**: Integrated Molecular Dynamics engine (LAMMPS) for exploring phase space.
 *   **On-the-Fly Safety Net**: Automatically detects high-uncertainty configurations ("Halt") during MD and extracts them for labeling, preventing simulation crashes.
 *   **Hybrid Potential**: Programmatically mixes Machine Learning potentials with physics-based baselines (ZBL) to ensure stability at short interatomic distances.
@@ -32,7 +34,8 @@
 *   External Dependencies:
     *   `pw.x` (Quantum Espresso) - Required for DFT Oracle
     *   `pace_train` (Pacemaker) - Required for Training
-    *   `lmp` (LAMMPS) - Required for MD Exploration
+    *   `lmp` (LAMMPS) - Required for MD Exploration and Validation
+    *   `phonopy` (Python Lib) - Required for Phonon Stability Validation
 
 ## Installation
 
@@ -64,6 +67,11 @@ oracle:
 
 exploration:
   strategy: "adaptive"
+
+validation:
+  run_validation: true
+  check_phonons: false
+  check_elastic: true
 ```
 
 ### 2. Production Configuration (DFT + ACE + Exploration + MD)
@@ -101,6 +109,11 @@ dft:
 lammps:
   command: "lmp"
   num_processors: 4
+
+validation:
+  run_validation: true
+  check_phonons: true
+  check_elastic: true
 ```
 
 ### 3. Run the Pipeline
@@ -121,5 +134,6 @@ src/mlip_autopipec/
 │   ├── oracle/         # DFT Implementation (Quantum Espresso) with Self-Healing
 │   ├── structure_gen/  # Exploration Logic (Generators, Embedding, Policy)
 │   └── training/       # Potential Training (Pacemaker)
+├── validation/         # Validation Suite (Runner, Metrics, Reporting)
 └── utils/              # Shared Utilities (Parsers, File Ops, Logging)
 ```
