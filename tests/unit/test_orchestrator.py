@@ -9,6 +9,7 @@ from mlip_autopipec.config import (
     OracleConfig,
     OrchestratorConfig,
     ProjectConfig,
+    SelectionConfig,
     StructureGenConfig,
     TrainingConfig,
     ValidationConfig,
@@ -27,6 +28,7 @@ def mock_config(temp_dir: Path) -> Config:
         training=TrainingConfig(dataset_path=temp_dir / "data.pckl"),
         orchestrator=OrchestratorConfig(max_iterations=2),
         exploration=StructureGenConfig(),
+        selection=SelectionConfig(limit=50),
         oracle=OracleConfig(),
         validation=ValidationConfig(),
         dft=DFTConfig(pseudopotentials={"Si": "Si.upf"}),
@@ -58,6 +60,8 @@ def test_orchestrator_run_loop(mock_config: Config) -> None:
     oracle.compute.return_value = [Path("data.extxyz")]
 
     # Setup Trainer
+    # Just pass through selected candidates
+    trainer.select_candidates.side_effect = lambda candidates, count: candidates
     trainer.update_dataset.return_value = Path("updated_data.pckl")
     trainer.train.return_value = Path("output.yace")
 
@@ -79,5 +83,9 @@ def test_orchestrator_run_loop(mock_config: Config) -> None:
         assert trainer.train.call_count == 2
         assert mock_state_instance.save.call_count >= 2
         assert explorer.explore.call_count == 2
+        assert trainer.select_candidates.call_count == 2
+        # Verify limit passed from config
+        trainer.select_candidates.assert_called_with(explorer.explore.return_value, count=50)
+
         assert oracle.compute.call_count == 2
         assert validator.validate.call_count == 2

@@ -62,6 +62,21 @@ class Trainer(Protocol):
         """
         ...
 
+    def select_candidates(
+        self, candidates: list[CandidateStructure], count: int
+    ) -> list[CandidateStructure]:
+        """
+        Selects the most informative candidates using Active Set optimization.
+
+        Args:
+            candidates: List of available candidates.
+            count: Number of candidates to select.
+
+        Returns:
+            List of selected candidates.
+        """
+        ...
+
 
 class Validator(Protocol):
     def validate(self, potential_path: Path, work_dir: Path) -> ValidationResult:

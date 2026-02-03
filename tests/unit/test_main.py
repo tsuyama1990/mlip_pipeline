@@ -41,6 +41,7 @@ def test_main_exception(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("mlip_autopipec.main.create_components"),
         patch("sys.stderr"),
     ):
         MockOrch.side_effect = Exception("Boom")
@@ -56,7 +57,13 @@ def test_main_success(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("mlip_autopipec.main.create_components") as MockCreate,
     ):
         mock_instance = MockOrch.return_value
+        # Mock create_components return
+        MockCreate.return_value = ("exp", "ora", "tra", "val")
+
         main()
+
+        MockCreate.assert_called_once()
         mock_instance.run.assert_called_once()
