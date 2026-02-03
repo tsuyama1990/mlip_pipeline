@@ -5,15 +5,17 @@ from pathlib import Path
 
 from mlip_autopipec.config import Config
 from mlip_autopipec.config.loader import load_config
+from mlip_autopipec.infrastructure.production import ProductionDeployer
 from mlip_autopipec.logging_config import setup_logging
 from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Trainer, Validator
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
+from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
 from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
 from mlip_autopipec.physics.oracle.manager import DFTManager
 from mlip_autopipec.physics.selection.selector import ActiveSetSelector
-from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
+from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer, AKMCExplorer
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def create_components(
     config: Config,
-) -> tuple[Explorer, Selector, Oracle, Trainer, Validator | None]:
+) -> tuple[Explorer, Selector, Oracle, Trainer, Validator | None, ProductionDeployer | None]:
     """Creates the components based on the configuration."""
     logger.info("Initializing Components")
 
@@ -34,7 +36,15 @@ def create_components(
 
     # Explorer
     explorer: Explorer
-    if config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
+    if config.exploration.strategy == "akmc":
+        logger.info("Using AKMC Explorer")
+        if config.eon is None:
+            msg = "EON configuration missing but exploration strategy is 'akmc'"
+            logger.error(msg)
+            raise ValueError(msg)
+        eon_wrapper = EonWrapper(config.eon)
+        explorer = AKMCExplorer(config, eon_wrapper)
+    elif config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
         logger.info(f"Using Adaptive Explorer ({config.exploration.strategy})")
         explorer = AdaptiveExplorer(config, otf_loop=otf_loop)
     else:
@@ -66,7 +76,10 @@ def create_components(
     # Validator
     validator = MockValidator() if config.validation.run_validation else None
 
-    return explorer, selector, oracle, trainer, validator
+    # Deployer
+    deployer = ProductionDeployer()
+
+    return explorer, selector, oracle, trainer, validator, deployer
 
 
 def main() -> None:
@@ -87,7 +100,7 @@ def main() -> None:
         logger.info(f"Loading configuration from {config_path}")
         config = load_config(config_path)
 
-        explorer, selector, oracle, trainer, validator = create_components(config)
+        explorer, selector, oracle, trainer, validator, deployer = create_components(config)
 
         logger.info("Initializing Orchestrator")
         orch = Orchestrator(
@@ -97,6 +110,7 @@ def main() -> None:
             oracle=oracle,
             trainer=trainer,
             validator=validator,
+            deployer=deployer,
         )
 
         logger.info("Starting Workflow")

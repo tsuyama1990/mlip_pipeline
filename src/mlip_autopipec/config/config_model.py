@@ -18,6 +18,12 @@ class LammpsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class EonConfig(BaseModel):
+    command: str = "eonclient"
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(extra="forbid")
+
+
 class ProjectConfig(BaseModel):
     name: str
     seed: int = 42
@@ -71,5 +77,6 @@ class Config(BaseModel):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     dft: DFTConfig | None = None
     lammps: LammpsConfig | None = None
+    eon: EonConfig | None = None
 
     model_config = ConfigDict(extra="forbid")

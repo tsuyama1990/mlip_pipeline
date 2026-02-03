@@ -3,7 +3,9 @@ import shutil
 from pathlib import Path
 
 from mlip_autopipec.config import Config
+from mlip_autopipec.domain_models.production import ProductionManifest
 from mlip_autopipec.domain_models.workflow import HistoryEntry, WorkflowState
+from mlip_autopipec.infrastructure.production import ProductionDeployer
 from mlip_autopipec.orchestration.interfaces import (
     Explorer,
     Oracle,
@@ -25,6 +27,7 @@ class Orchestrator:
         oracle: Oracle,
         trainer: Trainer,
         validator: Validator | None = None,
+        deployer: ProductionDeployer | None = None,
     ) -> None:
         self.config = config
         self.state_manager = StateManager(Path("state.json"))
@@ -34,6 +37,7 @@ class Orchestrator:
         self.oracle = oracle
         self.trainer = trainer
         self.validator = validator
+        self.deployer = deployer
 
         # Initialize or load state
         loaded_state = self.state_manager.load()
@@ -43,6 +47,40 @@ class Orchestrator:
         else:
             self.state = WorkflowState()
             logger.info("Initialized new workflow state")
+
+    def _deploy_release(self) -> None:
+        if not self.deployer or not self.state.current_potential_path:
+            return
+
+        logger.info("Deploying Production Release...")
+        try:
+            total_data = sum(h.new_data_count for h in self.state.history)
+
+            # Use latest validation metrics if available
+            metrics: dict[str, float] = {}
+            if self.state.history:
+                # Assuming metrics are in history, but currently they are not explicitly saved in history_entry construction above
+                # If we want metrics, we should modify HistoryEntry construction.
+                pass
+
+            manifest = ProductionManifest(
+                version="1.0.0",
+                author=self.config.project.name,
+                training_set_size=total_data,
+                validation_metrics=metrics,
+            )
+
+            last_iter = self.state.iteration - 1
+            report_path = Path(f"active_learning/iter_{last_iter:03d}/validation/report.html")
+
+            self.deployer.deploy(
+                self.state.current_potential_path,
+                manifest,
+                report_path,
+                Path(),
+            )
+        except Exception:
+            logger.exception("Deployment failed")
 
     def run(self) -> None:
         """Executes the Active Learning Cycle."""
@@ -142,3 +180,6 @@ class Orchestrator:
             except Exception:
                 logger.exception(f"Cycle {self.state.iteration} failed")
                 raise
+
+        # Finalize and Deploy
+        self._deploy_release()

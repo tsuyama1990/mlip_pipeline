@@ -8,11 +8,41 @@ from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.exploration import ExplorationMethod
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
+from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
 from mlip_autopipec.physics.structure_gen.generator import StructureGenerator
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
 
 logger = logging.getLogger(__name__)
+
+
+class AKMCExplorer:
+    def __init__(self, config: Config, eon_wrapper: EonWrapper) -> None:
+        self.config = config
+        self.eon_wrapper = eon_wrapper
+
+    def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
+        # Load Seed
+        seed_path = self.config.training.dataset_path
+        if not seed_path.exists():
+            logger.warning(f"Dataset path {seed_path} does not exist.")
+            return []
+
+        # Read last frame as seed
+        try:
+            atoms_or_list: Any = read(seed_path, index=-1)
+            seed_atoms = (
+                atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
+            )
+        except Exception:
+            logger.exception(f"Failed to read seed from {seed_path}")
+            return []
+
+        # Write temporary start structure
+        start_struct_path = work_dir / "start_structure.xyz"
+        write(start_struct_path, seed_atoms)
+
+        return self.eon_wrapper.run_akmc(potential_path, start_struct_path, work_dir)
 
 
 class AdaptiveExplorer:
