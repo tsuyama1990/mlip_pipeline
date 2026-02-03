@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -37,7 +37,7 @@ class ReportGenerator:
 
             html_content = template.render(
                 result=result,
-                timestamp=datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                timestamp=datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
             )
 
             output_path.write_text(html_content)

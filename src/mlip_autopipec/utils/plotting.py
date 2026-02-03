@@ -27,7 +27,7 @@ def create_line_plot(
     if output_path:
         fig.write_html(output_path)
 
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+    return fig.to_html(full_html=False, include_plotlyjs="cdn")  # type: ignore[no-any-return]
 
 
 def create_band_structure_plot(
@@ -50,4 +50,4 @@ def create_band_structure_plot(
         showlegend=False,
     )
 
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+    return fig.to_html(full_html=False, include_plotlyjs="cdn")  # type: ignore[no-any-return]

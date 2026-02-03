@@ -317,4 +317,4 @@ ERROR tests/unit/test_selection.py
 ERROR tests/unit/test_state.py
 ERROR tests/unit/test_strategies.py
 !!!!!!!!!!!!!!!!!!! Interrupted: 28 errors during collection !!!!!!!!!!!!!!!!!!!
-============================== 28 errors in 2.79s ==============================
+============================== 28 errors in 2.72s ==============================

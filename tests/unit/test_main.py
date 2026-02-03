@@ -32,8 +32,7 @@ validation:
 
 def test_main_no_config() -> None:
     with patch("sys.argv", ["main", "ghost.yaml"]), \
-         patch("sys.stderr"), \
-         pytest.raises(SystemExit) as exc:
+         patch("sys.stderr"), pytest.raises(SystemExit) as exc:
         main()
     assert exc.value.code == 1
 

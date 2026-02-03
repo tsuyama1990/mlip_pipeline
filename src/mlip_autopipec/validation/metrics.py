@@ -7,7 +7,7 @@ from ase.calculators.calculator import Calculator
 try:
     from ase.filters import UnitCellFilter
 except ImportError:
-    from ase.constraints import UnitCellFilter
+    from ase.constraints import UnitCellFilter  # type: ignore[attr-defined, no-redef]
 from ase.optimize import LBFGS
 
 from mlip_autopipec.domain_models.validation import MetricResult
@@ -32,18 +32,18 @@ class ElasticValidator:
         # Relax structure first
         atoms = structure.copy()  # type: ignore[no-untyped-call]
         atoms.calc = potential
-        ucf = UnitCellFilter(atoms)
-        opt = LBFGS(ucf, logfile=None)
-        opt.run(fmax=0.01)
+        ucf = UnitCellFilter(atoms)  # type: ignore[no-untyped-call]
+        opt = LBFGS(ucf, logfile=None)  # type: ignore[arg-type]
+        opt.run(fmax=0.01)  # type: ignore[no-untyped-call]
 
-        stress_0 = atoms.get_stress()  # Voigt notation: xx, yy, zz, yz, xz, xy
+        stress_0 = atoms.get_stress()
 
         # Simple deformation: epsilon = 0.01
         eps = 0.01
 
         # We need C11, C12, C44 for cubic stability
         # Apply strain e_xx
-        atoms_xx = atoms.copy() # type: ignore[no-untyped-call]
+        atoms_xx = atoms.copy()
         atoms_xx.calc = potential
         cell = atoms_xx.get_cell()
         cell[0, 0] *= (1 + eps)
@@ -67,7 +67,7 @@ class ElasticValidator:
         c12 = d_stress[1] * 160.21766208
 
         # For C44: Shear strain e_xy
-        atoms_xy = atoms.copy() # type: ignore[no-untyped-call]
+        atoms_xy = atoms.copy()
         atoms_xy.calc = potential
         cell = atoms_xy.get_cell()
         # Properly apply shear strain
@@ -136,9 +136,9 @@ class PhononValidator:
 
         # Convert ASE to Phonopy
         unitcell = PhonopyAtoms(
-            symbols=structure.get_chemical_symbols(),
-            cell=structure.get_cell(),
-            scaled_positions=structure.get_scaled_positions()
+            symbols=structure.get_chemical_symbols(),  # type: ignore[no-untyped-call]
+            cell=structure.get_cell(),  # type: ignore[no-untyped-call]
+            scaled_positions=structure.get_scaled_positions()  # type: ignore[no-untyped-call]
         )
 
         # Supercell 2x2x2
@@ -151,7 +151,7 @@ class PhononValidator:
 
         # Apply displacements
         phonon.generate_displacements(distance=0.01)
-        supercells = phonon.get_supercells_with_displacements()
+        supercells = phonon.get_supercells_with_displacements()  # type: ignore[attr-defined]
 
         # Calculate forces for each displaced supercell
         # This is expensive. In a real scenario, we might want to paralellize or limit this.
@@ -165,19 +165,19 @@ class PhononValidator:
             # Update our ASE atoms
             # Since atoms match 1-to-1
             pos = sc.get_positions()
-            temp_atoms = supercell_atoms.copy() # type: ignore[no-untyped-call]
+            temp_atoms = supercell_atoms.copy()
             temp_atoms.set_positions(pos)
             temp_atoms.calc = potential
             forces = temp_atoms.get_forces()
             forces_set.append(forces)
 
-        phonon.set_forces(forces_set)
+        phonon.set_forces(forces_set)  # type: ignore[attr-defined]
         phonon.produce_force_constants()
 
         # Band structure on simple path
         # Auto band structure path
         path = [[[0, 0, 0], [0.5, 0, 0.5], [0.5, 0.5, 0.5], [0, 0, 0]]] # Gamma-X-L-Gamma approx
-        qpoints, connections = phonopy.get_band_qpoints_and_path_connections(path, npoints=51)
+        qpoints, connections = phonopy.get_band_qpoints_and_path_connections(path, npoints=51)  # type: ignore[attr-defined]
         phonon.run_band_structure(qpoints, path_connections=connections)
 
         frequencies = phonon.get_band_structure_dict()['frequencies']

@@ -79,5 +79,3 @@ def test_uat_scenario_02_gatekeeper(tmp_path: Path) -> None:
     assert not result.passed
     assert result.reason is not None
     assert "Phonon" in result.reason or "failed" in result.reason.lower()
-
-    print("Scenario 05-02 Passed: Unstable potential rejected.")

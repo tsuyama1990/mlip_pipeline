@@ -110,14 +110,14 @@ class TestPhononValidator:
 
         # We need to ensure PHONOPY_AVAILABLE is True for this test context if we want to run logic,
         # but here we mock _calculate_band_structure, so it doesn't matter unless we remove the mock.
-        with patch("mlip_autopipec.validation.metrics.PhononValidator._calculate_band_structure") as mock_calc:
-            with patch("mlip_autopipec.validation.metrics.PHONOPY_AVAILABLE", True):
-                # Mock return of min frequency
-                mock_calc.return_value = 0.5  # Positive frequency
+        with patch("mlip_autopipec.validation.metrics.PhononValidator._calculate_band_structure") as mock_calc, \
+             patch("mlip_autopipec.validation.metrics.PHONOPY_AVAILABLE", True):
+            # Mock return of min frequency
+            mock_calc.return_value = 0.5  # Positive frequency
 
-                result = PhononValidator.run(potential, structure)
-                assert result.passed is True
-                assert result.score == 0.5
+            result = PhononValidator.run(potential, structure)
+            assert result.passed is True
+            assert result.score == 0.5
 
     def test_run_failure(self) -> None:
         """Test failure with imaginary modes (negative frequency)."""

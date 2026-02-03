@@ -28,7 +28,7 @@ class ValidationRunner(Validator):
         # For testing/mocking purposes, if potential_path doesn't exist or is dummy
         if not potential_path.exists() or potential_path.name.endswith(".mock"):
             logger.warning("Potential path invalid or mock, using EMT calculator.")
-            return EMT()
+            return EMT()  # type: ignore[no-untyped-call]
 
         # Construct LAMMPS calculator
         # This assumes 'lmp' is in PATH. In real scenario, we should use config.lammps.command
@@ -56,8 +56,8 @@ class ValidationRunner(Validator):
             files=[str(potential_path)],
             keep_tmp_files=False,
             specorder=elements
-        )
-        calc.set(**parameters)
+        )  # type: ignore[no-untyped-call]
+        calc.set(**parameters)  # type: ignore[no-untyped-call]
         return calc
 
     def _get_test_structure(self) -> Atoms:
@@ -80,7 +80,7 @@ class ValidationRunner(Validator):
             calc = self._get_calculator(potential_path, elements)
             structure.calc = calc
         except Exception as e:
-            logger.exception(f"Failed to setup calculator: {e}")
+            logger.exception("Failed to setup calculator")
             return ValidationResult(
                 passed=False,
                 reason=f"Calculator setup failed: {e}"
