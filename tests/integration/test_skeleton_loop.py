@@ -15,13 +15,14 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PYACEMAKER_MOCK_MODE", "1")
     monkeypatch.chdir(temp_dir)  # Run in temp dir
 
-    data_file = temp_dir / "data.pckl"
+    data_file = temp_dir / "data.xyz"
     data_file.touch()
 
     config_data = {
         "project": {"name": "IntegrationTest"},
         "training": {"dataset_path": str(data_file), "max_epochs": 10},
         "orchestrator": {"max_iterations": 1},
+        "selection": {"method": "maxvol", "n_selection": 5},
         "validation": {"run_validation": True},
         "dft": {"pseudopotentials": {"Si": "Si.upf"}},
     }

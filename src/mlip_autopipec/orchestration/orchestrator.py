@@ -61,6 +61,14 @@ class Orchestrator:
                 )
                 logger.info(f"Exploration found {len(candidates)} candidates")
 
+                # Phase 1.5: Selection (Active Learning)
+                logger.info("Phase: Selection")
+                candidates = self.trainer.select_candidates(
+                    candidates=candidates,
+                    n_selection=self.config.selection.n_selection,
+                )
+                logger.info(f"Selected {len(candidates)} candidates for labeling")
+
                 # Phase 2: Oracle
                 logger.info("Phase: Oracle")
                 # Ensure oracle directory exists

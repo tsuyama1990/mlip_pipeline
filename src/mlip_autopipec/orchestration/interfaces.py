@@ -62,6 +62,21 @@ class Trainer(Protocol):
         """
         ...
 
+    def select_candidates(
+        self, candidates: list[CandidateStructure], n_selection: int
+    ) -> list[CandidateStructure]:
+        """
+        Selects a subset of candidates for labeling (Active Set Selection).
+
+        Args:
+            candidates: List of available candidate structures.
+            n_selection: Number of candidates to select.
+
+        Returns:
+            A list of selected candidate structures.
+        """
+        ...
+
 
 class Validator(Protocol):
     def validate(self, potential_path: Path, work_dir: Path) -> ValidationResult:
