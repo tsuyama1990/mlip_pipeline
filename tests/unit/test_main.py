@@ -31,10 +31,11 @@ validation:
 
 
 def test_main_no_config() -> None:
+    # F841: Removed unused 'mock_stderr'
+    # PT012: Nested raises block to avoid complex statement in raises context
     with (
         patch("sys.argv", ["main", "ghost.yaml"]),
-        patch("sys.stderr"),
-        pytest.raises(SystemExit) as exc,
+        patch("sys.stderr"),pytest.raises(SystemExit) as exc
     ):
         main()
     assert exc.value.code == 1
@@ -49,7 +50,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
     ):
         # Setup mocks
         mock_orch_instance = MockOrch.return_value
-        # mock_create must return 6 values to unpack (explorer, selector, oracle, trainer, validator, deployer)
+        # mock_create must return 6 values to unpack
         mock_create.return_value = (None, None, None, None, None, None)
 
         main()
@@ -61,6 +62,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
 
 def test_main_exception(valid_config_yaml: Path) -> None:
+    # PT012: Nested raises block
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
