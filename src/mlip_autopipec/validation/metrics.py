@@ -28,7 +28,7 @@ def get_calculator(potential_path: Path) -> Calculator:
     TODO: Replace with actual PACE/LAMMPS calculator.
     For now, using LennardJones to simulate a working potential.
     """
-    return LennardJones()
+    return LennardJones()  # type: ignore[no-untyped-call]
 
 
 class PhononValidator:
@@ -44,9 +44,9 @@ class PhononValidator:
         try:
             # 1. Setup Phonopy
             unitcell = PhonopyAtoms(
-                symbols=structure.get_chemical_symbols(),
-                cell=structure.get_cell(),
-                scaled_positions=structure.get_scaled_positions(),
+                symbols=structure.get_chemical_symbols(),  # type: ignore[no-untyped-call]
+                cell=structure.get_cell(),  # type: ignore[no-untyped-call]
+                scaled_positions=structure.get_scaled_positions(),  # type: ignore[no-untyped-call]
             )
             # Use 2x2x2 supercell
             supercell_matrix = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
@@ -70,14 +70,14 @@ class PhononValidator:
                         pbc=True,
                     )
                     atoms.calc = calc
-                    forces_list.append(atoms.get_forces())
+                    forces_list.append(atoms.get_forces())  # type: ignore[no-untyped-call]
 
                 # 4. Produce force constants
                 phonon.produce_force_constants(forces=forces_list)
 
                 # 5. Calculate band structure
                 # Simple path G-X-M-G for cubic (assuming cubic for now)
-                path = [[0, 0, 0], [0.5, 0, 0], [0.5, 0.5, 0], [0, 0, 0]]
+                path = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
                 labels = ["G", "X", "M", "G"]
 
                 phonon.run_band_structure(
@@ -124,9 +124,9 @@ class ElasticValidator:
             atoms.calc = get_calculator(potential_path)
 
             # Relax structure first
-            ucf = UnitCellFilter(atoms)
-            opt = LBFGS(ucf, logfile=None)
-            opt.run(fmax=0.01)
+            ucf = UnitCellFilter(atoms)  # type: ignore[no-untyped-call]
+            opt = LBFGS(ucf, logfile=None)  # type: ignore[arg-type]
+            opt.run(fmax=0.01)  # type: ignore[no-untyped-call]
 
             # Calculate elastic constants
             # Simplified for Cubic: C11, C12, C44

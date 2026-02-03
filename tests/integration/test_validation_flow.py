@@ -1,3 +1,4 @@
+from pathlib import Path
 
 import pytest
 
@@ -6,14 +7,16 @@ from mlip_autopipec.validation.runner import ValidationRunner
 
 
 @pytest.fixture
-def mock_validation_runner():
+def mock_validation_runner() -> ValidationRunner:
     config = ValidationConfig(
         run_validation=True, check_phonons=True, check_elastic=True
     )
     return ValidationRunner(config)
 
 
-def test_validation_runner_flow(mock_validation_runner, tmp_path):
+def test_validation_runner_flow(
+    mock_validation_runner: ValidationRunner, tmp_path: Path
+) -> None:
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
