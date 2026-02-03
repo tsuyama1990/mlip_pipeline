@@ -39,7 +39,7 @@ class AdaptiveExplorer:
         if not seed_path.exists():
             return []
 
-        atoms_or_list: Any = read(seed_path, index=-1)  # type: ignore[no-untyped-call]
+        atoms_or_list: Any = read(seed_path, index=-1)
         seed_atoms = (
             atoms_or_list[0] if isinstance(atoms_or_list, list) else atoms_or_list
         )
@@ -71,7 +71,7 @@ class AdaptiveExplorer:
                 for j, at in enumerate(new_structs):
                     fname = f"candidate_t{i}_{j}.xyz"
                     fpath = work_dir / fname
-                    write(fpath, at)  # type: ignore[no-untyped-call]
+                    write(fpath, at)
 
                     meta = StructureMetadata(
                         generation_method=f"static_{task.modifiers[0]}"

@@ -1,9 +1,11 @@
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 from ase import Atoms
-from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
+
 from mlip_autopipec.config.config_model import LammpsConfig
-from mlip_autopipec.domain_models.dynamics import MDStatus, MDResult
+from mlip_autopipec.domain_models.dynamics import MDResult, MDStatus
+from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
 
 
 @patch("mlip_autopipec.physics.dynamics.lammps_runner.subprocess.run")

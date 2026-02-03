@@ -34,7 +34,7 @@ class LammpsRunner:
 
         # ASE standard lammps-data writer sorts species alphabetically.
         # We trust ASE and InputGenerator to be consistent.
-        write(data_file_path, atoms, format="lammps-data")  # type: ignore[no-untyped-call]
+        write(data_file_path, atoms, format="lammps-data")
 
         # Write input file
         input_gen = LammpsInputGenerator(potential_path)

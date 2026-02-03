@@ -1,6 +1,7 @@
 from pathlib import Path
-from mlip_autopipec.physics.dynamics.log_parser import LogParser
+
 from mlip_autopipec.domain_models.dynamics import MDStatus
+from mlip_autopipec.physics.dynamics.log_parser import LogParser
 
 
 def create_log_file(path: Path, content: str) -> None:

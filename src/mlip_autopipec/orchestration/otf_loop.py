@@ -41,7 +41,7 @@ class OTFLoop:
                 try:
                     # Read trajectory
                     # We assume the last frame is the one of interest (high uncertainty)
-                    traj: Any = read(result.trajectory_path, index=":")  # type: ignore[no-untyped-call]
+                    traj: Any = read(result.trajectory_path, index=":")
 
                     if not isinstance(traj, list):
                         traj = [traj]
@@ -54,7 +54,7 @@ class OTFLoop:
 
                     # Save extracted structure
                     output_path = work_dir / f"halted_step_{result.halt_step}.xyz"
-                    write(output_path, bad_structure)  # type: ignore[no-untyped-call]
+                    write(output_path, bad_structure)
 
                     meta = StructureMetadata(
                         generation_method="md_halted",
