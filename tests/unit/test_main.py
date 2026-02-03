@@ -32,9 +32,10 @@ validation:
 
 def test_main_no_config() -> None:
     with patch("sys.argv", ["main", "ghost.yaml"]), \
-         patch("sys.stderr"), \
-         pytest.raises(SystemExit) as exc:
-        main()
+         patch("sys.stderr"):
+
+        with pytest.raises(SystemExit) as exc:
+             main()
     assert exc.value.code == 1
 
 
@@ -65,6 +66,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
 
 def test_main_exception(valid_config_yaml: Path) -> None:
+    # PT012: Ensure pytest.raises only wraps the call to main()
     with patch("sys.argv", ["main", str(valid_config_yaml)]), \
          patch("mlip_autopipec.main.Orchestrator") as MockOrch, \
          patch("sys.stderr"), \

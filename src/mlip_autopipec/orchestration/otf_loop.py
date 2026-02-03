@@ -24,7 +24,7 @@ class OTFLoop:
         """Generates local candidates by adding random noise to positions."""
         candidates = []
         for _ in range(count):
-            new_atoms = structure.copy()
+            new_atoms = structure.copy()  # type: ignore[no-untyped-call]
             # Random displacement
             noise = np.random.normal(0, sigma, new_atoms.positions.shape)
             new_atoms.positions += noise
