@@ -9,9 +9,7 @@ class LammpsInputGenerator:
     def __init__(self, potential_path: Path | None = None) -> None:
         self.potential_path = potential_path
 
-    def generate_input(
-        self, atoms: Atoms, data_file: str, parameters: dict[str, Any]
-    ) -> str:
+    def generate_input(self, atoms: Atoms, data_file: str, parameters: dict[str, Any]) -> str:
         """
         Generates the input file content for LAMMPS.
 
@@ -88,9 +86,7 @@ class LammpsInputGenerator:
         lines.append("compute gamma_val all pace/gamma")  # Hypothetical compute name
         lines.append("variable max_gamma equal c_gamma_val")
 
-        lines.append(
-            f"fix watchdog all halt 10 v_max_gamma > {gamma_thresh} error hard"
-        )
+        lines.append(f"fix watchdog all halt 10 v_max_gamma > {gamma_thresh} error hard")
 
         # 5. Run
         steps = parameters.get("steps", 1000)

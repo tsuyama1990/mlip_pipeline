@@ -18,9 +18,7 @@ class LogParser:
         if "ERROR: Fix halt condition met" in content:
             logger.info("Detected HALT in LAMMPS log")
             halt_step = self._extract_last_step(content)
-            return MDResult(
-                status=MDStatus.HALTED, log_path=log_path, halt_step=halt_step
-            )
+            return MDResult(status=MDStatus.HALTED, log_path=log_path, halt_step=halt_step)
 
         # Check for Success
         if "Loop time of" in content:

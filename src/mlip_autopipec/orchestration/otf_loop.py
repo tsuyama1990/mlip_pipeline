@@ -73,8 +73,8 @@ class OTFLoop:
                                 source="md_halt",
                                 generation_method="embedding",
                                 parent_structure_id="seed_md",
-                                uncertainty=1.0 # High uncertainty triggered halt
-                            )
+                                uncertainty=1.0,  # High uncertainty triggered halt
+                            ),
                         )
                     )
 
@@ -95,8 +95,8 @@ class OTFLoop:
                                 metadata=StructureMetadata(
                                     source="md_halt_local_search",
                                     generation_method="random_displacement",
-                                    parent_structure_id="halted_anchor"
-                                )
+                                    parent_structure_id="halted_anchor",
+                                ),
                             )
                         )
 

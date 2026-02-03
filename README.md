@@ -21,6 +21,8 @@
 *   **Zero-Config Workflow**: Initialize complex pipelines with a single `config.yaml`.
 *   **Robust State Management**: Automatic state persistence ensures jobs can be resumed after interruptions.
 *   **Self-Healing DFT Oracle**: Built-in resilience for Quantum Espresso calculations, automatically retrying failed SCF cycles with adjusted parameters.
+*   **Validation Suite**: Automated post-training quality assurance, including Phonon stability checks and Elastic constant verification.
+*   **Interactive Reports**: Generates comprehensive HTML reports with stability plots and metrics after every cycle.
 *   **Modular Architecture**: Plug-and-play components for Structure Generation, Oracle (DFT), and Training.
 *   **Mock Mode**: Skeleton execution mode for rapid development and testing without expensive physics backends.
 *   **Strict Validation**: Pydantic-based configuration ensures fail-fast behavior for invalid inputs.
@@ -101,6 +103,11 @@ dft:
 lammps:
   command: "lmp"
   num_processors: 4
+
+validation:
+  run_validation: true
+  check_phonons: true
+  check_elastic: true
 ```
 
 ### 3. Run the Pipeline
