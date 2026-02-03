@@ -1,5 +1,7 @@
 import sys
+from typing import IO, cast
 
+from ase import Atoms
 from ase.io import read
 
 # We use conditional import to avoid ImportErrors during dev/testing if pyacemaker is missing
@@ -8,11 +10,9 @@ try:
 except ImportError:
     PaceCalculator = None  # type: ignore
 
-from ase import Atoms
-
 THRESHOLD = 5.0 # Max extrapolation grade
 
-def read_eon_geometry(stream) -> Atoms:
+def read_eon_geometry(stream: IO[str]) -> Atoms:
     """
     Reads geometry from EON client format (stdin).
     Format:
@@ -54,7 +54,10 @@ def read_eon_geometry(stream) -> Atoms:
         # Since we read lines, we can try to make a new stream or just fallback to ASE read on string.
         # Let's try ASE read on the content string as fallback (e.g. for extxyz)
         stream.seek(0)
-        return read(stream, format="extxyz")
+        res = read(stream, format="extxyz")
+        if isinstance(res, list):
+            return res[-1] # type: ignore
+        return cast(Atoms, res)
 
 def run_driver() -> int:
     """
@@ -80,10 +83,12 @@ def run_driver() -> int:
          except Exception:
              s.seek(0)
              try:
-                atoms = read(s, format="extxyz")
+                res = read(s, format="extxyz")
+                atoms = res[-1] if isinstance(res, list) else cast(Atoms, res)  # type: ignore[assignment]
              except Exception:
                 s.seek(0)
-                atoms = read(s) # Auto detect
+                res = read(s) # Auto detect
+                atoms = res[-1] if isinstance(res, list) else cast(Atoms, res)  # type: ignore[assignment]
 
     except Exception as e:
         sys.stderr.write(f"Error reading atoms: {e}\n")

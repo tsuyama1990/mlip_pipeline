@@ -1,7 +1,9 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from ase import Atoms
+from ase.io import write
 
 from mlip_autopipec.config.config_model import (
     Config,
@@ -22,10 +24,9 @@ from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 
 
 @pytest.fixture
-def uat_config(tmp_path):
+def uat_config(tmp_path: Path) -> Config:
     # Create seed first because Pydantic FilePath validates existence
     dataset_path = tmp_path / "seed.xyz"
-    from ase.io import write
     write(dataset_path, Atoms("Cu"))
 
     return Config(
@@ -39,7 +40,7 @@ def uat_config(tmp_path):
         eon=EonConfig()
     )
 
-def test_uat_cycle06_akmc_production(uat_config, tmp_path):
+def test_uat_cycle06_akmc_production(uat_config: Config, tmp_path: Path) -> None:
     # This UAT verifies that Orchestrator runs AKMC and then Finalizes.
 
     # Mocks
@@ -57,21 +58,22 @@ def test_uat_cycle06_akmc_production(uat_config, tmp_path):
     potential_file.touch()
     mock_trainer.train.return_value = potential_file
 
-    # Scenario 1: AKMC is triggered.
-    # We need Orchestrator to use AdaptiveExplorer.
-    real_explorer = AdaptiveExplorer(uat_config)
-
     # Mock Policy to return AKMC
     with (
-        patch("mlip_autopipec.physics.structure_gen.policy.AdaptivePolicy.decide_strategy") as mock_policy,
+        patch("mlip_autopipec.physics.structure_gen.policy.AdaptivePolicy.decide_strategy"),
         patch("mlip_autopipec.physics.dynamics.eon_wrapper.EonWrapper.run_akmc", return_value=0) as mock_eon_run,
-        patch("mlip_autopipec.physics.structure_gen.explorer.AdaptiveExplorer._collect_eon_results", return_value=[]),
     ):
-        mock_policy.return_value = [ExplorationTask(method=ExplorationMethod.AKMC)]
+        real_explorer = AdaptiveExplorer(uat_config)
+
+        # We mock Policy on the instance (it is created in __init__)
+        real_explorer.policy.decide_strategy = MagicMock(return_value=[ExplorationTask(method=ExplorationMethod.AKMC)]) # type: ignore
+
+        # We mock _collect_eon_results method on the instance
+        real_explorer._collect_eon_results = MagicMock(return_value=[]) # type: ignore
 
         orchestrator = Orchestrator(
             config=uat_config,
-            explorer=real_explorer, # Use real explorer to test AKMC wiring
+            explorer=real_explorer,
             selector=mock_selector,
             oracle=mock_oracle,
             trainer=mock_trainer,
@@ -85,9 +87,13 @@ def test_uat_cycle06_akmc_production(uat_config, tmp_path):
         initial_pot = tmp_path / "initial_pot.yace"
         initial_pot.touch()
 
-        orchestrator.state = WorkflowState(
-            current_potential_path=initial_pot
+        # Manually set state
+        state = WorkflowState(
+            iteration=0,
+            current_potential_path=initial_pot,
+            history=[]
         )
+        orchestrator.state = state
 
         # Run
         with patch("mlip_autopipec.infrastructure.production.ProductionDeployer.deploy") as mock_deploy:

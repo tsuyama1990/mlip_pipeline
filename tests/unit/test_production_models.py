@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from mlip_autopipec.domain_models.production import ProductionManifest
 
 
-def test_production_manifest_valid():
+def test_production_manifest_valid() -> None:
     """Test valid manifest creation."""
     data = {
         "version": "1.0.0",
@@ -15,14 +15,14 @@ def test_production_manifest_valid():
         "validation_metrics": {"rmse_e": 0.001, "rmse_f": 0.05},
         "creation_date": datetime.now(UTC),
     }
-    manifest = ProductionManifest(**data)
+    manifest = ProductionManifest(**data)  # type: ignore[arg-type]
     assert manifest.version == "1.0.0"
     assert manifest.author == "Jane Doe"
     assert manifest.training_set_size == 500
     assert manifest.validation_metrics["rmse_e"] == 0.001
 
 
-def test_production_manifest_defaults():
+def test_production_manifest_defaults() -> None:
     """Test default creation_date."""
     data = {
         "version": "1.0.0",
@@ -30,11 +30,11 @@ def test_production_manifest_defaults():
         "training_set_size": 500,
         "validation_metrics": {"rmse_e": 0.001},
     }
-    manifest = ProductionManifest(**data)
+    manifest = ProductionManifest(**data)  # type: ignore[arg-type]
     assert isinstance(manifest.creation_date, datetime)
 
 
-def test_production_manifest_extra_forbid():
+def test_production_manifest_extra_forbid() -> None:
     """Test strict config."""
     data = {
         "version": "1.0.0",
@@ -44,10 +44,10 @@ def test_production_manifest_extra_forbid():
         "extra_field": "forbidden",
     }
     with pytest.raises(ValidationError):
-        ProductionManifest(**data)
+        ProductionManifest(**data)  # type: ignore[arg-type]
 
 
-def test_production_manifest_types():
+def test_production_manifest_types() -> None:
     """Test strict typing."""
     data = {
         "version": "1.0.0",
@@ -56,4 +56,4 @@ def test_production_manifest_types():
         "validation_metrics": {},
     }
     with pytest.raises(ValidationError):
-        ProductionManifest(**data)
+        ProductionManifest(**data)  # type: ignore[arg-type]
