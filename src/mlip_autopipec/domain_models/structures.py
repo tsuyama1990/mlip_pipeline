@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class StructureMetadata(BaseModel):
     uncertainty: float | None = None
     source: str = "unknown"
+    parent_structure_id: str | None = None
+    generation_method: str = "unknown"
+
     model_config = ConfigDict(extra="allow")
 
 
