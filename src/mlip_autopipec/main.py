@@ -9,6 +9,8 @@ from mlip_autopipec.logging_config import setup_logging
 from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Trainer, Validator
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.orchestration.otf_loop import OTFLoop
+from mlip_autopipec.physics.dynamics.lammps_runner import LammpsRunner
 from mlip_autopipec.physics.oracle.manager import DFTManager
 from mlip_autopipec.physics.selection.selector import ActiveSetSelector
 from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
@@ -23,11 +25,18 @@ def create_components(
     """Creates the components based on the configuration."""
     logger.info("Initializing Components")
 
+    # Initialize OTF Loop if Lammps Config exists
+    otf_loop: OTFLoop | None = None
+    if config.lammps:
+        logger.info("Initializing LammpsRunner and OTFLoop")
+        lammps_runner = LammpsRunner(config.lammps)
+        otf_loop = OTFLoop(lammps_runner)
+
     # Explorer
     explorer: Explorer
     if config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
         logger.info(f"Using Adaptive Explorer ({config.exploration.strategy})")
-        explorer = AdaptiveExplorer(config)
+        explorer = AdaptiveExplorer(config, otf_loop=otf_loop)
     else:
         logger.warning(
             f"Unknown exploration strategy '{config.exploration.strategy}', falling back to Mock"

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from ase import Atoms
-from ase.io import write
+from ase.io import read, write
 
 from mlip_autopipec.config.config_model import LammpsConfig
 from mlip_autopipec.domain_models.dynamics import MDResult, MDStatus
@@ -73,5 +73,23 @@ class LammpsRunner:
         traj_path = work_dir / "traj.lammpstrj"
         if traj_path.exists():
             result.trajectory_path = traj_path
+
+            if result.status == MDStatus.HALTED:
+                try:
+                    # Read the last frame
+                    atoms_last = read(traj_path, index=-1)
+
+                    # Check for gamma values
+                    # 'c_gamma_val' should be in arrays if parsed correctly
+                    # Note: atoms_last is Atoms object (or list if index is slice, but -1 returns one)
+                    if hasattr(atoms_last, "arrays") and "c_gamma_val" in atoms_last.arrays:
+                        gammas = atoms_last.arrays["c_gamma_val"]
+                        max_idx = int(gammas.argmax())
+                        result.halt_atom_id = max_idx
+                        logger.info(f"Identified high-gamma atom index: {max_idx}")
+                except Exception:
+                    logger.warning(
+                        "Failed to extract halt atom ID from trajectory", exc_info=True
+                    )
 
         return result
