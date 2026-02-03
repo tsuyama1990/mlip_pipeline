@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation Report</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        .passed { color: green; font-weight: bold; }
+        .failed { color: red; font-weight: bold; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .details { font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Validation Report</h1>
+
+    <h2>Summary</h2>
+    <p>Status: <span class="{{ 'passed' if passed else 'failed' }}">{{ 'PASSED' if passed else 'FAILED' }}</span></p>
+    {% if reason %}
+    <p>Reason: {{ reason }}</p>
+    {% endif %}
+
+    <h2>Metrics</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Name</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for metric in metrics %}
+            <tr>
+                <td>{{ metric.name }}</td>
+                <td class="{{ 'passed' if metric.passed else 'failed' }}">
+                    {{ 'PASS' if metric.passed else 'FAIL' }}
+                </td>
+                <td>{{ metric.score if metric.score is not none else 'N/A' }}</td>
+                <td>
+                    {% if metric.details %}
+                    <div class="details">{{ metric.details | tojson(indent=2) }}</div>
+                    {% endif %}
+                    {% if metric.plot_path %}
+                    <br><a href="{{ metric.plot_path }}">View Plot</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

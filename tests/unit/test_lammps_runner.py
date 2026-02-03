@@ -21,19 +21,20 @@ def test_runner_execution(mock_run: MagicMock, tmp_path: Path) -> None:
     mock_run.return_value.returncode = 0
 
     # Act
-    with patch("mlip_autopipec.physics.dynamics.lammps_runner.LammpsInputGenerator") as mock_gen, \
-         patch("mlip_autopipec.physics.dynamics.lammps_runner.LogParser") as mock_parser, \
-         patch("mlip_autopipec.physics.dynamics.lammps_runner.write") as mock_write:
+    with (
+        patch("mlip_autopipec.physics.dynamics.lammps_runner.LammpsInputGenerator") as mock_gen,
+        patch("mlip_autopipec.physics.dynamics.lammps_runner.LogParser") as mock_parser,
+        patch("mlip_autopipec.physics.dynamics.lammps_runner.write") as mock_write,
+    ):
+        mock_gen.return_value.generate_input.return_value = "input data"
 
-         mock_gen.return_value.generate_input.return_value = "input data"
+        mock_result = MDResult(status=MDStatus.COMPLETED)
+        mock_parser.return_value.parse.return_value = mock_result
 
-         mock_result = MDResult(status=MDStatus.COMPLETED)
-         mock_parser.return_value.parse.return_value = mock_result
+        result = runner.run(atoms, potential_path, work_dir, parameters={})
 
-         result = runner.run(atoms, potential_path, work_dir, parameters={})
-
-         assert result.status == MDStatus.COMPLETED
-         mock_run.assert_called()
-         mock_gen.assert_called()
-         mock_parser.assert_called()
-         mock_write.assert_called() # Checking that atoms are written to data file
+        assert result.status == MDStatus.COMPLETED
+        mock_run.assert_called()
+        mock_gen.assert_called()
+        mock_parser.assert_called()
+        mock_write.assert_called()  # Checking that atoms are written to data file

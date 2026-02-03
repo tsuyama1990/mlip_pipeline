@@ -37,7 +37,9 @@ def test_hybrid_pair_style_generation() -> None:
 def test_watchdog_fix() -> None:
     atoms = Atoms("Al")
     generator = LammpsInputGenerator(Path("test.yace"))
-    input_str = generator.generate_input(atoms, data_file="data.lammps", parameters={"temp": 300, "gamma_threshold": 5.0})
+    input_str = generator.generate_input(
+        atoms, data_file="data.lammps", parameters={"temp": 300, "gamma_threshold": 5.0}
+    )
 
     # Check for fix halt
     assert "fix watchdog all halt" in input_str

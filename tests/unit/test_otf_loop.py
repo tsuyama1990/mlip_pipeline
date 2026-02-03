@@ -41,18 +41,13 @@ def test_otf_loop_halted(mock_runner: MagicMock, temp_dir: Path) -> None:
     write(traj_path, atoms)
 
     mock_runner.run.return_value = MDResult(
-        status=MDStatus.HALTED,
-        halt_step=100,
-        trajectory_path=traj_path
+        status=MDStatus.HALTED, halt_step=100, trajectory_path=traj_path
     )
 
     otf_loop = OTFLoop(mock_runner)
 
     seed = Atoms("Si2", positions=[[0, 0, 0], [1, 1, 1]], cell=[5, 5, 5], pbc=True)
-    task = ExplorationTask(
-        method=ExplorationMethod.MD,
-        parameters={"local_sampling_count": 3}
-    )
+    task = ExplorationTask(method=ExplorationMethod.MD, parameters={"local_sampling_count": 3})
 
     # Run
     candidates = otf_loop.execute_task(task, seed, None, temp_dir)
