@@ -1,0 +1,20 @@
+# PYACEMAKER Cycle 01 Example Configuration
+
+project_name: "Cycle01-Demo"
+
+dft:
+  code: "qe"
+  ecutwfc: 50.0
+  kpoints: [4, 4, 4]
+  pseudopotentials:
+    Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+
+training:
+  code: "pacemaker"
+  cutoff: 6.0
+  max_generations: 5
+
+exploration:
+  strategy: "random"
+  max_temperature: 1000.0
+  steps: 50
