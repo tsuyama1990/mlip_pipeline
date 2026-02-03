@@ -46,6 +46,8 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
         # Setup mocks
         mock_orch_instance = MockOrch.return_value
+        # mock_create must return 5 values to unpack
+        mock_create.return_value = (None, None, None, None, None)
 
         main()
 
