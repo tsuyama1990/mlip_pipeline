@@ -56,6 +56,7 @@ def test_main_success(valid_config_yaml: Path) -> None:
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
+        patch("mlip_autopipec.main.ActiveSetSelector"),  # Mock Selector instantiation
     ):
         mock_instance = MockOrch.return_value
         main()

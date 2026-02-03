@@ -46,11 +46,18 @@ class ValidationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SelectionConfig(BaseModel):
+    method: str = "random"
+    max_structures: int = 100
+    model_config = ConfigDict(extra="forbid")
+
+
 class Config(BaseModel):
     project: ProjectConfig
     training: TrainingConfig
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     exploration: StructureGenConfig = Field(default_factory=StructureGenConfig)
+    selection: SelectionConfig = Field(default_factory=SelectionConfig)
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     dft: DFTConfig | None = None

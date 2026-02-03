@@ -7,6 +7,7 @@ from mlip_autopipec.domain_models.workflow import HistoryEntry, WorkflowState
 from mlip_autopipec.orchestration.interfaces import (
     Explorer,
     Oracle,
+    Selector,
     Trainer,
     Validator,
 )
@@ -20,6 +21,7 @@ class Orchestrator:
         self,
         config: Config,
         explorer: Explorer,
+        selector: Selector,
         oracle: Oracle,
         trainer: Trainer,
         validator: Validator | None = None,
@@ -28,6 +30,7 @@ class Orchestrator:
         self.state_manager = StateManager(Path("state.json"))
 
         self.explorer = explorer
+        self.selector = selector
         self.oracle = oracle
         self.trainer = trainer
         self.validator = validator
@@ -61,15 +64,30 @@ class Orchestrator:
                 )
                 logger.info(f"Exploration found {len(candidates)} candidates")
 
-                # Phase 2: Oracle
+                # Phase 2: Selection
+                logger.info("Phase: Selection")
+                selection_dir = work_dir / "selection"
+                selection_dir.mkdir(parents=True, exist_ok=True)
+                selected_candidates = self.selector.select(
+                    candidates=candidates,
+                    potential_path=self.state.current_potential_path,
+                    work_dir=selection_dir,
+                )
+                logger.info(
+                    f"Selection retained {len(selected_candidates)} candidates out of {len(candidates)}"
+                )
+
+                # Phase 3: Oracle
                 logger.info("Phase: Oracle")
                 # Ensure oracle directory exists
                 oracle_dir = work_dir / "oracle"
                 oracle_dir.mkdir(parents=True, exist_ok=True)
-                new_data_paths = self.oracle.compute(candidates=candidates, work_dir=oracle_dir)
+                new_data_paths = self.oracle.compute(
+                    candidates=selected_candidates, work_dir=oracle_dir
+                )
                 logger.info(f"Oracle returned {len(new_data_paths)} new data files")
 
-                # Phase 3: Training
+                # Phase 4: Training
                 logger.info("Phase: Training")
                 # Update dataset
                 current_dataset = self.trainer.update_dataset(new_data_paths)
@@ -84,7 +102,7 @@ class Orchestrator:
                 )
                 logger.info(f"Training completed. Potential at {potential_path}")
 
-                # Phase 4: Validation
+                # Phase 5: Validation
                 if self.validator and self.config.validation.run_validation:
                     logger.info("Phase: Validation")
                     validation_dir = work_dir / "validation"

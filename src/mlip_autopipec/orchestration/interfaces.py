@@ -20,6 +20,27 @@ class Explorer(Protocol):
         ...
 
 
+class Selector(Protocol):
+    def select(
+        self,
+        candidates: list[CandidateStructure],
+        potential_path: Path | None,
+        work_dir: Path,
+    ) -> list[CandidateStructure]:
+        """
+        Selects the best candidates for labeling.
+
+        Args:
+            candidates: List of available candidates.
+            potential_path: Path to the current potential (if any).
+            work_dir: Directory for selection artifacts.
+
+        Returns:
+            A subset of candidates selected for labeling.
+        """
+        ...
+
+
 class Oracle(Protocol):
     def compute(self, candidates: list[CandidateStructure], work_dir: Path) -> list[Path]:
         """

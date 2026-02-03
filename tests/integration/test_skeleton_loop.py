@@ -5,9 +5,21 @@ import pytest
 import yaml
 
 from mlip_autopipec.config.loader import load_config
+from mlip_autopipec.domain_models.structures import CandidateStructure
+from mlip_autopipec.orchestration.interfaces import Selector
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
+
+
+class MockSelector(Selector):
+    def select(
+        self,
+        candidates: list[CandidateStructure],
+        potential_path: Path | None,
+        work_dir: Path,
+    ) -> list[CandidateStructure]:
+        return candidates  # Pass all
 
 
 def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -15,8 +27,13 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PYACEMAKER_MOCK_MODE", "1")
     monkeypatch.chdir(temp_dir)  # Run in temp dir
 
-    data_file = temp_dir / "data.pckl"
-    data_file.touch()
+    # Create a valid XYZ file
+    data_file = temp_dir / "data.xyz"
+    with data_file.open("w") as f:
+        f.write("2\n")
+        f.write("Lattice=\"5.43 0.0 0.0 0.0 5.43 0.0 0.0 0.0 5.43\" Properties=species:S:1:pos:R:3:forces:R:3 energy=-10.0\n")
+        f.write("Si 0.0 0.0 0.0 0.0 0.0 0.0\n")
+        f.write("Si 1.35 1.35 1.35 0.0 0.0 0.0\n")
 
     config_data = {
         "project": {"name": "IntegrationTest"},
@@ -33,11 +50,12 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Initialize components
     explorer = MockExplorer()
+    selector = MockSelector()
     oracle = MockOracle()
     trainer = PacemakerTrainer(config.training)
     validator = MockValidator()
 
-    orch = Orchestrator(config, explorer, oracle, trainer, validator)
+    orch = Orchestrator(config, explorer, selector, oracle, trainer, validator)
 
     # Run
     orch.run()

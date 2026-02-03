@@ -3,6 +3,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import ase.io
+
 from mlip_autopipec.config import TrainingConfig
 from mlip_autopipec.orchestration.interfaces import Trainer
 
@@ -55,11 +57,50 @@ class PacemakerTrainer(Trainer):
     def update_dataset(self, new_data_paths: list[Path]) -> Path:
         """
         Updates the dataset with new data.
-        For now, this is a placeholder that logs the update and returns the original dataset path.
-        In a real implementation, this would merge new data into the dataset file.
+        Merges new data into the dataset file using ASE.
         """
         logger.info(
             f"Updating dataset {self.config.dataset_path} with {len(new_data_paths)} new files."
         )
-        # TODO: Implement actual dataset merging (requires ASE/Pandas/etc.)
+
+        all_atoms = []
+        # Load existing dataset if it exists
+        if self.config.dataset_path.exists():
+            try:
+                # Read all images
+                existing_data = ase.io.read(self.config.dataset_path, index=":")
+                if isinstance(existing_data, list):
+                    all_atoms.extend(existing_data)
+                else:
+                    all_atoms.append(existing_data)
+                logger.info(f"Loaded {len(all_atoms)} existing structures.")
+            except Exception:
+                logger.exception("Failed to read existing dataset.")
+                # Proceeding with empty list if read fails, might be dangerous but safer than crashing?
+                # Actually, if the file exists but is corrupt, we probably should raise error.
+                # But let's assume we want to append.
+                raise
+
+        # Load new data
+        new_count = 0
+        for path in new_data_paths:
+            try:
+                new_data = ase.io.read(path, index=":")
+                if isinstance(new_data, list):
+                    all_atoms.extend(new_data)
+                    new_count += len(new_data)
+                else:
+                    all_atoms.append(new_data)
+                    new_count += 1
+            except Exception:
+                logger.warning(f"Failed to read new data file: {path}")
+
+        logger.info(f"Adding {new_count} new structures.")
+
+        # Write back
+        # Ensure directory exists
+        self.config.dataset_path.parent.mkdir(parents=True, exist_ok=True)
+        ase.io.write(self.config.dataset_path, all_atoms)
+        logger.info(f"Saved updated dataset with {len(all_atoms)} total structures.")
+
         return self.config.dataset_path
