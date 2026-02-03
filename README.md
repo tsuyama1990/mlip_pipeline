@@ -1,135 +1,107 @@
-# PYACEMAKER
+# PYACEMAKER (mlip-pipeline)
+
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Code Style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 **The Zero-Configuration Autonomous Pipeline for Machine Learning Interatomic Potentials.**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/example/pyacemaker)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code Style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+## Overview
 
-PYACEMAKER democratizes atomistic modeling by automating the complex lifecycle of ACE (Atomic Cluster Expansion) potentials. It orchestrates Structure Generation, DFT Calculations (Quantum Espresso), and Model Training (Pacemaker) into a self-healing, active-learning loop that delivers "State-of-the-Art" accuracy with minimal human intervention.
+### What is this?
+PYACEMAKER is an intelligent orchestrator that automates the construction of Machine Learning Interatomic Potentials (specifically ACE - Atomic Cluster Expansion). It closes the loop between Structure Generation (Exploration), First-Principles Calculations (DFT), and Model Training (Pacemaker).
 
-## Key Features
+### Why use it?
+Building ML potentials manually is tedious and error-prone. PYACEMAKER provides a "Fire and Forget" solution: define your material in a simple config file, and the system autonomously explores the chemical space, runs DFT, trains the model, and validates it.
 
--   **Zero-Config Workflow**: Define your material in a single `config.yaml` and let the system handle the rest.
--   **Active Learning**: Automatically identifies and explores "uncertain" regions of the chemical space using Extrapolation Grade ($\gamma$) monitoring.
--   **Physics-Informed Robustness**: Enforces physical baselines (Lennard-Jones/ZBL) to ensure stability in high-energy regimes where data is scarce.
--   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures by adjusting mixing parameters and smearing settings.
--   **Timescale Bridging**: Seamlessly integrates with Adaptive Kinetic Monte Carlo (EON) to explore rare events beyond the reach of standard MD.
+## Features
 
-## Architecture Overview
+-   **Autonomous Orchestration**: Manages the cyclic workflow of Explore -> Label -> Train -> Validate.
+-   **Strict Configuration**: Uses strict schema validation (Pydantic) to prevent misconfiguration.
+-   **Modular Architecture**: Defines clear protocols for `Explorer`, `Oracle`, `Trainer`, and `Validator`, allowing easy component swapping.
+-   **Logging**: Centralized, structured logging for full traceability.
+-   **Mock Mode**: currently runs in a "Walking Skeleton" mode using Mock components for verification of the pipeline logic (Cycle 01).
 
-PYACEMAKER follows a Hub-and-Spoke architecture centered around an intelligent Orchestrator.
-
-```mermaid
-graph TD
-    subgraph User Space
-        Config[config.yaml] --> Orch[Orchestrator]
-    end
-
-    subgraph Core System
-        Orch -->|1. Request Structures| Explorer[Structure Generator]
-        Explorer -->|2. Candidate Structures| Orch
-
-        Orch -->|3. Filter & Request Energy| Oracle[Oracle (DFT)]
-        Oracle -->|4. Labelled Data (E, F, V)| Orch
-
-        Orch -->|5. Update Dataset| Trainer[Trainer (Pacemaker)]
-        Trainer -->|6. New Potential (.yace)| Orch
-
-        Orch -->|7. Run Validation| Validator[Validator]
-        Validator -->|8. Report & Pass/Fail| Orch
-    end
-
-    subgraph External Engines
-        Explorer -.-> LAMMPS[LAMMPS (MD)]
-        Oracle -.-> QE[Quantum Espresso]
-        Trainer -.-> PACE[Pacemaker]
-    end
-```
-
-## Prerequisites
+## Requirements
 
 -   **Python**: 3.12+
--   **Package Manager**: `uv` (Recommended) or `pip`
--   **External Tools** (For "Real Mode"):
-    -   Quantum Espresso (`pw.x`)
-    -   LAMMPS (`lmp_serial` or `lmp_mpi`) with USER-PACE package
-    -   Pacemaker (TensorFlow-based)
--   **Docker** (Optional, for containerized execution)
+-   **Package Manager**: `uv` (Recommended)
+-   **Dependencies**: `ase`, `typer`, `pydantic`, `pyyaml`.
 
-## Installation & Setup
+## Installation
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/your-org/pyacemaker.git
-    cd pyacemaker
+    git clone https://github.com/your-org/mlip-pipeline.git
+    cd mlip-pipeline
     ```
 
 2.  **Install Dependencies**
-    Using `uv` for fast dependency resolution:
+    Using `uv` is recommended for fast, deterministic installation:
     ```bash
     uv sync
     ```
 
-3.  **Environment Setup**
-    Copy the example configuration:
+3.  **Install in Editable Mode**
     ```bash
-    cp config.example.yaml config.yaml
-    # Edit config.yaml with your specific settings (pseudopotential paths, etc.)
+    uv pip install -e .
     ```
 
 ## Usage
 
-### Quick Start
-To run the full pipeline in default mode:
+### Basic Execution
+To run the pipeline using the provided example configuration:
 
 ```bash
-uv run python -m mlip_autopipec run config.yaml
+uv run python -m mlip_autopipec.main run config.yaml
 ```
 
-### Running Tutorials
-We provide a set of Jupyter Notebooks to guide you from basic usage to advanced scenarios.
+You should see output indicating the progress of the mock cycle:
+```text
+[INFO] Loading configuration from config.yaml
+[INFO] PYACEMAKER initialized for project: Cycle01-Demo
+[INFO] Starting orchestration cycle...
+...
+[INFO] Cycle completed successfully.
+```
 
+### Configuration
+Edit `config.yaml` to customize the run. Example:
+```yaml
+project_name: "MyMaterial"
+dft:
+  code: "qe"
+  ecutwfc: 40.0
+  kpoints: [2, 2, 2]
+training:
+  code: "pacemaker"
+  cutoff: 5.0
+```
+
+### Help
 ```bash
-uv run jupyter notebook tutorials/
+uv run python -m mlip_autopipec.main --help
+uv run python -m mlip_autopipec.main run --help
 ```
 
--   **`01_quickstart_silicon.ipynb`**: Train a simple Silicon potential in under 5 minutes (Mock Mode available).
--   **`04_grand_challenge_fept.ipynb`**: Full workflow for Fe/Pt deposition on MgO.
-
-## Development Workflow
-
-We enforce strict code quality standards.
-
-### Running Tests
-```bash
-uv run pytest
-```
-
-### Linting & Formatting
-```bash
-uv run ruff check .
-uv run mypy .
-```
-
-### Cycle-Based Development
-This project follows a cycle-based implementation plan. Check `dev_documents/system_prompts/` for detailed specifications of each development cycle (CYCLE01 to CYCLE06).
-
-## Project Structure
+## Architecture/Structure
 
 ```text
-.
-├── config.yaml             # Main configuration
-├── src/                    # Source code
-│   └── mlip_autopipec/
-│       ├── orchestration/  # Workflow logic
-│       ├── physics/        # Scientific modules (DFT, MD, ML)
-│       └── domain_models/  # Pydantic data models
-├── tests/                  # Unit and Integration tests
-├── tutorials/              # User guides (Jupyter Notebooks)
-└── dev_documents/          # Architecture and Design specs
+src/mlip_autopipec/
+├── config/             # Pydantic configuration models
+├── domain_models/      # Data schemas (ValidationResult, etc.)
+├── interfaces/         # Core Protocols (Explorer, Oracle, etc.)
+├── orchestration/      # Workflow logic (Orchestrator) & Mocks
+├── physics/            # Scientific implementations (Placeholder)
+├── utils/              # Logging and utilities
+└── main.py             # CLI entry point
 ```
 
-## License
+## Roadmap
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+-   **Cycle 01**: Core Framework & Infrastructure (Completed)
+-   **Cycle 02**: The Oracle (DFT Automation)
+-   **Cycle 03**: The Explorer (Structure Generation)
+-   **Cycle 04**: The Trainer (Pacemaker Integration)
+-   **Cycle 05**: Active Learning Loop (OTF Dynamics)
+-   **Cycle 06**: Production Readiness & Validation
