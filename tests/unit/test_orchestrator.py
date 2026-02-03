@@ -1,7 +1,10 @@
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
+
 from mlip_autopipec.config.config_model import SimulationConfig
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+
 
 def test_orchestrator_initialization() -> None:
     config_data = {
@@ -16,7 +19,7 @@ def test_orchestrator_initialization() -> None:
             "cutoff": 5.0
         }
     }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
+    config = SimulationConfig(**config_data)
     orchestrator = Orchestrator(config)
 
     assert orchestrator.config.project_name == "TestProject"
@@ -32,14 +35,14 @@ def test_orchestrator_run_calls_components() -> None:
         "dft": {"code": "qe", "ecutwfc": 40.0, "kpoints": [1,1,1]},
         "training": {"code": "pacemaker", "cutoff": 5.0}
     }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
+    config = SimulationConfig(**config_data)
     orchestrator = Orchestrator(config)
 
     # Mock the internal components to verify calls
-    orchestrator.explorer = MagicMock() # type: ignore[assignment]
-    orchestrator.oracle = MagicMock() # type: ignore[assignment]
-    orchestrator.trainer = MagicMock() # type: ignore[assignment]
-    orchestrator.validator = MagicMock() # type: ignore[assignment]
+    orchestrator.explorer = MagicMock()
+    orchestrator.oracle = MagicMock()
+    orchestrator.trainer = MagicMock()
+    orchestrator.validator = MagicMock()
 
     # Setup returns
     orchestrator.explorer.explore.return_value = ["struct1"]
@@ -60,9 +63,9 @@ def test_orchestrator_failure() -> None:
         "dft": {"code": "qe", "ecutwfc": 40.0, "kpoints": [1,1,1]},
         "training": {"code": "pacemaker", "cutoff": 5.0}
     }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
+    config = SimulationConfig(**config_data)
     orchestrator = Orchestrator(config)
-    orchestrator.explorer = MagicMock() # type: ignore[assignment]
+    orchestrator.explorer = MagicMock()
 
     # Simulate error
     orchestrator.explorer.explore.side_effect = RuntimeError("Something went wrong")

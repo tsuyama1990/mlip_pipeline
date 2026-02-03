@@ -1,8 +1,9 @@
-import pytest
 from pathlib import Path
+
 from mlip_autopipec.config.config_model import SimulationConfig
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.utils.logging import setup_logging
+
 
 def test_skeleton_loop_execution(tmp_path: Path) -> None:
     # Setup logging to file
@@ -26,7 +27,7 @@ def test_skeleton_loop_execution(tmp_path: Path) -> None:
             "steps": 10
         }
     }
-    config = SimulationConfig(**config_data) # type: ignore[arg-type]
+    config = SimulationConfig(**config_data)
 
     orchestrator = Orchestrator(config)
 

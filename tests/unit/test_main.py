@@ -1,6 +1,8 @@
-import yaml
 from pathlib import Path
+
+import yaml
 from typer.testing import CliRunner
+
 from mlip_autopipec.main import app
 
 runner = CliRunner()
