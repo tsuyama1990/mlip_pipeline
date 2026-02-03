@@ -84,17 +84,11 @@ def run_driver() -> int:
              s.seek(0)
              try:
                 res = read(s, format="extxyz")
-                if isinstance(res, list):
-                    atoms = res[-1] # type: ignore
-                else:
-                    atoms = cast(Atoms, res)
+                atoms = res[-1] if isinstance(res, list) else cast(Atoms, res)  # type: ignore[assignment]
              except Exception:
                 s.seek(0)
                 res = read(s) # Auto detect
-                if isinstance(res, list):
-                    atoms = res[-1] # type: ignore
-                else:
-                    atoms = cast(Atoms, res)
+                atoms = res[-1] if isinstance(res, list) else cast(Atoms, res)  # type: ignore[assignment]
 
     except Exception as e:
         sys.stderr.write(f"Error reading atoms: {e}\n")
