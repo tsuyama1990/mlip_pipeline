@@ -1,0 +1,99 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 87 items
+
+tests/integration/test_eon_interface.py .                                [  1%]
+tests/integration/test_generation_pipeline.py .                          [  2%]
+tests/integration/test_skeleton_loop.py ..                               [  4%]
+tests/integration/test_validation_flow.py ..                             [  6%]
+tests/uat/test_cycle03.py ..                                             [  9%]
+tests/uat/test_cycle05_uat.py ..                                         [ 11%]
+tests/uat/test_cycle06.py .                                              [ 12%]
+tests/unit/test_config.py ...                                            [ 16%]
+tests/unit/test_config_dft.py ....                                       [ 20%]
+tests/unit/test_domain_exploration.py .....                              [ 26%]
+tests/unit/test_embedding.py .                                           [ 27%]
+tests/unit/test_eon_wrapper.py ..                                        [ 29%]
+tests/unit/test_espresso.py ...                                          [ 33%]
+tests/unit/test_explorer.py ....                                         [ 37%]
+tests/unit/test_file_ops.py ..                                           [ 40%]
+tests/unit/test_lammps_input.py ..                                       [ 42%]
+tests/unit/test_lammps_runner.py .                                       [ 43%]
+tests/unit/test_log_parser.py ...                                        [ 47%]
+tests/unit/test_logging.py ..                                            [ 49%]
+tests/unit/test_main.py ...                                              [ 52%]
+tests/unit/test_metrics.py ....                                          [ 57%]
+tests/unit/test_orchestrator.py ..                                       [ 59%]
+tests/unit/test_otf_loop.py ..                                           [ 62%]
+tests/unit/test_pace_driver.py .....                                     [ 67%]
+tests/unit/test_pacemaker.py ..                                          [ 70%]
+tests/unit/test_parsers.py .....                                         [ 75%]
+tests/unit/test_policy.py .                                              [ 77%]
+tests/unit/test_production_deployer.py .                                 [ 78%]
+tests/unit/test_production_models.py ....                                [ 82%]
+tests/unit/test_selection.py ...                                         [ 86%]
+tests/unit/test_state.py ...                                             [ 89%]
+tests/unit/test_strategies.py ...                                        [ 93%]
+tests/unit/test_validation_schemas.py ......                             [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               0      0   100%
+src/mlip_autopipec/config/__init__.py                        2      0   100%
+src/mlip_autopipec/config/config_model.py                   58      0   100%
+src/mlip_autopipec/config/loader.py                         10      0   100%
+src/mlip_autopipec/domain_models/__init__.py                 4      0   100%
+src/mlip_autopipec/domain_models/dynamics.py                15      0   100%
+src/mlip_autopipec/domain_models/exploration.py             12      0   100%
+src/mlip_autopipec/domain_models/potential.py               10      0   100%
+src/mlip_autopipec/domain_models/production.py              10      0   100%
+src/mlip_autopipec/domain_models/structures.py              16      0   100%
+src/mlip_autopipec/domain_models/validation.py              16      0   100%
+src/mlip_autopipec/domain_models/workflow.py                16      0   100%
+src/mlip_autopipec/inference/pace_driver.py                 70      7    90%   25, 36, 70, 98-100, 127
+src/mlip_autopipec/infrastructure/production.py             31      0   100%
+src/mlip_autopipec/logging_config.py                        12      2    83%   16-17
+src/mlip_autopipec/main.py                                  66     26    61%   26-69, 113
+src/mlip_autopipec/orchestration/__init__.py                 0      0   100%
+src/mlip_autopipec/orchestration/interfaces.py              15      0   100%
+src/mlip_autopipec/orchestration/mocks.py                   25      0   100%
+src/mlip_autopipec/orchestration/orchestrator.py            92      8    91%   115, 144-146, 155-156, 168-169
+src/mlip_autopipec/orchestration/otf_loop.py                53      6    89%   48, 51-52, 59, 108-109
+src/mlip_autopipec/orchestration/state.py                   16      0   100%
+src/mlip_autopipec/physics/__init__.py                       0      0   100%
+src/mlip_autopipec/physics/dynamics/__init__.py              0      0   100%
+src/mlip_autopipec/physics/dynamics/eon_wrapper.py          60      8    87%   65-67, 84-87, 104
+src/mlip_autopipec/physics/dynamics/input_generator.py      40      1    98%   53
+src/mlip_autopipec/physics/dynamics/lammps_runner.py        49     14    71%   64-66, 75-91
+src/mlip_autopipec/physics/dynamics/log_parser.py           38      7    82%   12-13, 52, 57-58, 62-63
+src/mlip_autopipec/physics/oracle/__init__.py                0      0   100%
+src/mlip_autopipec/physics/oracle/espresso.py               73     19    74%   32-33, 37-38, 72-73, 137-154
+src/mlip_autopipec/physics/oracle/interface.py               4      4     0%   1-7
+src/mlip_autopipec/physics/oracle/manager.py                27     17    37%   15-16, 19-41
+src/mlip_autopipec/physics/selection/selector.py            17      0   100%
+src/mlip_autopipec/physics/structure_gen/__init__.py         2      0   100%
+src/mlip_autopipec/physics/structure_gen/embedding.py       26      0   100%
+src/mlip_autopipec/physics/structure_gen/explorer.py        78     16    79%   79, 87-88, 96-113
+src/mlip_autopipec/physics/structure_gen/generator.py        4      0   100%
+src/mlip_autopipec/physics/structure_gen/policy.py           8      0   100%
+src/mlip_autopipec/physics/structure_gen/strategies.py      41      0   100%
+src/mlip_autopipec/physics/training/__init__.py              0      0   100%
+src/mlip_autopipec/physics/training/pacemaker.py            64     16    75%   37, 45-47, 51-53, 75, 77-82, 89-94
+src/mlip_autopipec/utils/__init__.py                         0      0   100%
+src/mlip_autopipec/utils/crystallography.py                  5      5     0%   1-14
+src/mlip_autopipec/utils/file_ops.py                        13      0   100%
+src/mlip_autopipec/utils/parsers.py                         75     14    81%   46-48, 55-56, 79, 86, 89-90, 93, 106-109
+src/mlip_autopipec/validation/__init__.py                    0      0   100%
+src/mlip_autopipec/validation/metrics.py                    50     13    74%   12-13, 29, 54-56, 66, 76-77, 91-93, 108
+src/mlip_autopipec/validation/report_generator.py           16      1    94%   23
+src/mlip_autopipec/validation/runner.py                     59     18    69%   28-29, 56-57, 63-77, 105-106
+--------------------------------------------------------------------------------------
+TOTAL                                                     1298    202    84%
+============================== 87 passed in 5.34s ==============================

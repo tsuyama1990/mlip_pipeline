@@ -1,0 +1,127 @@
+import sys
+from ase.io import read
+
+# We use conditional import to avoid ImportErrors during dev/testing if pyacemaker is missing
+try:
+    from pyacemaker.calculator import PaceCalculator
+except ImportError:
+    PaceCalculator = None  # type: ignore
+
+from ase import Atoms
+
+THRESHOLD = 5.0 # Max extrapolation grade
+
+def read_eon_geometry(stream) -> Atoms:
+    """
+    Reads geometry from EON client format (stdin).
+    Format:
+    N
+    ax ay az bx by bz cx cy cz
+    Type X Y Z
+    ...
+    """
+    lines = stream.readlines()
+    if not lines:
+        raise ValueError("Empty input")
+
+    try:
+        n_atoms = int(lines[0].strip())
+
+        # Line 2: Box Matrix (9 floats)
+        box_line = lines[1].strip()
+        box_parts = [float(x) for x in box_line.split()]
+        if len(box_parts) != 9:
+             # Try falling back to ASE read if format is not as expected
+             # But here we assume strict EON format
+             raise ValueError("Expected 9 floats for box matrix")
+
+        cell = [box_parts[0:3], box_parts[3:6], box_parts[6:9]]
+
+        symbols = []
+        positions = []
+        for line in lines[2:2+n_atoms]:
+            parts = line.split()
+            symbols.append(parts[0])
+            positions.append([float(x) for x in parts[1:4]])
+
+        return Atoms(symbols=symbols, positions=positions, cell=cell, pbc=True)
+    except Exception:
+        # If parsing fails, rewind (if possible) or try passing raw content?
+        # Stream might be consumed.
+        # Since we read lines, we can try to make a new stream or just fallback to ASE read on string.
+        # Let's try ASE read on the content string as fallback (e.g. for extxyz)
+        from io import StringIO
+        stream.seek(0)
+        return read(stream, format="extxyz")
+
+def run_driver() -> int:
+    """
+    Main driver logic for EON interface.
+    Reads geometry from stdin, calculates forces/energy using PaceCalculator,
+    and prints to stdout.
+    Returns exit code: 0 for success, 100 for halt (high uncertainty).
+    """
+    try:
+         # Read all stdin content first to handle non-seekable streams
+         content = sys.stdin.read()
+         if not content:
+             # It might be that sys.stdin.read() returned empty because it was already consumed?
+             # No, we start here.
+             raise ValueError("Empty input")
+
+         from io import StringIO
+         s = StringIO(content)
+
+         try:
+             atoms = read_eon_geometry(s)
+         except Exception:
+             s.seek(0)
+             try:
+                atoms = read(s, format="extxyz")
+             except Exception:
+                s.seek(0)
+                atoms = read(s) # Auto detect
+
+    except Exception as e:
+        sys.stderr.write(f"Error reading atoms: {e}\n")
+        return 1
+
+    if PaceCalculator is None:
+        sys.stderr.write("pyacemaker not installed.\n")
+        return 1
+
+    # Calculate
+    # We assume the potential file is named 'potential.yace' in the current directory
+    try:
+        calc = PaceCalculator("potential.yace")
+        results = calc.calculate(atoms)
+    except Exception as e:
+        sys.stderr.write(f"Calculation failed: {e}\n")
+        return 1
+
+    # Check Uncertainty
+    # We assume 'gamma' is available in results
+    gamma_val = getattr(results, "gamma", 0.0)
+
+    if gamma_val > THRESHOLD:
+        # Signal Halt
+        sys.stderr.write(f"Halt: Max gamma {gamma_val} > {THRESHOLD}\n")
+        return 100
+
+    # Print Energy/Forces to stdout
+    # EON Expects:
+    # Energy
+    # Fx Fy Fz
+    # ...
+
+    energy = getattr(results, "energy", 0.0)
+    forces = getattr(results, "forces", [])
+
+    print(f"{energy:.16e}")
+    for f in forces:
+        print(f"{f[0]:.16e} {f[1]:.16e} {f[2]:.16e}")
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(run_driver())

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.workflow import HistoryEntry, WorkflowState
+from mlip_autopipec.domain_models.production import ProductionManifest
+from mlip_autopipec.infrastructure.production import ProductionDeployer
 from mlip_autopipec.orchestration.interfaces import (
     Explorer,
     Oracle,
@@ -142,3 +144,45 @@ class Orchestrator:
             except Exception:
                 logger.exception(f"Cycle {self.state.iteration} failed")
                 raise
+
+        self.finalize()
+
+    def finalize(self) -> None:
+        """Deploy the final potential."""
+        logger.info("Deploying Production Release...")
+
+        if not self.state.current_potential_path:
+            logger.warning("No potential to deploy.")
+            return
+
+        deployer = ProductionDeployer(self.config)
+
+        # Estimate dataset size from history
+        total_new_data = sum(h.new_data_count for h in self.state.history)
+
+        last_metrics = {}
+        if self.state.history:
+            # Look for last entry with metrics
+            for h in reversed(self.state.history):
+                if h.metrics:
+                    last_metrics = h.metrics
+                    break
+
+        manifest = ProductionManifest(
+            version="1.0.0",
+            author=self.config.project.name if hasattr(self.config.project, "name") else "AutoPipec",
+            training_set_size=total_new_data,
+            validation_metrics=last_metrics,
+        )
+
+        # Look for validation report
+        report_path = Path("active_learning") / f"iter_{self.state.iteration - 1:03d}" / "validation" / "report.html"
+        if not report_path.exists():
+            report_path = Path("report.html")
+
+        deployer.deploy(
+            potential_path=self.state.current_potential_path,
+            manifest=manifest,
+            report_path=report_path,
+            output_dir=Path("."),
+        )

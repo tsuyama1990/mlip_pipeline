@@ -8,6 +8,7 @@ from mlip_autopipec.config import Config
 from mlip_autopipec.domain_models.exploration import ExplorationMethod
 from mlip_autopipec.domain_models.structures import CandidateStructure, StructureMetadata
 from mlip_autopipec.orchestration.otf_loop import OTFLoop
+from mlip_autopipec.physics.dynamics.eon_wrapper import EonWrapper
 from mlip_autopipec.physics.structure_gen.generator import StructureGenerator
 from mlip_autopipec.physics.structure_gen.policy import AdaptivePolicy
 from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
@@ -77,4 +78,36 @@ class AdaptiveExplorer:
                 else:
                     logger.warning("MD task requested but Lammps not configured.")
 
+            elif task.method == ExplorationMethod.AKMC:
+                logger.info(f"Executing AKMC Task {i}")
+                task_dir = work_dir / f"task_{i}_akmc"
+                wrapper = EonWrapper(self.config)
+
+                if potential_path is None:
+                    logger.warning("AKMC requested but no potential available.")
+                    continue
+
+                wrapper.run_akmc(potential_path, seed_atoms, task_dir)
+                candidates.extend(self._collect_eon_results(task_dir))
+
+        return candidates
+
+    def _collect_eon_results(self, task_dir: Path) -> list[CandidateStructure]:
+        candidates = []
+        states_dir = task_dir / "states"
+        if states_dir.exists():
+            for state_path in states_dir.iterdir():
+                if state_path.is_dir():
+                    # EON typically stores 'geometry.con' or 'pos.con' in state dirs
+                    geom_path = state_path / "geometry.con"
+                    if not geom_path.exists():
+                        geom_path = state_path / "pos.con"
+
+                    if geom_path.exists():
+                        meta = StructureMetadata(generation_method="akmc_state")
+                        cand = CandidateStructure(
+                            structure_path=geom_path,
+                            metadata=meta
+                        )
+                        candidates.append(cand)
         return candidates
