@@ -1,5 +1,6 @@
 import json
 import zipfile
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from mlip_autopipec.config.config_model import Config
@@ -7,7 +8,7 @@ from mlip_autopipec.domain_models.production import ProductionManifest
 from mlip_autopipec.infrastructure.production import ProductionDeployer
 
 
-def test_deployer_creates_zip(tmp_path):
+def test_deployer_creates_zip(tmp_path: Path) -> None:
     # Setup
     config = MagicMock(spec=Config)
     deployer = ProductionDeployer(config)

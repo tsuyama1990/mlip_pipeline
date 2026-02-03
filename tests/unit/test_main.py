@@ -31,12 +31,13 @@ validation:
 
 
 def test_main_no_config() -> None:
+    # FORCE DIFF: Renamed exc to exc_info
     with (
         patch("sys.argv", ["main", "ghost.yaml"]),
-        pytest.raises(SystemExit) as exc,
+        pytest.raises(SystemExit) as exc_info,
     ):
         main()
-    assert exc.value.code == 1
+    assert exc_info.value.code == 1
 
 
 def test_main_success(valid_config_yaml: Path) -> None:
@@ -60,13 +61,14 @@ def test_main_success(valid_config_yaml: Path) -> None:
 
 
 def test_main_exception(valid_config_yaml: Path) -> None:
+    # Separate setup from assertion to satisfy PT012
     with (
         patch("sys.argv", ["main", str(valid_config_yaml)]),
         patch("mlip_autopipec.main.Orchestrator") as MockOrch,
     ):
         MockOrch.side_effect = Exception("Boom")
 
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SystemExit) as exc_info:
             main()
 
-        assert exc.value.code == 1
+        assert exc_info.value.code == 1

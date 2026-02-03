@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,7 +23,7 @@ from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 
 
 @pytest.fixture
-def uat_config(tmp_path):
+def uat_config(tmp_path: Path) -> Config:
     # Create seed first because Pydantic FilePath validates existence
     dataset_path = tmp_path / "seed.xyz"
     from ase.io import write
@@ -39,7 +40,7 @@ def uat_config(tmp_path):
         eon=EonConfig()
     )
 
-def test_uat_cycle06_akmc_production(uat_config, tmp_path):
+def test_uat_cycle06_akmc_production(uat_config: Config, tmp_path: Path) -> None:
     # This UAT verifies that Orchestrator runs AKMC and then Finalizes.
 
     # Mocks
