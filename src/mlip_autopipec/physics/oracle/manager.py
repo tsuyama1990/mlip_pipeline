@@ -35,6 +35,7 @@ class DFTManager:
                 results_paths.append(output_path)
             except Exception:
                 logger.exception(f"Failed to compute candidate {i + 1}")
-                raise
+                # Continue to next candidate instead of failing the whole batch
+                continue
 
         return results_paths

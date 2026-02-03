@@ -1,35 +1,46 @@
 import numpy as np
-from ase.build import bulk
+from ase import Atoms
 
-from mlip_autopipec.physics.structure_gen.strategies import DefectGenerator, StrainGenerator
+from mlip_autopipec.physics.structure_gen.strategies import (
+    DefectGenerator,
+    RandomDisplacementGenerator,
+    StrainGenerator,
+)
 
 
-def test_strain_generator_basics() -> None:
-    atoms = bulk("Cu", "fcc", a=3.6)
-    # Range 0.1 (10%)
-    gen = StrainGenerator(strain_range=0.1)
+def test_random_displacement_generator() -> None:
+    atoms = Atoms("Si2", positions=[[0, 0, 0], [2, 0, 0]], cell=[5, 5, 5], pbc=True)
+    generator = RandomDisplacementGenerator(displacement_range=0.1)
 
-    candidates = gen.generate(atoms, count=5)
+    candidates = generator.generate(atoms, count=5)
+
     assert len(candidates) == 5
+    for cand in candidates:
+        assert len(cand) == 2
+        # Check positions are different but close
+        dist = np.linalg.norm(cand.get_positions() - atoms.get_positions())  # type: ignore[no-untyped-call]
+        assert dist > 0
+        assert dist < 0.2 * np.sqrt(2) * 2  # Rough check, max displacement per atom
 
-    # Check if volumes vary
-    vols = [a.get_volume() for a in candidates]  # type: ignore[no-untyped-call]
-    # At least some variation should exist
-    assert np.std(vols) > 0.0
+
+def test_strain_generator() -> None:
+    atoms = Atoms("Si2", positions=[[0, 0, 0], [2, 0, 0]], cell=[5, 5, 5], pbc=True)
+    generator = StrainGenerator(strain_range=0.1)
+
+    candidates = generator.generate(atoms, count=3)
+    assert len(candidates) == 3
+    for cand in candidates:
+        # Check cell is changed
+        assert not np.allclose(cand.get_cell(), atoms.get_cell())  # type: ignore[no-untyped-call]
 
 
-def test_defect_generator_vacancy() -> None:
-    # Make a supercell so vacancy is not removing the whole crystal
-    # Use (3,3,3) -> 54 atoms (>20) to avoid auto-supercell in generator
-    atoms = bulk("Si", "diamond", a=5.43) * (3, 3, 3)
-    original_count = len(atoms)
-    assert original_count > 20
+def test_defect_generator() -> None:
+    # 2x2x2 supercell of 2 atoms = 16 atoms
+    atoms = Atoms("Si2", positions=[[0, 0, 0], [2, 0, 0]], cell=[4, 4, 4], pbc=True)
+    generator = DefectGenerator(defect_type="vacancy", supercell_dim=(2, 2, 2))
 
-    gen = DefectGenerator(defect_type="vacancy")
-    candidates = gen.generate(atoms, count=1)
-
-    assert len(candidates) == 1
-    defect_struct = candidates[0]
-
-    # Expect 1 atom less
-    assert len(defect_struct) == original_count - 1
+    candidates = generator.generate(atoms, count=2)
+    assert len(candidates) == 2
+    for cand in candidates:
+        # Should have 16 - 1 = 15 atoms
+        assert len(cand) == 15
