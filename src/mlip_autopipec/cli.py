@@ -3,15 +3,52 @@ import logging
 import sys
 from pathlib import Path
 
+from mlip_autopipec.config import Config
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.logging_config import setup_logging
-from mlip_autopipec.orchestration.interfaces import Oracle
+from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Trainer, Validator
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.oracle.manager import DFTManager
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
+
+
+def create_components(
+    config: Config,
+) -> tuple[Explorer, Oracle, Trainer, Validator | None]:
+    """
+    Factory function to create system components based on configuration.
+    """
+    logger.info("Initializing Components")
+
+    # Explorer
+    # Future: Implement different strategies (e.g., StructureGenerator, ActiveLearner)
+    # if config.exploration.strategy == "random":
+    #    ...
+    explorer = MockExplorer()
+
+    # Oracle
+    oracle: Oracle
+    if config.oracle.method == "dft":
+        if config.dft is None:
+            msg = "DFT configuration missing but oracle method is 'dft'"
+            logger.error(msg)
+            raise ValueError(msg)
+        logger.info("Using DFT Oracle")
+        oracle = DFTManager(config.dft)
+    else:
+        logger.info(f"Using Mock Oracle (method={config.oracle.method})")
+        oracle = MockOracle()
+
+    # Trainer
+    trainer = PacemakerTrainer(config.training)
+
+    # Validator
+    validator = MockValidator() if config.validation.run_validation else None
+
+    return explorer, oracle, trainer, validator
 
 
 def main() -> None:
@@ -32,32 +69,7 @@ def main() -> None:
         logger.info(f"Loading configuration from {config_path}")
         config = load_config(config_path)
 
-        # Initialize Components
-        # In a real system, we would use a factory based on config
-        logger.info("Initializing Components")
-
-        # Explorer
-        # TODO: Implement factory for explorer based on config.exploration.strategy
-        explorer = MockExplorer()
-
-        # Oracle
-        oracle: Oracle
-        if config.oracle.method == "dft":
-            if config.dft is None:
-                msg = "DFT configuration missing but oracle method is 'dft'"
-                logger.error(msg)
-                raise ValueError(msg)  # noqa: TRY301
-            logger.info("Using DFT Oracle")
-            oracle = DFTManager(config.dft)
-        else:
-            logger.info(f"Using Mock Oracle (method={config.oracle.method})")
-            oracle = MockOracle()
-
-        # Trainer
-        trainer = PacemakerTrainer(config.training)
-
-        # Validator
-        validator = MockValidator() if config.validation.run_validation else None
+        explorer, oracle, trainer, validator = create_components(config)
 
         logger.info("Initializing Orchestrator")
         orch = Orchestrator(

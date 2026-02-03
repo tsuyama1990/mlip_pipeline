@@ -51,6 +51,15 @@ def test_skeleton_loop(temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         state = json.load(f)
     assert state["iteration"] == 1
 
+    # Check history
+    assert len(state["history"]) == 1
+    history_entry = state["history"][0]
+    assert history_entry["iteration"] == 0
+    assert history_entry["status"] == "success"
+    # Ensure validation result is recorded
+    assert "validation_result" in history_entry
+    assert history_entry["validation_result"]["passed"] is True
+
     # Check output potential (MockTrainer should create it in active_learning/iter_000/training/output_potential.yace)
     # And copy to potentials/generation_000.yace
 
