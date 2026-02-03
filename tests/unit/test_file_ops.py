@@ -6,7 +6,7 @@ from mlip_autopipec.utils.file_ops import atomic_write
 def test_atomic_write_success(tmp_path: Path) -> None:
     dest = tmp_path / "success.txt"
     # Combine with statements as suggested by ruff SIM117
-    with atomic_write(dest) as temp, Path(temp).open("w") as f:
+    with atomic_write(dest) as temp, temp.open("w") as f:
         f.write("content")
 
     assert dest.exists()
@@ -23,7 +23,7 @@ def test_atomic_write_failure(tmp_path: Path) -> None:
     try:
         with atomic_write(dest) as temp:
             # Manually create the temp file to ensure it exists for cleanup check
-            with Path(temp).open("w") as f:
+            with temp.open("w") as f:
                 f.write("partial")
 
             # Helper to raise exception to satisfy TRY301

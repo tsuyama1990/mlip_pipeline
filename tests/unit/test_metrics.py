@@ -11,13 +11,13 @@ from mlip_autopipec.validation.metrics import ElasticValidator, PhononValidator
 try:
     from mlip_autopipec.validation.report_generator import ReportGenerator
 except ImportError:
-    ReportGenerator = MagicMock()
+    ReportGenerator = MagicMock()  # type: ignore[misc]
 
 
 @pytest.fixture
 def mock_atoms() -> Atoms:
     atoms = Atoms("Cu", positions=[[0, 0, 0]], cell=[3.6, 3.6, 3.6], pbc=True)
-    atoms.calc = EMT() # Attach a calculator
+    atoms.calc = EMT()  # type: ignore[no-untyped-call]
     return atoms
 
 

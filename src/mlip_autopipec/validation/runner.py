@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ase import Atoms
 from ase.build import bulk
-from ase.calculators.lammpsrun import LAMMPS  # type: ignore[import]
+from ase.calculators.lammpsrun import LAMMPS
 from ase.io import read
 
 from mlip_autopipec.config.config_model import ValidationConfig
@@ -99,8 +99,8 @@ class ValidationRunner:
         }
 
         try:
-            calc = LAMMPS()
-            calc.set(**parameters)
+            calc = LAMMPS()  # type: ignore[no-untyped-call]
+            calc.set(**parameters)  # type: ignore[no-untyped-call]
             structure.calc = calc
         except Exception as e:
             logger.warning(f"Failed to attach LAMMPS calculator: {e}")
