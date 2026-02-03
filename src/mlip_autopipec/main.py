@@ -10,6 +10,7 @@ from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Trainer, V
 from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.oracle.manager import DFTManager
+from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,14 @@ def create_components(
     logger.info("Initializing Components")
 
     # Explorer
-    # TODO: Implement factory for explorer based on config.exploration.strategy
-    explorer = MockExplorer()
+    if config.exploration.strategy in ["adaptive", "strain", "defect", "random"]:
+        logger.info(f"Using Adaptive Explorer ({config.exploration.strategy})")
+        explorer = AdaptiveExplorer(config)
+    else:
+        logger.warning(
+            f"Unknown exploration strategy '{config.exploration.strategy}', falling back to Mock"
+        )
+        explorer = MockExplorer()
 
     # Oracle
     oracle: Oracle
