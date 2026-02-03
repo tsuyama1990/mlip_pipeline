@@ -15,7 +15,7 @@ def test_validation_config_defaults() -> None:
 
 def test_validation_config_extra_forbid() -> None:
     with pytest.raises(ValidationError):
-        ValidationConfig(extra_field="fail")  # type: ignore
+        ValidationConfig(extra_field="fail")  # type: ignore[call-arg]
 
 
 def test_metric_result_valid() -> None:
@@ -40,4 +40,4 @@ def test_validation_result_valid() -> None:
 
 def test_validation_result_extra_forbid() -> None:
     with pytest.raises(ValidationError):
-        ValidationResult(passed=True, unknown="fail")  # type: ignore
+        ValidationResult(passed=True, unknown="fail")  # type: ignore[call-arg]

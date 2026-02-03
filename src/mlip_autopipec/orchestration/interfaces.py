@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from mlip_autopipec.domain_models.structures import CandidateStructure
 from mlip_autopipec.domain_models.validation import ValidationResult
 
 
+@runtime_checkable
 class Explorer(Protocol):
     def explore(self, potential_path: Path | None, work_dir: Path) -> list[CandidateStructure]:
         """
@@ -20,6 +21,7 @@ class Explorer(Protocol):
         ...
 
 
+@runtime_checkable
 class Selector(Protocol):
     def select(
         self,
@@ -41,6 +43,7 @@ class Selector(Protocol):
         ...
 
 
+@runtime_checkable
 class Oracle(Protocol):
     def compute(self, candidates: list[CandidateStructure], work_dir: Path) -> list[Path]:
         """
@@ -56,6 +59,7 @@ class Oracle(Protocol):
         ...
 
 
+@runtime_checkable
 class Trainer(Protocol):
     def train(self, dataset: Path, previous_potential: Path | None, output_dir: Path) -> Path:
         """
@@ -84,6 +88,7 @@ class Trainer(Protocol):
         ...
 
 
+@runtime_checkable
 class Validator(Protocol):
     def validate(self, potential_path: Path, work_dir: Path) -> ValidationResult:
         """

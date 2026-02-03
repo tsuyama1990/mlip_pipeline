@@ -1,4 +1,3 @@
-import contextlib
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -35,20 +34,31 @@ def test_run_single_success(mock_run: MagicMock, dft_config: DFTConfig, atoms: A
     def create_output_file(*args: Any, **kwargs: Any) -> MagicMock:
         # Command is "pw.x < input > output"
         # We extract output path and write content
+        # Note: args[0] is the command string because shell=True
         cmd = args[0]
         output_path = cmd.split(">")[-1].strip()
-        with Path(output_path).open("w") as f:
-            f.write(output_content)
+        # output_path is relative to work_dir or absolute.
+        # But we don't know work_dir easily here unless we check cwd arg.
+
+        # EspressoRunner passes cwd=work_dir.
+        # If output_path is absolute (from TemporaryDirectory), it works.
+        # If relative, we need to join with cwd.
+
+        cwd = kwargs.get("cwd")
+        p = Path(cwd) / output_path if cwd else Path(output_path)
+        p.write_text(output_content)
         return MagicMock(returncode=0)
 
     mock_run.side_effect = create_output_file
 
-    # This will raise NotImplementedError until implemented
-    with contextlib.suppress(NotImplementedError):
-        result_atoms = runner.run_single(atoms)
-        assert result_atoms.calc is not None
-        # The parser logic is not yet connected, so we can't assert values yet
-        # unless we mock the parser too or implement it.
+    result_atoms = runner.run_single(atoms)
+    assert result_atoms.calc is not None
+    # We can assert values if we trust the parser and the dummy file
+    # converged.out has energy -156.23456789 Ry
+    # -156.23456789 * 13.605693 (Ry to eV) approx -2125
+
+    # Just check it ran
+    assert mock_run.called
 
 
 @patch("mlip_autopipec.physics.oracle.espresso.subprocess.run")
@@ -63,18 +73,15 @@ def test_run_single_retry(mock_run: MagicMock, dft_config: DFTConfig, atoms: Ato
     def create_output_file_retry(*args: Any, **kwargs: Any) -> MagicMock:
         cmd = args[0]
         output_path = cmd.split(">")[-1].strip()
+        cwd = kwargs.get("cwd")
+        p = Path(cwd) / output_path if cwd else Path(output_path)
 
         content = error_content if mock_run.call_count == 1 else success_content
-
-        with Path(output_path).open("w") as f:
-            f.write(content)
+        p.write_text(content)
         return MagicMock(returncode=0)
 
     mock_run.side_effect = create_output_file_retry
 
-    with contextlib.suppress(NotImplementedError):
-        runner.run_single(atoms)
+    runner.run_single(atoms)
 
     assert mock_run.call_count == 2
-
-    # We can't verify call_count because execution stops at NotImplementedError
