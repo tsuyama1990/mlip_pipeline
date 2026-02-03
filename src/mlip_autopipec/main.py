@@ -7,12 +7,13 @@ from mlip_autopipec.config import Config
 from mlip_autopipec.config.loader import load_config
 from mlip_autopipec.logging_config import setup_logging
 from mlip_autopipec.orchestration.interfaces import Explorer, Oracle, Selector, Trainer, Validator
-from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle, MockValidator
+from mlip_autopipec.orchestration.mocks import MockExplorer, MockOracle
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
 from mlip_autopipec.physics.oracle.manager import DFTManager
 from mlip_autopipec.physics.selection.selector import ActiveSetSelector
 from mlip_autopipec.physics.structure_gen.explorer import AdaptiveExplorer
 from mlip_autopipec.physics.training.pacemaker import PacemakerTrainer
+from mlip_autopipec.validation.runner import ValidationRunner
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,10 @@ def create_components(
     trainer = PacemakerTrainer(config.training)
 
     # Validator
-    validator = MockValidator() if config.validation.run_validation else None
+    validator: Validator | None = None
+    if config.validation.run_validation:
+        logger.info("Using ValidationRunner")
+        validator = ValidationRunner(config.validation)
 
     return explorer, selector, oracle, trainer, validator
 

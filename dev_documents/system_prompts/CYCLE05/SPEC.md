@@ -40,18 +40,22 @@ mlip-autopipec/
 
 ```python
 class ValidationRunner:
-    def validate(self, potential: Potential, structure: Atoms) -> ValidationResult:
+    def validate(self, potential_path: Path, work_dir: Path) -> ValidationResult:
         """
         Runs all enabled tests.
         Returns a result object containing metrics and a global Pass/Fail boolean.
         """
+        # Load potential and structure...
+        potential = ...
+        structure = ...
+
         results = []
         if self.config.check_phonons:
             results.append(PhononValidator.run(potential, structure))
         if self.config.check_elastic:
             results.append(ElasticValidator.run(potential, structure))
 
-        return self._aggregate_results(results)
+        return self._aggregate_results(results, work_dir)
 ```
 
 #### `src/mlip_autopipec/validation/metrics.py`
