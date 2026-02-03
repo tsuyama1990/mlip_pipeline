@@ -11,15 +11,9 @@ def test_active_set_selector_logic() -> None:
     selector = ActiveSetSelector(config)
 
     # 2. Candidates
-    c1 = CandidateStructure(
-        structure_path=Path("s1"), metadata=StructureMetadata(uncertainty=0.1)
-    )
-    c2 = CandidateStructure(
-        structure_path=Path("s2"), metadata=StructureMetadata(uncertainty=0.9)
-    )
-    c3 = CandidateStructure(
-        structure_path=Path("s3"), metadata=StructureMetadata(uncertainty=0.5)
-    )
+    c1 = CandidateStructure(structure_path=Path("s1"), metadata=StructureMetadata(uncertainty=0.1))
+    c2 = CandidateStructure(structure_path=Path("s2"), metadata=StructureMetadata(uncertainty=0.9))
+    c3 = CandidateStructure(structure_path=Path("s3"), metadata=StructureMetadata(uncertainty=0.5))
 
     candidates = [c1, c2, c3]
 

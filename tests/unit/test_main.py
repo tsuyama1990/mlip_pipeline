@@ -1,62 +1,79 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
 
 from mlip_autopipec.main import main
 
 
 @pytest.fixture
-def valid_config_yaml(temp_dir: Path) -> Path:
-    data_file = temp_dir / "data.pckl"
-    data_file.touch()
-
-    config_data = {
-        "project": {"name": "TestProject"},
-        "training": {"dataset_path": str(data_file)},
-        "orchestrator": {"max_iterations": 1},
-        "oracle": {"method": "mock"},
-        "validation": {"run_validation": False},
-        "exploration": {"strategy": "adaptive"},
-    }
-    config_file = temp_dir / "config.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
-    return config_file
+def valid_config_yaml(tmp_path: Path) -> Path:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("""
+project:
+  name: "TestProject"
+training:
+  dataset_path: "data.pckl"
+  max_epochs: 10
+orchestrator:
+  max_iterations: 1
+exploration:
+  strategy: "adaptive"
+selection:
+  method: "random"
+  max_structures: 10
+oracle:
+  method: "mock"
+validation:
+  run_validation: false
+""")
+    return config_path
 
 
 def test_main_no_config() -> None:
-    with (
-        patch("sys.argv", ["main", "ghost.yaml"]),
-        patch("sys.stderr"),pytest.raises(SystemExit) as exc
-    ):
+    with patch("sys.argv", ["main", "ghost.yaml"]), \
+         patch("sys.stderr"), \
+         pytest.raises(SystemExit) as exc:
         main()
     assert exc.value.code == 1
 
 
+def test_main_success(valid_config_yaml: Path) -> None:
+    with patch("sys.argv", ["main", str(valid_config_yaml)]), \
+         patch("mlip_autopipec.main.load_config") as mock_load, \
+         patch("mlip_autopipec.main.create_components") as mock_create, \
+         patch("mlip_autopipec.main.Orchestrator") as MockOrch:
+
+        # Setup return values
+        # create_components returns (explorer, selector, oracle, trainer, validator)
+        mock_create.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
+
+        mock_orch_instance = MockOrch.return_value
+
+        main()
+
+        mock_load.assert_called_once()
+        mock_create.assert_called_once()
+        MockOrch.assert_called_once()
+        mock_orch_instance.run.assert_called_once()
+
+
 def test_main_exception(valid_config_yaml: Path) -> None:
-    # 1. Patches setup
-    with (
-        patch("sys.argv", ["main", str(valid_config_yaml)]),
-        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
-        patch("sys.stderr"),
-    ):
+    with patch("sys.argv", ["main", str(valid_config_yaml)]), \
+         patch("mlip_autopipec.main.create_components") as mock_create, \
+         patch("mlip_autopipec.main.Orchestrator") as MockOrch, \
+         patch("sys.stderr"):
+
+        # We need mock_create to succeed so execution reaches Orchestrator
+        mock_create.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
+
         MockOrch.side_effect = Exception("Boom")
 
-        # 2. Assert exception raises SystemExit
         with pytest.raises(SystemExit) as exc:
-            main()
+             main()
 
         assert exc.value.code == 1
-
-
-def test_main_success(valid_config_yaml: Path) -> None:
-    with (
-        patch("sys.argv", ["main", str(valid_config_yaml)]),
-        patch("mlip_autopipec.main.Orchestrator") as MockOrch,
-        patch("mlip_autopipec.main.ActiveSetSelector"),  # Mock Selector instantiation
-    ):
-        mock_instance = MockOrch.return_value
-        main()
-        mock_instance.run.assert_called_once()

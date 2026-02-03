@@ -13,6 +13,9 @@
 
 ## Features
 
+*   **Active Learning with MD**: Integrated Molecular Dynamics engine (LAMMPS) for exploring phase space.
+*   **On-the-Fly Safety Net**: Automatically detects high-uncertainty configurations ("Halt") during MD and extracts them for labeling, preventing simulation crashes.
+*   **Hybrid Potential**: Programmatically mixes Machine Learning potentials with physics-based baselines (ZBL) to ensure stability at short interatomic distances.
 *   **Adaptive Exploration**: Automatically generates new candidate structures using smart policies (Strain, Defects) to explore the potential energy surface efficiently.
 *   **Periodic Embedding**: Intelligent extraction of local defect environments into computable periodic supercells for DFT.
 *   **Zero-Config Workflow**: Initialize complex pipelines with a single `config.yaml`.
@@ -29,6 +32,7 @@
 *   External Dependencies:
     *   `pw.x` (Quantum Espresso) - Required for DFT Oracle
     *   `pace_train` (Pacemaker) - Required for Training
+    *   `lmp` (LAMMPS) - Required for MD Exploration
 
 ## Installation
 
@@ -62,8 +66,8 @@ exploration:
   strategy: "adaptive"
 ```
 
-### 2. Production Configuration (DFT + ACE + Exploration)
-For production runs using Quantum Espresso and Adaptive Exploration:
+### 2. Production Configuration (DFT + ACE + Exploration + MD)
+For production runs using Quantum Espresso, LAMMPS, and Adaptive Exploration:
 
 ```yaml
 project:
@@ -93,6 +97,10 @@ dft:
     O: "O.pbe-n-kjpaw_psl.1.0.0.UPF"
   ecutwfc: 50.0
   kspacing: 0.04
+
+lammps:
+  command: "lmp"
+  num_processors: 4
 ```
 
 ### 3. Run the Pipeline
@@ -109,6 +117,7 @@ src/mlip_autopipec/
 ├── domain_models/      # Core Data Structures (WorkflowState, Potential, Structures)
 ├── orchestration/      # State Machine & Main Loop
 ├── physics/            # Interfaces for Physics Engines
+│   ├── dynamics/       # MD Engine (LAMMPS) & Log Parsing
 │   ├── oracle/         # DFT Implementation (Quantum Espresso) with Self-Healing
 │   ├── structure_gen/  # Exploration Logic (Generators, Embedding, Policy)
 │   └── training/       # Potential Training (Pacemaker)
