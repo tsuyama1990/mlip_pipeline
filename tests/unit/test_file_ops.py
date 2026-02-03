@@ -1,3 +1,5 @@
+"""Unit tests for atomic file operations."""
+
 from pathlib import Path
 
 from mlip_autopipec.utils.file_ops import atomic_write
