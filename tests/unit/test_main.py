@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -47,6 +47,15 @@ def test_main_success(valid_config_yaml: Path) -> None:
         # Setup mocks
         mock_orch_instance = MockOrch.return_value
 
+        # FIX: Set return value for create_components
+        mock_create.return_value = (
+            MagicMock(), # explorer
+            MagicMock(), # selector
+            MagicMock(), # oracle
+            MagicMock(), # trainer
+            MagicMock(), # validator
+        )
+
         main()
 
         mock_load.assert_called_once()
@@ -58,7 +67,14 @@ def test_main_success(valid_config_yaml: Path) -> None:
 def test_main_exception(valid_config_yaml: Path) -> None:
     with patch("sys.argv", ["main", str(valid_config_yaml)]), \
          patch("mlip_autopipec.main.Orchestrator") as MockOrch, \
-         patch("sys.stderr"):
+         patch("sys.stderr"), \
+         patch("mlip_autopipec.main.create_components") as mock_create:
+
+        # Also need to mock create_components here otherwise it might fail unpacking if called before exception?
+        # main() calls create_components before Orchestrator init.
+        mock_create.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         MockOrch.side_effect = Exception("Boom")
 

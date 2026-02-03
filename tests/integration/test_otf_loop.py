@@ -29,7 +29,7 @@ def test_otf_loop_halt_handling(tmp_path: Path) -> None:
     work_dir = tmp_path
 
     # Mock ase.io.read to return a dummy structure for the halted frame
-    dummy_halted_struct = Atoms("H", positions=[[1, 1, 1]])
+    dummy_halted_struct = Atoms("H", positions=[[1.0, 1.0, 1.0]])
 
     # We use patch on the module where read is imported.
     # Assuming otf_loop imports read from ase.io
@@ -41,7 +41,14 @@ def test_otf_loop_halt_handling(tmp_path: Path) -> None:
 
         candidates = loop.execute_task(task, atoms, potential_path, work_dir)
 
-        assert len(candidates) == 1
+        # 1 anchor + 5 perturbations
+        assert len(candidates) == 6
         assert candidates[0].metadata.generation_method == "md_halted"
+
+        for i in range(1, 6):
+            assert candidates[i].metadata.generation_method == "md_halted_perturbation"
+            assert candidates[i].metadata.parent_structure_id == "md_halted"
+
         mock_read.assert_called()
-        mock_write.assert_called()
+        # Should be called for anchor + 5 perturbations
+        assert mock_write.call_count == 6
