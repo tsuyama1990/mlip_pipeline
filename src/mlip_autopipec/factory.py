@@ -53,4 +53,5 @@ def create_components(
     # Validator
     validator = MockValidator() if config.validation.run_validation else None
 
+    # Components created successfully
     return explorer, selector, oracle, trainer, validator
