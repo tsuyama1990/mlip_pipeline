@@ -73,10 +73,7 @@ class PacemakerTrainer(Trainer):
              # Use a generic format or allow config to specify. Defaulting to extxyz/pckl support via ASE
             try:
                 read_data = read(str(self.config.dataset_path), index=":")
-                if isinstance(read_data, list):
-                    all_atoms = read_data
-                else:
-                    all_atoms = [read_data]
+                all_atoms = read_data if isinstance(read_data, list) else [read_data]
             except Exception:
                 logger.warning(f"Could not read existing dataset at {self.config.dataset_path}. Starting fresh.")
                 all_atoms = []
