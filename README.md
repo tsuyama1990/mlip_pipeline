@@ -11,10 +11,9 @@ PYACEMAKER is a fully automated, "Zero-Config" pipeline that orchestrates the co
 ## Key Features
 
 *   **Zero-Config Workflow**: Define your material system in a single `config.yaml` and let the system handle the rest (sampling, calculating, training).
-*   **Physics-Informed Robustness**: Enforces safety constraints via Hybrid Potentials (ACE + ZBL/LJ), preventing unphysical behavior like nuclear fusion in extrapolation regions.
-*   **Active Learning with "Watchdogs"**: Automatically detects high-uncertainty configurations during MD simulations, halts the run, and triggers a self-healing learning loop.
-*   **Self-Healing Oracle**: A DFT interface that automatically detects convergence failures and adjusts parameters to recover without human intervention.
-*   **Multi-Scale Integration**: Seamlessly bridges atomic MD with long-timescale Adaptive Kinetic Monte Carlo (aKMC) to study diffusion and ordering phenomena.
+*   **Physics-Informed Robustness**: Enforces safety constraints via Hybrid Potentials (ACE + ZBL/LJ).
+*   **Active Learning**: Automatically explores the chemical space to build robust training sets.
+*   **Modular Architecture**: Plug-and-play components for Structure Generation, DFT (Oracle), and Training.
 
 ## Architecture Overview
 
@@ -26,9 +25,8 @@ graph TD
         Orch[Orchestrator]
     end
 
-    subgraph "Exploration & Detection"
+    subgraph "Exploration"
         SG[Structure Generator]
-        DE[Dynamics Engine]
     end
 
     subgraph "Ground Truth"
@@ -40,19 +38,14 @@ graph TD
     end
 
     Orch --> SG
-    Orch --> DE
-    DE -- "High Uncertainty" --> Oracle
-    Oracle -- "Data" --> Trainer
-    Trainer -- "Potential" --> DE
+    SG --> Oracle
+    Oracle --> Trainer
 ```
 
 ## Prerequisites
 
 *   **Python 3.12+**
 *   **uv** (Recommended package manager)
-*   **Docker** or **Singularity** (for running external engines like LAMMPS/QE in isolation)
-*   **Quantum Espresso** / **VASP** (for DFT calculations)
-*   **LAMMPS** (for MD simulations)
 
 ## Installation & Setup
 
@@ -68,11 +61,9 @@ graph TD
     uv sync
     ```
 
-3.  **Configure Environment**
-    Copy the example configuration.
+3.  **Activate Environment**
     ```bash
-    cp .env.example .env
-    # Edit .env to point to your DFT/LAMMPS executables
+    source .venv/bin/activate
     ```
 
 ## Usage
@@ -80,20 +71,34 @@ graph TD
 ### Quick Start
 To run a demonstration cycle (using Mock components):
 
-```bash
-uv run mlip-pipeline run config/examples/quickstart.yaml
-```
-
-### Full Production Run
-1.  Edit `config.yaml` to define your system (e.g., `elements: [Fe, Pt]`).
-2.  Launch the pipeline:
-    ```bash
-    uv run mlip-pipeline run config.yaml
+1.  **Create a Configuration File** (`config.yaml`):
+    ```yaml
+    project_name: "my_demo"
+    execution_mode: "mock"
+    cycles: 3
+    dft:
+      calculator: "lj"
+      kpoints_density: 0.04
+      encut: 500.0
+    training:
+      potential_type: "ace"
+      cutoff: 5.0
+      max_degree: 1
+    exploration:
+      strategy: "random"
+      num_candidates: 10
+      supercell_size: 2
     ```
 
-## Development Workflow
+2.  **Run the Pipeline**:
+    ```bash
+    mlip-pipeline run config.yaml
+    ```
 
-The project follows a strict cycle-based development plan.
+3.  **Check Output**:
+    The system will generate log messages indicating the progress of the active learning loop and create "potential" artifacts in the current directory.
+
+## Development Workflow
 
 ### Running Tests
 ```bash
@@ -103,7 +108,7 @@ uv run pytest
 ### Linting & Type Checking
 We enforce strict code quality.
 ```bash
-uv run ruff check
+uv run ruff check .
 uv run mypy .
 ```
 
@@ -115,16 +120,7 @@ src/mlip_autopipec/
 ├── domain_models/           # Pydantic Data Models
 ├── interfaces/              # Core Protocols
 ├── orchestration/           # Main Loop Logic
-├── structure_generation/    # Adaptive Exploration
-├── oracle/                  # DFT & Self-Healing
-├── training/                # Pacemaker Integration
-├── dynamics/                # LAMMPS & OTF Loop
-├── validation/              # Physics Checks
 └── utils/                   # Logging & I/O
-
-dev_documents/
-├── system_prompts/          # Architecture & Cycle Specs
-└── tutorials/               # User Guides
 ```
 
 ## License
