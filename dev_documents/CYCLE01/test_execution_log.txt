@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 16 items
+
+tests/e2e/test_skeleton_loop.py .                                        [  6%]
+tests/unit/test_cli.py .......                                           [ 50%]
+tests/unit/test_config.py ....                                           [ 75%]
+tests/unit/test_domain.py ...                                            [ 93%]
+tests/unit/test_interfaces.py .                                          [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                               Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                         0      0   100%
+src/mlip_autopipec/config/__init__.py                  0      0   100%
+src/mlip_autopipec/config/config_model.py              7      0   100%
+src/mlip_autopipec/domain_models/__init__.py           4      0   100%
+src/mlip_autopipec/domain_models/dataset.py            5      0   100%
+src/mlip_autopipec/domain_models/structures.py        15      0   100%
+src/mlip_autopipec/domain_models/validation.py         7      0   100%
+src/mlip_autopipec/interfaces/__init__.py              0      0   100%
+src/mlip_autopipec/interfaces/core_interfaces.py      16      0   100%
+src/mlip_autopipec/main.py                            31      1    97%   45
+src/mlip_autopipec/orchestration/__init__.py           0      0   100%
+src/mlip_autopipec/orchestration/mocks.py             23      0   100%
+src/mlip_autopipec/orchestration/orchestrator.py      27      0   100%
+src/mlip_autopipec/utils/__init__.py                   0      0   100%
+src/mlip_autopipec/utils/logging.py                    4      0   100%
+--------------------------------------------------------------------------------
+TOTAL                                                139      1    99%
+============================== 16 passed in 2.48s ==============================
