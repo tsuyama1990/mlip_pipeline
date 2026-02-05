@@ -1,0 +1,15 @@
+work_dir: "./workspace"
+logging_level: "INFO"
+max_cycles: 2
+random_seed: 42
+
+exploration:
+  strategy: "random"
+  max_structures: 10
+
+dft:
+  calculator: "mock"
+
+training:
+  trainer: "mock"
+  epochs: 5
