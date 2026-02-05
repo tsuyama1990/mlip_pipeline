@@ -4,15 +4,14 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**PYACEMAKER** is an automated system for constructing robust Machine Learning Interatomic Potentials (MLIPs) using the Atomic Cluster Expansion (ACE) formalism. It democratizes access to state-of-the-art potential generation by providing a "Zero-Config" workflow that autonomously iterates through structure generation, DFT calculation, training, and validation.
+**PYACEMAKER** is an automated system for constructing robust Machine Learning Interatomic Potentials (MLIPs) using the Atomic Cluster Expansion (ACE) formalism. It provides a "Zero-Config" workflow that autonomously iterates through structure generation, property calculation, training, and validation.
 
 ## Key Features
 
--   **Zero-Config Automation**: Go from chemical composition to a fully trained `.yace` potential with a single YAML file.
--   **Physics-Informed Robustness**: Automatically incorporates Lennard-Jones/ZBL baselines to prevent non-physical extrapolation and simulation crashes.
--   **Self-Healing Oracle**: Automated DFT calculations (Quantum Espresso/VASP) with built-in error recovery for SCF convergence failures.
--   **Active Learning**: Intelligent structure generation using adaptive policies (MD, Monte Carlo, Defects) to sample relevant configuration spaces efficiently.
--   **Hybrid Simulation**: Seamlessly integrates MD (LAMMPS) for fast dynamics and Adaptive kMC (EON) for long-timescale phenomena like ordering.
+-   **Automated Active Learning Loop**: Orchestrates the full cycle of structure generation, labeling, training, and validation.
+-   **Mock Simulation Mode**: Includes a "Mock Mode" to verify workflow logic and configuration without requiring external physics engines (Cycle 01 verified).
+-   **Strict Configuration Validation**: Ensures all input parameters are valid before execution using rigorous schema validation.
+-   **Extensible Architecture**: Modular design allowing easy integration of various DFT codes (Quantum Espresso, VASP) and exploration strategies.
 
 ## Architecture Overview
 
@@ -53,11 +52,6 @@ graph TD
 
 -   **Python 3.12+**
 -   **uv** (recommended for dependency management)
--   **External Physics Codes** (for Real Mode):
-    -   LAMMPS (with USER-PACE package)
-    -   Quantum Espresso (pw.x)
-    -   Pacemaker (pace_train, pace_activeset)
-    -   EON (eonclient)
 
 ## Installation & Setup
 
@@ -72,12 +66,6 @@ graph TD
     uv sync
     ```
 
-3.  **Configure Environment**:
-    ```bash
-    cp .env.example .env
-    # Edit .env to point to your local LAMMPS/QE executables
-    ```
-
 ## Usage
 
 To run the pipeline, use the CLI command:
@@ -88,26 +76,25 @@ uv run mlip-pipeline run config.yaml
 
 ### Quick Start Example
 
-A sample configuration for Fe/Pt is provided in `examples/fe_pt_config.yaml`.
+A sample configuration for a mock run:
 
-```bash
-uv run mlip-pipeline run examples/fe_pt_config.yaml
+```yaml
+execution_mode: mock
+max_cycles: 3
+project_name: test_project
+exploration:
+  max_structures: 5
+dft:
+  calculator: espresso
+training:
+  potential_type: ace
 ```
 
-## Development Workflow
+Save this as `config.yaml` and run:
 
-The project follows a strict 6-cycle development plan.
-
--   **Run Tests**:
-    ```bash
-    uv run pytest
-    ```
-
--   **Linting & Type Checking**:
-    ```bash
-    uv run ruff check .
-    uv run mypy .
-    ```
+```bash
+uv run mlip-pipeline run config.yaml
+```
 
 ## Project Structure
 
@@ -117,7 +104,8 @@ src/mlip_autopipec/
 ├── domain_models/           # Pydantic Data Classes
 ├── interfaces/              # Protocol Definitions
 ├── orchestration/           # Main Loop Logic
-├── services/                # Business Logic (Trainer, Oracle, etc.)
+├── services/                # Business Logic
+├── utils/                   # Shared Utilities
 └── main.py                  # CLI Entrypoint
 
 dev_documents/
