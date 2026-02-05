@@ -14,4 +14,4 @@ def test_global_config_invalid_max_cycles() -> None:
 
 def test_global_config_invalid_types() -> None:
     with pytest.raises(ValidationError):
-        GlobalConfig(work_dir=Path("./tmp"), max_cycles="ten", random_seed=42)
+        GlobalConfig(work_dir=Path("./tmp"), max_cycles="ten", random_seed=42) # type: ignore[arg-type]

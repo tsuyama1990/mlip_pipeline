@@ -11,7 +11,7 @@ def test_structure_metadata_valid() -> None:
 
 def test_structure_metadata_invalid_structure() -> None:
     with pytest.raises(ValidationError) as excinfo:
-        StructureMetadata(structure="not atoms", source="test", generation_method="manual")
+        StructureMetadata(structure="not atoms", source="test", generation_method="manual") # type: ignore[arg-type]
     # Verify the Pydantic validation error
     assert "Input should be an instance of Atoms" in str(excinfo.value)
 

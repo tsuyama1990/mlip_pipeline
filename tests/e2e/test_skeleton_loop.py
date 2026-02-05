@@ -1,9 +1,8 @@
 import yaml
 from pathlib import Path
-from typing import Optional, Type, TYPE_CHECKING
+from typing import Optional, Type, TYPE_CHECKING, Any
 import pytest
 
-# Use TYPE_CHECKING to avoid runtime import issues, but allow mypy to see types
 if TYPE_CHECKING:
     from config import GlobalConfig
     from orchestration.orchestrator import Orchestrator
@@ -12,12 +11,12 @@ if TYPE_CHECKING:
 try:
     from config import GlobalConfig
     from orchestration.orchestrator import Orchestrator
+    MODULES_IMPORTED = True
 except ImportError:
-    Orchestrator = None
-    GlobalConfig = None
+    MODULES_IMPORTED = False
 
 def test_skeleton_loop_execution(tmp_path: Path) -> None:
-    if Orchestrator is None or GlobalConfig is None:
+    if not MODULES_IMPORTED:
         pytest.skip("Orchestrator or GlobalConfig not imported")
 
     # Setup config
@@ -27,7 +26,10 @@ def test_skeleton_loop_execution(tmp_path: Path) -> None:
         yaml.dump(config_data, f)
 
     # Load Config
-    config = GlobalConfig(**config_data)
+    # We cast config_data to Any to avoid mypy complaining about kwargs unpacking
+    # strictly against the GlobalConfig signature which expects typed args.
+    # In a real app, we'd validate the dict before unpacking or rely on Pydantic's runtime validation.
+    config = GlobalConfig(**config_data) # type: ignore[arg-type]
 
     orchestrator = Orchestrator(config=config)
     orchestrator.run_loop()
