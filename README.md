@@ -6,60 +6,33 @@
 
 **PYACEMAKER** is an automated system for constructing robust Machine Learning Interatomic Potentials (MLIPs) using the Atomic Cluster Expansion (ACE) formalism. It democratizes access to state-of-the-art potential generation by providing a "Zero-Config" workflow that autonomously iterates through structure generation, DFT calculation, training, and validation.
 
-## Key Features
+## Overview
+
+### What is this?
+A comprehensive pipeline that automates the generation of machine learning interatomic potentials (MLIPs). It orchestrates the entire lifecycle: generating atomic structures, calculating their properties using DFT, training ACE potentials, and validating them.
+
+### Why?
+Manually curating datasets and training potentials is error-prone and requires expert knowledge. PYACEMAKER automates this process, ensuring physics-informed robustness (via ZBL/LJ baselines) and data efficiency through active learning.
+
+## Features
 
 -   **Zero-Config Automation**: Go from chemical composition to a fully trained `.yace` potential with a single YAML file.
--   **Physics-Informed Robustness**: Automatically incorporates Lennard-Jones/ZBL baselines to prevent non-physical extrapolation and simulation crashes.
--   **Self-Healing Oracle**: Automated DFT calculations (Quantum Espresso/VASP) with built-in error recovery for SCF convergence failures.
--   **Active Learning**: Intelligent structure generation using adaptive policies (MD, Monte Carlo, Defects) to sample relevant configuration spaces efficiently.
--   **Hybrid Simulation**: Seamlessly integrates MD (LAMMPS) for fast dynamics and Adaptive kMC (EON) for long-timescale phenomena like ordering.
+-   **Active Learning Loop**: Fully automated cycle of Exploration -> Labeling -> Training -> Validation.
+-   **Mock Mode**: Built-in mock components for testing the workflow logic without needing heavy physics engines installed.
+-   **Strict Schema Validation**: All inputs and outputs are validated using strict Pydantic models.
+-   **Physics-Informed Robustness**: (Planned) Automatically incorporates Lennard-Jones/ZBL baselines.
+-   **Self-Healing Oracle**: (Planned) Automated DFT calculations with error recovery.
 
-## Architecture Overview
-
-The system is orchestrated by a central Python controller that manages a loop of specialized workers.
-
-```mermaid
-graph TD
-    User[User] -->|config.yaml| Orch[Orchestrator]
-    Orch -->|Manage| Loop{Active Learning Loop}
-
-    subgraph "Core Modules"
-        Explorer[Structure Generator]
-        Oracle[Oracle (DFT)]
-        Trainer[Trainer (Pacemaker)]
-        Dyn[Dynamics Engine (LAMMPS/EON)]
-        Val[Validator]
-    end
-
-    Loop -->|1. Request Structures| Explorer
-    Explorer -->|Candidate Structures| Loop
-
-    Loop -->|2. Request Data| Oracle
-    Oracle -->|Labeled Data (E, F, S)| Loop
-
-    Loop -->|3. Train| Trainer
-    Trainer -->|Potential (.yace)| Loop
-
-    Loop -->|4. Simulate & Check| Dyn
-    Dyn -->|Uncertainty / Halt| Loop
-
-    Loop -->|5. Verify| Val
-    Val -->|Pass/Fail| Loop
-
-    Loop -->|Final Output| Result[Production Potential]
-```
-
-## Prerequisites
+## Requirements
 
 -   **Python 3.12+**
--   **uv** (recommended for dependency management)
--   **External Physics Codes** (for Real Mode):
+-   **uv** (recommended for dependency management) or pip
+-   **External Physics Codes** (Required only for "Production" mode, not "Mock" mode):
     -   LAMMPS (with USER-PACE package)
     -   Quantum Espresso (pw.x)
-    -   Pacemaker (pace_train, pace_activeset)
-    -   EON (eonclient)
+    -   Pacemaker
 
-## Installation & Setup
+## Installation
 
 1.  **Clone the repository**:
     ```bash
@@ -72,58 +45,85 @@ graph TD
     uv sync
     ```
 
-3.  **Configure Environment**:
-    ```bash
-    cp .env.example .env
-    # Edit .env to point to your local LAMMPS/QE executables
-    ```
-
 ## Usage
 
-To run the pipeline, use the CLI command:
+The system is controlled via a Command Line Interface (CLI).
+
+### Basic Command
 
 ```bash
 uv run mlip-pipeline run config.yaml
 ```
 
-### Quick Start Example
+### Configuration Example
 
-A sample configuration for Fe/Pt is provided in `examples/fe_pt_config.yaml`.
+Create a file named `config.yaml`:
 
-```bash
-uv run mlip-pipeline run examples/fe_pt_config.yaml
+```yaml
+execution_mode: mock  # Use 'mock' to test the loop without physics engines
+max_cycles: 5
+
+exploration:
+  strategy_name: random
+  max_structures: 10
+
+dft:
+  calculator: espresso
+  encut: 600.0
+  kpoints: [2, 2, 2]
+
+training:
+  fitting_code: pacemaker
+  max_epochs: 100
+```
+
+### Mock Mode vs. Real Mode
+
+-   **Mock Mode** (`execution_mode: mock`): Uses internal dummy classes (`MockExplorer`, `MockOracle`, etc.). It generates placeholder XYZ files and random numbers. Useful for CI/CD and verifying workflow logic.
+-   **Real Mode** (`execution_mode: production`): (Not fully implemented in Cycle 01) Will invoke actual external binaries (QE, Pacemaker) to perform real physics calculations.
+
+## Architecture/Structure
+
+```ascii
+src/mlip_autopipec/
+├── config/                  # Pydantic Configuration Models
+├── domain_models/           # Domain Entities (Structures, ValidationResult)
+├── interfaces/              # Protocol Definitions (Explorer, Oracle, etc.)
+├── orchestration/           # Main Loop Logic & Mocks
+├── utils/                   # Shared Utilities (Logging)
+└── main.py                  # CLI Entrypoint
 ```
 
 ## Development Workflow
 
-The project follows a strict 6-cycle development plan.
+We follow a strict quality assurance process.
 
--   **Run Tests**:
+1.  **Run Tests**:
     ```bash
+    # Run all tests
     uv run pytest
+
+    # Run specific test suites
+    uv run pytest tests/unit/
+    uv run pytest tests/uat/
     ```
 
--   **Linting & Type Checking**:
+2.  **Linting & Type Checking**:
     ```bash
     uv run ruff check .
     uv run mypy .
     ```
 
-## Project Structure
+3.  **Pre-Commit**: Ensure all checks pass before submitting changes.
 
-```ascii
-src/mlip_autopipec/
-├── config/                  # Configuration Models
-├── domain_models/           # Pydantic Data Classes
-├── interfaces/              # Protocol Definitions
-├── orchestration/           # Main Loop Logic
-├── services/                # Business Logic (Trainer, Oracle, etc.)
-└── main.py                  # CLI Entrypoint
+## Roadmap
 
-dev_documents/
-├── system_prompts/          # Architectural Specs
-└── tutorials/               # Jupyter Notebooks (UAT)
-```
+-   **Cycle 01**: Skeleton & Basic Loop (Completed)
+-   **Cycle 02**: Pacemaker Trainer & Delta Learning
+-   **Cycle 03**: Espresso Oracle & Self-Healing
+-   **Cycle 04**: Adaptive Exploration
+-   **Cycle 05**: Dynamics Engine & Uncertainty Watchdog
+-   **Cycle 06**: Scale-up & Validation
 
 ## License
 

@@ -16,6 +16,8 @@ env/
 .idea/
 .vscode/
 *.model
+*.xyz
+*.json
 *.yace
 *.pwo
 *.pwi
