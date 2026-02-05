@@ -18,8 +18,7 @@ No real scientific calculations (DFT/MD) will be performed in this cycle. This e
 The following file structure will be created. **Bold** files are to be implemented in this cycle.
 
 ```ascii
-src/mlip_autopipec/
-├── **__init__.py**
+src/
 ├── **main.py**                     # CLI Entry Point (Typer)
 ├── config/
 │   ├── **__init__.py**
