@@ -53,6 +53,17 @@ We use `typing.Protocol` to enforce structural subtyping.
 The orchestrator is a state machine. In Cycle 01, it performs a fixed number of iterations.
 -   **Dependency Injection**: The orchestrator receives instances of Explorer, Oracle, etc., via its constructor. This allows us to inject Mocks easily.
 
+### Quality & Constraints (Audit Compliance)
+-   **Scalability**:
+    -   `Oracle` implementations must support batch processing to avoid per-structure overhead.
+    -   `Dataset` handling in `Orchestrator` must support lazy loading/iterators to prevent memory exhaustion with large datasets.
+-   **Maintainability**:
+    -   All file paths (e.g., reports, temporary files) must be defined in `GlobalConfig`, avoiding hardcoded strings.
+    -   Logging configuration (level, file) must be exposed in `GlobalConfig`.
+-   **Data Integrity**:
+    -   `StructureMetadata` must enforce strict validation (e.g., ensuring `structure` is a valid `ase.Atoms` object).
+    -   All stochastic components must accept a `random_seed` from `GlobalConfig` for deterministic behavior.
+
 ## 4. Implementation Approach
 
 1.  **Project Initialization**:
