@@ -8,104 +8,63 @@
 
 ## Key Features
 
-1.  **Zero-Config Workflow**: Define your material system in a single YAML file. The system handles the rest, from initial sampling to final validation.
-2.  **Data Efficiency**: Uses Active Learning (D-Optimality) to select only the most informative structures, reducing DFT costs by >90% compared to random sampling.
-3.  **Physics-Informed Robustness**: Automatically enforces core-repulsion using Delta Learning with ZBL/LJ baselines, preventing simulation crashes.
-4.  **Scalability**: Seamlessly transitions from local exploration to massive-scale simulations on HPC, supporting MD and Adaptive Kinetic Monte Carlo (aKMC).
-5.  **Self-Healing Oracle**: Automatically fixes common DFT convergence errors without user intervention.
-
-## Architecture Overview
-
-The system follows a Hub-and-Spoke architecture centered around an intelligent Orchestrator.
-
-```mermaid
-graph TD
-    subgraph "Orchestration Layer"
-        Orch[Orchestrator]
-        Config[Global Config]
-    end
-
-    subgraph "Core Modules"
-        SG[Structure Generator]
-        Oracle[Oracle (DFT)]
-        Trainer[Trainer (Pacemaker)]
-        DE[Dynamics Engine (MD/kMC)]
-        Val[Validator]
-    end
-
-    subgraph "Data Store"
-        Pot[Potential (.yace)]
-        Data[Dataset (.pckl)]
-    end
-
-    Config --> Orch
-    Orch --> SG
-    Orch --> DE
-
-    SG -- "Candidate Structures" --> Oracle
-    DE -- "High Uncertainty Structures" --> Oracle
-
-    Oracle -- "Labeled Data (E, F, V)" --> Data
-    Data --> Trainer
-    Trainer -- "New Potential" --> Pot
-    Pot --> Val
-    Val -- "Pass/Fail" --> Orch
-    Pot --> DE
-```
+*   **Automated Orchestration**: Hub-and-Spoke architecture managing the data flow between Structure Generation, Oracle, and Trainer.
+*   **Mock Loop Verification**: Includes a simulation mode to verify the logic flow without expensive computations.
+*   **Type-Safe Design**: Built with strictly typed Python 3.12+ (Pydantic, Typer) for robustness.
+*   **Active Learning Ready**: Designed to support iterative improvement of potentials (Cycle 1 implementation focuses on the core framework).
 
 ## Prerequisites
 
 *   **Python**: 3.12 or higher.
-*   **Package Manager**: `uv` (recommended) or `pip`.
-*   **External Engines**:
-    *   **Quantum Espresso** (`pw.x`) for DFT calculations.
-    *   **Pacemaker** (`pace_train`, `pace_activeset`) for training.
-    *   **LAMMPS** (`lmp`) with `USER-PACE` package for MD.
-    *   **EON** (optional) for aKMC.
+*   **Package Manager**: `uv` (recommended).
 
 ## Installation
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/your-org/mlip-pipeline.git
+    git clone <repository-url>
     cd mlip-pipeline
     ```
 
 2.  **Install dependencies**:
     ```bash
     uv sync
-    # Or with pip:
-    # pip install -e ".[dev]"
-    ```
-
-3.  **Setup Configuration**:
-    Copy the example configuration:
-    ```bash
-    cp config/example.yaml config.yaml
     ```
 
 ## Usage
 
-### Quick Start (Mock Mode)
-To verify the installation without running heavy calculations, run the mock loop:
+### Quick Start (Core Framework Verification)
 
-```bash
-uv run mlip-pipeline run config_mock.yaml
+1.  **Create a Configuration File**:
+    Create a file named `config.yaml` with the following content:
+    ```yaml
+    work_dir: "./workspace"
+    max_cycles: 3
+    random_seed: 42
+    ```
+
+2.  **Run the Pipeline**:
+    Execute the command to start the orchestration loop. Currently, this runs with Mock components to verify the system architecture.
+    ```bash
+    uv run mlip-pipeline run --config config.yaml
+    ```
+
+3.  **Output**:
+    You should see logs indicating the progress of the active learning cycles (Generation -> Calculation -> Training -> Validation).
+
+## Architecture
+
+```ascii
+src/mlip_autopipec/
+├── config/             # Configuration schemas (GlobalConfig)
+├── domain_models/      # Data structures (StructureMetadata, Dataset)
+├── interfaces/         # Core Protocols (Explorer, Oracle, Trainer, Validator)
+├── orchestration/      # Main Orchestrator Logic & Mock Implementations
+├── utils/              # Utilities (Logging)
+└── main.py             # CLI Entry Point
 ```
 
-### Real Scientific Workflow
-To run the "Fe/Pt on MgO" scenario:
-
-1.  **Configure**: Edit `config.yaml` to specify `elements: ["Mg", "O", "Fe", "Pt"]`.
-2.  **Run**:
-    ```bash
-    uv run mlip-pipeline run config.yaml
-    ```
-3.  **Monitor**: Check `active_learning/` directory for logs and intermediate results.
-
 ## Development
-
-We follow a strictly defined development cycle using `uv` and `ruff`.
 
 ### Running Tests
 ```bash
@@ -117,20 +76,3 @@ uv run pytest
 uv run ruff check .
 uv run mypy .
 ```
-
-### Project Structure
-```ascii
-src/mlip_autopipec/
-├── config/             # Configuration schemas (Pydantic)
-├── domain_models/      # Data structures (Atoms, Dataset)
-├── interfaces/         # Core Protocols
-├── orchestration/      # Main Loop & Mocks
-├── structure_generation/
-├── oracle/             # DFT & Embedding
-├── training/           # Pacemaker Wrapper
-└── dynamics/           # LAMMPS & EON
-```
-
-## License
-
-This project is licensed under the MIT License.

@@ -1,0 +1,3 @@
+work_dir: "./workspace"
+max_cycles: 3
+random_seed: 42
