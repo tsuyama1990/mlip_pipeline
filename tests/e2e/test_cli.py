@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import yaml
 from typer.testing import CliRunner
 
@@ -15,23 +17,22 @@ def test_cli_help() -> None:
 def test_cli_run_missing_config() -> None:
     # Use --config option
     result = runner.invoke(app, ["run", "--config", "nonexistent.yaml"])
-    print(f"STDOUT: {result.stdout}")
-    print(f"STDERR: {result.stderr}")
     assert result.exit_code == 1, f"Exit code {result.exit_code}. Output: {result.stdout}"
-    assert "Config file not found" in result.stdout or (result.stderr and "Config file not found" in result.stderr)
+    assert "Config file not found" in result.stdout or (
+        result.stderr and "Config file not found" in result.stderr
+    )
 
 
-def test_cli_run_valid(tmp_path) -> None:
+def test_cli_run_valid(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     config_data = {
         "work_dir": str(tmp_path / "workspace"),
         "max_cycles": 1,
         "random_seed": 42,
     }
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         yaml.dump(config_data, f)
 
     # Use --config option
     result = runner.invoke(app, ["run", "--config", str(config_path)])
-    print(f"STDOUT: {result.stdout}")
     assert result.exit_code == 0, f"Exit code {result.exit_code}. Output: {result.stdout}"

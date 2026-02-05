@@ -1,10 +1,12 @@
+from pathlib import Path
+from typing import Annotated
+
 import typer
 import yaml
-from typing import Annotated
-from pathlib import Path
+
 from src.config.config_model import GlobalConfig
-from src.orchestration.orchestrator import Orchestrator
 from src.orchestration.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
+from src.orchestration.orchestrator import Orchestrator
 from src.utils.logging import setup_logging
 
 app = typer.Typer()
@@ -15,14 +17,11 @@ def main() -> None:
     """
     MLIP Pipeline CLI.
     """
-    pass
 
 
 @app.command()
 def run(
-    config_path: Annotated[
-        Path, typer.Option("--config", help="Path to the configuration file")
-    ],
+    config_path: Annotated[Path, typer.Option("--config", help="Path to the configuration file")],
 ) -> None:
     """
     Run the MLIP active learning pipeline.

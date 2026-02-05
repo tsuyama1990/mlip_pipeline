@@ -25,14 +25,14 @@ src/domain_models/structures.py         7      0   100%
 src/domain_models/validation.py         6      0   100%
 src/interfaces/__init__.py              2      0   100%
 src/interfaces/core_interfaces.py      12      0   100%
-src/main.py                            33      4    88%   41-43, 63
+src/main.py                            32      4    88%   40-42, 62
 src/orchestration/__init__.py           3      0   100%
 src/orchestration/mocks.py             24      0   100%
 src/orchestration/orchestrator.py      34      1    97%   53
 src/utils/__init__.py                   2      0   100%
 src/utils/logging.py                    4      0   100%
 -----------------------------------------------------------------
-TOTAL                                 149      5    97%
-============================== 10 passed in 2.33s ==============================
+TOTAL                                 148      5    97%
+============================== 10 passed in 2.36s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
