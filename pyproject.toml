@@ -4,7 +4,16 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "ase>=3.27.0",
+    "numpy>=2.4.2",
+    "pydantic>=2.12.5",
+    "pyyaml>=6.0.3",
+    "typer>=0.21.1",
+]
+
+[project.scripts]
+mlip-pipeline = "src.main:app"
 
 [dependency-groups]
 dev = [
@@ -12,6 +21,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [tool.ruff]
