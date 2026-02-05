@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import yaml
 from typer.testing import CliRunner
 
@@ -6,7 +8,7 @@ from mlip_autopipec.main import app
 runner = CliRunner()
 
 
-def test_cli_config_validation_failure(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_cli_config_validation_failure(tmp_path: Path) -> None:
     config_data = {
         "execution_mode": "mock",
         "max_cycles": "not_a_number",
@@ -20,7 +22,7 @@ def test_cli_config_validation_failure(tmp_path) -> None:  # type: ignore[no-unt
     assert "Error" in result.stdout
 
 
-def test_cli_production_fallback(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_cli_production_fallback(tmp_path: Path) -> None:
     config_data = {
         "execution_mode": "production",
         "max_cycles": 1,

@@ -46,19 +46,22 @@ def run(
         # Pydantic validation
         config = GlobalConfig(**config_dict)
 
+        # Ensure work directory exists
+        config.work_dir.mkdir(parents=True, exist_ok=True)
+
         if config.execution_mode == "mock":
-            explorer = MockExplorer()
-            oracle = MockOracle()
-            trainer = MockTrainer()
-            validator = MockValidator()
+            explorer = MockExplorer(work_dir=config.work_dir)
+            oracle = MockOracle(work_dir=config.work_dir)
+            trainer = MockTrainer(work_dir=config.work_dir)
+            validator = MockValidator(work_dir=config.work_dir)
         else:
             print(  # noqa: T201
                 "Production mode not implemented yet, using mocks as fallback."
             )
-            explorer = MockExplorer()
-            oracle = MockOracle()
-            trainer = MockTrainer()
-            validator = MockValidator()
+            explorer = MockExplorer(work_dir=config.work_dir)
+            oracle = MockOracle(work_dir=config.work_dir)
+            trainer = MockTrainer(work_dir=config.work_dir)
+            validator = MockValidator(work_dir=config.work_dir)
 
         orchestrator = Orchestrator(
             explorer=explorer,

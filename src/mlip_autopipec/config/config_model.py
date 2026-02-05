@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,6 +41,9 @@ class GlobalConfig(BaseModel):
 
     execution_mode: Literal["mock", "production"] = Field(
         "mock", description="Execution mode: 'mock' for testing, 'production' for real runs"
+    )
+    work_dir: Path = Field(
+        default_factory=lambda: Path(), description="Working directory for artifacts"
     )
     max_cycles: int = Field(5, description="Maximum number of active learning cycles to run")
     exploration: ExplorationConfig = Field(

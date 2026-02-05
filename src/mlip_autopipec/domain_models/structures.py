@@ -1,5 +1,7 @@
+from typing import Any
+
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StructureMetadata(BaseModel):
@@ -24,3 +26,11 @@ class StructureMetadata(BaseModel):
     selection_score: float | None = Field(
         None, description="Score used for active learning selection"
     )
+
+    @field_validator("structure")
+    @classmethod
+    def validate_atoms(cls, v: Any) -> Any:
+        if not isinstance(v, Atoms):
+            msg = "Field 'structure' must be an instance of ase.Atoms"
+            raise TypeError(msg)
+        return v
