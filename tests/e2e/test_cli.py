@@ -1,11 +1,11 @@
 import yaml
+from pathlib import Path
 from typer.testing import CliRunner
-
 from main import app
 
 runner = CliRunner()
 
-def test_run_command(tmp_path):
+def test_run_command(tmp_path: Path) -> None:
     config_data = {
         "work_dir": str(tmp_path / "work"),
         "max_cycles": 1,
@@ -21,19 +21,19 @@ def test_run_command(tmp_path):
     # Check if work dir created
     assert (tmp_path / "work").exists()
 
-def test_run_missing_config():
+def test_run_missing_config() -> None:
     result = runner.invoke(app, ["--config", "nonexistent.yaml"])
     assert result.exit_code == 1
     assert "Config file not found" in result.stdout
 
-def test_run_invalid_yaml(tmp_path):
+def test_run_invalid_yaml(tmp_path: Path) -> None:
     config_file = tmp_path / "bad.yaml"
     config_file.write_text("key: value: broken")
     result = runner.invoke(app, ["--config", str(config_file)])
     assert result.exit_code == 1
     assert "Error parsing config file" in result.stdout
 
-def test_run_invalid_schema(tmp_path):
+def test_run_invalid_schema(tmp_path: Path) -> None:
     config_file = tmp_path / "invalid.yaml"
     # Missing required fields
     config_file.write_text("random_seed: 42")

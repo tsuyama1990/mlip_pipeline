@@ -1,10 +1,8 @@
-import logging
-from pathlib import Path
-from typing import Annotated
-
 import typer
-import yaml  # type: ignore
-
+import yaml
+import logging
+from typing import Annotated
+from pathlib import Path
 from config import GlobalConfig
 from orchestration.orchestrator import Orchestrator
 from utils.logging import setup_logging
