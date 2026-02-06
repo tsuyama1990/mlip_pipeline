@@ -17,3 +17,7 @@ class ValidationResult(BaseModel):
             msg = "Metrics dictionary cannot be empty"
             raise ValueError(msg)
         return v
+
+    def __str__(self) -> str:
+        metrics_str = ", ".join(f"{k}={v:.4f}" for k, v in self.metrics.items())
+        return f"ValidationResult(stable={self.is_stable}, metrics={{{metrics_str}}})"

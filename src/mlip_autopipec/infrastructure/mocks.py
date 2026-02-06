@@ -41,7 +41,7 @@ class MockOracle(BaseOracle):
         """
         logger.info(f"MockOracle: Labeling {len(dataset.structures)} structures...")
 
-        labeled_structures = []
+        labeled_structures: list[StructureMetadata] = []
         # If dataset comes from file, we should handle it, but for Cycle 01 Mock,
         # we assume Explorer returns in-memory structures.
         if not dataset.structures and dataset.file_path:
@@ -100,6 +100,9 @@ class MockValidator(BaseValidator):
         self.config = config
 
     def validate(self, potential_path: Path) -> ValidationResult:
+        """
+        Validates the potential by generating random metrics.
+        """
         logger.info(f"MockValidator: Validating potential at {potential_path}")
         # Generate random metrics to be more realistic as requested
         rmse_energy = np.random.uniform(0.001, 0.1)

@@ -58,7 +58,12 @@ class Orchestrator:
                 logger.info(f"Appending {len(labeled_data.structures)} structures to {self.dataset_file}")
                 # Extract ASE atoms
                 atoms_list = [s.structure for s in labeled_data.structures]
-                write(self.dataset_file, atoms_list, append=True)
+                try:
+                    write(self.dataset_file, atoms_list, append=True)
+                except Exception as e:
+                    msg = f"Failed to write structures to {self.dataset_file}"
+                    logger.exception(msg)
+                    raise RuntimeError(msg) from e
 
             # 4. Train
             logger.info("Running Trainer...")
@@ -68,6 +73,7 @@ class Orchestrator:
             potential_path = self.trainer.train(full_dataset, full_dataset)
             self.current_potential_path = potential_path
             logger.info(f"Trainer produced potential version {cycle} at {potential_path}.")
+            logger.info(f"Updated current potential path to: {self.current_potential_path}")
 
             # 5. Validate
             validation_result = self.validator.validate(potential_path)
