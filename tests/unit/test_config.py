@@ -47,7 +47,12 @@ def test_global_config_valid(tmp_path: Path) -> None:
         max_cycles=10,
         random_seed=123,
         explorer=ExplorerConfig(type="random"),
-        oracle=OracleConfig(type="espresso"),
+        oracle=OracleConfig(
+            type="espresso",
+            command="pw.x",
+            pseudo_dir=work_dir / "pseudos",
+            pseudopotentials={"Si": "Si.UPF"},
+        ),
         trainer=TrainerConfig(type="pacemaker"),
         validator=ValidatorConfig(type="mock"),
     )
@@ -88,3 +93,37 @@ def test_trainer_config_valid_potential_name() -> None:
     """
     config = TrainerConfig(potential_output_name="good.yace")
     assert config.potential_output_name == "good.yace"
+
+
+def test_oracle_config_espresso_requires_fields(tmp_path: Path) -> None:
+    """Tests that Espresso oracle requires command, pseudo_dir, and pseudopotentials."""
+    # Missing all (fails fast on command)
+    with pytest.raises(ValidationError) as excinfo:
+        OracleConfig(type="espresso")
+    assert "command is required" in str(excinfo.value)
+
+    # Missing pseudo_dir
+    with pytest.raises(ValidationError) as excinfo:
+        OracleConfig(type="espresso", command="pw.x")
+    assert "pseudo_dir is required" in str(excinfo.value)
+
+    # Missing pseudopotentials
+    with pytest.raises(ValidationError) as excinfo:
+        OracleConfig(type="espresso", command="pw.x", pseudo_dir=tmp_path)
+    assert "pseudopotentials are required" in str(excinfo.value)
+
+
+def test_oracle_config_security() -> None:
+    """Tests that dangerous commands are rejected."""
+    dangerous_commands = ["pw.x > output", "pw.x | grep error", "pw.x; rm -rf /"]
+    for cmd in dangerous_commands:
+        with pytest.raises(ValidationError):
+            OracleConfig(type="espresso", command=cmd)
+
+
+def test_oracle_config_kspacing() -> None:
+    """Tests that kspacing must be positive."""
+    with pytest.raises(ValidationError):
+        OracleConfig(kspacing=0.0)
+    with pytest.raises(ValidationError):
+        OracleConfig(kspacing=-0.1)

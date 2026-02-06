@@ -1,0 +1,44 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 28 items
+
+tests/e2e/test_cli.py ....                                               [ 14%]
+tests/unit/test_config.py ..........                                     [ 50%]
+tests/unit/test_domain_models.py ....                                    [ 64%]
+tests/unit/test_oracle.py ....                                           [ 78%]
+tests/unit/test_orchestrator.py ..                                       [ 85%]
+tests/unit/test_recovery.py ....                                         [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                               0      0   100%
+src/mlip_autopipec/config/__init__.py                        2      0   100%
+src/mlip_autopipec/config/config_model.py                   71      1    99%   29
+src/mlip_autopipec/domain_models/__init__.py                 3      0   100%
+src/mlip_autopipec/domain_models/structure.py               20      2    90%   24-25
+src/mlip_autopipec/domain_models/validation.py              16      0   100%
+src/mlip_autopipec/infrastructure/__init__.py                0      0   100%
+src/mlip_autopipec/infrastructure/espresso/__init__.py       0      0   100%
+src/mlip_autopipec/infrastructure/espresso/adapter.py       63      6    90%   28-29, 37-38, 47, 60
+src/mlip_autopipec/infrastructure/espresso/recovery.py      17      0   100%
+src/mlip_autopipec/infrastructure/mocks.py                 106     26    75%   52-55, 83-85, 91-95, 120-123, 157-163, 180-182
+src/mlip_autopipec/interfaces/__init__.py                    5      0   100%
+src/mlip_autopipec/interfaces/explorer.py                    6      0   100%
+src/mlip_autopipec/interfaces/oracle.py                      5      0   100%
+src/mlip_autopipec/interfaces/trainer.py                     6      0   100%
+src/mlip_autopipec/interfaces/validator.py                   6      0   100%
+src/mlip_autopipec/main.py                                  48      8    83%   53-54, 59-60, 65-66, 72, 105
+src/mlip_autopipec/orchestration/__init__.py                 0      0   100%
+src/mlip_autopipec/orchestration/orchestrator.py            53      5    91%   75-79
+src/mlip_autopipec/utils/__init__.py                         0      0   100%
+src/mlip_autopipec/utils/logging.py                         18      0   100%
+--------------------------------------------------------------------------------------
+TOTAL                                                      445     48    89%
+============================== 28 passed in 4.10s ==============================

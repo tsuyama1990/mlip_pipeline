@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from ase.io import read, write
+from ase.io import iread, write
 
 from mlip_autopipec.config import GlobalConfig
 from mlip_autopipec.domain_models import Dataset
@@ -63,14 +63,14 @@ class Orchestrator:
                 logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
 
                 try:
-                    # Using ASE read/write to append
-                    structures = read(labeled_data.file_path, index=":")
-                    if not isinstance(structures, list):
-                        structures = [structures]
+                    # Using ASE iread/write to append
+                    count = 0
+                    for atoms in iread(labeled_data.file_path):
+                        write(self.dataset_file, atoms, format="extxyz", append=True)
+                        count += 1
 
-                    if structures:
-                        write(self.dataset_file, structures, append=True)
-                        logger.info(f"Appended {len(structures)} structures.")
+                    if count > 0:
+                        logger.info(f"Appended {count} structures.")
                     else:
                         logger.warning("No structures found in labeled data.")
                 except Exception as e:
