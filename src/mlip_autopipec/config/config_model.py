@@ -29,7 +29,8 @@ class OracleConfig(BaseModel):
     kspacing: float | None = None
     scf_params: dict[str, Any] = Field(default_factory=dict)
 
-    # Recovery strategies
+    # Performance & Recovery
+    batch_size: int = Field(default=10, ge=1)
     recovery_recipes: list[dict[str, Any]] = Field(default_factory=_default_recovery_recipes)
 
     @model_validator(mode="after")

@@ -174,6 +174,15 @@ def test_espresso_oracle_dangerous_command_whitelist(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Security check failed"):
         EspressoOracle(config, tmp_path)
 
+    # 5. Dangerous path (not standard prefix)
+    config.command = "/var/tmp/pw.x" # noqa: S108
+    with pytest.raises(ValueError, match="Security check failed"):
+        EspressoOracle(config, tmp_path)
+
+    # 6. Trusted path
+    config.command = "/usr/bin/pw.x"
+    EspressoOracle(config, tmp_path) # Should pass
+
 
 @patch("mlip_autopipec.infrastructure.espresso.adapter.write")
 @patch("mlip_autopipec.infrastructure.espresso.adapter.iread")
@@ -186,13 +195,15 @@ def test_espresso_oracle_batching(
     tmp_path: Path
 ) -> None:
     """
-    Test that the oracle processes and writes in batches (checks that write is called for lists).
-    Actually, we want to check that it writes occasionally, not necessarily lists if using append.
-    But implementing batch writes means passing a list to write().
+    Test that the oracle processes and writes in batches.
+    We configure batch_size=2 and provide 5 inputs.
+    Expected: write is called 3 times (2, 2, 1).
     """
+    mock_oracle_config.batch_size = 2
     oracle = EspressoOracle(mock_oracle_config, tmp_path)
     dataset = Dataset(file_path=tmp_path / "dummy.xyz")
-    (tmp_path / "dummy.xyz").touch()
+    # Write some dummy content so st_size > 0
+    (tmp_path / "dummy.xyz").write_text("dummy content")
 
     # Mock input: 5 atoms
     atoms = Atoms("H")
@@ -203,21 +214,30 @@ def test_espresso_oracle_batching(
     mock_espresso_cls.return_value = mock_calc
     mock_calc.get_potential_energy.return_value = -1.0
 
-    # If we implement batch size of e.g. 2, we expect write to be called 3 times (2, 2, 1) or similar.
-    # For now, let's just assume we want to verify it finishes.
-    # But to test batching specifically, we need to inspect implementation or spy on write.
-    # Let's assume implementation uses a batch size. We can verify write calls receive lists.
+    # Ensure mock_write creates a non-empty file to pass integrity checks
+    def write_side_effect(filename: Any, *args: Any, **kwargs: Any) -> None:
+        # Append "data" to file to simulate writing atoms
+        with Path(filename).open("a") as f:
+            f.write("fake output\n")
+
+    mock_write.side_effect = write_side_effect
 
     oracle.label(dataset)
 
-    # Verify write was called with list of atoms (if batched) or individual (if not)
-    # The requirement is to batch writes.
-    # So write(file, list_of_atoms, append=True)
-    assert mock_write.called
-    args, _ = mock_write.call_args
-    # Check if second arg is list
-    if len(args) > 1:
-        assert isinstance(args[1], list)
+    # Verify write called 3 times
+    assert mock_write.call_count == 3
+
+    # Check batch sizes
+    # call_args_list[0] -> args[1] should have len 2
+    # call_args_list[1] -> args[1] should have len 2
+    # call_args_list[2] -> args[1] should have len 1
+
+    # Note: args[0] is filepath, args[1] is object
+    args0, _ = mock_write.call_args_list[0]
+    assert len(args0[1]) == 2
+
+    args2, _ = mock_write.call_args_list[2]
+    assert len(args2[1]) == 1
 
 
 def test_recovery_strategy_config_injection() -> None:

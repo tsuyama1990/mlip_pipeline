@@ -123,11 +123,18 @@ def test_oracle_config_recovery_recipes() -> None:
     config = OracleConfig(type="mock")
     assert len(config.recovery_recipes) == 3
     assert config.recovery_recipes[0]["mixing_beta"] == 0.3
+    assert config.batch_size == 10
 
     # Test custom
     config = OracleConfig(
         type="mock",
-        recovery_recipes=[{"mixing_beta": 0.5}, {"electron_maxstep": 150}]
+        recovery_recipes=[{"mixing_beta": 0.5}, {"electron_maxstep": 150}],
+        batch_size=50
     )
     assert len(config.recovery_recipes) == 2
     assert config.recovery_recipes[0]["mixing_beta"] == 0.5
+    assert config.batch_size == 50
+
+    # Test invalid batch size
+    with pytest.raises(ValidationError):
+        OracleConfig(type="mock", batch_size=0)

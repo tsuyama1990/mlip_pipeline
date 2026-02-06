@@ -45,7 +45,7 @@ class Orchestrator:
         accumulated_count = 0
         if self.dataset_file.exists() and self.dataset_file.stat().st_size > 0:
              # Count existing structures
-             for _ in iread(self.dataset_file): # type: ignore[no-untyped-call]
+             for _ in iread(self.dataset_file):
                  accumulated_count += 1
 
         for cycle in range(1, self.config.max_cycles + 1):

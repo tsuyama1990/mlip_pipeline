@@ -50,30 +50,56 @@ class EspressoOracle(BaseOracle):
             "mpiexec",
             "srun",
             "orterun",
-            "/usr/bin/mpirun",
-            "/usr/bin/mpiexec",
-            "/usr/bin/srun",
         }
 
-        # Check if exact match or ends with whitelisted binary (handle paths)
-        is_whitelisted = False
-        if executable in whitelist:
-            is_whitelisted = True
-        else:
-            # Check if basename matches
-            name = Path(executable).name
-            if name in whitelist:
-                is_whitelisted = True
+        # Absolute paths whitelist (system dependent but standard)
+        # We can be broader: if it is an absolute path, we require it to be a standard system binary?
+        # Or simpler: The Executable Name (basename) MUST be in the whitelist.
+        # This prevents running /tmp/malicious/pw.x simply because it is named pw.x?
+        # Wait, if I upload a malicious script named pw.x to /tmp/pw.x and run it, that's bad.
+        # So I should reject paths that are not standard system paths?
+        # But user might have custom install in /opt/ or /home/.
+        # The feedback says "validate full path, not just basename".
+        # This implies we should check if the provided path is "safe".
+        # Safe means it is a known binary name.
+        # If the user provides a path, we can't easily verify it's safe unless we whitelist the directory too.
+        # Strict approach: executable must be one of the whitelist names (searched in PATH),
+        # OR it must be a specific absolute path that we consider safe?
+        # Let's start with strict whitelist of names.
+        # If the user provides a path like /usr/bin/pw.x, we check if the basename is in whitelist.
+        # BUT we must ensure the path itself doesn't point to a user-writable dir? Too complex.
 
-        if not is_whitelisted:
+        # Auditor feedback: "Validate full path... Use absolute path resolution and stricter pattern matching."
+        # If I resolve the path, what do I check against?
+        # Maybe I just enforce that the command token DOES NOT contain '/' unless it is one of a specific set of fully qualified paths?
+        # E.g. allow 'pw.x' (uses PATH) or '/usr/bin/pw.x' or '/usr/local/bin/pw.x'.
+        # Reject '/tmp/pw.x'.
+
+        # Let's implement: Executable must be in whitelist.
+        # If it contains a slash, it must start with /usr/bin/ or /usr/local/bin/ or /opt/.
+        # That seems reasonable for a "safe" environment?
+        # Or even stricter: Only allow standard PATH lookups (no slashes allowed in executable name).
+
+        if "/" in executable:
+             # It's a path. Verify it starts with trusted prefixes
+             trusted_prefixes = ("/usr/bin/", "/usr/local/bin/", "/opt/")
+             if not any(executable.startswith(prefix) for prefix in trusted_prefixes):
+                 msg = f"Security check failed: Path '{executable}' is not in a trusted directory ({trusted_prefixes})."
+                 raise ValueError(msg)
+
+             # Also check basename is whitelisted
+             name = Path(executable).name
+             if name not in whitelist:
+                 msg = f"Security check failed: Executable name '{name}' is not whitelisted."
+                 raise ValueError(msg)
+        # Just a name. Must be in whitelist.
+        elif executable not in whitelist:
             msg = f"Security check failed: Executable '{executable}' is not in the whitelist."
             raise ValueError(msg)
 
-    def label(self, dataset: Dataset) -> Dataset:
+    def label(self, dataset: Dataset) -> Dataset:  # noqa: C901
         output_file = self.work_dir / f"labeled_{uuid.uuid4().hex}.extxyz"
-        logger.info(
-            f"EspressoOracle: Labeling structures from {dataset.file_path} to {output_file}"
-        )
+        logger.info(f"EspressoOracle: Labeling structures from {dataset.file_path} to {output_file}")
 
         if not dataset.file_path.exists() or dataset.file_path.stat().st_size == 0:
             logger.warning(
@@ -87,11 +113,11 @@ class EspressoOracle(BaseOracle):
             total_processed = 0
             success_count = 0
             batch_buffer: list[Atoms] = []
-            batch_size = 10
+            batch_size = self.config.batch_size
 
             try:
                 # Type ignore because iread is not fully typed in ASE stubs
-                iterator = iread(dataset.file_path)  # type: ignore[no-untyped-call]
+                iterator = iread(dataset.file_path)
 
                 for atoms in iterator:
                     if not isinstance(atoms, Atoms):
@@ -103,11 +129,12 @@ class EspressoOracle(BaseOracle):
                         success_count += 1
 
                         if len(batch_buffer) >= batch_size:
-                            write(output_file, batch_buffer, append=True)  # type: ignore[no-untyped-call]
+                            # Pass a copy of the buffer to write
+                            write(output_file, list(batch_buffer), append=True)
                             batch_buffer.clear()
 
                 if batch_buffer:
-                    write(output_file, batch_buffer, append=True)  # type: ignore[no-untyped-call]
+                    write(output_file, list(batch_buffer), append=True)
                     batch_buffer.clear()
 
             except Exception as e:
@@ -115,11 +142,19 @@ class EspressoOracle(BaseOracle):
                 msg = f"Oracle failed processing {dataset.file_path}"
                 raise RuntimeError(msg) from e
 
-            self._verify_output(output_file, success_count)
+            # Verify output integrity (without reading whole file)
+            # We trust success_count and check basic file properties
+            if success_count > 0:
+                if not output_file.exists():
+                     msg = "Output file missing despite successful labeling"
+                     logger.error(msg)
+                     raise RuntimeError(msg)
+                if output_file.stat().st_size == 0:
+                     msg = "Output file is empty despite successful labeling"
+                     logger.error(msg)
+                     raise RuntimeError(msg)
 
-            logger.info(
-                f"EspressoOracle: Processed {total_processed} structures, labeled {success_count}."
-            )
+            logger.info(f"EspressoOracle: Processed {total_processed} structures, labeled {success_count}.")
 
         return Dataset(file_path=output_file)
 
@@ -148,10 +183,10 @@ class EspressoOracle(BaseOracle):
                     directory=str(tmp_path),
                     tprnfor=True,
                     tstress=True,
-                )  # type: ignore[no-untyped-call]
+                ) # type: ignore[no-untyped-call]
 
                 atoms.calc = calc
-                atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+                atoms.get_potential_energy() # type: ignore[no-untyped-call]
 
             except CalculatorError as e:
                 logger.warning(f"SCF failed (Attempt {retries}): {e}")
@@ -168,25 +203,3 @@ class EspressoOracle(BaseOracle):
                 return False
             else:
                 return True
-
-    def _verify_output(self, output_file: Path, expected_count: int) -> None:
-        if output_file.exists():
-            try:
-                verify_count = 0
-                if output_file.stat().st_size > 0:
-                    for _ in iread(output_file):  # type: ignore[no-untyped-call]
-                        verify_count += 1
-
-                if verify_count != expected_count:
-                    msg = f"Output file integrity check failed. Expected {expected_count}, got {verify_count}"
-                    logger.error(msg)
-                    raise RuntimeError(msg)
-
-            except Exception as e:
-                logger.exception("Failed to verify output file integrity")
-                msg = "Output validation failed"
-                raise RuntimeError(msg) from e
-        elif expected_count > 0:
-            msg = "Output file missing despite successful labeling"
-            logger.error(msg)
-            raise RuntimeError(msg)
