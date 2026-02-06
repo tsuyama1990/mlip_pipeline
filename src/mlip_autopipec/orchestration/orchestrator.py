@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 from ase.io import write
 
@@ -28,10 +27,14 @@ class Orchestrator:
         self.config.work_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize accumulated dataset file
-        self.dataset_file = self.config.work_dir / "accumulated_dataset.xyz"
+        self.dataset_file = self.config.work_dir / self.config.dataset_file_name
 
         # Current potential path (start with initial from config or default)
-        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
+        if self.config.initial_potential:
+            self.current_potential_path = self.config.initial_potential
+        else:
+             # Default to a file in work_dir
+            self.current_potential_path = self.config.work_dir / "initial_potential.yace"
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
@@ -58,7 +61,12 @@ class Orchestrator:
                 logger.info(f"Appending {len(labeled_data.structures)} structures to {self.dataset_file}")
                 # Extract ASE atoms
                 atoms_list = [s.structure for s in labeled_data.structures]
-                write(self.dataset_file, atoms_list, append=True)
+                try:
+                    write(self.dataset_file, atoms_list, append=True)
+                except Exception as e:
+                    msg = f"Failed to write structures to {self.dataset_file}"
+                    logger.exception(msg)
+                    raise RuntimeError(msg) from e
 
             # 4. Train
             logger.info("Running Trainer...")
@@ -68,6 +76,7 @@ class Orchestrator:
             potential_path = self.trainer.train(full_dataset, full_dataset)
             self.current_potential_path = potential_path
             logger.info(f"Trainer produced potential version {cycle} at {potential_path}.")
+            logger.info(f"Updated current potential path to: {self.current_potential_path}")
 
             # 5. Validate
             validation_result = self.validator.validate(potential_path)

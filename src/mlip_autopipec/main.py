@@ -44,13 +44,13 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
         raise NotImplementedError(msg)
 
     if config.oracle.type == "mock":
-        oracle = MockOracle()
+        oracle = MockOracle(work_dir=config.work_dir)
     else:
         msg = f"Oracle type {config.oracle.type} not implemented"
         raise NotImplementedError(msg)
 
     if config.trainer.type == "mock":
-        trainer = MockTrainer(config.trainer)
+        trainer = MockTrainer(config.trainer, work_dir=config.work_dir)
     else:
         msg = f"Trainer type {config.trainer.type} not implemented"
         raise NotImplementedError(msg)
