@@ -1,9 +1,12 @@
 import logging
+import time
 from collections.abc import Generator
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from ase import Atoms
+from numpy.typing import NDArray
 
 from mlip_autopipec.config import ExplorerConfig, TrainerConfig, ValidatorConfig
 from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
@@ -27,7 +30,12 @@ class MockExplorer(BaseExplorer):
         def _generate() -> Generator[StructureMetadata, None, None]:
             for _ in range(self.config.n_structures):
                 atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
-                atoms.positions += np.random.rand(3, 3) * 0.1
+
+                # Explicitly cast positions to NDArray for better IDE support/type checking
+                positions = cast(NDArray[np.float64], atoms.positions)
+                positions += np.random.rand(3, 3) * 0.1
+                atoms.positions = positions
+
                 yield StructureMetadata(structure=atoms, iteration=0)
 
         new_structures = list(_generate())
@@ -41,6 +49,10 @@ class MockOracle(BaseOracle):
     def label(self, dataset: Dataset) -> Dataset:
         """
         Labels the dataset with random physical properties.
+
+        This mock implementation generates random values for energy (uniform between -100 and -10),
+        forces (uniform between -1 and 1), and virials (uniform between -0.1 and 0.1).
+        It does not perform any actual quantum mechanical calculations.
         """
         logger.info(f"MockOracle: Labeling {len(dataset.structures)} structures...")
 
@@ -86,13 +98,21 @@ class MockTrainer(BaseTrainer):
         potential_filename = self.config.potential_output_name
         potential_path = Path(potential_filename)
 
-        try:
-            potential_path.write_text("Mock Potential Data")
-            logger.info(f"MockTrainer: Wrote potential to {potential_path}")
-        except OSError as e:
-            msg = f"Failed to write mock potential file: {e}"
-            logger.exception(msg)
-            raise RuntimeError(msg) from e
+        # Simple retry mechanism for file write
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                potential_path.write_text("Mock Potential Data", encoding="utf-8")
+                logger.info(f"MockTrainer: Wrote potential to {potential_path}")
+                break
+            except OSError as e:
+                if attempt == max_retries - 1:
+                    msg = f"Failed to write mock potential file after {max_retries} attempts: {e}"
+                    logger.exception(msg)
+                    raise RuntimeError(msg) from e
+                logger.warning(f"Write failed (attempt {attempt + 1}/{max_retries}), retrying... Error: {e}")
+                time.sleep(0.1)
+
         return potential_path
 
 class MockValidator(BaseValidator):

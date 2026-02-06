@@ -106,3 +106,41 @@ def test_max_accumulated_structures_limit(mock_config: GlobalConfig) -> None:
     # Clean up potential
     if Path("mock_potential.yace").exists():
         Path("mock_potential.yace").unlink()
+
+@pytest.mark.parametrize(("n_structures", "max_cycles", "expected_total"), [
+    (1, 1, 1),
+    (1, 2, 2),
+    (3, 1, 3),
+])
+def test_orchestrator_configurations(
+    n_structures: int,
+    max_cycles: int,
+    expected_total: int,
+    tmp_path: Path
+) -> None:
+    """
+    Test orchestrator with different configurations.
+    """
+    config = GlobalConfig(
+        work_dir=tmp_path,
+        max_cycles=max_cycles,
+        explorer=ExplorerConfig(type="mock", n_structures=n_structures),
+        oracle=OracleConfig(type="mock"),
+        trainer=TrainerConfig(type="mock", potential_output_name="param_test.yace"),
+        validator=ValidatorConfig(type="mock"),
+    )
+
+    explorer = MockExplorer(config.explorer)
+    oracle = MockOracle()
+    trainer = MockTrainer(config.trainer)
+    validator = MockValidator(config.validator)
+
+    orchestrator = Orchestrator(config, explorer, oracle, trainer, validator)
+    orchestrator.run()
+
+    dataset_file = config.work_dir / "accumulated_dataset.xyz"
+    structures = read(dataset_file, index=":")
+    assert len(structures) == expected_total
+
+    if Path("param_test.yace").exists():
+        Path("param_test.yace").unlink()
