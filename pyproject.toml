@@ -105,3 +105,4 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

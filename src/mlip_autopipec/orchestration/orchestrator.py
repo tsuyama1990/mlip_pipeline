@@ -28,7 +28,7 @@ class Orchestrator:
         self.config.work_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize accumulated dataset file
-        self.dataset_file = self.config.work_dir / "accumulated_dataset.xyz"
+        self.dataset_file = self.config.work_dir / self.config.dataset_file_name
 
         # Current potential path (start with initial from config or default)
         self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")

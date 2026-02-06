@@ -37,7 +37,7 @@ def test_orchestrator_run(mock_config: GlobalConfig) -> None:
 
     # Assertions
     # Check if accumulated dataset file exists and has content
-    dataset_file = mock_config.work_dir / "accumulated_dataset.xyz"
+    dataset_file = mock_config.work_dir / mock_config.dataset_file_name
     assert dataset_file.exists()
 
     # Cycle 1: Explorer 2 -> Oracle 2 -> Write 2
@@ -70,4 +70,4 @@ def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
     # Check initial potential path
     assert orchestrator.current_potential_path == Path("initial_potential.yace")
     # Check dataset file path setup
-    assert orchestrator.dataset_file == mock_config.work_dir / "accumulated_dataset.xyz"
+    assert orchestrator.dataset_file == mock_config.work_dir / mock_config.dataset_file_name

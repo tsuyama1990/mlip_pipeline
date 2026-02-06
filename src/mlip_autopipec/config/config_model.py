@@ -30,6 +30,8 @@ class GlobalConfig(BaseModel):
     random_seed: int = Field(default=42)
     # Optional initial potential path
     initial_potential: Path | None = None
+    # Name of the accumulated dataset file
+    dataset_file_name: str = Field(default="accumulated_dataset.xyz")
 
     explorer: ExplorerConfig = Field(default_factory=ExplorerConfig)
     oracle: OracleConfig = Field(default_factory=OracleConfig)
