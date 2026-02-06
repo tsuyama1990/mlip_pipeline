@@ -48,3 +48,20 @@ def test_global_config_invalid_max_cycles() -> None:
 def test_global_config_extra_forbid() -> None:
     with pytest.raises(ValidationError):
         GlobalConfig(max_cycles=5, work_dir=Path(), random_seed=1, extra_field="forbidden") # type: ignore[call-arg]
+
+def test_global_config_max_accumulated_structures_negative() -> None:
+    with pytest.raises(ValidationError):
+        GlobalConfig(max_cycles=5, work_dir=Path(), random_seed=1, max_accumulated_structures=-1)
+
+def test_explorer_config_n_structures() -> None:
+    # Default
+    conf = ExplorerConfig()
+    assert conf.n_structures == 2
+
+    # Custom valid
+    conf = ExplorerConfig(n_structures=10)
+    assert conf.n_structures == 10
+
+    # Invalid
+    with pytest.raises(ValidationError):
+        ExplorerConfig(n_structures=0)

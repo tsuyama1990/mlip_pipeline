@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class ExplorerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "random", "md"] = "mock"
+    # Configurable number of structures to generate
+    n_structures: int = Field(default=2, ge=1)
 
 class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -31,8 +33,8 @@ class GlobalConfig(BaseModel):
 
     max_cycles: int = Field(ge=1)
 
-    # Optional limits
-    max_accumulated_structures: int | None = None
+    # Optional limits (must be non-negative if set)
+    max_accumulated_structures: int | None = Field(default=None, ge=0)
 
     # Optional initial potential path
     initial_potential: Path | None = None

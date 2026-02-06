@@ -27,7 +27,7 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
     )
 
 def test_orchestrator_run(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer(work_dir=mock_config.work_dir)
+    explorer = MockExplorer(mock_config.explorer, work_dir=mock_config.work_dir)
     oracle = MockOracle(work_dir=mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer, work_dir=mock_config.work_dir)
     validator = MockValidator(mock_config.validator)
@@ -54,7 +54,7 @@ def test_orchestrator_run(mock_config: GlobalConfig) -> None:
     assert expected_potential_path.exists()
 
 def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer(work_dir=mock_config.work_dir)
+    explorer = MockExplorer(mock_config.explorer, work_dir=mock_config.work_dir)
     oracle = MockOracle(work_dir=mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer, work_dir=mock_config.work_dir)
     validator = MockValidator(mock_config.validator)
@@ -64,3 +64,14 @@ def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
     assert orchestrator.current_potential_path == mock_config.work_dir / "initial_potential.yace"
     # Check dataset file path setup
     assert orchestrator.dataset_file == mock_config.work_dir / "accumulated_dataset.xyz"
+
+def test_orchestrator_reset(mock_config: GlobalConfig) -> None:
+    explorer = MockExplorer(mock_config.explorer, work_dir=mock_config.work_dir)
+    oracle = MockOracle(work_dir=mock_config.work_dir)
+    trainer = MockTrainer(mock_config.trainer, work_dir=mock_config.work_dir)
+    validator = MockValidator(mock_config.validator)
+
+    orchestrator = Orchestrator(mock_config, explorer, oracle, trainer, validator)
+    orchestrator.total_structures = 100
+    orchestrator.reset()
+    assert orchestrator.total_structures == 0

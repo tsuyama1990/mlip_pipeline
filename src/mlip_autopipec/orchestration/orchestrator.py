@@ -28,8 +28,6 @@ class Orchestrator:
 
         # Initialize accumulated dataset file
         self.dataset_file = self.config.work_dir / "accumulated_dataset.xyz"
-        # If file doesn't exist, create it (empty) or just let append handle it?
-        # ASE write append=True works if file doesn't exist, but creates it.
 
         # We need a placeholder input dataset for Explorer (usually requires potential + data).
         # We'll create an empty placeholder file for the first cycle.
@@ -50,6 +48,13 @@ class Orchestrator:
                 self.total_structures = len(read(self.dataset_file, index=":"))
             except Exception:
                 self.total_structures = 0
+
+    def reset(self) -> None:
+        """
+        Resets the internal state of the orchestrator.
+        """
+        self.total_structures = 0
+        logger.info("Orchestrator state reset.")
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")

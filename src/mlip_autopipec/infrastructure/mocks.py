@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import iread, write
 
-from mlip_autopipec.config import TrainerConfig, ValidatorConfig
+from mlip_autopipec.config import ExplorerConfig, TrainerConfig, ValidatorConfig
 from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
@@ -17,7 +17,8 @@ class MockExplorer(BaseExplorer):
     """
     Mock implementation of an Explorer that generates random H2O structures.
     """
-    def __init__(self, work_dir: Path) -> None:
+    def __init__(self, config: ExplorerConfig, work_dir: Path) -> None:
+        self.config = config
         self.work_dir = work_dir
 
     def explore(self, current_potential_path: Path, dataset: Dataset) -> Dataset:
@@ -27,7 +28,7 @@ class MockExplorer(BaseExplorer):
         logger.info("MockExplorer: Generating new candidates...")
 
         def _generate() -> Generator[StructureMetadata, None, None]:
-            for _ in range(2):
+            for _ in range(self.config.n_structures):
                 atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
                 atoms.positions += np.random.rand(3, 3) * 0.1
                 yield StructureMetadata(structure=atoms, iteration=0)
@@ -116,7 +117,11 @@ class MockTrainer(BaseTrainer):
 
 class MockValidator(BaseValidator):
     """
-    Mock implementation of a Validator that returns metrics (randomized or config-based).
+    Mock implementation of a Validator that returns metrics.
+
+    This mock validator generates random metrics to simulate a validation process.
+    It produces 'rmse_energy' and 'rmse_forces' values drawn from a uniform distribution,
+    representing typical errors in a learning potential.
     """
     def __init__(self, config: ValidatorConfig) -> None:
         self.config = config

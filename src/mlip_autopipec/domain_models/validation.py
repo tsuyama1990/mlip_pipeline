@@ -17,3 +17,6 @@ class ValidationResult(BaseModel):
             msg = "Metrics dictionary cannot be empty"
             raise ValueError(msg)
         return v
+
+    def __str__(self) -> str:
+        return f"ValidationResult(is_stable={self.is_stable}, metrics={self.metrics})"
