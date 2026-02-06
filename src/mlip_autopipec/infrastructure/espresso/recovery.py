@@ -24,6 +24,16 @@ class RecoveryStrategy:
     def __init__(self, recipes: list[dict[str, Any]] | None = None) -> None:
         self.recipes = recipes if recipes else self.DEFAULT_RECIPES
 
+        # Validate recipes structure
+        if not isinstance(self.recipes, list):
+            msg = "Recovery recipes must be a list of dictionaries."
+            raise TypeError(msg)
+
+        for i, recipe in enumerate(self.recipes):
+            if not isinstance(recipe, dict):
+                msg = f"Recovery recipe at index {i} must be a dictionary, got {type(recipe)}."
+                raise TypeError(msg)
+
     def suggest_next_params(
         self, attempt: int, current_params: dict[str, Any]
     ) -> dict[str, Any]:
