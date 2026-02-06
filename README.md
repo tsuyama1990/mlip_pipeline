@@ -12,7 +12,10 @@
 
 ## 🚀 Key Features
 
-*   **Mock Mode (Cycle 01)**: Fully functional simulation of the pipeline flow using mock components, allowing verification of the orchestration logic without external heavy dependencies.
+*   **Quantum Espresso Integration**: Native support for DFT calculations using Quantum Espresso (via ASE).
+*   **Self-Healing Oracle**: Automatically recovers from SCF convergence failures by adjusting mixing beta and smearing.
+*   **Memory-Efficient Streaming**: Handles large datasets via lazy loading and incremental writing to prevent OOM errors.
+*   **Mock Mode**: Fully functional simulation of the pipeline flow using mock components, allowing verification of the orchestration logic without external heavy dependencies.
 *   **Zero-Config Workflow**: Define your material system in a single `config.yaml`. The system handles orchestration automatically.
 *   **Modular Architecture**: Plug-and-play interfaces for Explorer, Oracle, Trainer, and Validator components.
 *   **Strict Type Safety**: Built with Pydantic and Type Hints for maximum reliability.
@@ -46,6 +49,7 @@ graph TD
 
 *   **Python**: >= 3.12
 *   **Package Manager**: `uv` (Recommended) or `pip`
+*   **Quantum Espresso**: `pw.x` (Optional, required only for real DFT calculations)
 
 ---
 
@@ -69,11 +73,22 @@ graph TD
     # config.yaml
     work_dir: "./_work"
     max_cycles: 5
+    random_seed: 42
+
+    # Example for using Real DFT (Quantum Espresso)
+    oracle:
+      type: "espresso"
+      command: "mpirun -np 4 pw.x"
+      pseudo_dir: "/path/to/pseudos"
+      pseudopotentials:
+        Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+      kspacing: 0.04
+
     explorer:
       type: "mock"
-    oracle:
-      type: "mock"
     trainer:
+      type: "mock"
+    validator:
       type: "mock"
     ```
 
@@ -122,7 +137,9 @@ mlip-pipeline/
 │       ├── main.py           # CLI Entry Point
 │       ├── orchestration/    # The Brain
 │       ├── interfaces/       # Abstract Base Classes
-│       └── infrastructure/   # Adapters (Mocks implemented)
+│       └── infrastructure/   # Adapters
+│           ├── espresso/     # Quantum Espresso Adapter
+│           └── mocks.py      # Mock Implementations
 └── tests/                    # Unit and End-to-End Tests
 ```
 

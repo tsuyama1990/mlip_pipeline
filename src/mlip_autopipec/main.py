@@ -4,6 +4,7 @@ import typer
 import yaml
 
 from mlip_autopipec.config import GlobalConfig
+from mlip_autopipec.infrastructure.espresso.adapter import EspressoOracle
 from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
@@ -55,6 +56,8 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
 
     if config.oracle.type == "mock":
         oracle = MockOracle(config.work_dir)
+    elif config.oracle.type == "espresso":
+        oracle = EspressoOracle(config.oracle, config.work_dir)
     else:
         msg = f"Oracle type {config.oracle.type} not implemented"
         raise NotImplementedError(msg)

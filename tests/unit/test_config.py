@@ -47,7 +47,7 @@ def test_global_config_valid(tmp_path: Path) -> None:
         max_cycles=10,
         random_seed=123,
         explorer=ExplorerConfig(type="random"),
-        oracle=OracleConfig(type="espresso"),
+        oracle=OracleConfig(type="mock"),
         trainer=TrainerConfig(type="pacemaker"),
         validator=ValidatorConfig(type="mock"),
     )
@@ -88,3 +88,28 @@ def test_trainer_config_valid_potential_name() -> None:
     """
     config = TrainerConfig(potential_output_name="good.yace")
     assert config.potential_output_name == "good.yace"
+
+
+def test_oracle_config_validation_espresso_missing_fields() -> None:
+    """
+    Tests that OracleConfig raises ValidationError when type is espresso but required fields are missing.
+    """
+    with pytest.raises(ValidationError) as excinfo:
+        OracleConfig(type="espresso")
+    # Check that multiple errors are raised (or at least one)
+    assert "command is required" in str(excinfo.value)
+
+
+def test_oracle_config_validation_espresso_valid(tmp_path: Path) -> None:
+    """
+    Tests that OracleConfig is valid when all required fields are present.
+    """
+    config = OracleConfig(
+        type="espresso",
+        command="pw.x",
+        pseudo_dir=tmp_path,
+        pseudopotentials={"Si": "Si.upf"},
+        kspacing=0.05,
+    )
+    assert config.type == "espresso"
+    assert config.command == "pw.x"
