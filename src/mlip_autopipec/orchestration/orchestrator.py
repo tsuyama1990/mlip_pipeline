@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from ase.io import read, write
+from ase.io import iread, write
 
 from mlip_autopipec.config import GlobalConfig
 from mlip_autopipec.domain_models import Dataset
@@ -29,14 +29,16 @@ class Orchestrator:
         self.config.work_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize accumulated dataset file
-        self.dataset_file = self.config.work_dir / "accumulated_dataset.xyz"
+        self.dataset_file = self.config.work_dir / self.config.ACCUMULATED_DATASET_NAME
 
         # Ensure the accumulated dataset file exists, even if empty
         if not self.dataset_file.exists():
             self.dataset_file.touch()
 
         # Current potential path (start with initial from config or default)
-        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
+        self.current_potential_path = self.config.initial_potential or Path(
+            self.config.DEFAULT_INITIAL_POTENTIAL_NAME
+        )
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
@@ -58,25 +60,23 @@ class Orchestrator:
             logger.info(f"Oracle labeled structures at {labeled_data.file_path}.")
 
             # 3. Accumulate (Stream to disk to avoid memory explosion)
-            if labeled_data.file_path.exists():
-                # Read labeled data and append to accumulated dataset
-                logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
-
+            if labeled_data.file_path.exists() and labeled_data.file_path.stat().st_size > 0:
+                logger.info(
+                    f"Appending structures from {labeled_data.file_path} to {self.dataset_file}"
+                )
                 try:
-                    # Using ASE read/write to append
-                    structures = read(labeled_data.file_path, index=":")
-                    if not isinstance(structures, list):
-                        structures = [structures]
-
-                    if structures:
-                        write(self.dataset_file, structures, append=True)
-                        logger.info(f"Appended {len(structures)} structures.")
-                    else:
-                        logger.warning("No structures found in labeled data.")
+                    count = 0
+                    # Use iread to stream structures
+                    for atoms in iread(labeled_data.file_path):
+                        write(self.dataset_file, atoms, append=True)
+                        count += 1
+                    logger.info(f"Appended {count} structures.")
                 except Exception as e:
                     msg = f"Failed to append labeled structures to dataset file: {e}"
                     logger.exception(msg)
                     raise RuntimeError(msg) from e
+            else:
+                logger.warning("No structures found in labeled data (file empty or missing).")
 
             # 4. Train
             logger.info("Running Trainer...")

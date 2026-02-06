@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ExplorerConfig(BaseModel):
@@ -14,6 +14,24 @@ class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "espresso"] = "mock"
 
+    # Fields for espresso
+    command: str | None = None
+    pseudo_dir: Path | None = None
+    pseudopotentials: dict[str, str] = Field(default_factory=dict)
+    kspacing: float = 0.04
+    scf_params: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_espresso_fields(self) -> "OracleConfig":
+        if self.type == "espresso":
+            if not self.command:
+                msg = "command is required for espresso oracle"
+                raise ValueError(msg)
+            if not self.pseudo_dir:
+                msg = "pseudo_dir is required for espresso oracle"
+                raise ValueError(msg)
+        return self
+
 
 class TrainerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -21,11 +39,13 @@ class TrainerConfig(BaseModel):
     # Configurable output path for potential
     potential_output_name: str = "potential.yace"
 
+    REQUIRED_EXTENSION: ClassVar[str] = ".yace"
+
     @field_validator("potential_output_name")
     @classmethod
     def check_extension(cls, v: str) -> str:
-        if not v.endswith(".yace"):
-            msg = "Potential output name must end with .yace"
+        if not v.endswith(cls.REQUIRED_EXTENSION):
+            msg = f"Potential output name must end with {cls.REQUIRED_EXTENSION}"
             raise ValueError(msg)
         return v
 
@@ -50,3 +70,7 @@ class GlobalConfig(BaseModel):
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     validator: ValidatorConfig = Field(default_factory=ValidatorConfig)
+
+    # Constants for file names
+    ACCUMULATED_DATASET_NAME: ClassVar[str] = "accumulated_dataset.xyz"
+    DEFAULT_INITIAL_POTENTIAL_NAME: ClassVar[str] = "initial_potential.yace"
