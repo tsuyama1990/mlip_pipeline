@@ -105,3 +105,6 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+mypy_path = "src"
+explicit_package_bases = true
+plugins = ["pydantic.mypy"]
