@@ -37,7 +37,14 @@ def test_espresso_oracle_initialization(
 def test_espresso_oracle_initialization_bad_command(mock_oracle_config: OracleConfig) -> None:
     """Test security validation."""
     mock_oracle_config.command = "pw.x; rm -rf /"
-    with pytest.raises(ValueError, match="Command contains invalid characters"):
+    with pytest.raises(ValueError, match="Command contains forbidden characters"):
+        EspressoOracle(mock_oracle_config)
+
+
+def test_espresso_oracle_initialization_bad_executable(mock_oracle_config: OracleConfig) -> None:
+    """Test executable whitelist."""
+    mock_oracle_config.command = "evil_script.sh"
+    with pytest.raises(ValueError, match="is not in the allowed list"):
         EspressoOracle(mock_oracle_config)
 
 

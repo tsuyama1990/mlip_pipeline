@@ -70,3 +70,7 @@ class GlobalConfig(BaseModel):
     oracle: OracleConfig = Field(default_factory=OracleConfig)
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     validator: ValidatorConfig = Field(default_factory=ValidatorConfig)
+
+    # Constants for file names
+    ACCUMULATED_DATASET_NAME: ClassVar[str] = "accumulated_dataset.xyz"
+    DEFAULT_INITIAL_POTENTIAL_NAME: ClassVar[str] = "initial_potential.yace"
