@@ -12,6 +12,7 @@ class RecoveryStrategy:
 
     def __init__(self, initial_params: dict[str, Any]) -> None:
         self.initial_params = initial_params
+        # Store recipes as partial updates to avoid duplicating the full config in memory
         self._recipes: list[dict[str, Any]] = [
             # Attempt 1: Reduce mixing beta
             {"mixing_beta": 0.3},
@@ -34,7 +35,8 @@ class RecoveryStrategy:
         # Recovery attempts
         for i, recipe in enumerate(self._recipes, 1):
             logger.info(f"Recovery attempt {i}: applying overrides {recipe}")
-            # Merge recipe into initial params
+            # Create a new dictionary only when needed, merging initial with recipe
+            # This is cleaner than deepcopying upfront
             new_params = self.initial_params.copy()
             new_params.update(recipe)
             yield new_params

@@ -34,6 +34,13 @@ def test_espresso_oracle_initialization(
     assert oracle.config == mock_oracle_config
 
 
+def test_espresso_oracle_initialization_bad_command(mock_oracle_config: OracleConfig) -> None:
+    """Test security validation."""
+    mock_oracle_config.command = "pw.x; rm -rf /"
+    with pytest.raises(ValueError, match="Command contains invalid characters"):
+        EspressoOracle(mock_oracle_config)
+
+
 @patch("mlip_autopipec.infrastructure.espresso.adapter.Espresso")
 def test_espresso_oracle_label_success(
     mock_espresso_cls: MagicMock,
@@ -135,13 +142,5 @@ def test_espresso_oracle_all_retries_fail(
     # Output file should exist but contain no atoms (since we append on success)
     assert labeled_dataset.file_path.exists()
 
-    # Check that no atoms were written
-    # ASE read fails on empty file, so we check file size
-    if labeled_dataset.file_path.stat().st_size > 0:
-        from ase.io import read
-
-        structures = read(labeled_dataset.file_path, index=":")
-        assert len(structures) == 0
-    else:
-        # File exists and is empty, which is correct
-        pass
+    # Check that no atoms were written using file size
+    assert labeled_dataset.file_path.stat().st_size == 0

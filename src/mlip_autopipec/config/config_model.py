@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -39,11 +39,13 @@ class TrainerConfig(BaseModel):
     # Configurable output path for potential
     potential_output_name: str = "potential.yace"
 
+    REQUIRED_EXTENSION: ClassVar[str] = ".yace"
+
     @field_validator("potential_output_name")
     @classmethod
     def check_extension(cls, v: str) -> str:
-        if not v.endswith(".yace"):
-            msg = "Potential output name must end with .yace"
+        if not v.endswith(cls.REQUIRED_EXTENSION):
+            msg = f"Potential output name must end with {cls.REQUIRED_EXTENSION}"
             raise ValueError(msg)
         return v
 
