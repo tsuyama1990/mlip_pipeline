@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ExplorerConfig(BaseModel):
@@ -10,9 +10,45 @@ class ExplorerConfig(BaseModel):
     n_structures: int = Field(default=2, ge=1)
 
 
+def _default_recovery_recipes() -> list[dict[str, Any]]:
+    return [
+        {"mixing_beta": 0.3},
+        {"smearing": "methfessel-paxton", "sigma": 0.2},
+        {"mixing_beta": 0.1, "electron_maxstep": 200},
+    ]
+
+
 class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "espresso"] = "mock"
+
+    # Espresso specific configs
+    command: str | None = None
+    pseudo_dir: Path | None = None
+    pseudopotentials: dict[str, str] | None = None
+    kspacing: float | None = None
+    scf_params: dict[str, Any] = Field(default_factory=dict)
+
+    # Performance & Recovery
+    batch_size: int = Field(default=10, ge=1)
+    recovery_recipes: list[dict[str, Any]] = Field(default_factory=_default_recovery_recipes)
+
+    @model_validator(mode="after")
+    def check_espresso_config(self) -> "OracleConfig":
+        if self.type == "espresso":
+            if not self.command:
+                msg = "command is required for espresso oracle"
+                raise ValueError(msg)
+            if not self.pseudo_dir:
+                msg = "pseudo_dir is required for espresso oracle"
+                raise ValueError(msg)
+            if not self.pseudopotentials:
+                msg = "pseudopotentials are required for espresso oracle"
+                raise ValueError(msg)
+            if self.kspacing is None:
+                msg = "kspacing is required for espresso oracle"
+                raise ValueError(msg)
+        return self
 
 
 class TrainerConfig(BaseModel):

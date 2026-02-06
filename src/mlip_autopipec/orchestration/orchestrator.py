@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from ase.io import read, write
+from ase.io import iread, write
 
 from mlip_autopipec.config import GlobalConfig
 from mlip_autopipec.domain_models import Dataset
@@ -41,6 +41,13 @@ class Orchestrator:
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
 
+        # Initial count of accumulated structures
+        accumulated_count = 0
+        if self.dataset_file.exists() and self.dataset_file.stat().st_size > 0:
+             # Count existing structures
+             for _ in iread(self.dataset_file):
+                 accumulated_count += 1
+
         for cycle in range(1, self.config.max_cycles + 1):
             logger.info(f"Starting Cycle {cycle}...")
 
@@ -59,20 +66,30 @@ class Orchestrator:
 
             # 3. Accumulate (Stream to disk to avoid memory explosion)
             if labeled_data.file_path.exists():
-                # Read labeled data and append to accumulated dataset
                 logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
 
                 try:
-                    # Using ASE read/write to append
-                    structures = read(labeled_data.file_path, index=":")
-                    if not isinstance(structures, list):
-                        structures = [structures]
+                    # Using ASE iread to stream and append
+                    new_count = 0
+                    # Check if file is empty first to avoid errors
+                    if labeled_data.file_path.stat().st_size > 0:
+                        # type ignore because iread is not typed in ASE stubs
+                        for atoms in iread(labeled_data.file_path):
+                            if accumulated_count >= self.config.max_accumulated_structures:
+                                logger.warning(
+                                    f"Max accumulated structures limit ({self.config.max_accumulated_structures}) reached. "
+                                    "Stopping accumulation for this cycle."
+                                )
+                                break
 
-                    if structures:
-                        write(self.dataset_file, structures, append=True)
-                        logger.info(f"Appended {len(structures)} structures.")
+                            write(self.dataset_file, atoms, append=True)
+                            new_count += 1
+                            accumulated_count += 1
+
+                    if new_count > 0:
+                        logger.info(f"Appended {new_count} structures. Total: {accumulated_count}")
                     else:
-                        logger.warning("No structures found in labeled data.")
+                        logger.warning("No structures appended (either empty input or limit reached).")
                 except Exception as e:
                     msg = f"Failed to append labeled structures to dataset file: {e}"
                     logger.exception(msg)
