@@ -3,6 +3,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from mlip_autopipec.constants import YACE_EXTENSION
+
 
 class ExplorerConfig(BaseModel):
     """
@@ -68,13 +70,13 @@ class TrainerConfig(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "pacemaker"] = "mock"
-    potential_output_name: str = Field(default="potential.yace", description="Filename for the output potential.")
+    potential_output_name: str = Field(default=f"potential{YACE_EXTENSION}", description="Filename for the output potential.")
 
     @field_validator("potential_output_name")
     @classmethod
     def check_extension(cls, v: str) -> str:
-        if not v.endswith(".yace"):
-            msg = "Potential output name must end with .yace"
+        if not v.endswith(YACE_EXTENSION):
+            msg = f"Potential output name must end with {YACE_EXTENSION}"
             raise ValueError(msg)
         return v
 

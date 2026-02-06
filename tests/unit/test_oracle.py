@@ -126,7 +126,11 @@ def test_label_recovery_fails_all_attempts(
     input_file = tmp_path / "input.xyz"
     input_file.touch()
 
-    # It logs exception but continues loop (caught in label loop)
+    # The current implementation catches exception inside the loop and logs it,
+    # moving to the next structure. It does NOT raise RuntimeError for the entire batch.
+    # It just fails for that structure.
+    # So we expect NO exception to propagate out of oracle.label(), but the structure shouldn't be written.
+
     oracle.label(Dataset(file_path=input_file))
 
     # Verify write not called (since it failed)

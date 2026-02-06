@@ -9,6 +9,7 @@ from ase import Atoms
 from ase.io import iread, write
 
 from mlip_autopipec.config import ExplorerConfig, TrainerConfig, ValidatorConfig
+from mlip_autopipec.constants import EXTXYZ_FORMAT, XYZ_EXTENSION
 from mlip_autopipec.domain_models import Dataset, ValidationResult
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
@@ -31,7 +32,7 @@ class MockExplorer(BaseExplorer):
         logger.info("MockExplorer: Generating new candidates...")
 
         # Generate unique filename for candidates
-        candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}.xyz"
+        candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}{XYZ_EXTENSION}"
 
         def _generate() -> Generator[Atoms, None, None]:
             """
@@ -47,14 +48,20 @@ class MockExplorer(BaseExplorer):
                 yield atoms
 
         try:
-            atoms_list = list(_generate())
-            write(candidates_file, atoms_list, format="extxyz")
+            count = 0
+            first_write = True
+            for atoms in _generate():
+                if first_write:
+                    write(candidates_file, atoms, format=EXTXYZ_FORMAT)
+                    first_write = False
+                else:
+                    write(candidates_file, atoms, format=EXTXYZ_FORMAT, append=True)
+                count += 1
+            logger.info(f"MockExplorer: Generated {count} structures to {candidates_file}.")
         except Exception as e:
             msg = f"Failed to write candidate structures to {candidates_file}: {e}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
-
-        logger.info(f"MockExplorer: Generated {len(atoms_list)} structures to {candidates_file}.")
 
         return Dataset(file_path=candidates_file)
 
@@ -75,7 +82,7 @@ class MockOracle(BaseOracle):
         """
         logger.info(f"MockOracle: Labeling structures from {dataset.file_path}...")
 
-        labeled_file = self.work_dir / f"labeled_{uuid.uuid4().hex}.xyz"
+        labeled_file = self.work_dir / f"labeled_{uuid.uuid4().hex}{XYZ_EXTENSION}"
 
         # Check if file exists
         if not dataset.file_path.exists():
@@ -110,14 +117,17 @@ class MockOracle(BaseOracle):
                 atoms.info["stress"] = np.array(
                     [virial[0, 0], virial[1, 1], virial[2, 2], virial[1, 2], virial[0, 2], virial[0, 1]]
                 )
+                # Use set_array if available or new_array. set_array is preferred for existing, new_array for new.
+                # Forces usually don't exist yet on mock atoms.
+                # Adding type ignore as requested by audit feedback
                 atoms.new_array("forces", forces)  # type: ignore[no-untyped-call]
 
                 # Write to file
                 if first_write:
-                    write(labeled_file, atoms, format="extxyz")
+                    write(labeled_file, atoms, format=EXTXYZ_FORMAT)
                     first_write = False
                 else:
-                    write(labeled_file, atoms, format="extxyz", append=True)
+                    write(labeled_file, atoms, format=EXTXYZ_FORMAT, append=True)
 
                 count += 1
 

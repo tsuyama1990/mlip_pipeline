@@ -11,6 +11,7 @@ from mlip_autopipec.config import (
     TrainerConfig,
     ValidatorConfig,
 )
+from mlip_autopipec.constants import DEFAULT_POTENTIAL_NAME
 from mlip_autopipec.domain_models import Dataset, ValidationResult
 from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
@@ -40,7 +41,7 @@ def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
 
     orchestrator = Orchestrator(mock_config, explorer, oracle, trainer, validator)
     # Check initial potential path
-    assert orchestrator.current_potential_path == Path("initial_potential.yace")
+    assert orchestrator.current_potential_path == Path(DEFAULT_POTENTIAL_NAME)
     # Check dataset file path setup
     assert orchestrator.dataset_file == mock_config.work_dir / "accumulated_dataset.xyz"
     assert orchestrator.dataset_file.exists()

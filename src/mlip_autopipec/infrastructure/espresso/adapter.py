@@ -8,6 +8,7 @@ from ase.calculators.espresso import Espresso
 from ase.io import iread, write
 
 from mlip_autopipec.config import OracleConfig
+from mlip_autopipec.constants import EXTXYZ_FORMAT
 from mlip_autopipec.domain_models import Dataset
 from mlip_autopipec.infrastructure.espresso.recovery import RecoveryStrategy
 from mlip_autopipec.interfaces.oracle import BaseOracle
@@ -20,13 +21,6 @@ class EspressoOracle(BaseOracle):
         self.config = config
         self.work_dir = work_dir
         self.recovery_strategy = RecoveryStrategy(config.recovery_recipes)
-
-    def _validate_command(self, command: str) -> None:
-        """Explicitly validates the command for security."""
-        # This duplicates the Pydantic validator but adds a runtime check layer
-        if any(c in command for c in [">", "<", "|", ";", "&"]):
-            msg = f"Security Violation: Command contains dangerous characters: {command}"
-            raise ValueError(msg)
 
     def label(self, dataset: Dataset) -> Dataset:
         """
@@ -62,7 +56,7 @@ class EspressoOracle(BaseOracle):
                     self._label_structure(atoms, tmp_dir, i)
 
                     # Append result immediately
-                    write(output_path, atoms, format="extxyz", append=True)
+                    write(output_path, atoms, format=EXTXYZ_FORMAT, append=True)
 
                 except Exception:
                     logger.exception(f"Failed to label structure {i}")
@@ -90,9 +84,8 @@ class EspressoOracle(BaseOracle):
             **self.config.scf_params,
         }
 
-        # Security check
-        if self.config.command:
-            self._validate_command(self.config.command)
+        # Security check: Rely on OracleConfig validation which is already enforced
+        # at config initialization. No redundant check here to ensure consistency.
 
         # Retry loop
         # max_attempts includes initial attempt (1) + retries

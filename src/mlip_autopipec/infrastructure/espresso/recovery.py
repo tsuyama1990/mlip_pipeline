@@ -34,7 +34,7 @@ class RecoveryStrategy:
         recipe_index = attempt - 1
         if recipe_index < 0 or recipe_index >= len(self.recipes):
             msg = f"No recovery recipe for attempt {attempt}. Max attempts: {len(self.recipes)}"
-            raise StopIteration(msg)
+            raise IndexError(msg)
 
         recipe = self.recipes[recipe_index]
         logger.info(f"Recovery attempt {attempt}: applying recipe {recipe}")

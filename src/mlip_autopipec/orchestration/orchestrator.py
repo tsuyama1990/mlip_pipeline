@@ -4,6 +4,11 @@ from pathlib import Path
 from ase.io import iread, write
 
 from mlip_autopipec.config import GlobalConfig
+from mlip_autopipec.constants import (
+    ACCUMULATED_DATASET_NAME,
+    DEFAULT_POTENTIAL_NAME,
+    EXTXYZ_FORMAT,
+)
 from mlip_autopipec.domain_models import Dataset
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
@@ -38,7 +43,7 @@ class Orchestrator:
             raise RuntimeError(msg) from e
 
         # Initialize accumulated dataset file
-        self.dataset_file = self.config.work_dir / "accumulated_dataset.xyz"
+        self.dataset_file = self.config.work_dir / ACCUMULATED_DATASET_NAME
 
         # Ensure the accumulated dataset file exists, even if empty
         if not self.dataset_file.exists():
@@ -50,7 +55,7 @@ class Orchestrator:
                 raise RuntimeError(msg) from e
 
         # Current potential path (start with initial from config or default)
-        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
+        self.current_potential_path = self.config.initial_potential or Path(DEFAULT_POTENTIAL_NAME)
 
     def run(self) -> None:
         """
@@ -118,7 +123,7 @@ class Orchestrator:
                 # Check if file is empty first to avoid ASE read errors on empty files
                 if labeled_data.file_path.stat().st_size > 0:
                     for atoms in iread(labeled_data.file_path):
-                        write(self.dataset_file, atoms, format="extxyz", append=True)
+                        write(self.dataset_file, atoms, format=EXTXYZ_FORMAT, append=True)
                         count += 1
                     logger.info(f"Appended {count} structures.")
                 else:
