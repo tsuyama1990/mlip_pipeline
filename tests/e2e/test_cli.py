@@ -39,12 +39,9 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     dataset_file = tmp_path / "accumulated_dataset.xyz"
     assert dataset_file.exists()
 
-    # Check if potential was created in CWD (which is project root)
-    # Ideally MockTrainer should respect work_dir but it takes TrainerConfig which doesn't have work_dir.
-    # For now, check root and clean up.
-    pot_file = Path("cli_potential.yace")
+    # Check if potential was created in work_dir
+    pot_file = tmp_path / "cli_potential.yace"
     assert pot_file.exists()
-    pot_file.unlink()
 
 def test_cli_run_missing_config() -> None:
     result = runner.invoke(app, ["run", "--config", "nonexistent.yaml"])

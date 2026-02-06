@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StructureMetadata(BaseModel):
@@ -34,3 +34,10 @@ class Dataset(BaseModel):
 
     structures: list[StructureMetadata] = Field(default_factory=list)
     file_path: Path | None = None
+
+    @model_validator(mode="after")
+    def check_mutually_exclusive(self) -> "Dataset":
+        if self.file_path is not None and len(self.structures) > 0:
+            msg = "Dataset cannot have both 'file_path' and non-empty 'structures'."
+            raise ValueError(msg)
+        return self

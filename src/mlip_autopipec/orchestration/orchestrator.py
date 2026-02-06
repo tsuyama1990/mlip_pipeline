@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 from ase.io import write
 
@@ -31,7 +30,11 @@ class Orchestrator:
         self.dataset_file = self.config.work_dir / self.config.dataset_file_name
 
         # Current potential path (start with initial from config or default)
-        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
+        if self.config.initial_potential:
+            self.current_potential_path = self.config.initial_potential
+        else:
+             # Default to a file in work_dir
+            self.current_potential_path = self.config.work_dir / "initial_potential.yace"
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
