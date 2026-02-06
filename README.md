@@ -14,8 +14,8 @@
 
 *   **Zero-Config Workflow**: Define your material system in a single `config.yaml`. The system handles DFT parameters, k-points, and training hyperparameters automatically.
 *   **Active Learning Loop**: Instead of random sampling, the system runs MD simulations to *find* the structures it doesn't understand ("Uncertainty-Driven Exploration"), labeling only what matters.
-*   **Physics-Informed Robustness**: Implements **Delta Learning**, correcting a robust physical baseline (ZBL/LJ) rather than learning from scratch. This prevents "exploding" simulations in high-energy regimes.
-*   **Scale-Up Ready**: Seamlessly integrates **LAMMPS** for molecular dynamics and **EON** for Adaptive Kinetic Monte Carlo (aKMC), allowing you to study rare events and long-term evolution.
+*   **Physics-Informed Robustness**: Implements **Delta Learning**, correcting a robust physical baseline (ZBL/LJ) rather than learning from scratch.
+*   **Mock Mode Validation**: Verify the entire orchestration pipeline logic using mock components before deploying to expensive clusters.
 
 ---
 
@@ -46,10 +46,6 @@ graph TD
 
 *   **Python**: >= 3.12
 *   **Package Manager**: `uv` (Recommended) or `pip`
-*   **External Tools** (for Real Mode):
-    *   Quantum Espresso (`pw.x`)
-    *   LAMMPS (`lmp_serial` or `lmp_mpi`) with USER-PACE package
-    *   Pacemaker Suite (`pace_train`, `pace_collect`)
 
 ---
 
@@ -61,57 +57,45 @@ graph TD
     cd mlip-pipeline
     ```
 
-2.  **Initialize Environment (using uv)**
+2.  **Initialize Environment**
     ```bash
     uv sync
-    ```
-
-3.  **Configure Environment**
-    Copy the example configuration (if available) or create your own.
-    ```bash
-    cp config.yaml.example config.yaml
+    uv pip install -e .
     ```
 
 ---
 
 ## 🏃 Usage
 
-### Quick Start (CLI)
+### Basic Execution
 
-To start the automated pipeline:
+To start the automated pipeline using the configuration file:
 
 ```bash
-uv run mlip-pipeline run --config config.yaml
+mlip-pipeline run --config config.yaml
 ```
 
-To resume a stopped run:
+### Example Configuration
 
-```bash
-uv run mlip-pipeline run --config config.yaml --resume
+Create a `config.yaml` file:
+
+```yaml
+work_dir: "./output"
+max_cycles: 5
+random_seed: 42
+explorer:
+  type: "mock"
+oracle:
+  type: "mock"
+trainer:
+  type: "mock"
 ```
 
-### Tutorials
+### CLI Help
 
-We provide Jupyter Notebooks to guide you through scientific workflows:
-*   `tutorials/01_MgO_FePt_Training.ipynb`: Learn how to train a potential for a multicomponent system.
-*   `tutorials/02_Deposition_and_Ordering.ipynb`: Run MD deposition and kMC ordering simulations.
-
----
-
-## 💻 Development Workflow
-
-This project follows a strict **Schema-First, Test-Driven** development cycle.
-
-### Running Tests
 ```bash
-uv run pytest
-```
-
-### Linting & Formatting
-We use `ruff` and `mypy` to enforce code quality.
-```bash
-uv run ruff check .
-uv run mypy .
+mlip-pipeline --help
+mlip-pipeline run --help
 ```
 
 ---
@@ -121,17 +105,16 @@ uv run mypy .
 ```
 mlip-pipeline/
 ├── config.yaml               # Main configuration file
-├── dev_documents/            # Detailed Specifications & UATs
-│   ├── system_prompts/       # Cycle-by-Cycle Specs
-│   └── FINAL_UAT.md          # Tutorial Plan
 ├── src/
 │   └── mlip_autopipec/       # Source Code
 │       ├── main.py           # CLI Entry Point
-│       ├── orchestration/    # The Brain
-│       ├── interfaces/       # Abstract Base Classes
-│       └── infrastructure/   # Adapters for QE, LAMMPS, etc.
+│       ├── config/           # Pydantic Schemas
+│       ├── domain_models/    # Data Models (Structure, Dataset)
+│       ├── orchestration/    # Active Learning Logic
+│       ├── interfaces/       # Component Interfaces
+│       └── infrastructure/   # Mocks and Adapters
 ├── tests/                    # Unit and End-to-End Tests
-└── tutorials/                # Jupyter Notebooks
+└── dev_documents/            # Detailed Specifications
 ```
 
 ---
