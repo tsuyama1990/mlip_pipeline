@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Any
 from pathlib import Path
+
 from mlip_autopipec.domain_models import Dataset
+
 
 class BaseExplorer(ABC):
     @abstractmethod
@@ -9,4 +10,3 @@ class BaseExplorer(ABC):
         """
         Generates new candidate structures using the current potential and dataset.
         """
-        pass

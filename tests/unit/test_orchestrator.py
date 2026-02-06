@@ -1,9 +1,11 @@
-import pytest
 from pathlib import Path
-from mlip_autopipec.orchestration.orchestrator import Orchestrator
-from mlip_autopipec.config import GlobalConfig, ExplorerConfig, OracleConfig, TrainerConfig
+
+import pytest
+
+from mlip_autopipec.config import ExplorerConfig, GlobalConfig, OracleConfig, TrainerConfig
 from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
-from mlip_autopipec.domain_models import Dataset
+from mlip_autopipec.orchestration.orchestrator import Orchestrator
+
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:

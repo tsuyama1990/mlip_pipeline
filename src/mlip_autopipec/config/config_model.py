@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
 from pathlib import Path
 from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ExplorerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")

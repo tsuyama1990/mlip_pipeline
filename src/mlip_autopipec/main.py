@@ -1,14 +1,13 @@
+from pathlib import Path
+
 import typer
 import yaml
-import logging
-from pathlib import Path
-from typing import Tuple
 
 from mlip_autopipec.config import GlobalConfig
-from mlip_autopipec.utils.logging import setup_logging
-from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
+from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 from mlip_autopipec.orchestration.orchestrator import Orchestrator
+from mlip_autopipec.utils.logging import setup_logging
 
 app = typer.Typer()
 
@@ -17,7 +16,6 @@ def main() -> None:
     """
     MLIP Pipeline CLI
     """
-    pass
 
 def load_config(config_path: Path) -> GlobalConfig:
     if not config_path.exists():
@@ -32,7 +30,7 @@ def load_config(config_path: Path) -> GlobalConfig:
             typer.echo(f"Error validating configuration: {e}", err=True)
             raise typer.Exit(code=1) from None
 
-def get_components(config: GlobalConfig) -> Tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
+def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
     # Factory logic (simplified for Cycle 01)
     explorer: BaseExplorer
     oracle: BaseOracle

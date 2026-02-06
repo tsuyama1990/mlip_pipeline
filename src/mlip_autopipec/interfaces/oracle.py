@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+
 from mlip_autopipec.domain_models import Dataset
+
 
 class BaseOracle(ABC):
     @abstractmethod
@@ -7,4 +9,3 @@ class BaseOracle(ABC):
         """
         Computes energy, forces, and virial for the given structures.
         """
-        pass

@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
-from mlip_autopipec.config import GlobalConfig, ExplorerConfig, OracleConfig, TrainerConfig
-from pathlib import Path
+
+from mlip_autopipec.config import ExplorerConfig, GlobalConfig, OracleConfig, TrainerConfig
+
 
 def test_global_config_defaults() -> None:
     config = GlobalConfig(max_cycles=5)

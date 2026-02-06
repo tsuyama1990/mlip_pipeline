@@ -1,7 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field
+
 from ase import Atoms
-from typing import List, Optional, Dict
-from pathlib import Path
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class StructureMetadata(BaseModel):
     """
@@ -10,9 +10,9 @@ class StructureMetadata(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     structure: Atoms
-    energy: Optional[float] = None
-    forces: Optional[List[List[float]]] = None
-    virial: Optional[List[List[float]]] = None
+    energy: float | None = None
+    forces: list[list[float]] | None = None
+    virial: list[list[float]] | None = None
     iteration: int = 0
 
 class Dataset(BaseModel):
@@ -21,7 +21,7 @@ class Dataset(BaseModel):
     """
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    structures: List[StructureMetadata] = Field(default_factory=list)
+    structures: list[StructureMetadata] = Field(default_factory=list)
 
 class ValidationResult(BaseModel):
     """
@@ -29,5 +29,13 @@ class ValidationResult(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
 
-    metrics: Dict[str, float]
+    metrics: dict[str, float]
     is_stable: bool
+
+    @field_validator("metrics")
+    @classmethod
+    def check_metrics_not_empty(cls, v: dict[str, float]) -> dict[str, float]:
+        if not v:
+            msg = "Metrics dictionary cannot be empty"
+            raise ValueError(msg)
+        return v

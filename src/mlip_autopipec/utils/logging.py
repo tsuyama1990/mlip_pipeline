@@ -2,6 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
+
 def setup_logging(log_file: Path = Path("mlip_pipeline.log"), level: int = logging.INFO) -> None:
     """
     Configures the root logger to log to stdout and a file.

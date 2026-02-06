@@ -4,11 +4,11 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 13 items
+collected 14 items
 
-tests/e2e/test_cli.py ....                                               [ 30%]
-tests/unit/test_config.py ....                                           [ 61%]
-tests/unit/test_domain_models.py ...                                     [ 84%]
+tests/e2e/test_cli.py ....                                               [ 28%]
+tests/unit/test_config.py ....                                           [ 57%]
+tests/unit/test_domain_models.py ....                                    [ 85%]
 tests/unit/test_orchestrator.py ../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
                                        [100%]
@@ -22,19 +22,19 @@ src/mlip_autopipec/__init__.py                         0      0   100%
 src/mlip_autopipec/config/__init__.py                  2      0   100%
 src/mlip_autopipec/config/config_model.py             20      0   100%
 src/mlip_autopipec/domain_models/__init__.py           2      0   100%
-src/mlip_autopipec/domain_models/data_models.py       18      0   100%
+src/mlip_autopipec/domain_models/data_models.py       23      0   100%
 src/mlip_autopipec/infrastructure/__init__.py          0      0   100%
-src/mlip_autopipec/infrastructure/mocks.py            34      3    91%   38-41
+src/mlip_autopipec/infrastructure/mocks.py            46      6    87%   57-58, 92-96
 src/mlip_autopipec/interfaces/__init__.py              5      0   100%
-src/mlip_autopipec/interfaces/explorer.py              8      1    88%   12
-src/mlip_autopipec/interfaces/oracle.py                6      1    83%   10
-src/mlip_autopipec/interfaces/trainer.py               7      1    86%   12
-src/mlip_autopipec/interfaces/validator.py             7      1    86%   11
-src/mlip_autopipec/main.py                            49      7    86%   45-46, 51-52, 57-58, 92
+src/mlip_autopipec/interfaces/explorer.py              6      0   100%
+src/mlip_autopipec/interfaces/oracle.py                5      0   100%
+src/mlip_autopipec/interfaces/trainer.py               6      0   100%
+src/mlip_autopipec/interfaces/validator.py             6      0   100%
+src/mlip_autopipec/main.py                            46      7    85%   43-44, 49-50, 55-56, 90
 src/mlip_autopipec/orchestration/__init__.py           0      0   100%
 src/mlip_autopipec/orchestration/orchestrator.py      34      0   100%
 src/mlip_autopipec/utils/__init__.py                   0      0   100%
 src/mlip_autopipec/utils/logging.py                   18      0   100%
 --------------------------------------------------------------------------------
-TOTAL                                                210     14    93%
-============================== 13 passed in 2.75s ==============================
+TOTAL                                                219     13    94%
+============================== 14 passed in 2.71s ==============================

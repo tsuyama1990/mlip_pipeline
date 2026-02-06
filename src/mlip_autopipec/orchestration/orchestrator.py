@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+
 from mlip_autopipec.config import GlobalConfig
-from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 from mlip_autopipec.domain_models import Dataset
+from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
 logger = logging.getLogger(__name__)
 

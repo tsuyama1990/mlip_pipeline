@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import yaml
 from typer.testing import CliRunner
-from pathlib import Path
 
 from mlip_autopipec.main import app
 

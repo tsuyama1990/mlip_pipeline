@@ -1,6 +1,7 @@
 import pytest
 from ase import Atoms
 from mlip_autopipec.domain_models import StructureMetadata, Dataset, ValidationResult
+from pydantic import ValidationError
 
 def test_structure_metadata_valid() -> None:
     atoms = Atoms("H2O")
@@ -24,3 +25,8 @@ def test_validation_result() -> None:
     res = ValidationResult(metrics={"rmse": 0.1}, is_stable=True)
     assert res.metrics["rmse"] == 0.1
     assert res.is_stable is True
+
+def test_validation_result_empty_metrics() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        ValidationResult(metrics={}, is_stable=True)
+    assert "Metrics dictionary cannot be empty" in str(excinfo.value)
