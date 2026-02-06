@@ -12,7 +12,11 @@
 
 ## 🚀 Key Features
 
-*   **Mock Mode (Cycle 01)**: Fully functional simulation of the pipeline flow using mock components, allowing verification of the orchestration logic without external heavy dependencies.
+*   **Mock Mode**: Fully functional simulation of the pipeline flow using mock components, allowing verification of the orchestration logic without external heavy dependencies.
+*   **Oracle Module**: Integrated support for **Quantum Espresso (DFT)** with:
+    *   **Self-Healing**: Automatically retries failed calculations by adjusting SCF parameters (mixing beta, smearing).
+    *   **Streaming I/O**: Processes structures one-by-one to handle massive datasets without memory crashes.
+    *   **Security**: Validates input commands to prevent shell injection.
 *   **Zero-Config Workflow**: Define your material system in a single `config.yaml`. The system handles orchestration automatically.
 *   **Modular Architecture**: Plug-and-play interfaces for Explorer, Oracle, Trainer, and Validator components.
 *   **Strict Type Safety**: Built with Pydantic and Type Hints for maximum reliability.
@@ -46,6 +50,7 @@ graph TD
 
 *   **Python**: >= 3.12
 *   **Package Manager**: `uv` (Recommended) or `pip`
+*   **Quantum Espresso**: (Optional) Required if using `type: espresso` for Oracle. Ensure `pw.x` is in your PATH.
 
 ---
 
@@ -69,10 +74,20 @@ graph TD
     # config.yaml
     work_dir: "./_work"
     max_cycles: 5
+    random_seed: 42
+
     explorer:
       type: "mock"
+
     oracle:
-      type: "mock"
+      type: "espresso"
+      command: "mpirun -np 4 pw.x"
+      pseudo_dir: "/path/to/pseudos"
+      pseudopotentials:
+        Si: "Si.upf"
+      kspacing: 0.04
+      batch_size: 10
+
     trainer:
       type: "mock"
     ```
@@ -122,7 +137,8 @@ mlip-pipeline/
 │       ├── main.py           # CLI Entry Point
 │       ├── orchestration/    # The Brain
 │       ├── interfaces/       # Abstract Base Classes
-│       └── infrastructure/   # Adapters (Mocks implemented)
+│       ├── infrastructure/   # Adapters (Mock, Espresso)
+│       └── config/           # Pydantic Configuration Models
 └── tests/                    # Unit and End-to-End Tests
 ```
 
