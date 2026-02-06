@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class StructureMetadata(BaseModel):
@@ -26,27 +26,9 @@ class StructureMetadata(BaseModel):
 
 class Dataset(BaseModel):
     """
-    A collection of StructureMetadata.
-    Can handle in-memory structures OR a reference to a file.
+    A reference to a dataset file.
+    In-memory storage is strictly forbidden for scalability.
     """
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    structures: list[StructureMetadata] = Field(default_factory=list)
-    file_path: Path | None = None
-
-class ValidationResult(BaseModel):
-    """
-    Results from a validation run.
-    """
-    model_config = ConfigDict(extra="forbid")
-
-    metrics: dict[str, float]
-    is_stable: bool
-
-    @field_validator("metrics")
-    @classmethod
-    def check_metrics_not_empty(cls, v: dict[str, float]) -> dict[str, float]:
-        if not v:
-            msg = "Metrics dictionary cannot be empty"
-            raise ValueError(msg)
-        return v
+    file_path: Path

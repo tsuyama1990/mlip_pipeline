@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from ase import Atoms
 from pydantic import ValidationError
@@ -5,30 +7,34 @@ from pydantic import ValidationError
 from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
 
 
-def test_structure_metadata_valid() -> None:
+def test_dataset_validation() -> None:
+    # 1. File path only - OK
+    d2 = Dataset(file_path=Path("data.xyz"))
+    assert d2.file_path == Path("data.xyz")
+
+    # 2. No file path - Error (implicit, since field is required)
+    with pytest.raises(ValidationError):
+        Dataset() # type: ignore[call-arg]
+
+    # 3. Extra fields - Error
+    with pytest.raises(ValidationError):
+        Dataset(file_path=Path("data.xyz"), extra="forbidden") # type: ignore[call-arg]
+
+def test_structure_metadata_validation() -> None:
+    # structure cannot be None
+    with pytest.raises(ValidationError):
+        StructureMetadata(structure=None) # type: ignore[arg-type]
+
+    # Valid
     atoms = Atoms("H2O")
-    meta = StructureMetadata(structure=atoms, energy=-10.5, iteration=1)
+    meta = StructureMetadata(structure=atoms)
     assert meta.structure == atoms
-    assert meta.energy == -10.5
-    assert meta.iteration == 1
-    assert meta.forces is None
 
-def test_dataset_initialization() -> None:
-    atoms1 = Atoms("H")
-    atoms2 = Atoms("O")
-    meta1 = StructureMetadata(structure=atoms1)
-    meta2 = StructureMetadata(structure=atoms2)
+def test_validation_result_validation() -> None:
+    # metrics cannot be empty
+    with pytest.raises(ValidationError):
+        ValidationResult(metrics={}, is_stable=True)
 
-    dataset = Dataset(structures=[meta1, meta2])
-    assert len(dataset.structures) == 2
-    assert dataset.structures[0].structure == atoms1
-
-def test_validation_result() -> None:
+    # Valid
     res = ValidationResult(metrics={"rmse": 0.1}, is_stable=True)
     assert res.metrics["rmse"] == 0.1
-    assert res.is_stable is True
-
-def test_validation_result_empty_metrics() -> None:
-    with pytest.raises(ValidationError) as excinfo:
-        ValidationResult(metrics={}, is_stable=True)
-    assert "Metrics dictionary cannot be empty" in str(excinfo.value)

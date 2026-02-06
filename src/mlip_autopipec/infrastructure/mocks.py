@@ -1,11 +1,13 @@
 import logging
+import uuid
 from collections.abc import Generator
 from pathlib import Path
 
 import numpy as np
 from ase import Atoms
+from ase.io import iread, write
 
-from mlip_autopipec.config import TrainerConfig, ValidatorConfig
+from mlip_autopipec.config import ExplorerConfig, TrainerConfig, ValidatorConfig
 from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
@@ -15,6 +17,10 @@ class MockExplorer(BaseExplorer):
     """
     Mock implementation of an Explorer that generates random H2O structures.
     """
+    def __init__(self, config: ExplorerConfig, work_dir: Path) -> None:
+        self.config = config
+        self.work_dir = work_dir
+
     def explore(self, current_potential_path: Path, dataset: Dataset) -> Dataset:
         """
         Generates dummy candidate structures.
@@ -22,66 +28,83 @@ class MockExplorer(BaseExplorer):
         logger.info("MockExplorer: Generating new candidates...")
 
         def _generate() -> Generator[StructureMetadata, None, None]:
-            for _ in range(2):
+            for _ in range(self.config.n_structures):
                 atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
                 atoms.positions += np.random.rand(3, 3) * 0.1
                 yield StructureMetadata(structure=atoms, iteration=0)
 
-        new_structures = list(_generate())
-        logger.info(f"MockExplorer: Generated {len(new_structures)} structures.")
-        return Dataset(structures=new_structures)
+        # Write to file
+        candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}.xyz"
+        count = 0
+        for meta in _generate():
+            write(candidates_file, meta.structure, append=True)
+            count += 1
+
+        logger.info(f"MockExplorer: Generated {count} structures at {candidates_file}.")
+        return Dataset(file_path=candidates_file)
 
 class MockOracle(BaseOracle):
     """
     Mock implementation of an Oracle that assigns random energies and forces.
     """
+    def __init__(self, work_dir: Path) -> None:
+        self.work_dir = work_dir
+
     def label(self, dataset: Dataset) -> Dataset:
         """
         Labels the dataset with random physical properties.
         """
-        logger.info(f"MockOracle: Labeling {len(dataset.structures)} structures...")
+        logger.info("MockOracle: Labeling structures...")
 
-        labeled_structures = []
-        # If dataset comes from file, we should handle it, but for Cycle 01 Mock,
-        # we assume Explorer returns in-memory structures.
-        if not dataset.structures and dataset.file_path:
-             logger.warning("MockOracle: Received empty structure list but file_path is set. Streaming not implemented for MockOracle in Cycle 01.")
-
-        for meta in dataset.structures:
+        def _label_structure(meta: StructureMetadata) -> StructureMetadata:
             if meta.structure is None:
                 logger.warning("MockOracle: Encountered StructureMetadata with None structure.")
-                continue
+                return meta
 
             # Simulate labeling
             meta.energy = np.random.uniform(-100, -10)
             n_atoms = len(meta.structure)
             meta.forces = np.random.uniform(-1, 1, size=(n_atoms, 3)).tolist()
             meta.virial = np.random.uniform(-0.1, 0.1, size=(3, 3)).tolist()
-            labeled_structures.append(meta)
+            return meta
 
-        logger.info("MockOracle: Labeling complete.")
-        return Dataset(structures=labeled_structures)
+        if dataset.file_path:
+            logger.info(f"MockOracle: Streaming from file {dataset.file_path}")
+            output_file = self.work_dir / f"labeled_{uuid.uuid4().hex}.xyz"
+
+            count = 0
+            # Streaming read -> Label -> Streaming write
+            for atoms in iread(dataset.file_path):
+                meta = StructureMetadata(structure=atoms)
+                labeled_meta = _label_structure(meta)
+                count += 1
+
+                # Write back
+                write(output_file, labeled_meta.structure, append=True)
+
+            logger.info(f"MockOracle: Labeled {count} structures and wrote to {output_file}")
+            return Dataset(file_path=output_file)
+
+        msg = "MockOracle only supports file-based Datasets"
+        raise ValueError(msg)
 
 class MockTrainer(BaseTrainer):
     """
     Mock implementation of a Trainer that produces a dummy potential file.
     """
-    def __init__(self, config: TrainerConfig) -> None:
+    def __init__(self, config: TrainerConfig, work_dir: Path) -> None:
         self.config = config
+        self.work_dir = work_dir
 
     def train(self, train_dataset: Dataset, validation_dataset: Dataset) -> Path:
         """
         Simulates training a potential.
         """
         logger.info("MockTrainer: Starting training...")
-
-        if train_dataset.file_path:
-            logger.info(f"MockTrainer: Training from file {train_dataset.file_path}")
-        else:
-            logger.info(f"MockTrainer: Training from memory ({len(train_dataset.structures)} items)")
+        logger.info(f"MockTrainer: Training from file {train_dataset.file_path}")
 
         potential_filename = self.config.potential_output_name
-        potential_path = Path(potential_filename)
+        potential_path = self.work_dir / potential_filename
 
         try:
             potential_path.write_text("Mock Potential Data")
@@ -94,7 +117,11 @@ class MockTrainer(BaseTrainer):
 
 class MockValidator(BaseValidator):
     """
-    Mock implementation of a Validator that returns metrics (randomized or config-based).
+    Mock implementation of a Validator that returns metrics.
+
+    This mock validator generates random metrics to simulate a validation process.
+    It produces 'rmse_energy' and 'rmse_forces' values drawn from a uniform distribution,
+    representing typical errors in a learning potential.
     """
     def __init__(self, config: ValidatorConfig) -> None:
         self.config = config

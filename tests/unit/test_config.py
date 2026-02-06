@@ -12,8 +12,12 @@ from mlip_autopipec.config import (
 )
 
 
-def test_global_config_defaults() -> None:
-    config = GlobalConfig(max_cycles=5)
+def test_global_config_defaults_validation() -> None:
+    # Must provide work_dir and random_seed
+    with pytest.raises(ValidationError):
+        GlobalConfig(max_cycles=5) # type: ignore[call-arg]
+
+    config = GlobalConfig(max_cycles=5, work_dir=Path("./_work"), random_seed=42)
     assert config.max_cycles == 5
     assert config.work_dir == Path("./_work")
     assert config.random_seed == 42
@@ -31,7 +35,7 @@ def test_global_config_valid(tmp_path: Path) -> None:
         explorer=ExplorerConfig(type="random"),
         oracle=OracleConfig(type="espresso"),
         trainer=TrainerConfig(type="pacemaker"),
-        validator=ValidatorConfig(type="mock")
+        validator=ValidatorConfig(type="custom_type") # Now allows str
     )
     assert config.work_dir == work_dir
     assert config.max_cycles == 10
@@ -39,8 +43,25 @@ def test_global_config_valid(tmp_path: Path) -> None:
 
 def test_global_config_invalid_max_cycles() -> None:
     with pytest.raises(ValidationError):
-        GlobalConfig(max_cycles=0)  # Must be >= 1
+        GlobalConfig(max_cycles=0, work_dir=Path(), random_seed=1)  # Must be >= 1
 
 def test_global_config_extra_forbid() -> None:
     with pytest.raises(ValidationError):
-        GlobalConfig(max_cycles=5, extra_field="forbidden") # type: ignore[call-arg]
+        GlobalConfig(max_cycles=5, work_dir=Path(), random_seed=1, extra_field="forbidden") # type: ignore[call-arg]
+
+def test_global_config_max_accumulated_structures_negative() -> None:
+    with pytest.raises(ValidationError):
+        GlobalConfig(max_cycles=5, work_dir=Path(), random_seed=1, max_accumulated_structures=-1)
+
+def test_explorer_config_n_structures() -> None:
+    # Default
+    conf = ExplorerConfig()
+    assert conf.n_structures == 2
+
+    # Custom valid
+    conf = ExplorerConfig(n_structures=10)
+    assert conf.n_structures == 10
+
+    # Invalid
+    with pytest.raises(ValidationError):
+        ExplorerConfig(n_structures=0)

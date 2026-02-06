@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class ExplorerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "random", "md"] = "mock"
+    # Configurable number of structures to generate
+    n_structures: int = Field(default=2, ge=1)
 
 class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -20,14 +22,20 @@ class TrainerConfig(BaseModel):
 
 class ValidatorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: Literal["mock"] = "mock"
+    type: str = "mock"
 
 class GlobalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    work_dir: Path = Field(default=Path("./_work"))
+    # Required fields (no defaults) per audit requirements
+    work_dir: Path
+    random_seed: int
+
     max_cycles: int = Field(ge=1)
-    random_seed: int = Field(default=42)
+
+    # Optional limits (must be non-negative if set)
+    max_accumulated_structures: int | None = Field(default=None, ge=0)
+
     # Optional initial potential path
     initial_potential: Path | None = None
 

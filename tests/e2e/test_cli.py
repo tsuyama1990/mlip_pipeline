@@ -16,6 +16,7 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     # Create config
     config_data = {
         "work_dir": str(tmp_path),
+        "random_seed": 12345,
         "max_cycles": 1,
         "explorer": {"type": "mock"},
         "oracle": {"type": "mock"},
@@ -26,11 +27,6 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     with config_file.open("w") as f:
         yaml.dump(config_data, f)
 
-    # Change CWD to tmp_path so "cli_potential.yace" is written there?
-    # Typer runner doesn't change CWD automatically.
-    # MockTrainer writes to CWD.
-    # We should run this test carefully.
-
     result = runner.invoke(app, ["run", "--config", str(config_file)])
     assert result.exit_code == 0
     assert "All cycles finished" in result.stdout
@@ -39,12 +35,9 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     dataset_file = tmp_path / "accumulated_dataset.xyz"
     assert dataset_file.exists()
 
-    # Check if potential was created in CWD (which is project root)
-    # Ideally MockTrainer should respect work_dir but it takes TrainerConfig which doesn't have work_dir.
-    # For now, check root and clean up.
-    pot_file = Path("cli_potential.yace")
+    # Check if potential was created in work_dir (tmp_path)
+    pot_file = tmp_path / "cli_potential.yace"
     assert pot_file.exists()
-    pot_file.unlink()
 
 def test_cli_run_missing_config() -> None:
     result = runner.invoke(app, ["run", "--config", "nonexistent.yaml"])

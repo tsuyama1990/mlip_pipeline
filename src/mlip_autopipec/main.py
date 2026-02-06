@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import typer
@@ -25,6 +26,8 @@ def load_config(config_path: Path) -> GlobalConfig:
     with config_path.open("r") as f:
         try:
             data = yaml.safe_load(f)
+            # Basic YAML validation is handled by safe_load (parser error)
+            # Schema validation is handled by GlobalConfig (pydantic)
             return GlobalConfig(**data)
         except Exception as e:
             typer.echo(f"Error validating configuration: {e}", err=True)
@@ -38,19 +41,19 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     validator: BaseValidator
 
     if config.explorer.type == "mock":
-        explorer = MockExplorer()
+        explorer = MockExplorer(config.explorer, work_dir=config.work_dir)
     else:
         msg = f"Explorer type {config.explorer.type} not implemented"
         raise NotImplementedError(msg)
 
     if config.oracle.type == "mock":
-        oracle = MockOracle()
+        oracle = MockOracle(work_dir=config.work_dir)
     else:
         msg = f"Oracle type {config.oracle.type} not implemented"
         raise NotImplementedError(msg)
 
     if config.trainer.type == "mock":
-        trainer = MockTrainer(config.trainer)
+        trainer = MockTrainer(config.trainer, work_dir=config.work_dir)
     else:
         msg = f"Trainer type {config.trainer.type} not implemented"
         raise NotImplementedError(msg)
@@ -64,12 +67,20 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     return explorer, oracle, trainer, validator
 
 @app.command()
-def run(config: Path = typer.Option(..., help="Path to the configuration YAML file.")) -> None:  # noqa: B008
+def run(
+    config: Path = typer.Option(..., help="Path to the configuration YAML file."), # noqa: B008
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR).")
+) -> None:
     """
     Run the active learning pipeline.
     """
     # 1. Setup Logging
-    setup_logging()
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        typer.echo(f"Invalid log level: {log_level}", err=True)
+        raise typer.Exit(code=1)
+
+    setup_logging(level=numeric_level)
 
     # 2. Load Config
     global_config = load_config(config)
