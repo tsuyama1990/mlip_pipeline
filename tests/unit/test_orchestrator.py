@@ -28,6 +28,9 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
 
 
 def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
+    """
+    Tests that the Orchestrator initializes correctly with the given configuration.
+    """
     explorer = MockExplorer(mock_config.explorer, mock_config.work_dir)
     oracle = MockOracle(mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer)
@@ -41,6 +44,10 @@ def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
 
 
 def test_orchestrator_run(mock_config: GlobalConfig) -> None:
+    """
+    Tests the full execution cycle of the Orchestrator using mock components.
+    Verifies that structures are accumulated and potential files are created.
+    """
     explorer = MockExplorer(mock_config.explorer, mock_config.work_dir)
     oracle = MockOracle(mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer)

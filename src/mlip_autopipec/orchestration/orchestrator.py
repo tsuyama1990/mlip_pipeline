@@ -36,9 +36,7 @@ class Orchestrator:
             self.dataset_file.touch()
 
         # Current potential path (start with initial from config or default)
-        self.current_potential_path = self.config.initial_potential or Path(
-            "initial_potential.yace"
-        )
+        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
@@ -62,20 +60,23 @@ class Orchestrator:
             # 3. Accumulate (Stream to disk to avoid memory explosion)
             if labeled_data.file_path.exists():
                 # Read labeled data and append to accumulated dataset
-                logger.info(
-                    f"Appending structures from {labeled_data.file_path} to {self.dataset_file}"
-                )
+                logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
 
-                # Using ASE read/write to append
-                structures = read(labeled_data.file_path, index=":")
-                if not isinstance(structures, list):
-                    structures = [structures]
+                try:
+                    # Using ASE read/write to append
+                    structures = read(labeled_data.file_path, index=":")
+                    if not isinstance(structures, list):
+                        structures = [structures]
 
-                if structures:
-                    write(self.dataset_file, structures, append=True)
-                    logger.info(f"Appended {len(structures)} structures.")
-                else:
-                    logger.warning("No structures found in labeled data.")
+                    if structures:
+                        write(self.dataset_file, structures, append=True)
+                        logger.info(f"Appended {len(structures)} structures.")
+                    else:
+                        logger.warning("No structures found in labeled data.")
+                except Exception as e:
+                    msg = f"Failed to append labeled structures to dataset file: {e}"
+                    logger.exception(msg)
+                    raise RuntimeError(msg) from e
 
             # 4. Train
             logger.info("Running Trainer...")

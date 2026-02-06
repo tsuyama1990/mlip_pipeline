@@ -9,12 +9,18 @@ runner = CliRunner()
 
 
 def test_cli_help() -> None:
+    """
+    Tests that the CLI help command works.
+    """
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "Usage" in result.stdout
 
 
 def test_cli_run_mock(tmp_path: Path) -> None:
+    """
+    Tests running the pipeline via CLI with a mock configuration.
+    """
     # Create config
     work_dir = tmp_path / "work"
     work_dir.mkdir()
@@ -47,12 +53,18 @@ def test_cli_run_mock(tmp_path: Path) -> None:
 
 
 def test_cli_run_missing_config() -> None:
+    """
+    Tests that running with a missing config file returns an error.
+    """
     result = runner.invoke(app, ["run", "--config", "nonexistent.yaml"])
     assert result.exit_code == 1
     assert "not found" in result.stderr
 
 
 def test_cli_run_invalid_config(tmp_path: Path) -> None:
+    """
+    Tests that running with an invalid config file returns an error.
+    """
     config_file = tmp_path / "bad.yaml"
     with config_file.open("w") as f:
         f.write("invalid: yaml: content")

@@ -20,6 +20,9 @@ def main() -> None:
 
 
 def load_config(config_path: Path) -> GlobalConfig:
+    """
+    Loads and validates the global configuration from a YAML file.
+    """
     if not config_path.exists():
         typer.echo(f"Error: Configuration file {config_path} not found.", err=True)
         raise typer.Exit(code=1)
@@ -33,9 +36,11 @@ def load_config(config_path: Path) -> GlobalConfig:
             raise typer.Exit(code=1) from None
 
 
-def get_components(
-    config: GlobalConfig,
-) -> tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
+def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
+    """
+    Instantiates the pipeline components (Explorer, Oracle, Trainer, Validator)
+    based on the provided configuration.
+    """
     # Factory logic (simplified for Cycle 01)
     explorer: BaseExplorer
     oracle: BaseOracle

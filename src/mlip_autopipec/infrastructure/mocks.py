@@ -34,6 +34,9 @@ class MockExplorer(BaseExplorer):
         candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}.xyz"
 
         def _generate() -> Generator[Atoms, None, None]:
+            """
+            Internal generator for random structures.
+            """
             for _ in range(self.config.n_structures):
                 # Type hints for positions as requested
                 positions: list[list[float]] = [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]
@@ -43,8 +46,14 @@ class MockExplorer(BaseExplorer):
                 atoms.positions += perturbation
                 yield atoms
 
-        atoms_list = list(_generate())
-        write(candidates_file, atoms_list)
+        try:
+            atoms_list = list(_generate())
+            write(candidates_file, atoms_list)
+        except Exception as e:
+            msg = f"Failed to write candidate structures to {candidates_file}: {e}"
+            logger.exception(msg)
+            raise RuntimeError(msg) from e
+
         logger.info(f"MockExplorer: Generated {len(atoms_list)} structures to {candidates_file}.")
 
         return Dataset(file_path=candidates_file)
@@ -85,6 +94,8 @@ class MockOracle(BaseOracle):
             logger.exception(msg)
             raise
 
+        # Explicit type hint for loop variable as requested
+        atoms: Atoms
         for atoms in atoms_list:
             # Simulate labeling
             # Random generation as requested in docstrings
@@ -104,7 +115,13 @@ class MockOracle(BaseOracle):
 
             labeled_atoms.append(atoms)
 
-        write(labeled_file, labeled_atoms)
+        try:
+            write(labeled_file, labeled_atoms)
+        except Exception as e:
+            msg = f"Failed to write labeled structures to {labeled_file}: {e}"
+            logger.exception(msg)
+            raise RuntimeError(msg) from e
+
         logger.info(f"MockOracle: Labeling complete. Wrote to {labeled_file}.")
         return Dataset(file_path=labeled_file)
 
@@ -158,6 +175,12 @@ class MockValidator(BaseValidator):
 
     def validate(self, potential_path: Path) -> ValidationResult:
         logger.info(f"MockValidator: Validating potential at {potential_path}")
+
+        if not potential_path.exists():
+            msg = f"Potential file {potential_path} does not exist"
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+
         # Generate random metrics to be more realistic as requested
         rmse_energy = np.random.uniform(0.001, 0.1)
         rmse_forces = np.random.uniform(0.01, 0.5)
