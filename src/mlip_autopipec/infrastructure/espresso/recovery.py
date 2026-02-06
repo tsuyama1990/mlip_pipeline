@@ -6,13 +6,9 @@ class RecoveryStrategy:
     Provides parameter overrides for SCF convergence recovery.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, recipes: list[dict[str, Any]]) -> None:
         # List of parameter overrides to apply sequentially
-        self._recipes: list[dict[str, Any]] = [
-            {"mixing_beta": 0.3},
-            {"smearing": "methfessel-paxton", "sigma": 0.2},
-            {"mixing_beta": 0.1, "electron_maxstep": 200},
-        ]
+        self._recipes = recipes
 
     def get_recipe(self, retry_count: int) -> dict[str, Any] | None:
         """

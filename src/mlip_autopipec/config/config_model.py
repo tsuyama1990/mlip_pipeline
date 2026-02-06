@@ -10,6 +10,14 @@ class ExplorerConfig(BaseModel):
     n_structures: int = Field(default=2, ge=1)
 
 
+def _default_recovery_recipes() -> list[dict[str, Any]]:
+    return [
+        {"mixing_beta": 0.3},
+        {"smearing": "methfessel-paxton", "sigma": 0.2},
+        {"mixing_beta": 0.1, "electron_maxstep": 200},
+    ]
+
+
 class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "espresso"] = "mock"
@@ -20,6 +28,9 @@ class OracleConfig(BaseModel):
     pseudopotentials: dict[str, str] | None = None
     kspacing: float | None = None
     scf_params: dict[str, Any] = Field(default_factory=dict)
+
+    # Recovery strategies
+    recovery_recipes: list[dict[str, Any]] = Field(default_factory=_default_recovery_recipes)
 
     @model_validator(mode="after")
     def check_espresso_config(self) -> "OracleConfig":

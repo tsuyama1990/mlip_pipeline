@@ -113,3 +113,21 @@ def test_oracle_config_validation_espresso_valid(tmp_path: Path) -> None:
     )
     assert config.type == "espresso"
     assert config.command == "pw.x"
+
+
+def test_oracle_config_recovery_recipes() -> None:
+    """
+    Test that recovery recipes can be configured and have defaults.
+    """
+    # Test default
+    config = OracleConfig(type="mock")
+    assert len(config.recovery_recipes) == 3
+    assert config.recovery_recipes[0]["mixing_beta"] == 0.3
+
+    # Test custom
+    config = OracleConfig(
+        type="mock",
+        recovery_recipes=[{"mixing_beta": 0.5}, {"electron_maxstep": 150}]
+    )
+    assert len(config.recovery_recipes) == 2
+    assert config.recovery_recipes[0]["mixing_beta"] == 0.5
