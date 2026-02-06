@@ -1,7 +1,9 @@
 import pytest
 from ase import Atoms
-from mlip_autopipec.domain_models import StructureMetadata, Dataset, ValidationResult
 from pydantic import ValidationError
+
+from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
+
 
 def test_structure_metadata_valid() -> None:
     atoms = Atoms("H2O")

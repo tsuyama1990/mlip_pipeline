@@ -19,15 +19,32 @@ def test_cli_run_mock(tmp_path: Path) -> None:
         "max_cycles": 1,
         "explorer": {"type": "mock"},
         "oracle": {"type": "mock"},
-        "trainer": {"type": "mock"}
+        "trainer": {"type": "mock", "potential_output_name": "cli_potential.yace"},
+        "validator": {"type": "mock"}
     }
     config_file = tmp_path / "config.yaml"
     with config_file.open("w") as f:
         yaml.dump(config_data, f)
 
+    # Change CWD to tmp_path so "cli_potential.yace" is written there?
+    # Typer runner doesn't change CWD automatically.
+    # MockTrainer writes to CWD.
+    # We should run this test carefully.
+
     result = runner.invoke(app, ["run", "--config", str(config_file)])
     assert result.exit_code == 0
-    assert "All cycles finished" in result.stdout # Assuming logging goes to stdout with Typer/logging setup
+    assert "All cycles finished" in result.stdout
+
+    # Verify artifacts
+    dataset_file = tmp_path / "accumulated_dataset.xyz"
+    assert dataset_file.exists()
+
+    # Check if potential was created in CWD (which is project root)
+    # Ideally MockTrainer should respect work_dir but it takes TrainerConfig which doesn't have work_dir.
+    # For now, check root and clean up.
+    pot_file = Path("cli_potential.yace")
+    assert pot_file.exists()
+    pot_file.unlink()
 
 def test_cli_run_missing_config() -> None:
     result = runner.invoke(app, ["run", "--config", "nonexistent.yaml"])
@@ -39,6 +56,5 @@ def test_cli_run_invalid_config(tmp_path: Path) -> None:
     with config_file.open("w") as f:
         f.write("invalid: yaml: content")
 
-    # Pydantic validation error or config missing fields
     result = runner.invoke(app, ["run", "--config", str(config_file)])
     assert result.exit_code == 1

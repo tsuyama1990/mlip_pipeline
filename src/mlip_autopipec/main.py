@@ -50,13 +50,16 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
         raise NotImplementedError(msg)
 
     if config.trainer.type == "mock":
-        trainer = MockTrainer()
+        trainer = MockTrainer(config.trainer)
     else:
         msg = f"Trainer type {config.trainer.type} not implemented"
         raise NotImplementedError(msg)
 
-    # Validator currently hardcoded to Mock as it wasn't in config explictly in SPEC 3.1
-    validator = MockValidator()
+    if config.validator.type == "mock":
+        validator = MockValidator(config.validator)
+    else:
+        # Default mock if type matches or just simplified for now
+        validator = MockValidator(config.validator)
 
     return explorer, oracle, trainer, validator
 

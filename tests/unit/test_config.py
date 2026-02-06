@@ -3,7 +3,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.config import ExplorerConfig, GlobalConfig, OracleConfig, TrainerConfig
+from mlip_autopipec.config import (
+    ExplorerConfig,
+    GlobalConfig,
+    OracleConfig,
+    TrainerConfig,
+    ValidatorConfig,
+)
 
 
 def test_global_config_defaults() -> None:
@@ -14,6 +20,7 @@ def test_global_config_defaults() -> None:
     assert config.explorer.type == "mock"
     assert config.oracle.type == "mock"
     assert config.trainer.type == "mock"
+    assert config.validator.type == "mock"
 
 def test_global_config_valid(tmp_path: Path) -> None:
     work_dir = tmp_path / "test"
@@ -23,7 +30,8 @@ def test_global_config_valid(tmp_path: Path) -> None:
         random_seed=123,
         explorer=ExplorerConfig(type="random"),
         oracle=OracleConfig(type="espresso"),
-        trainer=TrainerConfig(type="pacemaker")
+        trainer=TrainerConfig(type="pacemaker"),
+        validator=ValidatorConfig(type="mock")
     )
     assert config.work_dir == work_dir
     assert config.max_cycles == 10

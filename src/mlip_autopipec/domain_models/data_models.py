@@ -1,3 +1,4 @@
+from pathlib import Path
 
 from ase import Atoms
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -15,13 +16,23 @@ class StructureMetadata(BaseModel):
     virial: list[list[float]] | None = None
     iteration: int = 0
 
+    @field_validator("structure")
+    @classmethod
+    def check_structure_not_none(cls, v: Atoms) -> Atoms:
+        if v is None:
+            msg = "Structure cannot be None"
+            raise ValueError(msg)
+        return v
+
 class Dataset(BaseModel):
     """
     A collection of StructureMetadata.
+    Can handle in-memory structures OR a reference to a file.
     """
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     structures: list[StructureMetadata] = Field(default_factory=list)
+    file_path: Path | None = None
 
 class ValidationResult(BaseModel):
     """
