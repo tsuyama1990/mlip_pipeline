@@ -1,7 +1,9 @@
+import logging
 from pathlib import Path
 
 import typer
 import yaml
+from pydantic import ValidationError
 
 from mlip_autopipec.config import GlobalConfig
 from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
@@ -13,10 +15,14 @@ app = typer.Typer()
 
 
 @app.callback()
-def main() -> None:
+def main(
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)."),
+) -> None:
     """
     MLIP Pipeline CLI
     """
+    level = getattr(logging, log_level.upper(), logging.INFO)
+    setup_logging(level=level)
 
 
 def load_config(config_path: Path) -> GlobalConfig:
@@ -31,8 +37,14 @@ def load_config(config_path: Path) -> GlobalConfig:
         try:
             data = yaml.safe_load(f)
             return GlobalConfig(**data)
-        except Exception as e:
+        except yaml.YAMLError as e:
+            typer.echo(f"Error parsing YAML configuration: {e}", err=True)
+            raise typer.Exit(code=1) from None
+        except ValidationError as e:
             typer.echo(f"Error validating configuration: {e}", err=True)
+            raise typer.Exit(code=1) from None
+        except Exception as e:
+            typer.echo(f"Unexpected error loading configuration: {e}", err=True)
             raise typer.Exit(code=1) from None
 
 
@@ -41,7 +53,6 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     Instantiates the pipeline components (Explorer, Oracle, Trainer, Validator)
     based on the provided configuration.
     """
-    # Factory logic (simplified for Cycle 01)
     explorer: BaseExplorer
     oracle: BaseOracle
     trainer: BaseTrainer
@@ -79,16 +90,13 @@ def run(config: Path = typer.Option(..., help="Path to the configuration YAML fi
     """
     Run the active learning pipeline.
     """
-    # 1. Setup Logging
-    setup_logging()
-
-    # 2. Load Config
+    # 1. Load Config
     global_config = load_config(config)
 
-    # 3. Instantiate Components
+    # 2. Instantiate Components
     explorer, oracle, trainer, validator = get_components(global_config)
 
-    # 4. Initialize Orchestrator
+    # 3. Initialize Orchestrator
     orchestrator = Orchestrator(
         config=global_config,
         explorer=explorer,
@@ -97,7 +105,7 @@ def run(config: Path = typer.Option(..., help="Path to the configuration YAML fi
         validator=validator,
     )
 
-    # 5. Run
+    # 4. Run
     orchestrator.run()
 
 

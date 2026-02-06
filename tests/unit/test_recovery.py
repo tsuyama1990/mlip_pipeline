@@ -1,6 +1,7 @@
 from typing import Any
 
 import pytest
+
 from mlip_autopipec.infrastructure.espresso.recovery import RecoveryStrategy
 
 
@@ -35,8 +36,8 @@ def test_recovery_strategy_exhausted() -> None:
     custom_recipes: list[dict[str, Any]] = [{"mixing_beta": 0.5}]
     strategy = RecoveryStrategy(recipes=custom_recipes)
 
-    # Attempt 2 (out of bounds) should raise StopIteration or similar
-    with pytest.raises(StopIteration):
+    # Attempt 2 (out of bounds) should raise IndexError
+    with pytest.raises(IndexError):
         strategy.suggest_next_params(2, {})
 
 def test_recovery_strategy_merge() -> None:

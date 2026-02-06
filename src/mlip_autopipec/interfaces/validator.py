@@ -9,4 +9,10 @@ class BaseValidator(ABC):
     def validate(self, potential_path: Path) -> ValidationResult:
         """
         Validates the trained potential.
+
+        Args:
+            potential_path (Path): The path to the potential to validate.
+
+        Returns:
+            ValidationResult: The results of the validation.
         """

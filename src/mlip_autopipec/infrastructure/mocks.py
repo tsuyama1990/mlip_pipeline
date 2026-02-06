@@ -6,9 +6,10 @@ from pathlib import Path
 
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
+from ase.io import iread, write
 
 from mlip_autopipec.config import ExplorerConfig, TrainerConfig, ValidatorConfig
+from mlip_autopipec.constants import EXTXYZ_FORMAT, XYZ_EXTENSION
 from mlip_autopipec.domain_models import Dataset, ValidationResult
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
@@ -31,7 +32,7 @@ class MockExplorer(BaseExplorer):
         logger.info("MockExplorer: Generating new candidates...")
 
         # Generate unique filename for candidates
-        candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}.xyz"
+        candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}{XYZ_EXTENSION}"
 
         def _generate() -> Generator[Atoms, None, None]:
             """
@@ -47,14 +48,20 @@ class MockExplorer(BaseExplorer):
                 yield atoms
 
         try:
-            atoms_list = list(_generate())
-            write(candidates_file, atoms_list)
+            count = 0
+            first_write = True
+            for atoms in _generate():
+                if first_write:
+                    write(candidates_file, atoms, format=EXTXYZ_FORMAT)
+                    first_write = False
+                else:
+                    write(candidates_file, atoms, format=EXTXYZ_FORMAT, append=True)
+                count += 1
+            logger.info(f"MockExplorer: Generated {count} structures to {candidates_file}.")
         except Exception as e:
             msg = f"Failed to write candidate structures to {candidates_file}: {e}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
-
-        logger.info(f"MockExplorer: Generated {len(atoms_list)} structures to {candidates_file}.")
 
         return Dataset(file_path=candidates_file)
 
@@ -71,58 +78,71 @@ class MockOracle(BaseOracle):
         """
         Labels the dataset with random physical properties.
         Generates random energy (uniform -100 to -10), forces (-1 to 1), and virial (-0.1 to 0.1).
+        Uses streaming I/O to handle large datasets.
         """
         logger.info(f"MockOracle: Labeling structures from {dataset.file_path}...")
 
-        labeled_file = self.work_dir / f"labeled_{uuid.uuid4().hex}.xyz"
-        labeled_atoms = []
+        labeled_file = self.work_dir / f"labeled_{uuid.uuid4().hex}{XYZ_EXTENSION}"
 
-        # Read atoms from file
         # Check if file exists
         if not dataset.file_path.exists():
             msg = f"Dataset file {dataset.file_path} does not exist"
             logger.error(msg)
             raise FileNotFoundError(msg)
 
+        # Check if file is empty
+        if dataset.file_path.stat().st_size == 0:
+             logger.warning(f"Dataset file {dataset.file_path} is empty.")
+             # Create empty labeled file
+             labeled_file.touch()
+             return Dataset(file_path=labeled_file)
+
+        count = 0
         try:
-            # reading all for mock
-            atoms_list = read(dataset.file_path, index=":")
-            if isinstance(atoms_list, Atoms):
-                atoms_list = [atoms_list]
+            # Streaming implementation
+            # We iterate over the input file and write labeled structures to the output file incrementally
+            first_write = True
+
+            # iread returns a generator of Atoms objects
+            for atoms in iread(dataset.file_path):
+                # Simulate labeling
+                energy = np.random.uniform(-100, -10)
+                n_atoms = len(atoms)
+                forces = np.random.uniform(-1, 1, size=(n_atoms, 3))
+                virial = np.random.uniform(-0.1, 0.1, size=(3, 3))
+
+                # Set properties on atoms
+                atoms.info["energy"] = energy
+                # stress in ASE is Voigt order (xx, yy, zz, yz, xz, xy)
+                atoms.info["stress"] = np.array(
+                    [virial[0, 0], virial[1, 1], virial[2, 2], virial[1, 2], virial[0, 2], virial[0, 1]]
+                )
+                # Use set_array if available or new_array. set_array is preferred for existing, new_array for new.
+                # Forces usually don't exist yet on mock atoms.
+                # Adding type ignore as requested by audit feedback
+                atoms.new_array("forces", forces)  # type: ignore[no-untyped-call]
+
+                # Write to file
+                if first_write:
+                    write(labeled_file, atoms, format=EXTXYZ_FORMAT)
+                    first_write = False
+                else:
+                    write(labeled_file, atoms, format=EXTXYZ_FORMAT, append=True)
+
+                count += 1
+
+            if count == 0:
+                logger.warning("No structures found in input dataset.")
+                # Create empty file if loop didn't run (though st_size check handles most cases)
+                if not labeled_file.exists():
+                    labeled_file.touch()
+
         except Exception as e:
-            msg = f"Failed to read dataset file: {e}"
-            logger.exception(msg)
-            raise
-
-        # Explicit type hint for loop variable as requested
-        atoms: Atoms
-        for atoms in atoms_list:
-            # Simulate labeling
-            # Random generation as requested in docstrings
-            energy = np.random.uniform(-100, -10)
-            n_atoms = len(atoms)
-            forces = np.random.uniform(-1, 1, size=(n_atoms, 3))
-            virial = np.random.uniform(-0.1, 0.1, size=(3, 3))  # simplified 3x3
-
-            # Set properties on atoms so they are written to extxyz
-            atoms.info["energy"] = energy
-            # stress in ASE is Voigt order (xx, yy, zz, yz, xz, xy)
-            atoms.info["stress"] = np.array(
-                [virial[0, 0], virial[1, 1], virial[2, 2], virial[1, 2], virial[0, 2], virial[0, 1]]
-            )
-            # ASE expects forces in arrays
-            atoms.new_array("forces", forces)  # type: ignore[no-untyped-call]
-
-            labeled_atoms.append(atoms)
-
-        try:
-            write(labeled_file, labeled_atoms)
-        except Exception as e:
-            msg = f"Failed to write labeled structures to {labeled_file}: {e}"
+            msg = f"Failed during labeling process: {e}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
 
-        logger.info(f"MockOracle: Labeling complete. Wrote to {labeled_file}.")
+        logger.info(f"MockOracle: Labeling complete. Processed {count} structures. Wrote to {labeled_file}.")
         return Dataset(file_path=labeled_file)
 
 
