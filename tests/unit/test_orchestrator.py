@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from ase.io import read
 
 from mlip_autopipec.config import (
     ExplorerConfig,
@@ -18,51 +19,20 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
     return GlobalConfig(
         work_dir=tmp_path,
         max_cycles=2,
-        explorer=ExplorerConfig(type="mock"),
+        random_seed=42,
+        explorer=ExplorerConfig(type="mock", n_structures=2),
         oracle=OracleConfig(type="mock"),
-        trainer=TrainerConfig(type="mock", potential_output_name="mock_potential.yace"),
-        validator=ValidatorConfig(type="mock")
+        trainer=TrainerConfig(type="mock", potential_output_name="potential.yace"),
+        validator=ValidatorConfig(type="mock"),
     )
 
-def test_orchestrator_run(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer()
-    oracle = MockOracle()
-    trainer = MockTrainer(mock_config.trainer)
-    validator = MockValidator(mock_config.validator)
-
-    orchestrator = Orchestrator(mock_config, explorer, oracle, trainer, validator)
-
-    # Run
-    orchestrator.run()
-
-    # Assertions
-    # Check if accumulated dataset file exists and has content
-    dataset_file = mock_config.work_dir / "accumulated_dataset.xyz"
-    assert dataset_file.exists()
-
-    # Cycle 1: Explorer 2 -> Oracle 2 -> Write 2
-    # Cycle 2: Explorer 2 -> Oracle 2 -> Write 2
-    # Total 4 structures should be in the file.
-    # Since we use ASE write with append, checking file size > 0 is basic check.
-    # To check exact count we would need to read it back, but ASE dependency might be heavy for unit test?
-    # No, we have ASE installed.
-    from ase.io import read
-    structures = read(dataset_file, index=":")
-    assert len(structures) == 4
-
-    # Check potential path updated to what MockTrainer returns
-    # MockTrainer writes to "mock_potential.yace" in CWD (bad practice in Mock? MockTrainer uses config name).
-    # In MockTrainer implementation I used: potential_path = Path(potential_filename) which is relative to CWD.
-    # Orchestrator uses it.
-    assert orchestrator.current_potential_path == Path("mock_potential.yace")
-
-    # Cleanup potential file created in CWD
-    if Path("mock_potential.yace").exists():
-        Path("mock_potential.yace").unlink()
 
 def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer()
-    oracle = MockOracle()
+    """
+    Tests that the Orchestrator initializes correctly with the given configuration.
+    """
+    explorer = MockExplorer(mock_config.explorer, mock_config.work_dir)
+    oracle = MockOracle(mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer)
     validator = MockValidator(mock_config.validator)
 
@@ -71,3 +41,36 @@ def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
     assert orchestrator.current_potential_path == Path("initial_potential.yace")
     # Check dataset file path setup
     assert orchestrator.dataset_file == mock_config.work_dir / "accumulated_dataset.xyz"
+
+
+def test_orchestrator_run(mock_config: GlobalConfig) -> None:
+    """
+    Tests the full execution cycle of the Orchestrator using mock components.
+    Verifies that structures are accumulated and potential files are created.
+    """
+    explorer = MockExplorer(mock_config.explorer, mock_config.work_dir)
+    oracle = MockOracle(mock_config.work_dir)
+    trainer = MockTrainer(mock_config.trainer)
+    validator = MockValidator(mock_config.validator)
+
+    orchestrator = Orchestrator(mock_config, explorer, oracle, trainer, validator)
+    orchestrator.run()
+
+    # Assertions
+    dataset_file = mock_config.work_dir / "accumulated_dataset.xyz"
+    assert dataset_file.exists()
+
+    # Cycle 1: Explorer 2 -> Oracle 2 -> Write 2
+    # Cycle 2: Explorer 2 -> Oracle 2 -> Write 2
+    # Total 4 structures should be in the file.
+    structures = read(dataset_file, index=":")
+    if not isinstance(structures, list):
+        structures = [structures]
+    assert len(structures) == 4
+
+    # Check potential path updated.
+    # MockTrainer writes to parent of dataset file, which is work_dir.
+    # Name is potential.yace
+    expected_potential = mock_config.work_dir / "potential.yace"
+    assert orchestrator.current_potential_path == expected_potential
+    assert expected_potential.exists()

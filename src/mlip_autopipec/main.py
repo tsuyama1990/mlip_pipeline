@@ -11,13 +11,18 @@ from mlip_autopipec.utils.logging import setup_logging
 
 app = typer.Typer()
 
+
 @app.callback()
 def main() -> None:
     """
     MLIP Pipeline CLI
     """
 
+
 def load_config(config_path: Path) -> GlobalConfig:
+    """
+    Loads and validates the global configuration from a YAML file.
+    """
     if not config_path.exists():
         typer.echo(f"Error: Configuration file {config_path} not found.", err=True)
         raise typer.Exit(code=1)
@@ -30,7 +35,12 @@ def load_config(config_path: Path) -> GlobalConfig:
             typer.echo(f"Error validating configuration: {e}", err=True)
             raise typer.Exit(code=1) from None
 
+
 def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
+    """
+    Instantiates the pipeline components (Explorer, Oracle, Trainer, Validator)
+    based on the provided configuration.
+    """
     # Factory logic (simplified for Cycle 01)
     explorer: BaseExplorer
     oracle: BaseOracle
@@ -38,13 +48,13 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     validator: BaseValidator
 
     if config.explorer.type == "mock":
-        explorer = MockExplorer()
+        explorer = MockExplorer(config.explorer, config.work_dir)
     else:
         msg = f"Explorer type {config.explorer.type} not implemented"
         raise NotImplementedError(msg)
 
     if config.oracle.type == "mock":
-        oracle = MockOracle()
+        oracle = MockOracle(config.work_dir)
     else:
         msg = f"Oracle type {config.oracle.type} not implemented"
         raise NotImplementedError(msg)
@@ -62,6 +72,7 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
         validator = MockValidator(config.validator)
 
     return explorer, oracle, trainer, validator
+
 
 @app.command()
 def run(config: Path = typer.Option(..., help="Path to the configuration YAML file.")) -> None:  # noqa: B008
@@ -83,11 +94,12 @@ def run(config: Path = typer.Option(..., help="Path to the configuration YAML fi
         explorer=explorer,
         oracle=oracle,
         trainer=trainer,
-        validator=validator
+        validator=validator,
     )
 
     # 5. Run
     orchestrator.run()
+
 
 if __name__ == "__main__":
     app()
