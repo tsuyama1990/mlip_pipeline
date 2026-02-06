@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from ase.io import read
 
 from mlip_autopipec.config import (
     ExplorerConfig,
@@ -18,14 +19,15 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
     return GlobalConfig(
         work_dir=tmp_path,
         max_cycles=2,
-        explorer=ExplorerConfig(type="mock"),
+        explorer=ExplorerConfig(type="mock", n_structures=2),
         oracle=OracleConfig(type="mock"),
         trainer=TrainerConfig(type="mock", potential_output_name="mock_potential.yace"),
-        validator=ValidatorConfig(type="mock")
+        validator=ValidatorConfig(type="mock"),
+        max_accumulated_structures=100
     )
 
 def test_orchestrator_run(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer()
+    explorer = MockExplorer(mock_config.explorer)
     oracle = MockOracle()
     trainer = MockTrainer(mock_config.trainer)
     validator = MockValidator(mock_config.validator)
@@ -43,17 +45,10 @@ def test_orchestrator_run(mock_config: GlobalConfig) -> None:
     # Cycle 1: Explorer 2 -> Oracle 2 -> Write 2
     # Cycle 2: Explorer 2 -> Oracle 2 -> Write 2
     # Total 4 structures should be in the file.
-    # Since we use ASE write with append, checking file size > 0 is basic check.
-    # To check exact count we would need to read it back, but ASE dependency might be heavy for unit test?
-    # No, we have ASE installed.
-    from ase.io import read
     structures = read(dataset_file, index=":")
     assert len(structures) == 4
 
     # Check potential path updated to what MockTrainer returns
-    # MockTrainer writes to "mock_potential.yace" in CWD (bad practice in Mock? MockTrainer uses config name).
-    # In MockTrainer implementation I used: potential_path = Path(potential_filename) which is relative to CWD.
-    # Orchestrator uses it.
     assert orchestrator.current_potential_path == Path("mock_potential.yace")
 
     # Cleanup potential file created in CWD
@@ -61,7 +56,7 @@ def test_orchestrator_run(mock_config: GlobalConfig) -> None:
         Path("mock_potential.yace").unlink()
 
 def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer()
+    explorer = MockExplorer(mock_config.explorer)
     oracle = MockOracle()
     trainer = MockTrainer(mock_config.trainer)
     validator = MockValidator(mock_config.validator)
@@ -71,3 +66,81 @@ def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
     assert orchestrator.current_potential_path == Path("initial_potential.yace")
     # Check dataset file path setup
     assert orchestrator.dataset_file == mock_config.work_dir / "accumulated_dataset.xyz"
+
+def test_orchestrator_reset(mock_config: GlobalConfig) -> None:
+    explorer = MockExplorer(mock_config.explorer)
+    oracle = MockOracle()
+    trainer = MockTrainer(mock_config.trainer)
+    validator = MockValidator(mock_config.validator)
+
+    orchestrator = Orchestrator(mock_config, explorer, oracle, trainer, validator)
+
+    # Create a dummy file to simulate state
+    orchestrator.dataset_file.write_text("dummy")
+    orchestrator.accumulated_structures_count = 10
+
+    orchestrator.reset()
+
+    assert not orchestrator.dataset_file.exists()
+    assert orchestrator.accumulated_structures_count == 0
+    assert orchestrator.current_potential_path == Path("initial_potential.yace")
+
+def test_max_accumulated_structures_limit(mock_config: GlobalConfig) -> None:
+    # Set limit to 3. n_structures is 2.
+    # Cycle 1: 2 structures. Total 2. OK.
+    # Cycle 2: 2 structures. Total 4. > 3. Fail.
+    mock_config.max_accumulated_structures = 3
+
+    explorer = MockExplorer(mock_config.explorer)
+    oracle = MockOracle()
+    trainer = MockTrainer(mock_config.trainer)
+    validator = MockValidator(mock_config.validator)
+
+    orchestrator = Orchestrator(mock_config, explorer, oracle, trainer, validator)
+
+    with pytest.raises(RuntimeError, match="Max accumulated structures limit exceeded"):
+        orchestrator.run()
+
+    # Verify we accumulated 2 from first cycle
+    assert orchestrator.accumulated_structures_count == 2
+    # Clean up potential
+    if Path("mock_potential.yace").exists():
+        Path("mock_potential.yace").unlink()
+
+@pytest.mark.parametrize(("n_structures", "max_cycles", "expected_total"), [
+    (1, 1, 1),
+    (1, 2, 2),
+    (3, 1, 3),
+])
+def test_orchestrator_configurations(
+    n_structures: int,
+    max_cycles: int,
+    expected_total: int,
+    tmp_path: Path
+) -> None:
+    """
+    Test orchestrator with different configurations.
+    """
+    config = GlobalConfig(
+        work_dir=tmp_path,
+        max_cycles=max_cycles,
+        explorer=ExplorerConfig(type="mock", n_structures=n_structures),
+        oracle=OracleConfig(type="mock"),
+        trainer=TrainerConfig(type="mock", potential_output_name="param_test.yace"),
+        validator=ValidatorConfig(type="mock"),
+    )
+
+    explorer = MockExplorer(config.explorer)
+    oracle = MockOracle()
+    trainer = MockTrainer(config.trainer)
+    validator = MockValidator(config.validator)
+
+    orchestrator = Orchestrator(config, explorer, oracle, trainer, validator)
+    orchestrator.run()
+
+    dataset_file = config.work_dir / "accumulated_dataset.xyz"
+    structures = read(dataset_file, index=":")
+    assert len(structures) == expected_total
+
+    if Path("param_test.yace").exists():
+        Path("param_test.yace").unlink()

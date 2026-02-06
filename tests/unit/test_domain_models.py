@@ -32,3 +32,11 @@ def test_validation_result_empty_metrics() -> None:
     with pytest.raises(ValidationError) as excinfo:
         ValidationResult(metrics={}, is_stable=True)
     assert "Metrics dictionary cannot be empty" in str(excinfo.value)
+
+def test_validation_result_str() -> None:
+    res = ValidationResult(metrics={"rmse": 0.1, "mae": 0.2}, is_stable=True)
+    s = str(res)
+    assert "ValidationResult" in s
+    assert "Status: Stable" in s
+    assert "rmse=0.1000" in s
+    assert "mae=0.2000" in s
