@@ -73,13 +73,14 @@ class Orchestrator:
                         for atom in iread(labeled_data.file_path, index=":"):
                             buffer.append(atom)
                             count += 1
+                            # Flush buffer periodically to avoid memory accumulation
                             if len(buffer) >= 100:  # Buffer size 100
                                 write(self.dataset_file, buffer, append=True)
-                                buffer = []
+                                buffer.clear()
 
                         if buffer:
                             write(self.dataset_file, buffer, append=True)
-                            buffer = []
+                            buffer.clear()
 
                     if count > 0:
                         logger.info(f"Appended {count} structures.")

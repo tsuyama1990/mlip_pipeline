@@ -19,6 +19,30 @@ class OracleConfig(BaseModel):
     pseudo_dir: Path | None = None
     pseudopotentials: dict[str, str] | None = None
     kspacing: float = Field(default=0.04, gt=0)
+    # Default QE parameters. Users can override these via scf_params or config file.
+    # Structure follows ASE Espresso input_data format (sections).
+    @staticmethod
+    def _default_qe_input_data() -> dict[str, dict[str, Any]]:
+        return {
+            "control": {
+                "calculation": "scf",
+                "restart_mode": "from_scratch",
+                "tprnfor": True,
+                "tstress": True,
+                "disk_io": "none",
+            },
+            "system": {
+                "ecutwfc": 40,
+                "ecutrho": 160,
+            },
+            "electrons": {
+                "mixing_beta": 0.7,
+                "conv_thr": 1.0e-6,
+            },
+        }
+
+    default_input_data: dict[str, dict[str, Any]] = Field(default_factory=_default_qe_input_data)
+    # User overrides for specific parameters (can be flat or nested, adapter handles merging)
     scf_params: dict[str, Any] = Field(default_factory=dict)
     batch_size: int = Field(default=10, ge=1)
 

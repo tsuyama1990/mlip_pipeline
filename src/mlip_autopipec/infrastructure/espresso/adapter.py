@@ -3,7 +3,7 @@ import shutil
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from ase import Atoms
 from ase.calculators.calculator import kpts2mp
@@ -31,6 +31,7 @@ class EspressoOracle(BaseOracle):
     def _validate_command(self, command: str | None) -> None:
         """
         Validates the command string for security and availability.
+        Uses a whitelist of allowed executables to prevent command injection.
         """
         if not command:
             return
@@ -42,12 +43,24 @@ class EspressoOracle(BaseOracle):
             logger.error(msg)
             raise ValueError(msg)
 
-        # Basic check: verify the executable (first word) exists
+        # Whitelist of allowed executables
+        allowed_executables = {"pw.x", "mpirun", "srun", "mpiexec"}
+
         parts = command.split()
-        if parts:
-            executable = parts[0]
-            if not shutil.which(executable):
-                logger.warning(f"Command executable '{executable}' not found in PATH.")
+        if not parts:
+            return
+
+        executable = parts[0]
+        # Check if the executable name (basename) is in the whitelist
+        executable_name = Path(executable).name
+
+        if executable_name not in allowed_executables:
+            msg = f"Command executable '{executable_name}' is not in the allowed whitelist: {allowed_executables}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        if not shutil.which(executable):
+            logger.warning(f"Command executable '{executable}' not found in PATH.")
 
         # Check for sensitive paths
         sensitive_paths = ["/etc/passwd", "/root", "/var/run"]
@@ -66,17 +79,23 @@ class EspressoOracle(BaseOracle):
         """
         Helper to run QE for a single structure with given params.
         """
-        # Construct input_data from base and params
-        current_input_data = base_input_data.copy()
+        current_input_data: dict[str, Any] = {k: v.copy() if isinstance(v, dict) else v for k, v in base_input_data.items()}
 
-        # Update input_data with params (overrides)
-        if "mixing_beta" in params:
-            current_input_data["electrons"]["mixing_beta"] = params["mixing_beta"]
-        if "electron_maxstep" in params:
-            current_input_data["electrons"]["electron_maxstep"] = params["electron_maxstep"]
+        param_map = {
+            "mixing_beta": "electrons",
+            "electron_maxstep": "electrons",
+            "conv_thr": "electrons",
+            "smearing": "system",
+            "degauss": "system",
+        }
 
-        # Calculate k-points from kspacing
-        # kpts2mp(atoms, kpts=density) returns (nx, ny, nz)
+        for key, value in params.items():
+            section = param_map.get(key)
+            if section:
+                if section not in current_input_data:
+                    current_input_data[section] = {}
+                current_input_data[section][key] = value
+
         k_grid = kpts2mp(atom, kpts=self.config.kspacing, even=True)  # type: ignore[no-untyped-call]
 
         calc = Espresso(  # type: ignore[no-untyped-call]
@@ -90,9 +109,7 @@ class EspressoOracle(BaseOracle):
         )
 
         atom.calc = calc
-        # Trigger calculation
         atom.get_potential_energy()  # type: ignore[no-untyped-call]
-        # Forces and stress are calculated automatically if tprnfor/tstress are True
         return atom
 
     def label(self, dataset: Dataset) -> Dataset:
@@ -106,9 +123,9 @@ class EspressoOracle(BaseOracle):
             logger.error(msg)
             raise FileNotFoundError(msg)
 
+        # Check for empty file
         if dataset.file_path.stat().st_size == 0:
             logger.warning(f"Dataset file {dataset.file_path} is empty.")
-            # Return empty file (or same empty file path?) - better return a new empty file
             labeled_file = self.work_dir / f"labeled_{uuid.uuid4().hex}.xyz"
             labeled_file.touch()
             return Dataset(file_path=labeled_file)
@@ -119,35 +136,19 @@ class EspressoOracle(BaseOracle):
         buffer: list[Atoms] = []
         batch_size = self.config.batch_size
 
-        # Default input_data for QE
-        input_data = {
-            "control": {
-                "calculation": "scf",
-                "restart_mode": "from_scratch",
-                "tprnfor": True,
-                "tstress": True,
-                "disk_io": "none",
-            },
-            "system": {
-                "ecutwfc": 40,
-                "ecutrho": 160,
-            },
-            "electrons": {
-                "mixing_beta": 0.7,
-                "conv_thr": 1.0e-6,
-            },
-        }
+        # Load default input data from config
+        input_data = {k: v.copy() if isinstance(v, dict) else v for k, v in self.config.default_input_data.items()}
 
-        # Use one temp dir for the session
         with tempfile.TemporaryDirectory(dir=self.work_dir) as temp_dir:
             temp_path = Path(temp_dir)
 
             try:
+                # Streaming read
+                # 'iread' returns an iterator, preventing loading all atoms into memory.
                 for atom in iread(dataset.file_path, index=":"):
                     total_structures += 1
                     if atom is None:
                         continue
-                    # atom is Atoms object here
 
                     # Bind current atom using default argument in lambda
                     def calc_func(p: dict[str, Any], a: Atoms = atom) -> Atoms:
@@ -159,10 +160,10 @@ class EspressoOracle(BaseOracle):
                         buffer.append(labeled_atom)
                         successful_structures += 1
                     except Exception:
-                        # Log the exception stack trace
                         logger.exception(f"Failed to label structure {total_structures}")
                         continue
 
+                    # Batch write
                     if len(buffer) >= batch_size:
                         write(labeled_file, buffer, append=True)
                         buffer.clear()
@@ -174,7 +175,7 @@ class EspressoOracle(BaseOracle):
 
             except Exception as e:
                 msg = f"Error processing dataset: {e}"
-                logger.exception(msg)  # already includes message in traceback? No, exception(msg) adds msg.
+                logger.exception(msg)
                 raise RuntimeError(msg) from e
 
         logger.info(

@@ -4,12 +4,12 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 28 items
+collected 27 items
 
 tests/e2e/test_cli.py ....                                               [ 14%]
-tests/unit/test_config.py .......                                        [ 39%]
-tests/unit/test_domain_models.py ....                                    [ 53%]
-tests/unit/test_oracle.py ...........                                    [ 92%]
+tests/unit/test_config.py .......                                        [ 40%]
+tests/unit/test_domain_models.py ....                                    [ 55%]
+tests/unit/test_oracle.py ..........                                     [ 92%]
 tests/unit/test_orchestrator.py ../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
                                        [100%]
@@ -21,13 +21,13 @@ Name                                                     Stmts   Miss  Cover   M
 --------------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                               0      0   100%
 src/mlip_autopipec/config/__init__.py                        2      0   100%
-src/mlip_autopipec/config/config_model.py                   64      5    92%   29, 44-45, 47-48
+src/mlip_autopipec/config/config_model.py                   65      5    92%   51, 66-67, 69-70
 src/mlip_autopipec/domain_models/__init__.py                 3      0   100%
 src/mlip_autopipec/domain_models/structure.py               20      2    90%   24-25
 src/mlip_autopipec/domain_models/validation.py              16      0   100%
 src/mlip_autopipec/infrastructure/__init__.py                0      0   100%
 src/mlip_autopipec/infrastructure/espresso/__init__.py       0      0   100%
-src/mlip_autopipec/infrastructure/espresso/adapter.py       95     13    86%   36, 105-107, 110-114, 149, 175-178
+src/mlip_autopipec/infrastructure/espresso/adapter.py      105     15    86%   37, 51, 96, 122-124, 128-131, 151, 176-179
 src/mlip_autopipec/infrastructure/espresso/recovery.py      34      4    88%   55-57, 64
 src/mlip_autopipec/infrastructure/mocks.py                 106     26    75%   52-55, 83-85, 91-95, 120-123, 157-163, 180-182
 src/mlip_autopipec/interfaces/__init__.py                    5      0   100%
@@ -37,9 +37,9 @@ src/mlip_autopipec/interfaces/trainer.py                     6      0   100%
 src/mlip_autopipec/interfaces/validator.py                   6      0   100%
 src/mlip_autopipec/main.py                                  51     10    80%   54-55, 59-63, 68-69, 75, 108
 src/mlip_autopipec/orchestration/__init__.py                 0      0   100%
-src/mlip_autopipec/orchestration/orchestrator.py            63      7    89%   77-78, 87-92
+src/mlip_autopipec/orchestration/orchestrator.py            63      7    89%   78-79, 88-93
 src/mlip_autopipec/utils/__init__.py                         0      0   100%
 src/mlip_autopipec/utils/logging.py                         18      0   100%
 --------------------------------------------------------------------------------------
-TOTAL                                                      500     67    87%
-============================== 28 passed in 4.67s ==============================
+TOTAL                                                      511     69    86%
+============================== 27 passed in 4.48s ==============================

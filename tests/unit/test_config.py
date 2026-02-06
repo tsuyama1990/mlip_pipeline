@@ -50,7 +50,7 @@ def test_global_config_valid(tmp_path: Path) -> None:
         oracle=OracleConfig(
             type="espresso",
             command="pw.x",
-            pseudo_dir=Path("/tmp"),
+                pseudo_dir=tmp_path / "pseudo",
             pseudopotentials={"Si": "Si.upf"},
         ),
         trainer=TrainerConfig(type="pacemaker"),
