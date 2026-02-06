@@ -1,7 +1,8 @@
 from pathlib import Path
+from typing import Self
 
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StructureMetadata(BaseModel):
@@ -34,19 +35,9 @@ class Dataset(BaseModel):
     structures: list[StructureMetadata] = Field(default_factory=list)
     file_path: Path | None = None
 
-class ValidationResult(BaseModel):
-    """
-    Results from a validation run.
-    """
-    model_config = ConfigDict(extra="forbid")
-
-    metrics: dict[str, float]
-    is_stable: bool
-
-    @field_validator("metrics")
-    @classmethod
-    def check_metrics_not_empty(cls, v: dict[str, float]) -> dict[str, float]:
-        if not v:
-            msg = "Metrics dictionary cannot be empty"
+    @model_validator(mode="after")
+    def check_mutual_exclusivity(self) -> Self:
+        if self.file_path is not None and len(self.structures) > 0:
+            msg = "Dataset cannot have both 'structures' (in-memory) and 'file_path' (on-disk) set simultaneously."
             raise ValueError(msg)
-        return v
+        return self
