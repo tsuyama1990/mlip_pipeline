@@ -1,6 +1,6 @@
 import logging
 
-from ase.io import iread, write
+from ase.io import iread, read, write
 
 from mlip_autopipec.config import GlobalConfig
 from mlip_autopipec.domain_models import Dataset
@@ -28,9 +28,28 @@ class Orchestrator:
 
         # Initialize accumulated dataset file
         self.dataset_file = self.config.work_dir / "accumulated_dataset.xyz"
+        # If file doesn't exist, create it (empty) or just let append handle it?
+        # ASE write append=True works if file doesn't exist, but creates it.
+
+        # We need a placeholder input dataset for Explorer (usually requires potential + data).
+        # We'll create an empty placeholder file for the first cycle.
+        self.empty_input_file = self.config.work_dir / "empty_input.xyz"
+        if not self.empty_input_file.exists():
+             self.empty_input_file.touch()
 
         # Current potential path (start with initial from config or default relative to work_dir)
         self.current_potential_path = self.config.initial_potential or (self.config.work_dir / "initial_potential.yace")
+
+        # Track total structures if limit is set
+        self.total_structures = 0
+        if self.dataset_file.exists():
+            # Count existing structures (expensive but necessary for restart safety?)
+            # For now assume 0 or count them.
+            # Minimal approach: count on init.
+            try:
+                self.total_structures = len(read(self.dataset_file, index=":"))
+            except Exception:
+                self.total_structures = 0
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
@@ -40,38 +59,47 @@ class Orchestrator:
 
             # 1. Explore
             logger.info("Running Explorer...")
-            # For Cycle 01, we just pass an empty one as placeholder.
-            new_candidates = self.explorer.explore(self.current_potential_path, Dataset(structures=[]))
-            # Candidates might be file-based or memory-based.
-            if new_candidates.structures:
-                logger.info(f"Explorer produced {len(new_candidates.structures)} candidates (in-memory).")
-            elif new_candidates.file_path:
-                logger.info(f"Explorer produced candidates at {new_candidates.file_path}.")
+            new_candidates = self.explorer.explore(
+                self.current_potential_path,
+                Dataset(file_path=self.empty_input_file)
+            )
+            logger.info(f"Explorer produced candidates at {new_candidates.file_path}.")
 
             # 2. Oracle
             logger.info("Running Oracle...")
             labeled_data = self.oracle.label(new_candidates)
 
-            # 3. Accumulate (Stream to disk to avoid memory explosion)
-            if labeled_data.file_path:
-                logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
+            # 3. Accumulate
+            logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
+
+            # Check limits
+            limit_reached = False
+            if (
+                self.config.max_accumulated_structures is not None
+                and self.total_structures >= self.config.max_accumulated_structures
+            ):
+                logger.warning("Max accumulated structures limit reached. Stopping accumulation.")
+                limit_reached = True
+
+            if not limit_reached:
                 count = 0
                 for atoms in iread(labeled_data.file_path):
-                    write(self.dataset_file, atoms, append=True)
-                    count += 1
-                logger.info(f"Appended {count} structures.")
+                    if (
+                        self.config.max_accumulated_structures is not None
+                        and self.total_structures >= self.config.max_accumulated_structures
+                    ):
+                        logger.warning("Max accumulated structures limit reached during appending.")
+                        break
 
-            elif labeled_data.structures:
-                # Append to file
-                logger.info(f"Appending {len(labeled_data.structures)} structures to {self.dataset_file}")
-                # Extract ASE atoms
-                atoms_list = [s.structure for s in labeled_data.structures]
-                write(self.dataset_file, atoms_list, append=True)
+                    write(self.dataset_file, atoms, append=True)
+                    self.total_structures += 1
+                    count += 1
+                logger.info(f"Appended {count} structures. Total: {self.total_structures}")
 
             # 4. Train
             logger.info("Running Trainer...")
-            # Create a Dataset pointing to the file, empty structures list to save memory
-            full_dataset = Dataset(file_path=self.dataset_file, structures=[])
+            # Create a Dataset pointing to the file
+            full_dataset = Dataset(file_path=self.dataset_file)
 
             potential_path = self.trainer.train(full_dataset, full_dataset)
             self.current_potential_path = potential_path

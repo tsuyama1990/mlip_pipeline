@@ -17,6 +17,9 @@ class MockExplorer(BaseExplorer):
     """
     Mock implementation of an Explorer that generates random H2O structures.
     """
+    def __init__(self, work_dir: Path) -> None:
+        self.work_dir = work_dir
+
     def explore(self, current_potential_path: Path, dataset: Dataset) -> Dataset:
         """
         Generates dummy candidate structures.
@@ -29,9 +32,15 @@ class MockExplorer(BaseExplorer):
                 atoms.positions += np.random.rand(3, 3) * 0.1
                 yield StructureMetadata(structure=atoms, iteration=0)
 
-        new_structures = list(_generate())
-        logger.info(f"MockExplorer: Generated {len(new_structures)} structures.")
-        return Dataset(structures=new_structures)
+        # Write to file
+        candidates_file = self.work_dir / f"candidates_{uuid.uuid4().hex}.xyz"
+        count = 0
+        for meta in _generate():
+            write(candidates_file, meta.structure, append=True)
+            count += 1
+
+        logger.info(f"MockExplorer: Generated {count} structures at {candidates_file}.")
+        return Dataset(file_path=candidates_file)
 
 class MockOracle(BaseOracle):
     """
@@ -49,7 +58,7 @@ class MockOracle(BaseOracle):
         def _label_structure(meta: StructureMetadata) -> StructureMetadata:
             if meta.structure is None:
                 logger.warning("MockOracle: Encountered StructureMetadata with None structure.")
-                return meta # Or raise error? keeping behavior similar to before but without skipping loop logic inside generator
+                return meta
 
             # Simulate labeling
             meta.energy = np.random.uniform(-100, -10)
@@ -63,37 +72,20 @@ class MockOracle(BaseOracle):
             output_file = self.work_dir / f"labeled_{uuid.uuid4().hex}.xyz"
 
             count = 0
-            # iread returns Atoms objects. We need to wrap them in StructureMetadata if the file is xyz.
-            # But wait, Dataset file_path implies it contains what? usually XYZ file.
-            # StructureMetadata is our internal wrapper.
-            # If we read from XYZ, we get Atoms. We need to wrap them.
-            # But if we write back to XYZ, we lose StructureMetadata extra fields unless we store them in atoms.info/arrays.
-            # For this Mock/MVP, let's assume we read Atoms, wrap, label, then write Atoms.
-
-            # Note: Dataset file_path implies an ASE-readable file.
-
+            # Streaming read -> Label -> Streaming write
             for atoms in iread(dataset.file_path):
-                # Create wrapper
                 meta = StructureMetadata(structure=atoms)
                 labeled_meta = _label_structure(meta)
                 count += 1
 
-                # To truly stream, we should write incrementally.
-                # However, ASE write(append=True) can be slow if done one by one for HUGE datasets.
-                # But for safety/memory, let's write individually or in chunks.
-                # For simplicity here: write individually.
+                # Write back
                 write(output_file, labeled_meta.structure, append=True)
 
             logger.info(f"MockOracle: Labeled {count} structures and wrote to {output_file}")
             return Dataset(file_path=output_file)
 
-        if dataset.structures:
-            logger.info(f"MockOracle: Processing {len(dataset.structures)} in-memory structures")
-            labeled_structures = [_label_structure(meta) for meta in dataset.structures]
-            return Dataset(structures=labeled_structures)
-
-        logger.warning("MockOracle: Received empty dataset.")
-        return Dataset(structures=[])
+        msg = "MockOracle only supports file-based Datasets"
+        raise ValueError(msg)
 
 class MockTrainer(BaseTrainer):
     """
@@ -108,14 +100,9 @@ class MockTrainer(BaseTrainer):
         Simulates training a potential.
         """
         logger.info("MockTrainer: Starting training...")
-
-        if train_dataset.file_path:
-            logger.info(f"MockTrainer: Training from file {train_dataset.file_path}")
-        else:
-            logger.info(f"MockTrainer: Training from memory ({len(train_dataset.structures)} items)")
+        logger.info(f"MockTrainer: Training from file {train_dataset.file_path}")
 
         potential_filename = self.config.potential_output_name
-        # Fix: Write to work_dir
         potential_path = self.work_dir / potential_filename
 
         try:

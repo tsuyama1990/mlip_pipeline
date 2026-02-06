@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import Self
 
 from ase import Atoms
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class StructureMetadata(BaseModel):
@@ -27,17 +26,9 @@ class StructureMetadata(BaseModel):
 
 class Dataset(BaseModel):
     """
-    A collection of StructureMetadata.
-    Can handle in-memory structures OR a reference to a file.
+    A reference to a dataset file.
+    In-memory storage is strictly forbidden for scalability.
     """
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    structures: list[StructureMetadata] = Field(default_factory=list)
-    file_path: Path | None = None
-
-    @model_validator(mode="after")
-    def check_mutual_exclusivity(self) -> Self:
-        if self.file_path is not None and len(self.structures) > 0:
-            msg = "Dataset cannot have both 'structures' (in-memory) and 'file_path' (on-disk) set simultaneously."
-            raise ValueError(msg)
-        return self
+    file_path: Path

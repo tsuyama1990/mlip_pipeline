@@ -20,14 +20,20 @@ class TrainerConfig(BaseModel):
 
 class ValidatorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: Literal["mock"] = "mock"
+    type: str = "mock"
 
 class GlobalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    work_dir: Path = Field(default=Path("./_work"))
+    # Required fields (no defaults) per audit requirements
+    work_dir: Path
+    random_seed: int
+
     max_cycles: int = Field(ge=1)
-    random_seed: int = Field(default=42)
+
+    # Optional limits
+    max_accumulated_structures: int | None = None
+
     # Optional initial potential path
     initial_potential: Path | None = None
 

@@ -16,6 +16,7 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     # Create config
     config_data = {
         "work_dir": str(tmp_path),
+        "random_seed": 12345,
         "max_cycles": 1,
         "explorer": {"type": "mock"},
         "oracle": {"type": "mock"},

@@ -25,6 +25,8 @@ def load_config(config_path: Path) -> GlobalConfig:
     with config_path.open("r") as f:
         try:
             data = yaml.safe_load(f)
+            # Basic YAML validation is handled by safe_load (parser error)
+            # Schema validation is handled by GlobalConfig (pydantic)
             return GlobalConfig(**data)
         except Exception as e:
             typer.echo(f"Error validating configuration: {e}", err=True)
@@ -38,7 +40,7 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     validator: BaseValidator
 
     if config.explorer.type == "mock":
-        explorer = MockExplorer()
+        explorer = MockExplorer(work_dir=config.work_dir)
     else:
         msg = f"Explorer type {config.explorer.type} not implemented"
         raise NotImplementedError(msg)

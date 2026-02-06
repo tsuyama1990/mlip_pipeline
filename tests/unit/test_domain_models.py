@@ -7,28 +7,18 @@ from pydantic import ValidationError
 from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
 
 
-def test_dataset_mutual_exclusivity() -> None:
-    # 1. Structures only - OK
-    atoms = Atoms("H2O")
-    meta = StructureMetadata(structure=atoms)
-    d1 = Dataset(structures=[meta])
-    assert len(d1.structures) == 1
-    assert d1.file_path is None
-
-    # 2. File path only - OK
+def test_dataset_validation() -> None:
+    # 1. File path only - OK
     d2 = Dataset(file_path=Path("data.xyz"))
-    assert len(d2.structures) == 0
     assert d2.file_path == Path("data.xyz")
 
-    # 3. Both - Error
-    with pytest.raises(ValidationError) as exc:
-        Dataset(structures=[meta], file_path=Path("data.xyz"))
-    assert "Dataset cannot have both" in str(exc.value)
+    # 2. No file path - Error (implicit, since field is required)
+    with pytest.raises(ValidationError):
+        Dataset() # type: ignore[call-arg]
 
-    # 4. Neither - OK (empty dataset)
-    d4 = Dataset()
-    assert len(d4.structures) == 0
-    assert d4.file_path is None
+    # 3. Extra fields - Error
+    with pytest.raises(ValidationError):
+        Dataset(file_path=Path("data.xyz"), extra="forbidden") # type: ignore[call-arg]
 
 def test_structure_metadata_validation() -> None:
     # structure cannot be None

@@ -19,6 +19,7 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
     return GlobalConfig(
         work_dir=tmp_path,
         max_cycles=2,
+        random_seed=42,
         explorer=ExplorerConfig(type="mock"),
         oracle=OracleConfig(type="mock"),
         trainer=TrainerConfig(type="mock", potential_output_name="mock_potential.yace"),
@@ -26,7 +27,7 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
     )
 
 def test_orchestrator_run(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer()
+    explorer = MockExplorer(work_dir=mock_config.work_dir)
     oracle = MockOracle(work_dir=mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer, work_dir=mock_config.work_dir)
     validator = MockValidator(mock_config.validator)
@@ -53,7 +54,7 @@ def test_orchestrator_run(mock_config: GlobalConfig) -> None:
     assert expected_potential_path.exists()
 
 def test_orchestrator_initial_state(mock_config: GlobalConfig) -> None:
-    explorer = MockExplorer()
+    explorer = MockExplorer(work_dir=mock_config.work_dir)
     oracle = MockOracle(work_dir=mock_config.work_dir)
     trainer = MockTrainer(mock_config.trainer, work_dir=mock_config.work_dir)
     validator = MockValidator(mock_config.validator)
