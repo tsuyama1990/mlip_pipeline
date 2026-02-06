@@ -1,11 +1,14 @@
-import pytest
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
+import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.config.config_model import GlobalConfig
 
+
 def test_valid_global_config(tmp_path: Path) -> None:
-    config_data: Dict[str, Any] = {
+    config_data: dict[str, Any] = {
         "work_dir": tmp_path / "test",
         "max_cycles": 5,
         "random_seed": 123,
@@ -15,7 +18,7 @@ def test_valid_global_config(tmp_path: Path) -> None:
     assert config.explorer.type == "mock"
 
 def test_invalid_cycles(tmp_path: Path) -> None:
-    config_data: Dict[str, Any] = {
+    config_data: dict[str, Any] = {
         "work_dir": tmp_path / "test",
         "max_cycles": 0,
         "random_seed": 123,
@@ -24,7 +27,7 @@ def test_invalid_cycles(tmp_path: Path) -> None:
         GlobalConfig(**config_data)
 
 def test_extra_forbidden(tmp_path: Path) -> None:
-    config_data: Dict[str, Any] = {
+    config_data: dict[str, Any] = {
         "work_dir": tmp_path / "test",
         "max_cycles": 5,
         "extra_field": "value",

@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
+
 import pytest
+
 from mlip_autopipec.config.config_model import GlobalConfig
 
 try:

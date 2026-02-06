@@ -1,6 +1,6 @@
 import logging
-from typing import Optional
 from pathlib import Path
+
 from mlip_autopipec.config import GlobalConfig
 from mlip_autopipec.domain_models import Dataset
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
@@ -15,7 +15,7 @@ class Orchestrator:
         self.trainer = trainer
         self.validator = validator
         self.dataset = Dataset(name="training_set")
-        self.current_potential: Optional[Path] = None
+        self.current_potential: Path | None = None
         self.current_cycle = 0
 
     def run(self) -> None:

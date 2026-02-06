@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
+
 from mlip_autopipec.utils import setup_logging
+
 
 def test_setup_logging(tmp_path: Path) -> None:
     log_file = tmp_path / "test.log"

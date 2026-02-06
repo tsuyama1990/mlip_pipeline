@@ -1,4 +1,4 @@
-from .structure import StructureMetadata, Dataset
+from .structure import Dataset, StructureMetadata
 from .validation import ValidationResult
 
-__all__ = ["StructureMetadata", "Dataset", "ValidationResult"]
+__all__ = ["Dataset", "StructureMetadata", "ValidationResult"]
