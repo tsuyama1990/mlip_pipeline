@@ -47,7 +47,9 @@ def test_global_config_valid(tmp_path: Path) -> None:
         max_cycles=10,
         random_seed=123,
         explorer=ExplorerConfig(type="random"),
-        oracle=OracleConfig(type="espresso"),
+        oracle=OracleConfig(
+            type="espresso", command="pw.x", pseudo_dir=tmp_path / "pseudos"
+        ),
         trainer=TrainerConfig(type="pacemaker"),
         validator=ValidatorConfig(type="mock"),
     )

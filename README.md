@@ -13,6 +13,7 @@
 ## 🚀 Key Features
 
 *   **Mock Mode (Cycle 01)**: Fully functional simulation of the pipeline flow using mock components, allowing verification of the orchestration logic without external heavy dependencies.
+*   **Oracle Module (Cycle 02)**: Integration with Quantum Espresso (ASE adapter) for ground-truth DFT labeling, featuring automatic self-healing (SCF convergence recovery) and robust error handling.
 *   **Zero-Config Workflow**: Define your material system in a single `config.yaml`. The system handles orchestration automatically.
 *   **Modular Architecture**: Plug-and-play interfaces for Explorer, Oracle, Trainer, and Validator components.
 *   **Strict Type Safety**: Built with Pydantic and Type Hints for maximum reliability.
@@ -46,6 +47,8 @@ graph TD
 
 *   **Python**: >= 3.12
 *   **Package Manager**: `uv` (Recommended) or `pip`
+*   **External Tools**:
+    *   Quantum Espresso (`pw.x`) for DFT labeling (Optional for mock mode).
 
 ---
 
@@ -69,10 +72,21 @@ graph TD
     # config.yaml
     work_dir: "./_work"
     max_cycles: 5
+    random_seed: 42
+
     explorer:
       type: "mock"
+
     oracle:
-      type: "mock"
+      # Use "mock" for testing without DFT
+      # type: "mock"
+      # Use "espresso" for real DFT
+      type: "espresso"
+      command: "mpirun -np 4 pw.x"
+      pseudo_dir: "/path/to/pseudos"
+      pseudopotentials:
+        Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+
     trainer:
       type: "mock"
     ```
