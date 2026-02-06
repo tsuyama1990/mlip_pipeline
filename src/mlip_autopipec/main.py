@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import typer
@@ -38,7 +39,7 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     validator: BaseValidator
 
     if config.explorer.type == "mock":
-        explorer = MockExplorer()
+        explorer = MockExplorer(config.explorer)
     else:
         msg = f"Explorer type {config.explorer.type} not implemented"
         raise NotImplementedError(msg)
@@ -64,12 +65,16 @@ def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, Base
     return explorer, oracle, trainer, validator
 
 @app.command()
-def run(config: Path = typer.Option(..., help="Path to the configuration YAML file.")) -> None:  # noqa: B008
+def run(
+    config: Path = typer.Option(..., help="Path to the configuration YAML file."),  # noqa: B008
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)."),
+) -> None:
     """
     Run the active learning pipeline.
     """
     # 1. Setup Logging
-    setup_logging()
+    level = getattr(logging, log_level.upper(), logging.INFO)
+    setup_logging(level=level)
 
     # 2. Load Config
     global_config = load_config(config)

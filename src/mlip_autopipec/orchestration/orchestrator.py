@@ -33,6 +33,21 @@ class Orchestrator:
         # Current potential path (start with initial from config or default)
         self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
 
+        # Track accumulated structures
+        self.accumulated_structures_count = 0
+
+    def reset(self) -> None:
+        """
+        Resets the orchestrator state.
+        Deletes the accumulated dataset file and resets the potential path.
+        """
+        if self.dataset_file.exists():
+            self.dataset_file.unlink()
+
+        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
+        self.accumulated_structures_count = 0
+        logger.info("Orchestrator state reset.")
+
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
 
@@ -54,11 +69,21 @@ class Orchestrator:
 
             # 3. Accumulate (Stream to disk to avoid memory explosion)
             if labeled_data.structures:
+                count = len(labeled_data.structures)
+                if self.accumulated_structures_count + count > self.config.max_accumulated_structures:
+                    msg = (
+                        f"Max accumulated structures limit exceeded "
+                        f"({self.accumulated_structures_count + count} > {self.config.max_accumulated_structures})"
+                    )
+                    logger.error(msg)
+                    raise RuntimeError(msg)
+
                 # Append to file
-                logger.info(f"Appending {len(labeled_data.structures)} structures to {self.dataset_file}")
+                logger.info(f"Appending {count} structures to {self.dataset_file}")
                 # Extract ASE atoms
                 atoms_list = [s.structure for s in labeled_data.structures]
                 write(self.dataset_file, atoms_list, append=True)
+                self.accumulated_structures_count += count
 
             # 4. Train
             logger.info("Running Trainer...")

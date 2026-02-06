@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from ase import Atoms
 
-from mlip_autopipec.config import TrainerConfig, ValidatorConfig
+from mlip_autopipec.config import ExplorerConfig, TrainerConfig, ValidatorConfig
 from mlip_autopipec.domain_models import Dataset, StructureMetadata, ValidationResult
 from mlip_autopipec.interfaces import BaseExplorer, BaseOracle, BaseTrainer, BaseValidator
 
@@ -15,6 +15,9 @@ class MockExplorer(BaseExplorer):
     """
     Mock implementation of an Explorer that generates random H2O structures.
     """
+    def __init__(self, config: ExplorerConfig) -> None:
+        self.config = config
+
     def explore(self, current_potential_path: Path, dataset: Dataset) -> Dataset:
         """
         Generates dummy candidate structures.
@@ -22,7 +25,7 @@ class MockExplorer(BaseExplorer):
         logger.info("MockExplorer: Generating new candidates...")
 
         def _generate() -> Generator[StructureMetadata, None, None]:
-            for _ in range(2):
+            for _ in range(self.config.n_structures):
                 atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
                 atoms.positions += np.random.rand(3, 3) * 0.1
                 yield StructureMetadata(structure=atoms, iteration=0)
@@ -100,6 +103,10 @@ class MockValidator(BaseValidator):
         self.config = config
 
     def validate(self, potential_path: Path) -> ValidationResult:
+        """
+        Validates the potential.
+        Generates random metrics (RMSE energy/forces) for simulation purposes.
+        """
         logger.info(f"MockValidator: Validating potential at {potential_path}")
         # Generate random metrics to be more realistic as requested
         rmse_energy = np.random.uniform(0.001, 0.1)
