@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from ase.io import read
@@ -76,8 +76,9 @@ def test_orchestrator_run(mock_config: GlobalConfig) -> None:
     assert orchestrator.current_potential_path == expected_potential
     assert expected_potential.exists()
 
+
 @patch("mlip_autopipec.orchestration.orchestrator.iread")
-def test_orchestrator_uses_streaming(mock_iread, mock_config: GlobalConfig) -> None:
+def test_orchestrator_uses_streaming(mock_iread: MagicMock, mock_config: GlobalConfig) -> None:
     """
     Tests that the Orchestrator uses streaming (iread) instead of loading all data (read).
     """
@@ -92,6 +93,7 @@ def test_orchestrator_uses_streaming(mock_iread, mock_config: GlobalConfig) -> N
     # Set up mock_iread to yield something so the loop runs
     # It must yield atoms objects
     from ase import Atoms
+
     real_atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1]])
     mock_iread.return_value = [real_atoms]
 

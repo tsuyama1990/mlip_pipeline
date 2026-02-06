@@ -36,7 +36,9 @@ def load_config(config_path: Path) -> GlobalConfig:
             raise typer.Exit(code=1) from None
 
 
-def get_components(config: GlobalConfig) -> tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
+def get_components(
+    config: GlobalConfig,
+) -> tuple[BaseExplorer, BaseOracle, BaseTrainer, BaseValidator]:
     """
     Instantiates the pipeline components (Explorer, Oracle, Trainer, Validator)
     based on the provided configuration.

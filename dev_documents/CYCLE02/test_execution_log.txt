@@ -25,21 +25,21 @@ src/mlip_autopipec/domain_models/structure.py               20      2    90%   2
 src/mlip_autopipec/domain_models/validation.py              16      0   100%
 src/mlip_autopipec/infrastructure/__init__.py                0      0   100%
 src/mlip_autopipec/infrastructure/espresso/__init__.py       3      0   100%
-src/mlip_autopipec/infrastructure/espresso/adapter.py       83     18    78%   44, 59-60, 71-73, 91-93, 143-146, 154-161
-src/mlip_autopipec/infrastructure/espresso/recovery.py       8      0   100%
+src/mlip_autopipec/infrastructure/espresso/adapter.py       86     18    79%   45, 58-59, 71-73, 124-127, 140-142, 160-169
+src/mlip_autopipec/infrastructure/espresso/recovery.py      13      2    85%   25-26
 src/mlip_autopipec/infrastructure/mocks.py                 106     26    75%   52-55, 83-85, 91-95, 120-123, 157-163, 180-182
 src/mlip_autopipec/interfaces/__init__.py                    5      0   100%
 src/mlip_autopipec/interfaces/explorer.py                    6      0   100%
 src/mlip_autopipec/interfaces/oracle.py                      5      0   100%
 src/mlip_autopipec/interfaces/trainer.py                     6      0   100%
 src/mlip_autopipec/interfaces/validator.py                   6      0   100%
-src/mlip_autopipec/main.py                                  51     11    78%   53-54, 58-64, 69-70, 76, 109
+src/mlip_autopipec/main.py                                  51     11    78%   55-56, 60-66, 71-72, 78, 111
 src/mlip_autopipec/orchestration/__init__.py                 0      0   100%
-src/mlip_autopipec/orchestration/orchestrator.py            53      5    91%   78-82
+src/mlip_autopipec/orchestration/orchestrator.py            53      5    91%   82-86
 src/mlip_autopipec/utils/__init__.py                         0      0   100%
 src/mlip_autopipec/utils/logging.py                         18      0   100%
 --------------------------------------------------------------------------------------
-TOTAL                                                      444     62    86%
-============================== 25 passed in 4.22s ==============================
+TOTAL                                                      452     64    86%
+============================== 25 passed in 4.11s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

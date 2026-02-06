@@ -36,7 +36,9 @@ class Orchestrator:
             self.dataset_file.touch()
 
         # Current potential path (start with initial from config or default)
-        self.current_potential_path = self.config.initial_potential or Path("initial_potential.yace")
+        self.current_potential_path = self.config.initial_potential or Path(
+            "initial_potential.yace"
+        )
 
     def run(self) -> None:
         logger.info("Orchestrator initialization complete")
@@ -60,7 +62,9 @@ class Orchestrator:
             # 3. Accumulate (Stream to disk to avoid memory explosion)
             if labeled_data.file_path.exists():
                 # Read labeled data and append to accumulated dataset
-                logger.info(f"Appending structures from {labeled_data.file_path} to {self.dataset_file}")
+                logger.info(
+                    f"Appending structures from {labeled_data.file_path} to {self.dataset_file}"
+                )
 
                 try:
                     count = 0

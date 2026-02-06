@@ -51,6 +51,7 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     pot_file = work_dir / "cli_potential.yace"
     assert pot_file.exists()
 
+
 def test_cli_run_espresso_config_validation(tmp_path: Path) -> None:
     """
     Tests that configuring espresso oracle triggers validation logic.
@@ -65,7 +66,7 @@ def test_cli_run_espresso_config_validation(tmp_path: Path) -> None:
         "max_cycles": 1,
         "random_seed": 42,
         "explorer": {"type": "mock"},
-        "oracle": {"type": "espresso"}, # Missing command, pseudo_dir, etc.
+        "oracle": {"type": "espresso"},  # Missing command, pseudo_dir, etc.
         "trainer": {"type": "mock"},
         "validator": {"type": "mock"},
     }
@@ -76,6 +77,7 @@ def test_cli_run_espresso_config_validation(tmp_path: Path) -> None:
     result = runner.invoke(app, ["run", "--config", str(config_file)])
     assert result.exit_code == 1
     assert "Espresso oracle requires" in result.stderr
+
 
 def test_cli_run_missing_config() -> None:
     """

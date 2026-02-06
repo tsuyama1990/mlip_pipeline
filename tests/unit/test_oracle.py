@@ -21,7 +21,7 @@ except ImportError:
 from mlip_autopipec.domain_models import Dataset
 
 
-def test_oracle_config_validation(tmp_path):
+def test_oracle_config_validation(tmp_path: Path) -> None:
     """Test validation of OracleConfig for Espresso."""
     # Should fail if missing required fields
     with pytest.raises(ValueError, match="requires 'command'"):
@@ -38,7 +38,7 @@ def test_oracle_config_validation(tmp_path):
         type="espresso",
         command="pw.x",
         pseudo_dir=tmp_path / "pseudo",
-        pseudopotentials={"Si": "Si.upf"}
+        pseudopotentials={"Si": "Si.upf"},
     )
     assert config.type == "espresso"
     assert config.command == "pw.x"
@@ -47,19 +47,19 @@ def test_oracle_config_validation(tmp_path):
 @pytest.mark.skipif(EspressoOracle is None, reason="EspressoOracle not implemented")
 class TestEspressoOracle:
     @pytest.fixture
-    def config(self, tmp_path):
+    def config(self, tmp_path: Path) -> OracleConfig:
         return OracleConfig(
             type="espresso",
             command="pw.x",
             pseudo_dir=tmp_path / "pseudo",
-            pseudopotentials={"Si": "Si.upf"}
+            pseudopotentials={"Si": "Si.upf"},
         )
 
     @pytest.fixture
-    def oracle(self, config, tmp_path):
+    def oracle(self, config: OracleConfig, tmp_path: Path) -> "EspressoOracle":
         return EspressoOracle(config, work_dir=tmp_path)
 
-    def test_validate_command_security(self, config, tmp_path):
+    def test_validate_command_security(self, config: OracleConfig, tmp_path: Path) -> None:
         """Test that dangerous commands are rejected."""
         # This is a bit tricky since we validate in __init__ or before run
         # Let's assume validation happens in __init__ or check_config
@@ -69,7 +69,7 @@ class TestEspressoOracle:
             "pw.x | bash",
             "pw.x && echo 'hack'",
             "$(cat /etc/passwd)",
-            "pw.x > output.txt" # Redirection might be disallowed if we handle it
+            "pw.x > output.txt",  # Redirection might be disallowed if we handle it
         ]
 
         for cmd in dangerous_commands:
@@ -77,13 +77,13 @@ class TestEspressoOracle:
             with pytest.raises(ValueError, match="Security violation"):
                 EspressoOracle(config, work_dir=tmp_path)
 
-    def test_validate_command_valid(self, config, tmp_path):
+    def test_validate_command_valid(self, config: OracleConfig, tmp_path: Path) -> None:
         """Test that safe commands are accepted."""
         safe_commands = [
             "pw.x",
             "mpirun -np 4 pw.x",
             "/usr/bin/pw.x",
-            "mpiexec.hydra -n 8 pw.x -in"
+            "mpiexec.hydra -n 8 pw.x -in",
         ]
         for cmd in safe_commands:
             config.command = cmd
@@ -93,7 +93,14 @@ class TestEspressoOracle:
     @patch("mlip_autopipec.infrastructure.espresso.adapter.iread")
     @patch("mlip_autopipec.infrastructure.espresso.adapter.write")
     @patch("mlip_autopipec.infrastructure.espresso.adapter.Espresso")
-    def test_label_streaming(self, mock_espresso, mock_write, mock_iread, oracle, tmp_path):
+    def test_label_streaming(
+        self,
+        mock_espresso: MagicMock,
+        mock_write: MagicMock,
+        mock_iread: MagicMock,
+        oracle: "EspressoOracle",
+        tmp_path: Path,
+    ) -> None:
         """Test that labeling streams structures and writes them incrementally."""
         dataset_path = tmp_path / "input.xyz"
         dataset_path.touch()
@@ -101,8 +108,9 @@ class TestEspressoOracle:
 
         # Mock input structures
         import numpy as np
-        atoms1 = Atoms("Si2", positions=[[0,0,0], [1,1,1]], cell=[10,10,10], pbc=True)
-        atoms2 = Atoms("Si2", positions=[[0,0,0], [2,2,2]], cell=[10,10,10], pbc=True)
+
+        atoms1 = Atoms("Si2", positions=[[0, 0, 0], [1, 1, 1]], cell=[10, 10, 10], pbc=True)
+        atoms2 = Atoms("Si2", positions=[[0, 0, 0], [2, 2, 2]], cell=[10, 10, 10], pbc=True)
         mock_iread.return_value = [atoms1, atoms2]
 
         # Mock calculator behavior
@@ -117,7 +125,7 @@ class TestEspressoOracle:
 
         # Verify result points to a file
         assert result_dataset.file_path.exists()
-        assert result_dataset.file_path.name.endswith(".extxyz") # or .xyz
+        assert result_dataset.file_path.name.endswith(".extxyz")  # or .xyz
 
         # Verify streaming: read called on input
         mock_iread.assert_called_once_with(dataset_path)
@@ -134,14 +142,22 @@ class TestEspressoOracle:
     @patch("mlip_autopipec.infrastructure.espresso.adapter.iread")
     @patch("mlip_autopipec.infrastructure.espresso.adapter.write")
     @patch("mlip_autopipec.infrastructure.espresso.adapter.Espresso")
-    def test_recovery_strategy(self, mock_espresso, mock_write, mock_iread, oracle, tmp_path):
+    def test_recovery_strategy(
+        self,
+        mock_espresso: MagicMock,
+        mock_write: MagicMock,
+        mock_iread: MagicMock,
+        oracle: "EspressoOracle",
+        tmp_path: Path,
+    ) -> None:
         """Test that recovery strategy is applied when calculation fails."""
         dataset_path = tmp_path / "input.xyz"
         dataset_path.touch()
         dataset = Dataset(file_path=dataset_path)
 
         import numpy as np
-        atoms = Atoms("Si2", positions=[[0,0,0], [1,1,1]], cell=[10,10,10], pbc=True)
+
+        atoms = Atoms("Si2", positions=[[0, 0, 0], [1, 1, 1]], cell=[10, 10, 10], pbc=True)
         mock_iread.return_value = [atoms]
 
         # Mock calculator to fail first, then succeed
@@ -152,7 +168,7 @@ class TestEspressoOracle:
         mock_calc.get_potential_energy.side_effect = [
             CalculatorError("Convergence NOT achieved"),
             CalculatorError("Convergence NOT achieved"),
-            -15.0
+            -15.0,
         ]
         mock_calc.get_forces.return_value = np.zeros((2, 3))
         mock_calc.get_stress.return_value = np.zeros(6)
@@ -169,7 +185,7 @@ class TestEspressoOracle:
 
 
 @pytest.mark.skipif(RecoveryStrategy is None, reason="RecoveryStrategy not implemented")
-def test_recovery_strategy_recipes():
+def test_recovery_strategy_recipes() -> None:
     """Test that recovery strategy yields expected recipes."""
     strategy = RecoveryStrategy()
     recipes = list(strategy.get_recipes())
