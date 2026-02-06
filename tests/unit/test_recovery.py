@@ -1,6 +1,7 @@
 from typing import Any
 
 import pytest
+
 from mlip_autopipec.infrastructure.espresso.recovery import RecoveryStrategy
 
 

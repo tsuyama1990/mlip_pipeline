@@ -5,22 +5,28 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class ExplorerConfig(BaseModel):
+    """
+    Configuration for the Explorer component.
+    """
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "random", "md"] = "mock"
-    n_structures: int = Field(default=2, ge=1)
+    n_structures: int = Field(default=2, ge=1, description="Number of candidate structures to generate per cycle.")
 
 
 class OracleConfig(BaseModel):
+    """
+    Configuration for the Oracle component.
+    """
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "espresso"] = "mock"
 
     # Espresso specific configuration
-    command: str | None = None
-    pseudo_dir: Path | None = None
-    pseudopotentials: dict[str, str] | None = None
-    kspacing: float = 0.04
-    scf_params: dict[str, Any] = Field(default_factory=dict)
-    recovery_recipes: list[dict[str, Any]] = Field(default_factory=list)
+    command: str | None = Field(default=None, description="Command to run the Oracle (e.g., 'pw.x').")
+    pseudo_dir: Path | None = Field(default=None, description="Directory containing pseudopotentials.")
+    pseudopotentials: dict[str, str] | None = Field(default=None, description="Mapping of element symbol to pseudopotential filename.")
+    kspacing: float = Field(default=0.04, description="K-point spacing in inverse Angstroms.")
+    scf_params: dict[str, Any] = Field(default_factory=dict, description="Additional SCF parameters for the calculator.")
+    recovery_recipes: list[dict[str, Any]] = Field(default_factory=list, description="List of recovery strategies for SCF convergence failures.")
 
     @field_validator("command")
     @classmethod
@@ -57,10 +63,12 @@ class OracleConfig(BaseModel):
 
 
 class TrainerConfig(BaseModel):
+    """
+    Configuration for the Trainer component.
+    """
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "pacemaker"] = "mock"
-    # Configurable output path for potential
-    potential_output_name: str = "potential.yace"
+    potential_output_name: str = Field(default="potential.yace", description="Filename for the output potential.")
 
     @field_validator("potential_output_name")
     @classmethod
@@ -72,20 +80,25 @@ class TrainerConfig(BaseModel):
 
 
 class ValidatorConfig(BaseModel):
+    """
+    Configuration for the Validator component.
+    """
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock"] = "mock"
 
 
 class GlobalConfig(BaseModel):
+    """
+    Global configuration for the MLIP pipeline.
+    """
     model_config = ConfigDict(extra="forbid")
 
-    work_dir: Path
-    max_cycles: int = Field(ge=1)
-    random_seed: int
-    max_accumulated_structures: int = Field(default=10000, ge=0)
+    work_dir: Path = Field(..., description="Working directory for the pipeline.")
+    max_cycles: int = Field(..., ge=1, description="Maximum number of active learning cycles.")
+    random_seed: int = Field(..., description="Random seed for reproducibility.")
+    max_accumulated_structures: int = Field(default=10000, ge=0, description="Maximum number of structures to accumulate.")
 
-    # Optional initial potential path
-    initial_potential: Path | None = None
+    initial_potential: Path | None = Field(default=None, description="Path to an initial potential file.")
 
     explorer: ExplorerConfig = Field(default_factory=ExplorerConfig)
     oracle: OracleConfig = Field(default_factory=OracleConfig)

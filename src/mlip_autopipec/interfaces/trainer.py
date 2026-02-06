@@ -9,5 +9,11 @@ class BaseTrainer(ABC):
     def train(self, train_dataset: Dataset, validation_dataset: Dataset) -> Path:
         """
         Trains a potential using the provided datasets.
-        Returns the path to the trained potential file.
+
+        Args:
+            train_dataset (Dataset): The training dataset.
+            validation_dataset (Dataset): The validation dataset.
+
+        Returns:
+            Path: The path to the trained potential file.
         """
