@@ -39,3 +39,5 @@ build/
 
 # Cycle 1 specific
 workflow_state.json
+uat_cycle01/
+tests/e2e/work_dir/
