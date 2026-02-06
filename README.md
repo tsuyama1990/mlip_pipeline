@@ -12,6 +12,10 @@
 
 ## 🚀 Key Features
 
+*   **Quantum Espresso Integration (Cycle 02)**: Direct interface with Quantum Espresso (DFT) for accurate ground-truth data generation.
+    *   **Self-Healing**: Automatically detects and recovers from SCF convergence failures by adjusting mixing beta and smearing.
+    *   **Scalable**: Streams structures to disk to handle millions of configurations without memory overflow.
+    *   **Secure**: Validates shell commands to prevent injection attacks.
 *   **Mock Mode (Cycle 01)**: Fully functional simulation of the pipeline flow using mock components, allowing verification of the orchestration logic without external heavy dependencies.
 *   **Zero-Config Workflow**: Define your material system in a single `config.yaml`. The system handles orchestration automatically.
 *   **Modular Architecture**: Plug-and-play interfaces for Explorer, Oracle, Trainer, and Validator components.
@@ -46,6 +50,7 @@ graph TD
 
 *   **Python**: >= 3.12
 *   **Package Manager**: `uv` (Recommended) or `pip`
+*   **Quantum Espresso**: `pw.x` (Optional, for DFT Oracle)
 
 ---
 
@@ -72,7 +77,11 @@ graph TD
     explorer:
       type: "mock"
     oracle:
-      type: "mock"
+      type: "espresso"
+      command: "mpirun -np 4 pw.x"
+      pseudo_dir: "/path/to/pseudos"
+      pseudopotentials:
+        Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
     trainer:
       type: "mock"
     ```

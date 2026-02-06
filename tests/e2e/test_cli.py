@@ -52,6 +52,33 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     assert pot_file.exists()
 
 
+def test_cli_run_espresso_config_validation(tmp_path: Path) -> None:
+    """
+    Tests that configuring espresso oracle triggers validation logic.
+    Since we can't run actual espresso, we check that it initializes or fails validation.
+    """
+    work_dir = tmp_path / "work_espresso"
+    work_dir.mkdir()
+
+    # Missing required espresso fields
+    config_data = {
+        "work_dir": str(work_dir),
+        "max_cycles": 1,
+        "random_seed": 42,
+        "explorer": {"type": "mock"},
+        "oracle": {"type": "espresso"},  # Missing command, pseudo_dir, etc.
+        "trainer": {"type": "mock"},
+        "validator": {"type": "mock"},
+    }
+    config_file = tmp_path / "espresso_invalid.yaml"
+    with config_file.open("w") as f:
+        yaml.dump(config_data, f)
+
+    result = runner.invoke(app, ["run", "--config", str(config_file)])
+    assert result.exit_code == 1
+    assert "Espresso oracle requires" in result.stderr
+
+
 def test_cli_run_missing_config() -> None:
     """
     Tests that running with a missing config file returns an error.

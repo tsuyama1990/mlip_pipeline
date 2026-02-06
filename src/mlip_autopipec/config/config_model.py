@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ExplorerConfig(BaseModel):
@@ -13,6 +13,27 @@ class ExplorerConfig(BaseModel):
 class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["mock", "espresso"] = "mock"
+
+    # Espresso-specific fields
+    command: str | None = None
+    pseudo_dir: Path | None = None
+    pseudopotentials: dict[str, str] | None = None
+    kspacing: float = Field(default=0.04, gt=0.0)
+    scf_params: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_espresso_requirements(self) -> "OracleConfig":
+        if self.type == "espresso":
+            if not self.command:
+                msg = "Espresso oracle requires 'command'"
+                raise ValueError(msg)
+            if not self.pseudo_dir:
+                msg = "Espresso oracle requires 'pseudo_dir'"
+                raise ValueError(msg)
+            if not self.pseudopotentials:
+                msg = "Espresso oracle requires 'pseudopotentials'"
+                raise ValueError(msg)
+        return self
 
 
 class TrainerConfig(BaseModel):
