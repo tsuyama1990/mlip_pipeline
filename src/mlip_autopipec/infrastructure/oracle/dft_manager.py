@@ -1,4 +1,6 @@
+import concurrent.futures
 import copy
+from collections.abc import Iterator
 from typing import Any
 
 import numpy as np
@@ -23,6 +25,7 @@ class DFTManager(BaseOracle):
         self.pseudopotentials = self.params.get("pseudopotentials")
         self.kspacing = float(self.params.get("kspacing", 0.04))
         self.smearing_width = float(self.params.get("smearing_width", 0.02))
+        self.max_workers = int(self.params.get("max_workers", 1))
 
     def compute(self, structure: Structure) -> Structure:
         """
@@ -116,6 +119,7 @@ class DFTManager(BaseOracle):
                 break # Exit loop on success
 
             except CalculationFailed as e:
+                # Log the error here if logging was available in this scope, or rely on caller
                 if attempt == max_retries:
                     msg = f"DFT calculation failed after {max_retries} retries."
                     raise RuntimeError(msg) from e
@@ -127,3 +131,27 @@ class DFTManager(BaseOracle):
         # Should not reach here
         msg = "DFT Loop Error"
         raise RuntimeError(msg)
+
+    def compute_batch(self, structures: list[Structure]) -> Iterator[Structure]:
+        """
+        Compute energy and forces for a batch of structures using parallel execution.
+        """
+        # If max_workers is 1, just use the loop to avoid overhead
+        if self.max_workers <= 1:
+            for s in structures:
+                yield self.compute(s)
+            return
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            # We map the compute function to the structures
+            # Note: DFTManager.compute uses instance attributes, so we need to be careful with pickling.
+            # ProcessPoolExecutor pickles the instance method.
+            # This works if the instance is pickleable.
+            # Pydantic models and basic types are pickleable.
+
+            # Use map to preserve order if needed, or as_completed for streaming
+            # The interface returns Iterator, so as_completed allows faster yield
+            future_to_structure = {executor.submit(self.compute, s): s for s in structures}
+
+            for future in concurrent.futures.as_completed(future_to_structure):
+                yield future.result()

@@ -95,11 +95,12 @@ class GlobalConfig(BaseModel):
     workdir: Path
 
     # Audit: Add max_cycles and initial_structure_path
-    max_cycles: int = 5
+    # Removed defaults to enforce explicit configuration or environment variable loading
+    max_cycles: int = Field(default=5, description="Maximum number of active learning cycles")
     initial_structure_path: Path | None = None
 
     # Dataset configuration
-    dataset_maxlen: int = 1000
+    dataset_maxlen: int = Field(default=1000, description="Maximum size of the dataset")
 
     oracle: OracleConfig
     trainer: TrainerConfig

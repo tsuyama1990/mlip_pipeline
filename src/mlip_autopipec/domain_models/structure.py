@@ -142,8 +142,14 @@ class Structure(BaseModel):
             msg = "center must be a (3,) array"
             raise ValueError(msg)
 
+        # Check if cell is singular before inversion
+        det = np.linalg.det(self.cell)
+        if np.isclose(det, 0.0):
+            msg = "Cell is singular (determinant is zero)"
+            raise ValueError(msg)
+
         # Calculate distance with MIC
-        # Assumes cell is (3,3) and invertible (which valid structures should be)
+        # Assumes cell is (3,3) and invertible (checked above)
         inv_cell = np.linalg.inv(self.cell)
         diff = self.positions - center
 

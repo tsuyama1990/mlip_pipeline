@@ -172,11 +172,12 @@ class SimpleOrchestrator:
 
     def _iterate_dataset(self) -> Iterator[Structure]:
         """
-        Yield structures from the file-based dataset.
+        Yield structures from the file-based dataset using streaming.
         """
         if not self.dataset_path.exists():
             return
 
+        # Ensure we are yielding one by one without loading all lines
         with self.dataset_path.open("r") as f:
             for line in f:
                 if line.strip():

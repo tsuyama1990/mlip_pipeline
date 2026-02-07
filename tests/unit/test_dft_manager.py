@@ -100,3 +100,47 @@ def test_dft_manager_retry_logic() -> None:
         # Second call: reduced mixing_beta = 0.35
         _, kwargs2 = call_args_list[1]
         assert kwargs2["input_data"]["electrons"]["mixing_beta"] == 0.35
+
+def test_dft_manager_kpoint_grid_logic() -> None:
+    # Test k-point grid logic for different cells
+    params = {
+        "command": "pw.x",
+        "pseudo_dir": "/tmp", # noqa: S108
+        "pseudopotentials": {"Si": "Si.upf"},
+        "kspacing": 0.2
+    }
+    oracle = DFTManager(params)
+
+    # 1. Cubic cell 10x10x10
+    # b = 2pi/10 = 0.6283. N = ceil(0.6283/0.2) = 4
+    structure_cubic = Structure(
+        positions=np.zeros((1, 3)),
+        cell=np.eye(3) * 10.0,
+        species=["Si"]
+    )
+    with patch("mlip_autopipec.infrastructure.oracle.dft_manager.Espresso") as MockEspresso:
+        MockEspresso.return_value.get_potential_energy.return_value = -1.0
+        MockEspresso.return_value.get_forces.return_value = np.zeros((1, 3))
+        MockEspresso.return_value.get_stress.return_value = np.zeros(6)
+
+        oracle.compute(structure_cubic)
+        _, kwargs = MockEspresso.call_args
+        assert kwargs["kpts"] == (4, 4, 4)
+
+    # 2. Orthorhombic cell 5x10x20
+    # b1 = 2pi/5 = 1.2566 -> 7
+    # b2 = 2pi/10 = 0.6283 -> 4
+    # b3 = 2pi/20 = 0.3141 -> 2
+    structure_ortho = Structure(
+        positions=np.zeros((1, 3)),
+        cell=np.diag([5.0, 10.0, 20.0]),
+        species=["Si"]
+    )
+    with patch("mlip_autopipec.infrastructure.oracle.dft_manager.Espresso") as MockEspresso:
+        MockEspresso.return_value.get_potential_energy.return_value = -1.0
+        MockEspresso.return_value.get_forces.return_value = np.zeros((1, 3))
+        MockEspresso.return_value.get_stress.return_value = np.zeros(6)
+
+        oracle.compute(structure_ortho)
+        _, kwargs = MockEspresso.call_args
+        assert kwargs["kpts"] == (7, 4, 2)

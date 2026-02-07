@@ -46,5 +46,6 @@ output = """
      JOB DONE.
 """
 
-# Print output to stdout using sys.stdout.write to avoid T201
-sys.stdout.write(output + "\n")
+if __name__ == "__main__":
+    # Print output to stdout using sys.stdout.write to avoid T201
+    sys.stdout.write(output + "\n")

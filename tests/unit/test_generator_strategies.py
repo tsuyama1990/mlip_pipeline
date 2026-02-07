@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from mlip_autopipec.domain_models import Structure
 from mlip_autopipec.infrastructure.generator import RandomDisplacement
@@ -45,3 +46,14 @@ def test_random_displacement_logic() -> None:
 
     # Check max displacement (assuming uniform distribution [-mag, mag])
     assert np.all(np.abs(diff) <= magnitude)
+
+def test_random_displacement_invalid_n_structures() -> None:
+    positions = np.array([[0.0, 0.0, 0.0]])
+    cell = np.eye(3) * 10.0
+    species = ["Ar"]
+    base_structure = Structure(positions=positions, cell=cell, species=species)
+
+    gen = RandomDisplacement(params={"n_structures": 0})
+    msg = "n_structures must be at least 1"
+    with pytest.raises(ValueError, match=msg):
+        gen.generate(base_structure)
