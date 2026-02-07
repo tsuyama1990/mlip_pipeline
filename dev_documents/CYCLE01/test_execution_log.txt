@@ -1,0 +1,75 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 11 items
+
+tests/e2e/test_main_flow.py .                                            [  9%]
+tests/unit/test_config.py ....                                           [ 45%]
+tests/unit/test_domain_models.py ....                                    [ 81%]
+tests/unit/test_orchestrator.py ../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+                                       [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                             Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                       0      0   100%
+src/mlip_autopipec/config/__init__.py                0      0   100%
+src/mlip_autopipec/config/config_model.py           19      0   100%
+src/mlip_autopipec/domain_models/__init__.py         0      0   100%
+src/mlip_autopipec/domain_models/potential.py       12      0   100%
+src/mlip_autopipec/domain_models/structure.py       15      0   100%
+src/mlip_autopipec/domain_models/validation.py       9      0   100%
+src/mlip_autopipec/infrastructure/__init__.py        0      0   100%
+src/mlip_autopipec/infrastructure/mocks.py          59     23    61%   28-34, 43-52, 61-73, 81-82
+src/mlip_autopipec/interfaces/__init__.py            0      0   100%
+src/mlip_autopipec/interfaces/explorer.py            5      0   100%
+src/mlip_autopipec/interfaces/oracle.py              5      0   100%
+src/mlip_autopipec/interfaces/trainer.py             6      0   100%
+src/mlip_autopipec/interfaces/validator.py           6      0   100%
+src/mlip_autopipec/main.py                         101     37    63%   51-52, 57-58, 63-64, 74-93, 114-115, 132, 144-159, 162
+src/mlip_autopipec/utils/__init__.py                 0      0   100%
+src/mlip_autopipec/utils/logging.py                  5      2    60%   8-10
+------------------------------------------------------------------------------
+TOTAL                                              242     62    74%
+============================== 11 passed in 4.75s ==============================
+\n--- UAT EXECUTION ---
+Running Cycle 01 UAT with config: uat_cycle01/config.yaml
+STDOUT: 2026-02-06 22:57:35,284 - __main__ - INFO - Orchestrator started.
+2026-02-06 22:57:35,284 - __main__ - INFO - --- Starting Cycle 1 ---
+2026-02-06 22:57:35,284 - mlip_autopipec.infrastructure.mocks - INFO - MockExplorer exploring with potential initial, step 1
+2026-02-06 22:57:35,292 - __main__ - INFO - Exploration halted. Extracting candidates.
+2026-02-06 22:57:35,300 - __main__ - INFO - Extracted 2 candidates.
+2026-02-06 22:57:35,300 - mlip_autopipec.infrastructure.mocks - INFO - MockOracle computing energies for 2 structures
+2026-02-06 22:57:35,300 - mlip_autopipec.infrastructure.mocks - INFO - MockTrainer training generation 1 with 2 structures
+2026-02-06 22:57:35,301 - __main__ - INFO - New potential trained: uat_cycle01/run/potentials/generation_001.yace
+2026-02-06 22:57:35,301 - mlip_autopipec.infrastructure.mocks - INFO - MockValidator validating mock_pot_1
+2026-02-06 22:57:35,301 - __main__ - INFO - Validation result: ValidationResult(passed=True, metrics={'rmse': 0.0})
+2026-02-06 22:57:35,301 - __main__ - INFO - --- Starting Cycle 2 ---
+2026-02-06 22:57:35,301 - mlip_autopipec.infrastructure.mocks - INFO - MockExplorer exploring with potential mock_pot_1, step 2
+2026-02-06 22:57:35,303 - __main__ - INFO - Exploration halted. Extracting candidates.
+2026-02-06 22:57:35,307 - __main__ - INFO - Extracted 2 candidates.
+2026-02-06 22:57:35,307 - mlip_autopipec.infrastructure.mocks - INFO - MockOracle computing energies for 2 structures
+2026-02-06 22:57:35,307 - mlip_autopipec.infrastructure.mocks - INFO - MockTrainer training generation 2 with 2 structures
+2026-02-06 22:57:35,308 - __main__ - INFO - New potential trained: uat_cycle01/run/potentials/generation_002.yace
+2026-02-06 22:57:35,308 - mlip_autopipec.infrastructure.mocks - INFO - MockValidator validating mock_pot_2
+2026-02-06 22:57:35,308 - __main__ - INFO - Validation result: ValidationResult(passed=True, metrics={'rmse': 0.0})
+2026-02-06 22:57:35,308 - __main__ - INFO - --- Starting Cycle 3 ---
+2026-02-06 22:57:35,308 - mlip_autopipec.infrastructure.mocks - INFO - MockExplorer exploring with potential mock_pot_2, step 3
+2026-02-06 22:57:35,311 - __main__ - INFO - Exploration halted. Extracting candidates.
+2026-02-06 22:57:35,314 - __main__ - INFO - Extracted 2 candidates.
+2026-02-06 22:57:35,314 - mlip_autopipec.infrastructure.mocks - INFO - MockOracle computing energies for 2 structures
+2026-02-06 22:57:35,314 - mlip_autopipec.infrastructure.mocks - INFO - MockTrainer training generation 3 with 2 structures
+2026-02-06 22:57:35,314 - __main__ - INFO - New potential trained: uat_cycle01/run/potentials/generation_003.yace
+2026-02-06 22:57:35,314 - mlip_autopipec.infrastructure.mocks - INFO - MockValidator validating mock_pot_3
+2026-02-06 22:57:35,314 - __main__ - INFO - Validation result: ValidationResult(passed=True, metrics={'rmse': 0.0})
+2026-02-06 22:57:35,315 - __main__ - INFO - Orchestrator finished.
+
+STDERR:
+Found 3 potentials: ['generation_001.yace', 'generation_002.yace', 'generation_003.yace']
+✅ Cycle 01 UAT Passed!

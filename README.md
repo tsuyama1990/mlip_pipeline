@@ -8,62 +8,26 @@
 
 > **Elevator Pitch:** "Input a chemical composition, get a production-ready, validated interatomic potential in days, not months—without writing a single line of code."
 
-## Key Features
+## Overview
 
-*   **Zero-Config Workflow**: A single YAML file drives the entire process from initial structure generation to final validation.
-*   **Self-Healing Oracle**: Automated interface to Quantum Espresso that detects SCF convergence failures and automatically adjusts parameters to recover calculations.
-*   **Physics-Informed Robustness**: Strictly enforces a physical baseline (Lennard-Jones/ZBL) via Delta Learning, preventing non-physical behavior and simulation crashes in high-energy regimes.
-*   **Active Learning Loop**: Uses uncertainty quantification ($\gamma$) to autonomously explore the phase space, detecting and labeling only the most informative structures.
-*   **Time-Scale Bridging**: Seamlessly integrates Molecular Dynamics (LAMMPS) and Kinetic Monte Carlo (EON) to explore both fast vibrations and slow diffusion events.
+PYACEMAKER aims to democratize the creation of MLIPs. Traditionally, fitting a potential requires expert knowledge of DFT, basis sets, and fitting algorithms. This tool replaces the "Human-in-the-Loop" with a "Physics-in-the-Loop" architecture, autonomously exploring chemical space and refining the potential until it meets strict quality standards.
 
-## Architecture Overview
+## Current Features (Cycle 01)
 
-PYACEMAKER follows a **Hub-and-Spoke** architecture orchestrated by a central Python controller.
+The system currently implements the **Foundation & Orchestrator Skeleton**:
 
-```mermaid
-graph TD
-    subgraph "Control Plane"
-        Orchestrator[Orchestrator]
-        Config[Global Configuration]
-    end
+*   **Orchestration Logic**: A robust "Check-Decide-Act" loop that coordinates Exploration, Labeling, and Training.
+*   **Mock Backend**: Fully functional simulation mode using Mock components (Oracle, Trainer, Explorer) to verify control flow without expensive physics calculations.
+*   **Configuration System**: Type-safe configuration management using Pydantic, ensuring valid inputs before execution.
+*   **Extensible Architecture**: Defined Abstract Base Classes (Interfaces) for easy integration of future engines (LAMMPS, Quantum Espresso, Pacemaker).
+*   **Logging & Diagnostics**: Centralized logging system for tracking the autonomous process.
 
-    subgraph "Exploration Layer"
-        SG[Structure Generator]
-        DE[Dynamics Engine]
-        MD[LAMMPS]
-        KMC[EON]
-    end
-
-    subgraph "Data Generation Layer"
-        Oracle[Oracle]
-        DFT[Quantum Espresso]
-    end
-
-    subgraph "Learning Layer"
-        Trainer[Trainer]
-        Pace[Pacemaker]
-    end
-
-    Config --> Orchestrator
-    Orchestrator --> SG
-    Orchestrator --> DE
-    Orchestrator --> Oracle
-    Orchestrator --> Trainer
-
-    DE -- "High Uncertainty" --> Oracle
-    Oracle -- "Labeled Data" --> Trainer
-    Trainer -- "Potential.yace" --> DE
-```
-
-## Prerequisites
+## Requirements
 
 *   **Python 3.12+**
 *   **uv** (Fast Python package manager)
-*   **LAMMPS** (with USER-PACE package installed)
-*   **Quantum Espresso** (`pw.x` accessible in PATH)
-*   **Pacemaker** (Python library and executables)
 
-## Installation & Setup
+## Installation
 
 1.  **Clone the Repository**
     ```bash
@@ -71,25 +35,24 @@ graph TD
     cd pyacemaker
     ```
 
-2.  **Initialize Environment (using uv)**
+2.  **Initialize Environment**
     ```bash
     uv sync
     ```
 
-3.  **Prepare Environment Variables**
+3.  **Install in Editable Mode**
     ```bash
-    cp .env.example .env
-    # Edit .env to set paths to external binaries if necessary
+    uv pip install -e .
     ```
 
 ## Usage
 
-### Quick Start
-To run a test cycle using the "Mock" backend (no external dependencies required):
+To run the system in "Mock Mode" (verifying the loop):
 
-1.  Create a configuration file `config.yaml`:
+1.  **Create a Configuration File**
+    Create a file named `config.yaml` with the following content:
     ```yaml
-    work_dir: "./simulation_runs/test_run"
+    work_dir: "./simulation_run"
     max_cycles: 3
     oracle:
       type: "mock"
@@ -99,47 +62,37 @@ To run a test cycle using the "Mock" backend (no external dependencies required)
       type: "mock"
     ```
 
-2.  Run the orchestrator:
+2.  **Run the Orchestrator**
     ```bash
     uv run python -m mlip_autopipec.main config.yaml
     ```
 
-## Development Workflow
+    You should see output indicating the start of cycles, mock exploration, extraction of candidates, mock training, and validation.
 
-This project enforces strict code quality standards.
+## Architecture
 
-### Running Tests
-```bash
-uv run pytest
-```
-
-### Linting & Type Checking
-We use `ruff` for linting and `mypy` for strict type checking.
-```bash
-uv run ruff check .
-uv run mypy .
-```
-
-### Cycle-Based Development
-The implementation is divided into 8 Cycles. See `dev_documents/system_prompts/SYSTEM_ARCHITECTURE.md` for the detailed roadmap.
-
-## Project Structure
+The project follows a modular Hexagonal Architecture:
 
 ```ascii
 src/
 └── mlip_autopipec/
     ├── config/             # Pydantic configuration models
     ├── domain_models/      # Core data structures (Dataset, Potential)
-    ├── infrastructure/     # Adapters for external tools (QE, LAMMPS)
-    ├── interfaces/         # Abstract Base Classes
-    ├── main.py             # CLI Entry Point
-    └── utils/              # Logging and File I/O
-dev_documents/
-    ├── ALL_SPEC.md         # Full requirements
-    ├── SYSTEM_ARCHITECTURE.md # Master architectural document
-    └── system_prompts/     # Cycle-specific specifications
-tests/                      # Unit and Integration tests
+    ├── infrastructure/     # Implementations (Mocks, Adapters)
+    ├── interfaces/         # Abstract Base Classes (Oracle, Trainer, Explorer)
+    ├── main.py             # CLI and Orchestrator Logic
+    └── utils/              # Logging and helper utilities
 ```
+
+## Roadmap
+
+*   **Cycle 02**: Espresso Oracle (Real DFT with Quantum Espresso).
+*   **Cycle 03**: Structure Generator (Adaptive Exploration Policies).
+*   **Cycle 04**: Pacemaker Trainer (Real MLIP fitting).
+*   **Cycle 05**: Dynamics Engine (LAMMPS Integration).
+*   **Cycle 06**: Active Learning Loop (Uncertainty-driven Halting).
+*   **Cycle 07**: Kinetic Monte Carlo (EON Integration).
+*   **Cycle 08**: Full Validation & Production Readiness.
 
 ## License
 

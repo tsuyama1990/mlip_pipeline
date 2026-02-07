@@ -21,7 +21,8 @@ src/
     │   └── **config_model.py**         # Pydantic Schemas for GlobalConfig
     ├── **domain_models**/
     │   ├── **__init__.py**
-    │   └── **structure.py**            # Domain Models: Dataset, Structure
+    │   ├── **structure.py**            # Domain Models: Dataset, Structure
+    │   └── **potential.py**            # Domain Models: Potential, ExplorationResult
     ├── **interfaces**/
     │   ├── **__init__.py**
     │   ├── **explorer.py**             # ABC for Explorer
@@ -60,16 +61,16 @@ We require a robust configuration system.
 We use `abc.ABC` to enforce contracts.
 
 *   `BaseOracle`:
-    *   `compute(structures: List[Atoms]) -> List[Atoms]`
+    *   `compute(dataset: Dataset) -> Dataset`
 *   `BaseTrainer`:
-    *   `train(dataset: Dataset, previous_potential: Optional[Path]) -> Path`
+    *   `train(dataset: Dataset, previous_potential: Optional[Potential]) -> Potential`
 *   `BaseExplorer`:
-    *   `explore(potential: Path) -> ExplorationResult`
+    *   `explore(potential: Potential) -> ExplorationResult`
 
 ## 4. Implementation Approach
 
 1.  **Project Setup**: Initialize the package structure.
-2.  **Domain Models**: Implement `structure.py` to define what a "Dataset" is (wrapper around list of ASE Atoms).
+2.  **Domain Models**: Implement `structure.py`, `potential.py` to define core data structures.
 3.  **Interfaces**: Define the ABCs in `interfaces/`.
 4.  **Mocks**: Implement `MockOracle`, `MockTrainer`, `MockExplorer` in `infrastructure/mocks.py`.
     *   `MockOracle`: Adds random numbers to `atoms.info['energy']`.
