@@ -1,0 +1,51 @@
+
+import numpy as np
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+class Structure(BaseModel):
+    """
+    A simplified wrapper for atomic data.
+    """
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    positions: np.ndarray
+    cell: np.ndarray
+    species: list[str]
+    energy: float | None = None
+    forces: np.ndarray | None = None
+
+    @field_validator("positions")
+    @classmethod
+    def validate_positions(cls, v: np.ndarray) -> np.ndarray:
+        if v.ndim != 2 or v.shape[1] != 3:
+            msg = "Positions must be an (N, 3) array"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("cell")
+    @classmethod
+    def validate_cell(cls, v: np.ndarray) -> np.ndarray:
+        if v.shape != (3, 3):
+            msg = "Cell must be a (3, 3) array"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("forces")
+    @classmethod
+    def validate_forces(cls, v: np.ndarray | None) -> np.ndarray | None:
+        if v is None:
+            return v
+        if v.ndim != 2 or v.shape[1] != 3:
+            msg = "Forces must be an (N, 3) array"
+            raise ValueError(msg)
+        return v
+
+class Dataset(BaseModel):
+    """
+    A collection of atomic structures.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    structures: list[Structure]
+    name: str = "dataset"
