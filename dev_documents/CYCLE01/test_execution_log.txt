@@ -4,12 +4,12 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 15 items
+collected 17 items
 
-tests/test_cli.py ...                                                    [ 20%]
-tests/test_domain_models.py .....                                        [ 53%]
-tests/test_mocks.py ....                                                 [ 80%]
-tests/test_orchestrator.py ...                                           [100%]
+tests/test_cli.py ...                                                    [ 17%]
+tests/test_domain_models.py .....                                        [ 47%]
+tests/test_mocks.py ....                                                 [ 70%]
+tests/test_orchestrator.py .....                                         [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
@@ -17,12 +17,12 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                            Stmts   Miss  Cover   Missing
 -----------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                      1      0   100%
-src/mlip_autopipec/constants.py                     5      0   100%
+src/mlip_autopipec/constants.py                     5      5     0%   1-6
 src/mlip_autopipec/core/__init__.py                 2      0   100%
-src/mlip_autopipec/core/dataset.py                 31      7    77%   32-37, 42
-src/mlip_autopipec/core/orchestrator.py            74      7    91%   44, 48-49, 105-106, 109-110
+src/mlip_autopipec/core/dataset.py                 51      4    92%   39, 44-45, 70
+src/mlip_autopipec/core/orchestrator.py            81     13    84%   39, 43-44, 78-83, 110-111, 114-115, 123-125
 src/mlip_autopipec/domain_models/__init__.py        4      0   100%
-src/mlip_autopipec/domain_models/config.py         19      0   100%
+src/mlip_autopipec/domain_models/config.py         21      0   100%
 src/mlip_autopipec/domain_models/potential.py       7      0   100%
 src/mlip_autopipec/domain_models/structure.py      35      6    83%   29-30, 39-40, 52-53
 src/mlip_autopipec/factory.py                      27      8    70%   11-12, 18-19, 25-26, 32-33
@@ -35,5 +35,5 @@ src/mlip_autopipec/interfaces/oracle.py             6      0   100%
 src/mlip_autopipec/interfaces/trainer.py            7      0   100%
 src/mlip_autopipec/main.py                         33      7    79%   29-31, 43-45, 48
 -----------------------------------------------------------------------------
-TOTAL                                             307     35    89%
-============================== 15 passed in 0.61s ==============================
+TOTAL                                             336     43    87%
+============================== 17 passed in 0.68s ==============================

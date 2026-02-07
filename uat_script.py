@@ -35,16 +35,20 @@ def run_uat() -> bool:
     env = os.environ.copy()
     env["PYTHONPATH"] = "src"
 
-    # S603: subprocess call - check for execution of untrusted input.
-    # Here input is trusted (our own command). We can suppress or ignore.
-    # PLW1510: subprocess.run without check=True. We handle returncode manually.
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False) # noqa: S603
-
-    sys.stdout.write(f"STDOUT: {result.stdout}\n")
-    sys.stdout.write(f"STDERR: {result.stderr}\n")
-
-    if result.returncode != 0:
-        sys.stdout.write("UAT Failed: CLI execution failed\n")
+    try:
+        # S603: subprocess call - check for execution of untrusted input.
+        # Here input is trusted (our own command). We can suppress or ignore.
+        # PLW1510: subprocess.run with check=True inside try/except block
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True) # noqa: S603
+        sys.stdout.write(f"STDOUT: {result.stdout}\n")
+        sys.stdout.write(f"STDERR: {result.stderr}\n")
+    except subprocess.CalledProcessError as e:
+        sys.stdout.write(f"UAT Failed: CLI execution failed with return code {e.returncode}\n")
+        sys.stdout.write(f"STDOUT: {e.stdout}\n")
+        sys.stdout.write(f"STDERR: {e.stderr}\n")
+        return False
+    except Exception as e:
+        sys.stdout.write(f"UAT Failed: Unexpected error: {e}\n")
         return False
 
     # Verify outputs

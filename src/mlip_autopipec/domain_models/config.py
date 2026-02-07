@@ -13,6 +13,10 @@ class GlobalConfig(BaseModel):
     workdir: Path
     max_cycles: int = Field(ge=1)
 
+    # Defaults for file names/extensions
+    dataset_filename: str = "dataset.jsonl"
+    potential_extension: str = ".yace"
+
     generator: dict[str, Any]
     oracle: dict[str, Any]
     trainer: dict[str, Any]

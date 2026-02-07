@@ -33,6 +33,9 @@ def test_structure_cell_shape() -> None:
 def test_config_validation(mock_config: GlobalConfig) -> None:
     assert mock_config.max_cycles == 2
     assert mock_config.generator["type"] == "mock"
+    # Test new defaults
+    assert mock_config.dataset_filename == "dataset.jsonl"
+    assert mock_config.potential_extension == ".yace"
 
 def test_config_missing_type(tmp_path: Path) -> None:
     with pytest.raises(ValidationError) as exc:
