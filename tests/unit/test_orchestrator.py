@@ -1,22 +1,29 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 from ase import Atoms
 from ase.io import write
-from mlip_autopipec.config.config_model import GlobalConfig
-from mlip_autopipec.domain_models.potential import Potential, ExplorationResult
-from mlip_autopipec.domain_models.structure import Dataset, Structure
+
+from mlip_autopipec.config.config_model import (
+    ExplorerConfig,
+    GlobalConfig,
+    OracleConfig,
+    TrainerConfig,
+)
+from mlip_autopipec.domain_models.potential import ExplorationResult, Potential
+from mlip_autopipec.domain_models.structure import Dataset
 from mlip_autopipec.domain_models.validation import ValidationResult
-from mlip_autopipec.infrastructure.mocks import MockOracle, MockTrainer, MockExplorer, MockValidator
+from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
 from mlip_autopipec.main import Orchestrator
+
 
 def test_orchestrator_initialization(tmp_path: Path) -> None:
     config = GlobalConfig(
         work_dir=tmp_path,
         max_cycles=1,
-        oracle={"type": "mock"},
-        trainer={"type": "mock"},
-        explorer={"type": "mock"}
+        oracle=OracleConfig(type="mock"),
+        trainer=TrainerConfig(type="mock"),
+        explorer=ExplorerConfig(type="mock")
     )
 
     orch = Orchestrator(config)
@@ -44,9 +51,25 @@ def test_orchestrator_extract_structures(tmp_path: Path) -> None:
 
     structures = orch._extract_structures(result)
     assert len(structures) == 2
-    assert structures[0].atoms.get_chemical_formula() == "H"
-    assert structures[1].atoms.get_chemical_formula() == "He"
+    assert structures[0].atoms.get_chemical_formula() == "H" # type: ignore[no-untyped-call]
+    assert structures[1].atoms.get_chemical_formula() == "He" # type: ignore[no-untyped-call]
     assert structures[0].metadata["source"] == "cycle_0_frame_0"
+
+def test_orchestrator_extract_structures_missing_file(tmp_path: Path) -> None:
+    config = GlobalConfig(work_dir=tmp_path, max_cycles=1)
+    orch = Orchestrator(config)
+
+    dump_file = tmp_path / "non_existent_dump.xyz"
+
+    result = ExplorationResult(
+        halted=True,
+        dump_file=dump_file,
+        high_gamma_frames=[0, 1]
+    )
+
+    # Should return empty list and log warning (handled inside method)
+    structures = orch._extract_structures(result)
+    assert len(structures) == 0
 
 def test_orchestrator_run_loop(tmp_path: Path) -> None:
     config = GlobalConfig(work_dir=tmp_path, max_cycles=2)
@@ -69,8 +92,9 @@ def test_orchestrator_run_loop(tmp_path: Path) -> None:
 
     # We patch _extract_structures because we don't want to rely on real file IO in this specific test
     with patch.object(Orchestrator, '_extract_structures') as mock_extract:
-        from mlip_autopipec.domain_models.structure import Structure
         from ase import Atoms
+
+        from mlip_autopipec.domain_models.structure import Structure
         mock_extract.return_value = [Structure(atoms=Atoms('H'), metadata={})]
 
         orch = Orchestrator(

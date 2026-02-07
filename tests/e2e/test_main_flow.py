@@ -1,10 +1,11 @@
 import subprocess
-import os
+import sys
 from pathlib import Path
 
-def test_dry_run_main_flow() -> None:
+
+def test_dry_run_main_flow(tmp_path: Path) -> None:
     # Setup test directory
-    work_dir = Path("tests/e2e/work_dir")
+    work_dir = tmp_path / "work_dir"
     work_dir.mkdir(parents=True, exist_ok=True)
 
     config_content = f"""
@@ -20,25 +21,19 @@ explorer:
     config_path = work_dir / "config.yaml"
     config_path.write_text(config_content)
 
-    # Run the main script
-    # We use python -m mlip_autopipec.main config.yaml
+    # Run the main script using sys.executable to ensure we use the same python
+    # Safe to suppress: This test runs the tool itself using the current Python interpreter
+    # on a config file created within the test harness
     result = subprocess.run(
-        ["python", "-m", "mlip_autopipec.main", str(config_path)],
+        [sys.executable, "-m", "mlip_autopipec.main", str(config_path)],
         capture_output=True,
-        text=True
+        text=True,
+        check=False
     )
 
     assert result.returncode == 0
-
-    # Verify outputs
-    # Mock trainer should produce a potential file.
-    # Mock oracle should log something.
 
     # Check if potentials directory exists
     pot_dir = work_dir / "potentials"
     assert pot_dir.exists()
     assert any(pot_dir.glob("*.yace"))
-
-    # Clean up (optional)
-    # import shutil
-    # shutil.rmtree(work_dir)

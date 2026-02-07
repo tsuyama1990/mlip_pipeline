@@ -1,8 +1,14 @@
-import pytest
 from pathlib import Path
-from mlip_autopipec.config.config_model import GlobalConfig, OracleConfig, TrainerConfig, ExplorerConfig
+
+from mlip_autopipec.config.config_model import (
+    ExplorerConfig,
+    GlobalConfig,
+    OracleConfig,
+    TrainerConfig,
+)
+from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
 from mlip_autopipec.main import Orchestrator
-from mlip_autopipec.infrastructure.mocks import MockOracle, MockTrainer, MockExplorer, MockValidator
+
 
 def test_orchestrator_factory_creation(tmp_path: Path) -> None:
     config = GlobalConfig(

@@ -1,7 +1,8 @@
-import pytest
-from typer.testing import CliRunner
-from mlip_autopipec.main import app
 from pathlib import Path
+
+from typer.testing import CliRunner
+
+from mlip_autopipec.main import app
 
 runner = CliRunner()
 
@@ -13,9 +14,6 @@ def test_cli_help() -> None:
 def test_cli_missing_config() -> None:
     result = runner.invoke(app, ["nonexistent.yaml"])
     assert result.exit_code == 1
-    # Note: Output capture seems flaky with logging setup interaction in test environment.
-    # We verify exit code which confirms the branch was taken.
-    # assert "Error: Config file nonexistent.yaml not found" in result.stdout
 
 def test_cli_valid_run(tmp_path: Path) -> None:
     work_dir = tmp_path / "work"

@@ -1,23 +1,21 @@
 import logging
+from pathlib import Path
+
 import typer
 import yaml
-from typing import Optional, List, Union, Any
-from pathlib import Path
 from ase import Atoms
 from ase.io import read
 
 from mlip_autopipec.config.config_model import GlobalConfig
+from mlip_autopipec.domain_models.potential import ExplorationResult, Potential
 from mlip_autopipec.domain_models.structure import Dataset, Structure
-from mlip_autopipec.domain_models.potential import Potential, ExplorationResult
-from mlip_autopipec.domain_models.validation import ValidationResult
-
-from mlip_autopipec.interfaces.oracle import BaseOracle
-from mlip_autopipec.interfaces.trainer import BaseTrainer
-from mlip_autopipec.interfaces.explorer import BaseExplorer
-from mlip_autopipec.interfaces.validator import BaseValidator
 
 # Import Mocks
-from mlip_autopipec.infrastructure.mocks import MockOracle, MockTrainer, MockExplorer, MockValidator
+from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
+from mlip_autopipec.interfaces.explorer import BaseExplorer
+from mlip_autopipec.interfaces.oracle import BaseOracle
+from mlip_autopipec.interfaces.trainer import BaseTrainer
+from mlip_autopipec.interfaces.validator import BaseValidator
 from mlip_autopipec.utils.logging import setup_logging
 
 app = typer.Typer()
@@ -27,10 +25,10 @@ class Orchestrator:
     def __init__(
         self,
         config: GlobalConfig,
-        oracle: Optional[BaseOracle] = None,
-        trainer: Optional[BaseTrainer] = None,
-        explorer: Optional[BaseExplorer] = None,
-        validator: Optional[BaseValidator] = None
+        oracle: BaseOracle | None = None,
+        trainer: BaseTrainer | None = None,
+        explorer: BaseExplorer | None = None,
+        validator: BaseValidator | None = None
     ) -> None:
         self.config = config
         self.work_dir = config.work_dir
@@ -42,7 +40,7 @@ class Orchestrator:
         self.explorer = explorer or self._create_explorer()
         self.validator = validator or self._create_validator()
 
-        self.current_potential: Optional[Potential] = None
+        self.current_potential: Potential | None = None
         self.cycle_count = 0
 
     def _create_oracle(self) -> BaseOracle:
@@ -67,7 +65,7 @@ class Orchestrator:
         # Currently Validator is not in config, assuming Mock for Cycle 01
         return MockValidator()
 
-    def _extract_structures(self, result: ExplorationResult) -> List[Structure]:
+    def _extract_structures(self, result: ExplorationResult) -> list[Structure]:
         """
         Extracts structures from the dump file based on halted frames.
         """
@@ -75,11 +73,11 @@ class Orchestrator:
             logger.warning(f"Dump file {result.dump_file} does not exist.")
             return []
 
-        structures: List[Structure] = []
+        structures: list[Structure] = []
         try:
             # ase.io.read can return Atoms or list of Atoms
-            trajectory: Union[Atoms, List[Atoms]] = read(result.dump_file, index=":") # type: ignore[no-untyped-call]
-            traj_list: List[Atoms] = trajectory if isinstance(trajectory, list) else [trajectory]
+            trajectory: Atoms | list[Atoms] = read(result.dump_file, index=":") # type: ignore[no-untyped-call]
+            traj_list: list[Atoms] = trajectory if isinstance(trajectory, list) else [trajectory]
 
             for i in result.high_gamma_frames:
                 if 0 <= i < len(traj_list):
@@ -136,7 +134,7 @@ class Orchestrator:
 @app.command()
 def main(
     config_path: Path = typer.Argument(..., help="Path to the configuration YAML file"), # noqa: B008
-    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)") # noqa: B008
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)")
 ) -> None:
     """
     Run the MLIP Active Learning Pipeline.

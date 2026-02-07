@@ -1,10 +1,12 @@
-import pytest
 from pathlib import Path
+
 from ase import Atoms
-from mlip_autopipec.infrastructure.mocks import MockOracle, MockTrainer, MockExplorer, MockValidator
-from mlip_autopipec.domain_models.structure import Dataset, Structure
+
+from mlip_autopipec.config.config_model import ExplorerConfig, OracleConfig, TrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
-from mlip_autopipec.config.config_model import OracleConfig, TrainerConfig, ExplorerConfig
+from mlip_autopipec.domain_models.structure import Dataset, Structure
+from mlip_autopipec.infrastructure.mocks import MockExplorer, MockOracle, MockTrainer, MockValidator
+
 
 def test_mock_oracle(tmp_path: Path) -> None:
     config = OracleConfig(type="mock")

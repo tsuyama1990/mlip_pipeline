@@ -1,10 +1,11 @@
-import pytest
 from pathlib import Path
+
 from ase import Atoms
-from pydantic import ValidationError
-from mlip_autopipec.domain_models.structure import Structure, Dataset
+
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Dataset, Structure
 from mlip_autopipec.domain_models.validation import ValidationResult
+
 
 def test_structure_model() -> None:
     atoms = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.74]])
@@ -23,9 +24,10 @@ def test_dataset_model() -> None:
     assert len(dataset.to_atoms_list()) == 2
     assert dataset.structures[0].atoms == atoms1
 
-def test_potential_model() -> None:
-    pot = Potential(path=Path("/tmp/model.yace"))
-    assert pot.path == Path("/tmp/model.yace")
+def test_potential_model(tmp_path: Path) -> None:
+    pot_path = tmp_path / "model.yace"
+    pot = Potential(path=pot_path)
+    assert pot.path == pot_path
     assert pot.type == "yace"
 
 def test_validation_result_model() -> None:

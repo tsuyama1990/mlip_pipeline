@@ -1,6 +1,7 @@
 import logging
 import sys
 
+
 def setup_logging(log_level: str = "INFO") -> None:
     """
     Sets up the global logging configuration.
