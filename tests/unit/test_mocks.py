@@ -1,15 +1,16 @@
-import pytest
+from pathlib import Path
+
 from ase import Atoms
+
 from mlip_autopipec.domain_models import Structure
 from mlip_autopipec.infrastructure.mocks import (
-    MockOracle,
-    MockTrainer,
     MockDynamics,
-    MockStructureGenerator,
-    MockValidator,
+    MockOracle,
     MockSelector,
+    MockStructureGenerator,
+    MockTrainer,
+    MockValidator,
 )
-from pathlib import Path
 
 
 def test_mock_oracle_compute() -> None:
@@ -32,7 +33,7 @@ def test_mock_trainer_train(tmp_path: Path) -> None:
     assert potential.path.suffix == ".yace"
 
 def test_mock_dynamics(tmp_path: Path) -> None:
-    from mlip_autopipec.domain_models import Potential, ExplorationStatus
+    from mlip_autopipec.domain_models import ExplorationStatus, Potential
     dynamics = MockDynamics(params={"prob_halt": 0.0})
     atoms = Atoms("H")
     s = Structure(atoms=atoms)

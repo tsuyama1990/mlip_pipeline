@@ -1,19 +1,20 @@
 import pytest
-from mlip_autopipec.factory import (
-    create_oracle,
-    create_trainer,
-    create_dynamics,
-    create_generator,
-    create_validator,
-    create_selector,
-)
+
 from mlip_autopipec.domain_models import (
-    MockOracleConfig,
-    MockTrainerConfig,
     MockDynamicsConfig,
     MockGeneratorConfig,
-    MockValidatorConfig,
+    MockOracleConfig,
     MockSelectorConfig,
+    MockTrainerConfig,
+    MockValidatorConfig,
+)
+from mlip_autopipec.factory import (
+    create_dynamics,
+    create_generator,
+    create_oracle,
+    create_selector,
+    create_trainer,
+    create_validator,
 )
 
 
@@ -58,7 +59,6 @@ def test_create_unknown_oracle() -> None:
     class DummyConfig:
         type: str = "unknown"
 
-    import pytest
     from mlip_autopipec.factory import create_oracle
     with pytest.raises(ValueError, match="Unknown oracle type"):
-        create_oracle(DummyConfig()) # type: ignore
+        create_oracle(DummyConfig())  # type: ignore

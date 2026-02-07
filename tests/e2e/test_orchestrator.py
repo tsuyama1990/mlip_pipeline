@@ -1,9 +1,10 @@
-import pytest
 from pathlib import Path
-from ase.io import write
+
 from ase import Atoms
-from mlip_autopipec.orchestrator.simple_orchestrator import SimpleOrchestrator
+from ase.io import write
+
 from mlip_autopipec.domain_models import GlobalConfig
+from mlip_autopipec.orchestrator.simple_orchestrator import SimpleOrchestrator
 
 
 def test_simple_orchestrator_run(tmp_path: Path) -> None:

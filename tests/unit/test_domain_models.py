@@ -1,14 +1,16 @@
-import pytest
 from pathlib import Path
-from ase import Atoms
+
 import numpy as np
+import pytest
+from ase import Atoms
+from pydantic import ValidationError
+
 from mlip_autopipec.domain_models import (
-    Structure,
     GlobalConfig,
     Potential,
+    Structure,
     ValidationResult,
 )
-from pydantic import ValidationError
 
 
 def test_structure_creation() -> None:
@@ -36,7 +38,7 @@ def test_structure_validation_forces() -> None:
 
 def test_config_validation() -> None:
     # Minimal valid config
-    config_data = {
+    config_data: dict[str, object] = {
         "max_cycles": 10,
         "initial_structure_path": "data/start.xyz",
         "workdir": "work",
@@ -56,8 +58,8 @@ def test_config_invalid() -> None:
     with pytest.raises(ValidationError):
         GlobalConfig(
             max_cycles=-1,
-            initial_structure_path=Path("."),
-            workdir=Path("."),
+            initial_structure_path=Path(),
+            workdir=Path(),
             oracle={"type": "mock"},
             trainer={"type": "mock"},
             dynamics={"type": "mock"},

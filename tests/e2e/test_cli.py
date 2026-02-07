@@ -1,10 +1,11 @@
-import pytest
-from typer.testing import CliRunner
-from mlip_autopipec.main import app
 from pathlib import Path
-from ase.io import write
-from ase import Atoms
+
 import yaml
+from ase import Atoms
+from ase.io import write
+from typer.testing import CliRunner
+
+from mlip_autopipec.main import app
 
 runner = CliRunner()
 
@@ -22,7 +23,7 @@ def test_cli_run_success(tmp_path: Path) -> None:
         "selector": {"type": "mock"},
     }
     config_path = tmp_path / "config.yaml"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         yaml.dump(config_data, f)
 
     # Dummy init
@@ -41,7 +42,7 @@ def test_cli_config_not_found(tmp_path: Path) -> None:
 
 def test_cli_invalid_config(tmp_path: Path) -> None:
     config_path = tmp_path / "bad_config.yaml"
-    with open(config_path, "w") as f:
+    with config_path.open("w") as f:
         f.write("invalid: yaml: content")
 
     result = runner.invoke(app, ["run", str(config_path)])
