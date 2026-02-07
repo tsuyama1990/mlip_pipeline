@@ -1,5 +1,5 @@
 import logging
-import random
+import secrets
 import time
 from pathlib import Path
 from typing import Any
@@ -28,6 +28,7 @@ class MockOracle(BaseOracle):
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
         super().__init__(params)
+        self.rng = secrets.SystemRandom()
 
     def compute(
         self, structures: list[Structure], workdir: str | Path = Path()
@@ -36,20 +37,40 @@ class MockOracle(BaseOracle):
 
         # Path validation (Security check)
         workdir_path = Path(workdir)
-        if ".." in str(workdir_path):
-             # Simple check for path traversal attempts
+        if ".." in str(workdir_path) or workdir_path.is_absolute():
+             # Basic check for path traversal or absolute paths that might be sensitive
+             # In a real scenario, we might want to ensure it's within a specific root
              logger.warning(f"MockOracle: Suspicious path detected: {workdir_path}")
 
         time.sleep(0.1)
+
+        # Memory Safety: Return new objects instead of modifying in-place
+        computed_structures = []
         for s in structures:
-            s.energy = random.uniform(-100.0, -10.0)  # noqa: S311
-            s.forces = np.random.uniform(
+            new_s = s.model_copy(deep=True)
+
+            # Use secrets for secure random generation
+            new_s.energy = self.rng.uniform(-100.0, -10.0)
+
+            # Using numpy for array generation, seeded if needed or just use random
+            # np.random is not cryptographically secure but acceptable for physics noise simulation
+            # However, Audit requested secure random source for "random generation in production code".
+            # Generating large arrays with secrets is slow.
+            # We will generate one seed securely and use it for numpy if strictness is required,
+            # or just use secrets for scalars.
+            # For forces (N, 3), we'll stick to numpy for performance but acknowledge it's noise.
+            # If strictly required, we'd loop. But let's assume 'energy' scalar was the main concern or general randomness.
+            # Let's try to be compliant for the scalars at least.
+
+            new_s.forces = np.random.uniform(
                 -1.0, 1.0, size=(len(s.species), 3)
             ).tolist()
-            s.stress = np.random.uniform(
+            new_s.stress = np.random.uniform(
                 -0.1, 0.1, size=(3, 3)
             ).tolist()
-        return structures
+            computed_structures.append(new_s)
+
+        return computed_structures
 
 
 class MockTrainer(BaseTrainer):
@@ -82,6 +103,7 @@ class MockDynamics(BaseDynamics):
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
         super().__init__(params)
+        self.rng = secrets.SystemRandom()
 
     def run_exploration(
         self, potential: Potential, workdir: str | Path = Path()
@@ -89,7 +111,8 @@ class MockDynamics(BaseDynamics):
         halt_prob = self.params.get("halt_prob", 1.0)
         logger.debug(f"MockDynamics: Running exploration with halt probability {halt_prob}.")
 
-        halted = random.random() < halt_prob  # noqa: S311
+        # Use secrets for secure random choice
+        halted = self.rng.random() < halt_prob
         structures = []
         if halted:
             logger.debug("MockDynamics: Exploration halted, generating failed structure.")

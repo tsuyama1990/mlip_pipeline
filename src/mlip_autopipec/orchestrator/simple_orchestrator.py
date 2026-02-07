@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 from pathlib import Path
 
 from mlip_autopipec.config.base_config import GlobalConfig
@@ -31,7 +32,11 @@ class SimpleOrchestrator(BaseOrchestrator):
         self.dynamics: BaseDynamics
         self.structure_generator: BaseStructureGenerator
         self.validator: BaseValidator
-        self.dataset: list[Structure] = []
+
+        # Memory Safety: Use deque to limit dataset size
+        # Hardcoded limit for now, could be in config
+        self.max_dataset_size = 1000
+        self.dataset: deque[Structure] = deque(maxlen=self.max_dataset_size)
 
         self._initialize_components()
 
@@ -75,14 +80,18 @@ class SimpleOrchestrator(BaseOrchestrator):
 
     def run(self) -> None:
         logger.info("Starting Active Learning Cycle")
-        workdir_root = Path("active_learning")
-        workdir_root.mkdir(exist_ok=True)
+
+        # Avoid hardcoded path, use config-derived or safe default
+        # Assuming project_name is safe (pydantic validated to be string, but maybe check characters?)
+        # For now, using Path object is better than string concatenation
+        workdir_root = Path("active_learning") / self.config.project_name
+        workdir_root.mkdir(parents=True, exist_ok=True)
 
         try:
             # Initial candidates
             logger.info("Generating initial candidates...")
             candidates = self.structure_generator.get_candidates()
-            self.dataset.extend(candidates)
+            # Do NOT add to dataset yet, wait for computation
         except Exception:
             logger.exception("Failed to generate initial candidates.")
             raise
@@ -96,10 +105,15 @@ class SimpleOrchestrator(BaseOrchestrator):
 
             try:
                 logger.info("Labeling structures...")
-                self.oracle.compute(candidates, workdir=iter_dir)
+                # Update candidates with computed properties (new objects returned)
+                computed_candidates = self.oracle.compute(candidates, workdir=iter_dir)
+
+                # Add computed structures to dataset
+                self.dataset.extend(computed_candidates)
 
                 logger.info("Training potential...")
-                potential = self.trainer.train(self.dataset, workdir=iter_dir)
+                # Convert deque to list for Trainer interface
+                potential = self.trainer.train(list(self.dataset), workdir=iter_dir)
 
                 logger.info("Validating potential...")
                 val_result = self.validator.validate(potential, workdir=iter_dir)
@@ -115,9 +129,9 @@ class SimpleOrchestrator(BaseOrchestrator):
                 )
 
                 if exploration_result.halted:
-                    logger.info("Exploration halted. Adding new structures to dataset.")
+                    logger.info("Exploration halted. New candidates found.")
                     candidates = exploration_result.structures
-                    self.dataset.extend(candidates)
+                    # Loop continues, these candidates will be computed in next iteration
                 else:
                     logger.info("Exploration converged.")
                     break
