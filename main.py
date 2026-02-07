@@ -1,6 +1,8 @@
-def main():
-    print("Hello from mlip-pipeline!")
+from mlip_autopipec.main import app
 
+
+def main() -> None:
+    app()
 
 if __name__ == "__main__":
     main()
