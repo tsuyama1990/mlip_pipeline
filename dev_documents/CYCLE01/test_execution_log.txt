@@ -35,6 +35,6 @@ src/mlip_autopipec/utils/__init__.py                         2      0   100%
 src/mlip_autopipec/utils/logging.py                          8      1    88%   11
 --------------------------------------------------------------------------------------
 TOTAL                                                      339     45    87%
-============================== 13 passed in 1.22s ==============================
+============================== 13 passed in 1.39s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
