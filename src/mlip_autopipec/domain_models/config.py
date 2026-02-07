@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BaseConfig(BaseModel):
@@ -68,3 +68,11 @@ class GlobalConfig(BaseModel):
     generator: GeneratorConfig
     validator: ValidatorConfig
     selector: SelectorConfig
+
+    @field_validator("max_cycles")
+    @classmethod
+    def validate_max_cycles(cls, v: int) -> int:
+        if v < 1:
+            msg = "max_cycles must be at least 1"
+            raise ValueError(msg)
+        return v
