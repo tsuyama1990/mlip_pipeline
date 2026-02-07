@@ -12,8 +12,8 @@
 
 *   **Zero-Config Workflow**: Define your elements in a single `config.yaml`, and let the system handle sampling, DFT calculations, training, and validation autonomously.
 *   **Active Learning Loop**: Intelligently samples the chemical space using Uncertainty Quantification (Extrapolation Grade $\gamma$) to minimize expensive DFT calculations while maximizing accuracy.
-*   **Physics-Informed Robustness**: Automatically enforces core-repulsion using Delta Learning (LJ/ZBL baselines) to prevent unphysical atomic overlap during high-energy MD events.
-*   **Self-Healing Oracle**: The DFT manager automatically detects convergence failures and adjusts parameters (mixing beta, smearing) to recover without human intervention.
+*   **Modular Architecture**: Fully decoupled components (Oracle, Trainer, Dynamics) defined by strict interfaces, allowing easy swapping of backends (e.g., Mock vs DFT).
+*   **Robust Configuration**: Strict Pydantic-based validation ensures configuration errors are caught early with clear feedback.
 *   **Scalable Architecture**: Designed as a micro-component system (Orchestrator, Oracle, Trainer, Dynamics) that scales from a laptop to HPC clusters.
 
 ---
@@ -137,6 +137,7 @@ src/mlip_autopipec/
 ├── infrastructure/         # Implementations (Oracle, Trainer, etc.)
 ├── orchestrator/           # Logic Layer (The Brain)
 ├── factory.py              # Dependency Injection
+├── utils/                  # Utilities (Logging, etc.)
 └── main.py                 # CLI Entrypoint
 
 dev_documents/
