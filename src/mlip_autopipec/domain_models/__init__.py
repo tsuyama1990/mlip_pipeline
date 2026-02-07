@@ -4,9 +4,12 @@ from mlip_autopipec.domain_models.config import (
     GlobalConfig,
     OracleConfig,
     TrainerConfig,
+    ValidatorConfig,
+    SelectorConfig,
 )
 from mlip_autopipec.domain_models.potential import ExplorationResult, Potential
 from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.domain_models.validation import ValidationResult
 
 __all__ = [
     "DynamicsConfig",
@@ -17,4 +20,7 @@ __all__ = [
     "Potential",
     "Structure",
     "TrainerConfig",
+    "ValidatorConfig",
+    "SelectorConfig",
+    "ValidationResult",
 ]

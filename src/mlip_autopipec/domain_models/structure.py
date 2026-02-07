@@ -1,5 +1,6 @@
 import numpy as np
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Any
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Structure(BaseModel):
@@ -13,6 +14,8 @@ class Structure(BaseModel):
     species: list[str]
     energy: float | None = None
     forces: np.ndarray | None = None
+    stress: np.ndarray | None = None
+    properties: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("positions")
     @classmethod
@@ -37,6 +40,16 @@ class Structure(BaseModel):
             return v
         if v.ndim != 2 or v.shape[1] != 3:
             msg = "Forces must be an (N, 3) array"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("stress")
+    @classmethod
+    def validate_stress(cls, v: np.ndarray | None) -> np.ndarray | None:
+        if v is None:
+            return v
+        if v.shape != (3, 3):
+            msg = "Stress must be a (3, 3) array"
             raise ValueError(msg)
         return v
 

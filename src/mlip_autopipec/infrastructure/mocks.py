@@ -10,12 +10,15 @@ import numpy as np
 from mlip_autopipec.domain_models import (
     ExplorationResult,
     Structure,
+    ValidationResult,
 )
 from mlip_autopipec.interfaces import (
     BaseDynamics,
     BaseOracle,
     BaseStructureGenerator,
     BaseTrainer,
+    BaseValidator,
+    BaseSelector,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,3 +122,35 @@ class MockStructureGenerator(BaseStructureGenerator):
         new_struct.positions += displacement
 
         return [new_struct]
+
+class MockValidator(BaseValidator):
+    """
+    Mock Validator.
+    """
+    def validate(self, potential_path: Path) -> ValidationResult:
+        logger.info(f"MockValidator validating {potential_path}")
+        # Default to pass, or use params
+        passed = self.params.get("passed", True)
+        return ValidationResult(
+            passed=passed,
+            metrics={"rmse_energy": 0.001},
+            report_path=potential_path.parent / "validation_report.html"
+        )
+
+class MockSelector(BaseSelector):
+    """
+    Mock Selector.
+    """
+    def select(self, candidates: list[Structure], n: int, existing_data: list[Structure] | None = None) -> list[Structure]:
+        logger.info(f"MockSelector selecting {n} from {len(candidates)} candidates")
+        if len(candidates) <= n:
+            return candidates
+
+        indices = list(range(len(candidates)))
+        shuffled_indices = indices[:]
+        for i in range(len(shuffled_indices) - 1, 0, -1):
+            j = secrets.randbelow(i + 1)
+            shuffled_indices[i], shuffled_indices[j] = shuffled_indices[j], shuffled_indices[i]
+
+        selected_indices = shuffled_indices[:n]
+        return [candidates[i] for i in selected_indices]

@@ -3,12 +3,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from mlip_autopipec.domain_models import Structure
+from mlip_autopipec.domain_models import Structure, ValidationResult
 from mlip_autopipec.infrastructure.mocks import (
     MockDynamics,
     MockOracle,
     MockStructureGenerator,
     MockTrainer,
+    MockSelector,
+    MockValidator,
 )
 
 
@@ -23,24 +25,33 @@ def test_mock_components_interaction(tmp_path: Path) -> None:
     generator = MockStructureGenerator()
     candidates = generator.generate(initial_structure, strategy="random")
     assert len(candidates) == 1
-    candidate = candidates[0]
-    assert candidate.positions.shape == (2, 3)
 
-    # 3. Oracle
+    # 3. Selector (NEW)
+    selector = MockSelector()
+    selected = selector.select(candidates, n=1)
+    assert len(selected) == 1
+    candidate = selected[0]
+
+    # 4. Oracle
     oracle = MockOracle()
     labeled_structure = oracle.compute(candidate)
     assert labeled_structure.energy is not None
     assert labeled_structure.forces is not None
     assert labeled_structure.forces.shape == (2, 3)
 
-    # 4. Trainer (Audit: Updated to use List/Iterable instead of Dataset)
+    # 5. Trainer
     trainer = MockTrainer()
     workdir = tmp_path / "training"
     potential_path = trainer.train([labeled_structure], params={}, workdir=workdir)
     assert potential_path.exists()
     assert potential_path.name == "potential.yace"
 
-    # 5. Dynamics
+    # 6. Validator (NEW)
+    validator = MockValidator()
+    validation_result = validator.validate(potential_path)
+    assert validation_result.passed is True
+
+    # 7. Dynamics
     dynamics = MockDynamics()
     result = dynamics.run(potential=potential_path, structure=initial_structure)
     assert result.status in ["halted", "converged"]

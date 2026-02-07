@@ -21,6 +21,12 @@ class DynamicsConfig(BaseConfig):
 class GeneratorConfig(BaseConfig):
     type: Literal["mock", "random"]
 
+class ValidatorConfig(BaseConfig):
+    type: Literal["mock", "standard"]
+
+class SelectorConfig(BaseConfig):
+    type: Literal["mock", "random", "d_opt"]
+
 class GlobalConfig(BaseModel):
     """
     Root configuration object for the pipeline.
@@ -39,3 +45,5 @@ class GlobalConfig(BaseModel):
     trainer: TrainerConfig
     dynamics: DynamicsConfig
     generator: GeneratorConfig
+    validator: ValidatorConfig
+    selector: SelectorConfig

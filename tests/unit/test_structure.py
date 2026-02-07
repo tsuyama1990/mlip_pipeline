@@ -71,3 +71,36 @@ def test_invalid_forces_shape() -> None:
         )
     # Check that the error message contains our custom message
     assert "Forces must be an (N, 3) array" in str(excinfo.value)
+
+def test_valid_structure_with_stress_and_properties() -> None:
+    positions = np.array([[0.0, 0.0, 0.0]])
+    cell = np.eye(3)
+    species = ["H"]
+    stress = np.eye(3)
+    properties = {"gamma": 0.5, "origin": "test"}
+
+    s = Structure(
+        positions=positions,
+        cell=cell,
+        species=species,
+        stress=stress,
+        properties=properties
+    )
+    assert s.stress is not None
+    assert s.stress.shape == (3, 3)
+    assert s.properties["gamma"] == 0.5
+
+def test_invalid_stress_shape() -> None:
+    positions = np.array([[0.0, 0.0, 0.0]])
+    cell = np.eye(3)
+    species = ["H"]
+    stress = np.array([0.0, 0.0]) # Invalid shape
+
+    with pytest.raises(ValidationError) as excinfo:
+        Structure(
+            positions=positions,
+            cell=cell,
+            species=species,
+            stress=stress
+        )
+    assert "Stress must be a (3, 3) array" in str(excinfo.value)

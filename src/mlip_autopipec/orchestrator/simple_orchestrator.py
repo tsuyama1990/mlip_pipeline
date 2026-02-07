@@ -9,20 +9,26 @@ from mlip_autopipec.domain_models import (
     GeneratorConfig,
     GlobalConfig,
     OracleConfig,
+    SelectorConfig,
     Structure,
     TrainerConfig,
+    ValidatorConfig,
 )
 from mlip_autopipec.infrastructure.mocks import (
     MockDynamics,
     MockOracle,
+    MockSelector,
     MockStructureGenerator,
     MockTrainer,
+    MockValidator,
 )
 from mlip_autopipec.interfaces import (
     BaseDynamics,
     BaseOracle,
+    BaseSelector,
     BaseStructureGenerator,
     BaseTrainer,
+    BaseValidator,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,6 +44,8 @@ class SimpleOrchestrator:
         self.trainer = self._create_trainer(config.trainer)
         self.dynamics = self._create_dynamics(config.dynamics)
         self.generator = self._create_generator(config.generator)
+        self.validator = self._create_validator(config.validator)
+        self.selector = self._create_selector(config.selector)
 
         # State
         self.dataset_structures: collections.deque[Structure] = collections.deque(maxlen=1000)
@@ -75,12 +83,21 @@ class SimpleOrchestrator:
         raise ValueError(msg)
 
     def _create_generator(self, config: GeneratorConfig) -> BaseStructureGenerator:
-        if config.type == "mock":
+        if config.type == "mock" or config.type == "random":
             return MockStructureGenerator(config.params)
-        if config.type == "random":
-             return MockStructureGenerator(config.params)
-
         msg = f"Unknown generator type: {config.type}"
+        raise ValueError(msg)
+
+    def _create_validator(self, config: ValidatorConfig) -> BaseValidator:
+        if config.type == "mock":
+            return MockValidator(config.params)
+        msg = f"Unknown validator type: {config.type}"
+        raise ValueError(msg)
+
+    def _create_selector(self, config: SelectorConfig) -> BaseSelector:
+        if config.type == "mock" or config.type == "random":
+            return MockSelector(config.params)
+        msg = f"Unknown selector type: {config.type}"
         raise ValueError(msg)
 
     def run(self) -> None:
@@ -94,20 +111,30 @@ class SimpleOrchestrator:
             msg = f"--- Cycle {self.cycle_count} started ---"
             logger.info(msg)
 
-            # 1. Generate
+            # 1. Generate (Exploration)
             try:
                 candidates = self.generator.generate(current_structure, strategy="random")
                 logger.info(f"Generated {len(candidates)} candidates")
             except Exception as e:
-                # Catch specific exceptions if components defined them, otherwise generic + log
                 logger.exception("Generator failed unexpectedly")
                 msg = f"Cycle {self.cycle_count} failed at Generator stage"
                 raise RuntimeError(msg) from e
 
-            # 2. Oracle
+            # 2. Select (Active Learning Selection)
+            try:
+                # Select a subset of candidates (e.g., 5 or less)
+                n_select = self.config.selector.params.get("n", 5)
+                selected_candidates = self.selector.select(candidates, n=n_select, existing_data=list(self.dataset_structures))
+                logger.info(f"Selected {len(selected_candidates)} candidates for labeling")
+            except Exception as e:
+                logger.exception("Selector failed unexpectedly")
+                msg = f"Cycle {self.cycle_count} failed at Selector stage"
+                raise RuntimeError(msg) from e
+
+            # 3. Oracle (Calculation)
             new_data = []
             try:
-                for candidate in candidates:
+                for candidate in selected_candidates:
                     labeled = self.oracle.compute(candidate)
                     new_data.append(labeled)
             except Exception as e:
@@ -122,7 +149,7 @@ class SimpleOrchestrator:
             self.dataset_structures.extend(new_data)
             logger.info(f"Dataset size: {len(self.dataset_structures)}")
 
-            # 3. Train
+            # 4. Train (Refinement)
             try:
                 # Pass iterator for memory safety
                 structure_iterator: Iterator[Structure] = iter(self.dataset_structures)
@@ -132,7 +159,19 @@ class SimpleOrchestrator:
                 msg = f"Cycle {self.cycle_count} failed at Trainer stage"
                 raise RuntimeError(msg) from e
 
-            # 4. Dynamics
+            # 5. Validate (Quality Assurance)
+            try:
+                validation_result = self.validator.validate(potential_path)
+                if not validation_result.passed:
+                    logger.warning(f"Validation failed: {validation_result.metrics}")
+                else:
+                    logger.info("Validation passed.")
+            except Exception as e:
+                logger.exception("Validator failed unexpectedly")
+                msg = f"Cycle {self.cycle_count} failed at Validator stage"
+                raise RuntimeError(msg) from e
+
+            # 6. Dynamics (Deployment/Exploration)
             try:
                 start_struct = new_data[-1]
                 result = self.dynamics.run(potential_path, start_struct)

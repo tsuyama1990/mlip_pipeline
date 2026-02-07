@@ -3,6 +3,8 @@ from mlip_autopipec.infrastructure.mocks import (
     MockOracle,
     MockStructureGenerator,
     MockTrainer,
+    MockValidator,
+    MockSelector,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "MockOracle",
     "MockStructureGenerator",
     "MockTrainer",
+    "MockValidator",
+    "MockSelector",
 ]

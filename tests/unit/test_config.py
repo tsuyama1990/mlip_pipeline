@@ -15,6 +15,8 @@ def test_valid_config() -> None:
         "trainer": {"type": "mock"},
         "dynamics": {"type": "mock"},
         "generator": {"type": "mock"},
+        "validator": {"type": "mock"},
+        "selector": {"type": "mock"},
     }
     config = GlobalConfig(**data)
     assert config.project_name == "test_project"
@@ -22,6 +24,8 @@ def test_valid_config() -> None:
     assert config.max_cycles == 5
     assert config.oracle.type == "mock"
     assert config.oracle.params == {}
+    assert config.validator.type == "mock"
+    assert config.selector.type == "mock"
 
 def test_invalid_config_missing_field() -> None:
     data: dict[str, Any] = {
@@ -31,6 +35,8 @@ def test_invalid_config_missing_field() -> None:
         "trainer": {"type": "mock"},
         "dynamics": {"type": "mock"},
         "generator": {"type": "mock"},
+        "validator": {"type": "mock"},
+        "selector": {"type": "mock"},
     }
     with pytest.raises(ValidationError):
         GlobalConfig(**data)
@@ -43,6 +49,8 @@ def test_invalid_config_wrong_type() -> None:
         "trainer": {"type": "mock"},
         "dynamics": {"type": "mock"},
         "generator": {"type": "mock"},
+        "validator": {"type": "mock"},
+        "selector": {"type": "mock"},
     }
     with pytest.raises(ValidationError):
         GlobalConfig(**data)
