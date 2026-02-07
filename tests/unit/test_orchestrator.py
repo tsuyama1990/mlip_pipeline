@@ -41,7 +41,7 @@ def test_orchestrator_extract_structures(tmp_path: Path) -> None:
     dump_file = tmp_path / "dump.xyz"
     atoms1 = Atoms('H', positions=[[0, 0, 0]])
     atoms2 = Atoms('He', positions=[[1, 0, 0]])
-    write(dump_file, [atoms1, atoms2]) # type: ignore[no-untyped-call]
+    write(dump_file, [atoms1, atoms2])
 
     result = ExplorationResult(
         halted=True,

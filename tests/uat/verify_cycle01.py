@@ -32,7 +32,7 @@ def verify_cycle01() -> None:
     # Run the command
     # Safe to suppress: This UAT test runs the CLI with a hardcoded config
     # generated within the test environment
-    result = subprocess.run(
+    result = subprocess.run( # noqa: S603
         [sys.executable, "-m", "mlip_autopipec.main", str(config_path)],
         capture_output=True,
         text=True,

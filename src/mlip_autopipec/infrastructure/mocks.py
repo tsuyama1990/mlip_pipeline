@@ -75,7 +75,11 @@ class MockExplorer(BaseExplorer):
 
         atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 1, 0], [0, 0, 1]])
         # Create list of atoms for trajectory
+        # atoms.copy() is untyped in some ASE versions
         traj: list[Atoms] = [atoms.copy() for _ in range(5)]  # type: ignore[no-untyped-call]
+
+        # Write accepts Sequence[Atoms], traj matches.
+        # If write is typed, we don't need ignore. If mypy complained about unused ignore, it means it IS typed.
         write(dump_path, traj)
 
         result = ExplorationResult(

@@ -76,7 +76,7 @@ class Orchestrator:
         structures: list[Structure] = []
         try:
             # ase.io.read can return Atoms or list of Atoms
-            trajectory: Atoms | list[Atoms] = read(result.dump_file, index=":") # type: ignore[no-untyped-call]
+            trajectory: Atoms | list[Atoms] = read(result.dump_file, index=":")
             traj_list: list[Atoms] = trajectory if isinstance(trajectory, list) else [trajectory]
 
             for i in result.high_gamma_frames:

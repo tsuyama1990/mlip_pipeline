@@ -24,7 +24,7 @@ explorer:
     # Run the main script using sys.executable to ensure we use the same python
     # Safe to suppress: This test runs the tool itself using the current Python interpreter
     # on a config file created within the test harness
-    result = subprocess.run(
+    result = subprocess.run( # noqa: S603
         [sys.executable, "-m", "mlip_autopipec.main", str(config_path)],
         capture_output=True,
         text=True,
