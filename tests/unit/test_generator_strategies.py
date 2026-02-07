@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from mlip_autopipec.domain_models import Structure
 from mlip_autopipec.infrastructure.generator import RandomDisplacement

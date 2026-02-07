@@ -33,10 +33,10 @@ src/mlip_autopipec/domain_models/structure.py                 123     18    85% 
 src/mlip_autopipec/domain_models/validation.py                  9      0   100%
 src/mlip_autopipec/infrastructure/__init__.py                   2      0   100%
 src/mlip_autopipec/infrastructure/generator/__init__.py         2      0   100%
-src/mlip_autopipec/infrastructure/generator/strategies.py      14      0   100%
+src/mlip_autopipec/infrastructure/generator/strategies.py      13      0   100%
 src/mlip_autopipec/infrastructure/mocks.py                    103      5    95%   95-99
 src/mlip_autopipec/infrastructure/oracle/__init__.py            2      0   100%
-src/mlip_autopipec/infrastructure/oracle/dft_manager.py        49      4    92%   104, 115-116, 121
+src/mlip_autopipec/infrastructure/oracle/dft_manager.py        52      5    90%   109, 120-121, 128-129
 src/mlip_autopipec/interfaces/__init__.py                       7      0   100%
 src/mlip_autopipec/interfaces/dynamics.py                       9      0   100%
 src/mlip_autopipec/interfaces/generator.py                      8      0   100%
@@ -44,14 +44,14 @@ src/mlip_autopipec/interfaces/oracle.py                        12      2    83% 
 src/mlip_autopipec/interfaces/selector.py                       8      0   100%
 src/mlip_autopipec/interfaces/trainer.py                       10      0   100%
 src/mlip_autopipec/interfaces/validator.py                      9      0   100%
-src/mlip_autopipec/main.py                                    103     36    65%   25-27, 35-41, 53-55, 70-71, 79-81, 86-88, 101-102, 121-123, 139-140, 143-144, 161-166, 170
+src/mlip_autopipec/main.py                                    110     40    64%   26-28, 36-41, 50-53, 59-60, 67-69, 84-85, 93-95, 100-102, 115-116, 135-137, 153-154, 157-158, 175-180, 184
 src/mlip_autopipec/orchestrator/__init__.py                     2      0   100%
 src/mlip_autopipec/orchestrator/simple_orchestrator.py        159     48    70%   58-59, 73-77, 82-83, 88-89, 94-97, 102-103, 108-109, 142-143, 160-161, 178, 189-192, 202-205, 212-215, 222-225, 231, 234-237, 243-246
 src/mlip_autopipec/utils/__init__.py                            2      0   100%
 src/mlip_autopipec/utils/logging.py                             8      1    88%   11
 src/mlip_autopipec/utils/physics.py                            12      0   100%
 -----------------------------------------------------------------------------------------
-TOTAL                                                         752    120    84%
-============================== 44 passed in 4.20s ==============================
+TOTAL                                                         761    125    84%
+============================== 44 passed in 3.50s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

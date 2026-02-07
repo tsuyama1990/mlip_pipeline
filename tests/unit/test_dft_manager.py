@@ -1,7 +1,6 @@
-import numpy as np
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+import numpy as np
 from ase.calculators.calculator import CalculationFailed
 
 from mlip_autopipec.domain_models import Structure

@@ -29,7 +29,6 @@ class DFTManager(BaseOracle):
         Compute energy and forces for the given structure.
         """
         # Convert to ASE Atoms
-        # type: ignore[no-untyped-call]
         atoms = Atoms(
             symbols=structure.species,
             positions=structure.positions,
@@ -46,10 +45,11 @@ class DFTManager(BaseOracle):
         pseudo_dir_str = str(self.pseudo_dir) if self.pseudo_dir else "."
 
         # EspressoProfile requires command string and pseudo_dir
-        profile = EspressoProfile(command=command_str, pseudo_dir=pseudo_dir_str)
+        # ase untyped
+        profile = EspressoProfile(command=command_str, pseudo_dir=pseudo_dir_str) # type: ignore[no-untyped-call]
 
         # Base parameters
-        base_input_data = {
+        base_input_data: dict[str, Any] = {
             "control": {
                 "calculation": "scf",
                 "restart_mode": "from_scratch",
@@ -71,6 +71,9 @@ class DFTManager(BaseOracle):
 
         # Self-healing loop
         max_retries = 2
+
+        result_struct = None
+
         for attempt in range(max_retries + 1):
             try:
                 # Deep copy to ensure we don't mutate base_input_data across attempts
@@ -79,9 +82,11 @@ class DFTManager(BaseOracle):
 
                 # Adjust mixing_beta if retrying
                 if attempt > 0:
+                    # Fix indexed assignment error by ensuring type safety
+                    # current_input_data["electrons"] is Any (dict), so safe.
                     current_input_data["electrons"]["mixing_beta"] = 0.35  # Reduce by 50%
 
-                calc = Espresso(
+                calc = Espresso( # type: ignore[no-untyped-call]
                     profile=profile,
                     pseudopotentials=self.pseudopotentials,
                     kpts=kpoints,
@@ -89,9 +94,9 @@ class DFTManager(BaseOracle):
                 )
                 atoms.calc = calc
 
-                energy = atoms.get_potential_energy()
-                forces = atoms.get_forces()
-                stress_voigt = atoms.get_stress()
+                energy = atoms.get_potential_energy() # type: ignore[no-untyped-call]
+                forces = atoms.get_forces() # type: ignore[no-untyped-call]
+                stress_voigt = atoms.get_stress() # type: ignore[no-untyped-call]
 
                 # Convert Voigt (6,) to tensor (3,3)
                 if stress_voigt.shape == (6,):
@@ -104,18 +109,21 @@ class DFTManager(BaseOracle):
                     stress = stress_voigt
 
                 # Success
-                new_struct = structure.model_copy(deep=True)
-                new_struct.energy = float(energy)
-                new_struct.forces = forces
-                new_struct.stress = stress
-                return new_struct
+                result_struct = structure.model_copy(deep=True)
+                result_struct.energy = float(energy)
+                result_struct.forces = forces
+                result_struct.stress = stress
+                break # Exit loop on success
 
             except CalculationFailed as e:
                 if attempt == max_retries:
                     msg = f"DFT calculation failed after {max_retries} retries."
                     raise RuntimeError(msg) from e
                 # Continue to retry
-                continue
+
+        if result_struct:
+            return result_struct
 
         # Should not reach here
-        raise RuntimeError("DFT Loop Error")
+        msg = "DFT Loop Error"
+        raise RuntimeError(msg)

@@ -8,8 +8,6 @@ def test_kspacing_to_grid_cubic() -> None:
     # Cubic cell 10x10x10
     cell = np.eye(3) * 10.0
     # Reciprocal length: 2*pi / 10 = 0.6283
-    # kspacing = 0.2
-    # grid = ceil(0.6283 / 0.2) = ceil(3.1415) = 4
     grid = kspacing_to_grid(cell, 0.2)
     assert grid == (4, 4, 4)
 

@@ -57,17 +57,12 @@ def test_compute_command(tmp_path: Path) -> None:
 
     # 3. Create structure
     structure_path = tmp_path / "structure.xyz"
-    # atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]], cell=[10, 10, 10])
     # Use dummy atoms
     atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]], cell=[10, 10, 10], pbc=True)
     ase.io.write(structure_path, atoms)
 
     # 4. Run compute
     result_compute = runner.invoke(app, ["compute", "--structure", str(structure_path), "--config", str(config_path)])
-
-    # Debug output if fails
-    if result_compute.exit_code != 0:
-        print(result_compute.stdout)
 
     assert result_compute.exit_code == 0
     assert "Calculation Results" in result_compute.stdout

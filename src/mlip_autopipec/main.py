@@ -5,6 +5,7 @@ from typing import Annotated
 import ase.io
 import typer
 import yaml
+from ase import Atoms
 
 from mlip_autopipec.domain_models import GlobalConfig, Structure
 from mlip_autopipec.infrastructure.mocks import MockOracle
@@ -29,26 +30,39 @@ def _load_config(config_path: Path) -> GlobalConfig:
 
 def _create_oracle(config: GlobalConfig) -> BaseOracle:
     oracle_conf = config.oracle
-    try:
-        if oracle_conf.type == "mock":
-            return MockOracle(oracle_conf.params)
-        if oracle_conf.type == "qe":
-            return DFTManager(oracle_conf.model_dump())
-        logger.error(f"Unsupported oracle type: {oracle_conf.type}")
-        raise typer.Exit(code=1)
-    except Exception as e:
-        logger.exception("Failed to initialize Oracle")
-        raise typer.Exit(code=1) from e
+
+    if oracle_conf.type == "mock":
+        return MockOracle(oracle_conf.params)
+    if oracle_conf.type == "qe":
+        return DFTManager(oracle_conf.model_dump())
+
+    msg = f"Unsupported oracle type: {oracle_conf.type}"
+    logger.error(msg)
+    raise typer.Exit(code=1)
 
 
 def _load_structure(structure_path: Path) -> Structure:
     try:
-        # type: ignore[no-untyped-call]
-        atoms = ase.io.read(structure_path)
+        atoms_or_list = ase.io.read(structure_path)
+
+        # Handle list or single Atoms
+        if isinstance(atoms_or_list, list):
+            if not atoms_or_list:
+                msg = "Structure file contains no atoms"
+                raise ValueError(msg) # noqa: TRY301
+            atoms = atoms_or_list[0]
+        else:
+            atoms = atoms_or_list
+
+        # Verify it is Atoms (ase.io.read return type is Any or Atoms | list[Atoms])
+        if not isinstance(atoms, Atoms):
+             msg = f"Expected ase.Atoms, got {type(atoms)}"
+             raise TypeError(msg) # noqa: TRY301
+
         return Structure(
             positions=atoms.positions,
             cell=atoms.cell.array,
-            species=atoms.get_chemical_symbols(),
+            species=atoms.get_chemical_symbols(), # type: ignore[no-untyped-call]
         )
     except Exception as e:
         logger.exception("Failed to load structure")

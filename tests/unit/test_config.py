@@ -47,7 +47,7 @@ def test_oracle_config_defaults() -> None:
 
 def test_oracle_config_qe_valid() -> None:
     # Test valid QE config
-    data = {
+    data: dict[str, Any] = {
         "type": "qe",
         "command": "pw.x",
         "pseudo_dir": "/tmp/pseudos", # noqa: S108
