@@ -40,3 +40,14 @@ class Structure(BaseModel):
             raise ValueError(msg)
 
         return self
+
+    def validate_labeled(self) -> None:
+        """
+        Validates that energy and forces are present (i.e., structure is labeled).
+        """
+        if self.energy is None:
+            msg = "Structure must have energy to be considered labeled."
+            raise ValueError(msg)
+        if self.forces is None:
+            msg = "Structure must have forces to be considered labeled."
+            raise ValueError(msg)
