@@ -50,7 +50,8 @@ class SimpleOrchestrator:
         self.selector = self._create_selector(config.selector)
 
         # State
-        self.dataset_structures: collections.deque[Structure] = collections.deque(maxlen=1000)
+        # Use configured maxlen
+        self.dataset_structures: collections.deque[Structure] = collections.deque(maxlen=config.dataset_maxlen)
         self.cycle_count = 0
 
         if config.initial_structure_path and config.initial_structure_path.exists():
@@ -171,19 +172,14 @@ class SimpleOrchestrator:
 
     def _step_calculation(self, selected_candidates: list[Structure]) -> list[Structure]:
         """
-        Compute energy and forces for the selected candidates using the Oracle.
+        Compute energy and forces for the selected candidates using the Oracle (Batch).
         """
-        new_data = []
         try:
-            for candidate in selected_candidates:
-                labeled = self.oracle.compute(candidate)
-                new_data.append(labeled)
+            return self.oracle.compute_batch(selected_candidates)
         except Exception as e:
             logger.exception("Oracle failed unexpectedly")
             msg = f"Cycle {self.cycle_count} failed at Oracle stage"
             raise RuntimeError(msg) from e
-        else:
-            return new_data
 
     def _step_refinement(self) -> Path:
         """

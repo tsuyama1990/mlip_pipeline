@@ -62,6 +62,9 @@ class GlobalConfig(BaseModel):
     max_cycles: int = 5
     initial_structure_path: Path | None = None
 
+    # Dataset configuration
+    dataset_maxlen: int = 1000
+
     oracle: OracleConfig
     trainer: TrainerConfig
     dynamics: DynamicsConfig
@@ -74,5 +77,13 @@ class GlobalConfig(BaseModel):
     def validate_max_cycles(cls, v: int) -> int:
         if v < 1:
             msg = "max_cycles must be at least 1"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("dataset_maxlen")
+    @classmethod
+    def validate_dataset_maxlen(cls, v: int) -> int:
+        if v < 1:
+            msg = "dataset_maxlen must be at least 1"
             raise ValueError(msg)
         return v

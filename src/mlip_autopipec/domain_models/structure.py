@@ -54,6 +54,23 @@ class Structure(BaseModel):
             raise ValueError(msg)
         return v
 
+    @field_validator("properties")
+    @classmethod
+    def validate_properties(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """
+        Validate that properties are JSON-safe or numpy arrays.
+        """
+        allowed_types = (int, float, str, bool, list, tuple, np.ndarray, np.generic)
+        for key, value in v.items():
+            if not isinstance(key, str):
+                msg = f"Property key must be a string, got {type(key)}"
+                raise TypeError(msg)
+            if value is not None and not isinstance(value, allowed_types):
+                # Check for dict (nested)? For now forbid.
+                msg = f"Property '{key}' has invalid type {type(value)}. Allowed types: {allowed_types}"
+                raise TypeError(msg)
+        return v
+
     def __repr__(self) -> str:
         """
         Concise representation of the Structure.

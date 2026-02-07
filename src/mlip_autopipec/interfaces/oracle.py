@@ -17,3 +17,10 @@ class BaseOracle(ABC):
         Compute energy and forces for the given structure.
         Should return a new Structure with updated properties.
         """
+
+    def compute_batch(self, structures: list[Structure]) -> list[Structure]:
+        """
+        Compute energy and forces for a batch of structures.
+        Default implementation iterates, but subclasses should override for efficiency.
+        """
+        return [self.compute(s) for s in structures]

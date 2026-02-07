@@ -28,7 +28,7 @@ class MockOracle(BaseOracle):
     Mock Oracle that assigns random energy and forces.
     """
     def compute(self, structure: Structure) -> Structure:
-        time.sleep(0.1)
+        time.sleep(0.01) # Simulate some work, reduced for tests
         # Deep copy to avoid side effects
         new_struct = structure.model_copy(deep=True)
 
@@ -50,6 +50,15 @@ class MockOracle(BaseOracle):
         logger.info(f"MockOracle computed structure with energy {energy}")
         return new_struct
 
+    def compute_batch(self, structures: list[Structure]) -> list[Structure]:
+        """
+        Compute energy and forces for a batch of structures efficiently.
+        """
+        # In a real oracle, we would batch this I/O.
+        # For mock, we just iterate but we pretend it's faster/batched.
+        logger.info(f"MockOracle batch computing {len(structures)} structures")
+        return [self.compute(s) for s in structures]
+
 class MockTrainer(BaseTrainer):
     """
     Mock Trainer that creates a dummy potential file.
@@ -62,7 +71,22 @@ class MockTrainer(BaseTrainer):
         cwd = Path.cwd().resolve()
         temp = Path("/tmp").resolve() # noqa: S108
 
-        if not (workdir_path.is_relative_to(cwd) or workdir_path.is_relative_to(temp)):
+        # Security check: must be relative to CWD or /tmp
+        is_safe = False
+        try:
+            workdir_path.relative_to(cwd)
+            is_safe = True
+        except ValueError:
+            pass
+
+        if not is_safe:
+            try:
+                workdir_path.relative_to(temp)
+                is_safe = True
+            except ValueError:
+                pass
+
+        if not is_safe:
              msg = f"Security Violation: Workdir '{workdir_path}' must be inside project root or /tmp."
              logger.error(msg)
              raise ValueError(msg)
