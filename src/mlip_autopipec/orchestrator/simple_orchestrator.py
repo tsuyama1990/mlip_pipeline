@@ -78,9 +78,14 @@ class SimpleOrchestrator(BaseOrchestrator):
         workdir_root = Path("active_learning")
         workdir_root.mkdir(exist_ok=True)
 
-        # Initial candidates
-        candidates = self.structure_generator.get_candidates()
-        self.dataset.extend(candidates)
+        try:
+            # Initial candidates
+            logger.info("Generating initial candidates...")
+            candidates = self.structure_generator.get_candidates()
+            self.dataset.extend(candidates)
+        except Exception:
+            logger.exception("Failed to generate initial candidates.")
+            raise
 
         potential: Potential | None = None
 
@@ -89,34 +94,35 @@ class SimpleOrchestrator(BaseOrchestrator):
             iter_dir = workdir_root / f"iter_{i:03d}"
             iter_dir.mkdir(exist_ok=True)
 
-            logger.info("Labeling structures...")
-            # For Cycle 01, assume we re-label everything or label just candidates
-            # Here we label the 'candidates' variable which holds new structures
-            self.oracle.compute(candidates, workdir=iter_dir)
+            try:
+                logger.info("Labeling structures...")
+                self.oracle.compute(candidates, workdir=iter_dir)
 
-            logger.info("Training potential...")
-            potential = self.trainer.train(self.dataset, workdir=iter_dir)
+                logger.info("Training potential...")
+                potential = self.trainer.train(self.dataset, workdir=iter_dir)
 
-            logger.info("Validating potential...")
-            val_result = self.validator.validate(potential, workdir=iter_dir)
-            if val_result.passed:
-                logger.info("Validation passed.")
-                # For mock cycle, we might want to continue unless explicitly told to stop
-                # But SPEC says terminate.
-                break
+                logger.info("Validating potential...")
+                val_result = self.validator.validate(potential, workdir=iter_dir)
+                if val_result.passed:
+                    logger.info("Validation passed.")
+                    break
 
-            logger.info("Running exploration...")
-            exploration_result = self.dynamics.run_exploration(
-                potential, workdir=iter_dir
-            )
+                logger.info("Validation failed. Proceeding to exploration.")
 
-            if exploration_result.halted:
-                logger.info("Exploration halted. Adding new structures to dataset.")
-                candidates = exploration_result.structures
-                self.dataset.extend(candidates)
-            else:
-                logger.info("Exploration converged.")
-                # Implicitly break if converged?
-                break
+                logger.info("Running exploration...")
+                exploration_result = self.dynamics.run_exploration(
+                    potential, workdir=iter_dir
+                )
+
+                if exploration_result.halted:
+                    logger.info("Exploration halted. Adding new structures to dataset.")
+                    candidates = exploration_result.structures
+                    self.dataset.extend(candidates)
+                else:
+                    logger.info("Exploration converged.")
+                    break
+            except Exception:
+                logger.exception(f"Error during iteration {i}")
+                raise
 
         logger.info("Active Learning Cycle Completed Successfully")
