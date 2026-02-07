@@ -1,0 +1,57 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 44 items
+
+tests/integration/test_cli.py ...                                        [  6%]
+tests/integration/test_dft_pipeline.py .                                 [  9%]
+tests/integration/test_mock_pipeline.py ..                               [ 13%]
+tests/unit/test_config.py ......                                         [ 27%]
+tests/unit/test_dft_manager.py ...                                       [ 34%]
+tests/unit/test_generator_strategies.py ...                              [ 40%]
+tests/unit/test_physics.py ....                                          [ 50%]
+tests/unit/test_scalability.py ..                                        [ 54%]
+tests/unit/test_security.py ..                                           [ 59%]
+tests/unit/test_selector.py ..                                           [ 63%]
+tests/unit/test_structure.py ..........                                  [ 86%]
+tests/unit/test_structure_properties.py ....                             [ 95%]
+tests/unit/test_validator.py ..                                          [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                        Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                                  1      0   100%
+src/mlip_autopipec/domain_models/__init__.py                    5      0   100%
+src/mlip_autopipec/domain_models/config.py                     78      6    92%   115-116, 122-125
+src/mlip_autopipec/domain_models/potential.py                  15      0   100%
+src/mlip_autopipec/domain_models/structure.py                 123     18    85%   28-29, 42-43, 58-59, 72, 74-75, 91-92, 113-116, 123-126, 177
+src/mlip_autopipec/domain_models/validation.py                  9      0   100%
+src/mlip_autopipec/infrastructure/__init__.py                   2      0   100%
+src/mlip_autopipec/infrastructure/generator/__init__.py         2      0   100%
+src/mlip_autopipec/infrastructure/generator/strategies.py      14      0   100%
+src/mlip_autopipec/infrastructure/mocks.py                    103      5    95%   95-99
+src/mlip_autopipec/infrastructure/oracle/__init__.py            2      0   100%
+src/mlip_autopipec/infrastructure/oracle/dft_manager.py        49      4    92%   104, 115-116, 121
+src/mlip_autopipec/interfaces/__init__.py                       7      0   100%
+src/mlip_autopipec/interfaces/dynamics.py                       9      0   100%
+src/mlip_autopipec/interfaces/generator.py                      8      0   100%
+src/mlip_autopipec/interfaces/oracle.py                        12      2    83%   28-29
+src/mlip_autopipec/interfaces/selector.py                       8      0   100%
+src/mlip_autopipec/interfaces/trainer.py                       10      0   100%
+src/mlip_autopipec/interfaces/validator.py                      9      0   100%
+src/mlip_autopipec/main.py                                    103     36    65%   25-27, 35-41, 53-55, 70-71, 79-81, 86-88, 101-102, 121-123, 139-140, 143-144, 161-166, 170
+src/mlip_autopipec/orchestrator/__init__.py                     2      0   100%
+src/mlip_autopipec/orchestrator/simple_orchestrator.py        159     48    70%   58-59, 73-77, 82-83, 88-89, 94-97, 102-103, 108-109, 142-143, 160-161, 178, 189-192, 202-205, 212-215, 222-225, 231, 234-237, 243-246
+src/mlip_autopipec/utils/__init__.py                            2      0   100%
+src/mlip_autopipec/utils/logging.py                             8      1    88%   11
+src/mlip_autopipec/utils/physics.py                            12      0   100%
+-----------------------------------------------------------------------------------------
+TOTAL                                                         752    120    84%
+============================== 44 passed in 4.20s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

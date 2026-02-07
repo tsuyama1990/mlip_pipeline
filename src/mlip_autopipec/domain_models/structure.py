@@ -125,5 +125,60 @@ class Structure(BaseModel):
         formula = "".join(f"{s}{c if c > 1 else ''}" for s, c in zip(unique_species, counts, strict=True))
         return f"Structure(formula='{formula}', atoms={len(self.species)}, energy={self.energy})"
 
-# Removed Dataset model as it encourages loading all structures into memory.
-# Training should accept Iterable[Structure] directly.
+    def apply_periodic_embedding(self, center: np.ndarray, radius: float, buffer: float) -> "Structure":
+        """
+        Creates a supercell containing only atoms within `radius + buffer` of `center`,
+        ensuring minimal image convention.
+        """
+        if radius <= 0:
+            msg = "radius must be positive"
+            raise ValueError(msg)
+        if buffer < 0:
+            msg = "buffer must be non-negative"
+            raise ValueError(msg)
+
+        center = np.array(center)
+        if center.shape != (3,):
+            msg = "center must be a (3,) array"
+            raise ValueError(msg)
+
+        # Calculate distance with MIC
+        # Assumes cell is (3,3) and invertible (which valid structures should be)
+        inv_cell = np.linalg.inv(self.cell)
+        diff = self.positions - center
+
+        # Transform to fractional coordinates: r = x*a1 + y*a2 + z*a3 -> r @ inv_cell
+        diff_frac = diff @ inv_cell
+
+        # Apply MIC: wrap to [-0.5, 0.5]
+        diff_frac -= np.round(diff_frac)
+
+        # Transform back to Cartesian
+        diff_cart = diff_frac @ self.cell
+
+        dists = np.linalg.norm(diff_cart, axis=1)
+        mask = dists < (radius + buffer)
+
+        new_positions = diff_cart[mask]
+        new_species = [s for i, s in enumerate(self.species) if mask[i]]
+
+        # Create a new cubic cell large enough to hold the cluster + vacuum
+        # Using 5.0 Angstrom vacuum is a safe default for cluster in box
+        L = 2 * (radius + buffer) + 5.0
+        new_cell = np.eye(3) * L
+
+        # Center the cluster in the new box
+        # new_positions are relative to 'center'.
+        # We put 'center' at L/2, L/2, L/2
+        new_positions += L / 2.0
+
+        new_forces = None
+        if self.forces is not None:
+            new_forces = self.forces[mask]
+
+        return Structure(
+            positions=new_positions,
+            cell=new_cell,
+            species=new_species,
+            forces=new_forces
+        )
