@@ -1,18 +1,18 @@
-# PYACEMAKER: Automated MLIP Construction System
+# MLIP Pipeline: Automated Machine Learning Interatomic Potential Construction
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**Democratizing Atomic Simulations.** PYACEMAKER is a high-efficiency system that allows researchers to construct "State-of-the-Art" Machine Learning Interatomic Potentials (MLIP) with minimal effort. By automating the entire lifecycle—from Active Learning and DFT calculations to validation and deployment—it enables complex simulations like **Fe/Pt deposition on MgO** without requiring deep expertise in data science.
+**Democratizing Atomic Simulations.** MLIP Pipeline is a high-efficiency system that allows researchers to construct "State-of-the-Art" Machine Learning Interatomic Potentials (MLIP) with minimal effort. By automating the entire lifecycle—from Active Learning and DFT calculations to validation and deployment—it enables complex simulations without requiring deep expertise in data science.
 
 ## 🚀 Key Features
 
 *   **Zero-Config Workflow**: Define your material system in a single YAML file and let the autonomous agent handle the rest.
-*   **Data Efficiency**: Uses Active Learning to select only the most informative structures, reducing expensive DFT calculations by >90%.
-*   **Physics-Informed Robustness**: Hybrid potentials (ACE + ZBL/LJ) ensure simulations never crash due to non-physical atomic overlaps.
-*   **Time-Scale Bridging**: Seamlessly integrates Molecular Dynamics (MD) and Kinetic Monte Carlo (kMC) to explore phenomena from picoseconds to seconds.
-*   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures without user intervention.
+*   **Modular Architecture**: Pluggable components for Oracle (DFT), Trainer, Dynamics, and Generator.
+*   **Strict Validation**: Robust data models ensure structural integrity and correct configuration using Pydantic.
+*   **Mock Mode**: Develop and test pipelines instantly using simulated physics backends (Mock Oracle, Mock Trainer) without requiring heavy external codes.
+*   **Scalable Design**: Uses lazy evaluation and iterators to handle large datasets without memory issues.
 
 ## 🏗️ Architecture Overview
 
@@ -24,10 +24,10 @@ flowchart TD
 
     subgraph Cycle [Active Learning Cycle]
         direction TB
-        Orchestrator -->|1. Deploy Potential| Dynamics[Dynamics Engine\n(MD / kMC)]
+        Orchestrator -->|1. Deploy Potential| Dynamics[Dynamics Engine]
         Dynamics -->|2. Halt & Extract| Generator[Structure Generator]
-        Generator -->|3. Candidates| Oracle[Oracle\n(DFT / QE)]
-        Oracle -->|4. Labeled Data| Trainer[Trainer\n(Pacemaker)]
+        Generator -->|3. Candidates| Oracle[Oracle]
+        Oracle -->|4. Labeled Data| Trainer[Trainer]
         Trainer -->|5. New Potential| Validator[Validator]
         Validator -->|6. Pass/Fail| Orchestrator
     end
@@ -42,33 +42,29 @@ flowchart TD
 
 *   **Python**: 3.12 or higher
 *   **Package Manager**: `uv` (recommended) or `pip`
-*   **External Tools** (Optional for Mock Mode, Required for Production):
-    *   Quantum Espresso (`pw.x`)
-    *   LAMMPS (`lmp_serial` / `lmp_mpi`) with USER-PACE package
-    *   Pacemaker (`pace_train`, `pace_activeset`)
-    *   EON (`eonclient`)
 
 ## 🛠️ Installation & Setup
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/your-org/pyacemaker.git
-    cd pyacemaker
+    git clone https://github.com/your-org/mlip-pipeline.git
+    cd mlip-pipeline
     ```
 
 2.  **Install dependencies**:
     Using `uv` (fastest):
     ```bash
     uv sync
+    uv pip install -e .
     ```
     Or using `pip`:
     ```bash
-    pip install -e .[dev]
+    pip install -e .
     ```
 
 3.  **Verify installation**:
     ```bash
-    uv run pytest tests/
+    uv run pytest
     ```
 
 ## ⚡ Usage
@@ -77,35 +73,26 @@ flowchart TD
 
 To verify the pipeline logic without running heavy physics codes:
 
-1.  **Initialise a project**:
+1.  **Initialize a configuration**:
     ```bash
-    uv run pyacemaker init my_first_project
-    cd my_first_project
+    uv run mlip-pipeline init --output config.yaml
     ```
 
-2.  **Run the Active Learning Loop**:
+2.  **Validate configuration**:
     ```bash
-    uv run pyacemaker run --config config.yaml --mode mock
+    uv run mlip-pipeline check-config config.yaml
     ```
 
-3.  **Check Status**:
+3.  **Run the Pipeline**:
     ```bash
-    uv run pyacemaker status
+    uv run mlip-pipeline run config.yaml
     ```
-
-### Production Run
-
-Edit `config.yaml` to set `type: qe` and `type: pacemaker`, then run:
-
-```bash
-uv run pyacemaker run --config config.yaml
-```
 
 ## 💻 Development Workflow
 
-This project follows the **AC-CDD** (Architecturally-Constrained Cycle-Driven Development) methodology.
+This project enforces strict code quality standards.
 
-*   **Linting**: strict type checking and style enforcement.
+*   **Linting**:
     ```bash
     uv run ruff check .
     uv run mypy .
@@ -121,13 +108,9 @@ This project follows the **AC-CDD** (Architecturally-Constrained Cycle-Driven De
 src/mlip_autopipec/
 ├── domain_models/          # Pydantic Data Models (Structure, Potential)
 ├── interfaces/             # Abstract Base Classes (Oracle, Trainer)
-├── infrastructure/         # Concrete Implementations (QE, LAMMPS)
-├── orchestrator/           # Core Logic
+├── infrastructure/         # Concrete Implementations (Mocks)
+├── utils/                  # Utilities (Logging)
 └── main.py                 # CLI Entry Point
-
-dev_documents/              # AC-CDD Documentation
-├── system_prompts/         # Cycle Specifications
-└── ALL_SPEC.md             # Original Requirements
 ```
 
 ## 📄 License
