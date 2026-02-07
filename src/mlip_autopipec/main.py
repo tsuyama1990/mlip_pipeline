@@ -2,20 +2,77 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
+import ase.io
 import typer
 import yaml
+from ase import Atoms
 
-from mlip_autopipec.domain_models import GlobalConfig
+from mlip_autopipec.domain_models import GlobalConfig, Structure
+from mlip_autopipec.infrastructure.mocks import MockOracle
+from mlip_autopipec.infrastructure.oracle import DFTManager
+from mlip_autopipec.interfaces import BaseOracle
 from mlip_autopipec.orchestrator import SimpleOrchestrator
 from mlip_autopipec.utils import configure_logging
 
 app = typer.Typer()
 logger = logging.getLogger(__name__)
 
+
+def _load_config(config_path: Path) -> GlobalConfig:
+    try:
+        with config_path.open("r") as f:
+            data = yaml.safe_load(f)
+        return GlobalConfig(**data)
+    except Exception as e:
+        logger.exception("Failed to load configuration")
+        raise typer.Exit(code=1) from e
+
+
+def _create_oracle(config: GlobalConfig) -> BaseOracle:
+    oracle_conf = config.oracle
+
+    if oracle_conf.type == "mock":
+        return MockOracle(oracle_conf.params)
+    if oracle_conf.type == "qe":
+        return DFTManager(oracle_conf.model_dump())
+
+    msg = f"Unsupported oracle type: {oracle_conf.type}"
+    logger.error(msg)
+    raise typer.Exit(code=1)
+
+
+def _load_structure(structure_path: Path) -> Structure:
+    try:
+        atoms_or_list = ase.io.read(structure_path)
+
+        # Handle list or single Atoms
+        if isinstance(atoms_or_list, list):
+            if not atoms_or_list:
+                msg = "Structure file contains no atoms"
+                raise ValueError(msg) # noqa: TRY301
+            atoms = atoms_or_list[0]
+        else:
+            atoms = atoms_or_list
+
+        # Verify it is Atoms (ase.io.read return type is Any or Atoms | list[Atoms])
+        if not isinstance(atoms, Atoms):
+             msg = f"Expected ase.Atoms, got {type(atoms)}"
+             raise TypeError(msg) # noqa: TRY301
+
+        return Structure(
+            positions=atoms.positions,
+            cell=atoms.cell.array,
+            species=atoms.get_chemical_symbols(), # type: ignore[no-untyped-call]
+        )
+    except Exception as e:
+        logger.exception("Failed to load structure")
+        raise typer.Exit(code=1) from e
+
+
 @app.command()
 def run(
     config: Annotated[Path, typer.Option(help="Path to configuration file")],
-    log_level: Annotated[str, typer.Option(help="Logging level (DEBUG, INFO, WARNING, ERROR)")] = "INFO"
+    log_level: Annotated[str, typer.Option(help="Logging level (DEBUG, INFO, WARNING, ERROR)")] = "INFO",
 ) -> None:
     """
     Run the active learning pipeline.
@@ -44,9 +101,10 @@ def run(
         logger.exception("Orchestrator execution failed")
         raise typer.Exit(code=1) from None
 
+
 @app.command()
 def init(
-    path: Annotated[Path, typer.Option(help="Path to save default configuration")] = Path("config.yaml")
+    path: Annotated[Path, typer.Option(help="Path to save default configuration")] = Path("config.yaml"),
 ) -> None:
     """
     Generate a default configuration file.
@@ -77,6 +135,50 @@ def init(
     except Exception:
         logger.exception("Failed to write configuration file")
         raise typer.Exit(code=1) from None
+
+
+@app.command()
+def compute(
+    structure: Annotated[Path, typer.Option(help="Path to structure file (xyz, cif, etc)")],
+    config: Annotated[Path, typer.Option(help="Path to configuration file")],
+    log_level: Annotated[str, typer.Option(help="Logging level")] = "INFO",
+) -> None:
+    """
+    Run a single point calculation using the configured Oracle.
+    Useful for debugging DFT parameters.
+    """
+    configure_logging(level=log_level)
+
+    if not config.exists():
+        logger.error(f"Configuration file {config} not found.")
+        raise typer.Exit(code=1)
+
+    if not structure.exists():
+        logger.error(f"Structure file {structure} not found.")
+        raise typer.Exit(code=1)
+
+    global_config = _load_config(config)
+    oracle = _create_oracle(global_config)
+    s = _load_structure(structure)
+
+    # Run Compute
+    try:
+        logger.info(f"Running calculation on {structure} using {global_config.oracle.type} oracle...")
+        result = oracle.compute(s)
+
+        typer.echo("\n--- Calculation Results ---")
+        typer.echo(f"Energy: {result.energy} eV")
+        if result.forces is not None:
+            typer.echo("Forces (eV/A):")
+            typer.echo(str(result.forces))
+        if result.stress is not None:
+            typer.echo("Stress (eV/A^3 or kbar depending on units, here usually eV/A^3):")
+            typer.echo(str(result.stress))
+
+    except Exception:
+        logger.exception("Calculation failed")
+        raise typer.Exit(code=1) from None
+
 
 if __name__ == "__main__":
     app()

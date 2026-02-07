@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class BaseConfig(BaseModel):
@@ -17,6 +17,41 @@ class OracleConfig(BaseConfig):
     Configuration for the Oracle (ground truth calculator).
     """
     type: Literal["mock", "qe", "vasp"]
+    command: str | None = None
+    pseudo_dir: Path | None = None
+    pseudopotentials: dict[str, str] | None = None
+    kspacing: float = 0.04
+    smearing_width: float = 0.02
+
+    @field_validator("kspacing")
+    @classmethod
+    def validate_kspacing(cls, v: float) -> float:
+        if v <= 0:
+            msg = "kspacing must be positive"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("smearing_width")
+    @classmethod
+    def validate_smearing_width(cls, v: float) -> float:
+        if v <= 0:
+            msg = "smearing_width must be positive"
+            raise ValueError(msg)
+        return v
+
+    @model_validator(mode="after")
+    def validate_qe_config(self) -> "OracleConfig":
+        if self.type == "qe":
+            if not self.command:
+                msg = "QE Oracle requires 'command'"
+                raise ValueError(msg)
+            if not self.pseudo_dir:
+                msg = "QE Oracle requires 'pseudo_dir'"
+                raise ValueError(msg)
+            if not self.pseudopotentials:
+                msg = "QE Oracle requires 'pseudopotentials'"
+                raise ValueError(msg)
+        return self
 
 class TrainerConfig(BaseConfig):
     """
@@ -60,11 +95,12 @@ class GlobalConfig(BaseModel):
     workdir: Path
 
     # Audit: Add max_cycles and initial_structure_path
-    max_cycles: int = 5
+    # Removed defaults to enforce explicit configuration or environment variable loading
+    max_cycles: int = Field(default=5, description="Maximum number of active learning cycles")
     initial_structure_path: Path | None = None
 
     # Dataset configuration
-    dataset_maxlen: int = 1000
+    dataset_maxlen: int = Field(default=1000, description="Maximum size of the dataset")
 
     oracle: OracleConfig
     trainer: TrainerConfig

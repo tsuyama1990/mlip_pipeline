@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import ase.io
 import yaml
+from ase import Atoms
 from typer.testing import CliRunner
 
 from mlip_autopipec.main import app
@@ -43,3 +45,25 @@ def test_run_command(tmp_path: Path) -> None:
     # Check artifacts
     assert workdir.exists()
     assert (workdir / "potential.yace").exists()
+
+def test_compute_command(tmp_path: Path) -> None:
+    # 1. Create config
+    config_path = tmp_path / "config.yaml"
+    result_init = runner.invoke(app, ["init", "--path", str(config_path)])
+    assert result_init.exit_code == 0
+
+    # 2. Modify config to use MockOracle (default)
+    # The default config uses mock oracle.
+
+    # 3. Create structure
+    structure_path = tmp_path / "structure.xyz"
+    # Use dummy atoms
+    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]], cell=[10, 10, 10], pbc=True)
+    ase.io.write(structure_path, atoms)
+
+    # 4. Run compute
+    result_compute = runner.invoke(app, ["compute", "--structure", str(structure_path), "--config", str(config_path)])
+
+    assert result_compute.exit_code == 0
+    assert "Calculation Results" in result_compute.stdout
+    assert "Energy:" in result_compute.stdout

@@ -15,6 +15,7 @@ from mlip_autopipec.domain_models import (
     TrainerConfig,
     ValidatorConfig,
 )
+from mlip_autopipec.infrastructure.generator import RandomDisplacement
 from mlip_autopipec.infrastructure.mocks import (
     MockDynamics,
     MockOracle,
@@ -23,6 +24,7 @@ from mlip_autopipec.infrastructure.mocks import (
     MockTrainer,
     MockValidator,
 )
+from mlip_autopipec.infrastructure.oracle import DFTManager
 from mlip_autopipec.interfaces import (
     BaseDynamics,
     BaseOracle,
@@ -68,6 +70,9 @@ class SimpleOrchestrator:
     def _create_oracle(self, config: OracleConfig) -> BaseOracle:
         if config.type == "mock":
             return MockOracle(config.params)
+        if config.type == "qe":
+            # Pass full config as params because DFTManager expects fields like command in params
+            return DFTManager(config.model_dump())
         msg = f"Unknown oracle type: {config.type}"
         raise ValueError(msg)
 
@@ -84,8 +89,10 @@ class SimpleOrchestrator:
         raise ValueError(msg)
 
     def _create_generator(self, config: GeneratorConfig) -> BaseStructureGenerator:
-        if config.type in {"mock", "random"}:
+        if config.type == "mock":
             return MockStructureGenerator(config.params)
+        if config.type == "random":
+            return RandomDisplacement(config.params)
         msg = f"Unknown generator type: {config.type}"
         raise ValueError(msg)
 
@@ -165,11 +172,12 @@ class SimpleOrchestrator:
 
     def _iterate_dataset(self) -> Iterator[Structure]:
         """
-        Yield structures from the file-based dataset.
+        Yield structures from the file-based dataset using streaming.
         """
         if not self.dataset_path.exists():
             return
 
+        # Ensure we are yielding one by one without loading all lines
         with self.dataset_path.open("r") as f:
             for line in f:
                 if line.strip():

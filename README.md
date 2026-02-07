@@ -1,77 +1,94 @@
-# PYACEMAKER: Autopilot for Machine Learning Potentials
+# PYACEMAKER (MLIP Pipeline)
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Python](https://img.shields.io/badge/python-3.12-blue)
 
-**PYACEMAKER** is an autonomous system that democratizes the creation of State-of-the-Art Machine Learning Interatomic Potentials (MLIPs). Currently in **Cycle 01**, it provides a robust "Walking Skeleton" architecture with a complete active learning loop simulation using mock components.
+**Automated Active Learning Pipeline for Machine Learning Interatomic Potentials.**
 
-## 🚀 Key Features
+## Overview
 
--   **Active Learning Orchestration**: Fully automated loop: Generate -> Oracle -> Train -> Dynamics.
--   **Mock Infrastructure**: Simulate the entire pipeline without expensive physics calculations to verify logic and flow.
--   **Strict Typing & Validation**: Built on Pydantic and Abstract Base Classes for reliability.
--   **Configurable**: Simple YAML configuration to control all components.
+### What is this?
+PYACEMAKER is a modular, scalable pipeline for generating Machine Learning Interatomic Potentials (MLIPs). It automates the active learning loop: exploring atomic structures, calculating ground truth data (DFT), fitting potentials, and validating performance.
 
-## 🛠 Prerequisites
+### Why?
+Developing MLIPs requires complex workflows involving DFT calculations, MD simulations, and iterative training. This tool orchestrates these components into a seamless, fault-tolerant pipeline, allowing researchers to focus on physics rather than scripting.
 
--   **Python 3.12+**
--   **uv** (Fast Python package manager)
+## Features
 
-## 📦 Installation
+- **Modular Architecture**: Swappable components for Oracle, Trainer, Dynamics, Generator, Validator, and Selector.
+- **DFT Integration**: Built-in support for Quantum Espresso (QE) via ASE, with automatic self-healing (retries with adjusted parameters) for convergence failures.
+- **Active Learning Loop**: Automated generation of candidate structures (e.g., via Random Displacement) and selection for labeling.
+- **Scalability**: Designed for streaming data processing to handle large datasets without memory bottlenecks.
+- **Robust CLI**: Easy-to-use command line interface for initialization, execution, and debugging (`compute` command).
+- **Configuration Validation**: Strict schema validation using Pydantic ensures reliable runs.
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/your-org/mlip-pipeline.git
-    cd mlip-pipeline
-    ```
+## Requirements
 
-2.  **Install Dependencies**
-    ```bash
-    uv sync
-    ```
+- Python >= 3.12
+- `uv` (recommended for dependency management) or `pip`
+- Quantum Espresso (`pw.x`) installed and accessible in PATH (for DFT calculations)
 
-3.  **Activate Environment** (Optional if using `uv run`)
-    ```bash
-    source .venv/bin/activate
-    ```
+## Installation
 
-## 🏃 Usage
-
-### 1. Initialize Configuration
-Generate a default configuration file (`config.yaml`) with mock settings.
 ```bash
-uv run pyacemaker init
+# Clone the repository
+git clone https://github.com/your-org/mlip-pipeline.git
+cd mlip-pipeline
+
+# Install dependencies using uv
+uv sync
 ```
 
-### 2. Run the Pipeline
-Execute the active learning loop simulation.
+## Usage
+
+### 1. Initialize Configuration
+Generate a default configuration file:
+```bash
+uv run pyacemaker init --path config.yaml
+```
+
+### 2. Configure
+Edit `config.yaml` to set up your project. For DFT (Quantum Espresso), ensure you have pseudopotentials available:
+```yaml
+oracle:
+  type: qe
+  command: "mpirun -np 4 pw.x"
+  pseudo_dir: "/path/to/pseudos"
+  pseudopotentials:
+    Si: "Si.pbe-n-kjpaw_psl.1.0.0.UPF"
+```
+
+### 3. Run Pipeline
+Execute the active learning loop:
 ```bash
 uv run pyacemaker run --config config.yaml
 ```
 
-You should see logs indicating the progression of cycles (Generation, Oracle computation, Training, Dynamics).
+### 4. Debug Calculation (Single Point)
+Run a single DFT calculation on a structure file (xyz, cif, etc.) to verify settings:
+```bash
+uv run pyacemaker compute --structure structure.xyz --config config.yaml
+```
 
-## 🏗 Architecture
-
-The system follows a modular architecture:
+## Architecture
 
 ```
 src/mlip_autopipec/
-├── domain_models/    # Pydantic data schemas (Structure, Config)
-├── interfaces/       # Abstract Base Classes (Oracle, Trainer, etc.)
-├── infrastructure/   # Concrete implementations (Mocks)
-├── orchestrator/     # Main logic loop
-└── main.py           # CLI entry point
+├── domain_models/       # Pydantic data schemas (Structure, Config, etc.)
+├── infrastructure/      # Concrete implementations
+│   ├── generator/       # Structure generators (RandomDisplacement)
+│   ├── mocks/           # Mock components for testing
+│   └── oracle/          # Physics calculators (DFTManager)
+├── interfaces/          # Abstract Base Classes
+├── orchestrator/        # Workflow management logic
+└── utils/               # Physics and logging utilities
 ```
 
-## 🗺 Roadmap
+## Roadmap
 
--   **Cycle 01**: Walking Skeleton & Mocks (Completed)
--   **Cycle 02**: Real Physics Integrations (QE, Pacemaker)
--   **Cycle 03**: Advanced Dynamics & Exploration
--   ...
-
-## 📄 License
-
-This project is licensed under the MIT License.
+- [x] Cycle 01: Foundation & Orchestrator (Mocks)
+- [x] Cycle 02: Data Generation & DFT Integration (Quantum Espresso)
+- [ ] Cycle 03: ML Potential Training (PACE/MACE)
+- [ ] Cycle 04: MD & Active Learning Strategies
+- [ ] Cycle 05: HPC Scalability (Slurm/Parsl)
+- [ ] Cycle 06: Production Readiness & Validation
