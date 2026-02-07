@@ -6,7 +6,7 @@ The initial implementation followed a waterfall specification, but pragmatic dev
 # Critical Process (Execute in Order)
 
 ## 1. Architectural Analysis (Review & Compare)
-- **Review**: Analyze the current Class design, Code design, and `domain_models` package (or directory).
+- **Review**: Analyse the current Class design, Code design, and `domain_models` package (or directory).
 - **Compare**: Check these against the initial vision in `SPEC.md` and `SYSTEM_ARCHITECTURE.md` (in context files).
 - **Decision**: Identify discrepancies.
     - If the discrepancy exists because the implementation is *sloppy*, fix the implementation to match the Spec.
@@ -14,12 +14,12 @@ The initial implementation followed a waterfall specification, but pragmatic dev
     - *Goal*: The code must be the single source of truth for the best possible architecture.
 
 ## 2. Re-build Schema & Contracts
-- **Refactor Schemas**: Update `src/domain_models/` package to reflect the *optimized* architecture decided in Step 1. Split large files if necessary.
-- **Enforce Consistency**: Ensure all Pydantic models and interfaces are consistent with this optimized design. This is the foundation for the rest of the refactoring.
+- **Refactor Schemas**: Update `src/domain_models/` package to reflect the *optimised* architecture decided in Step 1. Split large files if necessary.
+- **Enforce Consistency**: Ensure all Pydantic models and interfaces are consistent with this optimised design. This is the foundation for the rest of the refactoring.
 
 ## 3. Re-build Test Design
 - **Align Tests**: Update `tests/` to match the new schema and architecture.
-- **Prune & Improve**: Remove tests that enforce obsolete spec behaviors. Write new tests that enforce the *new* pragmatic architecture.
+- **Prune & Improve**: Remove tests that enforce obsolete spec behaviours. Write new tests that enforce the *new* pragmatic architecture.
 - **Coverage**: Ensure Unit and E2E tests cover the critical paths of the finalized design.
 
 ## 4. Comprehensive Refactoring (SOLID & Hygiene)

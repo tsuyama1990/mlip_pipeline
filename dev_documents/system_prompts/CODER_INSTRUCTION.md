@@ -52,10 +52,10 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 
 ### 0. Phase 0: Review & Refine Specification
 **Before starting any new implementation, you must ensure the specification is optimal.**
-- **Review Existing Code**: Analyze the current codebase to understand existing patterns, utilities, and architectural decisions.
+- **Review Existing Code**: Analyse the current codebase to understand existing patterns, utilities, and architectural decisions.
 - **Refine SPEC.md**:
   - Update `SPEC.md` to fix any inconsistencies with the current codebase.
-  - Optimize the design architecture if you discover a better approach based on the existing implementation.
+  - Optimise the design architecture if you discover a better approach based on the existing implementation.
   - Ensure logical consistency before writing a single line of new code.
 
 ### 1. Phase 1: Blueprint Realization (Schema Implementation)
