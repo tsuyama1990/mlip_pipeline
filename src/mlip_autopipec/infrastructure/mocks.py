@@ -15,10 +15,10 @@ from mlip_autopipec.domain_models import (
 from mlip_autopipec.interfaces import (
     BaseDynamics,
     BaseOracle,
+    BaseSelector,
     BaseStructureGenerator,
     BaseTrainer,
     BaseValidator,
-    BaseSelector,
 )
 
 logger = logging.getLogger(__name__)

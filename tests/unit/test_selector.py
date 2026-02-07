@@ -1,12 +1,13 @@
 import numpy as np
-import pytest
-from mlip_autopipec.infrastructure.mocks import MockSelector
+
 from mlip_autopipec.domain_models import Structure
+from mlip_autopipec.infrastructure.mocks import MockSelector
+
 
 def test_mock_selector() -> None:
     # Setup
     candidates = []
-    for i in range(10):
+    for _ in range(10):
         s = Structure(
             positions=np.array([[0.0, 0.0, 0.0]]),
             cell=np.eye(3),

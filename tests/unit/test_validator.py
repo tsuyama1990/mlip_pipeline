@@ -1,8 +1,8 @@
 from pathlib import Path
 
-import pytest
-from mlip_autopipec.infrastructure.mocks import MockValidator
 from mlip_autopipec.domain_models.validation import ValidationResult
+from mlip_autopipec.infrastructure.mocks import MockValidator
+
 
 def test_mock_validator(tmp_path: Path) -> None:
     # Setup

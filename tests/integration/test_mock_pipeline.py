@@ -3,13 +3,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from mlip_autopipec.domain_models import Structure, ValidationResult
+from mlip_autopipec.domain_models import Structure
 from mlip_autopipec.infrastructure.mocks import (
     MockDynamics,
     MockOracle,
+    MockSelector,
     MockStructureGenerator,
     MockTrainer,
-    MockSelector,
     MockValidator,
 )
 

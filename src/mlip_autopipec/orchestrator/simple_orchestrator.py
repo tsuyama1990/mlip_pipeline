@@ -1,6 +1,8 @@
 import collections
 import logging
 from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -83,7 +85,7 @@ class SimpleOrchestrator:
         raise ValueError(msg)
 
     def _create_generator(self, config: GeneratorConfig) -> BaseStructureGenerator:
-        if config.type == "mock" or config.type == "random":
+        if config.type in {"mock", "random"}:
             return MockStructureGenerator(config.params)
         msg = f"Unknown generator type: {config.type}"
         raise ValueError(msg)
@@ -95,7 +97,7 @@ class SimpleOrchestrator:
         raise ValueError(msg)
 
     def _create_selector(self, config: SelectorConfig) -> BaseSelector:
-        if config.type == "mock" or config.type == "random":
+        if config.type in {"mock", "random"}:
             return MockSelector(config.params)
         msg = f"Unknown selector type: {config.type}"
         raise ValueError(msg)
@@ -111,37 +113,10 @@ class SimpleOrchestrator:
             msg = f"--- Cycle {self.cycle_count} started ---"
             logger.info(msg)
 
-            # 1. Generate (Exploration)
-            try:
-                candidates = self.generator.generate(current_structure, strategy="random")
-                logger.info(f"Generated {len(candidates)} candidates")
-            except Exception as e:
-                logger.exception("Generator failed unexpectedly")
-                msg = f"Cycle {self.cycle_count} failed at Generator stage"
-                raise RuntimeError(msg) from e
+            candidates = self._step_exploration(current_structure)
+            selected_candidates = self._step_selection(candidates)
 
-            # 2. Select (Active Learning Selection)
-            try:
-                # Select a subset of candidates (e.g., 5 or less)
-                n_select = self.config.selector.params.get("n", 5)
-                selected_candidates = self.selector.select(candidates, n=n_select, existing_data=list(self.dataset_structures))
-                logger.info(f"Selected {len(selected_candidates)} candidates for labeling")
-            except Exception as e:
-                logger.exception("Selector failed unexpectedly")
-                msg = f"Cycle {self.cycle_count} failed at Selector stage"
-                raise RuntimeError(msg) from e
-
-            # 3. Oracle (Calculation)
-            new_data = []
-            try:
-                for candidate in selected_candidates:
-                    labeled = self.oracle.compute(candidate)
-                    new_data.append(labeled)
-            except Exception as e:
-                logger.exception("Oracle failed unexpectedly")
-                msg = f"Cycle {self.cycle_count} failed at Oracle stage"
-                raise RuntimeError(msg) from e
-
+            new_data = self._step_calculation(selected_candidates)
             if not new_data:
                 logger.warning("No new data from Oracle. Stopping.")
                 break
@@ -149,46 +124,88 @@ class SimpleOrchestrator:
             self.dataset_structures.extend(new_data)
             logger.info(f"Dataset size: {len(self.dataset_structures)}")
 
-            # 4. Train (Refinement)
-            try:
-                # Pass iterator for memory safety
-                structure_iterator: Iterator[Structure] = iter(self.dataset_structures)
-                potential_path = self.trainer.train(structure_iterator, {}, self.workdir)
-            except Exception as e:
-                logger.exception("Trainer failed unexpectedly")
-                msg = f"Cycle {self.cycle_count} failed at Trainer stage"
-                raise RuntimeError(msg) from e
+            potential_path = self._step_refinement()
+            self._step_validation(potential_path)
 
-            # 5. Validate (Quality Assurance)
-            try:
-                validation_result = self.validator.validate(potential_path)
-                if not validation_result.passed:
-                    logger.warning(f"Validation failed: {validation_result.metrics}")
-                else:
-                    logger.info("Validation passed.")
-            except Exception as e:
-                logger.exception("Validator failed unexpectedly")
-                msg = f"Cycle {self.cycle_count} failed at Validator stage"
-                raise RuntimeError(msg) from e
+            dynamics_result = self._step_deployment(potential_path, new_data[-1])
+            if dynamics_result.trajectory:
+                current_structure = dynamics_result.trajectory[-1]
 
-            # 6. Dynamics (Deployment/Exploration)
-            try:
-                start_struct = new_data[-1]
-                result = self.dynamics.run(potential_path, start_struct)
-                logger.info(f"Dynamics finished with status: {result.status}")
-
-                if result.trajectory:
-                    current_structure = result.trajectory[-1]
-
-                if result.status == "halted":
-                     logger.info("Dynamics halted. Stopping loop.")
-                     break
-            except Exception as e:
-                logger.exception("Dynamics failed unexpectedly")
-                msg = f"Cycle {self.cycle_count} failed at Dynamics stage"
-                raise RuntimeError(msg) from e
+            if dynamics_result.status == "halted":
+                 logger.info("Dynamics halted. Stopping loop.")
+                 break
 
             msg = f"--- Cycle {self.cycle_count} completed ---"
             logger.info(msg)
 
         logger.info("Orchestrator finished.")
+
+    def _step_exploration(self, current_structure: Structure) -> list[Structure]:
+        try:
+            candidates = self.generator.generate(current_structure, strategy="random")
+            logger.info(f"Generated {len(candidates)} candidates")
+        except Exception as e:
+            logger.exception("Generator failed unexpectedly")
+            msg = f"Cycle {self.cycle_count} failed at Generator stage"
+            raise RuntimeError(msg) from e
+        else:
+            return candidates
+
+    def _step_selection(self, candidates: list[Structure]) -> list[Structure]:
+        try:
+            n_select = self.config.selector.params.get("n", 5)
+            selected_candidates = self.selector.select(candidates, n=n_select, existing_data=list(self.dataset_structures))
+            logger.info(f"Selected {len(selected_candidates)} candidates for labeling")
+        except Exception as e:
+            logger.exception("Selector failed unexpectedly")
+            msg = f"Cycle {self.cycle_count} failed at Selector stage"
+            raise RuntimeError(msg) from e
+        else:
+            return selected_candidates
+
+    def _step_calculation(self, selected_candidates: list[Structure]) -> list[Structure]:
+        new_data = []
+        try:
+            for candidate in selected_candidates:
+                labeled = self.oracle.compute(candidate)
+                new_data.append(labeled)
+        except Exception as e:
+            logger.exception("Oracle failed unexpectedly")
+            msg = f"Cycle {self.cycle_count} failed at Oracle stage"
+            raise RuntimeError(msg) from e
+        else:
+            return new_data
+
+    def _step_refinement(self) -> Path:
+        try:
+            # Pass iterator for memory safety
+            structure_iterator: Iterator[Structure] = iter(self.dataset_structures)
+            return self.trainer.train(structure_iterator, {}, self.workdir)
+        except Exception as e:
+            logger.exception("Trainer failed unexpectedly")
+            msg = f"Cycle {self.cycle_count} failed at Trainer stage"
+            raise RuntimeError(msg) from e
+
+    def _step_validation(self, potential_path: Path) -> None:
+        try:
+            validation_result = self.validator.validate(potential_path)
+            if not validation_result.passed:
+                logger.warning(f"Validation failed: {validation_result.metrics}")
+            else:
+                logger.info("Validation passed.")
+        except Exception as e:
+            logger.exception("Validator failed unexpectedly")
+            msg = f"Cycle {self.cycle_count} failed at Validator stage"
+            raise RuntimeError(msg) from e
+
+    def _step_deployment(self, potential_path: Path, start_struct: Structure) -> Any:
+        # Note: Return type is ExplorationResult, but using Any to avoid import cycles if not carefully managed or strict typing issues
+        try:
+            result = self.dynamics.run(potential_path, start_struct)
+            logger.info(f"Dynamics finished with status: {result.status}")
+        except Exception as e:
+            logger.exception("Dynamics failed unexpectedly")
+            msg = f"Cycle {self.cycle_count} failed at Dynamics stage"
+            raise RuntimeError(msg) from e
+        else:
+            return result
