@@ -22,7 +22,7 @@ src/mlip_autopipec/domain_models/config.py                  25      0   100%
 src/mlip_autopipec/domain_models/potential.py               15      0   100%
 src/mlip_autopipec/domain_models/structure.py               32      0   100%
 src/mlip_autopipec/infrastructure/__init__.py                2      0   100%
-src/mlip_autopipec/infrastructure/mocks.py                  62      0   100%
+src/mlip_autopipec/infrastructure/mocks.py                  63      0   100%
 src/mlip_autopipec/interfaces/__init__.py                    5      0   100%
 src/mlip_autopipec/interfaces/dynamics.py                    9      0   100%
 src/mlip_autopipec/interfaces/generator.py                   8      0   100%
@@ -30,11 +30,11 @@ src/mlip_autopipec/interfaces/oracle.py                      8      0   100%
 src/mlip_autopipec/interfaces/trainer.py                    10      0   100%
 src/mlip_autopipec/main.py                                  46     14    70%   27-28, 36-38, 43-45, 57-58, 75-77, 80
 src/mlip_autopipec/orchestrator/__init__.py                  2      0   100%
-src/mlip_autopipec/orchestrator/simple_orchestrator.py      99     32    68%   47-48, 62-63, 68-69, 74-75, 80-84, 101-105, 113-116, 119-120, 130-133, 147-153
+src/mlip_autopipec/orchestrator/simple_orchestrator.py      99     30    70%   47-48, 62-63, 68-69, 74-75, 80-84, 101-105, 113-116, 119-120, 130-133, 147-150
 src/mlip_autopipec/utils/__init__.py                         2      0   100%
 src/mlip_autopipec/utils/logging.py                          8      1    88%   11
 --------------------------------------------------------------------------------------
-TOTAL                                                      338     47    86%
-============================== 13 passed in 1.23s ==============================
+TOTAL                                                      339     45    87%
+============================== 13 passed in 1.22s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

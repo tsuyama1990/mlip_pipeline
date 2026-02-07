@@ -1,19 +1,21 @@
+import logging
 import secrets
 import time
-import logging
-import numpy as np
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast, Literal, Iterable
+from typing import Any, Literal
+
+import numpy as np
 
 from mlip_autopipec.domain_models import (
-    Structure,
     ExplorationResult,
+    Structure,
 )
 from mlip_autopipec.interfaces import (
-    BaseOracle,
-    BaseTrainer,
     BaseDynamics,
+    BaseOracle,
     BaseStructureGenerator,
+    BaseTrainer,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ class MockTrainer(BaseTrainer):
     """
     Mock Trainer that creates a dummy potential file.
     """
-    def train(self, structures: Iterable[Structure], params: Dict[str, Any], workdir: Union[str, Path]) -> Path:
+    def train(self, structures: Iterable[Structure], params: dict[str, Any], workdir: str | Path) -> Path:
         # Input validation for path traversal
         workdir_path = Path(workdir).resolve()
 
@@ -83,14 +85,14 @@ class MockDynamics(BaseDynamics):
     """
     Mock Dynamics that returns a random exploration result.
     """
-    def run(self, potential: Union[str, Path], structure: Structure) -> ExplorationResult:
+    def run(self, potential: str | Path, structure: Structure) -> ExplorationResult:
         logger.info("MockDynamics running...")
 
         # Check params to control behavior if needed
         force_halt = self.params.get("force_halt", False)
 
         # Explicit type hinting for mypy
-        status_options: List[Literal["halted", "converged", "max_steps", "failed"]] = ["halted", "converged"]
+        status_options: list[Literal["halted", "converged", "max_steps", "failed"]] = ["halted", "converged"]
 
         status: Literal["halted", "converged", "max_steps", "failed"]
         status = "halted" if force_halt else secrets.choice(status_options)
@@ -106,7 +108,7 @@ class MockStructureGenerator(BaseStructureGenerator):
     """
     Mock Generator that perturbs positions.
     """
-    def generate(self, base_structure: Structure, strategy: str) -> List[Structure]:
+    def generate(self, base_structure: Structure, strategy: str) -> list[Structure]:
         logger.info(f"MockStructureGenerator generating with strategy {strategy}")
         new_struct = base_structure.model_copy(deep=True)
 
