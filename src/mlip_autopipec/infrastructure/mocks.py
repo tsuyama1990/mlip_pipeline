@@ -57,9 +57,6 @@ class MockTrainer(BaseTrainer):
 
         # Audit: Strict check - only allow paths within current working directory or /tmp (for tests)
         cwd = Path.cwd().resolve()
-        # Use simple string check for /tmp to avoid ruff S108 complaint if possible, but hardcoding /tmp is flagged.
-        # But we need to allow tmp for tests.
-        # We will ignore S108 here as it is necessary for testing in this environment.
         temp = Path("/tmp").resolve() # noqa: S108
 
         if not (workdir_path.is_relative_to(cwd) or workdir_path.is_relative_to(temp)):
