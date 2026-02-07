@@ -2,12 +2,12 @@ import collections
 import logging
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
 from mlip_autopipec.domain_models import (
     DynamicsConfig,
+    ExplorationResult,
     GeneratorConfig,
     GlobalConfig,
     OracleConfig,
@@ -141,6 +141,9 @@ class SimpleOrchestrator:
         logger.info("Orchestrator finished.")
 
     def _step_exploration(self, current_structure: Structure) -> list[Structure]:
+        """
+        Generate candidate structures for exploration.
+        """
         try:
             candidates = self.generator.generate(current_structure, strategy="random")
             logger.info(f"Generated {len(candidates)} candidates")
@@ -152,6 +155,9 @@ class SimpleOrchestrator:
             return candidates
 
     def _step_selection(self, candidates: list[Structure]) -> list[Structure]:
+        """
+        Select the most informative structures from the candidates.
+        """
         try:
             n_select = self.config.selector.params.get("n", 5)
             selected_candidates = self.selector.select(candidates, n=n_select, existing_data=list(self.dataset_structures))
@@ -164,6 +170,9 @@ class SimpleOrchestrator:
             return selected_candidates
 
     def _step_calculation(self, selected_candidates: list[Structure]) -> list[Structure]:
+        """
+        Compute energy and forces for the selected candidates using the Oracle.
+        """
         new_data = []
         try:
             for candidate in selected_candidates:
@@ -177,6 +186,9 @@ class SimpleOrchestrator:
             return new_data
 
     def _step_refinement(self) -> Path:
+        """
+        Train a new potential using the updated dataset.
+        """
         try:
             # Pass iterator for memory safety
             structure_iterator: Iterator[Structure] = iter(self.dataset_structures)
@@ -187,6 +199,9 @@ class SimpleOrchestrator:
             raise RuntimeError(msg) from e
 
     def _step_validation(self, potential_path: Path) -> None:
+        """
+        Validate the quality of the trained potential.
+        """
         try:
             validation_result = self.validator.validate(potential_path)
             if not validation_result.passed:
@@ -198,8 +213,10 @@ class SimpleOrchestrator:
             msg = f"Cycle {self.cycle_count} failed at Validator stage"
             raise RuntimeError(msg) from e
 
-    def _step_deployment(self, potential_path: Path, start_struct: Structure) -> Any:
-        # Note: Return type is ExplorationResult, but using Any to avoid import cycles if not carefully managed or strict typing issues
+    def _step_deployment(self, potential_path: Path, start_struct: Structure) -> ExplorationResult:
+        """
+        Run dynamics or exploration using the trained potential.
+        """
         try:
             result = self.dynamics.run(potential_path, start_struct)
             logger.info(f"Dynamics finished with status: {result.status}")
