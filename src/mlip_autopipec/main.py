@@ -66,6 +66,8 @@ def init(
         "trainer": {"type": "mock", "params": {}},
         "dynamics": {"type": "mock", "params": {}},
         "generator": {"type": "mock", "params": {}},
+        "validator": {"type": "mock", "params": {}},
+        "selector": {"type": "mock", "params": {}},
     }
 
     try:
