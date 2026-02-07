@@ -1,4 +1,3 @@
-import collections
 import logging
 from collections.abc import Iterator
 from pathlib import Path
@@ -49,9 +48,8 @@ class SimpleOrchestrator:
         self.validator = self._create_validator(config.validator)
         self.selector = self._create_selector(config.selector)
 
-        # State
-        # Use configured maxlen
-        self.dataset_structures: collections.deque[Structure] = collections.deque(maxlen=config.dataset_maxlen)
+        # State: File-based persistence
+        self.dataset_path = self.workdir / "dataset.jsonl"
         self.cycle_count = 0
 
         if config.initial_structure_path and config.initial_structure_path.exists():
@@ -115,36 +113,69 @@ class SimpleOrchestrator:
             logger.info(msg)
 
             candidates = self._step_exploration(current_structure)
+
+            # Selection step typically needs awareness of existing data.
+            # For scalability, we might just pass a count or metadata,
+            # but the interface accepts list[Structure].
+            # We assume candidates are in memory (generated batch).
+            # The 'existing_data' is optional in interface. For now, we pass None to avoid loading.
             selected_candidates = self._step_selection(candidates)
 
-            new_data = self._step_calculation(selected_candidates)
-            if not new_data:
+            new_data_iterator = self._step_calculation(selected_candidates)
+
+            # Persist new data immediately (Streaming)
+            last_structure = None
+            count = 0
+            for struct in new_data_iterator:
+                self._append_structure(struct)
+                last_structure = struct
+                count += 1
+
+            if count == 0:
                 logger.warning("No new data from Oracle. Stopping.")
                 break
 
-            self.dataset_structures.extend(new_data)
-            logger.info(f"Dataset size: {len(self.dataset_structures)}")
+            logger.info(f"Added {count} structures to dataset at {self.dataset_path}")
 
             potential_path = self._step_refinement()
             self._step_validation(potential_path)
 
-            dynamics_result = self._step_deployment(potential_path, new_data[-1])
-            if dynamics_result.trajectory:
-                current_structure = dynamics_result.trajectory[-1]
+            # Use the last computed structure for dynamics
+            if last_structure:
+                dynamics_result = self._step_deployment(potential_path, last_structure)
+                if dynamics_result.trajectory:
+                    current_structure = dynamics_result.trajectory[-1]
 
-            if dynamics_result.status == "halted":
-                 logger.info("Dynamics halted. Stopping loop.")
-                 break
+                if dynamics_result.status == "halted":
+                     logger.info("Dynamics halted. Stopping loop.")
+                     break
 
             msg = f"--- Cycle {self.cycle_count} completed ---"
             logger.info(msg)
 
         logger.info("Orchestrator finished.")
 
+    def _append_structure(self, structure: Structure) -> None:
+        """
+        Append a structure to the file-based dataset.
+        """
+        # Append as JSONL
+        with self.dataset_path.open("a") as f:
+            f.write(structure.model_dump_json() + "\n")
+
+    def _iterate_dataset(self) -> Iterator[Structure]:
+        """
+        Yield structures from the file-based dataset.
+        """
+        if not self.dataset_path.exists():
+            return
+
+        with self.dataset_path.open("r") as f:
+            for line in f:
+                if line.strip():
+                    yield Structure.model_validate_json(line)
+
     def _step_exploration(self, current_structure: Structure) -> list[Structure]:
-        """
-        Generate candidate structures for exploration.
-        """
         try:
             candidates = self.generator.generate(current_structure, strategy="random")
             logger.info(f"Generated {len(candidates)} candidates")
@@ -156,12 +187,10 @@ class SimpleOrchestrator:
             return candidates
 
     def _step_selection(self, candidates: list[Structure]) -> list[Structure]:
-        """
-        Select the most informative structures from the candidates.
-        """
         try:
             n_select = self.config.selector.params.get("n", 5)
-            selected_candidates = self.selector.select(candidates, n=n_select, existing_data=list(self.dataset_structures))
+            # Pass None for existing_data to avoid OOM
+            selected_candidates = self.selector.select(candidates, n=n_select, existing_data=None)
             logger.info(f"Selected {len(selected_candidates)} candidates for labeling")
         except Exception as e:
             logger.exception("Selector failed unexpectedly")
@@ -170,10 +199,7 @@ class SimpleOrchestrator:
         else:
             return selected_candidates
 
-    def _step_calculation(self, selected_candidates: list[Structure]) -> list[Structure]:
-        """
-        Compute energy and forces for the selected candidates using the Oracle (Batch).
-        """
+    def _step_calculation(self, selected_candidates: list[Structure]) -> Iterator[Structure]:
         try:
             return self.oracle.compute_batch(selected_candidates)
         except Exception as e:
@@ -182,12 +208,9 @@ class SimpleOrchestrator:
             raise RuntimeError(msg) from e
 
     def _step_refinement(self) -> Path:
-        """
-        Train a new potential using the updated dataset.
-        """
         try:
-            # Pass iterator for memory safety
-            structure_iterator: Iterator[Structure] = iter(self.dataset_structures)
+            # Pass generator for memory safety
+            structure_iterator = self._iterate_dataset()
             return self.trainer.train(structure_iterator, {}, self.workdir)
         except Exception as e:
             logger.exception("Trainer failed unexpectedly")
@@ -195,9 +218,6 @@ class SimpleOrchestrator:
             raise RuntimeError(msg) from e
 
     def _step_validation(self, potential_path: Path) -> None:
-        """
-        Validate the quality of the trained potential.
-        """
         try:
             validation_result = self.validator.validate(potential_path)
             if not validation_result.passed:
@@ -210,9 +230,6 @@ class SimpleOrchestrator:
             raise RuntimeError(msg) from e
 
     def _step_deployment(self, potential_path: Path, start_struct: Structure) -> ExplorationResult:
-        """
-        Run dynamics or exploration using the trained potential.
-        """
         try:
             result = self.dynamics.run(potential_path, start_struct)
             logger.info(f"Dynamics finished with status: {result.status}")

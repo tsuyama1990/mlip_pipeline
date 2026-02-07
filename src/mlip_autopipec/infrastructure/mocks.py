@@ -1,7 +1,8 @@
 import logging
 import secrets
+import tempfile
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -50,14 +51,16 @@ class MockOracle(BaseOracle):
         logger.info(f"MockOracle computed structure with energy {energy}")
         return new_struct
 
-    def compute_batch(self, structures: list[Structure]) -> list[Structure]:
+    def compute_batch(self, structures: list[Structure]) -> Iterator[Structure]:
         """
         Compute energy and forces for a batch of structures efficiently.
+        Returns a generator.
         """
         # In a real oracle, we would batch this I/O.
         # For mock, we just iterate but we pretend it's faster/batched.
         logger.info(f"MockOracle batch computing {len(structures)} structures")
-        return [self.compute(s) for s in structures]
+        for s in structures:
+            yield self.compute(s)
 
 class MockTrainer(BaseTrainer):
     """
@@ -67,13 +70,14 @@ class MockTrainer(BaseTrainer):
         # Input validation for path traversal
         workdir_path = Path(workdir).resolve()
 
-        # Audit: Strict check - only allow paths within current working directory or /tmp (for tests)
+        # Audit: Strict check - only allow paths within current working directory or system temp dir
         cwd = Path.cwd().resolve()
-        temp = Path("/tmp").resolve() # noqa: S108
+        temp_dir = Path(tempfile.gettempdir()).resolve()
 
-        # Security check: must be relative to CWD or /tmp
+        # Security check: must be relative to CWD or temp
         is_safe = False
         try:
+            # relative_to raises ValueError if not relative
             workdir_path.relative_to(cwd)
             is_safe = True
         except ValueError:
@@ -81,13 +85,21 @@ class MockTrainer(BaseTrainer):
 
         if not is_safe:
             try:
-                workdir_path.relative_to(temp)
+                workdir_path.relative_to(temp_dir)
                 is_safe = True
             except ValueError:
                 pass
 
+            # Also explicitly allow /tmp (common in CI/Docker) if it differs from gettempdir()
+            if not is_safe and temp_dir != Path("/tmp").resolve(): # noqa: S108
+                try:
+                    workdir_path.relative_to(Path("/tmp").resolve()) # noqa: S108
+                    is_safe = True
+                except ValueError:
+                    pass
+
         if not is_safe:
-             msg = f"Security Violation: Workdir '{workdir_path}' must be inside project root or /tmp."
+             msg = f"Security Violation: Workdir '{workdir_path}' must be inside project root or system temp dir."
              logger.error(msg)
              raise ValueError(msg)
 

@@ -56,7 +56,8 @@ class GlobalConfig(BaseModel):
 
     project_name: str
     seed: int
-    workdir: Path = Path("mlip_run")
+    # Workdir is now required (no default) to force explicit configuration
+    workdir: Path
 
     # Audit: Add max_cycles and initial_structure_path
     max_cycles: int = 5
