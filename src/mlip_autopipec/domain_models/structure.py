@@ -54,5 +54,13 @@ class Structure(BaseModel):
             raise ValueError(msg)
         return v
 
+    def __repr__(self) -> str:
+        """
+        Concise representation of the Structure.
+        """
+        unique_species, counts = np.unique(self.species, return_counts=True)
+        formula = "".join(f"{s}{c if c > 1 else ''}" for s, c in zip(unique_species, counts))
+        return f"Structure(formula='{formula}', atoms={len(self.species)}, energy={self.energy})"
+
 # Removed Dataset model as it encourages loading all structures into memory.
 # Training should accept Iterable[Structure] directly.

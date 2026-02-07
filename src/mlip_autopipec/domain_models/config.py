@@ -5,26 +5,47 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BaseConfig(BaseModel):
+    """
+    Base configuration for modular components.
+    """
     model_config = ConfigDict(extra="forbid")
     # Audit: Validate params, required with default factory
     params: dict[str, Any] = Field(default_factory=dict)
 
 class OracleConfig(BaseConfig):
+    """
+    Configuration for the Oracle (ground truth calculator).
+    """
     type: Literal["mock", "qe", "vasp"]
 
 class TrainerConfig(BaseConfig):
+    """
+    Configuration for the Trainer (potential fitting).
+    """
     type: Literal["mock", "pacemaker"]
 
 class DynamicsConfig(BaseConfig):
+    """
+    Configuration for the Dynamics engine (MD/exploration).
+    """
     type: Literal["mock", "lammps"]
 
 class GeneratorConfig(BaseConfig):
+    """
+    Configuration for the Structure Generator.
+    """
     type: Literal["mock", "random"]
 
 class ValidatorConfig(BaseConfig):
+    """
+    Configuration for the Validator (quality assurance).
+    """
     type: Literal["mock", "standard"]
 
 class SelectorConfig(BaseConfig):
+    """
+    Configuration for the Selector (active learning strategy).
+    """
     type: Literal["mock", "random", "d_opt"]
 
 class GlobalConfig(BaseModel):
