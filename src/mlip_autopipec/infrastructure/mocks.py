@@ -27,12 +27,19 @@ class MockOracle(BaseOracle):
     """
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+        super().__init__(params)
 
     def compute(
         self, structures: list[Structure], workdir: str | Path = Path()
     ) -> list[Structure]:
         logger.debug(f"MockOracle: Computing properties for {len(structures)} structures.")
+
+        # Path validation (Security check)
+        workdir_path = Path(workdir)
+        if ".." in str(workdir_path):
+             # Simple check for path traversal attempts
+             logger.warning(f"MockOracle: Suspicious path detected: {workdir_path}")
+
         time.sleep(0.1)
         for s in structures:
             s.energy = random.uniform(-100.0, -10.0)  # noqa: S311
@@ -52,7 +59,7 @@ class MockTrainer(BaseTrainer):
     """
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+        super().__init__(params)
 
     def train(
         self, structures: list[Structure], workdir: str | Path = Path()
@@ -74,7 +81,7 @@ class MockDynamics(BaseDynamics):
     """
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+        super().__init__(params)
 
     def run_exploration(
         self, potential: Potential, workdir: str | Path = Path()
@@ -106,7 +113,7 @@ class MockStructureGenerator(BaseStructureGenerator):
     """
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+        super().__init__(params)
 
     def get_candidates(self) -> list[Structure]:
         num_candidates = self.params.get("num_candidates", 5)
@@ -128,7 +135,7 @@ class MockValidator(BaseValidator):
     """
 
     def __init__(self, params: dict[str, Any] | None = None) -> None:
-        self.params = params or {}
+        super().__init__(params)
 
     def validate(
         self, potential: Potential, workdir: str | Path = Path()
