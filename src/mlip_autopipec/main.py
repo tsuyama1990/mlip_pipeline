@@ -1,8 +1,9 @@
-import typer
-import yaml
 import logging
 from pathlib import Path
 from typing import Annotated
+
+import typer
+import yaml
 
 from mlip_autopipec.domain_models import GlobalConfig
 from mlip_autopipec.orchestrator import SimpleOrchestrator
@@ -60,6 +61,7 @@ def init(
         "project_name": "mlip_project_01",
         "seed": 42,
         "workdir": "mlip_run",
+        "max_cycles": 5,
         "oracle": {"type": "mock", "params": {}},
         "trainer": {"type": "mock", "params": {}},
         "dynamics": {"type": "mock", "params": {}},

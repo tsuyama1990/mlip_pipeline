@@ -4,11 +4,11 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 12 items
+collected 13 items
 
-tests/integration/test_cli.py ..                                         [ 16%]
-tests/integration/test_mock_pipeline.py .                                [ 25%]
-tests/unit/test_config.py ...                                            [ 50%]
+tests/integration/test_cli.py ..                                         [ 15%]
+tests/integration/test_mock_pipeline.py ..                               [ 30%]
+tests/unit/test_config.py ...                                            [ 53%]
 tests/unit/test_structure.py ......                                      [100%]
 
 ================================ tests coverage ================================
@@ -18,23 +18,23 @@ Name                                                     Stmts   Miss  Cover   M
 --------------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                               1      0   100%
 src/mlip_autopipec/domain_models/__init__.py                 4      0   100%
-src/mlip_autopipec/domain_models/config.py                  23      0   100%
+src/mlip_autopipec/domain_models/config.py                  25      0   100%
 src/mlip_autopipec/domain_models/potential.py               15      0   100%
-src/mlip_autopipec/domain_models/structure.py               36      0   100%
+src/mlip_autopipec/domain_models/structure.py               32      0   100%
 src/mlip_autopipec/infrastructure/__init__.py                2      0   100%
-src/mlip_autopipec/infrastructure/mocks.py                  56      2    96%   58, 82
+src/mlip_autopipec/infrastructure/mocks.py                  62      0   100%
 src/mlip_autopipec/interfaces/__init__.py                    5      0   100%
 src/mlip_autopipec/interfaces/dynamics.py                    9      0   100%
 src/mlip_autopipec/interfaces/generator.py                   8      0   100%
 src/mlip_autopipec/interfaces/oracle.py                      8      0   100%
-src/mlip_autopipec/interfaces/trainer.py                     9      0   100%
-src/mlip_autopipec/main.py                                  46     14    70%   26-27, 35-37, 42-44, 56-57, 73-75, 78
+src/mlip_autopipec/interfaces/trainer.py                    10      0   100%
+src/mlip_autopipec/main.py                                  46     14    70%   27-28, 36-38, 43-45, 57-58, 75-77, 80
 src/mlip_autopipec/orchestrator/__init__.py                  2      0   100%
-src/mlip_autopipec/orchestrator/simple_orchestrator.py      87     24    72%   50-51, 56-57, 62-63, 68-73, 95-97, 105-106, 109-110, 119-121, 138-142
+src/mlip_autopipec/orchestrator/simple_orchestrator.py      99     32    68%   47-48, 62-63, 68-69, 74-75, 80-84, 101-105, 113-116, 119-120, 130-133, 147-153
 src/mlip_autopipec/utils/__init__.py                         2      0   100%
-src/mlip_autopipec/utils/logging.py                          9      1    89%   11
+src/mlip_autopipec/utils/logging.py                          8      1    88%   11
 --------------------------------------------------------------------------------------
-TOTAL                                                      322     41    87%
-============================== 12 passed in 1.17s ==============================
+TOTAL                                                      338     47    86%
+============================== 13 passed in 1.23s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from mlip_autopipec.domain_models import Dataset
+from mlip_autopipec.domain_models import Structure
 
 
 class BaseTrainer(ABC):
@@ -13,8 +14,11 @@ class BaseTrainer(ABC):
         self.params = params or {}
 
     @abstractmethod
-    def train(self, dataset: Dataset, params: dict[str, Any], workdir: str | Path) -> Path:
+    def train(self, structures: Iterable[Structure], params: dict[str, Any], workdir: str | Path) -> Path:
         """
-        Train a potential on the given dataset.
+        Train a potential on the given structures.
         Returns the path to the trained potential file (e.g. .yace).
+
+        Note: Implementations should iterate over `structures` and avoid loading everything into memory if possible,
+        or handle serialization to disk incrementally.
         """

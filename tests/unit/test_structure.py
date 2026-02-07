@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 from pydantic import ValidationError
+
 from mlip_autopipec.domain_models.structure import Structure
+
 
 def test_valid_structure() -> None:
     positions = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])

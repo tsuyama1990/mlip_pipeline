@@ -3,11 +3,10 @@ import time
 import logging
 import numpy as np
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast, Literal
+from typing import Any, Dict, List, Optional, Union, cast, Literal, Iterable
 
 from mlip_autopipec.domain_models import (
     Structure,
-    Dataset,
     ExplorationResult,
 )
 from mlip_autopipec.interfaces import (
@@ -50,12 +49,28 @@ class MockTrainer(BaseTrainer):
     """
     Mock Trainer that creates a dummy potential file.
     """
-    def train(self, dataset: Dataset, params: Dict[str, Any], workdir: Union[str, Path]) -> Path:
+    def train(self, structures: Iterable[Structure], params: Dict[str, Any], workdir: Union[str, Path]) -> Path:
         # Input validation for path traversal
         workdir_path = Path(workdir).resolve()
 
-        if ".." in str(workdir_path):
-             logger.warning("Potential path traversal detected in workdir")
+        # Audit: Strict check - only allow paths within current working directory or /tmp (for tests)
+        cwd = Path.cwd().resolve()
+        # Use simple string check for /tmp to avoid ruff S108 complaint if possible, but hardcoding /tmp is flagged.
+        # But we need to allow tmp for tests.
+        # We will ignore S108 here as it is necessary for testing in this environment.
+        temp = Path("/tmp").resolve() # noqa: S108
+
+        if not (workdir_path.is_relative_to(cwd) or workdir_path.is_relative_to(temp)):
+             msg = f"Security Violation: Workdir '{workdir_path}' must be inside project root or /tmp."
+             logger.error(msg)
+             raise ValueError(msg)
+
+        # Iterate structures to mimic streaming
+        count = 0
+        for _ in structures:
+            count += 1
+
+        logger.info(f"MockTrainer processed {count} structures")
 
         workdir_path.mkdir(parents=True, exist_ok=True)
         potential_path = workdir_path / "potential.yace"
@@ -78,10 +93,7 @@ class MockDynamics(BaseDynamics):
         status_options: List[Literal["halted", "converged", "max_steps", "failed"]] = ["halted", "converged"]
 
         status: Literal["halted", "converged", "max_steps", "failed"]
-        if force_halt:
-            status = "halted"
-        else:
-            status = secrets.choice(status_options)
+        status = "halted" if force_halt else secrets.choice(status_options)
 
         # Return trajectory with just the initial structure for now
         return ExplorationResult(

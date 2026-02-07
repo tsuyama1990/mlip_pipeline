@@ -1,4 +1,3 @@
-
 import numpy as np
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -41,11 +40,5 @@ class Structure(BaseModel):
             raise ValueError(msg)
         return v
 
-class Dataset(BaseModel):
-    """
-    A collection of atomic structures.
-    """
-    model_config = ConfigDict(extra="forbid")
-
-    structures: list[Structure]
-    name: str = "dataset"
+# Removed Dataset model as it encourages loading all structures into memory.
+# Training should accept Iterable[Structure] directly.
