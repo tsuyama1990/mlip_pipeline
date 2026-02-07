@@ -1,10 +1,13 @@
-import numpy as np
 import secrets
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterator, Iterable, Any
+from typing import Any
 
-from mlip_autopipec.domain_models import Structure, Potential
-from mlip_autopipec.interfaces import BaseGenerator, BaseOracle, BaseTrainer, BaseDynamics
+import numpy as np
+
+from mlip_autopipec.domain_models import Potential, Structure
+from mlip_autopipec.interfaces import BaseDynamics, BaseGenerator, BaseOracle, BaseTrainer
+
 
 class MockGenerator(BaseGenerator):
     def __init__(self, **kwargs: Any) -> None:

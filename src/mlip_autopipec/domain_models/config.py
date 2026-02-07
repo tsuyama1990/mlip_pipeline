@@ -24,5 +24,6 @@ class GlobalConfig(BaseModel):
         for name in ['generator', 'oracle', 'trainer', 'dynamics']:
             cfg = getattr(self, name)
             if 'type' not in cfg:
-                raise ValueError(f"{name} config must specify 'type'")
+                msg = f"{name} config must specify 'type'"
+                raise ValueError(msg)
         return self

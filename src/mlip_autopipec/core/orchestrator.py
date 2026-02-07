@@ -7,7 +7,7 @@ from mlip_autopipec.factory import create_dynamics, create_generator, create_ora
 logger = logging.getLogger(__name__)
 
 class Orchestrator:
-    def __init__(self, config: GlobalConfig):
+    def __init__(self, config: GlobalConfig) -> None:
         self.config = config
         self.workdir = config.workdir
         self.generator = create_generator(config.generator)
@@ -18,7 +18,17 @@ class Orchestrator:
         self.dataset: list[Structure] = []
         self.potential: Potential | None = None
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Execute the active learning loop based on the configuration.
+
+        The loop consists of:
+        1. Generating initial structures.
+        2. Labeling them with the Oracle.
+        3. Training a potential.
+        4. Running dynamics to explore and find high-uncertainty structures.
+        5. Labeling new candidates and repeating.
+        """
         self.workdir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Starting orchestration in {self.workdir}")
 
@@ -55,13 +65,11 @@ class Orchestrator:
             # Copy potential to match UAT expectation (flat structure)
             final_pot_path = self.workdir / f"potential_cycle_{cycle}.yace"
             if self.potential.path.exists():
-                 shutil.copy(self.potential.path, final_pot_path)
-                 # Update potential object to point to the new location?
-                 # Or keep it pointing to the original?
-                 # Let's update it so Dynamics uses the one in the main dir?
-                 # Or keep using the one in cycle_dir. It doesn't matter much for Mock.
-                 # But for UAT verification, the file must exist.
-                 logger.info(f"Copied potential to {final_pot_path}")
+                 try:
+                    shutil.copy(self.potential.path, final_pot_path)
+                    logger.info(f"Copied potential to {final_pot_path}")
+                 except Exception:
+                    logger.exception(f"Failed to copy potential to {final_pot_path}")
 
             # Dynamics / Exploration
             logger.info("Running dynamics exploration...")

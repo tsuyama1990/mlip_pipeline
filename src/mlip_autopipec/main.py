@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import typer
 import yaml
-from pathlib import Path
-from mlip_autopipec.domain_models import GlobalConfig
+
 from mlip_autopipec.core import Orchestrator
+from mlip_autopipec.domain_models import GlobalConfig
 
 app = typer.Typer()
 

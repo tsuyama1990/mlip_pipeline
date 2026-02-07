@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models import GlobalConfig
 
 
-def test_orchestrator_mock(tmp_path):
+def test_orchestrator_mock(tmp_path: Path) -> None:
     config = GlobalConfig(
         workdir=tmp_path / "test_run",
         max_cycles=2,
@@ -19,7 +21,7 @@ def test_orchestrator_mock(tmp_path):
     assert (tmp_path / "test_run" / "potential_cycle_1.yace").exists()
     assert len(orch.dataset) > 0
 
-def test_orchestrator_no_initial_structures(tmp_path):
+def test_orchestrator_no_initial_structures(tmp_path: Path) -> None:
     config = GlobalConfig(
         workdir=tmp_path / "test_run_empty",
         max_cycles=2,

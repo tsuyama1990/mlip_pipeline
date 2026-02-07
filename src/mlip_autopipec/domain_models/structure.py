@@ -1,5 +1,7 @@
-from typing import Optional, List
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, model_validator
+
 
 class Structure(BaseModel):
     """
@@ -7,14 +9,14 @@ class Structure(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
 
-    atomic_numbers: List[int]
-    positions: List[List[float]]
-    cell: List[List[float]]
-    pbc: List[bool]
-    energy: Optional[float] = None
-    forces: Optional[List[List[float]]] = None
-    stress: Optional[List[List[float]]] = None
-    properties: Optional[dict] = None
+    atomic_numbers: list[int]
+    positions: list[list[float]]
+    cell: list[list[float]]
+    pbc: list[bool]
+    energy: float | None = None
+    forces: list[list[float]] | None = None
+    stress: list[list[float]] | None = None
+    properties: dict[str, Any] | None = None
 
     @model_validator(mode='after')
     def check_shapes(self) -> 'Structure':

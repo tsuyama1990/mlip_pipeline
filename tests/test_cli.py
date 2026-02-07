@@ -1,12 +1,13 @@
-import yaml
-import pytest
-from typer.testing import CliRunner
 from pathlib import Path
+
+import yaml
+from typer.testing import CliRunner
+
 from mlip_autopipec.main import app
 
 runner = CliRunner()
 
-def test_cli_run_success(tmp_path):
+def test_cli_run_success(tmp_path: Path) -> None:
     config_data = {
         "workdir": str(tmp_path / "run"),
         "max_cycles": 1,
@@ -24,12 +25,12 @@ def test_cli_run_success(tmp_path):
     assert "Pipeline completed successfully" in result.stdout
     assert (tmp_path / "run" / "potential_cycle_0.yace").exists()
 
-def test_cli_config_not_found():
+def test_cli_config_not_found() -> None:
     result = runner.invoke(app, ["run", "non_existent.yaml"])
     assert result.exit_code == 1
     assert "Config file not found" in result.stderr
 
-def test_cli_invalid_config(tmp_path):
+def test_cli_invalid_config(tmp_path: Path) -> None:
     config_data = {
         "workdir": str(tmp_path / "run"),
         # Missing max_cycles
