@@ -6,7 +6,7 @@
 When Jules asks a question (especially about errors or blockers):
 
 1. **Diagnose the Root Cause**:
-   - Analyze the error message, stack trace, or symptom carefully
+   - Analyse the error message, stack trace, or symptom carefully
    - Identify the UNDERLYING cause, not just the surface symptom
    - Consider: What assumption is wrong? What constraint is violated?
    - Ask: 'WHY is this happening?' not just 'HOW to fix it?'

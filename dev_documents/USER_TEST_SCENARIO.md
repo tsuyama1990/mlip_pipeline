@@ -2,7 +2,7 @@
 # User Test Scenarios & Success Criteria: Fe/Pt Deposition on MgO
 
 ## 1. Grand Challenge: Hetero-epitaxial Growth & Ordering
-**Goal**: Simulate the deposition of Fe and Pt atoms onto an MgO(001) substrate, observe the nucleation of clusters, and visualize the L10 ordering process using a combination of MD and Adaptive Kinetic Monte Carlo (aKMC).
+**Goal**: Simulate the deposition of Fe and Pt atoms onto an MgO(001) substrate, observe the nucleation of clusters, and visualise the L10 ordering process using a combination of MD and Adaptive Kinetic Monte Carlo (aKMC).
 
 ## 2. Scientific Workflow Steps (The "Aha!" Moments)
 The tutorial must guide the user through the following phases:
@@ -23,11 +23,11 @@ The tutorial must guide the user through the following phases:
 * **Action**: Take the disordered cluster formed in Phase 2 and pass it to EON (aKMC).
 * **Observation**: Overcome time-scale limitations to observe the Fe and Pt atoms rearranging into a chemically ordered structure (L10-like local order) inside the cluster.
 
-## 3. Visualization Requirements
+## 3. Visualisation Requirements
 * **Artifacts**: The notebook must generate:
     * Snapshot of the MgO substrate with deposited Fe/Pt islands.
     * Cross-section view showing the interface.
-    * Color-coded view of Fe vs Pt to show mixing/ordering status (e.g., utilizing OVITO's modifier logic or ASE constraints).
+    * Colour-coded view of Fe vs Pt to show mixing/ordering status (e.g., utilizing OVITO's modifier logic or ASE constraints).
 
 ## 4. Execution Constraints (Mock vs Real)
 * **CI/CD Mode**: Use a tiny system (e.g., small unit cell, 10 deposited atoms, 5 aKMC steps) or pre-calculated data to finish within 5 minutes.
@@ -68,7 +68,7 @@ You are responsible for implementing the `Fe/Pt on MgO` scenario defined in `dev
     * **LAMMPS Setup**: Use `pair_style hybrid/overlay pace zbl` as mandated by the architecture. Ensure `fix deposit` inserts atoms *above* the surface with reasonable velocity (approx thermal velocity), not relativistic speeds.
     * **EON Integration**: Write the python driver script that EON needs to call your `potential.yace`. Ensure the notebook can verify EON is installed or mock the EON call if missing.
 
-3.  **Visualization & Analysis**:
+3.  **Visualisation & Analysis**:
     * The tutorial implies visual verification. You MUST use `ase.visualize.plot` or generate images (PNG) within the notebook to show:
         * The slab geometry.
         * The segregation of Fe/Pt (if any).
