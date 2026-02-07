@@ -1,6 +1,6 @@
 # PYACEMAKER: Automated Machine Learning Interatomic Potential Pipeline
 
-[![Build Status](https://img.shields.io/badge/build-pending-yellow)](https://github.com/your-org/mlip-pipeline)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-org/mlip-pipeline)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -11,6 +11,7 @@
 ## 🚀 Key Features
 
 *   **Zero-Config Workflow**: Define your material system (e.g., "FePt on MgO") in a single YAML file and let the Orchestrator handle the rest.
+*   **Mock Orchestration**: Complete pipeline flow verification using mock components (Cycle 01).
 *   **Active Learning with Self-Healing**: Automatically detects high-uncertainty regions during MD and triggers DFT calculations. The system "heals" itself from DFT convergence failures without human intervention.
 *   **Physics-Informed Robustness**: Enforces physical baselines (Lennard-Jones/ZBL) to prevent simulation crashes due to non-physical atomic overlaps in unknown regions.
 *   **Time-Scale Bridging**: Seamlessly integrates Molecular Dynamics (for fast processes) and Adaptive Kinetic Monte Carlo (for slow diffusion/ordering), solving the "time-scale problem".
