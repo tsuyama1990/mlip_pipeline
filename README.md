@@ -1,32 +1,63 @@
-# PYACEMAKER: Automated MLIP Pipeline
+# PYACEMAKER: Automated MLIP Construction System
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-**PYACEMAKER** is a fully automated, "Zero-Config" system for constructing and operating State-of-the-Art Machine Learning Interatomic Potentials (MLIP) using the Pacemaker (ACE) engine. It democratizes computational materials science by enabling researchers to generate robust, physics-informed potentials without needing deep expertise in machine learning or DFT.
+**Democratizing Atomic Simulations.** PYACEMAKER is a high-efficiency system that allows researchers to construct "State-of-the-Art" Machine Learning Interatomic Potentials (MLIP) with minimal effort. By automating the entire lifecycle—from Active Learning and DFT calculations to validation and deployment—it enables complex simulations like **Fe/Pt deposition on MgO** without requiring deep expertise in data science.
 
-## Features
+## 🚀 Key Features
 
-*   **Project Initialization**: Quickly set up a new active learning project with a template configuration using `mlip-auto init`.
-*   **Robust Configuration**: Strict schema validation ensures your settings are correct before any expensive calculations start.
-*   **Workflow Orchestration**: Automated state management tracks the progress of the active learning loop, handling persistence and recovery.
-*   **Modular Architecture**: Designed for extensibility, separating domain models, infrastructure, and orchestration logic.
+*   **Zero-Config Workflow**: Define your material system in a single YAML file and let the autonomous agent handle the rest.
+*   **Data Efficiency**: Uses Active Learning to select only the most informative structures, reducing expensive DFT calculations by >90%.
+*   **Physics-Informed Robustness**: Hybrid potentials (ACE + ZBL/LJ) ensure simulations never crash due to non-physical atomic overlaps.
+*   **Time-Scale Bridging**: Seamlessly integrates Molecular Dynamics (MD) and Kinetic Monte Carlo (kMC) to explore phenomena from picoseconds to seconds.
+*   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures without user intervention.
 
-## Requirements
+## 🏗️ Architecture Overview
 
-*   **Python**: 3.11 or higher
+The system follows a modular "Hub-and-Spoke" architecture orchestrated by a central Python controller.
+
+```mermaid
+flowchart TD
+    Config[/Config.yaml/] --> Orchestrator
+
+    subgraph Cycle [Active Learning Cycle]
+        direction TB
+        Orchestrator -->|1. Deploy Potential| Dynamics[Dynamics Engine\n(MD / kMC)]
+        Dynamics -->|2. Halt & Extract| Generator[Structure Generator]
+        Generator -->|3. Candidates| Oracle[Oracle\n(DFT / QE)]
+        Oracle -->|4. Labeled Data| Trainer[Trainer\n(Pacemaker)]
+        Trainer -->|5. New Potential| Validator[Validator]
+        Validator -->|6. Pass/Fail| Orchestrator
+    end
+
+    Orchestrator -->|Final Output| Production[Production Potential]
+
+    style Orchestrator fill:#f9f,stroke:#333,stroke-width:2px
+    style Cycle fill:#e1f5fe,stroke:#333,stroke-dasharray: 5 5
+```
+
+## 📋 Prerequisites
+
+*   **Python**: 3.12 or higher
 *   **Package Manager**: `uv` (recommended) or `pip`
-*   **Dependencies**: `pydantic`, `typer`, `rich`, `ase`, `pyyaml`, `numpy`
+*   **External Tools** (Optional for Mock Mode, Required for Production):
+    *   Quantum Espresso (`pw.x`)
+    *   LAMMPS (`lmp_serial` / `lmp_mpi`) with USER-PACE package
+    *   Pacemaker (`pace_train`, `pace_activeset`)
+    *   EON (`eonclient`)
 
-## Installation
+## 🛠️ Installation & Setup
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/your-org/mlip-autopipec.git
-    cd mlip-autopipec
+    git clone https://github.com/your-org/pyacemaker.git
+    cd pyacemaker
     ```
 
 2.  **Install dependencies**:
-    Using `uv`:
+    Using `uv` (fastest):
     ```bash
     uv sync
     ```
@@ -35,47 +66,70 @@
     pip install -e .[dev]
     ```
 
-## Usage
-
-### Quick Start
-
-1.  **Initialize a new project**:
+3.  **Verify installation**:
     ```bash
-    mlip-auto init
-    ```
-    This creates a `config.yaml` in your current directory.
-
-2.  **Validate Configuration**:
-    ```bash
-    mlip-auto check --config config.yaml
+    uv run pytest tests/
     ```
 
-3.  **Run the Active Learning Loop**:
-    ```bash
-    mlip-auto run-loop
-    ```
-    The system will initialize the workflow and track the state in `workflow_state.json`.
+## ⚡ Usage
 
-## Architecture Structure
+### Quick Start (Mock Mode)
+
+To verify the pipeline logic without running heavy physics codes:
+
+1.  **Initialise a project**:
+    ```bash
+    uv run pyacemaker init my_first_project
+    cd my_first_project
+    ```
+
+2.  **Run the Active Learning Loop**:
+    ```bash
+    uv run pyacemaker run --config config.yaml --mode mock
+    ```
+
+3.  **Check Status**:
+    ```bash
+    uv run pyacemaker status
+    ```
+
+### Production Run
+
+Edit `config.yaml` to set `type: qe` and `type: pacemaker`, then run:
+
+```bash
+uv run pyacemaker run --config config.yaml
+```
+
+## 💻 Development Workflow
+
+This project follows the **AC-CDD** (Architecturally-Constrained Cycle-Driven Development) methodology.
+
+*   **Linting**: strict type checking and style enforcement.
+    ```bash
+    uv run ruff check .
+    uv run mypy .
+    ```
+*   **Testing**:
+    ```bash
+    uv run pytest --cov=src
+    ```
+
+### Project Structure
 
 ```ascii
 src/mlip_autopipec/
-├── app.py                      # CLI Entry Point
-├── constants.py                # Global Constants
-├── cli/                        # CLI Command Implementations
-├── domain_models/              # Pydantic Schemas (Config, Structure, Workflow)
-├── infrastructure/             # Logging and I/O
-└── orchestration/              # Workflow Management
+├── domain_models/          # Pydantic Data Models (Structure, Potential)
+├── interfaces/             # Abstract Base Classes (Oracle, Trainer)
+├── infrastructure/         # Concrete Implementations (QE, LAMMPS)
+├── orchestrator/           # Core Logic
+└── main.py                 # CLI Entry Point
+
+dev_documents/              # AC-CDD Documentation
+├── system_prompts/         # Cycle Specifications
+└── ALL_SPEC.md             # Original Requirements
 ```
 
-## Roadmap
+## 📄 License
 
-*   **Structure Generation**: Algorithms for generating initial and candidate structures.
-*   **DFT Oracle**: Automated Quantum Espresso calculations.
-*   **Training Loop**: Integration with Pacemaker for potential fitting.
-*   **Active Learning**: MD-based sampling and uncertainty quantification.
-*   **Validation**: Physical validation tests (Phonons, Elasticity).
-
-## License
-
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

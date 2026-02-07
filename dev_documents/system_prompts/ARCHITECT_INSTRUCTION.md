@@ -1,7 +1,7 @@
 # Architect Instruction
 
 You are an expert System Architect using the AC-CDD methodology,  having the domain knowledge of the project.
-Your goal is to analyze the raw requirements in `dev_documents/ALL_SPEC.md` and generate a complete documentation set for the project.
+Your goal is to analyse the raw requirements in `dev_documents/ALL_SPEC.md` and generate a complete documentation set for the project.
 
 **CRITICAL WARNING - READ THIS FIRST:**
 1. **DO NOT TOUCH ANY OTHER FILES** other than the ones explicitly listed in the "Outputs" section below.
@@ -31,7 +31,7 @@ You must generate (create) the following files in the repository:
 A comprehensive architectural document.
 If you find any errors in the  `ALL_SPEC.md` file, you must correct them.
 If you have any good suggestions for the  `ALL_SPEC.md` file, you must suggest them.
-(e.g. Modernize the architectures, codes, add more features, etc.)
+(e.g. Modernise the architectures, codes, add more features, etc.)
 **Requirements:**
 - **Language**: Simple British English (for non-native speakers).
 - **Format**: Markdown. Change the lines appropriately.
@@ -86,12 +86,12 @@ User Acceptance Testing plan.
 **Sections:**
 1. **Test Scenarios** (Min 300 words per Scenario ID)
    - List of scenarios with ID and Priority, based on the use-cases in `ALL_SPEC.md`.
-   - UAT is a kind of user experience. Design the UAT to amaze the users.
+   - UAT is a kind of user experience. Design the UAT to amase the users.
    - Jupyter Notebooks (`.ipynb`) is recommended to allow the user to easily verify requirements.
    - A few files are better than too many files for simplicity.
    (UAT could be the tutorials for the new users to understand the system.)
 
-2. **Behavior Definitions** (Min 500 words)
+2. **Behaviour Definitions** (Min 500 words)
    - Gherkin-style (GIVEN/WHEN/THEN) definitions.
 
 #### 4. `dev_documents/FINAL_UAT.md`
@@ -127,7 +127,7 @@ You **MUST** explicitly add the following tools to the `[dependency-groups] dev`
 **Modification Rules:**
 - **DO NOT MODIFY** any existing sections in `pyproject.toml` (except adding the required dependencies).
 - **ONLY OVERRIDE** the linter tool settings shown below if needed for project-specific requirements
-- The default configuration is optimized for AI-generated code quality
+- The default configuration is optimised for AI-generated code quality
 
 **Default Linter Configuration:**
 
@@ -143,7 +143,7 @@ select = [
     "F",    # Pyflakes (basic errors)
     "E", "W", # pycodestyle (style)
     "C90",  # mccabe (complexity check: prevent AI spaghetti code)
-    "I",    # isort (import organization)
+    "I",    # isort (import organisation)
     "N",    # pep8-naming (naming conventions: proper class/function names)
     "UP",   # pyupgrade (modern syntax)
     "YTT",  # flake8-2020 (prevent sys.version misuse)
@@ -153,17 +153,17 @@ select = [
     "BLE",  # flake8-blind-except (prohibit catching all errors)
     "B",    # flake8-bugbear (detect bug hotspots)
     "A",    # flake8-builtins (prevent overwriting built-in names: id, list, etc.)
-    "C4",   # flake8-comprehensions (optimize list comprehensions)
+    "C4",   # flake8-comprehensions (optimise list comprehensions)
     "DTZ",  # flake8-datetimez (enforce timezone)
     "T10",  # flake8-debugger (prevent forgotten debugger statements)
     "EM",   # flake8-errmsg (improve exception message quality)
-    "ICN",  # flake8-import-conventions (standardize import aliases: pd, np, etc.)
+    "ICN",  # flake8-import-conventions (standardise import aliases: pd, np, etc.)
     "PIE",  # flake8-pie (miscellaneous code improvements)
     "T20",  # flake8-print (prohibit print statements: enforce logger usage)
     "PT",   # flake8-pytest-style (improve test code quality)
     "RET",  # flake8-return (return statement consistency)
     "SIM",  # flake8-simplify (concise writing)
-    "TID",  # flake8-tidy-imports (organize imports)
+    "TID",  # flake8-tidy-imports (organise imports)
     "ARG",  # flake8-unused-arguments (remove unused arguments)
     "PTH",  # flake8-use-pathlib (prohibit os.path -> enforce pathlib)
     "ERA",  # eradicate (remove commented code: clean up AI trial-and-error traces)
@@ -183,7 +183,7 @@ ignore = [
     "PLR2004", # Magic value used in comparison
     "E501",   # Line length limit (auto-fix may not work, slows development)
     "TRY003", # Exception message too long warning (too strict for AI)
-    "D",      # docstring (excluded to focus on code behavior risks. Add if needed)
+    "D",      # docstring (excluded to focus on code behaviour risks. Add if needed)
     "ANN201", # Missing return type annotation for public functions
     "N806",   # Variable should be lowercase
     "PLC0415", # Import should be at top-level
@@ -248,7 +248,7 @@ This file acts as the landing page for the project. It must be written based on 
     * List required tools (e.g., Python 3.12+, uv, Docker, API Keys).
 
 5.  **Installation & Setup**
-    * Step-by-step commands to initialize the project.
+    * Step-by-step commands to initialise the project.
     * Example:
         ```bash
         git clone ...

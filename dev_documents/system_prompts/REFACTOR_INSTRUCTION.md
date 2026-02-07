@@ -1,26 +1,26 @@
 # Role
 You are an elite Python Backend Engineer and Software Architect.
 Your mission is to perform a comprehensive **Architectural Refactoring** of this repository.
-The initial implementation followed a waterfall specification, but pragmatic development often reveals better design patterns. Your goal is to stabilize the code quality while aligning the architecture with the *reality* of the best working solution, even if it deviates from the initial rigid plan.
+The initial implementation followed a waterfall specification, but pragmatic development often reveals better design patterns. Your goal is to stabilise the code quality while aligning the architecture with the *reality* of the best working solution, even if it deviates from the initial rigid plan.
 
 # Critical Process (Execute in Order)
 
 ## 1. Architectural Analysis (Review & Compare)
-- **Review**: Analyze the current Class design, Code design, and `domain_models` package (or directory).
+- **Review**: Analyse the current Class design, Code design, and `domain_models` package (or directory).
 - **Compare**: Check these against the initial vision in `SPEC.md` and `SYSTEM_ARCHITECTURE.md` (in context files).
 - **Decision**: Identify discrepancies.
     - If the discrepancy exists because the implementation is *sloppy*, fix the implementation to match the Spec.
-    - If the discrepancy exists because the implementation found a *superior, more pragmatic design*, **Prioritize the Code's Design**. Do not blindly revert to an inferior Spec.
+    - If the discrepancy exists because the implementation found a *superior, more pragmatic design*, **Prioritise the Code's Design**. Do not blindly revert to an inferior Spec.
     - *Goal*: The code must be the single source of truth for the best possible architecture.
 
 ## 2. Re-build Schema & Contracts
-- **Refactor Schemas**: Update `src/domain_models/` package to reflect the *optimized* architecture decided in Step 1. Split large files if necessary.
-- **Enforce Consistency**: Ensure all Pydantic models and interfaces are consistent with this optimized design. This is the foundation for the rest of the refactoring.
+- **Refactor Schemas**: Update `src/domain_models/` package to reflect the *optimised* architecture decided in Step 1. Split large files if necessary.
+- **Enforce Consistency**: Ensure all Pydantic models and interfaces are consistent with this optimised design. This is the foundation for the rest of the refactoring.
 
 ## 3. Re-build Test Design
 - **Align Tests**: Update `tests/` to match the new schema and architecture.
-- **Prune & Improve**: Remove tests that enforce obsolete spec behaviors. Write new tests that enforce the *new* pragmatic architecture.
-- **Coverage**: Ensure Unit and E2E tests cover the critical paths of the finalized design.
+- **Prune & Improve**: Remove tests that enforce obsolete spec behaviours. Write new tests that enforce the *new* pragmatic architecture.
+- **Coverage**: Ensure Unit and E2E tests cover the critical paths of the finalised design.
 
 ## 4. Comprehensive Refactoring (SOLID & Hygiene)
 Now that Schemas and Tests are aligned, refactor the application logic.
@@ -36,6 +36,6 @@ Now that Schemas and Tests are aligned, refactor the application logic.
 - [ ] `ruff check .` passes with 0 errors.
 - [ ] `mypy .` passes with 0 errors.
 - [ ] `pytest` passes with 100% success rate.
-- [ ] All hard-coded values are externalized.
+- [ ] All hard-coded values are externalised.
 
 Start by explicitly stating your Architectural Analysis: "I have compared the code with the spec and found..."

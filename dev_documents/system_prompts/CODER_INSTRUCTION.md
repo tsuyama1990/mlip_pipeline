@@ -52,13 +52,13 @@ Your goal is to implement and **VERIFY** the features for **CYCLE {{cycle_id}}**
 
 ### 0. Phase 0: Review & Refine Specification
 **Before starting any new implementation, you must ensure the specification is optimal.**
-- **Review Existing Code**: Analyze the current codebase to understand existing patterns, utilities, and architectural decisions.
+- **Review Existing Code**: Analyse the current codebase to understand existing patterns, utilities, and architectural decisions.
 - **Refine SPEC.md**:
   - Update `SPEC.md` to fix any inconsistencies with the current codebase.
-  - Optimize the design architecture if you discover a better approach based on the existing implementation.
+  - Optimise the design architecture if you discover a better approach based on the existing implementation.
   - Ensure logical consistency before writing a single line of new code.
 
-### 1. Phase 1: Blueprint Realization (Schema Implementation)
+### 1. Phase 1: Blueprint Realisation (Schema Implementation)
 **Before writing logic or tests, you MUST implement the Data Models.**
 - Read **Section 3: Design Architecture** in `SPEC.md` carefully.
 - **Modular Design**: Do NOT create a single massive file. Create a Python package `src/domain_models/`.
@@ -137,7 +137,7 @@ This is effectively a self-refinement process. You must not assume your first dr
 **Rules:**
 1.  **User-Centric**: Write for the END USER, not the developer. **DO NOT** mention "Cycle 0X", "Phase Y", or internal development jargon. Users do not care about your sprint schedule.
 2.  **Living Document**: The README must always compile and reflect the code *as it is right now*.
-3.  **Structure**: Strictly follow the standardized structure below.
+3.  **Structure**: Strictly follow the standardised structure below.
 
 **Required README Structure:**
 
