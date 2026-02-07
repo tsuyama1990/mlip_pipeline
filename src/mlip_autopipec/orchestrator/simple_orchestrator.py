@@ -63,14 +63,24 @@ class SimpleOrchestrator:
                 f.write(s.model_dump_json() + "\n")
 
     def _load_dataset(self) -> Iterator[Structure]:
-        with self.dataset_path.open("r") as f:
-            for line in f:
-                if line.strip():
-                    yield Structure.model_validate_json(line)
+        """
+        Stream structures from the dataset file.
+        Uses a generator to avoid loading the entire dataset into memory.
+        """
+        # Re-open file each time to ensure we see new data if called in new cycle
+        if self.dataset_path.exists():
+            with self.dataset_path.open("r") as f:
+                for line in f:
+                    if line.strip():
+                        yield Structure.model_validate_json(line)
 
     def _append_to_dataset(self, structures: Iterator[Structure]) -> None:
+        """
+        Append structures to the dataset file using buffered I/O.
+        """
         count = 0
-        with self.dataset_path.open("a") as f:
+        # Use line buffering (buffering=1) or block buffering (default)
+        with self.dataset_path.open("a", buffering=8192) as f:
             for s in structures:
                 f.write(s.model_dump_json() + "\n")
                 count += 1
@@ -119,10 +129,26 @@ class SimpleOrchestrator:
         )
 
     def _get_last_structure(self) -> Structure | None:
-        last_structure: Structure | None = None
-        for s in self._load_dataset():
-            last_structure = s
-        return last_structure
+        """
+        Efficiently retrieve the last structure from the dataset file
+        without reading the entire file.
+        """
+        if not self.dataset_path.exists() or self.dataset_path.stat().st_size == 0:
+            return None
+
+        # Read backwards from the end of the file
+        with self.dataset_path.open("rb") as f:
+            try:
+                f.seek(-2, 2)  # Go to 2nd byte before end
+                while f.read(1) != b"\n":
+                    f.seek(-2, 1)
+            except OSError:
+                f.seek(0)
+
+            last_line = f.readline().decode()
+            if last_line.strip():
+                return Structure.model_validate_json(last_line)
+        return None
 
     def _generate_initial_structure(self) -> Structure | None:
         logger.info("Dataset is empty! Generating initial structures...")

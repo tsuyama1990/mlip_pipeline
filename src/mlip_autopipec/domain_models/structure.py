@@ -46,11 +46,24 @@ class Structure(BaseModel):
     @field_validator("atoms", mode="before")
     @classmethod
     def validate_atoms(cls, v: Any) -> Atoms:
-        if isinstance(v, Atoms):
-            return v
         if isinstance(v, dict):
+            # Check for required ASE fields in dictionary
+            if "symbols" not in v:
+                msg = "Missing 'symbols' in atoms dict"
+                raise ValueError(msg)
             return Atoms(
-                symbols=v["symbols"], positions=v["positions"], cell=v["cell"], pbc=v["pbc"]
+                symbols=v["symbols"],
+                positions=v.get("positions"),
+                cell=v.get("cell"),
+                pbc=v.get("pbc"),
             )
-        msg = "Invalid input for atoms"
+
+        if isinstance(v, Atoms):
+            # Validate Atoms object integrity
+            if v.get_positions().shape[1] != 3:  # type: ignore[no-untyped-call]
+                msg = "Atoms positions must be (N, 3)"
+                raise ValueError(msg)
+            return v
+
+        msg = "Invalid input for atoms: must be ASE Atoms object or dict"
         raise ValueError(msg)

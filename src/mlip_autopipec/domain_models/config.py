@@ -3,6 +3,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from mlip_autopipec.constants import (
+    DEFAULT_NOISE_LEVEL,
+    DEFAULT_PROB_HALT,
+)
+
 
 class BaseComponentConfig(BaseModel):
     """
@@ -16,7 +21,7 @@ class BaseComponentConfig(BaseModel):
 # --- Oracle Configs ---
 class MockOracleConfig(BaseComponentConfig):
     type: Literal["mock"] = "mock"
-    noise_level: float = 0.01
+    noise_level: float = DEFAULT_NOISE_LEVEL
 
 
 OracleConfig = Annotated[MockOracleConfig, Field(discriminator="type")]
@@ -33,7 +38,7 @@ TrainerConfig = Annotated[MockTrainerConfig, Field(discriminator="type")]
 # --- Dynamics Configs ---
 class MockDynamicsConfig(BaseComponentConfig):
     type: Literal["mock"] = "mock"
-    prob_halt: float = 0.1
+    prob_halt: float = DEFAULT_PROB_HALT
 
 
 DynamicsConfig = Annotated[MockDynamicsConfig, Field(discriminator="type")]

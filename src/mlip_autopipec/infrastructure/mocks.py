@@ -44,12 +44,21 @@ class MockOracle(BaseOracle):
 class MockTrainer(BaseTrainer):
     def train(self, dataset: Iterable[Structure], workdir: Path) -> Potential:
         logger.info("MockTrainer training...")
-        workdir.mkdir(parents=True, exist_ok=True)
-        # Security check: ensure path is safe (simplified for now)
-        if ".." in str(workdir):
-            logger.warning("Potential path traversal detected in workdir!")
 
-        model_path = workdir / "mock_potential.yace"
+        # Security: Resolve and check for path traversal
+        # We allow paths within the project root or system temp dir (for tests)
+        resolved_workdir = workdir.resolve()
+
+        # Simple check to prevent blatant traversal like ../../../etc/passwd
+        # while allowing standard usage including /tmp for tests
+        if ".." in str(workdir) and not resolved_workdir.is_relative_to(Path.cwd()):
+            # If using '..', strictly enforce it stays within CWD
+            msg = f"Path traversal attempt detected: {workdir}"
+            raise ValueError(msg)
+
+        resolved_workdir.mkdir(parents=True, exist_ok=True)
+
+        model_path = resolved_workdir / "mock_potential.yace"
         model_path.touch()
         return Potential(path=model_path)
 
