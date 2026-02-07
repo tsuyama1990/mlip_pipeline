@@ -15,6 +15,7 @@ PYACEMAKER is an automated pipeline for constructing and operating high-efficien
 *   **Physical Robustness**: Hybrid potentials (ACE + ZBL/LJ) ensure stability even in high-energy regimes, preventing simulation crashes.
 *   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures (Quantum Espresso) by adjusting parameters on the fly.
 *   **Bridge to Scales**: Seamlessly integrates Molecular Dynamics (LAMMPS) and Kinetic Monte Carlo (EON) to span time scales from femtoseconds to seconds.
+*   **Mock Mode**: Fully implemented Mock components (Oracle, Trainer, Dynamics, etc.) for testing the workflow without external binaries.
 
 ## Architecture Overview
 
@@ -71,12 +72,6 @@ graph TD
     pip install -e .
     ```
 
-3.  **Prepare the environment:**
-    Copy the example configuration.
-    ```bash
-    cp config.example.yaml config.yaml
-    ```
-
 ## Usage
 
 **Run the pipeline:**
@@ -85,14 +80,33 @@ mlip-pipeline run config.yaml
 ```
 
 **Quick Start (Mock Mode):**
-To test the workflow without external binaries, use the mock configuration:
+To test the workflow without external binaries, create a mock configuration:
+
+```yaml
+workdir: "experiments/mock_run"
+oracle:
+  type: "mock"
+  noise_level: 0.1
+trainer:
+  type: "mock"
+dynamics:
+  type: "mock"
+generator:
+  type: "mock"
+validator:
+  type: "mock"
+selector:
+  type: "mock"
+```
+
+Then run:
 ```bash
 mlip-pipeline run config_mock.yaml
 ```
 
 ## Development Workflow
 
-We follow the **AC-CDD (Architect-Coder-Auditor)** methodology with 6 implementation cycles.
+We follow the **AC-CDD (Architect-Coder-Auditor)** methodology.
 
 **Run Tests:**
 ```bash
@@ -113,7 +127,8 @@ src/
 └── mlip_autopipec/
     ├── domain_models/      # Pydantic data models
     ├── interfaces/         # Abstract Base Classes
-    ├── implementations/    # Concrete classes (Generator, Oracle, etc.)
+    ├── infrastructure/     # Concrete classes (Mocks, etc.)
+    ├── factory.py          # Component Factory
     └── main.py             # CLI entry point
 
 dev_documents/
