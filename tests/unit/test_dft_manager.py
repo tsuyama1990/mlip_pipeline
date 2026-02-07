@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 from ase.calculators.calculator import CalculationFailed
 
 from mlip_autopipec.domain_models import Structure
@@ -18,6 +19,15 @@ def test_dft_manager_init() -> None:
     assert oracle.command == "pw.x"
     assert oracle.kspacing == 0.05
     assert oracle.smearing_width == 0.02 # default
+
+def test_dft_manager_init_invalid_command() -> None:
+    params = {
+        "command": "pw.x; rm -rf /", # Dangerous command
+        "pseudo_dir": "/tmp", # noqa: S108
+        "pseudopotentials": {"Si": "Si.upf"}
+    }
+    with pytest.raises(ValueError, match="Invalid characters in command"):
+        DFTManager(params)
 
 def test_dft_manager_compute_logic() -> None:
     # Test logic with mocked ASE calculator
@@ -105,7 +115,7 @@ def test_dft_manager_kpoint_grid_logic() -> None:
     # Test k-point grid logic for different cells
     params = {
         "command": "pw.x",
-        "pseudo_dir": "/tmp", # noqa: S108
+        "pseudo_dir": "/tmp",
         "pseudopotentials": {"Si": "Si.upf"},
         "kspacing": 0.2
     }
@@ -144,3 +154,52 @@ def test_dft_manager_kpoint_grid_logic() -> None:
         oracle.compute(structure_ortho)
         _, kwargs = MockEspresso.call_args
         assert kwargs["kpts"] == (7, 4, 2)
+
+def test_dft_manager_persistent_failure() -> None:
+    # Test behavior when Espresso raises persistent error
+    params = {
+        "command": "pw.x",
+        "pseudo_dir": "/tmp",
+        "pseudopotentials": {"Si": "Si.upf"}
+    }
+    oracle = DFTManager(params)
+    structure = Structure(
+        positions=np.zeros((1, 3)),
+        cell=np.eye(3) * 10.0,
+        species=["Si"]
+    )
+
+    with patch("mlip_autopipec.infrastructure.oracle.dft_manager.Espresso") as MockEspresso:
+        # Always fail
+        MockEspresso.return_value.get_potential_energy.side_effect = CalculationFailed("Fatal error")
+
+        with pytest.raises(RuntimeError, match="DFT calculation failed after 2 retries"):
+            oracle.compute(structure)
+
+def test_dft_manager_invalid_structure_input() -> None:
+    # Test that unknown species raises error (if ASE validation kicks in or we mock it)
+    params = {
+        "command": "pw.x",
+        "pseudo_dir": "/tmp",
+        "pseudopotentials": {"Si": "Si.upf"}
+    }
+    oracle = DFTManager(params)
+    # Structure with species "X" which is valid string but maybe no pseudopotential
+    structure = Structure(
+        positions=np.zeros((1, 3)),
+        cell=np.eye(3) * 10.0,
+        species=["X"]
+    )
+
+    # In compute, Atoms(...) is created. If symbol is invalid, it might raise.
+    # But ASE Atoms usually accepts "X".
+    # However, if pseudopotentials are missing "X", Espresso init might raise or run might fail.
+    # Espresso init checks pseudos? ASE Espresso does not check keys against structure immediately unless we run it.
+
+    # We can simulate ASE raising error during run due to missing pseudo.
+
+    with patch("mlip_autopipec.infrastructure.oracle.dft_manager.Espresso") as MockEspresso:
+        MockEspresso.side_effect = RuntimeError("Missing pseudopotential for X")
+
+        with pytest.raises(RuntimeError, match="Missing pseudopotential for X"):
+            oracle.compute(structure)

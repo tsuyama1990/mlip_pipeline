@@ -1,5 +1,6 @@
 import concurrent.futures
 import copy
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -26,6 +27,14 @@ class DFTManager(BaseOracle):
         self.kspacing = float(self.params.get("kspacing", 0.04))
         self.smearing_width = float(self.params.get("smearing_width", 0.02))
         self.max_workers = int(self.params.get("max_workers", 1))
+
+        # Security: Validate command
+        # Allow alphanumeric, spaces, hyphens, dots, underscores, slashes
+        # This is a basic whitelist to prevent shell injection like '; rm -rf /'
+        # Note: shlex.split is used by ASE, but we want to be extra safe.
+        if self.command and not re.match(r"^[\w\s\-\./]+$", self.command):
+            msg = f"Invalid characters in command: {self.command}"
+            raise ValueError(msg)
 
     def compute(self, structure: Structure) -> Structure:
         """
@@ -142,16 +151,30 @@ class DFTManager(BaseOracle):
                 yield self.compute(s)
             return
 
+        # Using map to preserve order and potentially allow cleaner iteration?
+        # No, map blocks until results are ready in order.
+        # Use as_completed for streaming, but with bounded submission.
+
+        # For simplicity and to avoid complex bounded queue logic with futures,
+        # we can submit in chunks.
+        chunk_size = self.max_workers * 2
+
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            # We map the compute function to the structures
-            # Note: DFTManager.compute uses instance attributes, so we need to be careful with pickling.
-            # ProcessPoolExecutor pickles the instance method.
-            # This works if the instance is pickleable.
-            # Pydantic models and basic types are pickleable.
+            structure_iter = iter(structures)
+            while True:
+                chunk = []
+                try:
+                    for _ in range(chunk_size):
+                        chunk.append(next(structure_iter))
+                except StopIteration:
+                    pass
 
-            # Use map to preserve order if needed, or as_completed for streaming
-            # The interface returns Iterator, so as_completed allows faster yield
-            future_to_structure = {executor.submit(self.compute, s): s for s in structures}
+                if not chunk:
+                    break
 
-            for future in concurrent.futures.as_completed(future_to_structure):
-                yield future.result()
+                # Submit chunk
+                futures = [executor.submit(self.compute, s) for s in chunk]
+
+                # Yield results as they complete
+                for future in concurrent.futures.as_completed(futures):
+                    yield future.result()
