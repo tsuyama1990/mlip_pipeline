@@ -4,7 +4,6 @@ from collections.abc import Iterable, Iterator
 from itertools import islice
 from typing import cast
 
-from ase import Atoms
 from ase.calculators.espresso import Espresso
 
 from mlip_autopipec.components.oracle.base import BaseOracle
@@ -33,13 +32,7 @@ class QECalculator:
             "tprnfor": True,
             "tstress": True,
         }
-        return cast(Espresso, Espresso(**params))  # type: ignore[no-untyped-call]
-
-    def calculate(self, atoms: Atoms) -> Atoms:
-        """Perform calculation on atoms."""
-        calc = self.create_calculator()
-        atoms.calc = calc
-        return atoms
+        return cast(Espresso, Espresso(**params))
 
 
 def _process_single_structure(
@@ -50,20 +43,21 @@ def _process_single_structure(
     """
     try:
         structure = Structure.model_validate_json(structure_json)
-        calc_wrapper = QECalculator(config)
-        healer = Healer()
-
         atoms = structure.to_ase()
-        calc = calc_wrapper.create_calculator()
-        atoms.calc = calc
 
-        max_retries = 5
-        attempts = 0
+        # Create initial calculator
+        calc_wrapper = QECalculator(config)
+        atoms.calc = calc_wrapper.create_calculator()
 
-        while attempts < max_retries:
+        healer = Healer()
+        max_attempts = 5
+
+        for attempt in range(max_attempts):
             try:
-                atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+                # Run calculation (potential energy triggers force/stress calc if requested)
+                atoms.get_potential_energy()
 
+                # Success
                 if hasattr(atoms.calc, "parameters"):
                     atoms.info["qe_params"] = atoms.calc.parameters.copy()
 
@@ -72,19 +66,22 @@ def _process_single_structure(
                 return labeled_structure.model_dump_json()
 
             except Exception as e:
-                attempts += 1
-                if attempts >= max_retries:
+                # Calculation failed
+                if attempt == max_attempts - 1:
+                    logger.warning(f"QE Calculation failed after {max_attempts} attempts: {e}")
                     return None
 
                 try:
-                    if atoms.calc is None:
-                        return None
+                    # Try to heal
                     new_calc = healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
+                    logger.info(f"Healed calculator parameters for attempt {attempt + 2}")
                 except HealingFailedError:
+                    logger.warning(f"Healing failed: {e}")
                     return None
 
     except Exception:
+        logger.exception("Unexpected error processing structure")
         return None
 
     return None
@@ -98,7 +95,6 @@ class QEOracle(BaseOracle):
     def __init__(self, config: QEOracleConfig) -> None:
         super().__init__(config)
         self.config: QEOracleConfig = config
-        self.healer = Healer()
 
     @property
     def name(self) -> str:
@@ -117,7 +113,6 @@ class QEOracle(BaseOracle):
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             while True:
                 # We use list(islice) to create a batch.
-                # This is safe because batch_size is strictly limited (e.g. 1000) via config validation.
                 batch = list(islice(iterator, batch_size))
                 if not batch:
                     break
@@ -135,6 +130,9 @@ class QEOracle(BaseOracle):
                         if result_json:
                             yield Structure.model_validate_json(result_json)
                         else:
-                            logger.warning("A structure failed to compute in worker process.")
+                            # Structure failed completely (all healing attempts failed)
+                            # We choose not to yield it, effectively filtering it out.
+                            # This is safe as long as downstream can handle fewer structures.
+                            pass
                     except Exception:
                         logger.exception("Worker process failed")

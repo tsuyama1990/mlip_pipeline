@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Annotated, Any, cast
 
@@ -187,6 +188,22 @@ class Structure(BaseModel):
             msg = "Structure missing stress label"
             raise ValueError(msg)
 
+    def copy(self) -> "Structure":
+        """
+        Create a deep copy of the Structure.
+        """
+        return Structure(
+            positions=self.positions.copy(),
+            atomic_numbers=self.atomic_numbers.copy(),
+            cell=self.cell.copy(),
+            pbc=self.pbc.copy(),
+            forces=self.forces.copy() if self.forces is not None else None,
+            energy=self.energy,
+            stress=self.stress.copy() if self.stress is not None else None,
+            uncertainty=self.uncertainty,
+            tags=copy.deepcopy(self.tags),
+        )
+
     @classmethod
     def from_ase(cls, atoms: Atoms) -> "Structure":
         """
@@ -197,7 +214,7 @@ class Structure(BaseModel):
         # Validate critical array lengths match before processing
         n_atoms = len(atoms)
         try:
-            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
+            positions = atoms.get_positions()
         except Exception as e:
             msg = f"Failed to get positions: {e}"
             raise ValueError(msg) from e
@@ -231,7 +248,7 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_atomic_numbers(atoms: Atoms) -> np.ndarray:
         try:
-            atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+            atomic_numbers = atoms.get_atomic_numbers()
         except Exception as e:
             msg = f"Failed to get atomic numbers from ASE atoms: {e}"
             raise ValueError(msg) from e
@@ -248,7 +265,7 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_positions(atoms: Atoms, n_atoms: int) -> np.ndarray:
         try:
-            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
+            positions = atoms.get_positions()
         except Exception as e:
             msg = f"Failed to get positions from ASE atoms: {e}"
             raise ValueError(msg) from e
@@ -265,8 +282,8 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_cell_pbc(atoms: Atoms) -> tuple[np.ndarray, np.ndarray]:
         try:
-             cell = np.array(atoms.get_cell())  # type: ignore[no-untyped-call]
-             pbc = atoms.get_pbc()  # type: ignore[no-untyped-call]
+             cell = np.array(atoms.get_cell())
+             pbc = atoms.get_pbc()
         except Exception as e:
              msg = f"Failed to get cell/pbc from ASE atoms: {e}"
              raise ValueError(msg) from e
@@ -281,20 +298,20 @@ class Structure(BaseModel):
         if atoms.calc:
             # Explicit error handling
             try:
-                energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+                energy = atoms.get_potential_energy()
             except Exception as e:
                 logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
 
             try:
-                forces = atoms.get_forces()  # type: ignore[no-untyped-call]
+                forces = atoms.get_forces()
             except Exception as e:
                 logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
 
             try:
-                stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
+                stress = atoms.get_stress(voigt=False)
             except Exception:
                 try:
-                    stress = atoms.get_stress()  # type: ignore[no-untyped-call]
+                    stress = atoms.get_stress()
                 except Exception as e:
                     logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
@@ -326,7 +343,7 @@ class Structure(BaseModel):
 
         # Attach labels via SinglePointCalculator if present
         if self.energy is not None or self.forces is not None or self.stress is not None:
-            calc = SinglePointCalculator(  # type: ignore[no-untyped-call]
+            calc = SinglePointCalculator(
                 atoms,
                 energy=self.energy,
                 forces=self.forces,

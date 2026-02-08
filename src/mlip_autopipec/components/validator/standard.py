@@ -1,9 +1,9 @@
 import logging
-from typing import Any
 
 from mlip_autopipec.components.validator.base import BaseValidator
 from mlip_autopipec.domain_models.config import StandardValidatorConfig
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.results import ValidationMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class StandardValidator(BaseValidator):
     def name(self) -> str:
         return self.config.name
 
-    def validate(self, potential: Potential) -> dict[str, float | str | list[Any]]:
+    def validate(self, potential: Potential) -> ValidationMetrics:
         """
         Validate the potential.
 
@@ -32,7 +32,7 @@ class StandardValidator(BaseValidator):
             potential: The potential to validate.
 
         Returns:
-            dict: A dictionary of validation metrics and results.
+            ValidationMetrics: A model containing validation metrics and results.
 
         Raises:
             NotImplementedError: Always, as this is a placeholder.

@@ -73,7 +73,7 @@ class ComponentFactory:
         return component_class(config)
 
     @classmethod
-    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator[Any]:
+    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator:
         return cls.create(ComponentRole.GENERATOR, config)  # type: ignore
 
     @classmethod

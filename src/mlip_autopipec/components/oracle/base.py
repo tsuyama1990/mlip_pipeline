@@ -13,5 +13,13 @@ class BaseOracle(BaseComponent[OracleConfig]):
 
     @abstractmethod
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
-        """Compute labels for structures."""
+        """
+        Compute labels for structures.
+
+        Args:
+            structures: Input structures without labels.
+
+        Returns:
+            Iterator of labeled structures.
+        """
         ...

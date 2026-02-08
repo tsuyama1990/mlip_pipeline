@@ -19,5 +19,15 @@ class BaseTrainer(BaseComponent[TrainerConfig]):
     def train(
         self, dataset: "Dataset", workdir: Path, previous_potential: Potential | None = None
     ) -> Potential:
-        """Train a potential."""
+        """
+        Train a potential.
+
+        Args:
+            dataset: The dataset to train on.
+            workdir: Directory for training artifacts.
+            previous_potential: Previous potential to resume from (optional).
+
+        Returns:
+            The trained Potential object.
+        """
         ...

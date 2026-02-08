@@ -167,7 +167,7 @@ class PacemakerTrainer(BaseTrainer):
         logger.info(f"Executing: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 cwd=workdir,
                 check=True,

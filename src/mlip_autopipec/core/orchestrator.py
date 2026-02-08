@@ -87,23 +87,24 @@ class Orchestrator:
         if cycle == 1:
             logger.info(f"[Cycle {cycle}] Exploration: Generating initial structures (Cold Start)")
             # Cycle 1 uses Generator to create initial random/heuristic structures
-            structures = iter(self.generator.generate(n_structures=n_structures))
+            structures = self.generator.generate(n_structures=n_structures)
         else:
             logger.info(f"[Cycle {cycle}] Exploration: Running Dynamics with previous potential")
+
+            # Ensure potential is available
             if self.current_potential is None:
-                # In a real restart scenario, we might load the potential from previous cycle
                 prev_cycle = cycle - 1
                 prev_cycle_dir_name = self.config.orchestrator.cycle_dir_pattern.format(cycle=prev_cycle)
                 prev_pot_path = self.config.workdir / prev_cycle_dir_name / self.config.orchestrator.potential_filename
 
                 if prev_pot_path.exists():
                     self.current_potential = Potential(path=prev_pot_path)
+                    logger.info(f"Loaded potential from {prev_pot_path}")
                 else:
-                    msg = "No potential available for exploration"
+                    msg = f"Cycle {cycle}: No potential available from Cycle {prev_cycle} at {prev_pot_path}"
                     raise RuntimeError(msg)
 
-            # Generate start structures for dynamics (e.g. from Generator or previous dataset)
-            # For simplicity, we ask Generator for fresh start structures
+            # Generate start structures for dynamics (seeds)
             start_structures_iter = self.generator.generate(n_structures=n_structures)
 
             # Dynamics explores and yields UNCERTAIN structures
@@ -132,5 +133,5 @@ class Orchestrator:
         metrics = self.validator.validate(self.current_potential)
         logger.info(f"Validation metrics: {metrics}")
 
-        self.current_potential.metrics.update(metrics)
+        self.current_potential.metrics.update(metrics.model_dump())
         logger.info(f"=== Cycle {cycle:02d} Completed ===")

@@ -168,8 +168,7 @@ def test_qe_calculator_setup(qe_config: QEOracleConfig) -> None:
     """Test QECalculator internal logic."""
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_espresso_cls:
         qe_calc = QECalculator(qe_config)
-        atoms = Atoms("H")
-        qe_calc.calculate(atoms)
+        qe_calc.create_calculator()
 
         mock_espresso_cls.assert_called()
         call_kwargs = mock_espresso_cls.call_args[1]

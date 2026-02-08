@@ -16,5 +16,14 @@ class BaseDynamics(BaseComponent[DynamicsConfig]):
     def explore(
         self, potential: Potential, start_structures: Iterable[Structure]
     ) -> Iterator[Structure]:
-        """Explore and find uncertain structures."""
+        """
+        Explore and find uncertain structures.
+
+        Args:
+            potential: The potential to use for exploration.
+            start_structures: Initial structures to start exploration from.
+
+        Returns:
+            Iterator of uncertain/new structures found.
+        """
         ...

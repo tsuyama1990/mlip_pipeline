@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
+from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
 from mlip_autopipec.components.generator.builder import BulkBuilder, SurfaceBuilder
 from mlip_autopipec.components.generator.policy import ExplorationPolicy
 from mlip_autopipec.components.generator.rattle import RattleTransform, StrainTransform
@@ -105,3 +106,25 @@ class TestExplorationPolicy:
         assert len(surface_tasks) > 0
         n_surface = sum(t.n_structures for t in surface_tasks)
         assert n_surface >= 5  # At least 50%
+
+
+class TestAdaptiveGenerator:
+    def test_generate(self) -> None:
+        config = AdaptiveGeneratorConfig(
+            name=GeneratorType.ADAPTIVE,
+            element="Fe",
+            crystal_structure="bcc",
+            # policy_ratios uses default factory which is reasonable
+            n_structures=10
+        )
+        generator = AdaptiveGenerator(config)
+
+        # Call generate with n_structures=10
+        structures = list(generator.generate(n_structures=10))
+
+        assert len(structures) == 10
+
+        types = [s.tags.get("type") for s in structures]
+        assert "bulk" in types
+        # Surface ratio is 0.4 by default, so we expect some surfaces
+        assert "surface" in types

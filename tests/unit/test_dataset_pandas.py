@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -12,7 +13,7 @@ from mlip_autopipec.domain_models.structure import Structure
 
 def create_labeled_structure() -> Structure:
     atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]], cell=[10, 10, 10], pbc=True)
-    calc = SinglePointCalculator(atoms, energy=-10.5, forces=[[0, 0, 0.1], [0, 0, -0.1]], stress=np.zeros((3, 3)))  # type: ignore[no-untyped-call]
+    calc = SinglePointCalculator(atoms, energy=-10.5, forces=[[0, 0, 0.1], [0, 0, -0.1]], stress=np.zeros((3, 3)))
     atoms.calc = calc
     return Structure.from_ase(atoms)
 
@@ -43,7 +44,7 @@ def test_dataset_export_to_extxyz(tmp_path: Path) -> None:
     if isinstance(first_atom, Atoms):
         energy = first_atom.info.get("energy")
         if energy is None and first_atom.calc:
-            energy = first_atom.get_potential_energy()  # type: ignore[no-untyped-call]
+            energy = first_atom.get_potential_energy()
 
         assert energy == -10.5
     else:
