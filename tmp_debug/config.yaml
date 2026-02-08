@@ -1,0 +1,10 @@
+dynamics:
+  type: mock
+generator:
+  type: mock
+max_cycles: 1
+oracle:
+  type: mock
+trainer:
+  type: mock
+workdir: foo
