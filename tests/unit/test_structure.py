@@ -240,3 +240,46 @@ def test_validate_labeled_partial() -> None:
     )
     with pytest.raises(ValueError, match="Structure missing energy label"):
         s.validate_labeled()
+
+def test_structure_copy() -> None:
+    # Create structure with all fields
+    pos = np.array([[0.0, 0.0, 0.0]])
+    numbers = np.array([1])
+    cell = np.eye(3)
+    pbc = np.array([True, True, True])
+    forces = np.array([[0.1, 0.2, 0.3]])
+    energy = -1.5
+    stress = np.eye(3) * 0.1
+    uncertainty = 0.5
+    tags = {"type": "bulk", "provenance": {"id": 1}}
+
+    s = Structure(
+        positions=pos,
+        atomic_numbers=numbers,
+        cell=cell,
+        pbc=pbc,
+        forces=forces,
+        energy=energy,
+        stress=stress,
+        uncertainty=uncertainty,
+        tags=tags,
+    )
+
+    s_copy = s.model_deep_copy()
+
+    # Check equality
+    assert np.allclose(s_copy.positions, s.positions)
+    assert np.allclose(s_copy.forces, s.forces)  # type: ignore[arg-type]
+    assert s_copy.tags == s.tags
+    assert s_copy.energy == s.energy
+    assert s_copy.uncertainty == s.uncertainty
+
+    # Check deep copy (independence)
+    s_copy.positions[0, 0] = 99.0
+    assert s.positions[0, 0] == 0.0  # Original should not change
+
+    s_copy.tags["type"] = "surface"
+    assert s.tags["type"] == "bulk" # Original should not change
+
+    s_copy.tags["provenance"]["id"] = 2
+    assert s.tags["provenance"]["id"] == 1 # Deep copy of nested dict

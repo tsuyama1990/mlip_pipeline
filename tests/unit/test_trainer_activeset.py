@@ -54,6 +54,8 @@ def test_activeset_selector_fail(tmp_path: Path) -> None:
         input_file = tmp_path / "in.gzip"
         input_file.touch()
 
-        with patch("shutil.which", return_value="/usr/bin/pace_activeset"):
-            with pytest.raises(RuntimeError):
-                selector.select(input_file, tmp_path / "out.gzip")
+        with (
+            patch("shutil.which", return_value="/usr/bin/pace_activeset"),
+            pytest.raises(RuntimeError),
+        ):
+            selector.select(input_file, tmp_path / "out.gzip")

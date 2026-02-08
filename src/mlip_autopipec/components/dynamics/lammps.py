@@ -44,3 +44,9 @@ class LAMMPSDynamics(BaseDynamics):
         logger.error("LAMMPS Dynamics is not yet implemented.")
         msg = "LAMMPS Dynamics is not yet implemented."
         raise NotImplementedError(msg)
+
+    def __repr__(self) -> str:
+        return f"<LAMMPSDynamics(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"LAMMPSDynamics({self.name})"

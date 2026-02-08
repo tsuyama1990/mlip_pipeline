@@ -11,8 +11,8 @@ def test_embed_cluster_basic() -> None:
     """Test embedding a simple cluster in a vacuum box."""
     cluster = molecule("H2")  # type: ignore[no-untyped-call]
     # Keep copy of original positions
-    original_positions = cluster.get_positions()  # type: ignore[no-untyped-call]
-    original_cell = cluster.get_cell()  # type: ignore[no-untyped-call]
+    original_positions = cluster.get_positions()
+    original_cell = cluster.get_cell()
 
     vacuum = 5.0
     embedded = embed_cluster(cluster, vacuum)
@@ -39,8 +39,8 @@ def test_embed_cluster_basic() -> None:
     assert np.allclose(bbox_center, cell_center, atol=1e-5)
 
     # Verify input was not modified
-    assert np.allclose(cluster.get_positions(), original_positions)  # type: ignore[no-untyped-call]
-    assert np.allclose(cluster.get_cell(), original_cell)  # type: ignore[no-untyped-call]
+    assert np.allclose(cluster.get_positions(), original_positions)
+    assert np.allclose(cluster.get_cell(), original_cell)
 
 
 def test_embed_cluster_from_bulk() -> None:
@@ -49,7 +49,7 @@ def test_embed_cluster_from_bulk() -> None:
     si_bulk = bulk("Si", "diamond", a=5.43) * (4, 4, 4)
 
     # Extract a cluster (e.g. atoms within 6A of center)
-    center = si_bulk.get_cell().sum(axis=0) / 2  # type: ignore[no-untyped-call]
+    center = si_bulk.get_cell().sum(axis=0) / 2
     # Ensure unwrapped positions if needed, but bulk usually fits in cell
     distances = np.linalg.norm(si_bulk.positions - center, axis=1)
     mask = distances < 6.0

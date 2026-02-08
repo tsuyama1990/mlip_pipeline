@@ -1,10 +1,8 @@
 import concurrent.futures
+import contextlib
 import logging
 from collections.abc import Iterable, Iterator
-from itertools import islice
-from typing import cast
 
-from ase import Atoms
 from ase.calculators.espresso import Espresso
 
 from mlip_autopipec.components.oracle.base import BaseOracle
@@ -33,13 +31,7 @@ class QECalculator:
             "tprnfor": True,
             "tstress": True,
         }
-        return cast(Espresso, Espresso(**params))  # type: ignore[no-untyped-call]
-
-    def calculate(self, atoms: Atoms) -> Atoms:
-        """Perform calculation on atoms."""
-        calc = self.create_calculator()
-        atoms.calc = calc
-        return atoms
+        return Espresso(**params)  # type: ignore[no-untyped-call]
 
 
 def _process_single_structure(
@@ -50,20 +42,21 @@ def _process_single_structure(
     """
     try:
         structure = Structure.model_validate_json(structure_json)
-        calc_wrapper = QECalculator(config)
-        healer = Healer()
-
         atoms = structure.to_ase()
-        calc = calc_wrapper.create_calculator()
-        atoms.calc = calc
 
-        max_retries = 5
-        attempts = 0
+        # Create initial calculator
+        calc_wrapper = QECalculator(config)
+        atoms.calc = calc_wrapper.create_calculator()
 
-        while attempts < max_retries:
+        healer = Healer()
+        max_attempts = 5
+
+        for attempt in range(max_attempts):
             try:
+                # Run calculation (potential energy triggers force/stress calc if requested)
                 atoms.get_potential_energy()  # type: ignore[no-untyped-call]
 
+                # Success
                 if hasattr(atoms.calc, "parameters"):
                     atoms.info["qe_params"] = atoms.calc.parameters.copy()
 
@@ -72,19 +65,22 @@ def _process_single_structure(
                 return labeled_structure.model_dump_json()
 
             except Exception as e:
-                attempts += 1
-                if attempts >= max_retries:
+                # Calculation failed
+                if attempt == max_attempts - 1:
+                    logger.warning(f"QE Calculation failed after {max_attempts} attempts: {e}")
                     return None
 
                 try:
-                    if atoms.calc is None:
-                        return None
+                    # Try to heal
                     new_calc = healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
+                    logger.info(f"Healed calculator parameters for attempt {attempt + 2}")
                 except HealingFailedError:
+                    logger.warning(f"Healing failed: {e}")
                     return None
 
     except Exception:
+        logger.exception("Unexpected error processing structure")
         return None
 
     return None
@@ -98,43 +94,88 @@ class QEOracle(BaseOracle):
     def __init__(self, config: QEOracleConfig) -> None:
         super().__init__(config)
         self.config: QEOracleConfig = config
-        self.healer = Healer()
 
     @property
     def name(self) -> str:
         return self.config.name
 
-    def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
+    def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:  # noqa: C901, PLR0912
         """
-        Compute labels using batched parallel processing.
+        Compute labels using batched parallel processing with streaming.
+        Controls memory usage by limiting the number of in-flight futures and total atoms.
         """
-        batch_size = self.config.batch_size
         max_workers = self.config.max_workers
+        # Use batch_size as the limit for pending tasks to control memory
+        max_pending = self.config.batch_size
+        max_atoms_in_flight = 100_000  # Safety limit for total atoms in memory
 
         iterator = iter(structures)
+        futures: dict[concurrent.futures.Future[str | None], int] = {}
+        pending_atoms = 0
+        pending_structure: Structure | None = None
 
-        # Instantiate executor once
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            while True:
-                # We use list(islice) to create a batch.
-                # This is safe because batch_size is strictly limited (e.g. 1000) via config validation.
-                batch = list(islice(iterator, batch_size))
-                if not batch:
-                    break
+            try:
+                while True:
+                    # 1. Fetch next structure if needed
+                    if pending_structure is None:
+                        with contextlib.suppress(StopIteration):
+                            pending_structure = next(iterator)
 
-                batch_json = [s.model_dump_json() for s in batch]
+                    # 2. Check if we can submit
+                    can_submit = False
+                    if pending_structure is not None:
+                        n_atoms = len(pending_structure.positions)
+                        # Allow submission if:
+                        # - We haven't reached max tasks (max_pending)
+                        # - AND (we have room in atom budget OR it's the only task)
+                        if len(futures) < max_pending:
+                            if pending_atoms == 0 or (pending_atoms + n_atoms <= max_atoms_in_flight):
+                                can_submit = True
+                            elif n_atoms > max_atoms_in_flight:
+                                logger.warning(
+                                    f"Structure with {n_atoms} atoms exceeds safety limit "
+                                    f"({max_atoms_in_flight}). Processing sequentially."
+                                )
+                                # If it's huge, we wait until pending_atoms == 0 (handled by 'pending_atoms == 0' check)
 
-                futures = [
-                    executor.submit(_process_single_structure, s_json, self.config)
-                    for s_json in batch_json
-                ]
+                    # 3. Submit task
+                    if can_submit and pending_structure:
+                        n_atoms = len(pending_structure.positions)
+                        future = executor.submit(
+                            _process_single_structure,
+                            pending_structure.model_dump_json(),
+                            self.config
+                        )
+                        futures[future] = n_atoms
+                        pending_atoms += n_atoms
+                        pending_structure = None
+                        # Loop back to try filling more if possible
+                        continue
 
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        result_json = future.result()
-                        if result_json:
-                            yield Structure.model_validate_json(result_json)
-                        else:
-                            logger.warning("A structure failed to compute in worker process.")
-                    except Exception:
-                        logger.exception("Worker process failed")
+                    # 4. Exit condition
+                    if not futures and pending_structure is None:
+                        break
+
+                    # 5. Wait for results
+                    done, _ = concurrent.futures.wait(
+                        futures.keys(), return_when=concurrent.futures.FIRST_COMPLETED
+                    )
+
+                    # Process completed futures
+                    for future in done:
+                        atoms_freed = futures.pop(future)
+                        pending_atoms -= atoms_freed
+                        try:
+                            result_json = future.result()
+                            if result_json:
+                                yield Structure.model_validate_json(result_json)
+                            else:
+                                # Structure failed (logging handled in worker)
+                                pass
+                        except Exception:
+                            logger.exception("Worker process failed unexpectedly")
+            finally:
+                # Cancel any pending futures if generator is closed early
+                for f in futures:
+                    f.cancel()

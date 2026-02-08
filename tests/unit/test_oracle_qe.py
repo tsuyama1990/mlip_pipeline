@@ -16,7 +16,7 @@ from mlip_autopipec.domain_models.structure import Structure
 # Define a Fake Calculator that behaves like Espresso but runs in memory
 class FakeEspresso(Calculator):
     def __init__(self, failure_mode: str = "parameter_sensitive", **kwargs: Any) -> None:
-        super().__init__()
+        super().__init__()  # type: ignore[no-untyped-call]
         self.parameters = kwargs
         # Ensure failure_mode is in parameters so it survives Healing reconstruction
         self.parameters["failure_mode"] = failure_mode
@@ -33,7 +33,7 @@ class FakeEspresso(Calculator):
         # Standard ASE setup
         if properties is None:
             properties = ["energy"]
-        super().calculate(atoms, properties, system_changes)
+        super().calculate(atoms, properties, system_changes)  # type: ignore[no-untyped-call]
 
         # Simulation Logic
         # Read from parameters if present (reconstructed via Heal)
@@ -160,16 +160,19 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
         # Verify provenance shows HEALED parameter
         assert result.tags["qe_params"]["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
-        # We expect at least one call to create the calculator
-        assert mock_cls.call_count >= 1
+        # Note: mock_cls (Espresso) is only called once for initial setup.
+        # Healing calls type(calc)(...), which is FakeEspresso, not the mocked Espresso class.
+        assert mock_cls.call_count == 1
+
+        # To verify healing parameters were used, we check the result (done above)
+        # or we could spy on FakeEspresso if needed.
 
 
 def test_qe_calculator_setup(qe_config: QEOracleConfig) -> None:
     """Test QECalculator internal logic."""
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_espresso_cls:
         qe_calc = QECalculator(qe_config)
-        atoms = Atoms("H")
-        qe_calc.calculate(atoms)
+        qe_calc.create_calculator()
 
         mock_espresso_cls.assert_called()
         call_kwargs = mock_espresso_cls.call_args[1]

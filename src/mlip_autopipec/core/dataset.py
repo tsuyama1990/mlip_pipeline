@@ -32,20 +32,14 @@ class Dataset:
         """
         # Security: Resolve absolute path
         try:
-            # We use strict=False because the file might not exist yet (we create it)
-            # However, we must ensure the PARENT exists and is safe if strict=False for file.
-            # But the reviewer wants strict=True on path resolution.
-            # If file doesn't exist, strict=True raises.
-            # So we resolve the directory first.
-
             resolved_root = root_dir.resolve(strict=True)
 
-            # Resolve path. If it exists, strict=True. If not, resolve parent.
             if path.exists():
                 self.path = path.resolve(strict=True)
             else:
-                # Resolve parent strictly
+                # File does not exist, so we resolve its parent directory
                 parent = path.parent.resolve(strict=True)
+                # Reconstruct the full path
                 self.path = parent / path.name
 
         except OSError as e:
@@ -71,6 +65,9 @@ class Dataset:
         except Exception:
             count = -1
         return f"<Dataset(path={self.path}, count={count})>"
+
+    def __str__(self) -> str:
+        return f"Dataset({self.path.name})"
 
     def _ensure_exists(self) -> None:
         try:
@@ -230,55 +227,88 @@ class Dataset:
 
         logger.info(f"Exported dataset to {output_path} in extxyz format")
 
-    def to_pacemaker_gzip(self, output_path: Path, chunk_size: int = 10000) -> None:
+    def _batch_to_dict(self, batch: list[Structure]) -> list[dict[str, Any]]:
+        """Convert a batch of structures to a list of dictionaries for DataFrame creation."""
+        batch_data = []
+        for s in batch:
+            atoms = s.to_ase()
+            row: dict[str, Any] = {"ase_atoms": atoms}
+            if s.energy is not None:
+                row["energy"] = s.energy
+            if s.forces is not None:
+                row["forces"] = s.forces
+            if s.stress is not None:
+                row["stress"] = s.stress
+            batch_data.append(row)
+        return batch_data
+
+    def to_pacemaker_gzip(self, output_path: Path, chunk_size: int = 10000) -> None:  # noqa: C901
         """
         Export dataset to a gzipped pickle file for Pacemaker.
 
-        WARNING: This method loads the entire dataset into memory as a Pandas DataFrame
-        before pickling, as required by the legacy Pacemaker input format.
-        For large datasets (>100k structures), use `to_extxyz` instead to avoid OOM errors.
+        WARNING: This method requires the full DataFrame to be in memory for pickling.
+        Uses streaming read via pandas to minimize peak memory usage during loading.
 
         Args:
             output_path: Destination path.
-            chunk_size: Size of chunks for processing (internal optimization).
+            chunk_size: Size of chunks for processing.
         """
         # Validate output path
         if not output_path.parent.exists():
             msg = f"Output parent directory does not exist: {output_path.parent}"
             raise ValueError(msg)
 
+        current_count = len(self)
+        if current_count > 100000:
+            logger.warning(
+                f"Exporting large dataset ({current_count} structures) to Pacemaker gzip format. "
+                "This may cause high memory usage. Consider using 'extxyz' format instead."
+            )
+
         chunks = []
-        # Process in chunks to avoid creating a massive list of dicts at once
-        for batch in self.iter_batches(batch_size=chunk_size):
-            batch_data = []
-            for s in batch:
-                atoms = s.to_ase()
-                row: dict[str, Any] = {"ase_atoms": atoms}
-                if s.energy is not None:
-                    row["energy"] = s.energy
-                if s.forces is not None:
-                    row["forces"] = s.forces
-                if s.stress is not None:
-                    row["stress"] = s.stress
-                batch_data.append(row)
-
-            if batch_data:
-                # Convert chunk to DF immediately to free dicts
-                chunks.append(pd.DataFrame(batch_data))
-                del batch_data
-
-        if not chunks:
-            df = pd.DataFrame()
-        else:
-            df = pd.concat(chunks, ignore_index=True)
-            del chunks
-
-        # Pacemaker expects a pickled DataFrame
         try:
+            # Use pandas streaming read for efficiency as requested by audit
+            # lines=True handles JSONL format
+            reader = pd.read_json(self.path, lines=True, chunksize=chunk_size)
+
+            for chunk_df in reader:
+                chunk_data = []
+                # Iterate over rows in the chunk DataFrame
+                for _, row in chunk_df.iterrows():
+                    try:
+                        # Convert row to dict, filtering out NaNs using pandas dropna
+                        row_dict = row.dropna().to_dict()
+                        # Validate using Pydantic model
+                        s = Structure.model_validate(row_dict)
+                        atoms = s.to_ase()
+
+                        entry: dict[str, Any] = {"ase_atoms": atoms}
+                        if s.energy is not None:
+                            entry["energy"] = s.energy
+                        if s.forces is not None:
+                            entry["forces"] = s.forces
+                        if s.stress is not None:
+                            entry["stress"] = s.stress
+                        chunk_data.append(entry)
+                    except Exception:
+                        logger.debug("Skipping malformed row during export")
+                        continue
+
+                if chunk_data:
+                    chunks.append(pd.DataFrame(chunk_data))
+                    del chunk_data
+
+            if not chunks:
+                df = pd.DataFrame()
+            else:
+                df = pd.concat(chunks, ignore_index=True)
+                del chunks
+
             with gzip.open(output_path, "wb") as f:
                 pickle.dump(df, f)
             del df
             logger.info(f"Exported dataset to {output_path}")
-        except OSError:
+
+        except Exception:
             logger.exception(f"Failed to export dataset to {output_path}")
             raise

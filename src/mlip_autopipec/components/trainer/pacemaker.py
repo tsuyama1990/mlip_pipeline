@@ -137,24 +137,30 @@ class PacemakerTrainer(BaseTrainer):
             initial_potential_path = str(validate_safe_path(Path(self.config.initial_potential), must_exist=True))
 
         # Basic configuration structure using Pydantic model
-        config_model = PacemakerInputConfig(
-            cutoff=self.config.cutoff,
-            data={
+        # Merge explicit options with user-provided overrides
+        config_data = {
+            "cutoff": self.config.cutoff,
+            "data": {
                 "filename": data_path.name  # Relative path
             },
-            fitting={
+            "fitting": {
                 "weight_energy": self.config.fitting_weight_energy,
                 "weight_force": self.config.fitting_weight_force,
             },
-            backend={
+            "backend": {
                 "evaluator": self.config.backend_evaluator
             },
-            b_basis={
+            "b_basis": {
                  "max_degree": self.config.basis_size # Rough mapping
             },
-            physics_baseline=physics_baseline,
-            initial_potential=initial_potential_path
-        )
+            "physics_baseline": physics_baseline,
+            "initial_potential": initial_potential_path,
+        }
+
+        # Override/Extend with custom options from config
+        config_data.update(self.config.pacemaker_options)
+
+        config_model = PacemakerInputConfig.model_validate(config_data)
 
         with output_path.open("w") as f:
             # exclude_none=True to avoid cluttering config with nulls
@@ -167,7 +173,7 @@ class PacemakerTrainer(BaseTrainer):
         logger.info(f"Executing: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 cwd=workdir,
                 check=True,
@@ -181,3 +187,9 @@ class PacemakerTrainer(BaseTrainer):
             msg = f"pace_train failed: {e.stderr}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
+
+    def __repr__(self) -> str:
+        return f"<PacemakerTrainer(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"PacemakerTrainer({self.name})"

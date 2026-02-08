@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Annotated, Any, cast
 
@@ -187,6 +188,23 @@ class Structure(BaseModel):
             msg = "Structure missing stress label"
             raise ValueError(msg)
 
+    def model_deep_copy(self) -> "Structure":
+        """
+        Create a deep copy of the Structure.
+        Renamed to avoid conflict with Pydantic's copy().
+        """
+        return Structure(
+            positions=self.positions.copy(),
+            atomic_numbers=self.atomic_numbers.copy(),
+            cell=self.cell.copy(),
+            pbc=self.pbc.copy(),
+            forces=self.forces.copy() if self.forces is not None else None,
+            energy=self.energy,
+            stress=self.stress.copy() if self.stress is not None else None,
+            uncertainty=self.uncertainty,
+            tags=copy.deepcopy(self.tags),
+        )
+
     @classmethod
     def from_ase(cls, atoms: Atoms) -> "Structure":
         """
@@ -197,13 +215,13 @@ class Structure(BaseModel):
         # Validate critical array lengths match before processing
         n_atoms = len(atoms)
         try:
-            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
+            positions = cast(np.ndarray, atoms.get_positions())  # type: ignore[no-untyped-call]
         except Exception as e:
             msg = f"Failed to get positions: {e}"
             raise ValueError(msg) from e
 
-        if len(positions) != n_atoms:
-            msg = f"Mismatch: ASE atoms length {n_atoms} != positions length {len(positions)}"
+        if positions.shape[0] != n_atoms:
+            msg = f"Mismatch: ASE atoms length {n_atoms} != positions length {positions.shape[0]}"
             raise ValueError(msg)
 
         atomic_numbers = cls._extract_atomic_numbers(atoms)
@@ -260,6 +278,11 @@ class Structure(BaseModel):
         if len(positions) != n_atoms:
              msg = f"Mismatch: positions={len(positions)}, atomic_numbers={n_atoms}"
              raise ValueError(msg)
+
+        if not np.all(np.isfinite(positions)):
+            msg = "Positions contain non-finite values"
+            raise ValueError(msg)
+
         return cast(np.ndarray, positions)
 
     @staticmethod
@@ -335,3 +358,11 @@ class Structure(BaseModel):
             atoms.calc = calc
 
         return atoms
+
+    def __repr__(self) -> str:
+        n_atoms = len(self.positions)
+        return f"<Structure(n_atoms={n_atoms}, energy={self.energy})>"
+
+    def __str__(self) -> str:
+        n_atoms = len(self.positions)
+        return f"Structure(n_atoms={n_atoms})"

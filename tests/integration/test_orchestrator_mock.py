@@ -1,5 +1,6 @@
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +19,7 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
+from mlip_autopipec.domain_models.structure import Structure
 
 # Constants localized to test
 CYCLE_01_DIR = "cycle_01"
@@ -83,7 +85,6 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     assert dataset_path.exists()
 
     dataset = Dataset(dataset_path, root_dir=tmp_path)
-    dataset = Dataset(dataset_path, root_dir=tmp_path)
     count = 0
     iterator = iter(dataset)
     try:
@@ -94,6 +95,9 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     except StopIteration:
         pass
 
+    # Cycle 1 yields 5 structures (Generator)
+    # Cycle 2 yields 5 structures (Generator -> Dynamics -> Oracle)
+    # Total count should be 10
     EXPECTED_TOTAL_COUNT = 10
     assert count == EXPECTED_TOTAL_COUNT
 
@@ -103,7 +107,7 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
 
 
 class FailingOracle(MockOracle):
-    def compute(self, structures: Any) -> Any:
+    def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         msg = "Simulated DFT failure"
         raise RuntimeError(msg)
 
@@ -148,6 +152,9 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     except StopIteration:
         pass
 
+    # Cycle 1 yields 20 structures
+    # Cycle 2 yields ~10 structures (50% of 20)
+    # Total count should be ~30
     # Deterministic check
     assert count < 38, "Selection logic failed to filter structures"
-    assert count > 10, "Selection logic filtered too aggressively"
+    assert count > 22, "Selection logic filtered too aggressively"

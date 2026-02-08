@@ -1,4 +1,5 @@
 import gzip
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -40,14 +41,13 @@ def test_dataset_export_to_extxyz(tmp_path: Path) -> None:
     # Check both potential locations
     first_atom = atoms_list[0]
     # Check if first_atom is actually an Atoms object to satisfy MyPy
-    if isinstance(first_atom, Atoms):
-        energy = first_atom.info.get("energy")
-        if energy is None and first_atom.calc:
-            energy = first_atom.get_potential_energy()  # type: ignore[no-untyped-call]
+    assert isinstance(first_atom, Atoms), "Read object is not an ASE Atoms object"
 
-        assert energy == -10.5
-    else:
-        pytest.fail("Read object is not an ASE Atoms object")
+    energy = first_atom.info.get("energy")
+    if energy is None and first_atom.calc:
+        energy = first_atom.get_potential_energy()  # type: ignore[no-untyped-call]
+
+    assert energy == -10.5
 
 def test_dataset_export_to_pacemaker_gzip(tmp_path: Path) -> None:
     dataset_path = tmp_path / "dataset.jsonl"
@@ -61,9 +61,11 @@ def test_dataset_export_to_pacemaker_gzip(tmp_path: Path) -> None:
 
     assert output_path.exists()
 
-    # Verify it can be read back by pandas (simulating Pacemaker)
+    # Verify it can be read back (simulating Pacemaker)
+    # Using standard pickle instead of pd.read_pickle
     with gzip.open(output_path, "rb") as f:
-        df = pd.read_pickle(f)  # noqa: S301
+        df = pickle.load(f)  # noqa: S301
 
+    assert isinstance(df, pd.DataFrame)
     assert len(df) == 5
     assert "energy" in df.columns

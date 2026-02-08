@@ -12,3 +12,9 @@ class Potential(BaseModel):
     format: str = "yace"
     metrics: dict[str, Any] = Field(default_factory=dict)
     creation_date: datetime = Field(default_factory=datetime.now)
+
+    def __repr__(self) -> str:
+        return f"<Potential(path={self.path}, format={self.format})>"
+
+    def __str__(self) -> str:
+        return f"Potential({self.path.name})"

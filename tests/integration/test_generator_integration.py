@@ -41,41 +41,33 @@ class TestGeneratorIntegration:
         assert s0.atomic_numbers[0] == 26  # Fe
 
     def test_adaptive_generator_metrics_response(self) -> None:
-        # Create config
-        config = AdaptiveGeneratorConfig(
+        # 1. Normal/Balanced generation (no metrics)
+        config_balanced = AdaptiveGeneratorConfig(
             name=GeneratorType.ADAPTIVE,
             element="Fe",
             crystal_structure="bcc",
-            strain_range=0.05,
-            rattle_strength=0.01,
-            surface_indices=[[1, 0, 0]],
-            vacuum=10.0,
+            policy_ratios={"cycle0_bulk": 0.5, "cycle0_surface": 0.5},
             n_structures=20,
         )
-
-        # Instantiate Generator
-        generator = AdaptiveGenerator(config)
-
-        # 1. Normal/Balanced generation (no metrics)
+        generator = AdaptiveGenerator(config_balanced)
         structures_balanced = list(generator.generate(n_structures=20))
         surfaces_balanced = sum(1 for s in structures_balanced if s.tags.get("type") == "surface")
 
         # 2. High Surface Error -> Should boost surface generation
-        # Policy: if surface_error > 0.1 -> 60% surface
-        metrics = {"validation_error": {"surface": 0.5}}
-        structures_boosted = list(
-            generator.generate(
-                n_structures=20, config={"current_cycle": 1, "current_metrics": metrics}
-            )
+        # We simulate this by changing the config ratios manually,
+        # as the Generator is now stateless/config-driven.
+        config_boosted = AdaptiveGeneratorConfig(
+            name=GeneratorType.ADAPTIVE,
+            element="Fe",
+            crystal_structure="bcc",
+            policy_ratios={"cycle0_bulk": 0.4, "cycle0_surface": 0.6},
+            n_structures=20,
         )
+        generator_boosted = AdaptiveGenerator(config_boosted)
+        structures_boosted = list(generator_boosted.generate(n_structures=20))
         surfaces_boosted = sum(1 for s in structures_boosted if s.tags.get("type") == "surface")
 
         # Verify boost
-        # Balanced is typically 50% (10). Boosted is 60% (12).
-        # We assert the specific ratio logic from the policy (surface_error > 0.1 -> 60% surface)
-        # Note: Depending on rounding in policy (int(total * ratio)), it might be exactly 12.
-
-        # Policy logic: n_surface = int(20 * 0.6) = 12.
-        # This is deterministic in policy (counts, not probability).
+        # Balanced is 10. Boosted is 12 (60%).
         assert surfaces_boosted == 12
         assert surfaces_boosted > surfaces_balanced

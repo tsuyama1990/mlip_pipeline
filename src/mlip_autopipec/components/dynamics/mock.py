@@ -19,28 +19,24 @@ class MockDynamics(BaseDynamics):
     structures and probabilistically selects them, tagging them with high uncertainty.
     """
 
-    def __init__(self, config: MockDynamicsConfig, rng: random.Random | None = None) -> None:
+    def __init__(self, config: MockDynamicsConfig) -> None:
+        # rng argument removed from __init__ to simplify signature matching with Factory.
+        # If needed for testing, use config.seed
         super().__init__(config)
         self.config: MockDynamicsConfig = config
 
-        # Dependency Injection for RNG
-        if rng:
-            self._rng = rng
-        else:
-            # Fallback to internal RNG based on config seed
-            if config.seed is not None and not isinstance(config.seed, int):
-                msg = f"Seed must be an integer or None, got {type(config.seed)}"
-                raise TypeError(msg)
-            self._rng = random.Random(config.seed)  # noqa: S311
+        # Initialize RNG
+        # Use config.seed if provided, else random
+        self._rng = random.Random(config.seed)  # noqa: S311
 
     def explore(
-        self, potential: Potential | None, start_structures: Iterable[Structure]
+        self, potential: Potential, start_structures: Iterable[Structure]
     ) -> Iterator[Structure]:
         """
         Explore the potential energy surface starting from given structures.
 
         Args:
-            potential: The current potential (can be None for mock).
+            potential: The current potential (ignored in Mock).
             start_structures: An iterable of starting structures.
 
         Yields:
@@ -49,15 +45,22 @@ class MockDynamics(BaseDynamics):
         logger.info("Exploring structures for uncertainty")
         count = 0
         selection_rate = self.config.selection_rate
-        uncertainty_threshold = self.config.uncertainty_threshold
-        simulated_uncertainty = uncertainty_threshold + self.config.simulated_uncertainty
+        # Add simulated uncertainty to cross the threshold
+        simulated_uncertainty = self.config.uncertainty_threshold + self.config.simulated_uncertainty
 
         for s in start_structures:
             # Randomly select structures to simulate finding "uncertain" regions
             if self._rng.random() < selection_rate:
-                # Create a copy with updated uncertainty
-                s_copy = s.model_copy(update={"uncertainty": simulated_uncertainty})
+                # Create a deep copy using our custom method
+                s_copy = s.model_deep_copy()
+                s_copy.uncertainty = simulated_uncertainty
                 yield s_copy
                 count += 1
 
         logger.info(f"Found {count} uncertain structures")
+
+    def __repr__(self) -> str:
+        return f"<MockDynamics(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"MockDynamics({self.name})"

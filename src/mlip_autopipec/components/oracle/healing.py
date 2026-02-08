@@ -9,6 +9,12 @@ from mlip_autopipec.constants import (
 class HealingFailedError(Exception):
     """Raised when healing strategies are exhausted."""
 
+    def __repr__(self) -> str:
+        return f"<HealingFailedError(message={self})>"
+
+    def __str__(self) -> str:
+        return f"HealingFailedError: {super().__str__()}"
+
 
 class Healer:
     """
@@ -67,3 +73,9 @@ class Healer:
         # Exhausted
         msg = f"Healing failed. All strategies exhausted for error: {error}"
         raise HealingFailedError(msg)
+
+    def __repr__(self) -> str:
+        return "<Healer>"
+
+    def __str__(self) -> str:
+        return "Healer"
