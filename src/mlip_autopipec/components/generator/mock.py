@@ -11,29 +11,32 @@ logger = logging.getLogger(__name__)
 
 
 class MockGenerator(BaseGenerator):
-    def _validate_config(self, effective_config: dict[str, Any]) -> tuple[float, int, list[int]]:
+    def _extract_config(self, effective_config: dict[str, Any]) -> tuple[float, int, list[int]]:
+        """Extracts configuration values, potentially raising conversion errors."""
         try:
             cell_size = float(effective_config["cell_size"])
-            if cell_size <= 0:
-                msg = f"Invalid cell_size: {cell_size}"
-                raise ValueError(msg)
-
             n_atoms = int(effective_config["n_atoms"])
-            if n_atoms <= 0:
-                msg = f"Invalid n_atoms: {n_atoms}"
-                raise ValueError(msg)
-
             atomic_numbers = effective_config["atomic_numbers"]
-            if not atomic_numbers:
-                msg = "atomic_numbers cannot be empty"
-                raise ValueError(msg)
-
+        except (KeyError, ValueError, TypeError) as e:
+            logger.exception("Configuration extraction failed")
+            msg = f"Invalid generator configuration format: {e}"
+            raise ValueError(msg) from e
+        else:
             return cell_size, n_atoms, atomic_numbers
 
-        except (KeyError, ValueError, TypeError) as e:
-            logger.exception("Configuration validation failed")
-            msg = f"Invalid generator configuration: {e}"
-            raise ValueError(msg) from e
+    def _validate_values(self, cell_size: float, n_atoms: int, atomic_numbers: list[int]) -> None:
+        """Validates extracted values."""
+        if cell_size <= 0:
+            msg = f"Invalid cell_size: {cell_size}"
+            raise ValueError(msg)
+
+        if n_atoms <= 0:
+            msg = f"Invalid n_atoms: {n_atoms}"
+            raise ValueError(msg)
+
+        if not atomic_numbers:
+            msg = "atomic_numbers cannot be empty"
+            raise ValueError(msg)
 
     def generate(
         self, n_structures: int, config: dict[str, Any] | None = None
@@ -49,7 +52,8 @@ class MockGenerator(BaseGenerator):
         if config:
             effective_config.update(config)
 
-        cell_size, n_atoms, atomic_numbers = self._validate_config(effective_config)
+        cell_size, n_atoms, atomic_numbers = self._extract_config(effective_config)
+        self._validate_values(cell_size, n_atoms, atomic_numbers)
 
         # Ensure strict iterator behavior (no intermediate list)
         for _ in range(n_structures):
