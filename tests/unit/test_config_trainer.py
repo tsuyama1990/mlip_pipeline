@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from mlip_autopipec.domain_models.config import (
     ComponentsConfig,
     GlobalConfig,
@@ -32,7 +34,7 @@ def test_physics_baseline_config() -> None:
     assert config.params["sigma"] == 3.0
 
 
-def test_global_config_with_baseline(tmp_path) -> None:
+def test_global_config_with_baseline(tmp_path: Path) -> None:
     # Need to construct a valid GlobalConfig
     # This requires creating dummy component configs
 

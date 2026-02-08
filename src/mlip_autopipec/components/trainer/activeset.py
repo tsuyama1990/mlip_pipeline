@@ -51,7 +51,7 @@ class ActiveSetSelector:
                 capture_output=True,
                 text=True,
                 shell=False,
-            )
+            )  # noqa: S603
             logger.debug(f"pace_activeset output: {result.stdout}")
         except subprocess.CalledProcessError as e:
             msg = f"pace_activeset failed with error: {e.stderr}"

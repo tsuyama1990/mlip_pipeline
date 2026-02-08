@@ -173,7 +173,7 @@ class PacemakerTrainer(BaseTrainer):
                 capture_output=True,
                 text=True,
                 shell=False,
-            )
+            )  # noqa: S603
             # Log stdout/stderr for debugging
             logger.debug(f"pace_train stdout: {result.stdout}")
         except subprocess.CalledProcessError as e:
