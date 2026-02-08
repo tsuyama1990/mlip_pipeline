@@ -121,7 +121,7 @@ def run_embedding_scenario() -> None:
     logger.info("\n--- Scenario 03-03: Periodic Embedding Visualization ---")
 
     # 1. Create Cluster (H2O molecule)
-    cluster = molecule("H2O")  # type: ignore[no-untyped-call]
+    cluster = molecule("H2O")
     logger.info(f"Original Cluster: {len(cluster)} atoms, PBC={cluster.pbc}")
 
     # 2. Embed in Vacuum
@@ -129,7 +129,7 @@ def run_embedding_scenario() -> None:
     embedded = embed_cluster(cluster, vacuum)
 
     logger.info(f"Embedded Structure: {len(embedded)} atoms, PBC={embedded.pbc}")
-    cell = embedded.get_cell()  # type: ignore[no-untyped-call]
+    cell = embedded.get_cell()
     logger.info(f"Cell dimensions: {cell.lengths()}")
 
     # Verify

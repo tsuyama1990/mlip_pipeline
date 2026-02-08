@@ -177,15 +177,10 @@ class Structure(BaseModel):
         if self.energy is None:
             msg = "Structure missing energy label"
             raise ValueError(msg)
-        # Check energy validity using the validator explicitly if needed, but Pydantic does it on assignment.
-        # We can re-check to be safe or rely on the field validator.
-        # Since field validators run on __init__ and assignment, if self.energy is not None, it is valid.
 
         if self.forces is None:
             msg = "Structure missing forces label"
             raise ValueError(msg)
-        # Check forces shape/integrity again?
-        # Pydantic guarantees shape if it wasn't None.
 
         if self.stress is None:
             msg = "Structure missing stress label"
@@ -202,22 +197,23 @@ class Structure(BaseModel):
         if atoms.calc:
             # Explicit error handling
             try:
-                energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            except Exception as e:  # Catch broadly ASE Calculator interface errors (often RuntimeError or NotImplemented)
+                # Type ignores required because ASE Calculator methods are dynamically added or not typed
+                energy = atoms.get_potential_energy()
+            except Exception as e:  # Catch broadly ASE Calculator interface errors
                 logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
 
             try:
-                forces = atoms.get_forces()  # type: ignore[no-untyped-call]
+                forces = atoms.get_forces()
             except Exception as e:
                 logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
 
             try:
                 # Try getting full tensor first
-                stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
+                stress = atoms.get_stress(voigt=False)
             except Exception:
                 # Fallback to Voigt or retry
                 try:
-                    stress = atoms.get_stress()  # type: ignore[no-untyped-call]
+                    stress = atoms.get_stress()
                 except Exception as e:
                     logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
@@ -231,22 +227,20 @@ class Structure(BaseModel):
 
         uncertainty = atoms.info.get("uncertainty")
 
-        # Copy info to tags, ensuring we handle non-serializable objects if necessary
-        # For now, we assume atoms.info contains serializable data or data we can ignore errors on later?
-        # But Structure.tags is dict[str, Any].
+        # Copy info to tags
         tags = atoms.info.copy()
 
         # Validation: check atomic numbers BEFORE creating Structure
-        atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+        atomic_numbers = atoms.get_atomic_numbers()
         if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
             msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
             raise ValueError(msg)
 
         return cls(
-            positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
+            positions=atoms.get_positions(),
             atomic_numbers=atomic_numbers,
-            cell=np.array(atoms.get_cell()),  # type: ignore[no-untyped-call]
-            pbc=atoms.get_pbc(),  # type: ignore[no-untyped-call]
+            cell=np.array(atoms.get_cell()),
+            pbc=atoms.get_pbc(),
             forces=forces,
             energy=energy,
             stress=stress,

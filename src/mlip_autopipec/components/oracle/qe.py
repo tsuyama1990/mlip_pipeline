@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterable, Iterator
 from itertools import islice
+from typing import cast
 
 from ase import Atoms
 from ase.calculators.espresso import Espresso
@@ -31,9 +32,9 @@ class QECalculator:
             "smearing": self.config.smearing,
             "tprnfor": True,
             "tstress": True,
-            # Add other defaults if needed
         }
-        return Espresso(**params)  # type: ignore[no-untyped-call]
+        # We cast because ASE Espresso constructor is not typed
+        return cast(Espresso, Espresso(**params))
 
     def calculate(self, atoms: Atoms) -> Atoms:
         """Perform calculation on atoms."""
@@ -48,6 +49,7 @@ class QEOracle(BaseOracle):
 
     This component is responsible for running DFT calculations using Quantum Espresso
     to label structures with energy, forces, and stress.
+    Uses Batched processing (Specification 3.2 "Static Calculation") and Self-Healing.
     """
 
     def __init__(self, config: QEOracleConfig) -> None:
@@ -101,7 +103,7 @@ class QEOracle(BaseOracle):
                     yield labeled_structure
 
                 except (HealingFailedError, Exception):
-                    # Log error and skip structure
+                    # Log error and skip structure (Robustness)
                     logger.exception("Failed to compute structure")
                     continue
 
@@ -111,13 +113,14 @@ class QEOracle(BaseOracle):
         calc = calc_wrapper.create_calculator()
         atoms.calc = calc
 
-        # Max retries can be inferred from Healer strategies or hardcoded limit
         max_retries = 5
         attempts = 0
 
         while attempts < max_retries:
             try:
-                atoms.get_potential_energy()  # type: ignore[no-untyped-call] # Trigger calculation
+                # Trigger calculation
+                # get_potential_energy ensures SCF runs
+                atoms.get_potential_energy()
             except Exception as e:
                 attempts += 1
                 logger.warning(f"Calculation failed (attempt {attempts}): {e}")
@@ -128,20 +131,19 @@ class QEOracle(BaseOracle):
 
                 try:
                     # Heal calculator
-                    # Healer expects Calculator and Exception
                     if atoms.calc is None:
                         msg = "Calculator is None"
                         raise HealingFailedError(msg)  # noqa: TRY301
 
-                    # atoms.calc is narrowed to Calculator here
+                    # Healer.heal returns a NEW calculator instance
                     new_calc = self.healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
                 except HealingFailedError:
                     logger.exception("Healing failed")
                     raise
             else:
-                # If success, store parameters in info for provenance
+                # Success
+                # Store parameters in info for provenance (Specification requirement)
                 if hasattr(atoms.calc, "parameters"):
-                    # Copy parameters to avoid modifying calculator internal state if reused (though we create new one each time)
                     atoms.info["qe_params"] = atoms.calc.parameters.copy()
                 return

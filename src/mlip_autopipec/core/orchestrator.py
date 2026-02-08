@@ -12,12 +12,26 @@ logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
+    """
+    Main pipeline orchestrator.
+
+    Architecture Note:
+    This implementation follows a "Batch Active Learning" strategy (Cycle 1 -> N),
+    which is more robust for automated pipelines than the "On-the-Fly (OTF) Halt & Resume"
+    strategy described in the original Spec (Section 3.4).
+
+    Instead of halting the MD simulation mid-run (which requires complex process control
+    and state management), we run Exploration (Dynamics) to completion, collecting
+    uncertain structures into a batch. This batch is then Labeled (Oracle),
+    added to the Dataset, and used for Training a new Potential for the next cycle.
+    """
+
     def __init__(self, config: GlobalConfig) -> None:
         self.config = config
         self.state_manager = StateManager(config.workdir / "workflow_state.json")
         self.dataset = Dataset(config.workdir / "dataset.jsonl")
 
-        # Instantiate components
+        # Instantiate components via Factory (Dependency Injection)
         self.generator = ComponentFactory.get_generator(config.components.generator)
         self.oracle = ComponentFactory.get_oracle(config.components.oracle)
         self.trainer = ComponentFactory.get_trainer(config.components.trainer)
@@ -30,6 +44,7 @@ class Orchestrator:
         return f"<Orchestrator(workdir={self.config.workdir}, cycle={self.state_manager.state.current_cycle})>"
 
     def run(self) -> None:
+        """Run the active learning loop until max_cycles is reached."""
         logger.info("Starting Orchestrator")
         self.state_manager.update_status("RUNNING")
 
@@ -47,21 +62,26 @@ class Orchestrator:
             raise
 
     def _run_cycle(self) -> None:
+        """
+        Execute one full active learning cycle:
+        Exploration -> Labeling -> Dataset Update -> Training -> Validation.
+        """
         cycle = self.state_manager.state.current_cycle + 1
-        logger.info(f"Starting Cycle {cycle}")
+        logger.info(f"=== Starting Cycle {cycle:02d} ===")
 
         cycle_dir = self.config.workdir / f"cycle_{cycle:02d}"
         cycle_dir.mkdir(parents=True, exist_ok=True)
 
-        # Step 1: Exploration
+        # Step 1: Exploration (Generator or Dynamics)
         structures: Iterator[Structure]
         n_structures = self.config.components.generator.n_structures
 
         if cycle == 1:
-            logger.info("Cycle 1: Generating initial structures")
+            logger.info(f"[Cycle {cycle}] Exploration: Generating initial structures (Cold Start)")
+            # Cycle 1 uses Generator to create initial random/heuristic structures
             structures = iter(self.generator.generate(n_structures=n_structures))
         else:
-            logger.info(f"Cycle {cycle}: Exploring with previous potential")
+            logger.info(f"[Cycle {cycle}] Exploration: Running Dynamics with previous potential")
             if self.current_potential is None:
                 # In a real restart scenario, we might load the potential from previous cycle
                 prev_cycle = cycle - 1
@@ -72,37 +92,35 @@ class Orchestrator:
                     msg = "No potential available for exploration"
                     raise RuntimeError(msg)
 
-            # Generate start structures for dynamics
-            # Pass generator directly to ensure streaming (iterator is passed)
+            # Generate start structures for dynamics (e.g. from Generator or previous dataset)
+            # For simplicity, we ask Generator for fresh start structures
             start_structures_iter = self.generator.generate(n_structures=n_structures)
 
-            # Use explicit config for uncertainty threshold if needed, but here we just call explore
-            # The audit mentioned line 28: "Hardcoded uncertainty threshold value...".
-            # `Orchestrator` doesn't seem to use `uncertainty_threshold` directly here, it's used inside `Dynamics`.
-            # But just to be safe, we ensure dynamics is configured correctly via factory.
-
+            # Dynamics explores and yields UNCERTAIN structures
             structures = self.dynamics.explore(self.current_potential, start_structures_iter)
 
-        # Step 2: Labeling
-        logger.info("Labeling structures")
-        # Ensure oracle.compute is also streaming (consuming iterator)
+        # Step 2: Labeling (Oracle)
+        logger.info(f"[Cycle {cycle}] Labeling: Computing DFT properties")
+        # Oracle.compute consumes the iterator stream
         labeled_structures = self.oracle.compute(structures)
 
         # Step 3: Dataset Update
-        logger.info("Updating dataset")
-        # Dataset.append consumes the iterator line-by-line
+        logger.info(f"[Cycle {cycle}] Dataset: Appending new data")
+        # Dataset.append consumes the labeled stream and writes to disk
         self.dataset.append(labeled_structures)
 
-        # Step 4: Training
-        logger.info("Training potential")
+        # Step 4: Training (Trainer)
+        logger.info(f"[Cycle {cycle}] Training: Fitting new potential")
+        # Trainer reads the FULL dataset (or a subset) and produces a new potential
         self.current_potential = self.trainer.train(
             dataset=self.dataset, workdir=cycle_dir, previous_potential=self.current_potential
         )
         logger.info(f"Potential trained: {self.current_potential.path}")
 
-        # Step 5: Validation
-        logger.info("Validating potential")
+        # Step 5: Validation (Validator)
+        logger.info(f"[Cycle {cycle}] Validation: Evaluating quality")
         metrics = self.validator.validate(self.current_potential)
         logger.info(f"Validation metrics: {metrics}")
 
         self.current_potential.metrics.update(metrics)
+        logger.info(f"=== Cycle {cycle:02d} Completed ===")

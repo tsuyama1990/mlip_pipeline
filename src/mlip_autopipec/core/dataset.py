@@ -11,6 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class Dataset:
+    """
+    Manages the persistent dataset of atomic structures.
+    Uses JSONL format for streaming read/write access.
+    """
+
     def __init__(self, path: Path, root_dir: Path | None = None) -> None:
         """
         Initialize Dataset with security checks.

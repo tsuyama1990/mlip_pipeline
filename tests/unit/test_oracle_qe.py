@@ -18,7 +18,7 @@ from mlip_autopipec.domain_models.structure import Structure
 # Define a Fake Calculator that behaves like Espresso but runs in memory
 class FakeEspresso(Calculator):
     def __init__(self, failure_mode: str = "parameter_sensitive", **kwargs: Any) -> None:
-        super().__init__()  # type: ignore[no-untyped-call]
+        super().__init__()
         self.parameters = kwargs
         # Ensure failure_mode is in parameters so it survives Healing reconstruction
         self.parameters["failure_mode"] = failure_mode
@@ -35,7 +35,7 @@ class FakeEspresso(Calculator):
         # Standard ASE setup
         if properties is None:
             properties = ["energy"]
-        super().calculate(atoms, properties, system_changes)  # type: ignore[no-untyped-call]
+        super().calculate(atoms, properties, system_changes)
 
         # Simulation Logic
         # Read from parameters if present (reconstructed via Heal)

@@ -61,7 +61,7 @@ def test_from_ase() -> None:
     s = Structure.from_ase(atoms)
     assert len(s.positions) == 2
     assert s.atomic_numbers[0] == 1
-    assert np.allclose(s.cell, np.array(atoms.get_cell()))  # type: ignore[no-untyped-call]
+    assert np.allclose(s.cell, np.array(atoms.get_cell()))
 
 
 def test_forces_validation() -> None:

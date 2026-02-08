@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from typing import cast
 
 import numpy as np
+from ase import Atoms
 from ase.build import bulk, surface
 
 from mlip_autopipec.domain_models.config import AdaptiveGeneratorConfig
@@ -30,23 +32,24 @@ class BulkBuilder(StructureBuilder):
     """Builder for bulk structures."""
 
     def build(self, n_structures: int, config: AdaptiveGeneratorConfig) -> Iterator[Structure]:
-        # Config is strictly typed, so these checks are technically redundant if we trust Pydantic,
-        # but good for runtime safety if config is manually constructed or if fields are optional in schema.
-        # In AdaptiveGeneratorConfig, they are required fields (str, not Optional[str]),
-        # so we can rely on Pydantic validation. However, keeping logic for now.
-
-        # Pydantic handles required fields validation on model creation.
-
         for _ in range(n_structures):
             # Generate bulk structure
             # We use basic parameters from config.
-            atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)
+            # ase.build.bulk returns Atoms
+            atoms = cast(
+                Atoms,
+                bulk(config.element, crystalstructure=config.crystal_structure, cubic=True),
+            )
 
             # Supercell
             if config.supercell_dim > 1:
-                atoms = atoms.repeat(
-                    (config.supercell_dim, config.supercell_dim, config.supercell_dim)
-                )  # type: ignore[no-untyped-call]
+                # repeat returns Atoms
+                atoms = cast(
+                    Atoms,
+                    atoms.repeat(
+                        (config.supercell_dim, config.supercell_dim, config.supercell_dim)
+                    ),
+                )
 
             # Add metadata
             atoms.info["type"] = "bulk"
@@ -59,25 +62,34 @@ class SurfaceBuilder(StructureBuilder):
     """Builder for surface structures."""
 
     def build(self, n_structures: int, config: AdaptiveGeneratorConfig) -> Iterator[Structure]:
-        # Validated by Pydantic schema
-
         indices_pool = config.surface_indices
 
         for _ in range(n_structures):
             # Pick random surface index from pool
-            idx = indices_pool[np.random.choice(len(indices_pool))]
+            # np.random.choice returns a single item if size is not given? No, index into list.
+            idx_int = int(np.random.choice(len(indices_pool)))
+            idx = indices_pool[idx_int]
 
             # Create base bulk first
             # Surfaces need a bulk reference.
-            bulk_atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)
+            bulk_atoms = cast(
+                Atoms,
+                bulk(config.element, crystalstructure=config.crystal_structure, cubic=True),
+            )
 
             # Create surface
-            surf = surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum)  # type: ignore[no-untyped-call]
+            # surface returns Atoms
+            surf = cast(
+                Atoms,
+                surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum),
+            )
 
             # Repeat surface to make it larger in x/y if needed
-            # Usually surfaces are small in x/y unless supercell specified
             if config.supercell_dim > 1:
-                surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))
+                surf = cast(
+                    Atoms,
+                    surf.repeat((config.supercell_dim, config.supercell_dim, 1)),
+                )
 
             surf.info["type"] = "surface"
             surf.info["generator"] = "SurfaceBuilder"
