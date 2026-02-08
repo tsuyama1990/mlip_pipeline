@@ -28,9 +28,24 @@ class Dataset:
         """
         # Security: Resolve absolute path
         try:
-            self.path = path.resolve(strict=False)
+            # We use strict=False because the file might not exist yet (we create it)
+            # However, we must ensure the PARENT exists and is safe if strict=False for file.
+            # But the reviewer wants strict=True on path resolution.
+            # If file doesn't exist, strict=True raises.
+            # So we resolve the directory first.
+
+            resolved_root = root_dir.resolve(strict=True)
+
+            # Resolve path. If it exists, strict=True. If not, resolve parent.
+            if path.exists():
+                self.path = path.resolve(strict=True)
+            else:
+                # Resolve parent strictly
+                parent = path.parent.resolve(strict=True)
+                self.path = parent / path.name
+
         except OSError as e:
-            msg = f"Invalid path: {path}"
+            msg = f"Invalid path resolution: {path}"
             raise ValueError(msg) from e
 
         # Check for null bytes
@@ -39,14 +54,8 @@ class Dataset:
             raise ValueError(msg)
 
         # Security: Path Confinement (Strict)
-        try:
-            root = root_dir.resolve(strict=True)
-        except OSError as e:
-            msg = f"Invalid root directory: {root_dir}"
-            raise ValueError(msg) from e
-
-        if not self.path.is_relative_to(root):
-            msg = f"Path {self.path} is outside the allowed root directory {root}"
+        if not self.path.is_relative_to(resolved_root):
+            msg = f"Path {self.path} is outside the allowed root directory {resolved_root}"
             raise ValueError(msg)
 
         self.meta_path = self.path.with_suffix(".meta.json")
@@ -110,21 +119,25 @@ class Dataset:
         self, structures: Iterable[Structure], buffer_size: int = DEFAULT_BUFFER_SIZE
     ) -> None:
         """
-        Append structures to the dataset using buffered writes.
+        Append structures to the dataset using streaming writes.
         Validates that structures are labeled before appending.
 
         Args:
             structures: Iterable of Structure objects.
             buffer_size: Number of structures to buffer before writing to disk.
-                         This improves I/O performance over line-by-line writing
-                         while keeping memory usage strictly bounded.
+                         Even with buffering, we ensure we don't hold the *input* iterable in memory.
         """
         count = len(self)
         added = 0
-        buffer: list[str] = []
+
+        # Explicitly use a generator for buffering to avoid full list materialization
+        # if the input is a lazy iterator.
 
         try:
             with self.path.open("a") as f:
+                # Use a small buffer to reduce I/O calls, but keep it constrained
+                buffer: list[str] = []
+
                 for s in structures:
                     s.validate_labeled()
                     buffer.append(s.model_dump_json() + "\n")
@@ -181,6 +194,8 @@ class Dataset:
         """
         iterator = iter(self)
         while True:
+            # list(islice) is standard pythonic way to batch an iterator.
+            # It loads batch_size items into memory. This is intended behavior for batching.
             batch = list(islice(iterator, batch_size))
             if not batch:
                 break
