@@ -3,141 +3,60 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
-plugins: cov-7.0.0
-collected 6 items / 7 errors
+plugins: cov-7.0.0, hypothesis-6.151.5
+collected 39 items
 
-==================================== ERRORS ====================================
-_______ ERROR collecting tests/integration/test_generator_integration.py _______
-tests/integration/test_generator_integration.py:2: in <module>
-    from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
-src/mlip_autopipec/components/generator/__init__.py:1: in <module>
-    from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
-src/mlip_autopipec/components/generator/adaptive.py:5: in <module>
-    from mlip_autopipec.components.generator.base import BaseGenerator
-src/mlip_autopipec/components/generator/base.py:5: in <module>
-    from mlip_autopipec.domain_models.config import ComponentConfig
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-_________ ERROR collecting tests/integration/test_orchestrator_mock.py _________
-tests/integration/test_orchestrator_mock.py:6: in <module>
-    from mlip_autopipec.components.oracle.mock import MockOracle
-src/mlip_autopipec/components/oracle/__init__.py:1: in <module>
-    from .base import BaseOracle
-src/mlip_autopipec/components/oracle/base.py:5: in <module>
-    from mlip_autopipec.domain_models.structure import Structure
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-_________________ ERROR collecting tests/unit/test_dataset.py __________________
-tests/unit/test_dataset.py:6: in <module>
-    from mlip_autopipec.core.dataset import Dataset
-src/mlip_autopipec/core/dataset.py:7: in <module>
-    from mlip_autopipec.domain_models.structure import Structure
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-_________________ ERROR collecting tests/unit/test_factory.py __________________
-tests/unit/test_factory.py:3: in <module>
-    from mlip_autopipec.components.dynamics.mock import MockDynamics
-src/mlip_autopipec/components/dynamics/__init__.py:1: in <module>
-    from .base import BaseDynamics
-src/mlip_autopipec/components/dynamics/base.py:6: in <module>
-    from mlip_autopipec.domain_models.structure import Structure
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-___________ ERROR collecting tests/unit/test_generator_components.py ___________
-tests/unit/test_generator_components.py:6: in <module>
-    from mlip_autopipec.components.generator.builder import BulkBuilder, SurfaceBuilder
-src/mlip_autopipec/components/generator/__init__.py:1: in <module>
-    from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
-src/mlip_autopipec/components/generator/adaptive.py:5: in <module>
-    from mlip_autopipec.components.generator.base import BaseGenerator
-src/mlip_autopipec/components/generator/base.py:6: in <module>
-    from mlip_autopipec.domain_models.structure import Structure
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-_______________ ERROR collecting tests/unit/test_oracle_mock.py ________________
-tests/unit/test_oracle_mock.py:3: in <module>
-    from mlip_autopipec.components.oracle.mock import MockOracle
-src/mlip_autopipec/components/oracle/__init__.py:1: in <module>
-    from .base import BaseOracle
-src/mlip_autopipec/components/oracle/base.py:5: in <module>
-    from mlip_autopipec.domain_models.structure import Structure
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-________________ ERROR collecting tests/unit/test_structure.py _________________
-tests/unit/test_structure.py:5: in <module>
-    from mlip_autopipec.domain_models.structure import Structure
-src/mlip_autopipec/domain_models/__init__.py:3: in <module>
-    from .structure import Structure
-src/mlip_autopipec/domain_models/structure.py:35: in <module>
-    class Structure(BaseModel):
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:132: in __new__
-    private_attributes = inspect_namespace(
-.venv/lib/python3.12/site-packages/pydantic/_internal/_model_construction.py:481: in inspect_namespace
-    raise PydanticUserError(
-E   pydantic.errors.PydanticUserError: A non-annotated attribute was detected: `MAX_ATOMIC_NUMBER = 118`. All model fields require a type annotation; if `MAX_ATOMIC_NUMBER` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.
-E
-E   For further information visit https://errors.pydantic.dev/2.12/u/model-field-missing-annotation
-=========================== short test summary info ============================
-ERROR tests/integration/test_generator_integration.py - pydantic.errors.Pydan...
-ERROR tests/integration/test_orchestrator_mock.py - pydantic.errors.PydanticU...
-ERROR tests/unit/test_dataset.py - pydantic.errors.PydanticUserError: A non-a...
-ERROR tests/unit/test_factory.py - pydantic.errors.PydanticUserError: A non-a...
-ERROR tests/unit/test_generator_components.py - pydantic.errors.PydanticUserE...
-ERROR tests/unit/test_oracle_mock.py - pydantic.errors.PydanticUserError: A n...
-ERROR tests/unit/test_structure.py - pydantic.errors.PydanticUserError: A non...
-!!!!!!!!!!!!!!!!!!! Interrupted: 7 errors during collection !!!!!!!!!!!!!!!!!!!!
-============================== 7 errors in 1.74s ===============================
+tests/integration/test_generator_integration.py ..                       [  5%]
+tests/integration/test_orchestrator_mock.py ...                          [ 12%]
+tests/unit/test_config.py ...                                            [ 20%]
+tests/unit/test_dataset.py .......                                       [ 38%]
+tests/unit/test_factory.py ....                                          [ 48%]
+tests/unit/test_generator_components.py ......                           [ 64%]
+tests/unit/test_oracle_mock.py .                                         [ 66%]
+tests/unit/test_state.py ...                                             [ 74%]
+tests/unit/test_structure.py ..........                                  [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                            0      0   100%
+src/mlip_autopipec/components/__init__.py                 0      0   100%
+src/mlip_autopipec/components/dynamics/__init__.py        3      0   100%
+src/mlip_autopipec/components/dynamics/base.py           12      1    92%   13
+src/mlip_autopipec/components/dynamics/mock.py           19      0   100%
+src/mlip_autopipec/components/generator/__init__.py       4      0   100%
+src/mlip_autopipec/components/generator/adaptive.py      59     13    78%   56-72, 110-111, 131
+src/mlip_autopipec/components/generator/base.py          13      1    92%   16
+src/mlip_autopipec/components/generator/builder.py       31      0   100%
+src/mlip_autopipec/components/generator/mock.py          51     16    69%   28-29, 34, 40-43, 50-51, 54-55, 58-59, 80-81, 86
+src/mlip_autopipec/components/generator/policy.py        41      3    93%   38, 75-76
+src/mlip_autopipec/components/generator/rattle.py        32      2    94%   33, 54
+src/mlip_autopipec/components/oracle/__init__.py          3      0   100%
+src/mlip_autopipec/components/oracle/base.py             11      1    91%   12
+src/mlip_autopipec/components/oracle/mock.py             22      2    91%   18-19
+src/mlip_autopipec/components/trainer/__init__.py         3      0   100%
+src/mlip_autopipec/components/trainer/base.py            12      1    92%   16
+src/mlip_autopipec/components/trainer/mock.py            13      0   100%
+src/mlip_autopipec/components/validator/__init__.py       3      0   100%
+src/mlip_autopipec/components/validator/base.py          11      1    91%   12
+src/mlip_autopipec/components/validator/mock.py          10      0   100%
+src/mlip_autopipec/core/__init__.py                       0      0   100%
+src/mlip_autopipec/core/dataset.py                       93     24    74%   19-23, 28, 35-38, 49-50, 56-58, 103-104, 115-116, 121, 128, 136-138
+src/mlip_autopipec/core/orchestrator.py                  65      7    89%   30, 67-73
+src/mlip_autopipec/core/state.py                         28      1    96%   27
+src/mlip_autopipec/domain_models/__init__.py              4      0   100%
+src/mlip_autopipec/domain_models/config.py               68      5    93%   112-116
+src/mlip_autopipec/domain_models/enums.py                20      0   100%
+src/mlip_autopipec/domain_models/potential.py            10      0   100%
+src/mlip_autopipec/domain_models/structure.py           148     22    85%   20, 68-69, 76-77, 87-88, 95-96, 107-108, 144-145, 169-174, 192-193, 211
+src/mlip_autopipec/factory.py                            38      0   100%
+src/mlip_autopipec/interfaces/__init__.py                 0      0   100%
+src/mlip_autopipec/interfaces/base_component.py          12      1    92%   20
+src/mlip_autopipec/main.py                               27     27     0%   1-40
+src/mlip_autopipec/utils/__init__.py                      0      0   100%
+src/mlip_autopipec/utils/logging.py                      13     13     0%   1-19
+-----------------------------------------------------------------------------------
+TOTAL                                                   879    141    84%
+============================== 39 passed in 2.98s ==============================

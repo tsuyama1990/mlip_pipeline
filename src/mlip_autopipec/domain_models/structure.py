@@ -1,5 +1,5 @@
 import contextlib
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 import numpy as np
 from ase import Atoms
@@ -45,9 +45,9 @@ class Structure(BaseModel):
         arbitrary_types_allowed=True, extra="forbid", validate_assignment=True
     )
 
-    MAX_ATOMIC_NUMBER = 118
-    MAX_FORCE_MAGNITUDE = 1000.0  # eV/A
-    MAX_ENERGY_MAGNITUDE = 1e6  # eV
+    MAX_ATOMIC_NUMBER: ClassVar[int] = 118
+    MAX_FORCE_MAGNITUDE: ClassVar[float] = 1000.0  # eV/A
+    MAX_ENERGY_MAGNITUDE: ClassVar[float] = 1e6  # eV
 
     positions: NumpyArray
     atomic_numbers: NumpyArray

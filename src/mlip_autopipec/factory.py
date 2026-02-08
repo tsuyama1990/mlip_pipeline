@@ -55,7 +55,7 @@ class ComponentFactory:
         return component_class(config)
 
     @classmethod
-    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator:
+    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator[Any]:
         return cls.create("generator", config)  # type: ignore
 
     @classmethod
