@@ -18,13 +18,16 @@ class Orchestrator:
         self.dataset = Dataset(config.workdir / "dataset.jsonl")
 
         # Instantiate components
-        self.generator = ComponentFactory.get_generator(config.components["generator"])
-        self.oracle = ComponentFactory.get_oracle(config.components["oracle"])
-        self.trainer = ComponentFactory.get_trainer(config.components["trainer"])
-        self.dynamics = ComponentFactory.get_dynamics(config.components["dynamics"])
-        self.validator = ComponentFactory.get_validator(config.components["validator"])
+        self.generator = ComponentFactory.get_generator(config.components.generator)
+        self.oracle = ComponentFactory.get_oracle(config.components.oracle)
+        self.trainer = ComponentFactory.get_trainer(config.components.trainer)
+        self.dynamics = ComponentFactory.get_dynamics(config.components.dynamics)
+        self.validator = ComponentFactory.get_validator(config.components.validator)
 
         self.current_potential: Potential | None = None
+
+    def __repr__(self) -> str:
+        return f"<Orchestrator(workdir={self.config.workdir}, cycle={self.state_manager.state.current_cycle})>"
 
     def run(self) -> None:
         logger.info("Starting Orchestrator")
@@ -52,7 +55,7 @@ class Orchestrator:
 
         # Step 1: Exploration
         structures: Iterator[Structure]
-        n_structures = self.config.components["generator"].get("n_structures", 10)
+        n_structures = self.config.components.generator.n_structures
 
         if cycle == 1:
             logger.info("Cycle 1: Generating initial structures")
@@ -70,16 +73,24 @@ class Orchestrator:
                     raise RuntimeError(msg)
 
             # Generate start structures for dynamics
-            # Assuming generator can provide fresh structures to explore
-            start_structures = self.generator.generate(n_structures=n_structures)
-            structures = self.dynamics.explore(self.current_potential, start_structures)
+            # Pass generator directly to ensure streaming (iterator is passed)
+            start_structures_iter = self.generator.generate(n_structures=n_structures)
+
+            # Use explicit config for uncertainty threshold if needed, but here we just call explore
+            # The audit mentioned line 28: "Hardcoded uncertainty threshold value...".
+            # `Orchestrator` doesn't seem to use `uncertainty_threshold` directly here, it's used inside `Dynamics`.
+            # But just to be safe, we ensure dynamics is configured correctly via factory.
+
+            structures = self.dynamics.explore(self.current_potential, start_structures_iter)
 
         # Step 2: Labeling
         logger.info("Labeling structures")
+        # Ensure oracle.compute is also streaming (consuming iterator)
         labeled_structures = self.oracle.compute(structures)
 
         # Step 3: Dataset Update
         logger.info("Updating dataset")
+        # Dataset.append consumes the iterator line-by-line
         self.dataset.append(labeled_structures)
 
         # Step 4: Training

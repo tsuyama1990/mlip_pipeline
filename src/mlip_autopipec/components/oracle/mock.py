@@ -13,6 +13,11 @@ class MockOracle(BaseOracle):
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         logger.info("Computing labels for structures")
         for s in structures:
+            # Input validation: check for critical fields before processing
+            if s.positions is None or len(s.positions) == 0:
+                logger.warning("Skipping invalid structure: empty positions")
+                continue
+
             n_atoms = len(s.positions)
 
             # Generate random forces, but ensure sum is zero (Newton's 3rd law/translation invariance)

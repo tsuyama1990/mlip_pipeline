@@ -2,6 +2,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from mlip_autopipec.domain_models.config import TrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
     from mlip_autopipec.core.dataset import Dataset
 
 
-class BaseTrainer(BaseComponent):
+class BaseTrainer(BaseComponent[TrainerConfig]):
     @property
     def name(self) -> str:
         return "trainer"

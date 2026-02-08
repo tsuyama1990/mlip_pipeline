@@ -1,11 +1,12 @@
 import numpy as np
 
 from mlip_autopipec.components.oracle.mock import MockOracle
+from mlip_autopipec.domain_models.config import OracleConfig
 from mlip_autopipec.domain_models.structure import Structure
 
 
 def test_mock_oracle_force_sum_zero() -> None:
-    oracle = MockOracle({})
+    oracle = MockOracle(OracleConfig())
 
     # Create a structure
     s = Structure(
