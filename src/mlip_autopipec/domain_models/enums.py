@@ -1,28 +1,28 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ComponentType(str, Enum):
+class ComponentType(StrEnum):
     """Base class for component types (string-based)."""
     MOCK = "mock"
 
-class GeneratorType(str, Enum):
+class GeneratorType(StrEnum):
     MOCK = "mock"
     ADAPTIVE = "adaptive"
     RANDOM = "random"
 
-class OracleType(str, Enum):
+class OracleType(StrEnum):
     MOCK = "mock"
     QE = "qe"
     VASP = "vasp"
 
-class TrainerType(str, Enum):
+class TrainerType(StrEnum):
     MOCK = "mock"
     PACEMAKER = "pacemaker"
 
-class DynamicsType(str, Enum):
+class DynamicsType(StrEnum):
     MOCK = "mock"
     LAMMPS = "lammps"
 
-class ValidatorType(str, Enum):
+class ValidatorType(StrEnum):
     MOCK = "mock"
     STANDARD = "standard"

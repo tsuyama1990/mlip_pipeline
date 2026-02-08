@@ -56,6 +56,7 @@ class Structure(BaseModel):
     forces: NumpyArray | None = None
     energy: float | None = None
     stress: NumpyArray | None = None
+    uncertainty: float | None = None
     tags: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("positions", mode="after")
@@ -181,6 +182,8 @@ class Structure(BaseModel):
         if stress is None:
             stress = atoms.info.get("stress")
 
+        uncertainty = atoms.info.get("uncertainty")
+
         # Copy info to tags, ensuring we handle non-serializable objects if necessary
         # For now, we assume atoms.info contains serializable data or data we can ignore errors on later?
         # But Structure.tags is dict[str, Any].
@@ -200,6 +203,7 @@ class Structure(BaseModel):
             forces=forces,
             energy=energy,
             stress=stress,
+            uncertainty=uncertainty,
             tags=tags,
         )
 
@@ -216,4 +220,6 @@ class Structure(BaseModel):
             atoms.arrays["forces"] = self.forces
         if self.stress is not None:
             atoms.info["stress"] = self.stress
+        if self.uncertainty is not None:
+            atoms.info["uncertainty"] = self.uncertainty
         return atoms

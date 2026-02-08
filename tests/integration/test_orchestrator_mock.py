@@ -1,12 +1,16 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.core.orchestrator import Orchestrator
-from mlip_autopipec.domain_models.config import GlobalConfig, OracleConfig
+from mlip_autopipec.domain_models.config import (
+    GlobalConfig,
+    MockDynamicsConfig,
+    MockOracleConfig,
+)
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     GeneratorType,
@@ -109,7 +113,7 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # However, since Orchestrator is already instantiated, we can try replacing the component instance.
     # The Orchestrator stores components in self.components (implied, or self.oracle etc).
     # Checking Orchestrator implementation (from memory/context): it has self.oracle.
-    orchestrator.oracle = FailingOracle(OracleConfig())
+    orchestrator.oracle = FailingOracle(MockOracleConfig(name=OracleType.MOCK))
 
     # Verify graceful failure
     with pytest.raises(RuntimeError, match="Simulated DFT failure"):
@@ -132,10 +136,12 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
 def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path) -> None:
     """Verify that selection_rate in Dynamics actually filters structures."""
     import random
+
     random.seed(42)  # Seed for deterministic behavior in this test
 
     # Modify config to have 50% selection rate
-    mock_config.components.dynamics.selection_rate = 0.5
+    dyn_config = cast(MockDynamicsConfig, mock_config.components.dynamics)
+    dyn_config.selection_rate = 0.5
     # Generate enough structures to be statistically significant or just deterministic
     mock_config.components.generator.n_structures = 20
     # Cycle 1 is cold start (labels all 20). Cycle 2 uses dynamics (filters ~50% of 20 -> ~10).

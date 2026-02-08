@@ -1,14 +1,18 @@
 from typing import Any, ClassVar
 
-from mlip_autopipec.components.dynamics import BaseDynamics, MockDynamics
+from mlip_autopipec.components.dynamics import BaseDynamics, LAMMPSDynamics, MockDynamics
 from mlip_autopipec.components.generator import (
     AdaptiveGenerator,
     BaseGenerator,
     MockGenerator,
 )
-from mlip_autopipec.components.oracle import BaseOracle, MockOracle
-from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer
-from mlip_autopipec.components.validator import BaseValidator, MockValidator
+from mlip_autopipec.components.oracle import BaseOracle, MockOracle, QEOracle, VASPOracle
+from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer, PacemakerTrainer
+from mlip_autopipec.components.validator import (
+    BaseValidator,
+    MockValidator,
+    StandardValidator,
+)
 from mlip_autopipec.domain_models.config import (
     ComponentConfig,
     DynamicsConfig,
@@ -33,10 +37,23 @@ class ComponentFactory:
             GeneratorType.MOCK: MockGenerator,
             GeneratorType.ADAPTIVE: AdaptiveGenerator,
         },
-        "oracle": {OracleType.MOCK: MockOracle},
-        "trainer": {TrainerType.MOCK: MockTrainer},
-        "dynamics": {DynamicsType.MOCK: MockDynamics},
-        "validator": {ValidatorType.MOCK: MockValidator},
+        "oracle": {
+            OracleType.MOCK: MockOracle,
+            OracleType.QE: QEOracle,
+            OracleType.VASP: VASPOracle,
+        },
+        "trainer": {
+            TrainerType.MOCK: MockTrainer,
+            TrainerType.PACEMAKER: PacemakerTrainer,
+        },
+        "dynamics": {
+            DynamicsType.MOCK: MockDynamics,
+            DynamicsType.LAMMPS: LAMMPSDynamics,
+        },
+        "validator": {
+            ValidatorType.MOCK: MockValidator,
+            ValidatorType.STANDARD: StandardValidator,
+        },
     }
 
     @classmethod

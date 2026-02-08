@@ -3,6 +3,7 @@ import random
 from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
+from mlip_autopipec.domain_models.config import MockDynamicsConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -16,6 +17,10 @@ class MockDynamics(BaseDynamics):
     Simulates exploration by randomly selecting structures based on a configured
     selection rate and assigning a simulated uncertainty value.
     """
+
+    def __init__(self, config: MockDynamicsConfig) -> None:
+        super().__init__(config)
+        self.config: MockDynamicsConfig = config
 
     def explore(
         self, potential: Potential, start_structures: Iterable[Structure]
@@ -47,7 +52,7 @@ class MockDynamics(BaseDynamics):
         for s in start_structures:
             # We use random.random() which is acceptable for mock simulation
             if random.random() < selection_rate:  # noqa: S311
-                s.tags = {"uncertainty": uncertainty_threshold + 1.0}
+                s.uncertainty = uncertainty_threshold + 1.0
                 yield s
                 count += 1
 
