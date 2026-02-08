@@ -233,6 +233,21 @@ class Dataset:
 
         logger.info(f"Exported dataset to {output_path} in extxyz format")
 
+    def _batch_to_dict(self, batch: list[Structure]) -> list[dict[str, Any]]:
+        """Convert a batch of structures to a list of dictionaries for DataFrame creation."""
+        batch_data = []
+        for s in batch:
+            atoms = s.to_ase()
+            row: dict[str, Any] = {"ase_atoms": atoms}
+            if s.energy is not None:
+                row["energy"] = s.energy
+            if s.forces is not None:
+                row["forces"] = s.forces
+            if s.stress is not None:
+                row["stress"] = s.stress
+            batch_data.append(row)
+        return batch_data
+
     def to_pacemaker_gzip(self, output_path: Path, chunk_size: int = 10000) -> None:
         """
         Export dataset to a gzipped pickle file for Pacemaker.
@@ -261,18 +276,7 @@ class Dataset:
         chunks = []
         # Process in chunks to avoid creating a massive list of dicts at once
         for batch in self.iter_batches(batch_size=chunk_size):
-            batch_data = []
-            for s in batch:
-                atoms = s.to_ase()
-                row: dict[str, Any] = {"ase_atoms": atoms}
-                if s.energy is not None:
-                    row["energy"] = s.energy
-                if s.forces is not None:
-                    row["forces"] = s.forces
-                if s.stress is not None:
-                    row["stress"] = s.stress
-                batch_data.append(row)
-
+            batch_data = self._batch_to_dict(batch)
             if batch_data:
                 # Convert chunk to DF immediately to free dicts
                 chunks.append(pd.DataFrame(batch_data))

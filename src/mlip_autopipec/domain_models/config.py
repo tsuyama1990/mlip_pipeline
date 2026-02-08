@@ -13,12 +13,6 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
-from mlip_autopipec.constants import (
-    DEFAULT_PACEMAKER_ACTIVESET_FILENAME,
-    DEFAULT_PACEMAKER_DATASET_FILENAME,
-    DEFAULT_PACEMAKER_INPUT_FILENAME,
-    DEFAULT_PACEMAKER_POTENTIAL_FILENAME,
-)
 
 
 class ComponentConfig(BaseModel):
@@ -181,10 +175,13 @@ class PacemakerTrainerConfig(BaseTrainerConfig):
     active_set_limit: int = 1000
     initial_potential: str | Path | None = None
     physics_baseline: PhysicsBaselineConfig | None = None
-    input_filename: str = DEFAULT_PACEMAKER_INPUT_FILENAME
-    dataset_filename: str = DEFAULT_PACEMAKER_DATASET_FILENAME
-    potential_filename: str = DEFAULT_PACEMAKER_POTENTIAL_FILENAME
-    activeset_filename: str = DEFAULT_PACEMAKER_ACTIVESET_FILENAME
+
+    # Defaults defined directly here for isolation
+    input_filename: str = "input.yaml"
+    dataset_filename: str = "dataset.pckl.gzip"
+    potential_filename: str = "output_potential.yace"
+    activeset_filename: str = "dataset_activeset.pckl.gzip"
+
     data_format: Literal["extxyz", "pckl.gzip"] = "extxyz"
 
 

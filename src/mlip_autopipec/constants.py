@@ -17,9 +17,3 @@ PACEMAKER_INPUT_FILENAME = "input.yaml"
 PACEMAKER_DATASET_FILENAME = "dataset.pckl.gzip"
 PACEMAKER_ACTIVESET_FILENAME = "dataset_activeset.pckl.gzip"
 PACEMAKER_POTENTIAL_FILENAME = "output_potential.yace"
-
-# File paths
-DEFAULT_PACEMAKER_INPUT_FILENAME = "input.yaml"
-DEFAULT_PACEMAKER_DATASET_FILENAME = "dataset.pckl.gzip"
-DEFAULT_PACEMAKER_ACTIVESET_FILENAME = "dataset_activeset.pckl.gzip"
-DEFAULT_PACEMAKER_POTENTIAL_FILENAME = "output_potential.yace"

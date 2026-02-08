@@ -40,6 +40,12 @@ class ActiveSetSelector:
 
         resolved_path = Path(path).resolve()
 
+        # Explicitly deny /tmp and /var/tmp usage
+        path_str = str(resolved_path)
+        if path_str.startswith(("/tmp", "/var/tmp")):  # noqa: S108
+             msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
+             raise SecurityError(msg)
+
         # Whitelist of trusted system directories
         trusted_dirs = [
             Path("/usr/bin"),
@@ -56,15 +62,6 @@ class ActiveSetSelector:
         is_trusted = any(str(resolved_path).startswith(str(d)) for d in trusted_dirs)
 
         if not is_trusted:
-            # Allow explicit override if user really knows what they are doing?
-            # For strict security, we deny.
-            # But users might install elsewhere.
-            # Warning for now, or strict fail?
-            # The audit requested validation. Let's fail if it looks suspicious (e.g. /tmp)
-            if str(resolved_path).startswith("/tmp") or str(resolved_path).startswith("/var/tmp"): # noqa: S108
-                 msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
-                 raise SecurityError(msg)
-
             logger.warning(f"Executable '{resolved_path}' is not in standard trusted directories.")
 
         return str(resolved_path)
