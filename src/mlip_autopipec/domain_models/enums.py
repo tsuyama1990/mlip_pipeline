@@ -1,6 +1,15 @@
 from enum import StrEnum
 
 
+class ComponentRole(StrEnum):
+    """Enum for component roles."""
+    GENERATOR = "generator"
+    ORACLE = "oracle"
+    TRAINER = "trainer"
+    DYNAMICS = "dynamics"
+    VALIDATOR = "validator"
+
+
 class ComponentType(StrEnum):
     """Base class for component types (string-based)."""
     MOCK = "mock"

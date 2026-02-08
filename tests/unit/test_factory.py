@@ -19,6 +19,7 @@ from mlip_autopipec.domain_models.config import (
     StandardValidatorConfig,
 )
 from mlip_autopipec.domain_models.enums import (
+    ComponentRole,
     DynamicsType,
     GeneratorType,
     OracleType,
@@ -79,15 +80,16 @@ def test_factory_creation_real() -> None:
 def test_factory_invalid_role() -> None:
     # ComponentFactory.create expects a ComponentConfig.
     # It checks role first.
+    # Note: Type checker catches this, so we use type: ignore to test runtime check
     with pytest.raises(ValueError, match="Unknown component role"):
-        ComponentFactory.create("unknown_role", ComponentConfig(name="mock"))
+        ComponentFactory.create("unknown_role", ComponentConfig(name="mock"))  # type: ignore
 
 
 def test_factory_invalid_type() -> None:
     # We can pass a generic ComponentConfig with an invalid name
     config = ComponentConfig(name="random_invalid_type")
     with pytest.raises(ValueError, match="Unknown component type"):
-        ComponentFactory.create("generator", config)
+        ComponentFactory.create(ComponentRole.GENERATOR, config)
 
 
 def test_mock_generator_iterator() -> None:

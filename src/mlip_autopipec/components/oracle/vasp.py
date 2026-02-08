@@ -1,4 +1,4 @@
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.components.oracle.base import BaseOracle
 from mlip_autopipec.domain_models.config import VASPOracleConfig

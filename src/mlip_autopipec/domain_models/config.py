@@ -112,6 +112,8 @@ class BaseDynamicsConfig(ComponentConfig):
 class MockDynamicsConfig(BaseDynamicsConfig):
     name: Literal[DynamicsType.MOCK] = DynamicsType.MOCK
     selection_rate: float = Field(..., ge=0.0, le=1.0)
+    seed: int | None = None
+    simulated_uncertainty: float = 1.0
 
 
 class LAMMPSDynamicsConfig(BaseDynamicsConfig):

@@ -75,15 +75,21 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     dataset = Dataset(dataset_path)
     count = 0
 
-    # Streaming iteration: do not use list(dataset)
-    for s in dataset:
-        count += 1
-        # Verify labeling happened
-        assert s.energy is not None
-        assert s.forces is not None
-        assert s.stress is not None
-        # Verify integrity
-        s.validate_labeled()
+    # Streaming iteration: do not use list(dataset) to ensure scalability
+    # Dataset implements __iter__ which yields structures one by one
+    iterator = iter(dataset)
+    try:
+        while True:
+            s = next(iterator)
+            count += 1
+            # Verify labeling happened
+            assert s.energy is not None
+            assert s.forces is not None
+            assert s.stress is not None
+            # Verify integrity
+            s.validate_labeled()
+    except StopIteration:
+        pass
 
     # Cycle 1: 5 structures (selection_rate=1.0)
     # Cycle 2: 5 structures selected from generated
