@@ -40,7 +40,7 @@ class BulkBuilder(StructureBuilder):
             # Generate bulk structure
             # We use basic parameters from config.
             # ase.build.bulk returns Atoms
-            atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)  # type: ignore[no-untyped-call]
+            atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)
 
             # Supercell
             if config.supercell_dim > 1:
@@ -70,7 +70,7 @@ class SurfaceBuilder(StructureBuilder):
 
             # Create base bulk first
             # Surfaces need a bulk reference.
-            bulk_atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)  # type: ignore[no-untyped-call]
+            bulk_atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)
 
             # Create surface
             # surface returns Atoms
@@ -78,7 +78,7 @@ class SurfaceBuilder(StructureBuilder):
 
             # Repeat surface to make it larger in x/y if needed
             if config.supercell_dim > 1:
-                surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))  # type: ignore[no-untyped-call]
+                surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))
 
             surf.info["type"] = "surface"
             surf.info["generator"] = "SurfaceBuilder"

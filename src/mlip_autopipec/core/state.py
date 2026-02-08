@@ -34,17 +34,18 @@ class StateManager:
         except Exception:
             return WorkflowState()
 
-    def _save_state(self) -> None:
+    def save(self) -> None:
+        """Save the current state to the file."""
         with self.state_file.open("w") as f:
             f.write(self.state.model_dump_json(indent=2))
 
     def update_cycle(self, cycle: int) -> None:
         self.state.current_cycle = cycle
-        self._save_state()
+        self.save()
 
     def update_status(self, status: str) -> None:
         self.state.status = status
-        self._save_state()
+        self.save()
 
     def __repr__(self) -> str:
         return f"<StateManager(file={self.state_file}, state={self.state})>"

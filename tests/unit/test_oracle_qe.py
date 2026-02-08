@@ -16,7 +16,7 @@ from mlip_autopipec.domain_models.structure import Structure
 # Define a Fake Calculator that behaves like Espresso but runs in memory
 class FakeEspresso(Calculator):
     def __init__(self, failure_mode: str = "parameter_sensitive", **kwargs: Any) -> None:
-        super().__init__()
+        super().__init__()  # type: ignore[no-untyped-call]
         self.parameters = kwargs
         # Ensure failure_mode is in parameters so it survives Healing reconstruction
         self.parameters["failure_mode"] = failure_mode
@@ -33,7 +33,7 @@ class FakeEspresso(Calculator):
         # Standard ASE setup
         if properties is None:
             properties = ["energy"]
-        super().calculate(atoms, properties, system_changes)
+        super().calculate(atoms, properties, system_changes)  # type: ignore[no-untyped-call]
 
         # Simulation Logic
         # Read from parameters if present (reconstructed via Heal)
@@ -160,14 +160,12 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
         # Verify provenance shows HEALED parameter
         assert result.tags["qe_params"]["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
-        # We expect at least two calls: initial failed one, and healed one
-        assert mock_cls.call_count >= 2
+        # Note: mock_cls (Espresso) is only called once for initial setup.
+        # Healing calls type(calc)(...), which is FakeEspresso, not the mocked Espresso class.
+        assert mock_cls.call_count == 1
 
-        # Verify that the healed call used the target mixing beta
-        calls = mock_cls.call_args_list
-        # The last call should be the successful one with healed params
-        last_call_kwargs = calls[-1][1]
-        assert last_call_kwargs["mixing_beta"] == HEALER_MIXING_BETA_TARGET
+        # To verify healing parameters were used, we check the result (done above)
+        # or we could spy on FakeEspresso if needed.
 
 
 def test_qe_calculator_setup(qe_config: QEOracleConfig) -> None:

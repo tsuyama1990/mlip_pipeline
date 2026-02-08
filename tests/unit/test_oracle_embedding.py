@@ -9,24 +9,24 @@ from mlip_autopipec.constants import MAX_VACUUM_SIZE
 
 def test_embed_cluster_basic() -> None:
     """Test embedding a simple cluster in a vacuum box."""
-    cluster = molecule("H2")
+    cluster = molecule("H2")  # type: ignore[no-untyped-call]
     # Keep copy of original positions
     original_positions = cluster.get_positions()
     original_cell = cluster.get_cell()
 
     vacuum = 5.0
-    embedded = embed_cluster(cluster, vacuum)  # type: ignore[no-untyped-call]
+    embedded = embed_cluster(cluster, vacuum)
 
     # Check PBC
     assert np.all(embedded.pbc)
 
     # Check cell dimensions
     # Assuming the cluster is centered, the cell should be > cluster size + 2 * vacuum
-    positions = embedded.get_positions()
+    positions = embedded.get_positions()  # type: ignore[no-untyped-call]
     # molecule H2 is small, ~0.74A
     # span is small
     cluster_span = np.ptp(positions, axis=0)
-    cell_diag = np.diag(embedded.get_cell())
+    cell_diag = np.diag(embedded.get_cell())  # type: ignore[no-untyped-call]
 
     # The cell size is usually calculated as span + 2*vacuum
     assert np.all(cell_diag >= cluster_span + 2 * vacuum - 1e-5)
@@ -58,34 +58,34 @@ def test_embed_cluster_from_bulk() -> None:
 
     # Embed
     vacuum = 4.0
-    embedded = embed_cluster(cluster, vacuum)  # type: ignore[no-untyped-call]
+    embedded = embed_cluster(cluster, vacuum)
 
     assert len(embedded) == len(cluster)
     assert np.all(embedded.pbc)
 
     # Check cell size
-    cell_diag = np.diag(embedded.get_cell())
-    positions = embedded.get_positions()
+    cell_diag = np.diag(embedded.get_cell())  # type: ignore[no-untyped-call]
+    positions = embedded.get_positions()  # type: ignore[no-untyped-call]
     cluster_extent = np.ptp(positions, axis=0)
     assert np.all(cell_diag >= cluster_extent + 2 * vacuum - 1e-5)
 
 
 def test_embed_cluster_invalid_vacuum() -> None:
     """Test invalid vacuum value."""
-    cluster = molecule("H2")
+    cluster = molecule("H2")  # type: ignore[no-untyped-call]
     with pytest.raises(ValueError, match="Vacuum must be positive"):
-        embed_cluster(cluster, -1.0)  # type: ignore[no-untyped-call]
+        embed_cluster(cluster, -1.0)
 
 
 def test_embed_cluster_vacuum_too_large() -> None:
     """Test vacuum size limit check."""
-    cluster = molecule("H2")
+    cluster = molecule("H2")  # type: ignore[no-untyped-call]
     with pytest.raises(ValueError, match="Vacuum exceeds"):
-        embed_cluster(cluster, MAX_VACUUM_SIZE + 1.0)  # type: ignore[no-untyped-call]
+        embed_cluster(cluster, MAX_VACUUM_SIZE + 1.0)
 
 
 def test_embed_cluster_empty() -> None:
     """Test empty cluster."""
     cluster = Atoms()
     with pytest.raises(ValueError, match="Cluster is empty"):
-        embed_cluster(cluster, 5.0)  # type: ignore[no-untyped-call]
+        embed_cluster(cluster, 5.0)

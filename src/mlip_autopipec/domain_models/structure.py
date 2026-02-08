@@ -278,6 +278,11 @@ class Structure(BaseModel):
         if len(positions) != n_atoms:
              msg = f"Mismatch: positions={len(positions)}, atomic_numbers={n_atoms}"
              raise ValueError(msg)
+
+        if not np.all(np.isfinite(positions)):
+            msg = "Positions contain non-finite values"
+            raise ValueError(msg)
+
         return cast(np.ndarray, positions)
 
     @staticmethod
@@ -344,7 +349,7 @@ class Structure(BaseModel):
 
         # Attach labels via SinglePointCalculator if present
         if self.energy is not None or self.forces is not None or self.stress is not None:
-            calc = SinglePointCalculator(
+            calc = SinglePointCalculator(  # type: ignore[no-untyped-call]
                 atoms,
                 energy=self.energy,
                 forces=self.forces,

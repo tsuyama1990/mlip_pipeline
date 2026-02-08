@@ -1,7 +1,6 @@
 import concurrent.futures
 import logging
 from collections.abc import Iterable, Iterator
-from typing import cast
 
 from ase.calculators.espresso import Espresso
 
@@ -31,7 +30,7 @@ class QECalculator:
             "tprnfor": True,
             "tstress": True,
         }
-        return cast(Espresso, Espresso(**params))  # type: ignore[no-untyped-call]
+        return Espresso(**params)  # type: ignore[no-untyped-call]
 
 
 def _process_single_structure(
