@@ -4,7 +4,8 @@ from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.domain_models.config import MockOracleConfig
 from mlip_autopipec.domain_models.enums import OracleType
 from mlip_autopipec.domain_models.structure import Structure
-from tests.common_constants import ORACLE_TOLERANCE
+
+ORACLE_TOLERANCE = 1e-10
 
 
 def test_mock_oracle_force_sum_zero() -> None:

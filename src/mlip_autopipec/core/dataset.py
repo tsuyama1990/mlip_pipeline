@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 class Dataset:
     def __init__(self, path: Path) -> None:
         self.path = path
+        # Security: Basic validation
+        if "\0" in str(path):
+            msg = "File path contains null byte"
+            raise ValueError(msg)
+
         self.meta_path = path.with_suffix(".meta.json")
         self._ensure_exists()
 
@@ -80,16 +85,7 @@ class Dataset:
         buffer: list[str] = []
 
         try:
-            # Use default buffering (typically 4KB/8KB) or line buffering=1
-            # Since we write lines, buffering=1 is good for logs but for bulk data,
-            # default block buffering is better for speed.
-            # We explicitly batch our writes to reduce f.write calls if needed,
-            # but f.write is already buffered in Python.
-            # However, the feedback requested "buffered writing with configurable buffer size".
-            # This implies application-level buffering to reduce syscalls or file lock time?
-            # Or simply wrapping the file object.
-            # Let's implement an explicit buffer list to minimize f.write calls.
-
+            # Explicit buffering to batch writes
             with self.path.open("a") as f:
                 for s in structures:
                     # Enforce data integrity
@@ -127,7 +123,6 @@ class Dataset:
                     if not line:
                         continue
                     try:
-                        # Consistency check is handled by model_validate_json via model validator
                         yield Structure.model_validate_json(line)
                     except Exception:
                         logger.warning(

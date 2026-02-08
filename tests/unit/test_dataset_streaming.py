@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -29,10 +30,16 @@ def test_dataset_streaming_behavior(tmp_path: Path) -> None:
     ds = Dataset(dataset_path)
 
     # We patch Path.open to return a mock file that we can spy on
-    # We configure the mock file to yield lines when iterated
+    # We configure the mock file to yield lines via generator to prove streaming
     mock_file_handle = MagicMock()
     mock_file_handle.__enter__.return_value = mock_file_handle
-    mock_file_handle.__iter__.return_value = iter([line, line, line])
+
+    # Use a generator to enforce lazy iteration
+    def line_generator() -> Iterator[str]:
+        for _ in range(3):
+            yield line
+
+    mock_file_handle.__iter__.return_value = line_generator()
 
     with patch("pathlib.Path.open", return_value=mock_file_handle):
         # iter(ds) checks self.path.exists(). Since we created it, it exists.
@@ -48,8 +55,6 @@ def test_dataset_streaming_behavior(tmp_path: Path) -> None:
 
         # Consume one
         # If open wasn't called, this would fail or read from empty real file (if patch didn't work)
-        # Real file is empty. So if patch fails, StopIteration immediately.
-        # If patch works, we get item.
         item = next(iterator)
         assert isinstance(item, Structure)
         assert np.allclose(item.positions, s.positions)

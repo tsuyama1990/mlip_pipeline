@@ -8,47 +8,43 @@ Note: Since Quantum Espresso (pw.x) is not installed in this environment,
 we mock the ASE Calculator to simulate DFT calculations.
 """
 
-import sys
 import logging
-import numpy as np
+import sys
 from unittest.mock import MagicMock, patch
-from ase import Atoms
+
+import numpy as np
 from ase.build import bulk, molecule
 from ase.calculators.calculator import Calculator
 
 # Add src to path if running from root
 sys.path.append("src")
 
+from mlip_autopipec.components.oracle.embedding import embed_cluster
 from mlip_autopipec.components.oracle.qe import QEOracle
 from mlip_autopipec.domain_models.config import QEOracleConfig
 from mlip_autopipec.domain_models.enums import OracleType
 from mlip_autopipec.domain_models.structure import Structure
-from mlip_autopipec.components.oracle.embedding import embed_cluster
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Tutorial02")
 
-def run_basic_dft_scenario():
+
+def run_basic_dft_scenario() -> None:
     logger.info("\n--- Scenario 03-01: Basic DFT Calculation (Mocked) ---")
 
     # 1. Create Config
-    config = QEOracleConfig(
-        name=OracleType.QE,
-        kspacing=0.1,
-        ecutwfc=30.0,
-        ecutrho=150.0
-    )
+    config = QEOracleConfig(name=OracleType.QE, kspacing=0.1, ecutwfc=30.0, ecutrho=150.0)
 
     # 2. Create Structure (Bulk Silicon)
-    atoms = bulk("Si", "diamond", a=5.43) # type: ignore[no-untyped-call]
+    atoms = bulk("Si", "diamond", a=5.43)
     structure = Structure.from_ase(atoms)
 
     # 3. Mock Espresso
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as MockEspresso:
         # Setup mock behavior
         mock_calc = MagicMock(spec=Calculator)
-        mock_calc.get_potential_energy.return_value = -15.0 # eV
+        mock_calc.get_potential_energy.return_value = -15.0  # eV
         mock_calc.get_forces.return_value = np.zeros((len(atoms), 3))
         mock_calc.get_stress.return_value = np.zeros(6)
         mock_calc.parameters = {}
@@ -68,17 +64,18 @@ def run_basic_dft_scenario():
         else:
             logger.error("Oracle returned no results.")
 
-def run_healing_scenario():
+
+def run_healing_scenario() -> None:
     logger.info("\n--- Scenario 03-02: Self-Healing Mechanism (Mocked) ---")
 
     # 1. Create Config (High mixing beta to trigger failure)
     config = QEOracleConfig(
         name=OracleType.QE,
-        mixing_beta=0.9, # High
+        mixing_beta=0.9,  # High
     )
 
     # 2. Create Structure
-    atoms = bulk("Si", "diamond", a=5.43) # type: ignore[no-untyped-call]
+    atoms = bulk("Si", "diamond", a=5.43)
     structure = Structure.from_ase(atoms)
 
     # 3. Mock Espresso with Failure then Success
@@ -88,7 +85,10 @@ def run_healing_scenario():
 
         # Side effect: First call raises Exception, subsequent calls return value
         from itertools import chain, repeat
-        mock_calc.get_potential_energy.side_effect = chain([Exception("Convergence failed")], repeat(-15.0))
+
+        mock_calc.get_potential_energy.side_effect = chain(
+            [Exception("Convergence failed")], repeat(-15.0)
+        )
         mock_calc.get_forces.return_value = np.zeros((len(atoms), 3))
         mock_calc.get_stress.return_value = np.zeros(6)
 
@@ -116,11 +116,12 @@ def run_healing_scenario():
         else:
             logger.error("Oracle failed to heal.")
 
-def run_embedding_scenario():
+
+def run_embedding_scenario() -> None:
     logger.info("\n--- Scenario 03-03: Periodic Embedding Visualization ---")
 
     # 1. Create Cluster (H2O molecule)
-    cluster = molecule("H2O") # type: ignore[no-untyped-call]
+    cluster = molecule("H2O")  # type: ignore[no-untyped-call]
     logger.info(f"Original Cluster: {len(cluster)} atoms, PBC={cluster.pbc}")
 
     # 2. Embed in Vacuum
@@ -128,14 +129,15 @@ def run_embedding_scenario():
     embedded = embed_cluster(cluster, vacuum)
 
     logger.info(f"Embedded Structure: {len(embedded)} atoms, PBC={embedded.pbc}")
-    cell = embedded.get_cell() # type: ignore[no-untyped-call]
-    logger.info(f"Cell dimensions: {cell.lengths()}") # type: ignore[no-untyped-call]
+    cell = embedded.get_cell()  # type: ignore[no-untyped-call]
+    logger.info(f"Cell dimensions: {cell.lengths()}")
 
     # Verify
-    if np.all(embedded.pbc) and np.all(cell.lengths() > 5.0): # type: ignore[no-untyped-call]
+    if np.all(embedded.pbc) and np.all(cell.lengths() > 5.0):
         logger.info("Verified: Cluster successfully embedded in periodic box.")
     else:
         logger.error("Embedding verification failed.")
+
 
 if __name__ == "__main__":
     run_basic_dft_scenario()

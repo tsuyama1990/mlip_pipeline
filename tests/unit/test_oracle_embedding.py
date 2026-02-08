@@ -9,6 +9,10 @@ from mlip_autopipec.components.oracle.embedding import embed_cluster
 def test_embed_cluster_basic() -> None:
     """Test embedding a simple cluster in a vacuum box."""
     cluster = molecule("H2")  # type: ignore[no-untyped-call]
+    # Keep copy of original positions
+    original_positions = cluster.get_positions()
+    original_cell = cluster.get_cell()
+
     vacuum = 5.0
     embedded = embed_cluster(cluster, vacuum)
 
@@ -33,6 +37,10 @@ def test_embed_cluster_basic() -> None:
     bbox_center = (np.min(positions, axis=0) + np.max(positions, axis=0)) / 2
     assert np.allclose(bbox_center, cell_center, atol=1e-5)
 
+    # Verify input was not modified
+    assert np.allclose(cluster.get_positions(), original_positions)
+    assert np.allclose(cluster.get_cell(), original_cell)
+
 
 def test_embed_cluster_from_bulk() -> None:
     """Test extracting a cluster from bulk and embedding it."""
@@ -44,6 +52,7 @@ def test_embed_cluster_from_bulk() -> None:
     # Ensure unwrapped positions if needed, but bulk usually fits in cell
     distances = np.linalg.norm(si_bulk.positions - center, axis=1)
     mask = distances < 6.0
+    # Mypy complained about unused ignore here previously
     cluster = si_bulk[mask]
 
     # Embed

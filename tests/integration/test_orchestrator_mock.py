@@ -18,23 +18,23 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
-from tests.common_constants import (
-    ATOMIC_NUMBERS,
-    CELL_SIZE,
-    CYCLE_01_DIR,
-    CYCLE_02_DIR,
-    CYCLE_03_DIR,
-    DATASET_FILE,
-    ERROR_STATUS,
-    MAX_CYCLES,
-    N_ATOMS,
-    N_STRUCTURES,
-    POTENTIAL_FILE,
-    SELECTION_RATE,
-    STATE_FILE,
-    STOPPED_STATUS,
-    UNCERTAINTY_THRESHOLD,
-)
+
+# Constants localized to test
+CYCLE_01_DIR = "cycle_01"
+CYCLE_02_DIR = "cycle_02"
+CYCLE_03_DIR = "cycle_03"
+POTENTIAL_FILE = "potential.yace"
+DATASET_FILE = "dataset.jsonl"
+STATE_FILE = "workflow_state.json"
+STOPPED_STATUS = "STOPPED"
+ERROR_STATUS = "ERROR"
+MAX_CYCLES = 2
+N_STRUCTURES = 5
+CELL_SIZE = 10.0
+N_ATOMS = 2
+ATOMIC_NUMBERS = [1, 1]
+SELECTION_RATE = 1.0
+UNCERTAINTY_THRESHOLD = 5.0
 
 
 @pytest.fixture
