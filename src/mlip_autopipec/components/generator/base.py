@@ -20,3 +20,9 @@ class BaseGenerator(BaseComponent[GeneratorConfig]):
             n_structures: The number of structures to generate.
         """
         ...
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"

@@ -1,73 +1,56 @@
-from abc import ABC, abstractmethod
-
 import numpy as np
 
 from mlip_autopipec.domain_models.structure import Structure
 
 
-class StructureTransform(ABC):
-    """Abstract base class for structure transformations."""
-
-    @abstractmethod
-    def apply(self, structure: Structure) -> Structure:
-        """
-        Apply transformation to a structure.
-
-        Args:
-            structure: Input structure.
-
-        Returns:
-            Transformed structure (new instance).
-        """
-        ...
-
-
-class RattleTransform(StructureTransform):
-    """Applies random Gaussian noise to atomic positions."""
-
-    def __init__(self, stdev: float) -> None:
+class RattleTransform:
+    def __init__(self, stdev: float = 0.01) -> None:
         self.stdev = stdev
 
     def apply(self, structure: Structure) -> Structure:
-        if self.stdev <= 0:
-            return structure
+        """Apply random rattle to atomic positions."""
+        s = structure.model_deep_copy()
+        noise = np.random.normal(0, self.stdev, s.positions.shape)
+        s.positions += noise
+        return s
 
-        new_s = structure.model_copy(deep=True)
-        noise = np.random.normal(0.0, self.stdev, structure.positions.shape)
-        new_s.positions = new_s.positions + noise
+    def __repr__(self) -> str:
+        return f"<RattleTransform(stdev={self.stdev})>"
 
-        # Update tags
-        new_s.tags["rattled"] = True
-        new_s.tags["rattle_stdev"] = self.stdev
-
-        return new_s
+    def __str__(self) -> str:
+        return f"RattleTransform(stdev={self.stdev})"
 
 
-class StrainTransform(StructureTransform):
-    """Applies random strain to the cell and positions."""
-
-    def __init__(self, strain_range: float) -> None:
+class StrainTransform:
+    def __init__(self, strain_range: float = 0.05) -> None:
         self.strain_range = strain_range
 
     def apply(self, structure: Structure) -> Structure:
-        if self.strain_range <= 0:
-            return structure
+        """Apply random strain to the unit cell."""
+        s = structure.model_deep_copy()
 
-        new_s = structure.model_copy(deep=True)
+        # Create random strain tensor (symmetric)
+        # E = 0.5 * (F^T F - I) -> roughly F = I + E for small strain
+        # We just perturb cell vectors: cell_new = cell_old * (I + strain)
 
-        # Generate random deformation gradient F = I + epsilon
-        # epsilon components in [-strain_range, strain_range]
-        epsilon = (np.random.rand(3, 3) - 0.5) * 2 * self.strain_range
-        F = np.eye(3) + epsilon
+        strain = (np.random.rand(3, 3) - 0.5) * 2 * self.strain_range
+        # Symmetrize for pure strain (optional, but good for physical realism)
+        strain = (strain + strain.T) / 2
 
-        # Apply deformation
-        # positions' = positions @ F.T (since positions are row vectors)
-        # cell' = cell @ F.T
-        new_s.positions = new_s.positions @ F.T
-        new_s.cell = new_s.cell @ F.T
+        deformation = np.eye(3) + strain
+        s.cell = np.dot(s.cell, deformation)
 
-        # Update tags
-        new_s.tags["strained"] = True
-        new_s.tags["strain_range"] = self.strain_range
+        # Also move atoms if fractional coords stay same?
+        # ASE/Structure stores Cartesian. So we must update positions too.
+        # But for 'Strain', we usually imply affine transformation.
+        # s.positions = s.positions * deformation?
+        # Yes, strictly speaking.
+        s.positions = np.dot(s.positions, deformation)
 
-        return new_s
+        return s
+
+    def __repr__(self) -> str:
+        return f"<StrainTransform(range={self.strain_range})>"
+
+    def __str__(self) -> str:
+        return f"StrainTransform(range={self.strain_range})"

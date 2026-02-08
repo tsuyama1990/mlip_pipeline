@@ -40,3 +40,9 @@ class VASPOracle(BaseOracle):
         logger.error("VASP Oracle is not yet implemented.")
         msg = "VASP Oracle is not yet implemented."
         raise NotImplementedError(msg)
+
+    def __repr__(self) -> str:
+        return f"<VASPOracle(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"VASPOracle({self.name})"

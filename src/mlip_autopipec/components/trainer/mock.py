@@ -20,3 +20,9 @@ class MockTrainer(BaseTrainer):
         workdir.mkdir(parents=True, exist_ok=True)
         output_path.touch()
         return Potential(path=output_path, metrics={"rmse_energy": 0.01})
+
+    def __repr__(self) -> str:
+        return f"<MockTrainer(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"MockTrainer({self.name})"

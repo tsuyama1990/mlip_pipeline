@@ -74,7 +74,7 @@ def test_healer_invalid_calculator() -> None:
 
     class SimpleCalc(Calculator):
         def __init__(self, **kwargs: Any) -> None:
-            super().__init__()
+            super().__init__()  # type: ignore[no-untyped-call]
             self.parameters = kwargs
 
     calc = SimpleCalc()

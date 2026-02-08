@@ -40,3 +40,9 @@ class StandardValidator(BaseValidator):
         logger.error("Standard Validator (Phonon/EOS/Elastic) is not yet implemented.")
         msg = "Standard Validator (Phonon/EOS/Elastic) is not yet implemented."
         raise NotImplementedError(msg)
+
+    def __repr__(self) -> str:
+        return f"<StandardValidator(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"StandardValidator({self.name})"

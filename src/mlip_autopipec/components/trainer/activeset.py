@@ -15,7 +15,19 @@ class ActiveSetSelector:
     """
 
     def __init__(self, limit: int = 1000) -> None:
+        """
+        Initialize the ActiveSetSelector.
+
+        Args:
+            limit: The maximum number of structures to select for the active set.
+        """
         self.limit = limit
+
+    def __repr__(self) -> str:
+        return f"<ActiveSetSelector(limit={self.limit})>"
+
+    def __str__(self) -> str:
+        return f"ActiveSetSelector(limit={self.limit})"
 
     def select(self, input_path: Path, output_path: Path) -> Path:
         """
@@ -29,10 +41,6 @@ class ActiveSetSelector:
             Path to the output dataset.
         """
         # Security: Validate paths are absolute and safe
-        # We assume input_path is already validated by caller (Dataset export),
-        # but we re-validate here for safety.
-        # We also enforce that output_path is in the same directory structure or explicitly safe.
-
         try:
             safe_input = validate_safe_path(input_path)
 
@@ -40,9 +48,7 @@ class ActiveSetSelector:
             if not output_path.parent.exists():
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Validate output path is safe (e.g. not /etc/passwd)
-            # validate_safe_path typically checks for traversal and absolute path
-            # Since output file doesn't exist yet, we validate parent
+            # Validate output path is safe
             validate_safe_path(output_path.parent)
             safe_output = output_path.resolve()
 
@@ -59,7 +65,10 @@ class ActiveSetSelector:
         pace_executable = shutil.which(pace_bin)
 
         if not pace_executable:
-            msg = f"pace_activeset executable '{pace_bin}' not found in PATH"
+            msg = (
+                f"pace_activeset executable '{pace_bin}' not found in PATH or environment variable. "
+                "Please install Pacemaker or set PACE_ACTIVESET_BIN."
+            )
             raise RuntimeError(msg)
 
         # Construct command
@@ -84,14 +93,13 @@ class ActiveSetSelector:
                 shell=False,
             )
             logger.debug(f"pace_activeset output: {result.stdout}")
+            logger.info("Active set selection completed successfully.")
         except subprocess.CalledProcessError as e:
             msg = f"pace_activeset failed with error: {e.stderr}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
 
         if not output_path.exists():
-            # If the command didn't create the file (mocking issue or tool failure not captured by exit code)
-            # We log a warning.
             logger.warning(f"pace_activeset finished but {output_path} was not created.")
 
         return output_path

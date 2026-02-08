@@ -35,3 +35,9 @@ class MockOracle(BaseOracle):
             s.stress = (np.random.rand(6) - 0.5) * 0.1
 
             yield s
+
+    def __repr__(self) -> str:
+        return f"<MockOracle(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"MockOracle({self.name})"

@@ -91,3 +91,9 @@ class ComponentFactory:
     @classmethod
     def get_validator(cls, config: ValidatorConfig) -> BaseValidator:
         return cls.create(ComponentRole.VALIDATOR, config)  # type: ignore
+
+    def __repr__(self) -> str:
+        return "<ComponentFactory>"
+
+    def __str__(self) -> str:
+        return "ComponentFactory"

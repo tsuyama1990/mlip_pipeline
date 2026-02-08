@@ -25,6 +25,12 @@ class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name={self.name})>"
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name})"
+
 
 # --- Generator Configs ---
 
@@ -119,6 +125,12 @@ class PhysicsBaselineConfig(BaseModel):
     type: Literal["lj", "zbl"]
     params: dict[str, float] = Field(default_factory=dict)
 
+    def __repr__(self) -> str:
+        return f"<PhysicsBaselineConfig(type={self.type})>"
+
+    def __str__(self) -> str:
+        return f"PhysicsBaselineConfig(type={self.type})"
+
 
 class PacemakerInputConfig(BaseModel):
     """
@@ -134,6 +146,12 @@ class PacemakerInputConfig(BaseModel):
     b_basis: dict[str, int]
     physics_baseline: dict[str, Any] | None = None
     initial_potential: str | None = None
+
+    def __repr__(self) -> str:
+        return f"<PacemakerInputConfig(cutoff={self.cutoff})>"
+
+    def __str__(self) -> str:
+        return f"PacemakerInputConfig(cutoff={self.cutoff})"
 
 
 # --- Trainer Configs ---
@@ -231,6 +249,12 @@ class ComponentsConfig(BaseModel):
     dynamics: DynamicsConfig = Field(discriminator="name")
     validator: ValidatorConfig = Field(discriminator="name")
 
+    def __repr__(self) -> str:
+        return "<ComponentsConfig>"
+
+    def __str__(self) -> str:
+        return "ComponentsConfig"
+
 
 class OrchestratorConfig(BaseModel):
     """Configuration for Orchestrator paths and behavior."""
@@ -241,6 +265,12 @@ class OrchestratorConfig(BaseModel):
     cycle_dir_pattern: str = "cycle_{cycle:02d}"
     potential_filename: str = "potential.yace"
     default_buffer_size: int = Field(default=DEFAULT_BUFFER_SIZE)
+
+    def __repr__(self) -> str:
+        return "<OrchestratorConfig>"
+
+    def __str__(self) -> str:
+        return "OrchestratorConfig"
 
 
 class GlobalConfig(BaseModel):
@@ -267,3 +297,9 @@ class GlobalConfig(BaseModel):
             msg = f"Invalid workdir path: {v}"
             raise ValueError(msg) from e
         return v
+
+    def __repr__(self) -> str:
+        return f"<GlobalConfig(workdir={self.workdir})>"
+
+    def __str__(self) -> str:
+        return f"GlobalConfig(workdir={self.workdir})"

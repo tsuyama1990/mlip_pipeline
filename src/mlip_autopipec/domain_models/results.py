@@ -18,3 +18,9 @@ class ValidationMetrics(BaseModel):
 
     # Detailed breakdown (optional)
     details: dict[str, Any] = Field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        return f"<ValidationMetrics(passed={self.passed}, energy_rmse={self.energy_rmse})>"
+
+    def __str__(self) -> str:
+        return f"ValidationMetrics(passed={self.passed})"

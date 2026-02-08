@@ -72,6 +72,9 @@ class Dataset:
             count = -1
         return f"<Dataset(path={self.path}, count={count})>"
 
+    def __str__(self) -> str:
+        return f"Dataset({self.path.name})"
+
     def _ensure_exists(self) -> None:
         try:
             if not self.path.parent.exists():

@@ -49,6 +49,9 @@ class Orchestrator:
     def __repr__(self) -> str:
         return f"<Orchestrator(workdir={self.config.workdir}, cycle={self.state_manager.state.current_cycle})>"
 
+    def __str__(self) -> str:
+        return f"Orchestrator(cycle={self.state_manager.state.current_cycle})"
+
     def run(self) -> None:
         """Run the active learning loop until max_cycles is reached."""
         logger.info("Starting Orchestrator")

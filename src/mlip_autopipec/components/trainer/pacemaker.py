@@ -181,3 +181,9 @@ class PacemakerTrainer(BaseTrainer):
             msg = f"pace_train failed: {e.stderr}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
+
+    def __repr__(self) -> str:
+        return f"<PacemakerTrainer(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"PacemakerTrainer({self.name})"

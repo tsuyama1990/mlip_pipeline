@@ -98,3 +98,9 @@ class AdaptiveGenerator(BaseGenerator):
                 f"Requested {n_structures} but generated {generated_count}. "
                 "Check policy or builders."
             )
+
+    def __repr__(self) -> str:
+        return f"<AdaptiveGenerator(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"AdaptiveGenerator({self.name})"

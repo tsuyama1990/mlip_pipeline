@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import cast
 
 import numpy as np
-from ase import Atoms
 from ase.build import bulk, surface
 
 from mlip_autopipec.domain_models.config import AdaptiveGeneratorConfig
@@ -27,6 +25,12 @@ class StructureBuilder(ABC):
         """
         ...
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}>"
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}"
+
 
 class BulkBuilder(StructureBuilder):
     """Builder for bulk structures."""
@@ -36,19 +40,13 @@ class BulkBuilder(StructureBuilder):
             # Generate bulk structure
             # We use basic parameters from config.
             # ase.build.bulk returns Atoms
-            atoms = cast(
-                Atoms,
-                bulk(config.element, crystalstructure=config.crystal_structure, cubic=True),
-            )
+            atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)  # type: ignore[no-untyped-call]
 
             # Supercell
             if config.supercell_dim > 1:
                 # repeat returns Atoms
-                atoms = cast(
-                    Atoms,
-                    atoms.repeat(
-                        (config.supercell_dim, config.supercell_dim, config.supercell_dim)
-                    ),  # type: ignore[no-untyped-call]
+                atoms = atoms.repeat(  # type: ignore[no-untyped-call]
+                    (config.supercell_dim, config.supercell_dim, config.supercell_dim)
                 )
 
             # Add metadata
@@ -72,24 +70,15 @@ class SurfaceBuilder(StructureBuilder):
 
             # Create base bulk first
             # Surfaces need a bulk reference.
-            bulk_atoms = cast(
-                Atoms,
-                bulk(config.element, crystalstructure=config.crystal_structure, cubic=True),
-            )
+            bulk_atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)  # type: ignore[no-untyped-call]
 
             # Create surface
             # surface returns Atoms
-            surf = cast(
-                Atoms,
-                surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum),  # type: ignore[no-untyped-call]
-            )
+            surf = surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum)  # type: ignore[no-untyped-call]
 
             # Repeat surface to make it larger in x/y if needed
             if config.supercell_dim > 1:
-                surf = cast(
-                    Atoms,
-                    surf.repeat((config.supercell_dim, config.supercell_dim, 1)),  # type: ignore[no-untyped-call]
-                )
+                surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))  # type: ignore[no-untyped-call]
 
             surf.info["type"] = "surface"
             surf.info["generator"] = "SurfaceBuilder"

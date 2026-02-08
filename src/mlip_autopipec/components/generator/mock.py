@@ -47,14 +47,14 @@ class MockGenerator(BaseGenerator):
         for _ in range(n_structures):
             pos = np.random.rand(n_atoms, 3) * cell_size
             # Cycle through atomic numbers if fewer than n_atoms
-            # But specific implies we want exactly these atoms?
-            # MockGeneratorConfig says atomic_numbers is list[int].
-            # Let's assume we tile them to match n_atoms or just use them if len matches.
-            # If n_atoms > len(atomic_numbers), we repeat.
-
-            # Simple approach: repeat
             full_numbers = np.resize(np.array(atomic_numbers), n_atoms)
 
             cell = np.eye(3) * cell_size
             pbc = np.array([True, True, True])
             yield Structure(positions=pos, atomic_numbers=full_numbers, cell=cell, pbc=pbc)
+
+    def __repr__(self) -> str:
+        return f"<MockGenerator(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"MockGenerator({self.name})"

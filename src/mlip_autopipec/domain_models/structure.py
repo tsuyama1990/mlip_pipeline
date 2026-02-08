@@ -353,3 +353,11 @@ class Structure(BaseModel):
             atoms.calc = calc
 
         return atoms
+
+    def __repr__(self) -> str:
+        n_atoms = len(self.positions)
+        return f"<Structure(n_atoms={n_atoms}, energy={self.energy})>"
+
+    def __str__(self) -> str:
+        n_atoms = len(self.positions)
+        return f"Structure(n_atoms={n_atoms})"

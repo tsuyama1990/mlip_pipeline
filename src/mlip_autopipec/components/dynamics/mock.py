@@ -58,3 +58,9 @@ class MockDynamics(BaseDynamics):
                 count += 1
 
         logger.info(f"Found {count} uncertain structures")
+
+    def __repr__(self) -> str:
+        return f"<MockDynamics(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"MockDynamics({self.name})"

@@ -1,38 +1,53 @@
+import json
 from pathlib import Path
-from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class WorkflowState(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     current_cycle: int = 0
-    status: Literal["IDLE", "RUNNING", "STOPPED", "ERROR"] = "IDLE"
+    status: str = "IDLE"
+    last_updated: str = ""
+
+    def __repr__(self) -> str:
+        return f"<WorkflowState(cycle={self.current_cycle}, status={self.status})>"
+
+    def __str__(self) -> str:
+        return f"WorkflowState(cycle={self.current_cycle}, status={self.status})"
 
 
 class StateManager:
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.state = self._load()
+    """Manages the persistent state of the pipeline."""
 
-    def _load(self) -> WorkflowState:
-        if self.path.exists():
-            with self.path.open("r") as f:
-                content = f.read()
-                if content.strip():
-                    return WorkflowState.model_validate_json(content)
-        return WorkflowState()
+    def __init__(self, state_file: Path) -> None:
+        self.state_file = state_file
+        self.state = self._load_state()
 
-    def save(self) -> None:
-        if not self.path.parent.exists():
-            self.path.parent.mkdir(parents=True, exist_ok=True)
+    def _load_state(self) -> WorkflowState:
+        if not self.state_file.exists():
+            return WorkflowState()
+        try:
+            with self.state_file.open("r") as f:
+                data = json.load(f)
+            return WorkflowState.model_validate(data)
+        except Exception:
+            return WorkflowState()
 
-        with self.path.open("w") as f:
+    def _save_state(self) -> None:
+        with self.state_file.open("w") as f:
             f.write(self.state.model_dump_json(indent=2))
 
     def update_cycle(self, cycle: int) -> None:
         self.state.current_cycle = cycle
-        self.save()
+        self._save_state()
 
-    def update_status(self, status: Literal["IDLE", "RUNNING", "STOPPED", "ERROR"]) -> None:
+    def update_status(self, status: str) -> None:
         self.state.status = status
-        self.save()
+        self._save_state()
+
+    def __repr__(self) -> str:
+        return f"<StateManager(file={self.state_file}, state={self.state})>"
+
+    def __str__(self) -> str:
+        return f"StateManager({self.state_file.name})"

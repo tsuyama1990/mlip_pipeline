@@ -23,3 +23,9 @@ class BaseOracle(BaseComponent[OracleConfig]):
             Iterator of labeled structures.
         """
         ...
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"

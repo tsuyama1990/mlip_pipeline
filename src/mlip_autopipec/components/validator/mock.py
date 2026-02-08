@@ -25,3 +25,9 @@ class MockValidator(BaseValidator):
                 },
             },
         )
+
+    def __repr__(self) -> str:
+        return f"<MockValidator(name={self.name}, config={self.config})>"
+
+    def __str__(self) -> str:
+        return f"MockValidator({self.name})"

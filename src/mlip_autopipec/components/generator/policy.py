@@ -12,6 +12,12 @@ class GenerationTask(BaseModel):
     builder_name: str
     n_structures: int = Field(gt=0)
 
+    def __repr__(self) -> str:
+        return f"<GenerationTask(builder={self.builder_name}, n={self.n_structures})>"
+
+    def __str__(self) -> str:
+        return f"{self.builder_name}: {self.n_structures}"
+
 
 class ExplorationPolicy:
     """Adaptive exploration policy for structure generation."""
@@ -87,3 +93,9 @@ class ExplorationPolicy:
 
         logger.info(f"Adaptive Policy: {tasks}")
         return tasks
+
+    def __repr__(self) -> str:
+        return "<ExplorationPolicy>"
+
+    def __str__(self) -> str:
+        return "ExplorationPolicy"
