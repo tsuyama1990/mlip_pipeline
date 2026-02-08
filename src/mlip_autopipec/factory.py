@@ -1,14 +1,18 @@
 from typing import Any, ClassVar
 
-from mlip_autopipec.components.dynamics import BaseDynamics, MockDynamics
+from mlip_autopipec.components.dynamics import BaseDynamics, LAMMPSDynamics, MockDynamics
 from mlip_autopipec.components.generator import (
     AdaptiveGenerator,
     BaseGenerator,
     MockGenerator,
 )
-from mlip_autopipec.components.oracle import BaseOracle, MockOracle
-from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer
-from mlip_autopipec.components.validator import BaseValidator, MockValidator
+from mlip_autopipec.components.oracle import BaseOracle, MockOracle, QEOracle, VASPOracle
+from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer, PacemakerTrainer
+from mlip_autopipec.components.validator import (
+    BaseValidator,
+    MockValidator,
+    StandardValidator,
+)
 from mlip_autopipec.domain_models.config import (
     ComponentConfig,
     DynamicsConfig,
@@ -18,6 +22,7 @@ from mlip_autopipec.domain_models.config import (
     ValidatorConfig,
 )
 from mlip_autopipec.domain_models.enums import (
+    ComponentRole,
     DynamicsType,
     GeneratorType,
     OracleType,
@@ -28,19 +33,32 @@ from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
 class ComponentFactory:
-    _REGISTRY: ClassVar[dict[str, dict[str, type[BaseComponent[Any]]]]] = {
-        "generator": {
+    _REGISTRY: ClassVar[dict[ComponentRole, dict[str, type[BaseComponent[Any]]]]] = {
+        ComponentRole.GENERATOR: {
             GeneratorType.MOCK: MockGenerator,
             GeneratorType.ADAPTIVE: AdaptiveGenerator,
         },
-        "oracle": {OracleType.MOCK: MockOracle},
-        "trainer": {TrainerType.MOCK: MockTrainer},
-        "dynamics": {DynamicsType.MOCK: MockDynamics},
-        "validator": {ValidatorType.MOCK: MockValidator},
+        ComponentRole.ORACLE: {
+            OracleType.MOCK: MockOracle,
+            OracleType.QE: QEOracle,
+            OracleType.VASP: VASPOracle,
+        },
+        ComponentRole.TRAINER: {
+            TrainerType.MOCK: MockTrainer,
+            TrainerType.PACEMAKER: PacemakerTrainer,
+        },
+        ComponentRole.DYNAMICS: {
+            DynamicsType.MOCK: MockDynamics,
+            DynamicsType.LAMMPS: LAMMPSDynamics,
+        },
+        ComponentRole.VALIDATOR: {
+            ValidatorType.MOCK: MockValidator,
+            ValidatorType.STANDARD: StandardValidator,
+        },
     }
 
     @classmethod
-    def create(cls, component_role: str, config: ComponentConfig) -> BaseComponent[Any]:
+    def create(cls, component_role: ComponentRole, config: ComponentConfig) -> BaseComponent[Any]:
         component_type = config.name
         if component_role not in cls._REGISTRY:
             msg = f"Unknown component role: {component_role}"
@@ -56,20 +74,20 @@ class ComponentFactory:
 
     @classmethod
     def get_generator(cls, config: GeneratorConfig) -> BaseGenerator[Any]:
-        return cls.create("generator", config)  # type: ignore
+        return cls.create(ComponentRole.GENERATOR, config)  # type: ignore
 
     @classmethod
     def get_oracle(cls, config: OracleConfig) -> BaseOracle:
-        return cls.create("oracle", config)  # type: ignore
+        return cls.create(ComponentRole.ORACLE, config)  # type: ignore
 
     @classmethod
     def get_trainer(cls, config: TrainerConfig) -> BaseTrainer:
-        return cls.create("trainer", config)  # type: ignore
+        return cls.create(ComponentRole.TRAINER, config)  # type: ignore
 
     @classmethod
     def get_dynamics(cls, config: DynamicsConfig) -> BaseDynamics:
-        return cls.create("dynamics", config)  # type: ignore
+        return cls.create(ComponentRole.DYNAMICS, config)  # type: ignore
 
     @classmethod
     def get_validator(cls, config: ValidatorConfig) -> BaseValidator:
-        return cls.create("validator", config)  # type: ignore
+        return cls.create(ComponentRole.VALIDATOR, config)  # type: ignore

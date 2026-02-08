@@ -3,17 +3,25 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.structure import Structure
+from tests.common_constants import (
+    DUMMY_ATOMIC_NUMBERS,
+    DUMMY_CELL,
+    DUMMY_PBC,
+    DUMMY_POSITIONS,
+    EXPECTED_TENSOR_STRESS,
+    VOIGT_STRESS,
+)
 
 
 def test_structure_valid_creation() -> None:
-    pos = np.zeros((2, 3))
-    numbers = np.array([1, 1])
-    cell = np.eye(3)
-    pbc = np.array([True, True, True])
-
-    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc)
-    assert np.allclose(s.positions, pos)
-    assert np.allclose(s.atomic_numbers, numbers)
+    s = Structure(
+        positions=DUMMY_POSITIONS,
+        atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+        cell=DUMMY_CELL,
+        pbc=DUMMY_PBC,
+    )
+    assert np.allclose(s.positions, DUMMY_POSITIONS)
+    assert np.allclose(s.atomic_numbers, DUMMY_ATOMIC_NUMBERS)
 
 
 def test_structure_invalid_positions() -> None:
@@ -79,23 +87,37 @@ def test_forces_validation() -> None:
 
 
 def test_structure_stress_validation() -> None:
-    pos = np.zeros((2, 3))
-    numbers = np.array([1, 1])
-    cell = np.eye(3)
-    pbc = np.array([True, True, True])
-    stress = np.zeros(6)  # Voigt
-
-    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=stress)
+    # Voigt input should be converted to 3x3
+    s = Structure(
+        positions=DUMMY_POSITIONS,
+        atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+        cell=DUMMY_CELL,
+        pbc=DUMMY_PBC,
+        stress=VOIGT_STRESS,
+    )
     assert s.stress is not None
-    assert s.stress.shape == (6,)
+    assert s.stress.shape == (3, 3)
+    assert np.allclose(s.stress, EXPECTED_TENSOR_STRESS)
 
     stress_tensor = np.zeros((3, 3))
-    s2 = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=stress_tensor)
+    s2 = Structure(
+        positions=DUMMY_POSITIONS,
+        atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+        cell=DUMMY_CELL,
+        pbc=DUMMY_PBC,
+        stress=stress_tensor,
+    )
     assert s2.stress is not None
     assert s2.stress.shape == (3, 3)
 
     with pytest.raises(ValueError, match="Stress must be"):
-        Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=np.zeros(5))
+        Structure(
+            positions=DUMMY_POSITIONS,
+            atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+            cell=DUMMY_CELL,
+            pbc=DUMMY_PBC,
+            stress=np.zeros(5),
+        )
 
 
 def test_to_ase() -> None:
@@ -121,7 +143,16 @@ def test_to_ase() -> None:
     assert len(atoms) == 2
     assert atoms.info["energy"] == energy
     assert np.allclose(atoms.arrays["forces"], forces)
-    assert np.allclose(atoms.info["stress"], stress)
+
+    # Stress should be converted to 3x3
+    expected_stress = np.zeros((3, 3))
+    expected_stress[0, 0] = stress[0]
+    expected_stress[1, 1] = stress[1]
+    expected_stress[2, 2] = stress[2]
+    # ... mapping ... but zeros are zeros
+
+    assert np.allclose(atoms.info["stress"], expected_stress)
+    assert atoms.info["stress"].shape == (3, 3)
 
 
 def test_physical_validation() -> None:
@@ -175,3 +206,33 @@ def test_validate_labeled() -> None:
 
     s.stress = np.zeros(6)
     s.validate_labeled()  # Should pass
+
+
+def test_validate_labeled_partial() -> None:
+    """Test validate_labeled with various combinations of missing labels."""
+    pos = np.zeros((1, 3))
+    numbers = np.array([1])
+    cell = np.eye(3)
+    pbc = np.array([True, True, True])
+
+    # Only Energy
+    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, energy=-1.0)
+    with pytest.raises(ValueError, match="Structure missing forces label"):
+        s.validate_labeled()
+
+    # Energy and Stress (missing Forces)
+    s.stress = np.zeros(6)
+    with pytest.raises(ValueError, match="Structure missing forces label"):
+        s.validate_labeled()
+
+    # Forces and Stress (missing Energy)
+    s = Structure(
+        positions=pos,
+        atomic_numbers=numbers,
+        cell=cell,
+        pbc=pbc,
+        forces=np.zeros((1, 3)),
+        stress=np.zeros(6)
+    )
+    with pytest.raises(ValueError, match="Structure missing energy label"):
+        s.validate_labeled()
