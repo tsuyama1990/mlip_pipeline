@@ -132,6 +132,8 @@ class QEOracle(BaseOracle):
                         break
 
                     # Wait for at least one future to complete
+                    # return_when=FIRST_COMPLETED ensures we yield results as soon as possible
+                    # and free up slots in 'futures' set for the filling loop above.
                     done, _ = concurrent.futures.wait(
                         futures, return_when=concurrent.futures.FIRST_COMPLETED
                     )

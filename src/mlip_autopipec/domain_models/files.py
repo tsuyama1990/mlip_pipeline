@@ -1,11 +1,11 @@
-
 from pydantic import BaseModel, ConfigDict, Field
 
-# --- Defaults ---
-DEFAULT_PACEMAKER_INPUT_FILENAME = "input.yaml"
-DEFAULT_PACEMAKER_DATASET_FILENAME = "dataset.pckl.gzip"
-DEFAULT_PACEMAKER_ACTIVESET_FILENAME = "dataset_activeset.pckl.gzip"
-DEFAULT_PACEMAKER_POTENTIAL_FILENAME = "output_potential.yace"
+from mlip_autopipec.constants import (
+    DEFAULT_PACEMAKER_ACTIVESET_FILENAME,
+    DEFAULT_PACEMAKER_DATASET_FILENAME,
+    DEFAULT_PACEMAKER_INPUT_FILENAME,
+    DEFAULT_PACEMAKER_POTENTIAL_FILENAME,
+)
 
 
 class FileConfig(BaseModel):
@@ -16,3 +16,9 @@ class FileConfig(BaseModel):
     dataset_filename: str = Field(default=DEFAULT_PACEMAKER_DATASET_FILENAME)
     activeset_filename: str = Field(default=DEFAULT_PACEMAKER_ACTIVESET_FILENAME)
     potential_filename: str = Field(default=DEFAULT_PACEMAKER_POTENTIAL_FILENAME)
+
+    def __repr__(self) -> str:
+        return "<FileConfig>"
+
+    def __str__(self) -> str:
+        return "FileConfig"

@@ -1,4 +1,5 @@
 import gzip
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -62,9 +63,11 @@ def test_dataset_export_to_pacemaker_gzip(tmp_path: Path) -> None:
 
     assert output_path.exists()
 
-    # Verify it can be read back by pandas (simulating Pacemaker)
+    # Verify it can be read back (simulating Pacemaker)
+    # Using standard pickle instead of pd.read_pickle
     with gzip.open(output_path, "rb") as f:
-        df = pd.read_pickle(f)  # noqa: S301
+        df = pickle.load(f)  # noqa: S301
 
+    assert isinstance(df, pd.DataFrame)
     assert len(df) == 5
     assert "energy" in df.columns

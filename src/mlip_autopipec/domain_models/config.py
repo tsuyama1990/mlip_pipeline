@@ -13,7 +13,7 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
-from mlip_autopipec.domain_models.files import (
+from mlip_autopipec.constants import (
     DEFAULT_PACEMAKER_ACTIVESET_FILENAME,
     DEFAULT_PACEMAKER_DATASET_FILENAME,
     DEFAULT_PACEMAKER_INPUT_FILENAME,

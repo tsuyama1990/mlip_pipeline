@@ -250,6 +250,14 @@ class Dataset:
             msg = f"Output parent directory does not exist: {output_path.parent}"
             raise ValueError(msg)
 
+        # Warn about potential OOM
+        current_count = len(self)
+        if current_count > 100000:
+            logger.warning(
+                f"Exporting large dataset ({current_count} structures) to Pacemaker gzip format. "
+                "This may cause high memory usage. Consider using 'extxyz' format instead."
+            )
+
         chunks = []
         # Process in chunks to avoid creating a massive list of dicts at once
         for batch in self.iter_batches(batch_size=chunk_size):

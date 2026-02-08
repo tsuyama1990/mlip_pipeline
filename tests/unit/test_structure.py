@@ -269,7 +269,7 @@ def test_structure_copy() -> None:
 
     # Check equality
     assert np.allclose(s_copy.positions, s.positions)
-    assert np.allclose(s_copy.forces, s.forces)
+    assert np.allclose(s_copy.forces, s.forces)  # type: ignore[arg-type]
     assert s_copy.tags == s.tags
     assert s_copy.energy == s.energy
     assert s_copy.uncertainty == s.uncertainty

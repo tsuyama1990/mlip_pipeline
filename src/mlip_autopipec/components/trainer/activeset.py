@@ -29,6 +29,46 @@ class ActiveSetSelector:
     def __str__(self) -> str:
         return f"ActiveSetSelector(limit={self.limit})"
 
+    def _validate_executable(self, executable: str) -> str:
+        """
+        Validate that the executable is in a trusted directory.
+        """
+        path = shutil.which(executable)
+        if not path:
+            msg = f"Executable '{executable}' not found in PATH."
+            raise RuntimeError(msg)
+
+        resolved_path = Path(path).resolve()
+
+        # Whitelist of trusted system directories
+        trusted_dirs = [
+            Path("/usr/bin"),
+            Path("/usr/local/bin"),
+            Path("/opt/bin"),
+            Path.home() / ".local/bin",
+            # Add virtualenv bin if active
+        ]
+
+        # Check if running in a virtual environment
+        if "VIRTUAL_ENV" in os.environ:
+            trusted_dirs.append(Path(os.environ["VIRTUAL_ENV"]) / "bin")
+
+        is_trusted = any(str(resolved_path).startswith(str(d)) for d in trusted_dirs)
+
+        if not is_trusted:
+            # Allow explicit override if user really knows what they are doing?
+            # For strict security, we deny.
+            # But users might install elsewhere.
+            # Warning for now, or strict fail?
+            # The audit requested validation. Let's fail if it looks suspicious (e.g. /tmp)
+            if str(resolved_path).startswith("/tmp") or str(resolved_path).startswith("/var/tmp"): # noqa: S108
+                 msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
+                 raise SecurityError(msg)
+
+            logger.warning(f"Executable '{resolved_path}' is not in standard trusted directories.")
+
+        return str(resolved_path)
+
     def select(self, input_path: Path, output_path: Path) -> Path:
         """
         Run pace_activeset to filter the dataset.
@@ -62,14 +102,9 @@ class ActiveSetSelector:
 
         # Configurable executable path
         pace_bin = os.environ.get("PACE_ACTIVESET_BIN", "pace_activeset")
-        pace_executable = shutil.which(pace_bin)
 
-        if not pace_executable:
-            msg = (
-                f"pace_activeset executable '{pace_bin}' not found in PATH or environment variable. "
-                "Please install Pacemaker or set PACE_ACTIVESET_BIN."
-            )
-            raise RuntimeError(msg)
+        # Validate executable location
+        pace_executable = self._validate_executable(pace_bin)
 
         # Construct command
         cmd = [
@@ -103,3 +138,7 @@ class ActiveSetSelector:
             logger.warning(f"pace_activeset finished but {output_path} was not created.")
 
         return output_path
+
+
+class SecurityError(Exception):
+    pass
