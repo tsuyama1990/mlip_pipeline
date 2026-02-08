@@ -15,6 +15,13 @@ class Dataset:
         self.meta_path = path.with_suffix(".meta.json")
         self._ensure_exists()
 
+    def __repr__(self) -> str:
+        try:
+            count = len(self)
+        except Exception:
+            count = -1
+        return f"<Dataset(path={self.path}, count={count})>"
+
     def _ensure_exists(self) -> None:
         try:
             if not self.path.parent.exists():

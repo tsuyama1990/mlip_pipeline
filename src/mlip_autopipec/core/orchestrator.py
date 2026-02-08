@@ -26,6 +26,9 @@ class Orchestrator:
 
         self.current_potential: Potential | None = None
 
+    def __repr__(self) -> str:
+        return f"<Orchestrator(workdir={self.config.workdir}, cycle={self.state_manager.state.current_cycle})>"
+
     def run(self) -> None:
         logger.info("Starting Orchestrator")
         self.state_manager.update_status("RUNNING")

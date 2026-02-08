@@ -15,3 +15,6 @@ class BaseComponent(ABC, Generic[ConfigT]):
     def name(self) -> str:
         """Name of the component."""
         ...
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name={self.name}, config={self.config})>"
