@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from mlip_autopipec.domain_models.config import (
+from mlip_autopipec.constants import (
     MAX_ATOMIC_NUMBER,
     MAX_ENERGY_MAGNITUDE,
     MAX_FORCE_MAGNITUDE,
@@ -177,15 +177,10 @@ class Structure(BaseModel):
         if self.energy is None:
             msg = "Structure missing energy label"
             raise ValueError(msg)
-        # Check energy validity using the validator explicitly if needed, but Pydantic does it on assignment.
-        # We can re-check to be safe or rely on the field validator.
-        # Since field validators run on __init__ and assignment, if self.energy is not None, it is valid.
 
         if self.forces is None:
             msg = "Structure missing forces label"
             raise ValueError(msg)
-        # Check forces shape/integrity again?
-        # Pydantic guarantees shape if it wasn't None.
 
         if self.stress is None:
             msg = "Structure missing stress label"
@@ -193,17 +188,87 @@ class Structure(BaseModel):
 
     @classmethod
     def from_ase(cls, atoms: Atoms) -> "Structure":
-        # Extract energy/forces/stress if available in calc or info/arrays
+        """
+        Create a Structure from an ASE Atoms object.
+        Performs strict validation of inputs BEFORE creating the Pydantic model
+        to prevent any invalid state.
+        """
+        atomic_numbers = cls._extract_atomic_numbers(atoms)
+        positions = cls._extract_positions(atoms, len(atomic_numbers))
+        cell, pbc = cls._extract_cell_pbc(atoms)
+
+        # Extract labels (optional)
+        energy, forces, stress = cls._extract_labels(atoms)
+        uncertainty = atoms.info.get("uncertainty")
+        tags = atoms.info.copy()
+
+        return cls(
+            positions=positions,
+            atomic_numbers=atomic_numbers,
+            cell=cell,
+            pbc=pbc,
+            forces=forces,
+            energy=energy,
+            stress=stress,
+            uncertainty=uncertainty,
+            tags=tags,
+        )
+
+    @staticmethod
+    def _extract_atomic_numbers(atoms: Atoms) -> np.ndarray:
+        try:
+            atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+        except Exception as e:
+            msg = f"Failed to get atomic numbers from ASE atoms: {e}"
+            raise ValueError(msg) from e
+
+        if not isinstance(atomic_numbers, np.ndarray):
+             atomic_numbers = np.array(atomic_numbers)
+
+        if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
+            msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
+            raise ValueError(msg)
+        # Using cast to silence 'no-any-return' mypy error when returning ndarray from Any context
+        return cast(np.ndarray, atomic_numbers)
+
+    @staticmethod
+    def _extract_positions(atoms: Atoms, n_atoms: int) -> np.ndarray:
+        try:
+            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
+        except Exception as e:
+            msg = f"Failed to get positions from ASE atoms: {e}"
+            raise ValueError(msg) from e
+
+        if positions.ndim != 2 or positions.shape[1] != 3:
+             msg = f"Positions must be (N, 3), got {positions.shape}"
+             raise ValueError(msg)
+
+        if len(positions) != n_atoms:
+             msg = f"Mismatch: positions={len(positions)}, atomic_numbers={n_atoms}"
+             raise ValueError(msg)
+        return cast(np.ndarray, positions)
+
+    @staticmethod
+    def _extract_cell_pbc(atoms: Atoms) -> tuple[np.ndarray, np.ndarray]:
+        try:
+             cell = np.array(atoms.get_cell())  # type: ignore[no-untyped-call]
+             pbc = atoms.get_pbc()  # type: ignore[no-untyped-call]
+        except Exception as e:
+             msg = f"Failed to get cell/pbc from ASE atoms: {e}"
+             raise ValueError(msg) from e
+        return cast(np.ndarray, cell), cast(np.ndarray, pbc)
+
+    @staticmethod
+    def _extract_labels(atoms: Atoms) -> tuple[float | None, np.ndarray | None, np.ndarray | None]:
         energy = None
         forces = None
         stress = None
 
-        # Try calculator first
         if atoms.calc:
             # Explicit error handling
             try:
                 energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            except Exception as e:  # Catch broadly ASE Calculator interface errors (often RuntimeError or NotImplemented)
+            except Exception as e:
                 logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
 
             try:
@@ -212,16 +277,14 @@ class Structure(BaseModel):
                 logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
 
             try:
-                # Try getting full tensor first
                 stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
             except Exception:
-                # Fallback to Voigt or retry
                 try:
                     stress = atoms.get_stress()  # type: ignore[no-untyped-call]
                 except Exception as e:
                     logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
-        # Fallback to arrays/info if not in calc (e.g. read from file)
+        # Fallback to arrays/info
         if energy is None:
             energy = atoms.info.get("energy")
         if forces is None:
@@ -229,30 +292,7 @@ class Structure(BaseModel):
         if stress is None:
             stress = atoms.info.get("stress")
 
-        uncertainty = atoms.info.get("uncertainty")
-
-        # Copy info to tags, ensuring we handle non-serializable objects if necessary
-        # For now, we assume atoms.info contains serializable data or data we can ignore errors on later?
-        # But Structure.tags is dict[str, Any].
-        tags = atoms.info.copy()
-
-        # Validation: check atomic numbers BEFORE creating Structure
-        atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
-        if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
-            msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
-            raise ValueError(msg)
-
-        return cls(
-            positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
-            atomic_numbers=atomic_numbers,
-            cell=np.array(atoms.get_cell()),  # type: ignore[no-untyped-call]
-            pbc=atoms.get_pbc(),  # type: ignore[no-untyped-call]
-            forces=forces,
-            energy=energy,
-            stress=stress,
-            uncertainty=uncertainty,
-            tags=tags,
-        )
+        return energy, forces, stress
 
     def to_ase(self) -> Atoms:
         atoms = Atoms(

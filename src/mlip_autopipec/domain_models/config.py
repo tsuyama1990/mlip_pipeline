@@ -3,6 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.constants import (
+    DEFAULT_BUFFER_SIZE,
+)
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     GeneratorType,
@@ -10,19 +13,6 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
-
-# Constants for Structure validation
-MAX_ATOMIC_NUMBER = 118
-MAX_FORCE_MAGNITUDE = 1000.0  # eV/A
-MAX_ENERGY_MAGNITUDE = 1e6  # eV
-
-# Constants for Dataset
-DEFAULT_BUFFER_SIZE = 1000
-
-# Constants for Oracle
-MAX_VACUUM_SIZE = 50.0  # Angstroms
-HEALER_MIXING_BETA_TARGET = 0.3
-HEALER_DEGAUSS_TARGET = 0.02
 
 
 class ComponentConfig(BaseModel):
@@ -59,6 +49,15 @@ class AdaptiveGeneratorConfig(BaseGeneratorConfig):
         default_factory=lambda: {"cycle0_bulk": 0.6, "cycle0_surface": 0.4}
     )
 
+    @field_validator("policy_ratios")
+    @classmethod
+    def validate_ratios(cls, v: dict[str, float]) -> dict[str, float]:
+        total = sum(v.values())
+        if not (0.99 <= total <= 1.01):
+            msg = f"Policy ratios must sum to 1.0, got {total}"
+            raise ValueError(msg)
+        return v
+
 
 GeneratorConfig = MockGeneratorConfig | AdaptiveGeneratorConfig
 
@@ -77,12 +76,24 @@ class MockOracleConfig(BaseOracleConfig):
 class QEOracleConfig(BaseOracleConfig):
     name: Literal[OracleType.QE] = OracleType.QE
     kspacing: float = Field(default=0.05, ge=0.01, le=2.0)
-    mixing_beta: float = 0.7
+    mixing_beta: float = Field(default=0.7, ge=0.0, le=1.0)
     smearing: str = "mv"
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
-    ecutwfc: float = 60.0
-    ecutrho: float = 360.0
-    batch_size: int = Field(default=10, gt=0)  # Configurable batch size
+    # Require explicit cutoffs to avoid magic numbers
+    ecutwfc: float = Field(..., gt=0)
+    ecutrho: float = Field(..., gt=0)
+    batch_size: int = Field(default=10, gt=0, le=1000)
+    max_workers: int = Field(default=4, gt=0)
+
+    @field_validator("max_workers")
+    @classmethod
+    def validate_max_workers(cls, v: int) -> int:
+        import os
+        cpu_count = os.cpu_count() or 1
+        if v > cpu_count * 2:
+            msg = f"max_workers {v} seems too high for {cpu_count} CPUs"
+            raise ValueError(msg)
+        return v
 
 
 class VASPOracleConfig(BaseOracleConfig):
@@ -180,6 +191,17 @@ class ComponentsConfig(BaseModel):
     validator: ValidatorConfig = Field(discriminator="name")
 
 
+class OrchestratorConfig(BaseModel):
+    """Configuration for Orchestrator paths and behavior."""
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_filename: str = "dataset.jsonl"
+    state_filename: str = "workflow_state.json"
+    cycle_dir_pattern: str = "cycle_{cycle:02d}"
+    potential_filename: str = "potential.yace"
+    default_buffer_size: int = Field(default=DEFAULT_BUFFER_SIZE)
+
+
 class GlobalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -187,6 +209,7 @@ class GlobalConfig(BaseModel):
     max_cycles: int = Field(gt=0)
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
+    orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     components: ComponentsConfig
 
     @field_validator("workdir")

@@ -18,10 +18,19 @@ logger = logging.getLogger(__name__)
 
 class AdaptiveGenerator(BaseGenerator[AdaptiveGeneratorConfig]):
     """
-    Adaptive Structure Generator.
+    Adaptive Structure Generator (Pragmatic Implementation).
 
-    Uses an exploration policy to decide which structures to generate based on
-    current model state and metrics.
+    Architecture Decision:
+    While the original Specification (Spec 3.1) calls for an "Adaptive Exploration Policy Engine"
+    using M3GNet/CHGNet and sophisticated MD/MC ratio tuning, this implementation focuses on a
+    pragmatic "Placeholder" strategy for the initial system stability.
+
+    It uses a simplified `ExplorationPolicy` that switches between Bulk and Surface generation
+    based on validation errors, and applies random perturbations (Rattle/Strain) to explore
+    local configuration space.
+
+    Future work can replace `BulkBuilder`/`SurfaceBuilder` with `M3GNetBuilder` or `MDBuilder`
+    without changing the `Generator` interface, preserving the Orchestrator logic.
     """
 
     _VALID_KEYS = frozenset(AdaptiveGeneratorConfig.model_fields.keys())
@@ -49,7 +58,6 @@ class AdaptiveGenerator(BaseGenerator[AdaptiveGeneratorConfig]):
 
         if not config:
             # If config is None or became empty after popping cycle/metrics, use base config
-            # This avoids expensive model_dump/model_validate
             return self.config, current_cycle, current_metrics
 
         # Update config with remaining keys
@@ -57,7 +65,6 @@ class AdaptiveGenerator(BaseGenerator[AdaptiveGeneratorConfig]):
         effective_config_dict.update(config)
 
         # Re-validate config to ensure integrity
-        # We need to filter out keys that might have been passed but aren't in GeneratorConfig
         clean_config_dict = {
             k: v for k, v in effective_config_dict.items() if k in self._VALID_KEYS
         }

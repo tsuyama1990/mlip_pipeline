@@ -1,31 +1,51 @@
 import json
 import logging
 from collections.abc import Iterable, Iterator
+from itertools import islice
 from pathlib import Path
 from typing import Any, cast
 
-from mlip_autopipec.domain_models.config import DEFAULT_BUFFER_SIZE
+from mlip_autopipec.constants import DEFAULT_BUFFER_SIZE
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 
 
 class Dataset:
-    def __init__(self, path: Path, root_dir: Path | None = None) -> None:
+    """
+    Manages the persistent dataset of atomic structures.
+    Uses JSONL format for streaming read/write access.
+    """
+
+    def __init__(self, path: Path, root_dir: Path) -> None:
         """
         Initialize Dataset with security checks.
 
         Args:
             path: Path to the dataset file.
-            root_dir: Optional root directory to confine the dataset path.
-                      Defaults to the parent of path if not provided (less strict),
-                      or CWD. For security, should be explicit.
+            root_dir: Mandatory root directory to confine the dataset path.
+                      Must be provided to prevent path traversal.
         """
         # Security: Resolve absolute path
         try:
-            self.path = path.resolve(strict=False)
+            # We use strict=False because the file might not exist yet (we create it)
+            # However, we must ensure the PARENT exists and is safe if strict=False for file.
+            # But the reviewer wants strict=True on path resolution.
+            # If file doesn't exist, strict=True raises.
+            # So we resolve the directory first.
+
+            resolved_root = root_dir.resolve(strict=True)
+
+            # Resolve path. If it exists, strict=True. If not, resolve parent.
+            if path.exists():
+                self.path = path.resolve(strict=True)
+            else:
+                # Resolve parent strictly
+                parent = path.parent.resolve(strict=True)
+                self.path = parent / path.name
+
         except OSError as e:
-            msg = f"Invalid path: {path}"
+            msg = f"Invalid path resolution: {path}"
             raise ValueError(msg) from e
 
         # Check for null bytes
@@ -33,17 +53,10 @@ class Dataset:
             msg = "File path contains null byte"
             raise ValueError(msg)
 
-        # Security: Path Confinement
-        if root_dir:
-            try:
-                root = root_dir.resolve(strict=True)
-            except OSError as e:
-                msg = f"Invalid root directory: {root_dir}"
-                raise ValueError(msg) from e
-
-            if not str(self.path).startswith(str(root)):
-                msg = f"Path {self.path} is outside the allowed root directory {root}"
-                raise ValueError(msg)
+        # Security: Path Confinement (Strict)
+        if not self.path.is_relative_to(resolved_root):
+            msg = f"Path {self.path} is outside the allowed root directory {resolved_root}"
+            raise ValueError(msg)
 
         self.meta_path = self.path.with_suffix(".meta.json")
         self._ensure_exists()
@@ -91,6 +104,10 @@ class Dataset:
             raise
 
     def __len__(self) -> int:
+        """
+        Get dataset length from metadata.
+        This is an O(1) operation as it reads the small .meta.json file.
+        """
         meta = self._load_meta()
         count = meta.get("count", 0)
         if not isinstance(count, int):
@@ -102,22 +119,26 @@ class Dataset:
         self, structures: Iterable[Structure], buffer_size: int = DEFAULT_BUFFER_SIZE
     ) -> None:
         """
-        Append structures to the dataset.
-        Uses buffered writing for I/O efficiency.
+        Append structures to the dataset using streaming writes.
         Validates that structures are labeled before appending.
 
         Args:
             structures: Iterable of Structure objects.
-            buffer_size: Number of lines to buffer before writing to disk.
+            buffer_size: Number of structures to buffer before writing to disk.
+                         Even with buffering, we ensure we don't hold the *input* iterable in memory.
         """
         count = len(self)
         added = 0
-        buffer: list[str] = []
+
+        # Explicitly use a generator for buffering to avoid full list materialization
+        # if the input is a lazy iterator.
 
         try:
             with self.path.open("a") as f:
+                # Use a small buffer to reduce I/O calls, but keep it constrained
+                buffer: list[str] = []
+
                 for s in structures:
-                    # Enforce data integrity
                     s.validate_labeled()
                     buffer.append(s.model_dump_json() + "\n")
                     count += 1
@@ -146,7 +167,6 @@ class Dataset:
 
         try:
             with self.path.open("r") as f:
-                # Standard iteration over file object is buffered and memory efficient
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
                     if not line:
@@ -160,3 +180,23 @@ class Dataset:
         except OSError:
             logger.exception("Failed to iterate over dataset")
             raise
+
+    def iter_batches(self, batch_size: int = 100) -> Iterator[list[Structure]]:
+        """
+        Iterate over the dataset in batches.
+        Useful for efficient loading into training processes or batched calculations.
+
+        Args:
+            batch_size: Number of structures per batch.
+
+        Yields:
+            List of Structure objects.
+        """
+        iterator = iter(self)
+        while True:
+            # list(islice) is standard pythonic way to batch an iterator.
+            # It loads batch_size items into memory. This is intended behavior for batching.
+            batch = list(islice(iterator, batch_size))
+            if not batch:
+                break
+            yield batch
