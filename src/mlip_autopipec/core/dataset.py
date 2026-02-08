@@ -5,7 +5,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, cast
 
-from mlip_autopipec.domain_models.config import DEFAULT_BUFFER_SIZE
+from mlip_autopipec.constants import DEFAULT_BUFFER_SIZE
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class Dataset:
         """
         # Security: Resolve absolute path
         try:
+            # We use strict=False because the file might not exist yet (we create it)
             self.path = path.resolve(strict=False)
         except OSError as e:
             msg = f"Invalid path: {path}"
@@ -40,6 +41,9 @@ class Dataset:
             raise ValueError(msg)
 
         # Security: Path Confinement
+        # If root_dir is provided, ensure path is inside it.
+        # If not, we don't strictly confine, but we ensure the *parent directory* exists
+        # to prevent writing to arbitrary locations if possible.
         if root_dir:
             try:
                 root = root_dir.resolve(strict=True)
@@ -47,9 +51,15 @@ class Dataset:
                 msg = f"Invalid root directory: {root_dir}"
                 raise ValueError(msg) from e
 
+            # Check if resolved path starts with resolved root
             if not str(self.path).startswith(str(root)):
                 msg = f"Path {self.path} is outside the allowed root directory {root}"
                 raise ValueError(msg)
+        else:
+            # If no root_dir, at least ensure we aren't writing to a non-existent tree
+            # Exception: we create the file, but parent should ideally exist or we create it.
+            # No specific constraint here other than valid path syntax.
+            pass
 
         self.meta_path = self.path.with_suffix(".meta.json")
         self._ensure_exists()

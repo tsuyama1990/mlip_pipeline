@@ -1,5 +1,5 @@
-import logging
 import concurrent.futures
+import logging
 from collections.abc import Iterable, Iterator
 from itertools import islice
 from typing import cast
@@ -49,10 +49,6 @@ def _process_single_structure(
 ) -> str | None:
     """
     Process a single structure in a separate process.
-    We pass JSON strings to avoid pickling complex ASE/Structure objects if possible,
-    though Structure is Pydantic (pickleable). ASE Atoms pickling is sometimes tricky but generally supported.
-
-    To be safe and robust, we reconstruct objects here.
     """
     try:
         # Reconstruct inputs
@@ -87,17 +83,13 @@ def _process_single_structure(
 
             except Exception as e:
                 attempts += 1
-                # We can't log easily to the main process logger from here without setup,
-                # but we can print or just retry.
 
                 if attempts >= max_retries:
-                    # Return None or raise? Raising might crash the pool worker logic if not caught.
-                    # We return None to indicate failure.
                     return None
 
                 try:
                     if atoms.calc is None:
-                        return None # Should not happen
+                        return None
 
                     new_calc = healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
@@ -140,24 +132,22 @@ class QEOracle(BaseOracle):
             Structure: Labeled Structure objects.
         """
         batch_size = self.config.batch_size
-
-        # Configurable max_workers, default to batch_size or a reasonable limit like 4
-        # Ideally this should be in config, but for now we limit to prevent oversubscription
-        max_workers = 4
+        max_workers = self.config.max_workers
 
         iterator = iter(structures)
 
-        while True:
-            batch = list(islice(iterator, batch_size))
-            if not batch:
-                break
+        # Instantiate ProcessPoolExecutor once outside the loop
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            while True:
+                batch = list(islice(iterator, batch_size))
+                if not batch:
+                    break
 
-            # Parallel Processing
-            # We serialize to JSON to ensure clean passing between processes
-            batch_json = [s.model_dump_json() for s in batch]
+                # Parallel Processing
+                # We serialize to JSON to ensure clean passing between processes
+                batch_json = [s.model_dump_json() for s in batch]
 
-            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-                # Submit tasks
+                # Submit tasks for the current batch
                 futures = [
                     executor.submit(_process_single_structure, s_json, self.config)
                     for s_json in batch_json
@@ -170,5 +160,5 @@ class QEOracle(BaseOracle):
                             yield Structure.model_validate_json(result_json)
                         else:
                             logger.warning("A structure failed to compute in worker process.")
-                    except Exception as e:
-                        logger.exception(f"Worker process failed: {e}")
+                    except Exception:
+                        logger.exception("Worker process failed")

@@ -11,19 +11,6 @@ from mlip_autopipec.domain_models.enums import (
     ValidatorType,
 )
 
-# Constants for Structure validation
-MAX_ATOMIC_NUMBER = 118
-MAX_FORCE_MAGNITUDE = 1000.0  # eV/A
-MAX_ENERGY_MAGNITUDE = 1e6  # eV
-
-# Constants for Dataset
-DEFAULT_BUFFER_SIZE = 1000
-
-# Constants for Oracle
-MAX_VACUUM_SIZE = 50.0  # Angstroms
-HEALER_MIXING_BETA_TARGET = 0.3
-HEALER_DEGAUSS_TARGET = 0.02
-
 
 class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -82,7 +69,8 @@ class QEOracleConfig(BaseOracleConfig):
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
     ecutwfc: float = Field(default=60.0, gt=0)
     ecutrho: float = Field(default=360.0, gt=0)
-    batch_size: int = Field(default=10, gt=0)  # Configurable batch size
+    batch_size: int = Field(default=10, gt=0)
+    max_workers: int = Field(default=4, gt=0)
 
 
 class VASPOracleConfig(BaseOracleConfig):

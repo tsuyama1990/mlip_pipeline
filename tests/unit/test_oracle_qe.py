@@ -7,10 +7,8 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from mlip_autopipec.components.oracle.qe import QECalculator, QEOracle
-from mlip_autopipec.domain_models.config import (
-    HEALER_MIXING_BETA_TARGET,
-    QEOracleConfig,
-)
+from mlip_autopipec.constants import HEALER_MIXING_BETA_TARGET
+from mlip_autopipec.domain_models.config import QEOracleConfig
 from mlip_autopipec.domain_models.enums import OracleType
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -18,7 +16,7 @@ from mlip_autopipec.domain_models.structure import Structure
 # Define a Fake Calculator that behaves like Espresso but runs in memory
 class FakeEspresso(Calculator):
     def __init__(self, failure_mode: str = "parameter_sensitive", **kwargs: Any) -> None:
-        super().__init__()
+        super().__init__()  # type: ignore[no-untyped-call]
         self.parameters = kwargs
         # Ensure failure_mode is in parameters so it survives Healing reconstruction
         self.parameters["failure_mode"] = failure_mode
@@ -35,7 +33,7 @@ class FakeEspresso(Calculator):
         # Standard ASE setup
         if properties is None:
             properties = ["energy"]
-        super().calculate(atoms, properties, system_changes)
+        super().calculate(atoms, properties, system_changes)  # type: ignore[no-untyped-call]
 
         # Simulation Logic
         # Read from parameters if present (reconstructed via Heal)
@@ -93,26 +91,14 @@ def test_qe_compute_success(
     qe_config.mixing_beta = HEALER_MIXING_BETA_TARGET
 
     # We use side_effect to return a new FakeEspresso instance each time it's called
-    # This simulates how the code instantiates calculators
     mock_espresso_cls.side_effect = lambda **kwargs: FakeEspresso(
         failure_mode="parameter_sensitive", **kwargs
     )
 
-    oracle = QEOracle(qe_config)
-    # Mock ProcessPoolExecutor to run synchronously in main thread for testing
-    # We can patch concurrent.futures.ProcessPoolExecutor, or just trust the logic if we test _compute_single separately.
-    # But QEOracle.compute uses ProcessPoolExecutor.
-    # To test logic without multiprocess complexity, we can patch the executor.
-
-    # Actually, let's verify that the mocked class was called with correct parameters
-    # But since compute runs in a separate process (via pickle), checking mock calls on the main process
-    # won't work if the worker re-imports.
-    # However, standard unittest.mock objects are not pickleable.
-    # This means testing ProcessPoolExecutor logic with mocks is hard.
-
-    # Strategy: Test internal _process_single_structure logic directly for verification,
-    # and trust that ProcessPoolExecutor works (standard lib).
-    pass
+    # We cannot easily test parallel execution with mocks due to pickling limits.
+    # So we trust `test_process_single_structure_logic` covers the behavior.
+    # This test primarily ensures instantiation doesn't crash.
+    _ = QEOracle(qe_config)
 
 
 def test_process_single_structure_logic(qe_config: QEOracleConfig, structure: Structure) -> None:
@@ -124,10 +110,6 @@ def test_process_single_structure_logic(qe_config: QEOracleConfig, structure: St
 
     # 1. Success Case
     qe_config.mixing_beta = HEALER_MIXING_BETA_TARGET # Low beta = success
-
-    # We need to patch Espresso inside the function scope or module scope?
-    # _process_single_structure imports QECalculator which imports Espresso.
-    # We can patch mlip_autopipec.components.oracle.qe.Espresso
 
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_cls:
         # Configure mock to behave like FakeEspresso
@@ -157,12 +139,6 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
     qe_config.mixing_beta = 0.7 # High beta
 
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_cls:
-        # We need the mock to fail first then succeed.
-        # FakeEspresso handles this if mixing_beta is passed correctly.
-        # But Healer creates a NEW calculator.
-        # So mock_cls will be called twice:
-        # 1. QECalculator creates one with beta=0.7
-        # 2. Healer creates one with beta=0.3
 
         mock_cls.side_effect = lambda **kwargs: FakeEspresso(
             failure_mode="parameter_sensitive", **kwargs
@@ -178,10 +154,6 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
         # Verify provenance shows HEALED parameter
         assert result.tags["qe_params"]["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
-        # Verify calls
-        # Note: We cannot assert mock_cls.call_count >= 2 because Healer calls type(calc)(...),
-        # which instantiates FakeEspresso directly, bypassing the mock wrapper around Espresso.
-        # However, the fact that we got a result with HEALER_MIXING_BETA_TARGET proves healing occurred.
         assert mock_cls.call_count >= 1
 
 

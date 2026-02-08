@@ -48,7 +48,7 @@ class BulkBuilder(StructureBuilder):
                     Atoms,
                     atoms.repeat(
                         (config.supercell_dim, config.supercell_dim, config.supercell_dim)
-                    ),
+                    ),  # type: ignore[no-untyped-call]
                 )
 
             # Add metadata
@@ -81,14 +81,14 @@ class SurfaceBuilder(StructureBuilder):
             # surface returns Atoms
             surf = cast(
                 Atoms,
-                surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum),
+                surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum),  # type: ignore[no-untyped-call]
             )
 
             # Repeat surface to make it larger in x/y if needed
             if config.supercell_dim > 1:
                 surf = cast(
                     Atoms,
-                    surf.repeat((config.supercell_dim, config.supercell_dim, 1)),
+                    surf.repeat((config.supercell_dim, config.supercell_dim, 1)),  # type: ignore[no-untyped-call]
                 )
 
             surf.info["type"] = "surface"

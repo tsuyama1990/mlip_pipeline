@@ -4,7 +4,7 @@ from ase import Atoms
 from ase.build import bulk, molecule
 
 from mlip_autopipec.components.oracle.embedding import embed_cluster
-from mlip_autopipec.domain_models.config import MAX_VACUUM_SIZE
+from mlip_autopipec.constants import MAX_VACUUM_SIZE
 
 
 def test_embed_cluster_basic() -> None:

@@ -4,7 +4,7 @@ import pytest
 from ase.calculators.calculator import Calculator
 
 from mlip_autopipec.components.oracle.healing import Healer, HealingFailedError
-from mlip_autopipec.domain_models.config import (
+from mlip_autopipec.constants import (
     HEALER_DEGAUSS_TARGET,
     HEALER_MIXING_BETA_TARGET,
 )
