@@ -1,5 +1,5 @@
 import contextlib
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 import numpy as np
 from ase import Atoms
@@ -7,6 +7,7 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
+    Field,
     PlainSerializer,
     field_validator,
     model_validator,
@@ -32,7 +33,21 @@ NumpyArray = Annotated[
 
 
 class Structure(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    """
+    Domain entity representing an atomic structure.
+
+    Attributes `forces`, `energy`, and `stress` are Optional because structures
+    are initially generated without labels. Use `validate_labeled()` to enforce
+    their presence for labeled datasets.
+    """
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, extra="forbid", validate_assignment=True
+    )
+
+    MAX_ATOMIC_NUMBER: ClassVar[int] = 118
+    MAX_FORCE_MAGNITUDE: ClassVar[float] = 1000.0  # eV/A
+    MAX_ENERGY_MAGNITUDE: ClassVar[float] = 1e6  # eV
 
     positions: NumpyArray
     atomic_numbers: NumpyArray
@@ -41,7 +56,7 @@ class Structure(BaseModel):
     forces: NumpyArray | None = None
     energy: float | None = None
     stress: NumpyArray | None = None
-    properties: dict[str, Any] | None = None
+    tags: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("positions", mode="after")
     @classmethod
@@ -60,8 +75,8 @@ class Structure(BaseModel):
         if v.ndim != 1:
             msg = f"Atomic numbers must be (N,), got {v.shape}"
             raise ValueError(msg)
-        if np.any((v < 1) | (v > 118)):
-            msg = "Atomic numbers must be between 1 and 118"
+        if np.any((v < 1) | (v > cls.MAX_ATOMIC_NUMBER)):
+            msg = f"Atomic numbers must be between 1 and {cls.MAX_ATOMIC_NUMBER}"
             raise ValueError(msg)
         return v
 
@@ -93,8 +108,8 @@ class Structure(BaseModel):
                 raise ValueError(msg)
             # Soft check for magnitude (e.g. warn or fail if > 1000 eV/A)
             # For strict data integrity, we fail on absurd values
-            if np.any(np.abs(v) > 1000.0):
-                msg = "Forces magnitude exceeds reasonable limit (1000 eV/A)"
+            if np.any(np.abs(v) > cls.MAX_FORCE_MAGNITUDE):
+                msg = f"Forces magnitude exceeds reasonable limit ({cls.MAX_FORCE_MAGNITUDE} eV/A)"
                 raise ValueError(msg)
         return v
 
@@ -106,8 +121,8 @@ class Structure(BaseModel):
                 msg = "Energy must be finite"
                 raise ValueError(msg)
             # Soft check for magnitude per structure
-            if abs(v) > 1e6:  # Arbitrary large limit for total energy
-                msg = "Energy magnitude exceeds reasonable limit (1e6 eV)"
+            if abs(v) > cls.MAX_ENERGY_MAGNITUDE:  # Arbitrary large limit for total energy
+                msg = f"Energy magnitude exceeds reasonable limit ({cls.MAX_ENERGY_MAGNITUDE} eV)"
                 raise ValueError(msg)
         return v
 
@@ -115,7 +130,7 @@ class Structure(BaseModel):
     @classmethod
     def validate_stress_shape(cls, v: np.ndarray | None) -> np.ndarray | None:
         if v is not None and v.shape not in ((3, 3), (6,)):
-            msg = f"Stress must be (3, 3) or (6,), got {v.shape}"
+            msg = f"Stress must be (3, 3) or (6,). Conversion should happen before validation. Got {v.shape}"
             raise ValueError(msg)
         return v
 
@@ -166,20 +181,35 @@ class Structure(BaseModel):
         if stress is None:
             stress = atoms.info.get("stress")
 
+        # Copy info to tags, ensuring we handle non-serializable objects if necessary
+        # For now, we assume atoms.info contains serializable data or data we can ignore errors on later?
+        # But Structure.tags is dict[str, Any].
+        tags = atoms.info.copy()
+
+        # Validation: check atomic numbers
+        atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+        if np.any((atomic_numbers < 1) | (atomic_numbers > cls.MAX_ATOMIC_NUMBER)):
+            msg = f"Atomic numbers must be between 1 and {cls.MAX_ATOMIC_NUMBER}"
+            raise ValueError(msg)
+
         return cls(
             positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
-            atomic_numbers=atoms.get_atomic_numbers(),  # type: ignore[no-untyped-call]
+            atomic_numbers=atomic_numbers,
             cell=np.array(atoms.get_cell()),  # type: ignore[no-untyped-call]
             pbc=atoms.get_pbc(),  # type: ignore[no-untyped-call]
             forces=forces,
             energy=energy,
             stress=stress,
+            tags=tags,
         )
 
     def to_ase(self) -> Atoms:
         atoms = Atoms(
             numbers=self.atomic_numbers, positions=self.positions, cell=self.cell, pbc=self.pbc
         )
+        if self.tags:
+            atoms.info.update(self.tags)
+
         if self.energy is not None:
             atoms.info["energy"] = self.energy
         if self.forces is not None:

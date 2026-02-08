@@ -1,7 +1,15 @@
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
 
 
 class ComponentConfig(BaseModel):
@@ -9,24 +17,41 @@ class ComponentConfig(BaseModel):
     name: str = "mock"
 
 
-class GeneratorConfig(ComponentConfig):
-    name: Literal["adaptive", "random", "mock"] = "mock"
+class BaseGeneratorConfig(ComponentConfig):
     n_structures: int = Field(default=10, gt=0)
 
-    # Mock specific parameters - REQUIRED for reproducibility and explicit config
+
+class MockGeneratorConfig(BaseGeneratorConfig):
+    name: Literal[GeneratorType.MOCK] = GeneratorType.MOCK
     cell_size: float = Field(..., gt=0)
     n_atoms: int = Field(..., gt=0)
     atomic_numbers: list[int] = Field(..., min_length=1)
 
-    # Spec parameters
-    md_mc_ratio: float | None = None
-    temperature_schedule: dict[str, Any] | None = None
-    defect_density: float | None = None
-    strain_range: float | None = None
+
+class AdaptiveGeneratorConfig(BaseGeneratorConfig):
+    name: Literal[GeneratorType.ADAPTIVE] = GeneratorType.ADAPTIVE
+    element: str
+    crystal_structure: str
+    strain_range: float = 0.05
+    rattle_strength: float = 0.01
+    surface_indices: list[list[int]] = Field(
+        default_factory=lambda: [[1, 0, 0], [1, 1, 0], [1, 1, 1]]
+    )
+    vacuum: float = 10.0
+    supercell_dim: int = 2
+    policy_ratios: dict[str, float] = Field(
+        default_factory=lambda: {"cycle0_bulk": 0.6, "cycle0_surface": 0.4}
+    )
+
+
+# Union type for generator configuration
+# NOTE: The variable name GeneratorConfig is overloaded here to serve as the union type alias
+# for external usage, but specific configs should be used where concrete types are known.
+GeneratorConfig = MockGeneratorConfig | AdaptiveGeneratorConfig
 
 
 class OracleConfig(ComponentConfig):
-    name: Literal["qe", "vasp", "mock"] = "mock"
+    name: OracleType = OracleType.MOCK
 
     # Spec parameters
     kspacing: float | None = None
@@ -36,14 +61,14 @@ class OracleConfig(ComponentConfig):
 
 
 class TrainerConfig(ComponentConfig):
-    name: Literal["pacemaker", "mock"] = "mock"
+    name: TrainerType = TrainerType.MOCK
     max_num_epochs: int = 50
     energy_rmse_threshold: float | None = None
     force_rmse_threshold: float | None = None
 
 
 class DynamicsConfig(ComponentConfig):
-    name: Literal["lammps", "mock"] = "mock"
+    name: DynamicsType = DynamicsType.MOCK
     uncertainty_threshold: float = 5.0
 
     # Mock specific - REQUIRED
@@ -51,7 +76,7 @@ class DynamicsConfig(ComponentConfig):
 
 
 class ValidatorConfig(ComponentConfig):
-    name: Literal["standard", "mock"] = "mock"
+    name: ValidatorType = ValidatorType.MOCK
     test_set_ratio: float = 0.1
 
 

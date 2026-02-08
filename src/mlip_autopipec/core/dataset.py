@@ -65,25 +65,48 @@ class Dataset:
             raise TypeError(msg)
         return count
 
-    def append(self, structures: Iterable[Structure]) -> None:
+    def append(self, structures: Iterable[Structure], buffer_size: int = 1000) -> None:
         """
-        Append structures to the dataset line-by-line to minimize memory usage.
+        Append structures to the dataset.
+        Uses buffered writing for I/O efficiency.
         Validates that structures are labeled before appending.
 
         Args:
             structures: Iterable of Structure objects.
+            buffer_size: Number of lines to buffer before writing to disk.
         """
         count = len(self)
         added = 0
+        buffer: list[str] = []
 
         try:
+            # Use default buffering (typically 4KB/8KB) or line buffering=1
+            # Since we write lines, buffering=1 is good for logs but for bulk data,
+            # default block buffering is better for speed.
+            # We explicitly batch our writes to reduce f.write calls if needed,
+            # but f.write is already buffered in Python.
+            # However, the feedback requested "buffered writing with configurable buffer size".
+            # This implies application-level buffering to reduce syscalls or file lock time?
+            # Or simply wrapping the file object.
+            # Let's implement an explicit buffer list to minimize f.write calls.
+
             with self.path.open("a") as f:
                 for s in structures:
                     # Enforce data integrity
                     s.validate_labeled()
-                    f.write(s.model_dump_json() + "\n")
+                    # validate_consistency is handled by Pydantic model validator
+                    buffer.append(s.model_dump_json() + "\n")
                     count += 1
                     added += 1
+
+                    if len(buffer) >= buffer_size:
+                        f.writelines(buffer)
+                        buffer.clear()
+
+                # Flush remaining
+                if buffer:
+                    f.writelines(buffer)
+                    buffer.clear()
 
             self._save_meta({"count": count})
             logger.info(f"Successfully appended {added} structures to dataset")
@@ -104,9 +127,12 @@ class Dataset:
                     if not line:
                         continue
                     try:
+                        # Consistency check is handled by model_validate_json via model validator
                         yield Structure.model_validate_json(line)
                     except Exception:
-                        logger.warning(f"Skipping malformed line {i + 1} in dataset: {line[:50]}...")
+                        logger.warning(
+                            f"Skipping malformed line {i + 1} in dataset: {line[:50]}..."
+                        )
         except OSError:
             logger.exception("Failed to iterate over dataset")
             raise

@@ -1,7 +1,11 @@
 from typing import Any, ClassVar
 
 from mlip_autopipec.components.dynamics import BaseDynamics, MockDynamics
-from mlip_autopipec.components.generator import BaseGenerator, MockGenerator
+from mlip_autopipec.components.generator import (
+    AdaptiveGenerator,
+    BaseGenerator,
+    MockGenerator,
+)
 from mlip_autopipec.components.oracle import BaseOracle, MockOracle
 from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer
 from mlip_autopipec.components.validator import BaseValidator, MockValidator
@@ -13,16 +17,26 @@ from mlip_autopipec.domain_models.config import (
     TrainerConfig,
     ValidatorConfig,
 )
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
 class ComponentFactory:
     _REGISTRY: ClassVar[dict[str, dict[str, type[BaseComponent[Any]]]]] = {
-        "generator": {"mock": MockGenerator},
-        "oracle": {"mock": MockOracle},
-        "trainer": {"mock": MockTrainer},
-        "dynamics": {"mock": MockDynamics},
-        "validator": {"mock": MockValidator},
+        "generator": {
+            GeneratorType.MOCK: MockGenerator,
+            GeneratorType.ADAPTIVE: AdaptiveGenerator,
+        },
+        "oracle": {OracleType.MOCK: MockOracle},
+        "trainer": {TrainerType.MOCK: MockTrainer},
+        "dynamics": {DynamicsType.MOCK: MockDynamics},
+        "validator": {ValidatorType.MOCK: MockValidator},
     }
 
     @classmethod
@@ -41,7 +55,7 @@ class ComponentFactory:
         return component_class(config)
 
     @classmethod
-    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator:
+    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator[Any]:
         return cls.create("generator", config)  # type: ignore
 
     @classmethod

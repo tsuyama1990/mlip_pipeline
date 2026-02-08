@@ -153,6 +153,7 @@ def test_physical_validation() -> None:
             forces=np.array([[2000.0, 0.0, 0.0]]),
         )
 
+
 def test_validate_labeled() -> None:
     pos = np.zeros((1, 3))
     numbers = np.array([1])

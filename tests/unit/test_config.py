@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from mlip_autopipec.domain_models.config import GlobalConfig
+from mlip_autopipec.domain_models.enums import GeneratorType
 
 
 def test_config_valid(tmp_path: Path) -> None:
@@ -18,41 +19,42 @@ def test_config_valid(tmp_path: Path) -> None:
                 "name": "mock",
                 "cell_size": 10.0,
                 "n_atoms": 2,
-                "atomic_numbers": [1, 1]
+                "atomic_numbers": [1, 1],
             },
             "oracle": {"name": "mock"},
             "trainer": {"name": "mock"},
-            "dynamics": {
-                "name": "mock",
-                "selection_rate": 0.5,
-                "uncertainty_threshold": 5.0
-            },
+            "dynamics": {"name": "mock", "selection_rate": 0.5, "uncertainty_threshold": 5.0},
             "validator": {"name": "mock"},
-        }
+        },
     }
 
     config = GlobalConfig.model_validate(config_dict)
     assert config.max_cycles == 10
-    assert config.components.generator.name == "mock"
-    assert config.components.generator.cell_size == 10.0
+    # config.components.generator.name is GeneratorType.MOCK which is a string enum "mock"
+    # but mypy complains about literal overlap.
+    assert config.components.generator.name == GeneratorType.MOCK
+    # Runtime check is fine
+    assert getattr(config.components.generator, "cell_size", None) == 10.0
 
 
 def test_config_missing_components(tmp_path: Path) -> None:
     # Pydantic will raise ValidationError for missing fields in ComponentsConfig
     with pytest.raises(ValidationError) as excinfo:
-        GlobalConfig.model_validate({
-            "workdir": tmp_path,
-            "max_cycles": 10,
-            "components": {
-                "generator": {
-                    "name": "mock",
-                    "cell_size": 10.0,
-                    "n_atoms": 2,
-                    "atomic_numbers": [1, 1]
-                }
-                # Missing others
-            },
-        })
+        GlobalConfig.model_validate(
+            {
+                "workdir": tmp_path,
+                "max_cycles": 10,
+                "components": {
+                    "generator": {
+                        "name": "mock",
+                        "cell_size": 10.0,
+                        "n_atoms": 2,
+                        "atomic_numbers": [1, 1],
+                    }
+                    # Missing others
+                },
+            }
+        )
 
     # Check that error mentions missing fields (e.g. 'oracle', 'trainer', etc.)
     assert "Field required" in str(excinfo.value)
@@ -66,22 +68,16 @@ def test_config_extra_forbidden(tmp_path: Path) -> None:
             "extra_field": 123,
             "cell_size": 10.0,
             "n_atoms": 2,
-            "atomic_numbers": [1, 1]
+            "atomic_numbers": [1, 1],
         },
         "oracle": {"name": "mock"},
         "trainer": {"name": "mock"},
-        "dynamics": {
-            "name": "mock",
-            "selection_rate": 0.5,
-            "uncertainty_threshold": 5.0
-        },
+        "dynamics": {"name": "mock", "selection_rate": 0.5, "uncertainty_threshold": 5.0},
         "validator": {"name": "mock"},
     }
 
     with pytest.raises(ValidationError) as excinfo:
-        GlobalConfig.model_validate({
-            "workdir": tmp_path,
-            "max_cycles": 10,
-            "components": components
-        })
+        GlobalConfig.model_validate(
+            {"workdir": tmp_path, "max_cycles": 10, "components": components}
+        )
     assert "Extra inputs are not permitted" in str(excinfo.value)

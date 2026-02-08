@@ -8,24 +8,41 @@ from mlip_autopipec.components.validator.mock import MockValidator
 from mlip_autopipec.domain_models.config import (
     ComponentConfig,
     DynamicsConfig,
-    GeneratorConfig,
+    MockGeneratorConfig,
     OracleConfig,
     TrainerConfig,
     ValidatorConfig,
+)
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
 )
 from mlip_autopipec.factory import ComponentFactory
 
 
 def test_factory_creation() -> None:
     # Use valid configs for factory creation
-    gen_config = GeneratorConfig(cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
-    dyn_config = DynamicsConfig(selection_rate=0.5, uncertainty_threshold=5.0)
+    gen_config = MockGeneratorConfig(
+        name=GeneratorType.MOCK, cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1]
+    )
+    dyn_config = DynamicsConfig(
+        name=DynamicsType.MOCK, selection_rate=0.5, uncertainty_threshold=5.0
+    )
 
     assert isinstance(ComponentFactory.get_generator(gen_config), MockGenerator)
-    assert isinstance(ComponentFactory.get_oracle(OracleConfig()), MockOracle)
-    assert isinstance(ComponentFactory.get_trainer(TrainerConfig()), MockTrainer)
+    assert isinstance(
+        ComponentFactory.get_oracle(OracleConfig(name=OracleType.MOCK)), MockOracle
+    )
+    assert isinstance(
+        ComponentFactory.get_trainer(TrainerConfig(name=TrainerType.MOCK)), MockTrainer
+    )
     assert isinstance(ComponentFactory.get_dynamics(dyn_config), MockDynamics)
-    assert isinstance(ComponentFactory.get_validator(ValidatorConfig()), MockValidator)
+    assert isinstance(
+        ComponentFactory.get_validator(ValidatorConfig(name=ValidatorType.MOCK)), MockValidator
+    )
 
 
 def test_factory_invalid_role() -> None:
@@ -41,12 +58,25 @@ def test_factory_invalid_type() -> None:
     # However, create accepts ComponentConfig which allows any name string (base class).
 
     # If I use a name not in registry but valid in Config:
+    # NOTE: We can't easily instantiate a GeneratorConfig with RANDOM type because it's a Union
+    # and neither Mock nor Adaptive allow RANDOM.
+    # We have to fake it by subclassing or using a raw dict if we were not using types.
+    # But factory expects config object.
+
+    # Since we can't create an invalid config object that satisfies the type checker but fails runtime logic
+    # (because the type checker and pydantic prevent it), we can skip this test or
+    # test it by mocking or using a base class if factory allowed.
+    # But factory.create(config: ComponentConfig).
+
+    config = ComponentConfig(name="random")
     with pytest.raises(ValueError, match="Unknown component type"):
-        ComponentFactory.get_generator(GeneratorConfig(name="random", cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1]))
+        ComponentFactory.create("generator", config)
 
 
 def test_mock_generator_iterator() -> None:
-    config = GeneratorConfig(cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
+    config = MockGeneratorConfig(
+        name=GeneratorType.MOCK, cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1]
+    )
     generator = MockGenerator(config)
     structures_iter = generator.generate(n_structures=5)
 

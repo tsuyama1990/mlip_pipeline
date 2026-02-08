@@ -5,12 +5,13 @@ from typing import Any
 import numpy as np
 
 from mlip_autopipec.components.generator.base import BaseGenerator
+from mlip_autopipec.domain_models.config import MockGeneratorConfig
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 
 
-class MockGenerator(BaseGenerator):
+class MockGenerator(BaseGenerator[MockGeneratorConfig]):
     """
     Mock implementation of the Generator component.
 
@@ -20,11 +21,23 @@ class MockGenerator(BaseGenerator):
 
     def _extract_config(self, effective_config: dict[str, Any]) -> tuple[float, int, list[int]]:
         """Extracts configuration values, potentially raising conversion errors."""
+        cfg = self.config
+
+        # Ensure correct config type outside try block to avoid TRY301
+        if not isinstance(cfg, MockGeneratorConfig):
+            msg = "Invalid config type for MockGenerator"
+            raise TypeError(msg)
+
         try:
-            cell_size = float(effective_config["cell_size"])
-            n_atoms = int(effective_config["n_atoms"])
-            atomic_numbers = effective_config["atomic_numbers"]
-        except (KeyError, ValueError, TypeError) as e:
+            # First try direct access if not overriden
+            if not effective_config:
+                return cfg.cell_size, cfg.n_atoms, cfg.atomic_numbers
+
+            cell_size = float(effective_config.get("cell_size", cfg.cell_size))
+            n_atoms = int(effective_config.get("n_atoms", cfg.n_atoms))
+            atomic_numbers = effective_config.get("atomic_numbers", cfg.atomic_numbers)
+
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.exception("Configuration extraction failed")
             msg = f"Invalid generator configuration format: {e}"
             raise ValueError(msg) from e
