@@ -1,0 +1,50 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 16 items
+
+tests/unit/test_cli.py ...                                               [ 18%]
+tests/unit/test_config.py ....                                           [ 43%]
+tests/unit/test_factory.py .......                                       [ 87%]
+tests/unit/test_orchestrator.py ../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+                                       [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                            0      0   100%
+src/mlip_autopipec/components/dynamics/__init__.py        2      0   100%
+src/mlip_autopipec/components/dynamics/mock.py           12      4    67%   22-33
+src/mlip_autopipec/components/generator/__init__.py       2      0   100%
+src/mlip_autopipec/components/generator/mock.py          12      0   100%
+src/mlip_autopipec/components/oracle/__init__.py          2      0   100%
+src/mlip_autopipec/components/oracle/mock.py             19      1    95%   39
+src/mlip_autopipec/components/trainer/__init__.py         2      0   100%
+src/mlip_autopipec/components/trainer/mock.py            19      1    95%   41
+src/mlip_autopipec/components/validator/__init__.py       2      0   100%
+src/mlip_autopipec/components/validator/mock.py           9      0   100%
+src/mlip_autopipec/core/dataset.py                       70     22    69%   28-30, 44-46, 53, 59, 63-68, 79-83, 97-99
+src/mlip_autopipec/core/orchestrator.py                  50      3    94%   56-57, 70
+src/mlip_autopipec/domain_models/__init__.py              4      0   100%
+src/mlip_autopipec/domain_models/config.py               19      0   100%
+src/mlip_autopipec/domain_models/potential.py             8      0   100%
+src/mlip_autopipec/domain_models/structure.py            46     14    70%   51-52, 55-56, 59-60, 64-65, 75-76, 78-79, 81-82
+src/mlip_autopipec/factory.py                            31      6    81%   45-57
+src/mlip_autopipec/interfaces/__init__.py                 6      0   100%
+src/mlip_autopipec/interfaces/base_dynamics.py            6      0   100%
+src/mlip_autopipec/interfaces/base_generator.py           6      0   100%
+src/mlip_autopipec/interfaces/base_oracle.py              6      0   100%
+src/mlip_autopipec/interfaces/base_trainer.py             7      0   100%
+src/mlip_autopipec/interfaces/base_validator.py           6      0   100%
+src/mlip_autopipec/main.py                               36      6    83%   46-47, 64-66, 70
+src/mlip_autopipec/utils/__init__.py                      2      0   100%
+src/mlip_autopipec/utils/logging.py                       4      0   100%
+-----------------------------------------------------------------------------------
+TOTAL                                                   388     57    85%
+============================== 16 passed in 2.48s ==============================

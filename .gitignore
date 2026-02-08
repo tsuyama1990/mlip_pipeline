@@ -39,3 +39,4 @@ build/
 
 # Cycle 1 specific
 workflow_state.json
+dist/

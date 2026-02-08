@@ -8,11 +8,11 @@
 
 ## Key Features
 
--   **Zero-Config Workflow**: Define your material system in a single YAML file and let the system handle the rest. No complex scripting required.
--   **Active Learning with Uncertainty**: Drastically reduces DFT costs (by >90%) by only calculating structures where the model is uncertain ($\gamma$ metric).
--   **Physics-Informed Robustness**: Enforces a physical baseline (Lennard-Jones/ZBL) to ensure simulation stability even in high-energy regimes where data is scarce.
--   **Self-Healing Oracle**: Automatically recovers from DFT convergence failures by adjusting calculation parameters on the fly.
--   **Automated Validation**: Every generated potential is rigorously tested for physical stability (Elastic constants, Phonons) before deployment.
+-   **Zero-Config Workflow**: Define your material system in a single YAML file and let the system handle the rest.
+-   **Active Learning with Uncertainty**: Drastically reduces DFT costs by only calculating structures where the model is uncertain.
+-   **Robust Architecture**: Built on a modular, type-safe foundation using Pydantic and strict interfaces.
+-   **Self-Healing**: Designed to recover from failures automatically (future cycles).
+-   **Automated Validation**: Rigorous testing of potentials before deployment.
 
 ## Architecture Overview
 
@@ -33,19 +33,12 @@ graph TD
         Val -- Pass --> Orch
         Val -- Fail --> Gen
     end
-
-    Dyn -->|MD/kMC Trajectory| Results[Simulation Results]
-    Trainer -->|Physics Baseline| Dyn
 ```
 
 ## Prerequisites
 
 -   **Python**: Version 3.12 or higher.
 -   **Package Manager**: `uv` (recommended) or `pip`.
--   **External Tools** (Optional but recommended for full functionality):
-    -   `Quantum Espresso` (pw.x) for DFT calculations.
-    -   `LAMMPS` (lmp) for MD simulations.
-    -   `Pacemaker` (pace_train) for potential fitting.
 
 ## Installation & Setup
 
@@ -77,17 +70,18 @@ To start a new project, create a configuration file (e.g., `config.yaml`) and ru
 
 1.  **Create a Config File**
     ```yaml
-    workdir: "runs/fe_pt_demo"
+    workdir: "runs/demo_run"
     max_cycles: 5
     generator:
-      type: "random"
-      composition: {"Fe": 0.5, "Pt": 0.5}
+      type: "mock"
     oracle:
-      type: "mock"  # Use 'espresso' for real DFT
+      type: "mock"
     trainer:
-      type: "mock"  # Use 'pacemaker' for real training
+      type: "mock"
     dynamics:
-      type: "mock"  # Use 'lammps' for real MD
+      type: "mock"
+    validator:
+      type: "mock"
     ```
 
 2.  **Run the Pipeline**
@@ -101,7 +95,7 @@ We follow the AC-CDD (Architectural-Core Cycle Driven Development) methodology.
 
 -   **Running Tests**:
     ```bash
-    pytest
+    PYTHONPATH=src pytest
     ```
 
 -   **Linting & Formatting**:
@@ -119,7 +113,6 @@ We follow the AC-CDD (Architectural-Core Cycle Driven Development) methodology.
 
 ```ascii
 mlip-pipeline/
-├── dev_documents/        # Specifications & UAT Plans
 ├── src/
 │   └── mlip_autopipec/
 │       ├── components/   # Core modules (Generator, Oracle, etc.)
@@ -128,7 +121,6 @@ mlip-pipeline/
 │       ├── interfaces/   # Abstract Base Classes
 │       └── main.py       # CLI Entry point
 ├── tests/                # Unit & Integration tests
-├── tutorials/            # Jupyter Notebooks for User Training
 ├── pyproject.toml        # Project configuration
 └── README.md             # This file
 ```
