@@ -89,6 +89,7 @@ class QEOracle(BaseOracle):
             except (HealingFailedError, Exception):
                 # Log error and skip structure
                 # We catch Exception broadly because calculator might raise various errors (EspressoError, PropertyNotImplementedError, etc.)
+                # Ideally, we would catch specific EspressoError, but ASE raises diverse errors (RuntimeError, CalledProcessError) depending on failure mode.
                 logger.exception("Failed to compute structure")
                 continue
 
@@ -120,7 +121,7 @@ class QEOracle(BaseOracle):
                         msg = "Calculator is None"
                         raise HealingFailedError(msg)  # noqa: TRY301
 
-                    # atoms.calc is narrowed to Calculator here
+                    # Healer returns a NEW calculator instance (immutable pattern)
                     new_calc = self.healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
                 except HealingFailedError:

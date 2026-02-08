@@ -11,6 +11,11 @@ from mlip_autopipec.domain_models.enums import (
     ValidatorType,
 )
 
+# Constants for Structure validation
+MAX_ATOMIC_NUMBER = 118
+MAX_FORCE_MAGNITUDE = 1000.0  # eV/A
+MAX_ENERGY_MAGNITUDE = 1e6  # eV
+
 
 class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")

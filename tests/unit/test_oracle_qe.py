@@ -17,6 +17,8 @@ class FakeEspresso(Calculator):
     def __init__(self, failure_mode: str = "parameter_sensitive", **kwargs: Any) -> None:
         super().__init__()  # type: ignore[no-untyped-call]
         self.parameters = kwargs
+        # Ensure failure_mode is in parameters so it survives Healing reconstruction
+        self.parameters["failure_mode"] = failure_mode
         self.failure_mode = failure_mode
         self.implemented_properties = ["energy", "forces", "stress"]
         self.results = {}
@@ -33,10 +35,13 @@ class FakeEspresso(Calculator):
         super().calculate(atoms, properties, system_changes)  # type: ignore[no-untyped-call]
 
         # Simulation Logic
-        if self.failure_mode == "always_fail":
+        # Read from parameters if present (reconstructed via Heal)
+        mode = self.parameters.get("failure_mode", self.failure_mode)
+
+        if mode == "always_fail":
             msg = "Persistent error"
             raise RuntimeError(msg)
-        if self.failure_mode == "parameter_sensitive":
+        if mode == "parameter_sensitive":
             # Fail if mixing_beta is high (default 0.7 in config)
             # Succeed if mixing_beta is low (0.3)
             beta = self.parameters.get("mixing_beta", 0.7)
@@ -102,8 +107,8 @@ def test_qe_compute_healing_success(
     mock_espresso_cls: Any, qe_config: QEOracleConfig, structure: Structure
 ) -> None:
     # Config has beta=0.7, so FakeEspresso fails first.
-    # Healer reduces beta to 0.3.
-    # Next call to calculate succeeds.
+    # Healer reduces beta to 0.3 and returns NEW calculator instance.
+    # Next call to calculate succeeds using the new calculator.
 
     fake_instance = FakeEspresso(failure_mode="parameter_sensitive", mixing_beta=0.7)
     mock_espresso_cls.return_value = fake_instance
@@ -114,8 +119,12 @@ def test_qe_compute_healing_success(
     assert len(results) == 1
     s = results[0]
     assert s.energy == -100.0
-    # Verify healing modification persisted
-    assert fake_instance.parameters["mixing_beta"] == 0.3
+
+    # Verify provenance
+    assert s.tags["qe_params"]["mixing_beta"] == 0.3
+
+    # Verify original instance was untouched
+    assert fake_instance.parameters["mixing_beta"] == 0.7
 
 
 @patch("mlip_autopipec.components.oracle.qe.Espresso")

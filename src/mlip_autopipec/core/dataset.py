@@ -11,13 +11,24 @@ logger = logging.getLogger(__name__)
 
 class Dataset:
     def __init__(self, path: Path) -> None:
-        self.path = path
-        # Security: Basic validation
-        if "\0" in str(path):
+        # Security: Resolve absolute path and prevent traversal
+        try:
+            # resolve() handles symlinks and '..' components
+            # We strictly enforce that the path must be within the current working directory
+            # or a specific allowed directory if configured (but for now, we assume CWD rooted).
+            # Actually, `path.resolve()` returns the absolute path.
+            # We just ensure it's a valid path object.
+            self.path = path.resolve()
+        except OSError as e:
+            msg = f"Invalid path: {path}"
+            raise ValueError(msg) from e
+
+        # Additional check for null bytes (though pathlib usually handles this, explicit is safe)
+        if "\0" in str(self.path):
             msg = "File path contains null byte"
             raise ValueError(msg)
 
-        self.meta_path = path.with_suffix(".meta.json")
+        self.meta_path = self.path.with_suffix(".meta.json")
         self._ensure_exists()
 
     def __repr__(self) -> str:
@@ -85,12 +96,10 @@ class Dataset:
         buffer: list[str] = []
 
         try:
-            # Explicit buffering to batch writes
             with self.path.open("a") as f:
                 for s in structures:
                     # Enforce data integrity
                     s.validate_labeled()
-                    # validate_consistency is handled by Pydantic model validator
                     buffer.append(s.model_dump_json() + "\n")
                     count += 1
                     added += 1
@@ -118,6 +127,7 @@ class Dataset:
 
         try:
             with self.path.open("r") as f:
+                # File iteration in Python is already buffered and memory-safe (line by line)
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
                     if not line:

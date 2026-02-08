@@ -1,5 +1,4 @@
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 from ase.calculators.calculator import Calculator
@@ -61,8 +60,16 @@ def test_healer_exhausted() -> None:
 def test_healer_invalid_calculator() -> None:
     """Test healer with non-Espresso calculator (generic)."""
     # Should try best effort or fail if parameters don't match
-    calc = MagicMock(spec=Calculator)
-    calc.parameters = {}
+    # Since Healer creates a new instance using type(calc)(**params),
+    # MagicMock works but we need to ensure the mock type can be instantiated with kwargs.
+    # MagicMock()(**kwargs) returns another mock, whose .parameters is not automatically set.
+
+    # Let's use a simple class instead of MagicMock for better control
+    class SimpleCalc(Calculator):
+        def __init__(self, **kwargs: Any) -> None:
+            self.parameters = kwargs
+
+    calc = SimpleCalc()
     healer = Healer()
 
     # It should probably try setting mixing_beta if not present
