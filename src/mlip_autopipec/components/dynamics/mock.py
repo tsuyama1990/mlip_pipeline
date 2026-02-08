@@ -16,7 +16,9 @@ class MockDynamics(BaseDynamics):
         logger.info("Exploring structures for uncertainty")
         count = 0
         selection_rate = self.config.selection_rate
-        uncertainty_threshold = self.config.uncertainty_threshold # Use config, not hardcoded
+        # Use config for threshold, defaulting to reasonable value if somehow missing (though Pydantic enforces it)
+        # Note: In DynamicsConfig, uncertainty_threshold has default 5.0
+        uncertainty_threshold = self.config.uncertainty_threshold
 
         # In Cycle 01, start_structures might be just generated ones.
         # Ensure we stream by iterating over the input iterable

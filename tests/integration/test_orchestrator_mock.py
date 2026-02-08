@@ -60,6 +60,8 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     # Use streaming iterator to avoid loading full list
     dataset = Dataset(dataset_path)
     count = 0
+
+    # Streaming iteration: do not use list(dataset)
     for s in dataset:
         count += 1
         # Verify labeling happened
