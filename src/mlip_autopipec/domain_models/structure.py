@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -230,7 +230,7 @@ class Structure(BaseModel):
             msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
             raise ValueError(msg)
         # Using cast to silence 'no-any-return' mypy error when returning ndarray from Any context
-        return atomic_numbers
+        return cast(np.ndarray, atomic_numbers)
 
     @staticmethod
     def _extract_positions(atoms: Atoms, n_atoms: int) -> np.ndarray:
@@ -247,7 +247,7 @@ class Structure(BaseModel):
         if len(positions) != n_atoms:
              msg = f"Mismatch: positions={len(positions)}, atomic_numbers={n_atoms}"
              raise ValueError(msg)
-        return positions
+        return cast(np.ndarray, positions)
 
     @staticmethod
     def _extract_cell_pbc(atoms: Atoms) -> tuple[np.ndarray, np.ndarray]:
@@ -257,7 +257,7 @@ class Structure(BaseModel):
         except Exception as e:
              msg = f"Failed to get cell/pbc from ASE atoms: {e}"
              raise ValueError(msg) from e
-        return cell, pbc
+        return cast(np.ndarray, cell), cast(np.ndarray, pbc)
 
     @staticmethod
     def _extract_labels(atoms: Atoms) -> tuple[float | None, np.ndarray | None, np.ndarray | None]:

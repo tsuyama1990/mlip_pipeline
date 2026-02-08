@@ -143,8 +143,8 @@ def test_to_ase() -> None:
 
     # Check labels via calculator
     assert atoms.calc is not None
-    assert atoms.get_potential_energy() == energy
-    assert np.allclose(atoms.get_forces(), forces)
+    assert atoms.get_potential_energy() == energy  # type: ignore[no-untyped-call]
+    assert np.allclose(atoms.get_forces(), forces)  # type: ignore[no-untyped-call]
 
     # Stress should be converted to 3x3 in Structure and preserved in Calculator
     expected_stress = np.zeros((3, 3))
@@ -155,8 +155,8 @@ def test_to_ase() -> None:
     # Here we just verify it matches what we expect from input
 
     # SinglePointCalculator.get_stress(voigt=False) returns 3x3
-    assert np.allclose(atoms.get_stress(voigt=False), expected_stress)
-    assert atoms.get_stress(voigt=False).shape == (3, 3)
+    assert np.allclose(atoms.get_stress(voigt=False), expected_stress)  # type: ignore[no-untyped-call]
+    assert atoms.get_stress(voigt=False).shape == (3, 3)  # type: ignore[no-untyped-call]
 
 
 def test_physical_validation() -> None:

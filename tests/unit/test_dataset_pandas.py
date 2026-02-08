@@ -11,7 +11,7 @@ from mlip_autopipec.domain_models.structure import Structure
 
 def create_labeled_structure() -> Structure:
     atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]], cell=[10, 10, 10], pbc=True)
-    calc = SinglePointCalculator(atoms, energy=-10.5, forces=[[0, 0, 0.1], [0, 0, -0.1]], stress=np.zeros((3, 3)))
+    calc = SinglePointCalculator(atoms, energy=-10.5, forces=[[0, 0, 0.1], [0, 0, -0.1]], stress=np.zeros((3, 3)))  # type: ignore[no-untyped-call]
     atoms.calc = calc
     return Structure.from_ase(atoms)
 

@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -15,7 +16,7 @@ from mlip_autopipec.domain_models.enums import TrainerType
 from mlip_autopipec.domain_models.structure import Structure
 
 
-def create_dummy_structure():
+def create_dummy_structure() -> Structure:
     return Structure(
         positions=np.array([[0.0, 0.0, 0.0]]),
         atomic_numbers=np.array([1]),
@@ -27,14 +28,14 @@ def create_dummy_structure():
     )
 
 @pytest.fixture
-def mock_dataset(tmp_path):
+def mock_dataset(tmp_path: Path) -> Dataset:
     dataset = Dataset(tmp_path / "dataset.jsonl", root_dir=tmp_path)
     # Add dummy data
-    dataset.append([create_dummy_structure()])
+    dataset.append([create_dummy_structure()])  # type: ignore[no-untyped-call]
     return dataset
 
 @pytest.fixture
-def trainer_config():
+def trainer_config() -> PacemakerTrainerConfig:
     return PacemakerTrainerConfig(
         name=TrainerType.PACEMAKER,
         basis_size=10,
@@ -43,7 +44,7 @@ def trainer_config():
         active_set_limit=100
     )
 
-def test_pacemaker_trainer_execution(tmp_path, trainer_config, mock_dataset):
+def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset) -> None:
     # Mock ActiveSetSelector
     with patch("mlip_autopipec.components.trainer.pacemaker.ActiveSetSelector") as MockSelector:
         mock_selector_instance = MockSelector.return_value
@@ -83,7 +84,7 @@ def test_pacemaker_trainer_execution(tmp_path, trainer_config, mock_dataset):
             assert (tmp_path / PACEMAKER_INPUT_FILENAME).exists()
 
 
-def test_pacemaker_trainer_config_generation(tmp_path, trainer_config, mock_dataset):
+def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset) -> None:
     # This test verifies that input.yaml is generated correctly
     with patch("mlip_autopipec.components.trainer.pacemaker.ActiveSetSelector") as MockSelector, \
          patch("subprocess.run") as mock_run:
