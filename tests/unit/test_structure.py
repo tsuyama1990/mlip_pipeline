@@ -64,3 +64,25 @@ def test_validate_labeled() -> None:
 
     s.stress = np.zeros((3, 3))
     s.validate_labeled()  # Should pass
+
+
+def test_stress_voigt() -> None:
+    """Test that stress in Voigt notation (6,) is allowed."""
+    s = Structure(
+        positions=np.array([[0.0, 0.0, 0.0]]),
+        atomic_numbers=np.array([1]),
+        cell=np.eye(3),
+        energy=-1.0,
+        forces=np.zeros((1, 3)),
+        stress=np.zeros(6),
+    )
+    s.validate_labeled()
+
+    # Invalid stress shape
+    with pytest.raises(ValidationError):
+        Structure(
+            positions=np.array([[0.0, 0.0, 0.0]]),
+            atomic_numbers=np.array([1]),
+            cell=np.eye(3),
+            stress=np.zeros(5),
+        )

@@ -61,25 +61,43 @@ def test_dataset_security_check(tmp_path: Path) -> None:
 
 def test_dataset_corrupt_line(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     path = tmp_path / "corrupt.jsonl"
-    path.write_text('{"valid": "json"}\nINVALID_JSON\n{"valid": "json"}')
-
-    # Just write dummy meta so init doesn't fail
-    dataset = Dataset(path)
-    # Mock meta count or just rely on iter not using count
-    # Dataset iter reads file.
-
-    # We need to construct valid structures for the valid lines for it to yield
-    # Actually, {"valid": "json"} will fail validation if passed to Structure constructor?
-    # Dataset iter: yields Structure(**data).
-    # So valid json but invalid structure raises ValidationError.
-    # But iter only catches JSONDecodeError.
-    # Let's write valid structure JSON
 
     s = create_dummy_structure(0)
     valid_json = s.model_dump_json()
 
     path.write_text(f"{valid_json}\nBROKEN_JSON\n{valid_json}")
 
+    dataset = Dataset(path)
+
     items = list(dataset)
     assert len(items) == 2
     assert "Corrupt dataset line" in caplog.text
+
+
+def test_dataset_memory_usage(tmp_path: Path) -> None:
+    """
+    Verify that iterating over a large dataset does not consume excessive memory.
+    This test creates a file with 1000 items and iterates.
+    Ideally we would measure memory, but here we just ensure it runs and we verify logic (by code inspection mainly).
+    We can check that __iter__ returns a generator.
+    """
+    path = tmp_path / "large.jsonl"
+    dataset = Dataset(path)
+
+    # Write directly to file to simulate large dataset without creating objects in memory first
+    s = create_dummy_structure(0)
+    line = s.model_dump_json() + "\n"
+
+    with path.open("w") as f:
+        for _ in range(1000):
+            f.write(line)
+
+    iterator = iter(dataset)
+    # Check it's a generator/iterator
+    assert hasattr(iterator, "__next__")
+
+    # Consume
+    count = 0
+    for _ in iterator:
+        count += 1
+    assert count == 1000

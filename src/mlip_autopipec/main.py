@@ -53,7 +53,7 @@ def run(
         config = GlobalConfig(**config_data)
 
         # Re-configure logging if specified
-        setup_logging(level=config.logging_level)
+        setup_logging(level=config.logging_level, format_str=config.logging_format)
         logger.info(f"Logging level set to {config.logging_level}")
 
         # Run orchestrator

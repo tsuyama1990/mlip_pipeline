@@ -24,10 +24,9 @@ class GlobalConfig(BaseModel):
     workdir: Path = Field(default=Path("runs/default"))
     max_cycles: int = Field(default=5, ge=1)
     logging_level: str = "INFO"
+    logging_format: str = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
     # Components
-    # We require explicit component config, but provide defaults for mocks in tests?
-    # No, strict config is better. But maybe defaults for optional components.
     generator: ComponentConfig
     oracle: ComponentConfig
     trainer: ComponentConfig

@@ -29,6 +29,10 @@ class Dataset:
             if not self.path.is_relative_to(self.root_dir):
                 msg = f"Dataset path {self.path} is outside root directory {self.root_dir}"
                 raise ValueError(msg)
+
+            # Double check against resolved path for traversal attempts that resolve() might have missed if symbolic links are involved?
+            # pathlib.resolve() handles symlinks and '..', so is_relative_to check on resolved paths is robust.
+            # But we can be paranoid.
         else:
             self.root_dir = None
 
@@ -54,7 +58,7 @@ class Dataset:
             # Ensure parent directory exists before saving
             if not self.meta_path.parent.exists():
                 # Security check: verify parent is safe if root_dir is set
-                if self.root_dir and not self.meta_path.parent.is_relative_to(self.root_dir):
+                if self.root_dir and not self.meta_path.parent.resolve().is_relative_to(self.root_dir):
                      # Should be covered by init check, but good for paranoia
                      msg = f"Dataset parent {self.meta_path.parent} is outside root {self.root_dir}"
                      raise ValueError(msg)
@@ -93,7 +97,7 @@ class Dataset:
             msg = f"Failed to read dataset: {e}"
             raise RuntimeError(msg) from e
 
-    def append(self, structures: Iterable[Structure], batch_size: int = 100) -> int:
+    def append(self, structures: Iterable[Structure], batch_size: int = 1000) -> int:
         """
         Appends structures to the dataset.
         Validates that structures are labeled.
@@ -101,7 +105,7 @@ class Dataset:
 
         Args:
             structures: Iterable of structures to append.
-            batch_size: Number of structures to buffer before writing.
+            batch_size: Number of structures to buffer before writing. Default 1000.
 
         Returns:
             Number of structures added.
@@ -109,7 +113,7 @@ class Dataset:
         added = 0
         # Ensure parent directory exists
         if not self.path.parent.exists():
-            if self.root_dir and not self.path.parent.is_relative_to(self.root_dir):
+            if self.root_dir and not self.path.parent.resolve().is_relative_to(self.root_dir):
                  msg = f"Dataset parent {self.path.parent} is outside root {self.root_dir}"
                  raise ValueError(msg)
             try:
@@ -118,7 +122,7 @@ class Dataset:
                 msg = f"Failed to create dataset directory: {e}"
                 raise RuntimeError(msg) from e
 
-        buffer = []
+        buffer: list[str] = []
         try:
             with self.path.open("a") as f:
                 for structure in structures:

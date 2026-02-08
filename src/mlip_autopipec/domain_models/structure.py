@@ -66,8 +66,9 @@ class Structure(BaseModel):
             msg = f"forces shape {self.forces.shape} does not match ({n_atoms}, 3)"
             raise ValueError(msg)
 
-        if self.stress is not None and self.stress.shape not in [(3, 3), (6,)]:
+        if self.stress is not None and self.stress.shape not in ((3, 3), (6,)):
             # Allow both Voigt (6,) and full tensor (3, 3)
+            # Explicit check for both allowed shapes
             msg = f"stress shape {self.stress.shape} must be (3, 3) or (6,)"
             raise ValueError(msg)
 

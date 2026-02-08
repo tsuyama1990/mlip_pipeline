@@ -45,6 +45,7 @@ class MockTrainer(BaseTrainer):
         logger.info("MockTrainer: Training potential...")
 
         # Consume the dataset to simulate work and verify iteration
+        # Streaming count to avoid OOM
         count = 0
         for _ in dataset:
             count += 1
