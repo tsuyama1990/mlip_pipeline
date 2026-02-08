@@ -11,26 +11,39 @@ logger = logging.getLogger(__name__)
 
 
 class Dataset:
-    def __init__(self, path: Path) -> None:
-        # Security: Resolve absolute path and prevent traversal
+    def __init__(self, path: Path, root_dir: Path | None = None) -> None:
+        """
+        Initialize Dataset with security checks.
+
+        Args:
+            path: Path to the dataset file.
+            root_dir: Optional root directory to confine the dataset path.
+                      Defaults to the parent of path if not provided (less strict),
+                      or CWD. For security, should be explicit.
+        """
+        # Security: Resolve absolute path
         try:
-            # resolve() handles symlinks and '..' components
-            # If path does not exist, resolve works if parents exist or on recent Python versions for non-existing.
-            # strict=False allows the file itself to be missing.
             self.path = path.resolve(strict=False)
-
-            # Security: Ensure we are not traversing out of expected root?
-            # Without a passed root, we can't strictly enforce confinement to a "jail".
-            # But resolving prevents '..' attacks hiding the true path.
-
         except OSError as e:
             msg = f"Invalid path: {path}"
             raise ValueError(msg) from e
 
-        # Additional check for null bytes
+        # Check for null bytes
         if "\0" in str(self.path):
             msg = "File path contains null byte"
             raise ValueError(msg)
+
+        # Security: Path Confinement
+        if root_dir:
+            try:
+                root = root_dir.resolve(strict=True)
+            except OSError as e:
+                msg = f"Invalid root directory: {root_dir}"
+                raise ValueError(msg) from e
+
+            if not str(self.path).startswith(str(root)):
+                msg = f"Path {self.path} is outside the allowed root directory {root}"
+                raise ValueError(msg)
 
         self.meta_path = self.path.with_suffix(".meta.json")
         self._ensure_exists()

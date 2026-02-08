@@ -61,6 +61,8 @@ class QEOracle(BaseOracle):
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         """
         Compute labels (energy, forces, stress) for the given structures using QE.
+        Currently strictly serial to avoid complex ASE calculator pickling issues.
+        Scalability relies on iterator streaming to keep memory low.
 
         Args:
             structures: An iterable of unlabeled Structure objects.
@@ -89,7 +91,6 @@ class QEOracle(BaseOracle):
             except (HealingFailedError, Exception):
                 # Log error and skip structure
                 # We catch Exception broadly because calculator might raise various errors (EspressoError, PropertyNotImplementedError, etc.)
-                # Ideally, we would catch specific EspressoError, but ASE raises diverse errors (RuntimeError, CalledProcessError) depending on failure mode.
                 logger.exception("Failed to compute structure")
                 continue
 
@@ -121,7 +122,7 @@ class QEOracle(BaseOracle):
                         msg = "Calculator is None"
                         raise HealingFailedError(msg)  # noqa: TRY301
 
-                    # Healer returns a NEW calculator instance (immutable pattern)
+                    # atoms.calc is narrowed to Calculator here
                     new_calc = self.healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
                 except HealingFailedError:

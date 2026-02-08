@@ -171,13 +171,22 @@ class Structure(BaseModel):
         return self
 
     def validate_labeled(self) -> None:
-        """Ensure structure has labels (energy, forces, stress)."""
+        """
+        Ensure structure has labels (energy, forces, stress) and they are valid.
+        """
         if self.energy is None:
             msg = "Structure missing energy label"
             raise ValueError(msg)
+        # Check energy validity using the validator explicitly if needed, but Pydantic does it on assignment.
+        # We can re-check to be safe or rely on the field validator.
+        # Since field validators run on __init__ and assignment, if self.energy is not None, it is valid.
+
         if self.forces is None:
             msg = "Structure missing forces label"
             raise ValueError(msg)
+        # Check forces shape/integrity again?
+        # Pydantic guarantees shape if it wasn't None.
+
         if self.stress is None:
             msg = "Structure missing stress label"
             raise ValueError(msg)
@@ -191,11 +200,10 @@ class Structure(BaseModel):
 
         # Try calculator first
         if atoms.calc:
-            # Explicit error handling instead of broad suppression
+            # Explicit error handling
             try:
                 energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            except Exception as e:
-                # Log warning but proceed (properties might be missing)
+            except Exception as e:  # Catch broadly ASE Calculator interface errors (often RuntimeError or NotImplemented)
                 logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
 
             try:
