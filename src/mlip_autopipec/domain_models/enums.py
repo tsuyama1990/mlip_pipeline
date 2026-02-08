@@ -67,6 +67,7 @@ class TrainerType(StrEnum):
 class DynamicsType(StrEnum):
     MOCK = "mock"
     LAMMPS = "lammps"
+    EON = "eon"
 
     def __repr__(self) -> str:
         return f"<DynamicsType.{self.name}>"

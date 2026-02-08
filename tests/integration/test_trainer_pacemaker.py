@@ -19,8 +19,9 @@ def create_dummy_structure() -> Structure:
         pbc=np.array([True, True, True]),
         energy=-1.5,
         forces=np.zeros((1, 3)),
-        stress=np.zeros((3, 3))
+        stress=np.zeros((3, 3)),
     )
+
 
 @pytest.fixture
 def mock_dataset(tmp_path: Path) -> Dataset:
@@ -29,6 +30,7 @@ def mock_dataset(tmp_path: Path) -> Dataset:
     dataset.append([create_dummy_structure()])
     return dataset
 
+
 @pytest.fixture
 def trainer_config() -> PacemakerTrainerConfig:
     return PacemakerTrainerConfig(
@@ -36,10 +38,13 @@ def trainer_config() -> PacemakerTrainerConfig:
         basis_size=10,
         cutoff=5.0,
         active_set_selection=True,
-        active_set_limit=100
+        active_set_limit=100,
     )
 
-def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset) -> None:
+
+def test_pacemaker_trainer_execution(
+    tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset
+) -> None:
     # Mock ActiveSetSelector
     with patch("mlip_autopipec.components.trainer.pacemaker.ActiveSetSelector") as MockSelector:
         mock_selector_instance = MockSelector.return_value
@@ -88,15 +93,20 @@ def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTr
             # Verify dataset.extxyz exists (default format)
             # Default is extxyz now in Config? No, default is extxyz
             if trainer_config.data_format == "extxyz":
-                extxyz_path = tmp_path / Path(trainer_config.dataset_filename).with_suffix(".extxyz").name
+                extxyz_path = (
+                    tmp_path / Path(trainer_config.dataset_filename).with_suffix(".extxyz").name
+                )
                 assert extxyz_path.exists()
 
 
-def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset) -> None:
+def test_pacemaker_trainer_config_generation(
+    tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset
+) -> None:
     # This test verifies that input.yaml is generated correctly
-    with patch("mlip_autopipec.components.trainer.pacemaker.ActiveSetSelector") as MockSelector, \
-         patch("subprocess.run") as mock_run:
-
+    with (
+        patch("mlip_autopipec.components.trainer.pacemaker.ActiveSetSelector") as MockSelector,
+        patch("subprocess.run") as mock_run,
+    ):
         mock_selector_instance = MockSelector.return_value
         activeset_path = tmp_path / trainer_config.activeset_filename
         activeset_path.touch()
@@ -113,6 +123,7 @@ def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: Pac
 
         # Check content
         import yaml
+
         with input_yaml.open() as f:
             config = yaml.safe_load(f)
 

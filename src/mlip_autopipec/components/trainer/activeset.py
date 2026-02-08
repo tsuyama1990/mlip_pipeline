@@ -43,8 +43,8 @@ class ActiveSetSelector:
         # Explicitly deny /tmp and /var/tmp usage
         path_str = str(resolved_path)
         if path_str.startswith(("/tmp", "/var/tmp")):  # noqa: S108
-             msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
-             raise SecurityError(msg)
+            msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
+            raise SecurityError(msg)
 
         # Whitelist of trusted system directories
         trusted_dirs = [

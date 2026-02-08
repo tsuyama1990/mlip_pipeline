@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
 from mlip_autopipec.domain_models.potential import Potential
@@ -14,7 +15,10 @@ class BaseDynamics(BaseComponent[DynamicsConfig]):
 
     @abstractmethod
     def explore(
-        self, potential: Potential, start_structures: Iterable[Structure]
+        self,
+        potential: Potential,
+        start_structures: Iterable[Structure],
+        workdir: Path | None = None,
     ) -> Iterator[Structure]:
         """
         Explore and find uncertain structures.
@@ -22,6 +26,7 @@ class BaseDynamics(BaseComponent[DynamicsConfig]):
         Args:
             potential: The potential to use for exploration.
             start_structures: Initial structures to start exploration from.
+            workdir: Directory to write exploration files (e.g. MD logs).
 
         Returns:
             Iterator of uncertain/new structures found.

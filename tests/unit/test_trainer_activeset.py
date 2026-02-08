@@ -46,6 +46,7 @@ def test_activeset_selector_fail(tmp_path: Path) -> None:
     with patch("subprocess.run") as mock_run:
         # Simulate failure
         import subprocess
+
         mock_run.side_effect = subprocess.CalledProcessError(1, ["cmd"], stderr="Error")
 
         selector = ActiveSetSelector(limit=100)

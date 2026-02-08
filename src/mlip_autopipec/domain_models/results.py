@@ -7,6 +7,7 @@ class ValidationMetrics(BaseModel):
     """
     Standardized metrics returned by a Validator component.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     energy_rmse: float | None = None

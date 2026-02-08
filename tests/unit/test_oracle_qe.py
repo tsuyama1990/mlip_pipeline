@@ -109,7 +109,7 @@ def test_process_single_structure_logic(qe_config: QEOracleConfig, structure: St
     from mlip_autopipec.components.oracle.qe import _process_single_structure
 
     # 1. Success Case
-    qe_config.mixing_beta = HEALER_MIXING_BETA_TARGET # Low beta = success
+    qe_config.mixing_beta = HEALER_MIXING_BETA_TARGET  # Low beta = success
 
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_cls:
         # Configure mock to behave like FakeEspresso
@@ -136,7 +136,7 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
     from mlip_autopipec.components.oracle.qe import _process_single_structure
 
     # 1. Healing Case (High Beta -> Fail -> Heal -> Success)
-    qe_config.mixing_beta = 0.7 # High beta
+    qe_config.mixing_beta = 0.7  # High beta
 
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_cls:
         # We need to simulate that the first call fails and the second succeeds (via Healer)

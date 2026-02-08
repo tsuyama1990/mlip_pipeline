@@ -1,6 +1,7 @@
 import logging
 import random
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
 from mlip_autopipec.domain_models.config import MockDynamicsConfig
@@ -30,7 +31,10 @@ class MockDynamics(BaseDynamics):
         self._rng = random.Random(config.seed)  # noqa: S311
 
     def explore(
-        self, potential: Potential, start_structures: Iterable[Structure]
+        self,
+        potential: Potential,
+        start_structures: Iterable[Structure],
+        workdir: Path | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the potential energy surface starting from given structures.
@@ -38,6 +42,7 @@ class MockDynamics(BaseDynamics):
         Args:
             potential: The current potential (ignored in Mock).
             start_structures: An iterable of starting structures.
+            workdir: Directory to write exploration files (ignored in Mock).
 
         Yields:
             Structure: Selected structures with simulated uncertainty.
@@ -46,7 +51,9 @@ class MockDynamics(BaseDynamics):
         count = 0
         selection_rate = self.config.selection_rate
         # Add simulated uncertainty to cross the threshold
-        simulated_uncertainty = self.config.uncertainty_threshold + self.config.simulated_uncertainty
+        simulated_uncertainty = (
+            self.config.uncertainty_threshold + self.config.simulated_uncertainty
+        )
 
         for s in start_structures:
             # Randomly select structures to simulate finding "uncertain" regions

@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mlip_autopipec.domain_models.config import TrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 if TYPE_CHECKING:
@@ -17,7 +20,7 @@ class BaseTrainer(BaseComponent[TrainerConfig]):
 
     @abstractmethod
     def train(
-        self, dataset: "Dataset", workdir: Path, previous_potential: Potential | None = None
+        self, dataset: Dataset, workdir: Path, previous_potential: Potential | None = None
     ) -> Potential:
         """
         Train a potential.
@@ -31,6 +34,17 @@ class BaseTrainer(BaseComponent[TrainerConfig]):
             The trained Potential object.
         """
         ...
+
+    def select_active_set(
+        self, candidates: list[Structure], limit: int | None = None
+    ) -> list[Structure]:
+        """
+        Select active set from candidates.
+        Default implementation returns all candidates.
+        """
+        if limit is not None:
+            return candidates[:limit]
+        return candidates
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(name={self.name}, config={self.config})>"

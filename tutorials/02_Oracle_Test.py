@@ -34,12 +34,7 @@ def run_basic_dft_scenario() -> None:
     logger.info("\n--- Scenario 03-01: Basic DFT Calculation (Mocked) ---")
 
     # 1. Create Config
-    config = QEOracleConfig(
-        name=OracleType.QE,
-        kspacing=0.1,
-        ecutwfc=30.0,
-        ecutrho=150.0
-    )
+    config = QEOracleConfig(name=OracleType.QE, kspacing=0.1, ecutwfc=30.0, ecutrho=150.0)
 
     # 2. Create Structure (Bulk Silicon)
     atoms = bulk("Si", "diamond", a=5.43)
@@ -73,7 +68,9 @@ def run_basic_dft_scenario() -> None:
             else:
                 logger.error("Oracle returned no results.")
         except Exception as e:
-            logger.warning(f"ProcessPool execution failed in tutorial context (expected in some envs): {e}")
+            logger.warning(
+                f"ProcessPool execution failed in tutorial context (expected in some envs): {e}"
+            )
 
 
 def run_healing_scenario() -> None:
@@ -84,7 +81,7 @@ def run_healing_scenario() -> None:
         name=OracleType.QE,
         mixing_beta=0.9,  # High
         ecutwfc=30.0,
-        ecutrho=150.0
+        ecutrho=150.0,
     )
 
     # 2. Create Structure
@@ -124,7 +121,7 @@ def run_healing_scenario() -> None:
             else:
                 logger.error("Oracle failed to heal.")
         except Exception as e:
-             logger.warning(f"ProcessPool execution failed in tutorial context: {e}")
+            logger.warning(f"ProcessPool execution failed in tutorial context: {e}")
 
 
 def run_embedding_scenario() -> None:

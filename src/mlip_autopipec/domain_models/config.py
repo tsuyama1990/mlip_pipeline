@@ -95,6 +95,7 @@ class QEOracleConfig(BaseOracleConfig):
     @classmethod
     def validate_max_workers(cls, v: int) -> int:
         import os
+
         cpu_count = os.cpu_count() or 1
         if v > cpu_count * 2:
             msg = f"max_workers {v} seems too high for {cpu_count} CPUs"
@@ -114,6 +115,7 @@ OracleConfig = MockOracleConfig | QEOracleConfig | VASPOracleConfig
 
 # --- Physics Baseline Config ---
 
+
 class PhysicsBaselineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["lj", "zbl"]
@@ -131,7 +133,10 @@ class PacemakerInputConfig(BaseModel):
     Configuration model for Pacemaker input.yaml file.
     Only includes fields we control dynamically.
     """
-    model_config = ConfigDict(extra="allow")  # Allow extra fields to support custom Pacemaker options
+
+    model_config = ConfigDict(
+        extra="allow"
+    )  # Allow extra fields to support custom Pacemaker options
 
     cutoff: float
     data: dict[str, str]
@@ -212,7 +217,21 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
     thermo_freq: int = 100
 
 
-DynamicsConfig = MockDynamicsConfig | LAMMPSDynamicsConfig
+class EONDynamicsConfig(BaseDynamicsConfig):
+    name: Literal[DynamicsType.EON] = DynamicsType.EON
+    temperature: float = 300.0
+    time_step: float = (
+        1.0  # Time per step in seconds (approx) or similar EON param? EON calculates time.
+    )
+    # EON usually runs for a number of events or time.
+    n_events: int = 1000
+    supercell: list[int] = Field(default_factory=lambda: [1, 1, 1])
+    # EON specific params
+    prefactor: float = 1e12
+    seed: int | None = None
+
+
+DynamicsConfig = MockDynamicsConfig | LAMMPSDynamicsConfig | EONDynamicsConfig
 
 
 # --- Validator Configs ---
@@ -256,6 +275,7 @@ class ComponentsConfig(BaseModel):
 
 class OrchestratorConfig(BaseModel):
     """Configuration for Orchestrator paths and behavior."""
+
     model_config = ConfigDict(extra="forbid")
 
     dataset_filename: str = "dataset.jsonl"

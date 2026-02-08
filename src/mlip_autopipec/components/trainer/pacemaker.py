@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 import subprocess
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,6 +13,7 @@ from mlip_autopipec.components.trainer.base import BaseTrainer
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models.config import PacemakerInputConfig, PacemakerTrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
@@ -86,17 +90,17 @@ class PacemakerTrainer(BaseTrainer):
         potential_path = safe_workdir / self.config.potential_filename
 
         if not potential_path.exists():
-             # Try to find any yace file
-             yace_files = list(workdir.glob("*.yace"))
-             # Filter out input potential if it exists
-             yace_files = [p for p in yace_files if p.name != "input_potential.yace"]
+            # Try to find any yace file
+            yace_files = list(workdir.glob("*.yace"))
+            # Filter out input potential if it exists
+            yace_files = [p for p in yace_files if p.name != "input_potential.yace"]
 
-             if yace_files:
-                 # Pick the newest one
-                 potential_path = sorted(yace_files, key=lambda p: p.stat().st_mtime)[-1]
-             else:
-                 msg = f"Training finished but no .yace file found in {workdir}"
-                 raise RuntimeError(msg)
+            if yace_files:
+                # Pick the newest one
+                potential_path = sorted(yace_files, key=lambda p: p.stat().st_mtime)[-1]
+            else:
+                msg = f"Training finished but no .yace file found in {workdir}"
+                raise RuntimeError(msg)
 
         logger.info(f"Training completed. Potential saved to {potential_path}")
 
@@ -104,8 +108,8 @@ class PacemakerTrainer(BaseTrainer):
         metrics = {"energy_rmse": 0.0, "force_rmse": 0.0}
         metrics_path = workdir / "metrics.json"
         if metrics_path.exists():
-             # Load metrics if available
-             pass
+            # Load metrics if available
+            pass
 
         return Potential(
             path=potential_path,
@@ -115,26 +119,27 @@ class PacemakerTrainer(BaseTrainer):
         )
 
     def _generate_input_yaml(
-        self,
-        output_path: Path,
-        data_path: Path,
-        previous_potential: Potential | None
+        self, output_path: Path, data_path: Path, previous_potential: Potential | None
     ) -> None:
         # Physics Baseline injection
         physics_baseline = None
         if self.config.physics_baseline:
             physics_baseline = {
                 "type": self.config.physics_baseline.type,
-                "params": self.config.physics_baseline.params
+                "params": self.config.physics_baseline.params,
             }
 
         # Initial Potential (Fine-tuning)
         initial_potential_path = None
         if previous_potential:
             # Validate existing potential path
-            initial_potential_path = str(validate_safe_path(previous_potential.path, must_exist=True))
+            initial_potential_path = str(
+                validate_safe_path(previous_potential.path, must_exist=True)
+            )
         elif self.config.initial_potential:
-            initial_potential_path = str(validate_safe_path(Path(self.config.initial_potential), must_exist=True))
+            initial_potential_path = str(
+                validate_safe_path(Path(self.config.initial_potential), must_exist=True)
+            )
 
         # Basic configuration structure using Pydantic model
         # Merge explicit options with user-provided overrides
@@ -147,11 +152,9 @@ class PacemakerTrainer(BaseTrainer):
                 "weight_energy": self.config.fitting_weight_energy,
                 "weight_force": self.config.fitting_weight_force,
             },
-            "backend": {
-                "evaluator": self.config.backend_evaluator
-            },
+            "backend": {"evaluator": self.config.backend_evaluator},
             "b_basis": {
-                 "max_degree": self.config.basis_size # Rough mapping
+                "max_degree": self.config.basis_size  # Rough mapping
             },
             "physics_baseline": physics_baseline,
             "initial_potential": initial_potential_path,
@@ -187,6 +190,46 @@ class PacemakerTrainer(BaseTrainer):
             msg = f"pace_train failed: {e.stderr}"
             logger.exception(msg)
             raise RuntimeError(msg) from e
+
+    def select_active_set(
+        self, candidates: list[Structure], limit: int | None = None
+    ) -> list[Structure]:
+        """
+        Select active set from candidates using Pacemaker's ActiveSetSelector.
+        """
+        if not candidates:
+            return []
+
+        limit = limit or self.config.active_set_limit
+        # If we have fewer candidates than limit, selection is trivial
+        if len(candidates) <= limit:
+            return candidates
+
+        # Use a temporary directory for selection
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            data_path = tmp_path / "candidates.extxyz"
+            dataset = Dataset(data_path, root_dir=tmp_path)
+
+            # Write candidates
+            dataset.append(candidates)
+
+            # Run selector
+            selector = ActiveSetSelector(limit=limit)
+            activeset_path = tmp_path / "selected.extxyz"
+
+            try:
+                selected_path = selector.select(data_path, activeset_path)
+
+                # Read back
+                # Reuse Dataset to read
+                selected_dataset = Dataset(selected_path, root_dir=tmp_path)
+                # Read all
+                return list(selected_dataset)
+            except Exception as e:
+                logger.warning(f"Active set selection failed during exploration: {e}. Returning random subset.")
+                # Fallback: simple slice
+                return candidates[:limit]
 
     def __repr__(self) -> str:
         return f"<PacemakerTrainer(name={self.name}, config={self.config})>"

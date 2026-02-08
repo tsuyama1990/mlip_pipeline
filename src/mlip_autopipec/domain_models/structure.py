@@ -255,7 +255,7 @@ class Structure(BaseModel):
             raise ValueError(msg) from e
 
         if not isinstance(atomic_numbers, np.ndarray):
-             atomic_numbers = np.array(atomic_numbers)
+            atomic_numbers = np.array(atomic_numbers)
 
         if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
             msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
@@ -272,12 +272,12 @@ class Structure(BaseModel):
             raise ValueError(msg) from e
 
         if positions.ndim != 2 or positions.shape[1] != 3:
-             msg = f"Positions must be (N, 3), got {positions.shape}"
-             raise ValueError(msg)
+            msg = f"Positions must be (N, 3), got {positions.shape}"
+            raise ValueError(msg)
 
         if len(positions) != n_atoms:
-             msg = f"Mismatch: positions={len(positions)}, atomic_numbers={n_atoms}"
-             raise ValueError(msg)
+            msg = f"Mismatch: positions={len(positions)}, atomic_numbers={n_atoms}"
+            raise ValueError(msg)
 
         if not np.all(np.isfinite(positions)):
             msg = "Positions contain non-finite values"
@@ -288,11 +288,11 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_cell_pbc(atoms: Atoms) -> tuple[np.ndarray, np.ndarray]:
         try:
-             cell = np.array(atoms.get_cell())  # type: ignore[no-untyped-call]
-             pbc = atoms.get_pbc()  # type: ignore[no-untyped-call]
+            cell = np.array(atoms.get_cell())  # type: ignore[no-untyped-call]
+            pbc = atoms.get_pbc()  # type: ignore[no-untyped-call]
         except Exception as e:
-             msg = f"Failed to get cell/pbc from ASE atoms: {e}"
-             raise ValueError(msg) from e
+            msg = f"Failed to get cell/pbc from ASE atoms: {e}"
+            raise ValueError(msg) from e
         return cell, pbc
 
     @staticmethod

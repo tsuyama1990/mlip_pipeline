@@ -34,9 +34,7 @@ class QECalculator:
         return Espresso(**params)  # type: ignore[no-untyped-call]
 
 
-def _process_single_structure(
-    structure_json: str, config: QEOracleConfig
-) -> str | None:
+def _process_single_structure(structure_json: str, config: QEOracleConfig) -> str | None:
     """
     Process a single structure in a separate process.
     """
@@ -130,7 +128,9 @@ class QEOracle(BaseOracle):
                         # - We haven't reached max tasks (max_pending)
                         # - AND (we have room in atom budget OR it's the only task)
                         if len(futures) < max_pending:
-                            if pending_atoms == 0 or (pending_atoms + n_atoms <= max_atoms_in_flight):
+                            if pending_atoms == 0 or (
+                                pending_atoms + n_atoms <= max_atoms_in_flight
+                            ):
                                 can_submit = True
                             elif n_atoms > max_atoms_in_flight:
                                 logger.warning(
@@ -145,7 +145,7 @@ class QEOracle(BaseOracle):
                         future = executor.submit(
                             _process_single_structure,
                             pending_structure.model_dump_json(),
-                            self.config
+                            self.config,
                         )
                         futures[future] = n_atoms
                         pending_atoms += n_atoms
