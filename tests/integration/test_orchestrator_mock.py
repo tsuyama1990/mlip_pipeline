@@ -7,6 +7,13 @@ from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import GlobalConfig, OracleConfig
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
 
 
 @pytest.fixture
@@ -18,21 +25,21 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
             "logging_level": "INFO",
             "components": {
                 "generator": {
-                    "name": "mock",
+                    "name": GeneratorType.MOCK,
                     "n_structures": 5,
                     # Explicitly required params
                     "cell_size": 10.0,
                     "n_atoms": 2,
                     "atomic_numbers": [1, 1],
                 },
-                "oracle": {"name": "mock"},
-                "trainer": {"name": "mock"},
+                "oracle": {"name": OracleType.MOCK},
+                "trainer": {"name": TrainerType.MOCK},
                 "dynamics": {
-                    "name": "mock",
+                    "name": DynamicsType.MOCK,
                     "selection_rate": 1.0,
                     "uncertainty_threshold": 5.0,  # Required for mock now
                 },
-                "validator": {"name": "mock"},
+                "validator": {"name": ValidatorType.MOCK},
             },
         }
     )

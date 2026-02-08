@@ -7,13 +7,14 @@ from mlip_autopipec.components.generator.builder import BulkBuilder, SurfaceBuil
 from mlip_autopipec.components.generator.policy import ExplorationPolicy
 from mlip_autopipec.components.generator.rattle import RattleTransform, StrainTransform
 from mlip_autopipec.domain_models.config import GeneratorConfig
+from mlip_autopipec.domain_models.enums import GeneratorType
 from mlip_autopipec.domain_models.structure import Structure
 
 
 class TestBulkBuilder:
     def test_build_bulk(self) -> None:
         config = GeneratorConfig(
-            name="adaptive",
+            name=GeneratorType.ADAPTIVE,
             element="Fe",
             crystal_structure="bcc",
             strain_range=0.0,
@@ -34,7 +35,7 @@ class TestBulkBuilder:
 class TestSurfaceBuilder:
     def test_build_surface(self) -> None:
         config = GeneratorConfig(
-            name="adaptive",
+            name=GeneratorType.ADAPTIVE,
             element="Fe",
             crystal_structure="bcc",
             surface_indices=[[1, 0, 0]],

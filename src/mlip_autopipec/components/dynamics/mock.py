@@ -47,6 +47,11 @@ class MockDynamics(BaseDynamics):
         # Optimize using geometric skipping to minimize RNG calls
         iterator = iter(start_structures)
 
+        # Pre-compute log(1-p) for optimization
+        log_1_minus_p = 0.0
+        if 0.0 < selection_rate < 1.0:
+            log_1_minus_p = math.log(1 - selection_rate)
+
         while True:
             # Determine how many items to skip
             # If selection_rate is 1.0, we take everything (skip=0)
@@ -60,7 +65,7 @@ class MockDynamics(BaseDynamics):
                 r = random.random()  # noqa: S311
                 if r == 0.0:
                     r = 1e-10  # Avoid log(0)
-                skip = int(math.log(r) / math.log(1 - selection_rate))
+                skip = int(math.log(r) / log_1_minus_p)
 
             # Consume 'skip' items
             try:

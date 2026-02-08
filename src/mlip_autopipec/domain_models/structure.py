@@ -41,7 +41,7 @@ class Structure(BaseModel):
     their presence for labeled datasets.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", validate_assignment=True)
 
     positions: NumpyArray
     atomic_numbers: NumpyArray
@@ -124,7 +124,7 @@ class Structure(BaseModel):
     @classmethod
     def validate_stress_shape(cls, v: np.ndarray | None) -> np.ndarray | None:
         if v is not None and v.shape not in ((3, 3), (6,)):
-            msg = f"Stress must be (3, 3) or (6,), got {v.shape}"
+            msg = f"Stress must be (3, 3) or (6,). Conversion should happen before validation. Got {v.shape}"
             raise ValueError(msg)
         return v
 

@@ -25,14 +25,14 @@ src/mlip_autopipec/__init__.py                            0      0   100%
 src/mlip_autopipec/components/__init__.py                 0      0   100%
 src/mlip_autopipec/components/dynamics/__init__.py        3      0   100%
 src/mlip_autopipec/components/dynamics/base.py           12      1    92%   13
-src/mlip_autopipec/components/dynamics/mock.py           34      2    94%   56, 62
+src/mlip_autopipec/components/dynamics/mock.py           37      2    95%   61, 67
 src/mlip_autopipec/components/generator/__init__.py       4      0   100%
 src/mlip_autopipec/components/generator/adaptive.py      59     13    78%   56-72, 110-111, 131
 src/mlip_autopipec/components/generator/base.py          12      1    92%   13
 src/mlip_autopipec/components/generator/builder.py       46     10    78%   34-35, 37-38, 61-62, 64-65, 67-68
 src/mlip_autopipec/components/generator/mock.py          44     13    70%   27-30, 37-38, 41-42, 45-46, 67-68, 73
 src/mlip_autopipec/components/generator/policy.py        41      3    93%   38, 75-76
-src/mlip_autopipec/components/generator/rattle.py        34      2    94%   35, 58
+src/mlip_autopipec/components/generator/rattle.py        32      2    94%   33, 54
 src/mlip_autopipec/components/oracle/__init__.py          3      0   100%
 src/mlip_autopipec/components/oracle/base.py             11      1    91%   12
 src/mlip_autopipec/components/oracle/mock.py             22      2    91%   18-19
@@ -43,7 +43,7 @@ src/mlip_autopipec/components/validator/__init__.py       3      0   100%
 src/mlip_autopipec/components/validator/base.py          11      1    91%   12
 src/mlip_autopipec/components/validator/mock.py          10      0   100%
 src/mlip_autopipec/core/__init__.py                       0      0   100%
-src/mlip_autopipec/core/dataset.py                       87     22    75%   19-23, 28, 35-38, 49-50, 56-58, 93-94, 99, 106, 113-115
+src/mlip_autopipec/core/dataset.py                       86     22    74%   19-23, 28, 35-38, 49-50, 56-58, 94-95, 100, 107, 114-116
 src/mlip_autopipec/core/orchestrator.py                  65      7    89%   30, 67-73
 src/mlip_autopipec/core/state.py                         28      1    96%   27
 src/mlip_autopipec/domain_models/__init__.py              4      0   100%
@@ -59,4 +59,4 @@ src/mlip_autopipec/utils/__init__.py                      0      0   100%
 src/mlip_autopipec/utils/logging.py                      13     13     0%   1-19
 -----------------------------------------------------------------------------------
 TOTAL                                                   893    148    83%
-============================== 39 passed in 2.65s ==============================
+============================== 39 passed in 2.57s ==============================

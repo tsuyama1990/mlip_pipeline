@@ -13,19 +13,36 @@ from mlip_autopipec.domain_models.config import (
     TrainerConfig,
     ValidatorConfig,
 )
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
 from mlip_autopipec.factory import ComponentFactory
 
 
 def test_factory_creation() -> None:
     # Use valid configs for factory creation
-    gen_config = GeneratorConfig(cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
-    dyn_config = DynamicsConfig(selection_rate=0.5, uncertainty_threshold=5.0)
+    gen_config = GeneratorConfig(
+        name=GeneratorType.MOCK, cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1]
+    )
+    dyn_config = DynamicsConfig(
+        name=DynamicsType.MOCK, selection_rate=0.5, uncertainty_threshold=5.0
+    )
 
     assert isinstance(ComponentFactory.get_generator(gen_config), MockGenerator)
-    assert isinstance(ComponentFactory.get_oracle(OracleConfig()), MockOracle)
-    assert isinstance(ComponentFactory.get_trainer(TrainerConfig()), MockTrainer)
+    assert isinstance(
+        ComponentFactory.get_oracle(OracleConfig(name=OracleType.MOCK)), MockOracle
+    )
+    assert isinstance(
+        ComponentFactory.get_trainer(TrainerConfig(name=TrainerType.MOCK)), MockTrainer
+    )
     assert isinstance(ComponentFactory.get_dynamics(dyn_config), MockDynamics)
-    assert isinstance(ComponentFactory.get_validator(ValidatorConfig()), MockValidator)
+    assert isinstance(
+        ComponentFactory.get_validator(ValidatorConfig(name=ValidatorType.MOCK)), MockValidator
+    )
 
 
 def test_factory_invalid_role() -> None:
@@ -43,7 +60,12 @@ def test_factory_invalid_type() -> None:
     # If I use a name not in registry but valid in Config:
     with pytest.raises(ValueError, match="Unknown component type"):
         ComponentFactory.get_generator(
-            GeneratorConfig(name="random", cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
+            GeneratorConfig(
+                name=GeneratorType.RANDOM,
+                cell_size=10.0,
+                n_atoms=2,
+                atomic_numbers=[1, 1],
+            )
         )
 
 

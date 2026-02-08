@@ -81,7 +81,8 @@ class Dataset:
                 for s in structures:
                     # Enforce data integrity
                     s.validate_labeled()
-                    s.validate_consistency()
+                    # validate_consistency is handled by Pydantic model validator
+                    # when object is created or assigned (validate_assignment=True)
                     f.write(s.model_dump_json() + "\n")
                     count += 1
                     added += 1

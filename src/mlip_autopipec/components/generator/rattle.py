@@ -29,8 +29,6 @@ class RattleTransform(StructureTransform):
         self.stdev = stdev
 
     def apply(self, structure: Structure) -> Structure:
-        structure.validate_consistency()
-
         if self.stdev <= 0:
             return structure
 
@@ -52,8 +50,6 @@ class StrainTransform(StructureTransform):
         self.strain_range = strain_range
 
     def apply(self, structure: Structure) -> Structure:
-        structure.validate_consistency()
-
         if self.strain_range <= 0:
             return structure
 
