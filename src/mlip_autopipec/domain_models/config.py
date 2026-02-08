@@ -3,6 +3,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
+
 
 class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -10,7 +18,7 @@ class ComponentConfig(BaseModel):
 
 
 class GeneratorConfig(ComponentConfig):
-    name: Literal["adaptive", "random", "mock"] = "mock"
+    name: GeneratorType = GeneratorType.MOCK
     n_structures: int = Field(default=10, gt=0)
 
     # Adaptive / Real generation parameters
@@ -21,6 +29,11 @@ class GeneratorConfig(ComponentConfig):
     surface_indices: list[list[int]] | None = None
     vacuum: float = 10.0
     supercell_dim: int = 2
+
+    # Policy Ratios (Configurable)
+    policy_ratios: dict[str, float] = Field(
+        default_factory=lambda: {"cycle0_bulk": 0.6, "cycle0_surface": 0.4}
+    )
 
     # Mock specific parameters - Made optional to support adaptive mode
     cell_size: float | None = Field(default=None, gt=0)
@@ -34,7 +47,7 @@ class GeneratorConfig(ComponentConfig):
 
 
 class OracleConfig(ComponentConfig):
-    name: Literal["qe", "vasp", "mock"] = "mock"
+    name: OracleType = OracleType.MOCK
 
     # Spec parameters
     kspacing: float | None = None
@@ -44,14 +57,14 @@ class OracleConfig(ComponentConfig):
 
 
 class TrainerConfig(ComponentConfig):
-    name: Literal["pacemaker", "mock"] = "mock"
+    name: TrainerType = TrainerType.MOCK
     max_num_epochs: int = 50
     energy_rmse_threshold: float | None = None
     force_rmse_threshold: float | None = None
 
 
 class DynamicsConfig(ComponentConfig):
-    name: Literal["lammps", "mock"] = "mock"
+    name: DynamicsType = DynamicsType.MOCK
     uncertainty_threshold: float = 5.0
 
     # Mock specific - REQUIRED
@@ -59,7 +72,7 @@ class DynamicsConfig(ComponentConfig):
 
 
 class ValidatorConfig(ComponentConfig):
-    name: Literal["standard", "mock"] = "mock"
+    name: ValidatorType = ValidatorType.MOCK
     test_set_ratio: float = 0.1
 
 

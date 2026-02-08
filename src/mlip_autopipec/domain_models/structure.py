@@ -180,9 +180,15 @@ class Structure(BaseModel):
         # But Structure.tags is dict[str, Any].
         tags = atoms.info.copy()
 
+        # Validation: check atomic numbers
+        atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+        if np.any((atomic_numbers < 1) | (atomic_numbers > 118)):
+            msg = "Atomic numbers must be between 1 and 118"
+            raise ValueError(msg)
+
         return cls(
             positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
-            atomic_numbers=atoms.get_atomic_numbers(),  # type: ignore[no-untyped-call]
+            atomic_numbers=atomic_numbers,
             cell=np.array(atoms.get_cell()),  # type: ignore[no-untyped-call]
             pbc=atoms.get_pbc(),  # type: ignore[no-untyped-call]
             forces=forces,

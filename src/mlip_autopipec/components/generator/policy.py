@@ -16,7 +16,11 @@ class ExplorationPolicy:
     """Adaptive exploration policy for structure generation."""
 
     def decide_next_batch(
-        self, current_cycle: int, current_metrics: dict[str, Any], n_total: int
+        self,
+        current_cycle: int,
+        current_metrics: dict[str, Any],
+        n_total: int,
+        ratios: dict[str, float] | None = None,
     ) -> list[GenerationTask]:
         """
         Decide the composition of the next batch of structures.
@@ -25,6 +29,7 @@ class ExplorationPolicy:
             current_cycle: Current active learning cycle number.
             current_metrics: Metrics from previous cycles (e.g. validation errors).
             n_total: Total number of structures to generate.
+            ratios: Optional dictionary of policy ratios (e.g. 'cycle0_bulk').
 
         Returns:
             List of GenerationTask objects specifying what to generate.
@@ -32,12 +37,17 @@ class ExplorationPolicy:
         if n_total <= 0:
             return []
 
+        if ratios is None:
+            ratios = {}
+
         tasks: list[GenerationTask] = []
 
         # Cycle 0: Cold Start
         if current_cycle == 0:
-            # 60% Bulk, 40% Surface (simplified from SPEC 50/30/20 as Cluster not ready)
-            n_bulk = int(n_total * 0.6)
+            # Defaults: 60% Bulk, 40% Surface (from config or fallback)
+            bulk_ratio = ratios.get("cycle0_bulk", 0.6)
+
+            n_bulk = int(n_total * bulk_ratio)
             n_surface = n_total - n_bulk
 
             if n_bulk > 0:

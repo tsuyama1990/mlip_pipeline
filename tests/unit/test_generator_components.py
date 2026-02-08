@@ -20,7 +20,7 @@ class TestBulkBuilder:
             rattle_strength=0.0,
         )
         builder = BulkBuilder()
-        structures = builder.build(n_structures=5, config=config)
+        structures = list(builder.build(n_structures=5, config=config))
 
         assert len(structures) == 5
         for s in structures:
@@ -41,7 +41,7 @@ class TestSurfaceBuilder:
             vacuum=10.0,
         )
         builder = SurfaceBuilder()
-        structures = builder.build(n_structures=2, config=config)
+        structures = list(builder.build(n_structures=2, config=config))
 
         assert len(structures) == 2
         for s in structures:

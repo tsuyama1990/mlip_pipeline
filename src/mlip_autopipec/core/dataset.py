@@ -81,6 +81,7 @@ class Dataset:
                 for s in structures:
                     # Enforce data integrity
                     s.validate_labeled()
+                    s.validate_consistency()
                     f.write(s.model_dump_json() + "\n")
                     count += 1
                     added += 1

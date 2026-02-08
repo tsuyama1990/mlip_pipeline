@@ -17,16 +17,26 @@ from mlip_autopipec.domain_models.config import (
     TrainerConfig,
     ValidatorConfig,
 )
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
 class ComponentFactory:
     _REGISTRY: ClassVar[dict[str, dict[str, type[BaseComponent[Any]]]]] = {
-        "generator": {"mock": MockGenerator, "adaptive": AdaptiveGenerator},
-        "oracle": {"mock": MockOracle},
-        "trainer": {"mock": MockTrainer},
-        "dynamics": {"mock": MockDynamics},
-        "validator": {"mock": MockValidator},
+        "generator": {
+            GeneratorType.MOCK: MockGenerator,
+            GeneratorType.ADAPTIVE: AdaptiveGenerator,
+        },
+        "oracle": {OracleType.MOCK: MockOracle},
+        "trainer": {TrainerType.MOCK: MockTrainer},
+        "dynamics": {DynamicsType.MOCK: MockDynamics},
+        "validator": {ValidatorType.MOCK: MockValidator},
     }
 
     @classmethod

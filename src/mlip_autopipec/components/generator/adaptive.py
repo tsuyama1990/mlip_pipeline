@@ -43,9 +43,9 @@ class AdaptiveGenerator(BaseGenerator):
         if config:
             # Extract runtime params that are not part of GeneratorConfig
             if "current_cycle" in config:
-                current_cycle = config.pop("current_cycle")  # type: ignore
+                current_cycle = config.pop("current_cycle")
             if "current_metrics" in config:
-                current_metrics = config.pop("current_metrics")  # type: ignore
+                current_metrics = config.pop("current_metrics")
 
         if not config:
             # If config is None or became empty after popping cycle/metrics, use base config
@@ -95,7 +95,12 @@ class AdaptiveGenerator(BaseGenerator):
         strain = StrainTransform(strain_range=run_config.strain_range)
 
         # 3. Get Tasks from Policy
-        tasks = self.policy.decide_next_batch(current_cycle, current_metrics, n_structures)
+        tasks = self.policy.decide_next_batch(
+            current_cycle,
+            current_metrics,
+            n_structures,
+            ratios=run_config.policy_ratios,
+        )
 
         # 4. Execute Tasks
         generated_count = 0
