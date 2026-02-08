@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -12,6 +12,12 @@ from mlip_autopipec.domain_models.enums import (
     OracleType,
     TrainerType,
     ValidatorType,
+)
+from mlip_autopipec.domain_models.files import (
+    DEFAULT_PACEMAKER_ACTIVESET_FILENAME,
+    DEFAULT_PACEMAKER_DATASET_FILENAME,
+    DEFAULT_PACEMAKER_INPUT_FILENAME,
+    DEFAULT_PACEMAKER_POTENTIAL_FILENAME,
 )
 
 
@@ -106,6 +112,30 @@ class VASPOracleConfig(BaseOracleConfig):
 OracleConfig = MockOracleConfig | QEOracleConfig | VASPOracleConfig
 
 
+# --- Physics Baseline Config ---
+
+class PhysicsBaselineConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["lj", "zbl"]
+    params: dict[str, float] = Field(default_factory=dict)
+
+
+class PacemakerInputConfig(BaseModel):
+    """
+    Configuration model for Pacemaker input.yaml file.
+    Only includes fields we control dynamically.
+    """
+    model_config = ConfigDict(extra="ignore")  # Allow extra fields for now as we don't map everything
+
+    cutoff: float
+    data: dict[str, str]
+    fitting: dict[str, float]
+    backend: dict[str, str]
+    b_basis: dict[str, int]
+    physics_baseline: dict[str, Any] | None = None
+    initial_potential: str | None = None
+
+
 # --- Trainer Configs ---
 
 
@@ -126,6 +156,18 @@ class PacemakerTrainerConfig(BaseTrainerConfig):
     regularization: list[float] = Field(default_factory=lambda: [1e-3, 1e-4])
     ladder_step: list[int] = Field(default_factory=lambda: [1, 2, 3])
     batch_size: int = 32
+    fitting_weight_energy: float = 1.0
+    fitting_weight_force: float = 1.0
+    backend_evaluator: str = "tensorpot"
+    active_set_selection: bool = True
+    active_set_limit: int = 1000
+    initial_potential: str | Path | None = None
+    physics_baseline: PhysicsBaselineConfig | None = None
+    input_filename: str = DEFAULT_PACEMAKER_INPUT_FILENAME
+    dataset_filename: str = DEFAULT_PACEMAKER_DATASET_FILENAME
+    potential_filename: str = DEFAULT_PACEMAKER_POTENTIAL_FILENAME
+    activeset_filename: str = DEFAULT_PACEMAKER_ACTIVESET_FILENAME
+    data_format: Literal["extxyz", "pckl.gzip"] = "extxyz"
 
 
 TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig
@@ -177,7 +219,6 @@ class StandardValidatorConfig(BaseValidatorConfig):
 
 ValidatorConfig = MockValidatorConfig | StandardValidatorConfig
 
-
 # --- Global Config ---
 
 
@@ -208,6 +249,7 @@ class GlobalConfig(BaseModel):
     workdir: Path
     max_cycles: int = Field(gt=0)
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    physics_baseline: PhysicsBaselineConfig | None = None
 
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     components: ComponentsConfig

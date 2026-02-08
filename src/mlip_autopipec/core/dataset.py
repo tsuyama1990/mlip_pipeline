@@ -1,9 +1,13 @@
+import gzip
 import json
 import logging
+import pickle
 from collections.abc import Iterable, Iterator
 from itertools import islice
 from pathlib import Path
 from typing import Any, cast
+
+import pandas as pd
 
 from mlip_autopipec.constants import DEFAULT_BUFFER_SIZE
 from mlip_autopipec.domain_models.structure import Structure
@@ -166,6 +170,8 @@ class Dataset:
             return
 
         try:
+            # Using a buffer size here is handled by io.TextIOWrapper default behavior (typically 8kb)
+            # This ensures we don't read the whole file at once.
             with self.path.open("r") as f:
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
@@ -200,3 +206,79 @@ class Dataset:
             if not batch:
                 break
             yield batch
+
+    def to_extxyz(self, output_path: Path, chunk_size: int = 10000) -> None:
+        """
+        Export dataset to extended XYZ format using streaming.
+        Uses ASE's write method in append mode for scalability.
+        """
+        from ase.io import write
+
+        # Clear file if it exists
+        if output_path.exists():
+            output_path.unlink()
+
+        # Batch processing loop to prevent memory overload
+        for batch in self.iter_batches(batch_size=chunk_size):
+            # Convert only current batch to ASE atoms
+            atoms_list = [s.to_ase() for s in batch]
+            # Append current batch to file
+            write(output_path, atoms_list, format="extxyz", append=True)
+            # Explicitly clear batch to help GC
+            del atoms_list
+            del batch
+
+        logger.info(f"Exported dataset to {output_path} in extxyz format")
+
+    def to_pacemaker_gzip(self, output_path: Path, chunk_size: int = 10000) -> None:
+        """
+        Export dataset to a gzipped pickle file for Pacemaker.
+
+        WARNING: This method loads the entire dataset into memory as a Pandas DataFrame
+        before pickling, as required by the legacy Pacemaker input format.
+        For large datasets (>100k structures), use `to_extxyz` instead to avoid OOM errors.
+
+        Args:
+            output_path: Destination path.
+            chunk_size: Size of chunks for processing (internal optimization).
+        """
+        # Validate output path
+        if not output_path.parent.exists():
+            msg = f"Output parent directory does not exist: {output_path.parent}"
+            raise ValueError(msg)
+
+        chunks = []
+        # Process in chunks to avoid creating a massive list of dicts at once
+        for batch in self.iter_batches(batch_size=chunk_size):
+            batch_data = []
+            for s in batch:
+                atoms = s.to_ase()
+                row: dict[str, Any] = {"ase_atoms": atoms}
+                if s.energy is not None:
+                    row["energy"] = s.energy
+                if s.forces is not None:
+                    row["forces"] = s.forces
+                if s.stress is not None:
+                    row["stress"] = s.stress
+                batch_data.append(row)
+
+            if batch_data:
+                # Convert chunk to DF immediately to free dicts
+                chunks.append(pd.DataFrame(batch_data))
+                del batch_data
+
+        if not chunks:
+            df = pd.DataFrame()
+        else:
+            df = pd.concat(chunks, ignore_index=True)
+            del chunks
+
+        # Pacemaker expects a pickled DataFrame
+        try:
+            with gzip.open(output_path, "wb") as f:
+                pickle.dump(df, f)
+            del df
+            logger.info(f"Exported dataset to {output_path}")
+        except OSError:
+            logger.exception(f"Failed to export dataset to {output_path}")
+            raise
