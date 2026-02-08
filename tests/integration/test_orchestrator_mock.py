@@ -1,10 +1,13 @@
-import pytest
 from pathlib import Path
 from typing import Any
-from mlip_autopipec.core.orchestrator import Orchestrator
-from mlip_autopipec.domain_models.config import GlobalConfig, OracleConfig
+
+import pytest
+
 from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.core.dataset import Dataset
+from mlip_autopipec.core.orchestrator import Orchestrator
+from mlip_autopipec.domain_models.config import GlobalConfig, OracleConfig
+
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:
@@ -13,10 +16,20 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
         "max_cycles": 2,
         "logging_level": "INFO",
         "components": {
-            "generator": {"name": "mock", "n_structures": 5},
+            "generator": {
+                "name": "mock",
+                "n_structures": 5,
+                # Explicitly required params
+                "cell_size": 10.0,
+                "n_atoms": 2,
+                "atomic_numbers": [1, 1]
+            },
             "oracle": {"name": "mock"},
             "trainer": {"name": "mock"},
-            "dynamics": {"name": "mock", "selection_rate": 1.0},
+            "dynamics": {
+                "name": "mock",
+                "selection_rate": 1.0
+            },
             "validator": {"name": "mock"}
         }
     })
@@ -43,19 +56,27 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     assert dataset_path.exists()
 
     # Verify data flow: check if structures have been processed
-    # Cycle 1: 5 structures
+    # Cycle 1: 5 structures (selection_rate=1.0)
     # Cycle 2: 5 structures selected from generated
-    # Total should be around 10 depending on implementation details
-    # We at least check that the file is not empty and contains valid structures
+    # Total should be 10
     dataset = Dataset(dataset_path)
-    count = 0
-    for s in dataset:
-        count += 1
+    structures = list(dataset)
+    count = len(structures)
+
+    # We expect 10 structures because selection_rate is 1.0 and n_structures is 5 for each cycle
+    # Wait, cycle 1 uses generator directly. Cycle 2 uses generator -> dynamics.
+    # Cycle 1: 5 structures.
+    # Cycle 2: 5 generated -> dynamics (rate=1.0) -> 5 selected.
+    # Total 10.
+    assert count == 10
+
+    for s in structures:
         # Verify labeling happened
         assert s.energy is not None
         assert s.forces is not None
         assert s.stress is not None
-    assert count > 0
+        # Verify integrity
+        s.validate_labeled()
 
     # Check state
     assert (tmp_path / "workflow_state.json").exists()

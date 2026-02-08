@@ -22,12 +22,16 @@ def test_dataset_append_and_read(tmp_path: Path) -> None:
 
     structures = []
     for _ in range(3):
+        # Must be labeled
         structures.append(
             Structure(
                 positions=np.zeros((1, 3)),
                 atomic_numbers=np.array([1]),
                 cell=np.eye(3),
                 pbc=np.array([True, True, True]),
+                energy=-1.0,
+                forces=np.zeros((1, 3)),
+                stress=np.zeros(6),
             )
         )
 
@@ -38,6 +42,8 @@ def test_dataset_append_and_read(tmp_path: Path) -> None:
     assert len(loaded_structures) == 3
     for s in loaded_structures:
         assert isinstance(s, Structure)
+        # Check integrity
+        s.validate_labeled()
 
 
 def test_dataset_persistence(tmp_path: Path) -> None:
@@ -50,6 +56,9 @@ def test_dataset_persistence(tmp_path: Path) -> None:
             atomic_numbers=np.array([1]),
             cell=np.eye(3),
             pbc=np.array([True, True, True]),
+            energy=-1.0,
+            forces=np.zeros((1, 3)),
+            stress=np.zeros(6),
         )
     ]
     dataset1.append(structures)
@@ -70,6 +79,9 @@ def test_dataset_streaming_append(tmp_path: Path) -> None:
                 atomic_numbers=np.array([1]),
                 cell=np.eye(3),
                 pbc=np.array([True, True, True]),
+                energy=-1.0,
+                forces=np.zeros((1, 3)),
+                stress=np.zeros(6),
             )
         )
 
@@ -89,6 +101,9 @@ def test_dataset_malformed_lines(tmp_path: Path, caplog: pytest.LogCaptureFixtur
         atomic_numbers=np.array([1]),
         cell=np.eye(3),
         pbc=np.array([True, True, True]),
+        energy=-1.0,
+        forces=np.zeros((1, 3)),
+        stress=np.zeros(6),
     )
     dataset.append([good_structure])
 
@@ -120,3 +135,17 @@ def test_dataset_invalid_meta(tmp_path: Path) -> None:
 
     with pytest.raises(TypeError, match="Metadata 'count' must be an integer"):
         len(dataset)
+
+def test_dataset_validate_integrity_on_append(tmp_path: Path) -> None:
+    dataset = Dataset(tmp_path / "dataset.jsonl")
+
+    # Structure without labels
+    s = Structure(
+        positions=np.zeros((1, 3)),
+        atomic_numbers=np.array([1]),
+        cell=np.eye(3),
+        pbc=np.array([True, True, True]),
+    )
+
+    with pytest.raises(ValueError, match="Structure missing energy label"):
+        dataset.append([s])

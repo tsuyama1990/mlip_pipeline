@@ -20,6 +20,7 @@ class MockDynamics(BaseDynamics):
         # In Cycle 01, start_structures might be just generated ones.
         # Randomly select subset
         for s in start_structures:
+            # secrets.randbelow(100) returns [0, 99], /100.0 -> [0.0, 0.99]
             if (secrets.randbelow(100) / 100.0) < selection_rate:
                 yield s
                 count += 1

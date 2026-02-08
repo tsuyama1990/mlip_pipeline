@@ -14,10 +14,15 @@ def test_config_valid(tmp_path: Path) -> None:
         "max_cycles": 10,
         "logging_level": "INFO",
         "components": {
-            "generator": {"name": "mock"},
+            "generator": {
+                "name": "mock",
+                "cell_size": 10.0,
+                "n_atoms": 2,
+                "atomic_numbers": [1, 1]
+            },
             "oracle": {"name": "mock"},
             "trainer": {"name": "mock"},
-            "dynamics": {"name": "mock"},
+            "dynamics": {"name": "mock", "selection_rate": 0.5},
             "validator": {"name": "mock"},
         }
     }
@@ -25,6 +30,7 @@ def test_config_valid(tmp_path: Path) -> None:
     config = GlobalConfig.model_validate(config_dict)
     assert config.max_cycles == 10
     assert config.components.generator.name == "mock"
+    assert config.components.generator.cell_size == 10.0
 
 
 def test_config_missing_components(tmp_path: Path) -> None:
@@ -33,7 +39,15 @@ def test_config_missing_components(tmp_path: Path) -> None:
         GlobalConfig.model_validate({
             "workdir": tmp_path,
             "max_cycles": 10,
-            "components": {"generator": {"name": "mock"}},  # Missing others
+            "components": {
+                "generator": {
+                    "name": "mock",
+                    "cell_size": 10.0,
+                    "n_atoms": 2,
+                    "atomic_numbers": [1, 1]
+                }
+                # Missing others
+            },
         })
 
     # Check that error mentions missing fields (e.g. 'oracle', 'trainer', etc.)
@@ -43,10 +57,16 @@ def test_config_missing_components(tmp_path: Path) -> None:
 
 def test_config_extra_forbidden(tmp_path: Path) -> None:
     components: dict[str, dict[str, Any]] = {
-        "generator": {"name": "mock", "extra_field": 123},
+        "generator": {
+            "name": "mock",
+            "extra_field": 123,
+            "cell_size": 10.0,
+            "n_atoms": 2,
+            "atomic_numbers": [1, 1]
+        },
         "oracle": {"name": "mock"},
         "trainer": {"name": "mock"},
-        "dynamics": {"name": "mock"},
+        "dynamics": {"name": "mock", "selection_rate": 0.5},
         "validator": {"name": "mock"},
     }
 

@@ -17,11 +17,14 @@ from mlip_autopipec.factory import ComponentFactory
 
 
 def test_factory_creation() -> None:
-    # Use default configs which default to mock
-    assert isinstance(ComponentFactory.get_generator(GeneratorConfig()), MockGenerator)
+    # Use valid configs for factory creation
+    gen_config = GeneratorConfig(cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
+    dyn_config = DynamicsConfig(selection_rate=0.5)
+
+    assert isinstance(ComponentFactory.get_generator(gen_config), MockGenerator)
     assert isinstance(ComponentFactory.get_oracle(OracleConfig()), MockOracle)
     assert isinstance(ComponentFactory.get_trainer(TrainerConfig()), MockTrainer)
-    assert isinstance(ComponentFactory.get_dynamics(DynamicsConfig()), MockDynamics)
+    assert isinstance(ComponentFactory.get_dynamics(dyn_config), MockDynamics)
     assert isinstance(ComponentFactory.get_validator(ValidatorConfig()), MockValidator)
 
 
@@ -39,11 +42,12 @@ def test_factory_invalid_type() -> None:
 
     # If I use a name not in registry but valid in Config:
     with pytest.raises(ValueError, match="Unknown component type"):
-        ComponentFactory.get_generator(GeneratorConfig(name="random"))
+        ComponentFactory.get_generator(GeneratorConfig(name="random", cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1]))
 
 
 def test_mock_generator_iterator() -> None:
-    generator = MockGenerator(GeneratorConfig())
+    config = GeneratorConfig(cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
+    generator = MockGenerator(config)
     structures_iter = generator.generate(n_structures=5)
 
     # Check that it returns an iterator

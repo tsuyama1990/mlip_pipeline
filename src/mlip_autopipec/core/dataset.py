@@ -49,6 +49,7 @@ class Dataset:
     def append(self, structures: Iterable[Structure]) -> None:
         """
         Append structures to the dataset line-by-line to minimize memory usage.
+        Validates that structures are labeled before appending.
 
         Args:
             structures: Iterable of Structure objects.
@@ -57,6 +58,8 @@ class Dataset:
 
         with self.path.open("a") as f:
             for s in structures:
+                # Enforce data integrity
+                s.validate_labeled()
                 f.write(s.model_dump_json() + "\n")
                 count += 1
 

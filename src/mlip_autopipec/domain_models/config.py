@@ -13,10 +13,10 @@ class GeneratorConfig(ComponentConfig):
     name: Literal["adaptive", "random", "mock"] = "mock"
     n_structures: int = Field(default=10, gt=0)
 
-    # Mock specific parameters
-    cell_size: float = 10.0
-    n_atoms: int = 2
-    atomic_numbers: list[int] = Field(default_factory=lambda: [1, 1])
+    # Mock specific parameters - REQUIRED for reproducibility and explicit config
+    cell_size: float = Field(..., gt=0)
+    n_atoms: int = Field(..., gt=0)
+    atomic_numbers: list[int] = Field(..., min_length=1)
 
     # Spec parameters
     md_mc_ratio: float | None = None
@@ -46,8 +46,8 @@ class DynamicsConfig(ComponentConfig):
     name: Literal["lammps", "mock"] = "mock"
     uncertainty_threshold: float = 5.0
 
-    # Mock specific
-    selection_rate: float = 0.5
+    # Mock specific - REQUIRED
+    selection_rate: float = Field(..., ge=0.0, le=1.0)
 
 
 class ValidatorConfig(ComponentConfig):
