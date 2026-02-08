@@ -106,6 +106,14 @@ class VASPOracleConfig(BaseOracleConfig):
 OracleConfig = MockOracleConfig | QEOracleConfig | VASPOracleConfig
 
 
+# --- Physics Baseline Config ---
+
+class PhysicsBaselineConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["lj", "zbl"]
+    params: dict[str, float] = Field(default_factory=dict)
+
+
 # --- Trainer Configs ---
 
 
@@ -126,6 +134,13 @@ class PacemakerTrainerConfig(BaseTrainerConfig):
     regularization: list[float] = Field(default_factory=lambda: [1e-3, 1e-4])
     ladder_step: list[int] = Field(default_factory=lambda: [1, 2, 3])
     batch_size: int = 32
+    fitting_weight_energy: float = 1.0
+    fitting_weight_force: float = 1.0
+    backend_evaluator: str = "tensorpot"
+    active_set_selection: bool = True
+    active_set_limit: int = 1000
+    initial_potential: str | Path | None = None
+    physics_baseline: PhysicsBaselineConfig | None = None
 
 
 TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig
@@ -177,7 +192,6 @@ class StandardValidatorConfig(BaseValidatorConfig):
 
 ValidatorConfig = MockValidatorConfig | StandardValidatorConfig
 
-
 # --- Global Config ---
 
 
@@ -208,6 +222,7 @@ class GlobalConfig(BaseModel):
     workdir: Path
     max_cycles: int = Field(gt=0)
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    physics_baseline: PhysicsBaselineConfig | None = None
 
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     components: ComponentsConfig

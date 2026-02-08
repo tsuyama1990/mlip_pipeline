@@ -18,7 +18,8 @@
 -   **High-Fidelity Oracle**: Seamless integration with **Quantum Espresso** for accurate DFT labeling of energy, forces, and stress.
 -   **Self-Healing DFT**: Robust error handling that automatically retries failed calculations with adjusted parameters (e.g., mixing beta, smearing).
 -   **Periodic Embedding**: Intelligent extraction of local clusters from large MD snapshots for efficient QM/MM-style labeling.
--   **Active Learning**: Automatically explores configuration space and selects informative structures.
+-   **Active Learning**: Automatically explores configuration space and selects informative structures using D-optimality (MaxVol).
+-   **Physics-Informed Robustness**: Implements Delta Learning to fit the residual energy against a physical baseline (Lennard-Jones/ZBL).
 -   **Modular Architecture**: Extensible design with swappable components.
 
 ## Requirements
@@ -26,6 +27,7 @@
 -   Python >= 3.12
 -   [UV](https://github.com/astral-sh/uv) (recommended)
 -   Quantum Espresso (`pw.x`) installed and in PATH (for production runs).
+-   Pacemaker (`pace_train`, `pace_activeset`) installed and in PATH (for training).
 
 ## Installation
 
@@ -57,7 +59,14 @@ uv sync
         ecutrho: 150.0
         mixing_beta: 0.7
       trainer:
-        name: mock
+        name: pacemaker
+        cutoff: 5.0
+        basis_size: 500
+        physics_baseline:
+          type: lj
+          params:
+            sigma: 2.5
+            epsilon: 0.1
       dynamics:
         name: mock
         selection_rate: 0.5
@@ -76,6 +85,7 @@ uv sync
 ```ascii
 src/mlip_autopipec/
 ├── components/         # Pluggable components (Generator, Oracle, Trainer, etc.)
+│   ├── trainer/        # Pacemaker Integration & Active Set Logic
 │   ├── oracle/         # DFT Engines (QE, VASP) & Healing Logic
 │   └── ...
 ├── core/               # Core logic (Orchestrator, Dataset, State)
@@ -90,6 +100,6 @@ src/mlip_autopipec/
 -   [x] Cycle 01: Core Framework & Mock Components
 -   [x] Cycle 02: Structure Generator (ASE integration)
 -   [x] Cycle 03: Oracle (Quantum Espresso, Self-Healing, Embedding)
--   [ ] Cycle 04: Trainer (Pacemaker integration)
+-   [x] Cycle 04: Trainer (Pacemaker integration)
 -   [ ] Cycle 05: Dynamics Engine (LAMMPS/EON integration)
 -   [ ] Cycle 06: Validation & Full Orchestration

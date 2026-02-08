@@ -140,18 +140,23 @@ def test_to_ase() -> None:
 
     atoms = s.to_ase()
     assert len(atoms) == 2
-    assert atoms.info["energy"] == energy
-    assert np.allclose(atoms.arrays["forces"], forces)
 
-    # Stress should be converted to 3x3
+    # Check labels via calculator
+    assert atoms.calc is not None
+    assert atoms.get_potential_energy() == energy
+    assert np.allclose(atoms.get_forces(), forces)
+
+    # Stress should be converted to 3x3 in Structure and preserved in Calculator
     expected_stress = np.zeros((3, 3))
     expected_stress[0, 0] = stress[0]
     expected_stress[1, 1] = stress[1]
     expected_stress[2, 2] = stress[2]
-    # ... mapping ... but zeros are zeros
+    # Structure.voigt_6_to_full_3x3 handles conversion logic (tested elsewhere)
+    # Here we just verify it matches what we expect from input
 
-    assert np.allclose(atoms.info["stress"], expected_stress)
-    assert atoms.info["stress"].shape == (3, 3)
+    # SinglePointCalculator.get_stress(voigt=False) returns 3x3
+    assert np.allclose(atoms.get_stress(voigt=False), expected_stress)
+    assert atoms.get_stress(voigt=False).shape == (3, 3)
 
 
 def test_physical_validation() -> None:

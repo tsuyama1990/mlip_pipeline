@@ -3,6 +3,7 @@ from typing import Annotated, Any, cast
 
 import numpy as np
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 from pydantic import (
     BaseModel,
     BeforeValidator,
@@ -295,19 +296,29 @@ class Structure(BaseModel):
         return energy, forces, stress
 
     def to_ase(self) -> Atoms:
+        """
+        Convert to ASE Atoms object with SinglePointCalculator for labels.
+        """
         atoms = Atoms(
-            numbers=self.atomic_numbers, positions=self.positions, cell=self.cell, pbc=self.pbc
+            numbers=self.atomic_numbers,
+            positions=self.positions,
+            cell=self.cell,
+            pbc=self.pbc,
         )
         if self.tags:
             atoms.info.update(self.tags)
 
-        if self.energy is not None:
-            atoms.info["energy"] = self.energy
-        if self.forces is not None:
-            atoms.arrays["forces"] = self.forces
-        if self.stress is not None:
-            # Storing stress as full 3x3 in info for maximum fidelity
-            atoms.info["stress"] = self.stress
         if self.uncertainty is not None:
             atoms.info["uncertainty"] = self.uncertainty
+
+        # Attach labels via SinglePointCalculator if present
+        if self.energy is not None or self.forces is not None or self.stress is not None:
+            calc = SinglePointCalculator(
+                atoms,
+                energy=self.energy,
+                forces=self.forces,
+                stress=self.stress,
+            )
+            atoms.calc = calc
+
         return atoms

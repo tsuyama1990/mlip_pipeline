@@ -1,9 +1,13 @@
+import gzip
 import json
 import logging
+import pickle
 from collections.abc import Iterable, Iterator
 from itertools import islice
 from pathlib import Path
 from typing import Any, cast
+
+import pandas as pd
 
 from mlip_autopipec.constants import DEFAULT_BUFFER_SIZE
 from mlip_autopipec.domain_models.structure import Structure
@@ -200,3 +204,39 @@ class Dataset:
             if not batch:
                 break
             yield batch
+
+    def to_pandas(self) -> pd.DataFrame:
+        """
+        Export dataset to pandas DataFrame in Pacemaker format.
+        Columns:
+            - ase_atoms: ase.Atoms object with calculator
+            - energy: potential energy
+            - forces: atomic forces
+            - stress: virial stress (optional)
+        """
+        data = []
+        for s in self:
+            atoms = s.to_ase()
+            row: dict[str, Any] = {"ase_atoms": atoms}
+            if s.energy is not None:
+                row["energy"] = s.energy
+            if s.forces is not None:
+                row["forces"] = s.forces
+            if s.stress is not None:
+                row["stress"] = s.stress
+            data.append(row)
+        return pd.DataFrame(data)
+
+    def to_pacemaker_gzip(self, output_path: Path) -> None:
+        """
+        Export dataset to a gzipped pickle file for Pacemaker.
+        """
+        df = self.to_pandas()
+        # Pacemaker expects a pickled DataFrame
+        try:
+            with gzip.open(output_path, "wb") as f:
+                pickle.dump(df, f)
+            logger.info(f"Exported dataset to {output_path}")
+        except OSError:
+            logger.exception(f"Failed to export dataset to {output_path}")
+            raise
