@@ -23,6 +23,14 @@ def run(config_path: Path) -> None:
         typer.echo(f"Config file not found: {config_path}", err=True)
         raise typer.Exit(code=1)
 
+    # Security check: Ensure config path is a file (not a directory)
+    if not config_path.is_file():
+         typer.echo(f"Config path is not a file: {config_path}", err=True)
+         raise typer.Exit(code=1)
+
+    # Basic check for trusted input is hard for a CLI tool as it runs locally.
+    # However, we can ensure we can read it.
+
     try:
         with config_path.open('r') as f:
             config_data = yaml.safe_load(f)
@@ -42,6 +50,8 @@ def run(config_path: Path) -> None:
         typer.echo("Pipeline completed successfully.")
     except Exception as e:
         typer.echo(f"Pipeline execution failed: {e}", err=True)
+        # Using logger.exception internally would be better, but here we are at CLI level.
+        # Orchestrator should have logged details.
         raise typer.Exit(code=1) from e
 
 if __name__ == "__main__":

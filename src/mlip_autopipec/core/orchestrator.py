@@ -3,6 +3,11 @@ import shutil
 from collections.abc import Iterator
 from itertools import chain
 
+from mlip_autopipec.constants import (
+    DEFAULT_DATASET_FILENAME,
+    DEFAULT_GENERATOR_COUNT,
+    DEFAULT_POTENTIAL_EXTENSION,
+)
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models import GlobalConfig, Potential, Structure
 from mlip_autopipec.factory import create_dynamics, create_generator, create_oracle, create_trainer
@@ -19,7 +24,9 @@ class Orchestrator:
         self.dynamics = create_dynamics(config.dynamics)
 
         # Initialize dataset manager
-        self.dataset_path = self.workdir / self.config.dataset_filename
+        # Use config value with constant fallback if somehow missing (though Pydantic handles defaults)
+        filename = getattr(self.config, 'dataset_filename', DEFAULT_DATASET_FILENAME)
+        self.dataset_path = self.workdir / filename
         self.dataset_manager = Dataset(self.dataset_path)
 
     def _load_dataset(self) -> Iterator[Structure]:
@@ -28,14 +35,16 @@ class Orchestrator:
 
     def _safe_copy_potential(self, potential: Potential, cycle: int) -> None:
         """Safely copies potential file to workdir."""
-        final_pot_path = self.workdir / f"potential_cycle_{cycle}{self.config.potential_extension}"
+        ext = getattr(self.config, 'potential_extension', DEFAULT_POTENTIAL_EXTENSION)
+        final_pot_path = self.workdir / f"potential_cycle_{cycle}{ext}"
         if potential.path.exists():
              try:
                 # Resolve paths to handle symlinks correctly if needed
                 src = potential.path.resolve()
                 dst = final_pot_path.resolve()
                 # Security Check: Ensure destination is within workdir
-                if not str(dst).startswith(str(self.workdir.resolve())):
+                # Use is_relative_to for Python 3.9+
+                if not dst.is_relative_to(self.workdir.resolve()):
                      logger.error(f"Security Warning: Attempted copy to {dst} outside workdir {self.workdir}")
                 else:
                     shutil.copy(src, dst)
@@ -53,7 +62,7 @@ class Orchestrator:
         logger.info(f"Starting orchestration in {self.workdir}")
 
         # Initial Generation
-        count = self.config.generator.get("count", 5)
+        count = self.config.generator.get("count", DEFAULT_GENERATOR_COUNT)
         logger.info(f"Generating {count} initial structures...")
 
         # Stream structures directly to oracle
@@ -75,8 +84,8 @@ class Orchestrator:
         # Wrapped in try-except for Data Integrity/Robustness
         try:
             self.dataset_manager.append(labeled_iter)
-        except ValueError:
-            logger.exception("Data Integrity Error during initial labeling")
+        except (ValueError, RuntimeError):
+            logger.exception("Data Integrity/IO Error during initial labeling")
             # Depending on policy, we might want to stop here or continue if some were added.
             # But append() iterates, so if it fails midway, partial data might be written.
             # Given "Data Integrity", stopping is safer than corruption.
@@ -120,8 +129,8 @@ class Orchestrator:
 
             try:
                 self.dataset_manager.append(labeled_candidates_iter)
-            except ValueError:
-                logger.exception("Data Integrity Error during candidate labeling")
+            except (ValueError, RuntimeError):
+                logger.exception("Data Integrity/IO Error during candidate labeling")
                 continue # Skip this cycle's candidates if corrupted, or break? Continue seems reasonable.
 
             logger.info(f"Dataset size: {self.dataset_manager.count()}")

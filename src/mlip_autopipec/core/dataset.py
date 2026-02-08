@@ -20,7 +20,11 @@ class Dataset:
         if not self.filepath.exists():
             # Ensure directory exists
             self.filepath.parent.mkdir(parents=True, exist_ok=True)
-            self.filepath.touch()
+            try:
+                self.filepath.touch()
+            except OSError as e:
+                msg = f"Failed to create dataset file: {e}"
+                raise RuntimeError(msg) from e
 
         if not self.meta_filepath.exists():
             # Create metadata file with initial count
@@ -29,9 +33,15 @@ class Dataset:
     def _write_meta(self, data: dict[str, Any]) -> None:
         """Writes metadata to disk atomically."""
         temp_meta = self.meta_filepath.with_suffix('.tmp')
-        with temp_meta.open('w') as f:
-            json.dump(data, f)
-        temp_meta.replace(self.meta_filepath)
+        try:
+            with temp_meta.open('w') as f:
+                json.dump(data, f)
+            temp_meta.replace(self.meta_filepath)
+        except OSError as e:
+             # If update fails, log or raise, but don't break the main flow too hard
+             # For robustness, we re-raise as RuntimeError
+             msg = f"Failed to update metadata: {e}"
+             raise RuntimeError(msg) from e
 
     def _read_meta(self) -> dict[str, Any]:
         """Reads metadata from disk."""
@@ -41,21 +51,27 @@ class Dataset:
             with self.meta_filepath.open('r') as f:
                 data = json.load(f)
                 return cast(dict[str, Any], data)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, OSError):
             return {'count': 0}
 
     def append(self, structures: Iterable[Structure]) -> int:
         """
         Appends structures to the dataset file and updates metadata.
         Returns the number of structures added.
+        Handles IO errors by re-raising as RuntimeError.
         """
         added_count = 0
-        with self.filepath.open('a') as f:
-            for s in structures:
-                # Validate before saving (domain constraint: must be labeled)
-                s.validate_labeled()
-                f.write(s.model_dump_json() + '\n')
-                added_count += 1
+        try:
+            with self.filepath.open('a') as f:
+                for s in structures:
+                    # Validate before saving (domain constraint: must be labeled)
+                    s.validate_labeled()
+                    f.write(s.model_dump_json() + '\n')
+                    f.flush() # Ensure it's written incrementally if needed, though OS buffers handle performance.
+                    added_count += 1
+        except OSError as e:
+            msg = f"Failed to append to dataset file: {e}"
+            raise RuntimeError(msg) from e
 
         # Update metadata count
         meta = self._read_meta()
@@ -69,12 +85,16 @@ class Dataset:
         if not self.filepath.exists():
             return
 
-        # Standard file iteration is buffered by default in Python (typically 8KB chunks)
-        # To be explicit about "streaming", we rely on this behavior.
-        with self.filepath.open('r') as f:
-            for line in f:
-                if line.strip():
-                    yield Structure.model_validate_json(line)
+        try:
+            # Standard file iteration is buffered by default in Python (typically 8KB chunks)
+            # To be explicit about "streaming", we rely on this behavior.
+            with self.filepath.open('r') as f:
+                for line in f:
+                    if line.strip():
+                        yield Structure.model_validate_json(line)
+        except OSError as e:
+            msg = f"Failed to read dataset file: {e}"
+            raise RuntimeError(msg) from e
 
     def count(self) -> int:
         """Returns the number of structures in the dataset from metadata (O(1))."""
