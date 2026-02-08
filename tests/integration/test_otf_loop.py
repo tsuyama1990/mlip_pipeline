@@ -1,3 +1,5 @@
+from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -5,7 +7,6 @@ import pytest
 
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import (
-    ComponentsConfig,
     GlobalConfig,
 )
 from mlip_autopipec.domain_models.potential import Potential
@@ -13,34 +14,41 @@ from mlip_autopipec.domain_models.structure import Structure
 
 
 @pytest.fixture
-def mock_config(tmp_path):
-    return GlobalConfig(
-        workdir=tmp_path,
-        max_cycles=1,
-        components=ComponentsConfig(
-            generator={"name": "mock", "n_structures": 1, "cell_size": 10.0, "n_atoms": 2, "atomic_numbers": [1, 1]},
-            oracle={"name": "mock"},
-            trainer={
+def mock_config(tmp_path: Path) -> GlobalConfig:
+    data: dict[str, object] = {
+        "workdir": tmp_path,
+        "max_cycles": 1,
+        "components": {
+            "generator": {"name": "mock", "n_structures": 1, "cell_size": 10.0, "n_atoms": 2, "atomic_numbers": [1, 1]},
+            "oracle": {"name": "mock"},
+            "trainer": {
                 "name": "pacemaker",
                 "max_num_epochs": 1,
                 "basis_size": 10,
                 "cutoff": 3.0
             },
-            dynamics={
+            "dynamics": {
                 "name": "lammps",
                 "timestep": 0.001,
                 "n_steps": 10,
                 "uncertainty_threshold": 2.0
             },
-            validator={"name": "mock"},
-        ),
-        orchestrator={"dataset_filename": "dataset.pckl.gzip"} # Use pckl for Pacemaker
-    )
+            "validator": {"name": "mock"},
+        },
+        "orchestrator": {"dataset_filename": "dataset.pckl.gzip"} # Use pckl for Pacemaker
+    }
+    return GlobalConfig.model_validate(data)
 
 @patch("mlip_autopipec.core.orchestrator.ComponentFactory")
 @patch("mlip_autopipec.core.orchestrator.Dataset")
 @patch("mlip_autopipec.core.orchestrator.StateManager")
-def test_otf_loop_execution(mock_state, mock_dataset, mock_factory, mock_config, tmp_path):
+def test_otf_loop_execution(
+    mock_state: MagicMock,
+    mock_dataset: MagicMock,
+    mock_factory: MagicMock,
+    mock_config: GlobalConfig,
+    tmp_path: Path
+) -> None:
     # Setup mocks
     mock_generator = MagicMock()
     mock_oracle = MagicMock()
@@ -77,18 +85,18 @@ def test_otf_loop_execution(mock_state, mock_dataset, mock_factory, mock_config,
 
     # Trainer select_active_set mock
     # Should return a subset of candidates
-    def mock_select(candidates, limit=None):
+    def mock_select(candidates: list[Structure], limit: int | None = None) -> list[Structure]:
         return candidates[:limit] if limit else candidates
 
     mock_trainer.select_active_set.side_effect = mock_select
     mock_trainer.train.return_value = Potential(path=potential_file, format="yace")
 
     # Oracle compute
-    def consume_structures(structures):
+    def consume_structures(structures: list[Structure]) -> Generator[Structure, None, None]:
         # We must iterate over structures to trigger the generator chain
         # and thus trigger select_active_set inside _enhance_structures
         _ = list(structures)
-        return iter([])
+        yield from []
 
     mock_oracle.compute.side_effect = consume_structures
 

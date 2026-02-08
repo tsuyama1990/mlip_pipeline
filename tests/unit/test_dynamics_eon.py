@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -11,7 +12,7 @@ from mlip_autopipec.domain_models.structure import Structure
 
 
 @pytest.fixture
-def structure():
+def structure() -> Structure:
     return Structure(
         positions=np.array([[0.0, 0.0, 0.0]]),
         atomic_numbers=np.array([29]),
@@ -21,18 +22,20 @@ def structure():
 
 
 @pytest.fixture
-def potential(tmp_path):
+def potential(tmp_path: Path) -> Potential:
     return Potential(path=tmp_path / "test.yace", species=["Cu"], format="yace")
 
 
 @pytest.fixture
-def config():
+def config() -> EONDynamicsConfig:
     return EONDynamicsConfig(
         name=DynamicsType.EON, temperature=500.0, n_events=1000, prefactor=1e13
     )
 
 
-def test_eon_driver_write_input(tmp_path, structure, potential, config):
+def test_eon_driver_write_input(
+    tmp_path: Path, structure: Structure, potential: Potential, config: EONDynamicsConfig
+) -> None:
     driver = EONDriver(workdir=tmp_path)
     driver.write_input_files(structure, potential, config)
 
@@ -63,7 +66,14 @@ def test_eon_driver_write_input(tmp_path, structure, potential, config):
 
 @patch("mlip_autopipec.components.dynamics.eon.EONDriver")
 @patch("mlip_autopipec.components.dynamics.eon.read")
-def test_eon_dynamics_explore(mock_read, mock_driver_cls, tmp_path, structure, potential, config):
+def test_eon_dynamics_explore(
+    mock_read: MagicMock,
+    mock_driver_cls: MagicMock,
+    tmp_path: Path,
+    structure: Structure,
+    potential: Potential,
+    config: EONDynamicsConfig,
+) -> None:
     dynamics = EONDynamics(config)
 
     mock_driver = mock_driver_cls.return_value

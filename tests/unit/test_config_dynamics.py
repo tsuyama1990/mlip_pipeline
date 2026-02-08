@@ -9,7 +9,7 @@ from mlip_autopipec.domain_models.config import (
 from mlip_autopipec.domain_models.enums import DynamicsType
 
 
-def test_lammps_config_valid():
+def test_lammps_config_valid() -> None:
     config = LAMMPSDynamicsConfig(
         name=DynamicsType.LAMMPS,
         timestep=0.001,
@@ -24,13 +24,13 @@ def test_lammps_config_valid():
     assert config.uncertainty_threshold == 0.5
 
 
-def test_lammps_config_default():
+def test_lammps_config_default() -> None:
     config = LAMMPSDynamicsConfig(name=DynamicsType.LAMMPS)
     assert config.timestep == 0.001
     assert config.uncertainty_threshold == 5.0
 
 
-def test_eon_config_valid():
+def test_eon_config_valid() -> None:
     config = EONDynamicsConfig(
         name=DynamicsType.EON,
         temperature=500.0,
@@ -44,14 +44,14 @@ def test_eon_config_valid():
     assert config.supercell == [2, 2, 2]
 
 
-def test_eon_config_default():
+def test_eon_config_default() -> None:
     config = EONDynamicsConfig(name=DynamicsType.EON)
     assert config.temperature == 300.0
     assert config.supercell == [1, 1, 1]
     assert config.uncertainty_threshold == 5.0
 
 
-def test_dynamics_union():
+def test_dynamics_union() -> None:
     # Test that we can parse into the Union type
     # Direct instantiation of Union isn't how Pydantic works,
     # but we can simulate it via a container model or TypeAdapter if available.
@@ -59,9 +59,9 @@ def test_dynamics_union():
     pass  # We test this via ComponentsConfig below
 
 
-def test_components_config_with_eon():
+def test_components_config_with_eon() -> None:
     # Minimal valid components config
-    data = {
+    data: dict[str, object] = {
         "generator": {
             "name": "mock",
             "n_structures": 10,
@@ -79,11 +79,11 @@ def test_components_config_with_eon():
         },
         "validator": {"name": "mock"},
     }
-    config = ComponentsConfig(**data)
+    config = ComponentsConfig.model_validate(data)
     assert isinstance(config.dynamics, EONDynamicsConfig)
     assert config.dynamics.temperature == 600.0
 
 
-def test_extra_forbid():
+def test_extra_forbid() -> None:
     with pytest.raises(ValidationError):
-        EONDynamicsConfig(name=DynamicsType.EON, extra_field="bad")
+        EONDynamicsConfig(name=DynamicsType.EON, extra_field="bad")  # type: ignore[call-arg]

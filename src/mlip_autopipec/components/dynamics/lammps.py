@@ -164,17 +164,22 @@ run             {config.n_steps}
             raise FileNotFoundError(msg)
 
         # ASE lammps-dump-text reader
+        # Use cast to help mypy know it's Atoms
+
         try:
-            atoms = read(self.dump_file, index=-1, format="lammps-dump-text")
+            atoms_obj = read(self.dump_file, index=-1, format="lammps-dump-text")
         except Exception:
             # Fallback or retry?
-            atoms = read(self.dump_file, index=-1)
+            atoms_obj = read(self.dump_file, index=-1)
+
+        # Ensure we have a single Atoms object
+        atoms = atoms_obj[-1] if isinstance(atoms_obj, list) else atoms_obj
 
         if potential:
             try:
                 # Map types to numbers
                 # Get types
-                types = atoms.get_array("type")
+                types = atoms.get_array("type")  # type: ignore[no-untyped-call]
                 # Map 1-based index to species
                 species_map = {i + 1: s for i, s in enumerate(potential.species)}
 
@@ -182,7 +187,7 @@ run             {config.n_steps}
                 from ase.data import atomic_numbers
 
                 new_numbers = [atomic_numbers[species_map[t]] for t in types]
-                atoms.set_atomic_numbers(new_numbers)
+                atoms.set_atomic_numbers(new_numbers)  # type: ignore[no-untyped-call]
             except Exception as e:
                 logger.warning(f"Could not map species from potential: {e}")
 

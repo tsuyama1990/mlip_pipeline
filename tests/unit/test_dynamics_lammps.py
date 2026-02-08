@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -11,7 +12,7 @@ from mlip_autopipec.domain_models.structure import Structure
 
 
 @pytest.fixture
-def structure():
+def structure() -> Structure:
     return Structure(
         positions=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]]),
         atomic_numbers=np.array([29, 29]),
@@ -21,18 +22,22 @@ def structure():
 
 
 @pytest.fixture
-def potential(tmp_path):
+def potential(tmp_path: Path) -> Potential:
     return Potential(path=tmp_path / "test.yace", species=["Cu"], format="yace")
 
 
 @pytest.fixture
-def config():
+def config() -> LAMMPSDynamicsConfig:
     return LAMMPSDynamicsConfig(
-        name=DynamicsType.LAMMPS, n_steps=1000, timestep=0.002, uncertainty_threshold=1.5
+        name=DynamicsType.LAMMPS,
+        n_steps=1000,
+        timestep=0.002,
+        uncertainty_threshold=1.5
     )
 
-
-def test_lammps_driver_write_input(tmp_path, structure, potential, config):
+def test_lammps_driver_write_input(
+    tmp_path: Path, structure: Structure, potential: Potential, config: LAMMPSDynamicsConfig
+) -> None:
     driver = LAMMPSDriver(workdir=tmp_path)
     driver.write_input_files(structure, potential, config)
 
@@ -58,7 +63,7 @@ def test_lammps_driver_write_input(tmp_path, structure, potential, config):
     assert "1000" in content
 
 
-def test_lammps_driver_parse_log_halted(tmp_path):
+def test_lammps_driver_parse_log_halted(tmp_path: Path) -> None:
     log_content = """
 Step Temp PotEng max_gamma
 0 300 -6.0 0.1
@@ -73,7 +78,7 @@ ERROR: Halt: max_gamma > 1.5
     assert result["final_step"] == 10
 
 
-def test_lammps_driver_parse_log_finished(tmp_path):
+def test_lammps_driver_parse_log_finished(tmp_path: Path) -> None:
     log_content = """
 Step Temp PotEng max_gamma
 0 300 -6.0 0.1
@@ -89,7 +94,13 @@ Loop time of 1.23 on 1 procs
 
 
 @patch("mlip_autopipec.components.dynamics.lammps.LAMMPSDriver")
-def test_lammps_dynamics_explore(mock_driver_cls, tmp_path, structure, potential, config):
+def test_lammps_dynamics_explore(
+    mock_driver_cls: MagicMock,
+    tmp_path: Path,
+    structure: Structure,
+    potential: Potential,
+    config: LAMMPSDynamicsConfig
+) -> None:
     dynamics = LAMMPSDynamics(config)
 
     # Mock driver instance
@@ -101,7 +112,7 @@ def test_lammps_dynamics_explore(mock_driver_cls, tmp_path, structure, potential
     # Mock read_dump returning a structure
     # We need a structure with correct number of atoms
     dump_struct = structure.model_deep_copy()
-    dump_struct.positions += 0.1  # Moved
+    dump_struct.positions += 0.1 # Moved
     mock_driver.read_dump.return_value = dump_struct
 
     # Run explore

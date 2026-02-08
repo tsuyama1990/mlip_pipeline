@@ -250,7 +250,10 @@ class EONDynamics(BaseDynamics):
                 halted_path = driver.workdir / "halted_structure.xyz"
                 if halted_path.exists():
                     try:
-                        atoms = read(halted_path)
+                        atoms_obj = read(halted_path)
+                        # Ensure single Atoms object
+                        atoms = atoms_obj[-1] if isinstance(atoms_obj, list) else atoms_obj
+
                         # Ensure atomic numbers are correct (XYZ usually has symbols)
                         struct = Structure.from_ase(atoms)
                         struct.uncertainty = 100.0
