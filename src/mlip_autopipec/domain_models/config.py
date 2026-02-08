@@ -19,6 +19,11 @@ MAX_ENERGY_MAGNITUDE = 1e6  # eV
 # Constants for Dataset
 DEFAULT_BUFFER_SIZE = 1000
 
+# Constants for Oracle
+MAX_VACUUM_SIZE = 50.0  # Angstroms
+HEALER_MIXING_BETA_TARGET = 0.3
+HEALER_DEGAUSS_TARGET = 0.02
+
 
 class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -77,6 +82,7 @@ class QEOracleConfig(BaseOracleConfig):
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
     ecutwfc: float = 60.0
     ecutrho: float = 360.0
+    batch_size: int = Field(default=10, gt=0)  # Configurable batch size
 
 
 class VASPOracleConfig(BaseOracleConfig):

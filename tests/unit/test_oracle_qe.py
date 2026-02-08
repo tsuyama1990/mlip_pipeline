@@ -7,7 +7,10 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from mlip_autopipec.components.oracle.qe import QECalculator, QEOracle
-from mlip_autopipec.domain_models.config import QEOracleConfig
+from mlip_autopipec.domain_models.config import (
+    HEALER_MIXING_BETA_TARGET,
+    QEOracleConfig,
+)
 from mlip_autopipec.domain_models.enums import OracleType
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -87,7 +90,7 @@ def test_qe_compute_success(
     mock_espresso_cls: Any, qe_config: QEOracleConfig, structure: Structure
 ) -> None:
     # Use config with low beta to succeed immediately
-    qe_config.mixing_beta = 0.3
+    qe_config.mixing_beta = HEALER_MIXING_BETA_TARGET
     mock_espresso_cls.side_effect = lambda **kwargs: FakeEspresso(
         failure_mode="parameter_sensitive", **kwargs
     )
@@ -121,7 +124,7 @@ def test_qe_compute_healing_success(
     assert s.energy == -100.0
 
     # Verify provenance
-    assert s.tags["qe_params"]["mixing_beta"] == 0.3
+    assert s.tags["qe_params"]["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
     # Verify original instance was untouched
     assert fake_instance.parameters["mixing_beta"] == 0.7

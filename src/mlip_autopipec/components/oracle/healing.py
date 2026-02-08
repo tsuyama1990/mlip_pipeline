@@ -1,5 +1,10 @@
 from ase.calculators.calculator import Calculator
 
+from mlip_autopipec.domain_models.config import (
+    HEALER_DEGAUSS_TARGET,
+    HEALER_MIXING_BETA_TARGET,
+)
+
 
 class HealingFailedError(Exception):
     """Raised when healing strategies are exhausted."""
@@ -44,14 +49,14 @@ class Healer:
         diagonalization = params.get("diagonalization", "david")
 
         # Strategy 1: Reduce mixing_beta
-        if mixing_beta > 0.3 + 1e-5:
-            params["mixing_beta"] = 0.3
+        if mixing_beta > HEALER_MIXING_BETA_TARGET + 1e-5:
+            params["mixing_beta"] = HEALER_MIXING_BETA_TARGET
             # Return new instance (assuming calculator type has same constructor signature)
             return type(calculator)(**params)
 
         # Strategy 2: Increase degauss (smearing width)
-        if degauss < 0.02 - 1e-5:
-            params["degauss"] = 0.02
+        if degauss < HEALER_DEGAUSS_TARGET - 1e-5:
+            params["degauss"] = HEALER_DEGAUSS_TARGET
             return type(calculator)(**params)
 
         # Strategy 3: Change diagonalization algorithm

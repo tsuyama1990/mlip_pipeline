@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterable, Iterator
+from itertools import islice
 
 from ase import Atoms
 from ase.calculators.espresso import Espresso
@@ -61,8 +62,7 @@ class QEOracle(BaseOracle):
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         """
         Compute labels (energy, forces, stress) for the given structures using QE.
-        Currently strictly serial to avoid complex ASE calculator pickling issues.
-        Scalability relies on iterator streaming to keep memory low.
+        Uses batched processing for scalability.
 
         Args:
             structures: An iterable of unlabeled Structure objects.
@@ -71,28 +71,39 @@ class QEOracle(BaseOracle):
             Structure: Labeled Structure objects.
         """
         calc_wrapper = QECalculator(self.config)
+        batch_size = self.config.batch_size
 
-        for structure in structures:
-            try:
-                # Convert to ASE
-                atoms = structure.to_ase()
+        # Create iterator from input
+        iterator = iter(structures)
 
-                # Perform calculation with retries/healing
-                self._compute_single(atoms, calc_wrapper)
+        while True:
+            # Create a batch of structures
+            # islice(iterator, batch_size) takes next batch_size elements
+            batch = list(islice(iterator, batch_size))
+            if not batch:
+                break
 
-                # Convert back to Structure (provenance stored in tags)
-                labeled_structure = Structure.from_ase(atoms)
+            # Process batch serially (for now, safe)
+            for structure in batch:
+                try:
+                    # Convert to ASE
+                    atoms = structure.to_ase()
 
-                # Ensure labels are present
-                labeled_structure.validate_labeled()
+                    # Perform calculation with retries/healing
+                    self._compute_single(atoms, calc_wrapper)
 
-                yield labeled_structure
+                    # Convert back to Structure (provenance stored in tags)
+                    labeled_structure = Structure.from_ase(atoms)
 
-            except (HealingFailedError, Exception):
-                # Log error and skip structure
-                # We catch Exception broadly because calculator might raise various errors (EspressoError, PropertyNotImplementedError, etc.)
-                logger.exception("Failed to compute structure")
-                continue
+                    # Ensure labels are present
+                    labeled_structure.validate_labeled()
+
+                    yield labeled_structure
+
+                except (HealingFailedError, Exception):
+                    # Log error and skip structure
+                    logger.exception("Failed to compute structure")
+                    continue
 
     def _compute_single(self, atoms: Atoms, calc_wrapper: QECalculator) -> None:
         """Run calculation on single atoms object with healing."""

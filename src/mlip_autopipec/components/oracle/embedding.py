@@ -2,6 +2,8 @@ from typing import cast
 
 from ase import Atoms
 
+from mlip_autopipec.domain_models.config import MAX_VACUUM_SIZE
+
 
 def embed_cluster(cluster: Atoms, vacuum: float) -> Atoms:
     """
@@ -15,11 +17,16 @@ def embed_cluster(cluster: Atoms, vacuum: float) -> Atoms:
         Atoms: The embedded cluster in a periodic supercell.
 
     Raises:
-        ValueError: If vacuum is non-positive or cluster is empty.
+        ValueError: If vacuum is non-positive or too large, or cluster is empty.
     """
     if vacuum <= 0:
         msg = "Vacuum must be positive."
         raise ValueError(msg)
+
+    if vacuum > MAX_VACUUM_SIZE:
+        msg = f"Vacuum exceeds maximum allowed size ({MAX_VACUUM_SIZE} A)."
+        raise ValueError(msg)
+
     if len(cluster) == 0:
         msg = "Cluster is empty."
         raise ValueError(msg)

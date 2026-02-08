@@ -4,14 +4,15 @@ from ase import Atoms
 from ase.build import bulk, molecule
 
 from mlip_autopipec.components.oracle.embedding import embed_cluster
+from mlip_autopipec.domain_models.config import MAX_VACUUM_SIZE
 
 
 def test_embed_cluster_basic() -> None:
     """Test embedding a simple cluster in a vacuum box."""
     cluster = molecule("H2")  # type: ignore[no-untyped-call]
     # Keep copy of original positions
-    original_positions = cluster.get_positions()
-    original_cell = cluster.get_cell()
+    original_positions = cluster.get_positions()  # type: ignore[no-untyped-call]
+    original_cell = cluster.get_cell()  # type: ignore[no-untyped-call]
 
     vacuum = 5.0
     embedded = embed_cluster(cluster, vacuum)
@@ -38,8 +39,8 @@ def test_embed_cluster_basic() -> None:
     assert np.allclose(bbox_center, cell_center, atol=1e-5)
 
     # Verify input was not modified
-    assert np.allclose(cluster.get_positions(), original_positions)
-    assert np.allclose(cluster.get_cell(), original_cell)
+    assert np.allclose(cluster.get_positions(), original_positions)  # type: ignore[no-untyped-call]
+    assert np.allclose(cluster.get_cell(), original_cell)  # type: ignore[no-untyped-call]
 
 
 def test_embed_cluster_from_bulk() -> None:
@@ -48,7 +49,7 @@ def test_embed_cluster_from_bulk() -> None:
     si_bulk = bulk("Si", "diamond", a=5.43) * (4, 4, 4)
 
     # Extract a cluster (e.g. atoms within 6A of center)
-    center = si_bulk.get_cell().sum(axis=0) / 2
+    center = si_bulk.get_cell().sum(axis=0) / 2  # type: ignore[no-untyped-call]
     # Ensure unwrapped positions if needed, but bulk usually fits in cell
     distances = np.linalg.norm(si_bulk.positions - center, axis=1)
     mask = distances < 6.0
@@ -74,6 +75,13 @@ def test_embed_cluster_invalid_vacuum() -> None:
     cluster = molecule("H2")  # type: ignore[no-untyped-call]
     with pytest.raises(ValueError, match="Vacuum must be positive"):
         embed_cluster(cluster, -1.0)
+
+
+def test_embed_cluster_vacuum_too_large() -> None:
+    """Test vacuum size limit check."""
+    cluster = molecule("H2")  # type: ignore[no-untyped-call]
+    with pytest.raises(ValueError, match="Vacuum exceeds"):
+        embed_cluster(cluster, MAX_VACUUM_SIZE + 1.0)
 
 
 def test_embed_cluster_empty() -> None:
