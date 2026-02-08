@@ -4,6 +4,7 @@ from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.domain_models.config import MockOracleConfig
 from mlip_autopipec.domain_models.enums import OracleType
 from mlip_autopipec.domain_models.structure import Structure
+from tests.common_constants import ORACLE_TOLERANCE
 
 
 def test_mock_oracle_force_sum_zero() -> None:
@@ -22,6 +23,7 @@ def test_mock_oracle_force_sum_zero() -> None:
 
     assert labeled_s.forces is not None
     # Check if sum of forces is close to zero
-    # Relaxed tolerance from 1e-15 to 1e-10 for broader platform stability across different architectures
-    # This value is sufficient for mock verification purposes.
-    assert np.allclose(np.sum(labeled_s.forces, axis=0), np.zeros(3), atol=1e-10)
+    # Use centralized tolerance
+    assert np.allclose(
+        np.sum(labeled_s.forces, axis=0), np.zeros(3), atol=ORACLE_TOLERANCE
+    )

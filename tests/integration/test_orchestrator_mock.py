@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 
@@ -9,7 +10,6 @@ from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import (
     GlobalConfig,
     MockDynamicsConfig,
-    MockOracleConfig,
 )
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
@@ -128,33 +128,42 @@ class FailingOracle(MockOracle):
 
 
 def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
-    # Inject the failing component via factory override or property patching
+    # Use dependency injection by patching the factory method to return the failing component
+    # This avoids setting internal attributes of Orchestrator directly.
+    # We patch ComponentFactory.get_oracle to return our FailingOracle instance.
 
-    orchestrator = Orchestrator(mock_config)
+    # We create the config inside the FailingOracle constructor or pass it mocked.
+    # Actually Orchestrator calls get_oracle with config from config file.
+    # We can just return the FailingOracle regardless of config passed to get_oracle.
 
-    # We need to patch the factory or manually set the oracle because Orchestrator
-    # instantiates components internally based on config.
-    # However, since Orchestrator is already instantiated, we can try replacing the component instance.
-    # The Orchestrator stores components in self.components (implied, or self.oracle etc).
-    # Checking Orchestrator implementation (from memory/context): it has self.oracle.
-    orchestrator.oracle = FailingOracle(MockOracleConfig(name=OracleType.MOCK))
+    with patch("mlip_autopipec.factory.ComponentFactory.get_oracle") as mock_get_oracle:
+        # Configure mock to return FailingOracle
+        # FailingOracle needs a config to init base class
+        # But we mock the return value of factory, so we instantiate it here.
+        # We need to ensure config type is correct for MockOracle (base).
+        # We can construct it with mock_config's oracle config which is MockOracleConfig.
 
-    # Verify graceful failure
-    with pytest.raises(RuntimeError, match="Simulated DFT failure"):
-        orchestrator.run()
+        failing_oracle = FailingOracle(mock_config.components.oracle) # type: ignore
+        mock_get_oracle.return_value = failing_oracle
 
-    # State should be updated to ERROR
-    # Need to reload state from file to verify persistence
-    state_manager = orchestrator.state_manager
-    # We can check the in-memory state object as it should be updated
-    assert state_manager.state.status == ERROR_STATUS
+        orchestrator = Orchestrator(mock_config)
 
-    # Also verify file persistence
-    # Re-instantiate StateManager to read from file
-    from mlip_autopipec.core.state import StateManager
+        # Verify graceful failure
+        with pytest.raises(RuntimeError, match="Simulated DFT failure"):
+            orchestrator.run()
 
-    loaded_state = StateManager(mock_config.workdir / STATE_FILE).state
-    assert loaded_state.status == ERROR_STATUS
+        # State should be updated to ERROR
+        # Need to reload state from file to verify persistence
+        state_manager = orchestrator.state_manager
+        # We can check the in-memory state object as it should be updated
+        assert state_manager.state.status == ERROR_STATUS
+
+        # Also verify file persistence
+        # Re-instantiate StateManager to read from file
+        from mlip_autopipec.core.state import StateManager
+
+        loaded_state = StateManager(mock_config.workdir / STATE_FILE).state
+        assert loaded_state.status == ERROR_STATUS
 
 
 def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path) -> None:

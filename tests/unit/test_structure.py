@@ -3,17 +3,25 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.structure import Structure
+from tests.common_constants import (
+    DUMMY_ATOMIC_NUMBERS,
+    DUMMY_CELL,
+    DUMMY_PBC,
+    DUMMY_POSITIONS,
+    EXPECTED_TENSOR_STRESS,
+    VOIGT_STRESS,
+)
 
 
 def test_structure_valid_creation() -> None:
-    pos = np.zeros((2, 3))
-    numbers = np.array([1, 1])
-    cell = np.eye(3)
-    pbc = np.array([True, True, True])
-
-    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc)
-    assert np.allclose(s.positions, pos)
-    assert np.allclose(s.atomic_numbers, numbers)
+    s = Structure(
+        positions=DUMMY_POSITIONS,
+        atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+        cell=DUMMY_CELL,
+        pbc=DUMMY_PBC,
+    )
+    assert np.allclose(s.positions, DUMMY_POSITIONS)
+    assert np.allclose(s.atomic_numbers, DUMMY_ATOMIC_NUMBERS)
 
 
 def test_structure_invalid_positions() -> None:
@@ -79,24 +87,37 @@ def test_forces_validation() -> None:
 
 
 def test_structure_stress_validation() -> None:
-    pos = np.zeros((2, 3))
-    numbers = np.array([1, 1])
-    cell = np.eye(3)
-    pbc = np.array([True, True, True])
-    stress = np.zeros(6)  # Voigt
-
     # Voigt input should be converted to 3x3
-    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=stress)
+    s = Structure(
+        positions=DUMMY_POSITIONS,
+        atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+        cell=DUMMY_CELL,
+        pbc=DUMMY_PBC,
+        stress=VOIGT_STRESS,
+    )
     assert s.stress is not None
     assert s.stress.shape == (3, 3)
+    assert np.allclose(s.stress, EXPECTED_TENSOR_STRESS)
 
     stress_tensor = np.zeros((3, 3))
-    s2 = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=stress_tensor)
+    s2 = Structure(
+        positions=DUMMY_POSITIONS,
+        atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+        cell=DUMMY_CELL,
+        pbc=DUMMY_PBC,
+        stress=stress_tensor,
+    )
     assert s2.stress is not None
     assert s2.stress.shape == (3, 3)
 
     with pytest.raises(ValueError, match="Stress must be"):
-        Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=np.zeros(5))
+        Structure(
+            positions=DUMMY_POSITIONS,
+            atomic_numbers=DUMMY_ATOMIC_NUMBERS,
+            cell=DUMMY_CELL,
+            pbc=DUMMY_PBC,
+            stress=np.zeros(5),
+        )
 
 
 def test_to_ase() -> None:
