@@ -2,7 +2,7 @@ from typing import cast
 
 from ase import Atoms
 
-from mlip_autopipec.domain_models.config import MAX_VACUUM_SIZE
+from mlip_autopipec.constants import MAX_VACUUM_SIZE
 
 
 def embed_cluster(cluster: Atoms, vacuum: float) -> Atoms:

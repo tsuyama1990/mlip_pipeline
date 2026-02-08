@@ -51,7 +51,7 @@ def test_factory_creation_mock() -> None:
 def test_factory_creation_real() -> None:
     # Test creation of real (placeholder) components
     oracle_config = QEOracleConfig(
-        name=OracleType.QE, kspacing=0.04, pseudopotentials={}, ecutwfc=60.0
+        name=OracleType.QE, kspacing=0.04, pseudopotentials={}, ecutwfc=60.0, ecutrho=360.0
     )
     trainer_config = PacemakerTrainerConfig(
         name=TrainerType.PACEMAKER, max_num_epochs=10, basis_size=500, cutoff=4.0
