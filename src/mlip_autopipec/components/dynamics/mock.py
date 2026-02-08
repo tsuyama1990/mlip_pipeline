@@ -10,9 +10,30 @@ logger = logging.getLogger(__name__)
 
 
 class MockDynamics(BaseDynamics):
+    """
+    Mock implementation of the Dynamics component.
+
+    Simulates exploration by randomly selecting structures based on a configured
+    selection rate and assigning a simulated uncertainty value.
+    """
+
     def explore(
         self, potential: Potential, start_structures: Iterable[Structure]
     ) -> Iterator[Structure]:
+        """
+        Explore the potential energy surface starting from given structures.
+
+        Iterates through start_structures and selects a subset based on `selection_rate`.
+        Selected structures are assigned an `uncertainty` property simulating
+        high uncertainty (above threshold).
+
+        Args:
+            potential: The current potential (not used in simulation logic but required by interface).
+            start_structures: An iterable of starting structures.
+
+        Yields:
+            Structure: Selected structures with simulated uncertainty.
+        """
         logger.info("Exploring structures for uncertainty")
         count = 0
         selection_rate = self.config.selection_rate

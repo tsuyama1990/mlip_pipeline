@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ComponentConfig(BaseModel):
@@ -73,3 +73,20 @@ class GlobalConfig(BaseModel):
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     components: ComponentsConfig
+
+    @field_validator("workdir")
+    @classmethod
+    def validate_workdir(cls, v: Path) -> Path:
+        """Ensure workdir is a valid path and its parent exists."""
+        try:
+            # We don't necessarily want to create it here, but checking parent existence is a good sanity check
+            # if we expect the user to provide a valid location.
+            # Or at least check if it's absolute or we can resolve it.
+            resolved = v.resolve()
+            if not resolved.parent.exists():
+                msg = f"Workdir parent directory does not exist: {resolved.parent}"
+                raise ValueError(msg)
+        except OSError as e:
+            msg = f"Invalid workdir path: {v}"
+            raise ValueError(msg) from e
+        return v

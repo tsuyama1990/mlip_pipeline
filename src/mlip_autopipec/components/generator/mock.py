@@ -11,6 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class MockGenerator(BaseGenerator):
+    """
+    Mock implementation of the Generator component.
+
+    Generates random structures based on configured parameters (cell size, number of atoms, etc.).
+    Useful for testing the pipeline flow without heavy computation.
+    """
+
     def _extract_config(self, effective_config: dict[str, Any]) -> tuple[float, int, list[int]]:
         """Extracts configuration values, potentially raising conversion errors."""
         try:
@@ -41,6 +48,19 @@ class MockGenerator(BaseGenerator):
     def generate(
         self, n_structures: int, config: dict[str, Any] | None = None
     ) -> Iterator[Structure]:
+        """
+        Generate mock structures.
+
+        Args:
+            n_structures: The number of structures to generate.
+            config: Optional runtime configuration override.
+
+        Yields:
+            Structure: Generated mock structure.
+
+        Raises:
+            ValueError: If configuration is invalid.
+        """
         logger.info(f"Generating {n_structures} mock structures")
 
         if n_structures <= 0:
