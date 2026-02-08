@@ -8,7 +8,7 @@ import yaml
 from mlip_autopipec.components.trainer.activeset import ActiveSetSelector
 from mlip_autopipec.components.trainer.base import BaseTrainer
 from mlip_autopipec.core.dataset import Dataset
-from mlip_autopipec.domain_models.config import PacemakerTrainerConfig
+from mlip_autopipec.domain_models.config import PacemakerInputConfig, PacemakerTrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.utils.security import validate_safe_path
 
@@ -52,8 +52,15 @@ class PacemakerTrainer(BaseTrainer):
         logger.info(f"Starting training in {safe_workdir}")
 
         # 1. Convert Dataset to Pacemaker format
-        raw_data_path = safe_workdir / self.config.dataset_filename
-        dataset.to_pacemaker_gzip(raw_data_path)
+        if self.config.data_format == "extxyz":
+            # Override filename extension if extxyz is selected
+            # Ensure filename ends with .extxyz
+            dataset_filename = Path(self.config.dataset_filename).with_suffix(".extxyz").name
+            raw_data_path = safe_workdir / dataset_filename
+            dataset.to_extxyz(raw_data_path)
+        else:
+            raw_data_path = safe_workdir / self.config.dataset_filename
+            dataset.to_pacemaker_gzip(raw_data_path)
 
         training_data_path = raw_data_path
 
@@ -113,47 +120,45 @@ class PacemakerTrainer(BaseTrainer):
         data_path: Path,
         previous_potential: Potential | None
     ) -> None:
-        # Basic configuration structure
-        config_dict = {
-            "cutoff": self.config.cutoff,
-            "data": {
-                "filename": data_path.name  # Relative path
-            },
-            "fitting": {
-                "weight_energy": self.config.fitting_weight_energy,
-                "weight_force": self.config.fitting_weight_force,
-            },
-            "backend": {
-                "evaluator": self.config.backend_evaluator
-            },
-            "b_basis": {
-                 "max_degree": self.config.basis_size # Rough mapping
-            }
-        }
-
         # Physics Baseline injection
+        physics_baseline = None
         if self.config.physics_baseline:
-            # Inject baseline configuration
-            # This follows the expected structure for delta learning or similar
-            config_dict["physics_baseline"] = {
+            physics_baseline = {
                 "type": self.config.physics_baseline.type,
                 "params": self.config.physics_baseline.params
             }
 
         # Initial Potential (Fine-tuning)
-        initial_pot = None
+        initial_potential_path = None
         if previous_potential:
-            initial_pot = previous_potential.path
+            # Validate existing potential path
+            initial_potential_path = str(validate_safe_path(previous_potential.path, must_exist=True))
         elif self.config.initial_potential:
-            initial_pot = Path(self.config.initial_potential)
+            initial_potential_path = str(validate_safe_path(Path(self.config.initial_potential), must_exist=True))
 
-        if initial_pot:
-            # We should probably copy/link the initial potential to workdir
-            # or reference it absolutely. Reference absolute is safer.
-            config_dict["initial_potential"] = str(initial_pot.resolve())
+        # Basic configuration structure using Pydantic model
+        config_model = PacemakerInputConfig(
+            cutoff=self.config.cutoff,
+            data={
+                "filename": data_path.name  # Relative path
+            },
+            fitting={
+                "weight_energy": self.config.fitting_weight_energy,
+                "weight_force": self.config.fitting_weight_force,
+            },
+            backend={
+                "evaluator": self.config.backend_evaluator
+            },
+            b_basis={
+                 "max_degree": self.config.basis_size # Rough mapping
+            },
+            physics_baseline=physics_baseline,
+            initial_potential=initial_potential_path
+        )
 
         with output_path.open("w") as f:
-            yaml.dump(config_dict, f)
+            # exclude_none=True to avoid cluttering config with nulls
+            yaml.dump(config_model.model_dump(exclude_none=True), f)
 
     def _run_pace_train(self, input_yaml: Path, workdir: Path) -> None:
         # Assumes pace_train is in PATH

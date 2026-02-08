@@ -207,6 +207,23 @@ class Dataset:
                 break
             yield batch
 
+    def to_extxyz(self, output_path: Path, chunk_size: int = 10000) -> None:
+        """
+        Export dataset to extended XYZ format using streaming.
+        Uses ASE's write method in append mode for scalability.
+        """
+        from ase.io import write
+
+        # Clear file if it exists
+        if output_path.exists():
+            output_path.unlink()
+
+        for batch in self.iter_batches(batch_size=chunk_size):
+            atoms_list = [s.to_ase() for s in batch]
+            write(output_path, atoms_list, format="extxyz", append=True)
+
+        logger.info(f"Exported dataset to {output_path} in extxyz format")
+
     def to_pacemaker_gzip(self, output_path: Path, chunk_size: int = 10000) -> None:
         """
         Export dataset to a gzipped pickle file for Pacemaker.

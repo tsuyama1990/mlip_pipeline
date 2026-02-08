@@ -78,6 +78,12 @@ def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTr
             # Verify input.yaml exists
             assert (tmp_path / trainer_config.input_filename).exists()
 
+            # Verify dataset.extxyz exists (default format)
+            # Default is extxyz now in Config? No, default is extxyz
+            if trainer_config.data_format == "extxyz":
+                extxyz_path = tmp_path / Path(trainer_config.dataset_filename).with_suffix(".extxyz").name
+                assert extxyz_path.exists()
+
 
 def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset) -> None:
     # This test verifies that input.yaml is generated correctly

@@ -16,7 +16,35 @@ def create_labeled_structure() -> Structure:
     atoms.calc = calc
     return Structure.from_ase(atoms)
 
-def test_dataset_export_to_pacemaker(tmp_path: Path) -> None:
+def test_dataset_export_to_extxyz(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dataset.jsonl"
+    dataset = Dataset(dataset_path, root_dir=tmp_path)
+
+    structures = [create_labeled_structure() for _ in range(5)]
+    dataset.append(structures)
+
+    output_path = tmp_path / "dataset.extxyz"
+    dataset.to_extxyz(output_path)
+
+    assert output_path.exists()
+
+    # Verify content using ASE
+    from ase.io import read
+    atoms_list = read(output_path, index=":")
+    assert len(atoms_list) == 5
+
+    # ASE extxyz reader puts energy in atoms.info if it's in the comment line
+    # or atoms.calc if reading with specific calculator logic
+    # Standard ase write/read roundtrip usually preserves info['energy']
+
+    # Check both potential locations
+    energy = atoms_list[0].info.get("energy")
+    if energy is None and atoms_list[0].calc:
+        energy = atoms_list[0].get_potential_energy()
+
+    assert energy == -10.5
+
+def test_dataset_export_to_pacemaker_gzip(tmp_path: Path) -> None:
     dataset_path = tmp_path / "dataset.jsonl"
     dataset = Dataset(dataset_path, root_dir=tmp_path)
 
@@ -24,7 +52,7 @@ def test_dataset_export_to_pacemaker(tmp_path: Path) -> None:
     dataset.append(structures)
 
     output_path = tmp_path / "input.pckl.gzip"
-    dataset.to_pacemaker_gzip(output_path)
+    dataset.to_pacemaker_gzip(output_path, chunk_size=2)  # Small chunk size
 
     assert output_path.exists()
 

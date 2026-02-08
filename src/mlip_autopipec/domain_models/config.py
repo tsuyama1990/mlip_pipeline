@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -118,6 +118,22 @@ class PhysicsBaselineConfig(BaseModel):
     params: dict[str, float] = Field(default_factory=dict)
 
 
+class PacemakerInputConfig(BaseModel):
+    """
+    Configuration model for Pacemaker input.yaml file.
+    Only includes fields we control dynamically.
+    """
+    model_config = ConfigDict(extra="ignore")  # Allow extra fields for now as we don't map everything
+
+    cutoff: float
+    data: dict[str, str]
+    fitting: dict[str, float]
+    backend: dict[str, str]
+    b_basis: dict[str, int]
+    physics_baseline: dict[str, Any] | None = None
+    initial_potential: str | None = None
+
+
 # --- Trainer Configs ---
 
 
@@ -149,6 +165,7 @@ class PacemakerTrainerConfig(BaseTrainerConfig):
     dataset_filename: str = PACEMAKER_DATASET_FILENAME
     potential_filename: str = PACEMAKER_POTENTIAL_FILENAME
     activeset_filename: str = PACEMAKER_ACTIVESET_FILENAME
+    data_format: Literal["extxyz", "pckl.gzip"] = "extxyz"
 
 
 TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig

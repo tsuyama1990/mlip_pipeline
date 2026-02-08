@@ -1,19 +1,21 @@
 from pathlib import Path
 
 
-def validate_safe_path(path: Path, base_dir: Path | None = None) -> Path:
+def validate_safe_path(path: Path, base_dir: Path | None = None, must_exist: bool = False) -> Path:
     """
     Validate that a path is safe to use (no traversal, strict existence check if needed).
 
     Args:
         path: The path to validate.
         base_dir: Optional base directory to confine the path to.
+        must_exist: If True, the path must exist.
 
     Returns:
         The resolved absolute path.
 
     Raises:
         ValueError: If path is unsafe or traversal is detected.
+        FileNotFoundError: If must_exist is True and path does not exist.
     """
     try:
         # Resolve strictly
@@ -36,5 +38,9 @@ def validate_safe_path(path: Path, base_dir: Path | None = None) -> Path:
         except OSError as e:
             msg = f"Invalid base directory: {base_dir}"
             raise ValueError(msg) from e
+
+    if must_exist and not resolved.exists():
+        msg = f"Path does not exist: {resolved}"
+        raise FileNotFoundError(msg)
 
     return resolved

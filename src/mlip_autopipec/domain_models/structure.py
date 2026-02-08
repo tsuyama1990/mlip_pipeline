@@ -194,7 +194,20 @@ class Structure(BaseModel):
         Performs strict validation of inputs BEFORE creating the Pydantic model
         to prevent any invalid state.
         """
+        # Validate critical array lengths match before processing
+        n_atoms = len(atoms)
+        try:
+            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
+        except Exception as e:
+            msg = f"Failed to get positions: {e}"
+            raise ValueError(msg) from e
+
+        if len(positions) != n_atoms:
+            msg = f"Mismatch: ASE atoms length {n_atoms} != positions length {len(positions)}"
+            raise ValueError(msg)
+
         atomic_numbers = cls._extract_atomic_numbers(atoms)
+        # Re-validate positions strictly
         positions = cls._extract_positions(atoms, len(atomic_numbers))
         cell, pbc = cls._extract_cell_pbc(atoms)
 
@@ -257,7 +270,7 @@ class Structure(BaseModel):
         except Exception as e:
              msg = f"Failed to get cell/pbc from ASE atoms: {e}"
              raise ValueError(msg) from e
-        return cast(np.ndarray, cell), cast(np.ndarray, pbc)
+        return cell, pbc
 
     @staticmethod
     def _extract_labels(atoms: Atoms) -> tuple[float | None, np.ndarray | None, np.ndarray | None]:
