@@ -21,6 +21,12 @@ class MockDynamics(BaseDynamics):
     def __init__(self, config: MockDynamicsConfig) -> None:
         super().__init__(config)
         self.config: MockDynamicsConfig = config
+
+        # Explicitly validate seed to prevent unsafe usage
+        if config.seed is not None and not isinstance(config.seed, int):
+            msg = f"Seed must be an integer or None, got {type(config.seed)}"
+            raise TypeError(msg)
+
         self._rng = random.Random(config.seed)  # noqa: S311
 
     def explore(

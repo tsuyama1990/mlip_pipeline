@@ -52,6 +52,9 @@ def test_dataset_streaming_behavior(tmp_path: Path) -> None:
         assert isinstance(item, Structure)
         assert np.allclose(item.positions, s.positions)
 
+        # Verify that we iterated over the file handle exactly once
+        mock_file_handle.__iter__.assert_called_once()
+
 
 def test_dataset_append_buffering(tmp_path: Path) -> None:
     """Verify that append uses buffering."""

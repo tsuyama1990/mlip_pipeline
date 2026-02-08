@@ -143,7 +143,7 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
         # We need to ensure config type is correct for MockOracle (base).
         # We can construct it with mock_config's oracle config which is MockOracleConfig.
 
-        failing_oracle = FailingOracle(mock_config.components.oracle) # type: ignore
+        failing_oracle = FailingOracle(mock_config.components.oracle)
         mock_get_oracle.return_value = failing_oracle
 
         orchestrator = Orchestrator(mock_config)
