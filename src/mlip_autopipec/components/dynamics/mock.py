@@ -1,6 +1,5 @@
 import logging
-import math
-import secrets
+import random
 from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
@@ -44,42 +43,12 @@ class MockDynamics(BaseDynamics):
 
         # In Cycle 01, start_structures might be just generated ones.
         # Ensure we stream by iterating over the input iterable
-        # Optimize using geometric skipping to minimize RNG calls
-        iterator = iter(start_structures)
-
-        # Pre-compute log(1-p) for optimization
-        log_1_minus_p = 0.0
-        if 0.0 < selection_rate < 1.0:
-            log_1_minus_p = math.log(1 - selection_rate)
-
-        while True:
-            # Determine how many items to skip
-            # If selection_rate is 1.0, we take everything (skip=0)
-            if selection_rate >= 1.0:
-                skip = 0
-            elif selection_rate <= 0.0:
-                break
-            else:
-                # Geometric distribution: number of failures before first success
-                # We use secrets.randbelow() for secure random number generation.
-                # secrets.randbelow(1_000_000_000) / 1e9 gives [0, 1).
-                r = secrets.randbelow(1_000_000_000) / 1_000_000_000
-                if r == 0.0:
-                    r = 1e-10  # Avoid log(0)
-                skip = int(math.log(r) / log_1_minus_p)
-
-            # Consume 'skip' items
-            try:
-                for _ in range(skip):
-                    next(iterator)
-
-                # Take the next one
-                s = next(iterator)
+        # Use simple random sampling as requested for mock optimization
+        for s in start_structures:
+            # We use random.random() which is acceptable for mock simulation
+            if random.random() < selection_rate:  # noqa: S311
                 s.tags = {"uncertainty": uncertainty_threshold + 1.0}
                 yield s
                 count += 1
-
-            except StopIteration:
-                break
 
         logger.info(f"Found {count} uncertain structures")

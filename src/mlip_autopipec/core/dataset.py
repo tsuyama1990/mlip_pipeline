@@ -65,7 +65,7 @@ class Dataset:
             raise TypeError(msg)
         return count
 
-    def append(self, structures: Iterable[Structure]) -> None:
+    def append(self, structures: Iterable[Structure], buffer_size: int = 1000) -> None:
         """
         Append structures to the dataset.
         Uses buffered writing for I/O efficiency.
@@ -73,10 +73,10 @@ class Dataset:
 
         Args:
             structures: Iterable of Structure objects.
+            buffer_size: Number of lines to buffer before writing to disk.
         """
         count = len(self)
         added = 0
-        buffer_size = 100
         buffer: list[str] = []
 
         try:

@@ -50,7 +50,7 @@ class AdaptiveGenerator(BaseGenerator[AdaptiveGeneratorConfig]):
         if not config:
             # If config is None or became empty after popping cycle/metrics, use base config
             # This avoids expensive model_dump/model_validate
-            return self.config, current_cycle, current_metrics  # type: ignore
+            return self.config, current_cycle, current_metrics
 
         # Update config with remaining keys
         effective_config_dict = self.config.model_dump()

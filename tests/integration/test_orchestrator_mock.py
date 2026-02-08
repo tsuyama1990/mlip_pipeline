@@ -156,5 +156,8 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     # Total ~30.
     # We verify it's significantly less than 40 (which would be no filtering)
     # and significantly more than 20 (which would be no cycle 2).
+    # Expected value: 20 (cycle 1) + 20 * 0.5 (cycle 2) = 30.
+    # Allowing some variance due to randomness.
+    # 20 + 11 = 31 (with seed 42).
     assert 25 <= count <= 35
     # This proves dynamics filtered roughly half.

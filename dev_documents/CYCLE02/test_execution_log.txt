@@ -15,7 +15,7 @@ src/mlip_autopipec/components/generator/__init__.py:1: in <module>
 src/mlip_autopipec/components/generator/adaptive.py:5: in <module>
     from mlip_autopipec.components.generator.base import BaseGenerator
 src/mlip_autopipec/components/generator/base.py:5: in <module>
-    from mlip_autopipec.domain_models.config import GeneratorConfig
+    from mlip_autopipec.domain_models.config import ComponentConfig
 src/mlip_autopipec/domain_models/__init__.py:3: in <module>
     from .structure import Structure
 src/mlip_autopipec/domain_models/structure.py:35: in <module>
@@ -140,4 +140,4 @@ ERROR tests/unit/test_generator_components.py - pydantic.errors.PydanticUserE...
 ERROR tests/unit/test_oracle_mock.py - pydantic.errors.PydanticUserError: A n...
 ERROR tests/unit/test_structure.py - pydantic.errors.PydanticUserError: A non...
 !!!!!!!!!!!!!!!!!!! Interrupted: 7 errors during collection !!!!!!!!!!!!!!!!!!!!
-============================== 7 errors in 1.89s ===============================
+============================== 7 errors in 1.74s ===============================

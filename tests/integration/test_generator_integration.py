@@ -72,5 +72,10 @@ class TestGeneratorIntegration:
 
         # Verify boost
         # Balanced is typically 50% (10). Boosted is 60% (12).
-        assert surfaces_boosted >= 12
+        # We assert the specific ratio logic from the policy (surface_error > 0.1 -> 60% surface)
+        # Note: Depending on rounding in policy (int(total * ratio)), it might be exactly 12.
+
+        # Policy logic: n_surface = int(20 * 0.6) = 12.
+        # This is deterministic in policy (counts, not probability).
+        assert surfaces_boosted == 12
         assert surfaces_boosted > surfaces_balanced
