@@ -14,6 +14,7 @@
 ## Features
 
 -   **Zero-Config Workflow**: Define your material system and target accuracy in a single YAML file.
+-   **Adaptive Structure Generation**: Automatically generates diverse structures (bulk, surfaces) with intelligent sampling policies.
 -   **Active Learning**: Automatically explores configuration space and selects informative structures for labeling.
 -   **Modular Architecture**: Extensible design with swappable components for Generation, Labeling (Oracle), Training, Dynamics, and Validation.
 -   **Robustness**: Built-in validation and error handling to ensure physical stability.
@@ -43,17 +44,19 @@ uv sync
 
     components:
       generator:
-        type: mock
+        name: adaptive
+        element: Fe
+        crystal_structure: bcc
         n_structures: 10
       oracle:
-        type: mock
+        name: mock
       trainer:
-        type: mock
+        name: mock
       dynamics:
-        type: mock
+        name: mock
         selection_rate: 0.5
       validator:
-        type: mock
+        name: mock
     ```
 
 2.  **Run the Pipeline**:
@@ -77,7 +80,7 @@ src/mlip_autopipec/
 ## Roadmap
 
 -   [x] Cycle 01: Core Framework & Mock Components
--   [ ] Cycle 02: Structure Generator (ASE/Pymatgen integration)
+-   [x] Cycle 02: Structure Generator (ASE/Pymatgen integration)
 -   [ ] Cycle 03: Oracle (Quantum Espresso integration)
 -   [ ] Cycle 04: Trainer (Pacemaker integration)
 -   [ ] Cycle 05: Dynamics Engine (LAMMPS/EON integration)

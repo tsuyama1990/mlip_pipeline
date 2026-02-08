@@ -1,7 +1,11 @@
 from typing import Any, ClassVar
 
 from mlip_autopipec.components.dynamics import BaseDynamics, MockDynamics
-from mlip_autopipec.components.generator import BaseGenerator, MockGenerator
+from mlip_autopipec.components.generator import (
+    AdaptiveGenerator,
+    BaseGenerator,
+    MockGenerator,
+)
 from mlip_autopipec.components.oracle import BaseOracle, MockOracle
 from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer
 from mlip_autopipec.components.validator import BaseValidator, MockValidator
@@ -18,7 +22,7 @@ from mlip_autopipec.interfaces.base_component import BaseComponent
 
 class ComponentFactory:
     _REGISTRY: ClassVar[dict[str, dict[str, type[BaseComponent[Any]]]]] = {
-        "generator": {"mock": MockGenerator},
+        "generator": {"mock": MockGenerator, "adaptive": AdaptiveGenerator},
         "oracle": {"mock": MockOracle},
         "trainer": {"mock": MockTrainer},
         "dynamics": {"mock": MockDynamics},

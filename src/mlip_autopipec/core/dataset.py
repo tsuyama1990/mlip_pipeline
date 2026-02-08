@@ -106,7 +106,9 @@ class Dataset:
                     try:
                         yield Structure.model_validate_json(line)
                     except Exception:
-                        logger.warning(f"Skipping malformed line {i + 1} in dataset: {line[:50]}...")
+                        logger.warning(
+                            f"Skipping malformed line {i + 1} in dataset: {line[:50]}..."
+                        )
         except OSError:
             logger.exception("Failed to iterate over dataset")
             raise

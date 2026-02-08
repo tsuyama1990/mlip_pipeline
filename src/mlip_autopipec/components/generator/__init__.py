@@ -1,4 +1,5 @@
-from .base import BaseGenerator
-from .mock import MockGenerator
+from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
+from mlip_autopipec.components.generator.base import BaseGenerator
+from mlip_autopipec.components.generator.mock import MockGenerator
 
-__all__ = ["BaseGenerator", "MockGenerator"]
+__all__ = ["AdaptiveGenerator", "BaseGenerator", "MockGenerator"]

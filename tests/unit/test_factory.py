@@ -42,7 +42,9 @@ def test_factory_invalid_type() -> None:
 
     # If I use a name not in registry but valid in Config:
     with pytest.raises(ValueError, match="Unknown component type"):
-        ComponentFactory.get_generator(GeneratorConfig(name="random", cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1]))
+        ComponentFactory.get_generator(
+            GeneratorConfig(name="random", cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
+        )
 
 
 def test_mock_generator_iterator() -> None:

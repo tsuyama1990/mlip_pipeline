@@ -7,6 +7,7 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
+    Field,
     PlainSerializer,
     field_validator,
     model_validator,
@@ -41,7 +42,7 @@ class Structure(BaseModel):
     forces: NumpyArray | None = None
     energy: float | None = None
     stress: NumpyArray | None = None
-    properties: dict[str, Any] | None = None
+    tags: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("positions", mode="after")
     @classmethod
@@ -166,6 +167,11 @@ class Structure(BaseModel):
         if stress is None:
             stress = atoms.info.get("stress")
 
+        # Copy info to tags, ensuring we handle non-serializable objects if necessary
+        # For now, we assume atoms.info contains serializable data or data we can ignore errors on later?
+        # But Structure.tags is dict[str, Any].
+        tags = atoms.info.copy()
+
         return cls(
             positions=atoms.get_positions(),  # type: ignore[no-untyped-call]
             atomic_numbers=atoms.get_atomic_numbers(),  # type: ignore[no-untyped-call]
@@ -174,12 +180,16 @@ class Structure(BaseModel):
             forces=forces,
             energy=energy,
             stress=stress,
+            tags=tags,
         )
 
     def to_ase(self) -> Atoms:
         atoms = Atoms(
             numbers=self.atomic_numbers, positions=self.positions, cell=self.cell, pbc=self.pbc
         )
+        if self.tags:
+            atoms.info.update(self.tags)
+
         if self.energy is not None:
             atoms.info["energy"] = self.energy
         if self.forces is not None:

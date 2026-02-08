@@ -136,6 +136,7 @@ def test_dataset_invalid_meta(tmp_path: Path) -> None:
     with pytest.raises(TypeError, match="Metadata 'count' must be an integer"):
         len(dataset)
 
+
 def test_dataset_validate_integrity_on_append(tmp_path: Path) -> None:
     dataset = Dataset(tmp_path / "dataset.jsonl")
 

@@ -13,16 +13,26 @@ class GeneratorConfig(ComponentConfig):
     name: Literal["adaptive", "random", "mock"] = "mock"
     n_structures: int = Field(default=10, gt=0)
 
-    # Mock specific parameters - REQUIRED for reproducibility and explicit config
-    cell_size: float = Field(..., gt=0)
-    n_atoms: int = Field(..., gt=0)
-    atomic_numbers: list[int] = Field(..., min_length=1)
+    # Adaptive / Real generation parameters
+    element: str | None = None
+    crystal_structure: str = "bcc"
+    strain_range: float = 0.05
+    rattle_strength: float = 0.01
+    surface_indices: list[list[int]] = Field(
+        default_factory=lambda: [[1, 0, 0], [1, 1, 0], [1, 1, 1]]
+    )
+    vacuum: float = 10.0
+    supercell_dim: int = 2
+
+    # Mock specific parameters - Made optional to support adaptive mode
+    cell_size: float | None = Field(default=None, gt=0)
+    n_atoms: int | None = Field(default=None, gt=0)
+    atomic_numbers: list[int] | None = Field(default=None, min_length=1)
 
     # Spec parameters
     md_mc_ratio: float | None = None
     temperature_schedule: dict[str, Any] | None = None
     defect_density: float | None = None
-    strain_range: float | None = None
 
 
 class OracleConfig(ComponentConfig):

@@ -11,29 +11,32 @@ from mlip_autopipec.domain_models.config import GlobalConfig, OracleConfig
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:
-    return GlobalConfig.model_validate({
-        "workdir": tmp_path,
-        "max_cycles": 2,
-        "logging_level": "INFO",
-        "components": {
-            "generator": {
-                "name": "mock",
-                "n_structures": 5,
-                # Explicitly required params
-                "cell_size": 10.0,
-                "n_atoms": 2,
-                "atomic_numbers": [1, 1]
+    return GlobalConfig.model_validate(
+        {
+            "workdir": tmp_path,
+            "max_cycles": 2,
+            "logging_level": "INFO",
+            "components": {
+                "generator": {
+                    "name": "mock",
+                    "n_structures": 5,
+                    # Explicitly required params
+                    "cell_size": 10.0,
+                    "n_atoms": 2,
+                    "atomic_numbers": [1, 1],
+                },
+                "oracle": {"name": "mock"},
+                "trainer": {"name": "mock"},
+                "dynamics": {
+                    "name": "mock",
+                    "selection_rate": 1.0,
+                    "uncertainty_threshold": 5.0,  # Required for mock now
+                },
+                "validator": {"name": "mock"},
             },
-            "oracle": {"name": "mock"},
-            "trainer": {"name": "mock"},
-            "dynamics": {
-                "name": "mock",
-                "selection_rate": 1.0,
-                "uncertainty_threshold": 5.0 # Required for mock now
-            },
-            "validator": {"name": "mock"}
         }
-    })
+    )
+
 
 def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> None:
     # Arrange
@@ -82,10 +85,12 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     assert state.current_cycle == 2
     assert state.status == "STOPPED"
 
+
 class FailingOracle(MockOracle):
     def compute(self, structures: Any) -> Any:
         msg = "Simulated DFT failure"
         raise RuntimeError(msg)
+
 
 def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Inject the failing component via factory override or property patching
@@ -106,5 +111,6 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Also verify file persistence
     # Re-instantiate StateManager to read from file
     from mlip_autopipec.core.state import StateManager
+
     loaded_state = StateManager(mock_config.workdir / "workflow_state.json").state
     assert loaded_state.status == "ERROR"

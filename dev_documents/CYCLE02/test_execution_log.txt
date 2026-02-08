@@ -1,0 +1,61 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 37 items
+
+tests/integration/test_generator_integration.py .                        [  2%]
+tests/integration/test_orchestrator_mock.py ..                           [  8%]
+tests/unit/test_config.py ...                                            [ 16%]
+tests/unit/test_dataset.py .......                                       [ 35%]
+tests/unit/test_factory.py ....                                          [ 45%]
+tests/unit/test_generator_components.py ......                           [ 62%]
+tests/unit/test_oracle_mock.py .                                         [ 64%]
+tests/unit/test_state.py ...                                             [ 72%]
+tests/unit/test_structure.py ..........                                  [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                            0      0   100%
+src/mlip_autopipec/components/__init__.py                 0      0   100%
+src/mlip_autopipec/components/dynamics/__init__.py        3      0   100%
+src/mlip_autopipec/components/dynamics/base.py           12      1    92%   13
+src/mlip_autopipec/components/dynamics/mock.py           19      0   100%
+src/mlip_autopipec/components/generator/__init__.py       4      0   100%
+src/mlip_autopipec/components/generator/adaptive.py      54     12    78%   58-64, 75-78, 92-93, 113
+src/mlip_autopipec/components/generator/base.py          12      1    92%   13
+src/mlip_autopipec/components/generator/builder.py       40      4    90%   33-34, 60-61
+src/mlip_autopipec/components/generator/mock.py          44     13    70%   27-30, 37-38, 41-42, 45-46, 67-68, 73
+src/mlip_autopipec/components/generator/policy.py        38      3    92%   33, 65-66
+src/mlip_autopipec/components/generator/rattle.py        32      2    94%   33, 54
+src/mlip_autopipec/components/oracle/__init__.py          3      0   100%
+src/mlip_autopipec/components/oracle/base.py             11      1    91%   12
+src/mlip_autopipec/components/oracle/mock.py             22      2    91%   18-19
+src/mlip_autopipec/components/trainer/__init__.py         3      0   100%
+src/mlip_autopipec/components/trainer/base.py            12      1    92%   16
+src/mlip_autopipec/components/trainer/mock.py            13      0   100%
+src/mlip_autopipec/components/validator/__init__.py       3      0   100%
+src/mlip_autopipec/components/validator/base.py          11      1    91%   12
+src/mlip_autopipec/components/validator/mock.py          10      0   100%
+src/mlip_autopipec/core/__init__.py                       0      0   100%
+src/mlip_autopipec/core/dataset.py                       86     22    74%   19-23, 28, 35-38, 49-50, 56-58, 92-93, 98, 105, 112-114
+src/mlip_autopipec/core/orchestrator.py                  65      7    89%   30, 67-73
+src/mlip_autopipec/core/state.py                         28      1    96%   27
+src/mlip_autopipec/domain_models/__init__.py              4      0   100%
+src/mlip_autopipec/domain_models/config.py               65      5    92%   97-101
+src/mlip_autopipec/domain_models/potential.py            10      0   100%
+src/mlip_autopipec/domain_models/structure.py           141     20    86%   20, 54-55, 62-63, 73-74, 81-82, 93-94, 130-131, 155-160, 191
+src/mlip_autopipec/factory.py                            37      0   100%
+src/mlip_autopipec/interfaces/__init__.py                 0      0   100%
+src/mlip_autopipec/interfaces/base_component.py          12      1    92%   20
+src/mlip_autopipec/main.py                               27     27     0%   1-40
+src/mlip_autopipec/utils/__init__.py                      0      0   100%
+src/mlip_autopipec/utils/logging.py                      13     13     0%   1-19
+-----------------------------------------------------------------------------------
+TOTAL                                                   834    137    84%
+============================== 37 passed in 2.33s ==============================
