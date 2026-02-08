@@ -42,11 +42,7 @@ def voigt_6_to_full_3x3(stress_voigt: np.ndarray) -> np.ndarray:
         raise ValueError(msg)
 
     xx, yy, zz, yz, xz, xy = stress_voigt
-    return np.array([
-        [xx, xy, xz],
-        [xy, yy, yz],
-        [xz, yz, zz]
-    ])
+    return np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
 
 
 class Structure(BaseModel):
@@ -201,8 +197,8 @@ class Structure(BaseModel):
 
             # If voigt=False failed or wasn't supported (some older ASE calculators might behave oddly), fallback
             if stress is None:
-                 with contextlib.suppress(Exception):
-                    stress = atoms.get_stress() # type: ignore[no-untyped-call]
+                with contextlib.suppress(Exception):
+                    stress = atoms.get_stress()  # type: ignore[no-untyped-call]
 
         # Fallback to arrays/info if not in calc (e.g. read from file)
         if energy is None:

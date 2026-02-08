@@ -232,7 +232,7 @@ def test_validate_labeled_partial() -> None:
         cell=cell,
         pbc=pbc,
         forces=np.zeros((1, 3)),
-        stress=np.zeros(6)
+        stress=np.zeros(6),
     )
     with pytest.raises(ValueError, match="Structure missing energy label"):
         s.validate_labeled()

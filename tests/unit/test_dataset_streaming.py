@@ -9,11 +9,12 @@ from mlip_autopipec.domain_models.structure import Structure
 def test_dataset_streaming_behavior(tmp_path: Path) -> None:
     """Verify that dataset iteration is lazy and does not load all lines at once."""
     dataset_path = tmp_path / "stream_test.jsonl"
-    dataset_path.touch() # Ensure it exists
+    dataset_path.touch()  # Ensure it exists
     dataset_path.with_suffix(".meta.json").write_text('{"count": 0}')
 
     # Create a dummy structure for serialization
     import numpy as np
+
     s = Structure(
         positions=np.zeros((1, 3)),
         atomic_numbers=np.array([1]),
@@ -21,7 +22,7 @@ def test_dataset_streaming_behavior(tmp_path: Path) -> None:
         pbc=np.array([True, True, True]),
         energy=-1.5,
         forces=np.zeros((1, 3)),
-        stress=np.zeros((3, 3))
+        stress=np.zeros((3, 3)),
     )
     line = s.model_dump_json() + "\n"
 
@@ -41,6 +42,7 @@ def test_dataset_streaming_behavior(tmp_path: Path) -> None:
 
         # Verify we have an iterator
         import collections.abc
+
         assert isinstance(iterator, collections.abc.Iterator)
         assert not isinstance(iterator, list)
 
@@ -67,6 +69,7 @@ def test_dataset_append_buffering(tmp_path: Path) -> None:
     ds = Dataset(dataset_path)
 
     import numpy as np
+
     s = Structure(
         positions=np.zeros((1, 3)),
         atomic_numbers=np.array([1]),
@@ -74,7 +77,7 @@ def test_dataset_append_buffering(tmp_path: Path) -> None:
         pbc=np.array([True, True, True]),
         energy=-1.5,
         forces=np.zeros((1, 3)),
-        stress=np.zeros((3, 3))
+        stress=np.zeros((3, 3)),
     )
 
     structures = [s for _ in range(5)]
@@ -89,7 +92,9 @@ def test_dataset_append_buffering(tmp_path: Path) -> None:
 
     def side_effect(self: Any, *args: Any, **kwargs: Any) -> Any:
         # Check if we are opening the dataset in append mode
-        if str(self) == str(dataset_path) and ((len(args) > 0 and args[0] == "a") or kwargs.get("mode") == "a"):
+        if str(self) == str(dataset_path) and (
+            (len(args) > 0 and args[0] == "a") or kwargs.get("mode") == "a"
+        ):
             return append_handle
         # Otherwise use real file ops (e.g. for metadata reading/writing)
         return original_open(self, *args, **kwargs)

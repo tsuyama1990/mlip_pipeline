@@ -56,18 +56,11 @@ def test_factory_creation_real() -> None:
     trainer_config = PacemakerTrainerConfig(
         name=TrainerType.PACEMAKER, max_num_epochs=10, basis_size=500, cutoff=4.0
     )
-    dyn_config = LAMMPSDynamicsConfig(
-        name=DynamicsType.LAMMPS, timestep=0.001, n_steps=100
-    )
-    validator_config = StandardValidatorConfig(
-        name=ValidatorType.STANDARD
-    )
+    dyn_config = LAMMPSDynamicsConfig(name=DynamicsType.LAMMPS, timestep=0.001, n_steps=100)
+    validator_config = StandardValidatorConfig(name=ValidatorType.STANDARD)
     # Adaptive generator requires a lot of fields
     gen_config = AdaptiveGeneratorConfig(
-        name=GeneratorType.ADAPTIVE,
-        element="Cu",
-        crystal_structure="fcc",
-        n_structures=5
+        name=GeneratorType.ADAPTIVE, element="Cu", crystal_structure="fcc", n_structures=5
     )
 
     assert isinstance(ComponentFactory.get_oracle(oracle_config), QEOracle)

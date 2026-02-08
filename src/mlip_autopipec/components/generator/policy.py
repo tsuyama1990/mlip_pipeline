@@ -67,7 +67,9 @@ class ExplorationPolicy:
 
         # Threshold for high error (e.g., 0.1 eV/A force RMSE or similar unitless metric)
         if surface_error > 0.1:
-            logger.info(f"High surface error ({surface_error:.3f}) detected. Boosting surface sampling.")
+            logger.info(
+                f"High surface error ({surface_error:.3f}) detected. Boosting surface sampling."
+            )
             n_surface = int(n_total * 0.6)
             n_bulk = n_total - n_surface
         else:

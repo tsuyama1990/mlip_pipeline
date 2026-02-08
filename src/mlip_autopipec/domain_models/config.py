@@ -19,6 +19,7 @@ class ComponentConfig(BaseModel):
 
 # --- Generator Configs ---
 
+
 class BaseGeneratorConfig(ComponentConfig):
     n_structures: int = Field(default=10, gt=0)
 
@@ -51,6 +52,7 @@ GeneratorConfig = MockGeneratorConfig | AdaptiveGeneratorConfig
 
 # --- Oracle Configs ---
 
+
 class BaseOracleConfig(ComponentConfig):
     pass
 
@@ -81,6 +83,7 @@ OracleConfig = MockOracleConfig | QEOracleConfig | VASPOracleConfig
 
 # --- Trainer Configs ---
 
+
 class BaseTrainerConfig(ComponentConfig):
     max_num_epochs: int = 50
 
@@ -104,6 +107,7 @@ TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig
 
 
 # --- Dynamics Configs ---
+
 
 class BaseDynamicsConfig(ComponentConfig):
     uncertainty_threshold: float = 5.0
@@ -130,6 +134,7 @@ DynamicsConfig = MockDynamicsConfig | LAMMPSDynamicsConfig
 
 # --- Validator Configs ---
 
+
 class BaseValidatorConfig(ComponentConfig):
     test_set_ratio: float = 0.1
 
@@ -149,6 +154,7 @@ ValidatorConfig = MockValidatorConfig | StandardValidatorConfig
 
 
 # --- Global Config ---
+
 
 class ComponentsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")

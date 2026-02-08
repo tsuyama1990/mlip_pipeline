@@ -12,9 +12,7 @@ class StructureBuilder(ABC):
     """Abstract base class for structure builders."""
 
     @abstractmethod
-    def build(
-        self, n_structures: int, config: AdaptiveGeneratorConfig
-    ) -> Iterator[Structure]:
+    def build(self, n_structures: int, config: AdaptiveGeneratorConfig) -> Iterator[Structure]:
         """
         Build a stream of structures.
 
@@ -31,9 +29,7 @@ class StructureBuilder(ABC):
 class BulkBuilder(StructureBuilder):
     """Builder for bulk structures."""
 
-    def build(
-        self, n_structures: int, config: AdaptiveGeneratorConfig
-    ) -> Iterator[Structure]:
+    def build(self, n_structures: int, config: AdaptiveGeneratorConfig) -> Iterator[Structure]:
         # Config is strictly typed, so these checks are technically redundant if we trust Pydantic,
         # but good for runtime safety if config is manually constructed or if fields are optional in schema.
         # In AdaptiveGeneratorConfig, they are required fields (str, not Optional[str]),
@@ -48,7 +44,9 @@ class BulkBuilder(StructureBuilder):
 
             # Supercell
             if config.supercell_dim > 1:
-                atoms = atoms.repeat((config.supercell_dim, config.supercell_dim, config.supercell_dim)) # type: ignore[no-untyped-call]
+                atoms = atoms.repeat(
+                    (config.supercell_dim, config.supercell_dim, config.supercell_dim)
+                )  # type: ignore[no-untyped-call]
 
             # Add metadata
             atoms.info["type"] = "bulk"
@@ -60,9 +58,7 @@ class BulkBuilder(StructureBuilder):
 class SurfaceBuilder(StructureBuilder):
     """Builder for surface structures."""
 
-    def build(
-        self, n_structures: int, config: AdaptiveGeneratorConfig
-    ) -> Iterator[Structure]:
+    def build(self, n_structures: int, config: AdaptiveGeneratorConfig) -> Iterator[Structure]:
         # Validated by Pydantic schema
 
         indices_pool = config.surface_indices
@@ -76,12 +72,12 @@ class SurfaceBuilder(StructureBuilder):
             bulk_atoms = bulk(config.element, crystalstructure=config.crystal_structure, cubic=True)
 
             # Create surface
-            surf = surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum) # type: ignore[no-untyped-call]
+            surf = surface(bulk_atoms, tuple(idx), 3, vacuum=config.vacuum)  # type: ignore[no-untyped-call]
 
             # Repeat surface to make it larger in x/y if needed
             # Usually surfaces are small in x/y unless supercell specified
             if config.supercell_dim > 1:
-                 surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))
+                surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))
 
             surf.info["type"] = "surface"
             surf.info["generator"] = "SurfaceBuilder"
