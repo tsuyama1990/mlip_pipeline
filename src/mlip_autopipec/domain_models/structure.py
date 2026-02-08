@@ -33,6 +33,14 @@ NumpyArray = Annotated[
 
 
 class Structure(BaseModel):
+    """
+    Domain entity representing an atomic structure.
+
+    Attributes `forces`, `energy`, and `stress` are Optional because structures
+    are initially generated without labels. Use `validate_labeled()` to enforce
+    their presence for labeled datasets.
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     positions: NumpyArray

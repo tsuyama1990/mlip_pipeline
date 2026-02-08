@@ -15,12 +15,10 @@ class GeneratorConfig(ComponentConfig):
 
     # Adaptive / Real generation parameters
     element: str | None = None
-    crystal_structure: str = "bcc"
+    crystal_structure: str | None = None
     strain_range: float = 0.05
     rattle_strength: float = 0.01
-    surface_indices: list[list[int]] = Field(
-        default_factory=lambda: [[1, 0, 0], [1, 1, 0], [1, 1, 1]]
-    )
+    surface_indices: list[list[int]] | None = None
     vacuum: float = 10.0
     supercell_dim: int = 2
 

@@ -32,6 +32,9 @@ class BulkBuilder(StructureBuilder):
         if not config.element:
             msg = "Element must be specified for BulkBuilder"
             raise ValueError(msg)
+        if not config.crystal_structure:
+            msg = "Crystal structure must be specified for BulkBuilder"
+            raise ValueError(msg)
 
         structures = []
         for _ in range(n_structures):
@@ -59,13 +62,19 @@ class SurfaceBuilder(StructureBuilder):
         if not config.element:
             msg = "Element must be specified for SurfaceBuilder"
             raise ValueError(msg)
+        if not config.crystal_structure:
+            msg = "Crystal structure must be specified for SurfaceBuilder"
+            raise ValueError(msg)
+        if not config.surface_indices:
+            msg = "Surface indices must be specified for SurfaceBuilder"
+            raise ValueError(msg)
 
         structures = []
         indices_pool = config.surface_indices
 
         for _ in range(n_structures):
             # Pick random surface index from pool
-            idx =  indices_pool[np.random.choice(len(indices_pool))] # type: ignore
+            idx = indices_pool[np.random.choice(len(indices_pool))]
 
             # Create base bulk first
             # Surfaces need a bulk reference.
@@ -77,7 +86,7 @@ class SurfaceBuilder(StructureBuilder):
             # Repeat surface to make it larger in x/y if needed
             # Usually surfaces are small in x/y unless supercell specified
             if config.supercell_dim > 1:
-                 surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1)) # type: ignore[no-untyped-call]
+                 surf = surf.repeat((config.supercell_dim, config.supercell_dim, 1))
 
             surf.info["type"] = "surface"
             surf.info["generator"] = "SurfaceBuilder"

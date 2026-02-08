@@ -24,6 +24,8 @@ class AdaptiveGenerator(BaseGenerator):
     current model state and metrics.
     """
 
+    _VALID_KEYS = frozenset(GeneratorConfig.model_fields.keys())
+
     def __init__(self, config: GeneratorConfig) -> None:
         super().__init__(config)
         self.policy = ExplorationPolicy()
@@ -31,6 +33,43 @@ class AdaptiveGenerator(BaseGenerator):
             "bulk": BulkBuilder(),
             "surface": SurfaceBuilder(),
         }
+
+    def _resolve_config(
+        self, config: dict[str, Any] | None
+    ) -> tuple[GeneratorConfig, int, dict[str, Any]]:
+        current_cycle = 0
+        current_metrics: dict[str, Any] = {}
+
+        if config:
+            # Extract runtime params that are not part of GeneratorConfig
+            if "current_cycle" in config:
+                current_cycle = config.pop("current_cycle")  # type: ignore
+            if "current_metrics" in config:
+                current_metrics = config.pop("current_metrics")  # type: ignore
+
+        if not config:
+            # If config is None or became empty after popping cycle/metrics, use base config
+            # This avoids expensive model_dump/model_validate
+            return self.config, current_cycle, current_metrics
+
+        # Update config with remaining keys
+        effective_config_dict = self.config.model_dump()
+        effective_config_dict.update(config)
+
+        # Re-validate config to ensure integrity
+        # We need to filter out keys that might have been passed but aren't in GeneratorConfig
+        clean_config_dict = {
+            k: v for k, v in effective_config_dict.items() if k in self._VALID_KEYS
+        }
+
+        try:
+            run_config = GeneratorConfig.model_validate(clean_config_dict)
+        except Exception as e:
+            logger.exception("Invalid runtime configuration")
+            msg = f"Invalid configuration: {e}"
+            raise ValueError(msg) from e
+
+        return run_config, current_cycle, current_metrics
 
     def generate(
         self, n_structures: int, config: dict[str, Any] | None = None
@@ -49,33 +88,7 @@ class AdaptiveGenerator(BaseGenerator):
         logger.info(f"Generating {n_structures} structures using AdaptiveGenerator")
 
         # 1. Prepare Configuration
-        effective_config_dict = self.config.model_dump()
-        current_cycle = 0
-        current_metrics: dict[str, Any] = {}
-
-        if config:
-            # Extract runtime params that are not part of GeneratorConfig
-            if "current_cycle" in config:
-                current_cycle = config.pop("current_cycle")
-            if "current_metrics" in config:
-                current_metrics = config.pop("current_metrics")
-
-            # Update remaining config
-            effective_config_dict.update(config)
-
-        # Re-validate config to ensure integrity
-        # We need to filter out keys that might have been passed but aren't in GeneratorConfig
-        # (though we popped cycle/metrics, others might exist if passed loosely)
-        # Access model_fields from the class, not the instance (deprecated in Pydantic V2)
-        valid_keys = GeneratorConfig.model_fields.keys()
-        clean_config_dict = {k: v for k, v in effective_config_dict.items() if k in valid_keys}
-
-        try:
-            run_config = GeneratorConfig.model_validate(clean_config_dict)
-        except Exception as e:
-            logger.exception("Invalid runtime configuration")
-            msg = f"Invalid configuration: {e}"
-            raise ValueError(msg) from e
+        run_config, current_cycle, current_metrics = self._resolve_config(config)
 
         # 2. Instantiate Transforms with run_config
         rattle = RattleTransform(stdev=run_config.rattle_strength)

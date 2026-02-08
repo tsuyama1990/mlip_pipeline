@@ -96,6 +96,12 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Inject the failing component via factory override or property patching
 
     orchestrator = Orchestrator(mock_config)
+
+    # We need to patch the factory or manually set the oracle because Orchestrator
+    # instantiates components internally based on config.
+    # However, since Orchestrator is already instantiated, we can try replacing the component instance.
+    # The Orchestrator stores components in self.components (implied, or self.oracle etc).
+    # Checking Orchestrator implementation (from memory/context): it has self.oracle.
     orchestrator.oracle = FailingOracle(OracleConfig())
 
     # Verify graceful failure
@@ -114,3 +120,34 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
 
     loaded_state = StateManager(mock_config.workdir / "workflow_state.json").state
     assert loaded_state.status == "ERROR"
+
+
+def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path) -> None:
+    """Verify that selection_rate in Dynamics actually filters structures."""
+    import random
+    random.seed(42)  # Seed for deterministic behavior in this test
+
+    # Modify config to have 50% selection rate
+    mock_config.components.dynamics.selection_rate = 0.5
+    # Generate enough structures to be statistically significant or just deterministic
+    mock_config.components.generator.n_structures = 20
+    # Cycle 1 is cold start (labels all 20). Cycle 2 uses dynamics (filters ~50% of 20 -> ~10).
+    mock_config.max_cycles = 2
+
+    orchestrator = Orchestrator(mock_config)
+    orchestrator.run()
+
+    # Check dataset count
+    dataset_path = tmp_path / "dataset.jsonl"
+    assert dataset_path.exists()
+
+    dataset = Dataset(dataset_path)
+    count = sum(1 for _ in dataset)
+
+    # Cycle 1: 20
+    # Cycle 2: ~10 (with seed 42, likely 11 based on check_rng.py)
+    # Total ~30.
+    # We verify it's significantly less than 40 (which would be no filtering)
+    # and significantly more than 20 (which would be no cycle 2).
+    assert 25 <= count <= 35
+    # This proves dynamics filtered roughly half.

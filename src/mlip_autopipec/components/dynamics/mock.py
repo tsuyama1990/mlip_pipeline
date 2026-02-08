@@ -1,5 +1,5 @@
 import logging
-import secrets
+import random
 from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
@@ -43,10 +43,9 @@ class MockDynamics(BaseDynamics):
 
         # In Cycle 01, start_structures might be just generated ones.
         # Ensure we stream by iterating over the input iterable
+        # Use random.random() for performance (secrets is too slow for large loops)
         for s in start_structures:
-            # Simulate uncertainty check
-            # secrets.randbelow(100) returns [0, 99], /100.0 -> [0.0, 0.99]
-            if (secrets.randbelow(100) / 100.0) < selection_rate:
+            if random.random() < selection_rate:  # noqa: S311
                 # Simulate high uncertainty if selected
                 s.tags = {"uncertainty": uncertainty_threshold + 1.0}
                 yield s
