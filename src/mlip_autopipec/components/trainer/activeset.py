@@ -37,9 +37,16 @@ class ActiveSetSelector:
             msg = f"Input path does not exist: {safe_input}"
             raise FileNotFoundError(msg)
 
+        # Validate executable
+        import shutil
+        pace_executable = shutil.which("pace_activeset")
+        if not pace_executable:
+            msg = "pace_activeset executable not found in PATH"
+            raise RuntimeError(msg)
+
         # Construct command
         cmd = [
-            "pace_activeset",
+            pace_executable,
             "--data-filename",
             str(safe_input),
             "--output",
@@ -57,7 +64,7 @@ class ActiveSetSelector:
                 capture_output=True,
                 text=True,
                 shell=False,
-            )
+            )  # noqa: S603
             logger.debug(f"pace_activeset output: {result.stdout}")
         except subprocess.CalledProcessError as e:
             msg = f"pace_activeset failed with error: {e.stderr}"

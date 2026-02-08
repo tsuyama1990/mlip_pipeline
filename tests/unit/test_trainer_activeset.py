@@ -26,7 +26,8 @@ def test_activeset_selector(mock_run: MagicMock, tmp_path: Path) -> None:
 
     mock_run.side_effect = create_output
 
-    result_path = selector.select(input_path, output_path)
+    with patch("shutil.which", return_value="/usr/bin/pace_activeset"):
+        result_path = selector.select(input_path, output_path)
 
     assert result_path.exists()
     assert result_path == output_path
@@ -35,7 +36,7 @@ def test_activeset_selector(mock_run: MagicMock, tmp_path: Path) -> None:
     args, _ = mock_run.call_args
     command = args[0]
 
-    assert "pace_activeset" in command
+    assert "/usr/bin/pace_activeset" in command
     assert str(input_path.resolve()) in command
     assert "--output" in command
     assert "--max" in command  # We implemented --max
@@ -53,5 +54,6 @@ def test_activeset_selector_fail(tmp_path: Path) -> None:
         input_file = tmp_path / "in.gzip"
         input_file.touch()
 
-        with pytest.raises(RuntimeError):
-            selector.select(input_file, tmp_path / "out.gzip")
+        with patch("shutil.which", return_value="/usr/bin/pace_activeset"):
+            with pytest.raises(RuntimeError):
+                selector.select(input_file, tmp_path / "out.gzip")

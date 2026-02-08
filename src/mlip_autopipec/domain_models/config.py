@@ -5,10 +5,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.constants import (
     DEFAULT_BUFFER_SIZE,
-    PACEMAKER_ACTIVESET_FILENAME,
-    PACEMAKER_DATASET_FILENAME,
-    PACEMAKER_INPUT_FILENAME,
-    PACEMAKER_POTENTIAL_FILENAME,
 )
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
@@ -16,6 +12,12 @@ from mlip_autopipec.domain_models.enums import (
     OracleType,
     TrainerType,
     ValidatorType,
+)
+from mlip_autopipec.domain_models.files import (
+    DEFAULT_PACEMAKER_ACTIVESET_FILENAME,
+    DEFAULT_PACEMAKER_DATASET_FILENAME,
+    DEFAULT_PACEMAKER_INPUT_FILENAME,
+    DEFAULT_PACEMAKER_POTENTIAL_FILENAME,
 )
 
 
@@ -161,10 +163,10 @@ class PacemakerTrainerConfig(BaseTrainerConfig):
     active_set_limit: int = 1000
     initial_potential: str | Path | None = None
     physics_baseline: PhysicsBaselineConfig | None = None
-    input_filename: str = PACEMAKER_INPUT_FILENAME
-    dataset_filename: str = PACEMAKER_DATASET_FILENAME
-    potential_filename: str = PACEMAKER_POTENTIAL_FILENAME
-    activeset_filename: str = PACEMAKER_ACTIVESET_FILENAME
+    input_filename: str = DEFAULT_PACEMAKER_INPUT_FILENAME
+    dataset_filename: str = DEFAULT_PACEMAKER_DATASET_FILENAME
+    potential_filename: str = DEFAULT_PACEMAKER_POTENTIAL_FILENAME
+    activeset_filename: str = DEFAULT_PACEMAKER_ACTIVESET_FILENAME
     data_format: Literal["extxyz", "pckl.gzip"] = "extxyz"
 
 

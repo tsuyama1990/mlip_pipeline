@@ -78,6 +78,13 @@ def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTr
             # Verify input.yaml exists
             assert (tmp_path / trainer_config.input_filename).exists()
 
+            # Verify command arguments structure
+            # args[0] is the command list passed to subprocess.run
+            # e.g. ['pace_train', '/path/to/input.yaml']
+            assert len(command) == 2
+            assert command[0] == "pace_train"
+            assert command[1] == str(tmp_path / trainer_config.input_filename)
+
             # Verify dataset.extxyz exists (default format)
             # Default is extxyz now in Config? No, default is extxyz
             if trainer_config.data_format == "extxyz":

@@ -218,9 +218,15 @@ class Dataset:
         if output_path.exists():
             output_path.unlink()
 
+        # Batch processing loop to prevent memory overload
         for batch in self.iter_batches(batch_size=chunk_size):
+            # Convert only current batch to ASE atoms
             atoms_list = [s.to_ase() for s in batch]
+            # Append current batch to file
             write(output_path, atoms_list, format="extxyz", append=True)
+            # Explicitly clear batch to help GC
+            del atoms_list
+            del batch
 
         logger.info(f"Exported dataset to {output_path} in extxyz format")
 
@@ -228,8 +234,13 @@ class Dataset:
         """
         Export dataset to a gzipped pickle file for Pacemaker.
 
-        Reads the dataset in chunks, builds a single DataFrame in memory (required by format),
-        and dumps it to disk. Optimizes memory by avoiding intermediate list of all structures.
+        WARNING: This method loads the entire dataset into memory as a Pandas DataFrame
+        before pickling, as required by the legacy Pacemaker input format.
+        For large datasets (>100k structures), use `to_extxyz` instead to avoid OOM errors.
+
+        Args:
+            output_path: Destination path.
+            chunk_size: Size of chunks for processing (internal optimization).
         """
         # Validate output path
         if not output_path.parent.exists():
