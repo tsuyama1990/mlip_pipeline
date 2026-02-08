@@ -28,7 +28,8 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
             "trainer": {"name": "mock"},
             "dynamics": {
                 "name": "mock",
-                "selection_rate": 1.0
+                "selection_rate": 1.0,
+                "uncertainty_threshold": 5.0 # Required for mock now
             },
             "validator": {"name": "mock"}
         }
@@ -56,27 +57,22 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     assert dataset_path.exists()
 
     # Verify data flow: check if structures have been processed
-    # Cycle 1: 5 structures (selection_rate=1.0)
-    # Cycle 2: 5 structures selected from generated
-    # Total should be 10
+    # Use streaming iterator to avoid loading full list
     dataset = Dataset(dataset_path)
-    structures = list(dataset)
-    count = len(structures)
-
-    # We expect 10 structures because selection_rate is 1.0 and n_structures is 5 for each cycle
-    # Wait, cycle 1 uses generator directly. Cycle 2 uses generator -> dynamics.
-    # Cycle 1: 5 structures.
-    # Cycle 2: 5 generated -> dynamics (rate=1.0) -> 5 selected.
-    # Total 10.
-    assert count == 10
-
-    for s in structures:
+    count = 0
+    for s in dataset:
+        count += 1
         # Verify labeling happened
         assert s.energy is not None
         assert s.forces is not None
         assert s.stress is not None
         # Verify integrity
         s.validate_labeled()
+
+    # Cycle 1: 5 structures (selection_rate=1.0)
+    # Cycle 2: 5 structures selected from generated
+    # Total 10.
+    assert count == 10
 
     # Check state
     assert (tmp_path / "workflow_state.json").exists()

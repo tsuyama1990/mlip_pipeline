@@ -22,7 +22,11 @@ def test_config_valid(tmp_path: Path) -> None:
             },
             "oracle": {"name": "mock"},
             "trainer": {"name": "mock"},
-            "dynamics": {"name": "mock", "selection_rate": 0.5},
+            "dynamics": {
+                "name": "mock",
+                "selection_rate": 0.5,
+                "uncertainty_threshold": 5.0
+            },
             "validator": {"name": "mock"},
         }
     }
@@ -66,7 +70,11 @@ def test_config_extra_forbidden(tmp_path: Path) -> None:
         },
         "oracle": {"name": "mock"},
         "trainer": {"name": "mock"},
-        "dynamics": {"name": "mock", "selection_rate": 0.5},
+        "dynamics": {
+            "name": "mock",
+            "selection_rate": 0.5,
+            "uncertainty_threshold": 5.0
+        },
         "validator": {"name": "mock"},
     }
 

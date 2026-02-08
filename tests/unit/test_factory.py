@@ -19,7 +19,7 @@ from mlip_autopipec.factory import ComponentFactory
 def test_factory_creation() -> None:
     # Use valid configs for factory creation
     gen_config = GeneratorConfig(cell_size=10.0, n_atoms=2, atomic_numbers=[1, 1])
-    dyn_config = DynamicsConfig(selection_rate=0.5)
+    dyn_config = DynamicsConfig(selection_rate=0.5, uncertainty_threshold=5.0)
 
     assert isinstance(ComponentFactory.get_generator(gen_config), MockGenerator)
     assert isinstance(ComponentFactory.get_oracle(OracleConfig()), MockOracle)
