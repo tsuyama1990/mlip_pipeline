@@ -19,16 +19,19 @@ class MockDynamics(BaseDynamics):
     structures and probabilistically selects them, tagging them with high uncertainty.
     """
 
-    def __init__(self, config: MockDynamicsConfig) -> None:
+    def __init__(self, config: MockDynamicsConfig, rng: random.Random | None = None) -> None:
         super().__init__(config)
         self.config: MockDynamicsConfig = config
 
-        # Explicitly validate seed to prevent unsafe usage
-        if config.seed is not None and not isinstance(config.seed, int):
-            msg = f"Seed must be an integer or None, got {type(config.seed)}"
-            raise TypeError(msg)
-
-        self._rng = random.Random(config.seed)  # noqa: S311
+        # Dependency Injection for RNG
+        if rng:
+            self._rng = rng
+        else:
+            # Fallback to internal RNG based on config seed
+            if config.seed is not None and not isinstance(config.seed, int):
+                msg = f"Seed must be an integer or None, got {type(config.seed)}"
+                raise TypeError(msg)
+            self._rng = random.Random(config.seed)  # noqa: S311
 
     def explore(
         self, potential: Potential | None, start_structures: Iterable[Structure]

@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -188,6 +188,49 @@ class Structure(BaseModel):
 
     @classmethod
     def from_ase(cls, atoms: Atoms) -> "Structure":
+        """
+        Create a Structure from an ASE Atoms object.
+        Performs strict validation of inputs BEFORE creating the Pydantic model
+        to prevent any invalid state.
+        """
+        # 1. Validate Atomic Numbers Immediately
+        # Use try-except to handle potential missing attributes or wrong types in ASE object
+        try:
+            atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+        except Exception as e:
+            msg = f"Failed to get atomic numbers from ASE atoms: {e}"
+            raise ValueError(msg) from e
+
+        if not isinstance(atomic_numbers, np.ndarray):
+             atomic_numbers = np.array(atomic_numbers)
+
+        if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
+            msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
+            raise ValueError(msg)
+
+        # 2. Extract and Validate Positions
+        try:
+            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
+        except Exception as e:
+            msg = f"Failed to get positions from ASE atoms: {e}"
+            raise ValueError(msg) from e
+
+        if positions.ndim != 2 or positions.shape[1] != 3:
+             msg = f"Positions must be (N, 3), got {positions.shape}"
+             raise ValueError(msg)
+
+        if len(positions) != len(atomic_numbers):
+             msg = f"Mismatch: positions={len(positions)}, atomic_numbers={len(atomic_numbers)}"
+             raise ValueError(msg)
+
+        # 3. Extract Cell and PBC
+        try:
+             cell = np.array(atoms.get_cell())  # type: ignore[no-untyped-call]
+             pbc = atoms.get_pbc()  # type: ignore[no-untyped-call]
+        except Exception as e:
+             msg = f"Failed to get cell/pbc from ASE atoms: {e}"
+             raise ValueError(msg) from e
+
         # Extract energy/forces/stress if available in calc or info/arrays
         energy = None
         forces = None
@@ -198,22 +241,22 @@ class Structure(BaseModel):
             # Explicit error handling
             try:
                 # Type ignores required because ASE Calculator methods are dynamically added or not typed
-                energy = atoms.get_potential_energy()
+                energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
             except Exception as e:  # Catch broadly ASE Calculator interface errors
                 logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
 
             try:
-                forces = atoms.get_forces()
+                forces = atoms.get_forces()  # type: ignore[no-untyped-call]
             except Exception as e:
                 logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
 
             try:
                 # Try getting full tensor first
-                stress = atoms.get_stress(voigt=False)
+                stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
             except Exception:
                 # Fallback to Voigt or retry
                 try:
-                    stress = atoms.get_stress()
+                    stress = atoms.get_stress()  # type: ignore[no-untyped-call]
                 except Exception as e:
                     logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
@@ -230,17 +273,12 @@ class Structure(BaseModel):
         # Copy info to tags
         tags = atoms.info.copy()
 
-        # Validation: check atomic numbers BEFORE creating Structure
-        atomic_numbers = atoms.get_atomic_numbers()
-        if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
-            msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
-            raise ValueError(msg)
-
+        # Final Construction (Pydantic will double-check, but we pre-validated critical parts)
         return cls(
-            positions=atoms.get_positions(),
+            positions=positions,
             atomic_numbers=atomic_numbers,
-            cell=np.array(atoms.get_cell()),
-            pbc=atoms.get_pbc(),
+            cell=cell,
+            pbc=pbc,
             forces=forces,
             energy=energy,
             stress=stress,

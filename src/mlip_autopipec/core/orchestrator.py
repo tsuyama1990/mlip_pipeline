@@ -28,8 +28,14 @@ class Orchestrator:
 
     def __init__(self, config: GlobalConfig) -> None:
         self.config = config
-        self.state_manager = StateManager(config.workdir / "workflow_state.json")
-        self.dataset = Dataset(config.workdir / "dataset.jsonl")
+
+        # Resolve paths from config
+        self.dataset_path = config.workdir / config.orchestrator.dataset_filename
+        self.state_path = config.workdir / config.orchestrator.state_filename
+
+        # Initialize Core Components
+        self.state_manager = StateManager(self.state_path)
+        self.dataset = Dataset(self.dataset_path, root_dir=config.workdir)
 
         # Instantiate components via Factory (Dependency Injection)
         self.generator = ComponentFactory.get_generator(config.components.generator)
@@ -69,7 +75,9 @@ class Orchestrator:
         cycle = self.state_manager.state.current_cycle + 1
         logger.info(f"=== Starting Cycle {cycle:02d} ===")
 
-        cycle_dir = self.config.workdir / f"cycle_{cycle:02d}"
+        # Use configured cycle directory pattern
+        cycle_dir_name = self.config.orchestrator.cycle_dir_pattern.format(cycle=cycle)
+        cycle_dir = self.config.workdir / cycle_dir_name
         cycle_dir.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Exploration (Generator or Dynamics)
@@ -85,7 +93,9 @@ class Orchestrator:
             if self.current_potential is None:
                 # In a real restart scenario, we might load the potential from previous cycle
                 prev_cycle = cycle - 1
-                prev_pot_path = self.config.workdir / f"cycle_{prev_cycle:02d}" / "potential.yace"
+                prev_cycle_dir_name = self.config.orchestrator.cycle_dir_pattern.format(cycle=prev_cycle)
+                prev_pot_path = self.config.workdir / prev_cycle_dir_name / self.config.orchestrator.potential_filename
+
                 if prev_pot_path.exists():
                     self.current_potential = Potential(path=prev_pot_path)
                 else:

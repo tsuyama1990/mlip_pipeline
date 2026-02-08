@@ -12,7 +12,7 @@ from mlip_autopipec.domain_models.config import (
 
 class MockEspresso(Calculator):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__()
+        super().__init__()  # type: ignore[no-untyped-call]
         self.parameters = kwargs
 
 
@@ -74,7 +74,7 @@ def test_healer_invalid_calculator() -> None:
 
     class SimpleCalc(Calculator):
         def __init__(self, **kwargs: Any) -> None:
-            super().__init__()
+            super().__init__()  # type: ignore[no-untyped-call]
             self.parameters = kwargs
 
     calc = SimpleCalc()
@@ -94,4 +94,4 @@ def test_healer_no_parameters() -> None:
     calc = NoParamCalc()
     healer = Healer()
     with pytest.raises(HealingFailedError, match="does not have parameters"):
-        healer.heal(calc, Exception("Error"))
+        healer.heal(calc, Exception("Error"))  # type: ignore[arg-type]

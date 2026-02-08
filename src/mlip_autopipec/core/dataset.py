@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Iterable, Iterator
+from itertools import islice
 from pathlib import Path
 from typing import Any, cast
 
@@ -165,3 +166,21 @@ class Dataset:
         except OSError:
             logger.exception("Failed to iterate over dataset")
             raise
+
+    def iter_batches(self, batch_size: int = 100) -> Iterator[list[Structure]]:
+        """
+        Iterate over the dataset in batches.
+        Useful for efficient loading into training processes or batched calculations.
+
+        Args:
+            batch_size: Number of structures per batch.
+
+        Yields:
+            List of Structure objects.
+        """
+        iterator = iter(self)
+        while True:
+            batch = list(islice(iterator, batch_size))
+            if not batch:
+                break
+            yield batch

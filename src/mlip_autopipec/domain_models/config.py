@@ -77,11 +77,11 @@ class MockOracleConfig(BaseOracleConfig):
 class QEOracleConfig(BaseOracleConfig):
     name: Literal[OracleType.QE] = OracleType.QE
     kspacing: float = Field(default=0.05, ge=0.01, le=2.0)
-    mixing_beta: float = 0.7
+    mixing_beta: float = Field(default=0.7, ge=0.0, le=1.0)
     smearing: str = "mv"
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
-    ecutwfc: float = 60.0
-    ecutrho: float = 360.0
+    ecutwfc: float = Field(default=60.0, gt=0)
+    ecutrho: float = Field(default=360.0, gt=0)
     batch_size: int = Field(default=10, gt=0)  # Configurable batch size
 
 
@@ -180,6 +180,16 @@ class ComponentsConfig(BaseModel):
     validator: ValidatorConfig = Field(discriminator="name")
 
 
+class OrchestratorConfig(BaseModel):
+    """Configuration for Orchestrator paths and behavior."""
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_filename: str = "dataset.jsonl"
+    state_filename: str = "workflow_state.json"
+    cycle_dir_pattern: str = "cycle_{cycle:02d}"
+    potential_filename: str = "potential.yace"
+
+
 class GlobalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -187,6 +197,7 @@ class GlobalConfig(BaseModel):
     max_cycles: int = Field(gt=0)
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
+    orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     components: ComponentsConfig
 
     @field_validator("workdir")
