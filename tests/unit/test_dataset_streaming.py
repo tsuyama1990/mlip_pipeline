@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 from mlip_autopipec.core.dataset import Dataset
@@ -9,7 +10,7 @@ def test_dataset_streaming_append(tmp_path: Path) -> None:
     root = tmp_path
     d = Dataset(root / "stream.jsonl", root_dir=root)
 
-    def structure_generator():
+    def structure_generator() -> Iterator[Structure]:
         import numpy as np
         for i in range(5):
             yield Structure(

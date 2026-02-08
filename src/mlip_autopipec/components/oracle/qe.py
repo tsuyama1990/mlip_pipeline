@@ -23,7 +23,6 @@ class QECalculator:
 
     def create_calculator(self) -> Espresso:
         """Create a new Espresso calculator instance from config."""
-        # Convert config to dict
         params = {
             "ecutwfc": self.config.ecutwfc,
             "ecutrho": self.config.ecutrho,
@@ -34,7 +33,6 @@ class QECalculator:
             "tprnfor": True,
             "tstress": True,
         }
-        # We cast because ASE Espresso constructor is not typed
         return cast(Espresso, Espresso(**params))  # type: ignore[no-untyped-call]
 
     def calculate(self, atoms: Atoms) -> Atoms:
@@ -51,15 +49,11 @@ def _process_single_structure(
     Process a single structure in a separate process.
     """
     try:
-        # Reconstruct inputs
         structure = Structure.model_validate_json(structure_json)
         calc_wrapper = QECalculator(config)
         healer = Healer()
 
         atoms = structure.to_ase()
-
-        # Calculation Logic (Self-Contained for Pickling)
-        # Initial calculator
         calc = calc_wrapper.create_calculator()
         atoms.calc = calc
 
@@ -68,29 +62,23 @@ def _process_single_structure(
 
         while attempts < max_retries:
             try:
-                # Trigger calculation
-                # get_potential_energy ensures SCF runs
                 atoms.get_potential_energy()  # type: ignore[no-untyped-call]
 
-                # Success
                 if hasattr(atoms.calc, "parameters"):
                     atoms.info["qe_params"] = atoms.calc.parameters.copy()
 
-                # Convert back to Structure
                 labeled_structure = Structure.from_ase(atoms)
                 labeled_structure.validate_labeled()
                 return labeled_structure.model_dump_json()
 
             except Exception as e:
                 attempts += 1
-
                 if attempts >= max_retries:
                     return None
 
                 try:
                     if atoms.calc is None:
                         return None
-
                     new_calc = healer.heal(atoms.calc, e)
                     atoms.calc = new_calc
                 except HealingFailedError:
@@ -105,10 +93,6 @@ def _process_single_structure(
 class QEOracle(BaseOracle):
     """
     Quantum Espresso (QE) implementation of the Oracle component.
-
-    This component is responsible for running DFT calculations using Quantum Espresso
-    to label structures with energy, forces, and stress.
-    Uses Batched processing and ProcessPoolExecutor for parallel execution.
     """
 
     def __init__(self, config: QEOracleConfig) -> None:
@@ -122,37 +106,24 @@ class QEOracle(BaseOracle):
 
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         """
-        Compute labels (energy, forces, stress) for the given structures using QE.
-        Uses batched processing for scalability.
-
-        Args:
-            structures: An iterable of unlabeled Structure objects.
-
-        Yields:
-            Structure: Labeled Structure objects.
+        Compute labels using batched parallel processing.
         """
         batch_size = self.config.batch_size
         max_workers = self.config.max_workers
 
         iterator = iter(structures)
 
-        # Instantiate ProcessPoolExecutor once outside the loop
+        # Instantiate executor once
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             while True:
-                # IMPORTANT: islice creates an iterator, but we consume it into a list
-                # to create a batch. This holds 'batch_size' items in memory.
-                # Since batch_size is configurable and small (default 10), this is memory safe.
-                # Using list(islice(...)) is standard for batching iterators in Python.
+                # We use list(islice) to create a batch.
+                # This is safe because batch_size is strictly limited (e.g. 1000) via config validation.
                 batch = list(islice(iterator, batch_size))
                 if not batch:
                     break
 
-                # Parallel Processing
-                # We serialize to JSON to ensure clean passing between processes
                 batch_json = [s.model_dump_json() for s in batch]
 
-                # Submit tasks for the current batch
-                # We do not use map because we want to handle individual failures gracefully
                 futures = [
                     executor.submit(_process_single_structure, s_json, self.config)
                     for s_json in batch_json

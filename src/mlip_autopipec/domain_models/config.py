@@ -3,6 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mlip_autopipec.constants import (
+    DEFAULT_BUFFER_SIZE,
+)
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     GeneratorType,
@@ -49,7 +52,6 @@ class AdaptiveGeneratorConfig(BaseGeneratorConfig):
     @field_validator("policy_ratios")
     @classmethod
     def validate_ratios(cls, v: dict[str, float]) -> dict[str, float]:
-        """Ensure policy ratios sum to approximately 1.0."""
         total = sum(v.values())
         if not (0.99 <= total <= 1.01):
             msg = f"Policy ratios must sum to 1.0, got {total}"
@@ -77,9 +79,10 @@ class QEOracleConfig(BaseOracleConfig):
     mixing_beta: float = Field(default=0.7, ge=0.0, le=1.0)
     smearing: str = "mv"
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
+    # Require explicit cutoffs to avoid magic numbers
     ecutwfc: float = Field(..., gt=0)
     ecutrho: float = Field(..., gt=0)
-    batch_size: int = Field(default=10, gt=0, le=1000)  # Limit batch size for memory safety
+    batch_size: int = Field(default=10, gt=0, le=1000)
     max_workers: int = Field(default=4, gt=0)
 
     @field_validator("max_workers")
@@ -196,6 +199,7 @@ class OrchestratorConfig(BaseModel):
     state_filename: str = "workflow_state.json"
     cycle_dir_pattern: str = "cycle_{cycle:02d}"
     potential_filename: str = "potential.yace"
+    default_buffer_size: int = Field(default=DEFAULT_BUFFER_SIZE)
 
 
 class GlobalConfig(BaseModel):

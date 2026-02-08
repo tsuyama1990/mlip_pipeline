@@ -28,7 +28,6 @@ class Dataset:
         """
         # Security: Resolve absolute path
         try:
-            # We use strict=False because the file might not exist yet (we create it)
             self.path = path.resolve(strict=False)
         except OSError as e:
             msg = f"Invalid path: {path}"
@@ -46,8 +45,6 @@ class Dataset:
             msg = f"Invalid root directory: {root_dir}"
             raise ValueError(msg) from e
 
-        # Check if resolved path starts with resolved root
-        # is_relative_to is available in Python 3.9+
         if not self.path.is_relative_to(root):
             msg = f"Path {self.path} is outside the allowed root directory {root}"
             raise ValueError(msg)
@@ -100,8 +97,7 @@ class Dataset:
     def __len__(self) -> int:
         """
         Get dataset length from metadata.
-        This is an O(1) operation as it reads the small .meta.json file,
-        not the potentially large dataset file.
+        This is an O(1) operation as it reads the small .meta.json file.
         """
         meta = self._load_meta()
         count = meta.get("count", 0)
@@ -114,27 +110,35 @@ class Dataset:
         self, structures: Iterable[Structure], buffer_size: int = DEFAULT_BUFFER_SIZE
     ) -> None:
         """
-        Append structures to the dataset.
-        Writes structures directly to the file stream to ensure memory scalability.
+        Append structures to the dataset using buffered writes.
         Validates that structures are labeled before appending.
 
         Args:
             structures: Iterable of Structure objects.
-            buffer_size: Deprecated but kept for compatibility. We rely on OS buffering.
+            buffer_size: Number of structures to buffer before writing to disk.
+                         This improves I/O performance over line-by-line writing
+                         while keeping memory usage strictly bounded.
         """
         count = len(self)
         added = 0
+        buffer: list[str] = []
 
         try:
             with self.path.open("a") as f:
                 for s in structures:
-                    # Enforce data integrity
                     s.validate_labeled()
-                    # Write immediately to file stream (OS handles buffering)
-                    # This avoids buffering in application memory
-                    f.write(s.model_dump_json() + "\n")
+                    buffer.append(s.model_dump_json() + "\n")
                     count += 1
                     added += 1
+
+                    if len(buffer) >= buffer_size:
+                        f.writelines(buffer)
+                        buffer.clear()
+
+                # Flush remaining
+                if buffer:
+                    f.writelines(buffer)
+                    buffer.clear()
 
             self._save_meta({"count": count})
             logger.info(f"Successfully appended {added} structures to dataset")
@@ -150,7 +154,6 @@ class Dataset:
 
         try:
             with self.path.open("r") as f:
-                # Standard iteration over file object is buffered and memory efficient
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
                     if not line:

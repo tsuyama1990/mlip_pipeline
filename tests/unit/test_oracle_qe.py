@@ -16,7 +16,7 @@ from mlip_autopipec.domain_models.structure import Structure
 # Define a Fake Calculator that behaves like Espresso but runs in memory
 class FakeEspresso(Calculator):
     def __init__(self, failure_mode: str = "parameter_sensitive", **kwargs: Any) -> None:
-        super().__init__()  # type: ignore[no-untyped-call]
+        super().__init__()
         self.parameters = kwargs
         # Ensure failure_mode is in parameters so it survives Healing reconstruction
         self.parameters["failure_mode"] = failure_mode
@@ -33,7 +33,7 @@ class FakeEspresso(Calculator):
         # Standard ASE setup
         if properties is None:
             properties = ["energy"]
-        super().calculate(atoms, properties, system_changes)  # type: ignore[no-untyped-call]
+        super().calculate(atoms, properties, system_changes)
 
         # Simulation Logic
         # Read from parameters if present (reconstructed via Heal)
@@ -139,6 +139,12 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
     qe_config.mixing_beta = 0.7 # High beta
 
     with patch("mlip_autopipec.components.oracle.qe.Espresso") as mock_cls:
+        # We need to simulate that the first call fails and the second succeeds (via Healer)
+        # However, Healer calls type(calc)(...), creating a new instance.
+        # If we just use side_effect on the class mock, we can return fresh instances.
+        # But we want to ensure the *parameters* passed to those instances change.
+
+        # We can use a side_effect that checks input parameters and returns success/fail FakeEspresso
 
         mock_cls.side_effect = lambda **kwargs: FakeEspresso(
             failure_mode="parameter_sensitive", **kwargs
@@ -154,6 +160,7 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
         # Verify provenance shows HEALED parameter
         assert result.tags["qe_params"]["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
+        # We expect at least one call to create the calculator
         assert mock_cls.call_count >= 1
 
 
