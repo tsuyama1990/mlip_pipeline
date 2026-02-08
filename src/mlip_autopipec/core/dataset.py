@@ -2,7 +2,7 @@ import json
 import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -28,7 +28,11 @@ class Dataset:
 
     def _load_meta(self) -> dict[str, Any]:
         with self.meta_path.open("r") as f:
-            return json.load(f)  # type: ignore[no-any-return]
+            data = json.load(f)
+            if not isinstance(data, dict):
+                msg = "Metadata file must contain a JSON object"
+                raise TypeError(msg)
+            return cast(dict[str, Any], data)
 
     def _save_meta(self, meta: dict[str, Any]) -> None:
         with self.meta_path.open("w") as f:
@@ -36,15 +40,19 @@ class Dataset:
 
     def __len__(self) -> int:
         meta = self._load_meta()
-        return int(meta.get("count", 0))
+        count = meta.get("count", 0)
+        if not isinstance(count, int):
+            msg = "Metadata 'count' must be an integer"
+            raise TypeError(msg)
+        return count
 
     def append(self, structures: Iterable[Structure], batch_size: int | None = None) -> None:
         """
-        Append structures to the dataset.
+        Append structures to the dataset line-by-line to minimize memory usage.
 
         Args:
             structures: Iterable of Structure objects.
-            batch_size: Deprecated. Writing is now streamed line-by-line to avoid memory issues.
+            batch_size: Deprecated.
         """
         count = len(self)
 

@@ -101,3 +101,22 @@ def test_dataset_malformed_lines(tmp_path: Path, caplog: pytest.LogCaptureFixtur
     # Should skip the bad line and load 2 good structures
     assert len(loaded) == 2
     assert "Skipping malformed line" in caplog.text
+
+
+def test_dataset_invalid_meta(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dataset.jsonl"
+    dataset = Dataset(dataset_path)
+    meta_path = tmp_path / "dataset.meta.json"
+
+    # Write invalid JSON
+    with meta_path.open("w") as f:
+        f.write("[]")  # List instead of dict
+
+    with pytest.raises(TypeError, match="Metadata file must contain a JSON object"):
+        len(dataset)
+
+    with meta_path.open("w") as f:
+        f.write('{"count": "invalid"}')  # Count not int
+
+    with pytest.raises(TypeError, match="Metadata 'count' must be an integer"):
+        len(dataset)
