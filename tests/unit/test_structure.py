@@ -265,7 +265,7 @@ def test_structure_copy() -> None:
         tags=tags,
     )
 
-    s_copy = s.copy()
+    s_copy = s.model_deep_copy()
 
     # Check equality
     assert np.allclose(s_copy.positions, s.positions)

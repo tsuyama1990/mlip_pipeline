@@ -52,7 +52,7 @@ class MockDynamics(BaseDynamics):
             # Randomly select structures to simulate finding "uncertain" regions
             if self._rng.random() < selection_rate:
                 # Create a deep copy using our custom method
-                s_copy = s.copy()
+                s_copy = s.model_deep_copy()
                 s_copy.uncertainty = simulated_uncertainty
                 yield s_copy
                 count += 1

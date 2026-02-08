@@ -12,7 +12,7 @@ from mlip_autopipec.constants import (
 
 class MockEspresso(Calculator):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__()
+        super().__init__()  # type: ignore[no-untyped-call]
         self.parameters = kwargs
 
 

@@ -1,4 +1,6 @@
 import logging
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -26,22 +28,38 @@ class ActiveSetSelector:
         Returns:
             Path to the output dataset.
         """
-        # Security: Validate paths
-        safe_input = validate_safe_path(input_path)
-        # Ensure output directory is safe/exists? We assume output_path parent exists.
-        if not output_path.parent.exists():
-             output_path.parent.mkdir(parents=True, exist_ok=True)
-        safe_output = validate_safe_path(output_path.parent) / output_path.name
+        # Security: Validate paths are absolute and safe
+        # We assume input_path is already validated by caller (Dataset export),
+        # but we re-validate here for safety.
+        # We also enforce that output_path is in the same directory structure or explicitly safe.
+
+        try:
+            safe_input = validate_safe_path(input_path)
+
+            # Ensure output directory exists
+            if not output_path.parent.exists():
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Validate output path is safe (e.g. not /etc/passwd)
+            # validate_safe_path typically checks for traversal and absolute path
+            # Since output file doesn't exist yet, we validate parent
+            validate_safe_path(output_path.parent)
+            safe_output = output_path.resolve()
+
+        except Exception as e:
+            msg = f"Path validation failed: {e}"
+            raise ValueError(msg) from e
 
         if not safe_input.exists():
             msg = f"Input path does not exist: {safe_input}"
             raise FileNotFoundError(msg)
 
-        # Validate executable
-        import shutil
-        pace_executable = shutil.which("pace_activeset")
+        # Configurable executable path
+        pace_bin = os.environ.get("PACE_ACTIVESET_BIN", "pace_activeset")
+        pace_executable = shutil.which(pace_bin)
+
         if not pace_executable:
-            msg = "pace_activeset executable not found in PATH"
+            msg = f"pace_activeset executable '{pace_bin}' not found in PATH"
             raise RuntimeError(msg)
 
         # Construct command
@@ -73,9 +91,6 @@ class ActiveSetSelector:
 
         if not output_path.exists():
             # If the command didn't create the file (mocking issue or tool failure not captured by exit code)
-            # In real scenario, pace_activeset should create it.
-            # We don't raise here if we are mocking and the mock didn't create it,
-            # but the caller expects it.
             # We log a warning.
             logger.warning(f"pace_activeset finished but {output_path} was not created.")
 

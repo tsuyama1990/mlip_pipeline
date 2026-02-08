@@ -15,7 +15,7 @@ def test_embed_cluster_basic() -> None:
     original_cell = cluster.get_cell()
 
     vacuum = 5.0
-    embedded = embed_cluster(cluster, vacuum)
+    embedded = embed_cluster(cluster, vacuum)  # type: ignore[no-untyped-call]
 
     # Check PBC
     assert np.all(embedded.pbc)
@@ -58,7 +58,7 @@ def test_embed_cluster_from_bulk() -> None:
 
     # Embed
     vacuum = 4.0
-    embedded = embed_cluster(cluster, vacuum)
+    embedded = embed_cluster(cluster, vacuum)  # type: ignore[no-untyped-call]
 
     assert len(embedded) == len(cluster)
     assert np.all(embedded.pbc)
@@ -74,18 +74,18 @@ def test_embed_cluster_invalid_vacuum() -> None:
     """Test invalid vacuum value."""
     cluster = molecule("H2")
     with pytest.raises(ValueError, match="Vacuum must be positive"):
-        embed_cluster(cluster, -1.0)
+        embed_cluster(cluster, -1.0)  # type: ignore[no-untyped-call]
 
 
 def test_embed_cluster_vacuum_too_large() -> None:
     """Test vacuum size limit check."""
     cluster = molecule("H2")
     with pytest.raises(ValueError, match="Vacuum exceeds"):
-        embed_cluster(cluster, MAX_VACUUM_SIZE + 1.0)
+        embed_cluster(cluster, MAX_VACUUM_SIZE + 1.0)  # type: ignore[no-untyped-call]
 
 
 def test_embed_cluster_empty() -> None:
     """Test empty cluster."""
     cluster = Atoms()
     with pytest.raises(ValueError, match="Cluster is empty"):
-        embed_cluster(cluster, 5.0)
+        embed_cluster(cluster, 5.0)  # type: ignore[no-untyped-call]

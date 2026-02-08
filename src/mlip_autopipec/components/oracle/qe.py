@@ -1,7 +1,6 @@
 import concurrent.futures
 import logging
 from collections.abc import Iterable, Iterator
-from itertools import islice
 from typing import cast
 
 from ase.calculators.espresso import Espresso
@@ -32,7 +31,7 @@ class QECalculator:
             "tprnfor": True,
             "tstress": True,
         }
-        return cast(Espresso, Espresso(**params))
+        return cast(Espresso, Espresso(**params))  # type: ignore[no-untyped-call]
 
 
 def _process_single_structure(
@@ -55,7 +54,7 @@ def _process_single_structure(
         for attempt in range(max_attempts):
             try:
                 # Run calculation (potential energy triggers force/stress calc if requested)
-                atoms.get_potential_energy()
+                atoms.get_potential_energy()  # type: ignore[no-untyped-call]
 
                 # Success
                 if hasattr(atoms.calc, "parameters"):
@@ -102,37 +101,54 @@ class QEOracle(BaseOracle):
 
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         """
-        Compute labels using batched parallel processing.
+        Compute labels using batched parallel processing with streaming.
+        Controls memory usage by limiting the number of in-flight futures.
         """
-        batch_size = self.config.batch_size
         max_workers = self.config.max_workers
+        # Use batch_size as the limit for pending tasks to control memory
+        max_pending = self.config.batch_size
 
         iterator = iter(structures)
+        futures: set[concurrent.futures.Future[str | None]] = set()
 
-        # Instantiate executor once
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            while True:
-                # We use list(islice) to create a batch.
-                batch = list(islice(iterator, batch_size))
-                if not batch:
-                    break
+            try:
+                while True:
+                    # Fill the pool up to max_pending
+                    while len(futures) < max_pending:
+                        try:
+                            structure = next(iterator)
+                            # Submit new task
+                            future = executor.submit(
+                                _process_single_structure,
+                                structure.model_dump_json(),
+                                self.config
+                            )
+                            futures.add(future)
+                        except StopIteration:
+                            break
 
-                batch_json = [s.model_dump_json() for s in batch]
+                    if not futures:
+                        break
 
-                futures = [
-                    executor.submit(_process_single_structure, s_json, self.config)
-                    for s_json in batch_json
-                ]
+                    # Wait for at least one future to complete
+                    done, _ = concurrent.futures.wait(
+                        futures, return_when=concurrent.futures.FIRST_COMPLETED
+                    )
 
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        result_json = future.result()
-                        if result_json:
-                            yield Structure.model_validate_json(result_json)
-                        else:
-                            # Structure failed completely (all healing attempts failed)
-                            # We choose not to yield it, effectively filtering it out.
-                            # This is safe as long as downstream can handle fewer structures.
-                            pass
-                    except Exception:
-                        logger.exception("Worker process failed")
+                    # Process completed futures
+                    for future in done:
+                        futures.remove(future)
+                        try:
+                            result_json = future.result()
+                            if result_json:
+                                yield Structure.model_validate_json(result_json)
+                            else:
+                                # Structure failed (logging handled in worker)
+                                pass
+                        except Exception:
+                            logger.exception("Worker process failed unexpectedly")
+            finally:
+                # Cancel any pending futures if generator is closed early
+                for f in futures:
+                    f.cancel()

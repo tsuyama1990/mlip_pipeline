@@ -160,8 +160,14 @@ def test_process_single_structure_healing(qe_config: QEOracleConfig, structure: 
         # Verify provenance shows HEALED parameter
         assert result.tags["qe_params"]["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
-        # We expect at least one call to create the calculator
-        assert mock_cls.call_count >= 1
+        # We expect at least two calls: initial failed one, and healed one
+        assert mock_cls.call_count >= 2
+
+        # Verify that the healed call used the target mixing beta
+        calls = mock_cls.call_args_list
+        # The last call should be the successful one with healed params
+        last_call_kwargs = calls[-1][1]
+        assert last_call_kwargs["mixing_beta"] == HEALER_MIXING_BETA_TARGET
 
 
 def test_qe_calculator_setup(qe_config: QEOracleConfig) -> None:

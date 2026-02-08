@@ -188,9 +188,10 @@ class Structure(BaseModel):
             msg = "Structure missing stress label"
             raise ValueError(msg)
 
-    def copy(self) -> "Structure":
+    def model_deep_copy(self) -> "Structure":
         """
         Create a deep copy of the Structure.
+        Renamed to avoid conflict with Pydantic's copy().
         """
         return Structure(
             positions=self.positions.copy(),
@@ -214,13 +215,13 @@ class Structure(BaseModel):
         # Validate critical array lengths match before processing
         n_atoms = len(atoms)
         try:
-            positions = atoms.get_positions()
+            positions = cast(np.ndarray, atoms.get_positions())  # type: ignore[no-untyped-call]
         except Exception as e:
             msg = f"Failed to get positions: {e}"
             raise ValueError(msg) from e
 
-        if len(positions) != n_atoms:
-            msg = f"Mismatch: ASE atoms length {n_atoms} != positions length {len(positions)}"
+        if positions.shape[0] != n_atoms:
+            msg = f"Mismatch: ASE atoms length {n_atoms} != positions length {positions.shape[0]}"
             raise ValueError(msg)
 
         atomic_numbers = cls._extract_atomic_numbers(atoms)
@@ -248,7 +249,7 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_atomic_numbers(atoms: Atoms) -> np.ndarray:
         try:
-            atomic_numbers = atoms.get_atomic_numbers()
+            atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
         except Exception as e:
             msg = f"Failed to get atomic numbers from ASE atoms: {e}"
             raise ValueError(msg) from e
@@ -265,7 +266,7 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_positions(atoms: Atoms, n_atoms: int) -> np.ndarray:
         try:
-            positions = atoms.get_positions()
+            positions = atoms.get_positions()  # type: ignore[no-untyped-call]
         except Exception as e:
             msg = f"Failed to get positions from ASE atoms: {e}"
             raise ValueError(msg) from e
@@ -282,8 +283,8 @@ class Structure(BaseModel):
     @staticmethod
     def _extract_cell_pbc(atoms: Atoms) -> tuple[np.ndarray, np.ndarray]:
         try:
-             cell = np.array(atoms.get_cell())
-             pbc = atoms.get_pbc()
+             cell = np.array(atoms.get_cell())  # type: ignore[no-untyped-call]
+             pbc = atoms.get_pbc()  # type: ignore[no-untyped-call]
         except Exception as e:
              msg = f"Failed to get cell/pbc from ASE atoms: {e}"
              raise ValueError(msg) from e
@@ -298,20 +299,20 @@ class Structure(BaseModel):
         if atoms.calc:
             # Explicit error handling
             try:
-                energy = atoms.get_potential_energy()
+                energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
             except Exception as e:
                 logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
 
             try:
-                forces = atoms.get_forces()
+                forces = atoms.get_forces()  # type: ignore[no-untyped-call]
             except Exception as e:
                 logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
 
             try:
-                stress = atoms.get_stress(voigt=False)
+                stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
             except Exception:
                 try:
-                    stress = atoms.get_stress()
+                    stress = atoms.get_stress()  # type: ignore[no-untyped-call]
                 except Exception as e:
                     logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
