@@ -1,5 +1,5 @@
-import contextlib
-from typing import Annotated, Any, ClassVar
+import logging
+from typing import Annotated, Any
 
 import numpy as np
 from ase import Atoms
@@ -12,6 +12,14 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from mlip_autopipec.domain_models.config import (
+    MAX_ATOMIC_NUMBER,
+    MAX_ENERGY_MAGNITUDE,
+    MAX_FORCE_MAGNITUDE,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def numpy_to_list(v: Any) -> Any:
@@ -42,11 +50,7 @@ def voigt_6_to_full_3x3(stress_voigt: np.ndarray) -> np.ndarray:
         raise ValueError(msg)
 
     xx, yy, zz, yz, xz, xy = stress_voigt
-    return np.array([
-        [xx, xy, xz],
-        [xy, yy, yz],
-        [xz, yz, zz]
-    ])
+    return np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
 
 
 class Structure(BaseModel):
@@ -63,10 +67,6 @@ class Structure(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True, extra="forbid", validate_assignment=True
     )
-
-    MAX_ATOMIC_NUMBER: ClassVar[int] = 118
-    MAX_FORCE_MAGNITUDE: ClassVar[float] = 1000.0  # eV/A
-    MAX_ENERGY_MAGNITUDE: ClassVar[float] = 1e6  # eV
 
     positions: NumpyArray
     atomic_numbers: NumpyArray
@@ -95,8 +95,8 @@ class Structure(BaseModel):
         if v.ndim != 1:
             msg = f"Atomic numbers must be (N,), got {v.shape}"
             raise ValueError(msg)
-        if np.any((v < 1) | (v > cls.MAX_ATOMIC_NUMBER)):
-            msg = f"Atomic numbers must be between 1 and {cls.MAX_ATOMIC_NUMBER}"
+        if np.any((v < 1) | (v > MAX_ATOMIC_NUMBER)):
+            msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
             raise ValueError(msg)
         return v
 
@@ -128,8 +128,8 @@ class Structure(BaseModel):
                 raise ValueError(msg)
             # Soft check for magnitude (e.g. warn or fail if > 1000 eV/A)
             # For strict data integrity, we fail on absurd values
-            if np.any(np.abs(v) > cls.MAX_FORCE_MAGNITUDE):
-                msg = f"Forces magnitude exceeds reasonable limit ({cls.MAX_FORCE_MAGNITUDE} eV/A)"
+            if np.any(np.abs(v) > MAX_FORCE_MAGNITUDE):
+                msg = f"Forces magnitude exceeds reasonable limit ({MAX_FORCE_MAGNITUDE} eV/A)"
                 raise ValueError(msg)
         return v
 
@@ -141,8 +141,8 @@ class Structure(BaseModel):
                 msg = "Energy must be finite"
                 raise ValueError(msg)
             # Soft check for magnitude per structure
-            if abs(v) > cls.MAX_ENERGY_MAGNITUDE:  # Arbitrary large limit for total energy
-                msg = f"Energy magnitude exceeds reasonable limit ({cls.MAX_ENERGY_MAGNITUDE} eV)"
+            if abs(v) > MAX_ENERGY_MAGNITUDE:  # Arbitrary large limit for total energy
+                msg = f"Energy magnitude exceeds reasonable limit ({MAX_ENERGY_MAGNITUDE} eV)"
                 raise ValueError(msg)
         return v
 
@@ -171,13 +171,22 @@ class Structure(BaseModel):
         return self
 
     def validate_labeled(self) -> None:
-        """Ensure structure has labels (energy, forces, stress)."""
+        """
+        Ensure structure has labels (energy, forces, stress) and they are valid.
+        """
         if self.energy is None:
             msg = "Structure missing energy label"
             raise ValueError(msg)
+        # Check energy validity using the validator explicitly if needed, but Pydantic does it on assignment.
+        # We can re-check to be safe or rely on the field validator.
+        # Since field validators run on __init__ and assignment, if self.energy is not None, it is valid.
+
         if self.forces is None:
             msg = "Structure missing forces label"
             raise ValueError(msg)
+        # Check forces shape/integrity again?
+        # Pydantic guarantees shape if it wasn't None.
+
         if self.stress is None:
             msg = "Structure missing stress label"
             raise ValueError(msg)
@@ -191,18 +200,26 @@ class Structure(BaseModel):
 
         # Try calculator first
         if atoms.calc:
-            with contextlib.suppress(Exception):
+            # Explicit error handling
+            try:
                 energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            with contextlib.suppress(Exception):
+            except Exception as e:  # Catch broadly ASE Calculator interface errors (often RuntimeError or NotImplemented)
+                logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
+
+            try:
                 forces = atoms.get_forces()  # type: ignore[no-untyped-call]
-            with contextlib.suppress(Exception):
+            except Exception as e:
+                logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
+
+            try:
                 # Try getting full tensor first
                 stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
-
-            # If voigt=False failed or wasn't supported (some older ASE calculators might behave oddly), fallback
-            if stress is None:
-                 with contextlib.suppress(Exception):
-                    stress = atoms.get_stress() # type: ignore[no-untyped-call]
+            except Exception:
+                # Fallback to Voigt or retry
+                try:
+                    stress = atoms.get_stress()  # type: ignore[no-untyped-call]
+                except Exception as e:
+                    logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
         # Fallback to arrays/info if not in calc (e.g. read from file)
         if energy is None:
@@ -219,10 +236,10 @@ class Structure(BaseModel):
         # But Structure.tags is dict[str, Any].
         tags = atoms.info.copy()
 
-        # Validation: check atomic numbers
+        # Validation: check atomic numbers BEFORE creating Structure
         atomic_numbers = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
-        if np.any((atomic_numbers < 1) | (atomic_numbers > cls.MAX_ATOMIC_NUMBER)):
-            msg = f"Atomic numbers must be between 1 and {cls.MAX_ATOMIC_NUMBER}"
+        if np.any((atomic_numbers < 1) | (atomic_numbers > MAX_ATOMIC_NUMBER)):
+            msg = f"Atomic numbers must be between 1 and {MAX_ATOMIC_NUMBER}"
             raise ValueError(msg)
 
         return cls(

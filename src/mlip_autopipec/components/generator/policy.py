@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,6 +48,7 @@ class ExplorationPolicy:
             # Defaults: 60% Bulk, 40% Surface (from config or fallback)
             bulk_ratio = ratios.get("cycle0_bulk", 0.6)
 
+            # Use floor/ceil or simple int casting, but handle remainder to match n_total exactly
             n_bulk = int(n_total * bulk_ratio)
             n_surface = n_total - n_bulk
 
@@ -67,12 +69,15 @@ class ExplorationPolicy:
 
         # Threshold for high error (e.g., 0.1 eV/A force RMSE or similar unitless metric)
         if surface_error > 0.1:
-            logger.info(f"High surface error ({surface_error:.3f}) detected. Boosting surface sampling.")
-            n_surface = int(n_total * 0.6)
+            logger.info(
+                f"High surface error ({surface_error:.3f}) detected. Boosting surface sampling."
+            )
+            # 60% surface target
+            n_surface = math.ceil(n_total * 0.6)
             n_bulk = n_total - n_surface
         else:
-            # Default balanced exploration
-            n_bulk = int(n_total * 0.5)
+            # Default balanced exploration (50/50)
+            n_bulk = n_total // 2
             n_surface = n_total - n_bulk
 
         if n_bulk > 0:

@@ -11,6 +11,19 @@ from mlip_autopipec.domain_models.enums import (
     ValidatorType,
 )
 
+# Constants for Structure validation
+MAX_ATOMIC_NUMBER = 118
+MAX_FORCE_MAGNITUDE = 1000.0  # eV/A
+MAX_ENERGY_MAGNITUDE = 1e6  # eV
+
+# Constants for Dataset
+DEFAULT_BUFFER_SIZE = 1000
+
+# Constants for Oracle
+MAX_VACUUM_SIZE = 50.0  # Angstroms
+HEALER_MIXING_BETA_TARGET = 0.3
+HEALER_DEGAUSS_TARGET = 0.02
+
 
 class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -18,6 +31,7 @@ class ComponentConfig(BaseModel):
 
 
 # --- Generator Configs ---
+
 
 class BaseGeneratorConfig(ComponentConfig):
     n_structures: int = Field(default=10, gt=0)
@@ -51,6 +65,7 @@ GeneratorConfig = MockGeneratorConfig | AdaptiveGeneratorConfig
 
 # --- Oracle Configs ---
 
+
 class BaseOracleConfig(ComponentConfig):
     pass
 
@@ -67,6 +82,7 @@ class QEOracleConfig(BaseOracleConfig):
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
     ecutwfc: float = 60.0
     ecutrho: float = 360.0
+    batch_size: int = Field(default=10, gt=0)  # Configurable batch size
 
 
 class VASPOracleConfig(BaseOracleConfig):
@@ -80,6 +96,7 @@ OracleConfig = MockOracleConfig | QEOracleConfig | VASPOracleConfig
 
 
 # --- Trainer Configs ---
+
 
 class BaseTrainerConfig(ComponentConfig):
     max_num_epochs: int = 50
@@ -104,6 +121,7 @@ TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig
 
 
 # --- Dynamics Configs ---
+
 
 class BaseDynamicsConfig(ComponentConfig):
     uncertainty_threshold: float = 5.0
@@ -130,6 +148,7 @@ DynamicsConfig = MockDynamicsConfig | LAMMPSDynamicsConfig
 
 # --- Validator Configs ---
 
+
 class BaseValidatorConfig(ComponentConfig):
     test_set_ratio: float = 0.1
 
@@ -149,6 +168,7 @@ ValidatorConfig = MockValidatorConfig | StandardValidatorConfig
 
 
 # --- Global Config ---
+
 
 class ComponentsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")

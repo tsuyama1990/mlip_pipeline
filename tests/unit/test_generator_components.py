@@ -83,7 +83,7 @@ class TestStrainTransform:
 class TestExplorationPolicy:
     def test_decide_next_batch_cold_start(self) -> None:
         policy = ExplorationPolicy()
-        metrics: dict[str, Any] = {} # Empty metrics -> Cold start
+        metrics: dict[str, Any] = {}  # Empty metrics -> Cold start
         tasks = policy.decide_next_batch(current_cycle=0, current_metrics=metrics, n_total=10)
 
         # Expect bulk and maybe some surfaces

@@ -3,14 +3,13 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.structure import Structure
-from tests.common_constants import (
-    DUMMY_ATOMIC_NUMBERS,
-    DUMMY_CELL,
-    DUMMY_PBC,
-    DUMMY_POSITIONS,
-    EXPECTED_TENSOR_STRESS,
-    VOIGT_STRESS,
-)
+
+DUMMY_POSITIONS = np.zeros((2, 3))
+DUMMY_ATOMIC_NUMBERS = np.array([1, 1])
+DUMMY_CELL = np.eye(3)
+DUMMY_PBC = np.array([True, True, True])
+VOIGT_STRESS = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+EXPECTED_TENSOR_STRESS = np.array([[1.0, 6.0, 5.0], [6.0, 2.0, 4.0], [5.0, 4.0, 3.0]])
 
 
 def test_structure_valid_creation() -> None:
@@ -232,7 +231,7 @@ def test_validate_labeled_partial() -> None:
         cell=cell,
         pbc=pbc,
         forces=np.zeros((1, 3)),
-        stress=np.zeros(6)
+        stress=np.zeros(6),
     )
     with pytest.raises(ValueError, match="Structure missing energy label"):
         s.validate_labeled()

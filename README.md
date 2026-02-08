@@ -15,15 +15,17 @@
 
 -   **Zero-Config Workflow**: Define your material system and target accuracy in a single YAML file.
 -   **Adaptive Structure Generation**: Automatically generates diverse structures (bulk, surfaces) with intelligent sampling policies.
--   **Active Learning**: Automatically explores configuration space and selects informative structures for labeling.
--   **Modular Architecture**: Extensible design with swappable components for Generation, Labeling (Oracle), Training, Dynamics, and Validation.
--   **Robustness**: Built-in validation and error handling to ensure physical stability.
--   **Mock Mode**: Includes a full mock implementation for testing and development without heavy compute requirements.
+-   **High-Fidelity Oracle**: Seamless integration with **Quantum Espresso** for accurate DFT labeling of energy, forces, and stress.
+-   **Self-Healing DFT**: Robust error handling that automatically retries failed calculations with adjusted parameters (e.g., mixing beta, smearing).
+-   **Periodic Embedding**: Intelligent extraction of local clusters from large MD snapshots for efficient QM/MM-style labeling.
+-   **Active Learning**: Automatically explores configuration space and selects informative structures.
+-   **Modular Architecture**: Extensible design with swappable components.
 
 ## Requirements
 
 -   Python >= 3.12
--   [UV](https://github.com/astral-sh/uv) (recommended for dependency management)
+-   [UV](https://github.com/astral-sh/uv) (recommended)
+-   Quantum Espresso (`pw.x`) installed and in PATH (for production runs).
 
 ## Installation
 
@@ -45,11 +47,15 @@ uv sync
     components:
       generator:
         name: adaptive
-        element: Fe
-        crystal_structure: bcc
+        element: Si
+        crystal_structure: diamond
         n_structures: 10
       oracle:
-        name: mock
+        name: qe
+        kspacing: 0.1
+        ecutwfc: 30.0
+        ecutrho: 150.0
+        mixing_beta: 0.7
       trainer:
         name: mock
       dynamics:
@@ -62,7 +68,7 @@ uv sync
 2.  **Run the Pipeline**:
 
     ```bash
-    uv run python main.py run config.yaml
+    uv run python src/mlip_autopipec/main.py run config.yaml
     ```
 
 ## Architecture
@@ -70,6 +76,8 @@ uv sync
 ```ascii
 src/mlip_autopipec/
 ├── components/         # Pluggable components (Generator, Oracle, Trainer, etc.)
+│   ├── oracle/         # DFT Engines (QE, VASP) & Healing Logic
+│   └── ...
 ├── core/               # Core logic (Orchestrator, Dataset, State)
 ├── domain_models/      # Pydantic data models (Structure, Potential, Config)
 ├── interfaces/         # Abstract base classes
@@ -80,8 +88,8 @@ src/mlip_autopipec/
 ## Roadmap
 
 -   [x] Cycle 01: Core Framework & Mock Components
--   [x] Cycle 02: Structure Generator (ASE/Pymatgen integration)
--   [ ] Cycle 03: Oracle (Quantum Espresso integration)
+-   [x] Cycle 02: Structure Generator (ASE integration)
+-   [x] Cycle 03: Oracle (Quantum Espresso, Self-Healing, Embedding)
 -   [ ] Cycle 04: Trainer (Pacemaker integration)
 -   [ ] Cycle 05: Dynamics Engine (LAMMPS/EON integration)
 -   [ ] Cycle 06: Validation & Full Orchestration

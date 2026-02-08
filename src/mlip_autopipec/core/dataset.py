@@ -4,15 +4,48 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, cast
 
+from mlip_autopipec.domain_models.config import DEFAULT_BUFFER_SIZE
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 
 
 class Dataset:
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.meta_path = path.with_suffix(".meta.json")
+    def __init__(self, path: Path, root_dir: Path | None = None) -> None:
+        """
+        Initialize Dataset with security checks.
+
+        Args:
+            path: Path to the dataset file.
+            root_dir: Optional root directory to confine the dataset path.
+                      Defaults to the parent of path if not provided (less strict),
+                      or CWD. For security, should be explicit.
+        """
+        # Security: Resolve absolute path
+        try:
+            self.path = path.resolve(strict=False)
+        except OSError as e:
+            msg = f"Invalid path: {path}"
+            raise ValueError(msg) from e
+
+        # Check for null bytes
+        if "\0" in str(self.path):
+            msg = "File path contains null byte"
+            raise ValueError(msg)
+
+        # Security: Path Confinement
+        if root_dir:
+            try:
+                root = root_dir.resolve(strict=True)
+            except OSError as e:
+                msg = f"Invalid root directory: {root_dir}"
+                raise ValueError(msg) from e
+
+            if not str(self.path).startswith(str(root)):
+                msg = f"Path {self.path} is outside the allowed root directory {root}"
+                raise ValueError(msg)
+
+        self.meta_path = self.path.with_suffix(".meta.json")
         self._ensure_exists()
 
     def __repr__(self) -> str:
@@ -65,7 +98,9 @@ class Dataset:
             raise TypeError(msg)
         return count
 
-    def append(self, structures: Iterable[Structure], buffer_size: int = 1000) -> None:
+    def append(
+        self, structures: Iterable[Structure], buffer_size: int = DEFAULT_BUFFER_SIZE
+    ) -> None:
         """
         Append structures to the dataset.
         Uses buffered writing for I/O efficiency.
@@ -80,21 +115,10 @@ class Dataset:
         buffer: list[str] = []
 
         try:
-            # Use default buffering (typically 4KB/8KB) or line buffering=1
-            # Since we write lines, buffering=1 is good for logs but for bulk data,
-            # default block buffering is better for speed.
-            # We explicitly batch our writes to reduce f.write calls if needed,
-            # but f.write is already buffered in Python.
-            # However, the feedback requested "buffered writing with configurable buffer size".
-            # This implies application-level buffering to reduce syscalls or file lock time?
-            # Or simply wrapping the file object.
-            # Let's implement an explicit buffer list to minimize f.write calls.
-
             with self.path.open("a") as f:
                 for s in structures:
                     # Enforce data integrity
                     s.validate_labeled()
-                    # validate_consistency is handled by Pydantic model validator
                     buffer.append(s.model_dump_json() + "\n")
                     count += 1
                     added += 1
@@ -122,12 +146,12 @@ class Dataset:
 
         try:
             with self.path.open("r") as f:
+                # Standard iteration over file object is buffered and memory efficient
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
                     if not line:
                         continue
                     try:
-                        # Consistency check is handled by model_validate_json via model validator
                         yield Structure.model_validate_json(line)
                     except Exception:
                         logger.warning(

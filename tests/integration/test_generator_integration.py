@@ -1,4 +1,3 @@
-
 from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
 from mlip_autopipec.domain_models.config import AdaptiveGeneratorConfig
 from mlip_autopipec.domain_models.enums import GeneratorType
@@ -64,10 +63,11 @@ class TestGeneratorIntegration:
         # 2. High Surface Error -> Should boost surface generation
         # Policy: if surface_error > 0.1 -> 60% surface
         metrics = {"validation_error": {"surface": 0.5}}
-        structures_boosted = list(generator.generate(
-            n_structures=20,
-            config={"current_cycle": 1, "current_metrics": metrics}
-        ))
+        structures_boosted = list(
+            generator.generate(
+                n_structures=20, config={"current_cycle": 1, "current_metrics": metrics}
+            )
+        )
         surfaces_boosted = sum(1 for s in structures_boosted if s.tags.get("type") == "surface")
 
         # Verify boost
