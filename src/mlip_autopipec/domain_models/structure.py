@@ -49,13 +49,19 @@ class Structure(BaseModel):
         if v.ndim != 2 or v.shape[1] != 3:
             msg = f"Positions must be (N, 3), got {v.shape}"
             raise ValueError(msg)
+        if not np.all(np.isfinite(v)):
+            msg = "Positions contain non-finite values"
+            raise ValueError(msg)
         return v
 
     @field_validator("atomic_numbers", mode="after")
     @classmethod
-    def validate_atomic_numbers_shape(cls, v: np.ndarray) -> np.ndarray:
+    def validate_atomic_numbers(cls, v: np.ndarray) -> np.ndarray:
         if v.ndim != 1:
             msg = f"Atomic numbers must be (N,), got {v.shape}"
+            raise ValueError(msg)
+        if np.any((v < 1) | (v > 118)):
+            msg = "Atomic numbers must be between 1 and 118"
             raise ValueError(msg)
         return v
 
@@ -77,10 +83,33 @@ class Structure(BaseModel):
 
     @field_validator("forces", mode="after")
     @classmethod
-    def validate_forces_shape(cls, v: np.ndarray | None) -> np.ndarray | None:
-        if v is not None and (v.ndim != 2 or v.shape[1] != 3):
-            msg = f"Forces must be (N, 3), got {v.shape}"
-            raise ValueError(msg)
+    def validate_forces(cls, v: np.ndarray | None) -> np.ndarray | None:
+        if v is not None:
+            if v.ndim != 2 or v.shape[1] != 3:
+                msg = f"Forces must be (N, 3), got {v.shape}"
+                raise ValueError(msg)
+            if not np.all(np.isfinite(v)):
+                msg = "Forces contain non-finite values"
+                raise ValueError(msg)
+            # Soft check for magnitude (e.g. warn or fail if > 1000 eV/A)
+            # For strict data integrity, we fail on absurd values
+            if np.any(np.abs(v) > 1000.0):
+                msg = "Forces magnitude exceeds reasonable limit (1000 eV/A)"
+                raise ValueError(msg)
+        return v
+
+    @field_validator("energy", mode="after")
+    @classmethod
+    def validate_energy(cls, v: float | None) -> float | None:
+        if v is not None:
+            if not np.isfinite(v):
+                msg = "Energy must be finite"
+                raise ValueError(msg)
+            # Soft check for magnitude per structure (hard to normalize per atom here without ref to N)
+            # Just check strictly for non-finite.
+            if abs(v) > 1e6:  # Arbitrary large limit for total energy
+                msg = "Energy magnitude exceeds reasonable limit (1e6 eV)"
+                raise ValueError(msg)
         return v
 
     @field_validator("stress", mode="after")

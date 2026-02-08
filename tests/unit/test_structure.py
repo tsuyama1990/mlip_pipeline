@@ -122,3 +122,33 @@ def test_to_ase() -> None:
     assert atoms.info["energy"] == energy
     assert np.allclose(atoms.arrays["forces"], forces)
     assert np.allclose(atoms.info["stress"], stress)
+
+
+def test_physical_validation() -> None:
+    pos = np.zeros((1, 3))
+    cell = np.eye(3)
+    pbc = np.array([True, True, True])
+
+    # Invalid atomic number
+    with pytest.raises(ValueError, match="Atomic numbers must be between 1 and 118"):
+        Structure(positions=pos, atomic_numbers=np.array([119]), cell=cell, pbc=pbc)
+
+    # Infinite energy
+    with pytest.raises(ValueError, match="Energy must be finite"):
+        Structure(
+            positions=pos, atomic_numbers=np.array([1]), cell=cell, pbc=pbc, energy=float("inf")
+        )
+
+    # Large energy
+    with pytest.raises(ValueError, match="Energy magnitude exceeds reasonable limit"):
+        Structure(positions=pos, atomic_numbers=np.array([1]), cell=cell, pbc=pbc, energy=2e6)
+
+    # Large forces
+    with pytest.raises(ValueError, match="Forces magnitude exceeds reasonable limit"):
+        Structure(
+            positions=pos,
+            atomic_numbers=np.array([1]),
+            cell=cell,
+            pbc=pbc,
+            forces=np.array([[2000.0, 0.0, 0.0]]),
+        )

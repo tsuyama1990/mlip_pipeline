@@ -46,13 +46,12 @@ class Dataset:
             raise TypeError(msg)
         return count
 
-    def append(self, structures: Iterable[Structure], batch_size: int | None = None) -> None:
+    def append(self, structures: Iterable[Structure]) -> None:
         """
         Append structures to the dataset line-by-line to minimize memory usage.
 
         Args:
             structures: Iterable of Structure objects.
-            batch_size: Deprecated.
         """
         count = len(self)
 
