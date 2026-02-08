@@ -46,6 +46,16 @@ class AdaptiveGeneratorConfig(BaseGeneratorConfig):
         default_factory=lambda: {"cycle0_bulk": 0.6, "cycle0_surface": 0.4}
     )
 
+    @field_validator("policy_ratios")
+    @classmethod
+    def validate_ratios(cls, v: dict[str, float]) -> dict[str, float]:
+        """Ensure policy ratios sum to approximately 1.0."""
+        total = sum(v.values())
+        if not (0.99 <= total <= 1.01):
+            msg = f"Policy ratios must sum to 1.0, got {total}"
+            raise ValueError(msg)
+        return v
+
 
 GeneratorConfig = MockGeneratorConfig | AdaptiveGeneratorConfig
 
@@ -67,15 +77,20 @@ class QEOracleConfig(BaseOracleConfig):
     mixing_beta: float = Field(default=0.7, ge=0.0, le=1.0)
     smearing: str = "mv"
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
-    # Remove default hardcoded values or use constants if applicable
-    # The audit complained about 60.0/360.0.
-    # We can keep them as defaults but make them explicit or remove them to force config.
-    # For now, I will remove defaults to force user to specify them or load from a robust default profile.
-    # Actually, requiring them is safer for avoiding "magic numbers".
     ecutwfc: float = Field(..., gt=0)
     ecutrho: float = Field(..., gt=0)
-    batch_size: int = Field(default=10, gt=0)
+    batch_size: int = Field(default=10, gt=0, le=1000)  # Limit batch size for memory safety
     max_workers: int = Field(default=4, gt=0)
+
+    @field_validator("max_workers")
+    @classmethod
+    def validate_max_workers(cls, v: int) -> int:
+        import os
+        cpu_count = os.cpu_count() or 1
+        if v > cpu_count * 2:
+            msg = f"max_workers {v} seems too high for {cpu_count} CPUs"
+            raise ValueError(msg)
+        return v
 
 
 class VASPOracleConfig(BaseOracleConfig):

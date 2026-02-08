@@ -82,7 +82,8 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     dataset_path = tmp_path / DATASET_FILE
     assert dataset_path.exists()
 
-    dataset = Dataset(dataset_path)
+    dataset = Dataset(dataset_path, root_dir=tmp_path)
+    dataset = Dataset(dataset_path, root_dir=tmp_path)
     count = 0
     iterator = iter(dataset)
     try:
@@ -137,7 +138,7 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     dataset_path = tmp_path / DATASET_FILE
     assert dataset_path.exists()
 
-    dataset = Dataset(dataset_path)
+    dataset = Dataset(dataset_path, root_dir=tmp_path)
     count = 0
     iterator = iter(dataset)
     try:
