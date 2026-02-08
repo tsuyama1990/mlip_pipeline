@@ -1,6 +1,6 @@
 import logging
 import math
-import random
+import secrets
 from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
@@ -61,8 +61,9 @@ class MockDynamics(BaseDynamics):
                 break
             else:
                 # Geometric distribution: number of failures before first success
-                # We use random.random() which is [0.0, 1.0). If it's 0.0, log is -inf, need to handle.
-                r = random.random()  # noqa: S311
+                # We use secrets.randbelow() for secure random number generation.
+                # secrets.randbelow(1_000_000_000) / 1e9 gives [0, 1).
+                r = secrets.randbelow(1_000_000_000) / 1_000_000_000
                 if r == 0.0:
                     r = 1e-10  # Avoid log(0)
                 skip = int(math.log(r) / log_1_minus_p)

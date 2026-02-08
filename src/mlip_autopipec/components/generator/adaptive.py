@@ -10,13 +10,13 @@ from mlip_autopipec.components.generator.builder import (
 )
 from mlip_autopipec.components.generator.policy import ExplorationPolicy
 from mlip_autopipec.components.generator.rattle import RattleTransform, StrainTransform
-from mlip_autopipec.domain_models.config import GeneratorConfig
+from mlip_autopipec.domain_models.config import AdaptiveGeneratorConfig
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 
 
-class AdaptiveGenerator(BaseGenerator):
+class AdaptiveGenerator(BaseGenerator[AdaptiveGeneratorConfig]):
     """
     Adaptive Structure Generator.
 
@@ -24,9 +24,9 @@ class AdaptiveGenerator(BaseGenerator):
     current model state and metrics.
     """
 
-    _VALID_KEYS = frozenset(GeneratorConfig.model_fields.keys())
+    _VALID_KEYS = frozenset(AdaptiveGeneratorConfig.model_fields.keys())
 
-    def __init__(self, config: GeneratorConfig) -> None:
+    def __init__(self, config: AdaptiveGeneratorConfig) -> None:
         super().__init__(config)
         self.policy = ExplorationPolicy()
         self.builders: dict[str, StructureBuilder] = {
@@ -36,7 +36,7 @@ class AdaptiveGenerator(BaseGenerator):
 
     def _resolve_config(
         self, config: dict[str, Any] | None
-    ) -> tuple[GeneratorConfig, int, dict[str, Any]]:
+    ) -> tuple[AdaptiveGeneratorConfig, int, dict[str, Any]]:
         current_cycle = 0
         current_metrics: dict[str, Any] = {}
 
@@ -50,7 +50,7 @@ class AdaptiveGenerator(BaseGenerator):
         if not config:
             # If config is None or became empty after popping cycle/metrics, use base config
             # This avoids expensive model_dump/model_validate
-            return self.config, current_cycle, current_metrics
+            return self.config, current_cycle, current_metrics  # type: ignore
 
         # Update config with remaining keys
         effective_config_dict = self.config.model_dump()
@@ -63,7 +63,7 @@ class AdaptiveGenerator(BaseGenerator):
         }
 
         try:
-            run_config = GeneratorConfig.model_validate(clean_config_dict)
+            run_config = AdaptiveGeneratorConfig.model_validate(clean_config_dict)
         except Exception as e:
             logger.exception("Invalid runtime configuration")
             msg = f"Invalid configuration: {e}"

@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from mlip_autopipec.domain_models.config import GlobalConfig
+from mlip_autopipec.domain_models.enums import GeneratorType
 
 
 def test_config_valid(tmp_path: Path) -> None:
@@ -29,8 +30,11 @@ def test_config_valid(tmp_path: Path) -> None:
 
     config = GlobalConfig.model_validate(config_dict)
     assert config.max_cycles == 10
-    assert config.components.generator.name == "mock"
-    assert config.components.generator.cell_size == 10.0
+    # config.components.generator.name is GeneratorType.MOCK which is a string enum "mock"
+    # but mypy complains about literal overlap.
+    assert config.components.generator.name == GeneratorType.MOCK
+    # Runtime check is fine
+    assert getattr(config.components.generator, "cell_size", None) == 10.0
 
 
 def test_config_missing_components(tmp_path: Path) -> None:

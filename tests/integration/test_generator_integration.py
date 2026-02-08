@@ -1,6 +1,6 @@
 
 from mlip_autopipec.components.generator.adaptive import AdaptiveGenerator
-from mlip_autopipec.domain_models.config import GeneratorConfig
+from mlip_autopipec.domain_models.config import AdaptiveGeneratorConfig
 from mlip_autopipec.domain_models.enums import GeneratorType
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -8,7 +8,7 @@ from mlip_autopipec.domain_models.structure import Structure
 class TestGeneratorIntegration:
     def test_adaptive_generator_flow(self) -> None:
         # Create config
-        config = GeneratorConfig(
+        config = AdaptiveGeneratorConfig(
             name=GeneratorType.ADAPTIVE,
             element="Fe",
             crystal_structure="bcc",
@@ -43,7 +43,7 @@ class TestGeneratorIntegration:
 
     def test_adaptive_generator_metrics_response(self) -> None:
         # Create config
-        config = GeneratorConfig(
+        config = AdaptiveGeneratorConfig(
             name=GeneratorType.ADAPTIVE,
             element="Fe",
             crystal_structure="bcc",

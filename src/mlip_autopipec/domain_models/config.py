@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -17,33 +17,37 @@ class ComponentConfig(BaseModel):
     name: str = "mock"
 
 
-class GeneratorConfig(ComponentConfig):
-    name: GeneratorType = GeneratorType.MOCK
+class BaseGeneratorConfig(ComponentConfig):
     n_structures: int = Field(default=10, gt=0)
 
-    # Adaptive / Real generation parameters
-    element: str | None = None
-    crystal_structure: str | None = None
+
+class MockGeneratorConfig(BaseGeneratorConfig):
+    name: Literal[GeneratorType.MOCK] = GeneratorType.MOCK
+    cell_size: float = Field(..., gt=0)
+    n_atoms: int = Field(..., gt=0)
+    atomic_numbers: list[int] = Field(..., min_length=1)
+
+
+class AdaptiveGeneratorConfig(BaseGeneratorConfig):
+    name: Literal[GeneratorType.ADAPTIVE] = GeneratorType.ADAPTIVE
+    element: str
+    crystal_structure: str
     strain_range: float = 0.05
     rattle_strength: float = 0.01
-    surface_indices: list[list[int]] | None = None
+    surface_indices: list[list[int]] = Field(
+        default_factory=lambda: [[1, 0, 0], [1, 1, 0], [1, 1, 1]]
+    )
     vacuum: float = 10.0
     supercell_dim: int = 2
-
-    # Policy Ratios (Configurable)
     policy_ratios: dict[str, float] = Field(
         default_factory=lambda: {"cycle0_bulk": 0.6, "cycle0_surface": 0.4}
     )
 
-    # Mock specific parameters - Made optional to support adaptive mode
-    cell_size: float | None = Field(default=None, gt=0)
-    n_atoms: int | None = Field(default=None, gt=0)
-    atomic_numbers: list[int] | None = Field(default=None, min_length=1)
 
-    # Spec parameters
-    md_mc_ratio: float | None = None
-    temperature_schedule: dict[str, Any] | None = None
-    defect_density: float | None = None
+# Union type for generator configuration
+# NOTE: The variable name GeneratorConfig is overloaded here to serve as the union type alias
+# for external usage, but specific configs should be used where concrete types are known.
+GeneratorConfig = MockGeneratorConfig | AdaptiveGeneratorConfig
 
 
 class OracleConfig(ComponentConfig):

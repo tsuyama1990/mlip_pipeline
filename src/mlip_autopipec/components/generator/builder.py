@@ -4,7 +4,7 @@ from collections.abc import Iterator
 import numpy as np
 from ase.build import bulk, surface
 
-from mlip_autopipec.domain_models.config import GeneratorConfig
+from mlip_autopipec.domain_models.config import AdaptiveGeneratorConfig
 from mlip_autopipec.domain_models.structure import Structure
 
 
@@ -12,7 +12,9 @@ class StructureBuilder(ABC):
     """Abstract base class for structure builders."""
 
     @abstractmethod
-    def build(self, n_structures: int, config: GeneratorConfig) -> Iterator[Structure]:
+    def build(
+        self, n_structures: int, config: AdaptiveGeneratorConfig
+    ) -> Iterator[Structure]:
         """
         Build a stream of structures.
 
@@ -29,13 +31,15 @@ class StructureBuilder(ABC):
 class BulkBuilder(StructureBuilder):
     """Builder for bulk structures."""
 
-    def build(self, n_structures: int, config: GeneratorConfig) -> Iterator[Structure]:
-        if not config.element:
-            msg = "Element must be specified for BulkBuilder"
-            raise ValueError(msg)
-        if not config.crystal_structure:
-            msg = "Crystal structure must be specified for BulkBuilder"
-            raise ValueError(msg)
+    def build(
+        self, n_structures: int, config: AdaptiveGeneratorConfig
+    ) -> Iterator[Structure]:
+        # Config is strictly typed, so these checks are technically redundant if we trust Pydantic,
+        # but good for runtime safety if config is manually constructed or if fields are optional in schema.
+        # In AdaptiveGeneratorConfig, they are required fields (str, not Optional[str]),
+        # so we can rely on Pydantic validation. However, keeping logic for now.
+
+        # Pydantic handles required fields validation on model creation.
 
         for _ in range(n_structures):
             # Generate bulk structure
@@ -56,16 +60,10 @@ class BulkBuilder(StructureBuilder):
 class SurfaceBuilder(StructureBuilder):
     """Builder for surface structures."""
 
-    def build(self, n_structures: int, config: GeneratorConfig) -> Iterator[Structure]:
-        if not config.element:
-            msg = "Element must be specified for SurfaceBuilder"
-            raise ValueError(msg)
-        if not config.crystal_structure:
-            msg = "Crystal structure must be specified for SurfaceBuilder"
-            raise ValueError(msg)
-        if not config.surface_indices:
-            msg = "Surface indices must be specified for SurfaceBuilder"
-            raise ValueError(msg)
+    def build(
+        self, n_structures: int, config: AdaptiveGeneratorConfig
+    ) -> Iterator[Structure]:
+        # Validated by Pydantic schema
 
         indices_pool = config.surface_indices
 
