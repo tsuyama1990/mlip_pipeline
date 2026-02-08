@@ -21,7 +21,8 @@ class MockGenerator(BaseGenerator):
         logger.info(f"Generating {n_structures} mock structures")
 
         # Merge configuration: method config overrides component config
-        effective_config = self.config.copy()
+        # Convert Pydantic model to dict to allow merging with override dict
+        effective_config = self.config.model_dump()
         if config:
             effective_config.update(config)
 

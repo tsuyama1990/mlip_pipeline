@@ -152,3 +152,25 @@ def test_physical_validation() -> None:
             pbc=pbc,
             forces=np.array([[2000.0, 0.0, 0.0]]),
         )
+
+def test_validate_labeled() -> None:
+    pos = np.zeros((1, 3))
+    numbers = np.array([1])
+    cell = np.eye(3)
+    pbc = np.array([True, True, True])
+
+    # Missing labels
+    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc)
+    with pytest.raises(ValueError, match="Structure missing energy label"):
+        s.validate_labeled()
+
+    s.energy = -1.0
+    with pytest.raises(ValueError, match="Structure missing forces label"):
+        s.validate_labeled()
+
+    s.forces = np.zeros((1, 3))
+    with pytest.raises(ValueError, match="Structure missing stress label"):
+        s.validate_labeled()
+
+    s.stress = np.zeros(6)
+    s.validate_labeled()  # Should pass

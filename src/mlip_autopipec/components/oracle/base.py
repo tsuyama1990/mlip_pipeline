@@ -1,11 +1,12 @@
 from abc import abstractmethod
 from collections.abc import Iterable, Iterator
 
+from mlip_autopipec.domain_models.config import OracleConfig
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
-class BaseOracle(BaseComponent):
+class BaseOracle(BaseComponent[OracleConfig]):
     @property
     def name(self) -> str:
         return "oracle"

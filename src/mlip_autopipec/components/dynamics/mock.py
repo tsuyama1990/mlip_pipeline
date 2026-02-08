@@ -15,7 +15,7 @@ class MockDynamics(BaseDynamics):
     ) -> Iterator[Structure]:
         logger.info("Exploring structures for uncertainty")
         count = 0
-        selection_rate = self.config.get("selection_rate", 0.5)
+        selection_rate = self.config.selection_rate
 
         # In Cycle 01, start_structures might be just generated ones.
         # Randomly select subset

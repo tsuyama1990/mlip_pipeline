@@ -1,11 +1,12 @@
 from abc import abstractmethod
 from typing import Any
 
+from mlip_autopipec.domain_models.config import ValidatorConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
-class BaseValidator(BaseComponent):
+class BaseValidator(BaseComponent[ValidatorConfig]):
     @property
     def name(self) -> str:
         return "validator"

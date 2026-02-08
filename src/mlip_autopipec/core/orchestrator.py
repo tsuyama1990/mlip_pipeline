@@ -18,11 +18,11 @@ class Orchestrator:
         self.dataset = Dataset(config.workdir / "dataset.jsonl")
 
         # Instantiate components
-        self.generator = ComponentFactory.get_generator(config.components["generator"])
-        self.oracle = ComponentFactory.get_oracle(config.components["oracle"])
-        self.trainer = ComponentFactory.get_trainer(config.components["trainer"])
-        self.dynamics = ComponentFactory.get_dynamics(config.components["dynamics"])
-        self.validator = ComponentFactory.get_validator(config.components["validator"])
+        self.generator = ComponentFactory.get_generator(config.components.generator)
+        self.oracle = ComponentFactory.get_oracle(config.components.oracle)
+        self.trainer = ComponentFactory.get_trainer(config.components.trainer)
+        self.dynamics = ComponentFactory.get_dynamics(config.components.dynamics)
+        self.validator = ComponentFactory.get_validator(config.components.validator)
 
         self.current_potential: Potential | None = None
 
@@ -52,7 +52,7 @@ class Orchestrator:
 
         # Step 1: Exploration
         structures: Iterator[Structure]
-        n_structures = self.config.components["generator"].get("n_structures", 10)
+        n_structures = self.config.components.generator.n_structures
 
         if cycle == 1:
             logger.info("Cycle 1: Generating initial structures")

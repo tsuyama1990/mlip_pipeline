@@ -1,12 +1,13 @@
 from abc import abstractmethod
 from collections.abc import Iterable, Iterator
 
+from mlip_autopipec.domain_models.config import DynamicsConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
-class BaseDynamics(BaseComponent):
+class BaseDynamics(BaseComponent[DynamicsConfig]):
     @property
     def name(self) -> str:
         return "dynamics"

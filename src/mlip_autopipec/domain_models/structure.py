@@ -105,8 +105,7 @@ class Structure(BaseModel):
             if not np.isfinite(v):
                 msg = "Energy must be finite"
                 raise ValueError(msg)
-            # Soft check for magnitude per structure (hard to normalize per atom here without ref to N)
-            # Just check strictly for non-finite.
+            # Soft check for magnitude per structure
             if abs(v) > 1e6:  # Arbitrary large limit for total energy
                 msg = "Energy magnitude exceeds reasonable limit (1e6 eV)"
                 raise ValueError(msg)
@@ -130,6 +129,18 @@ class Structure(BaseModel):
             msg = f"Mismatch: positions={n_atoms}, forces={len(self.forces)}"
             raise ValueError(msg)
         return self
+
+    def validate_labeled(self) -> None:
+        """Ensure structure has labels (energy, forces, stress)."""
+        if self.energy is None:
+            msg = "Structure missing energy label"
+            raise ValueError(msg)
+        if self.forces is None:
+            msg = "Structure missing forces label"
+            raise ValueError(msg)
+        if self.stress is None:
+            msg = "Structure missing stress label"
+            raise ValueError(msg)
 
     @classmethod
     def from_ase(cls, atoms: Atoms) -> "Structure":

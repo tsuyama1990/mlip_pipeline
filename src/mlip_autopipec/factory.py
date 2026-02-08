@@ -5,11 +5,19 @@ from mlip_autopipec.components.generator import BaseGenerator, MockGenerator
 from mlip_autopipec.components.oracle import BaseOracle, MockOracle
 from mlip_autopipec.components.trainer import BaseTrainer, MockTrainer
 from mlip_autopipec.components.validator import BaseValidator, MockValidator
+from mlip_autopipec.domain_models.config import (
+    ComponentConfig,
+    DynamicsConfig,
+    GeneratorConfig,
+    OracleConfig,
+    TrainerConfig,
+    ValidatorConfig,
+)
 from mlip_autopipec.interfaces.base_component import BaseComponent
 
 
 class ComponentFactory:
-    _REGISTRY: ClassVar[dict[str, dict[str, type[BaseComponent]]]] = {
+    _REGISTRY: ClassVar[dict[str, dict[str, type[BaseComponent[Any]]]]] = {
         "generator": {"mock": MockGenerator},
         "oracle": {"mock": MockOracle},
         "trainer": {"mock": MockTrainer},
@@ -18,8 +26,8 @@ class ComponentFactory:
     }
 
     @classmethod
-    def create(cls, component_role: str, config: dict[str, Any]) -> BaseComponent:
-        component_type = config.get("type", "mock")
+    def create(cls, component_role: str, config: ComponentConfig) -> BaseComponent[Any]:
+        component_type = config.name
         if component_role not in cls._REGISTRY:
             msg = f"Unknown component role: {component_role}"
             raise ValueError(msg)
@@ -33,21 +41,21 @@ class ComponentFactory:
         return component_class(config)
 
     @classmethod
-    def get_generator(cls, config: dict[str, Any]) -> BaseGenerator:
+    def get_generator(cls, config: GeneratorConfig) -> BaseGenerator:
         return cls.create("generator", config)  # type: ignore
 
     @classmethod
-    def get_oracle(cls, config: dict[str, Any]) -> BaseOracle:
+    def get_oracle(cls, config: OracleConfig) -> BaseOracle:
         return cls.create("oracle", config)  # type: ignore
 
     @classmethod
-    def get_trainer(cls, config: dict[str, Any]) -> BaseTrainer:
+    def get_trainer(cls, config: TrainerConfig) -> BaseTrainer:
         return cls.create("trainer", config)  # type: ignore
 
     @classmethod
-    def get_dynamics(cls, config: dict[str, Any]) -> BaseDynamics:
+    def get_dynamics(cls, config: DynamicsConfig) -> BaseDynamics:
         return cls.create("dynamics", config)  # type: ignore
 
     @classmethod
-    def get_validator(cls, config: dict[str, Any]) -> BaseValidator:
+    def get_validator(cls, config: ValidatorConfig) -> BaseValidator:
         return cls.create("validator", config)  # type: ignore

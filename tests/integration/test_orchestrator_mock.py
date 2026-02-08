@@ -2,24 +2,24 @@ import pytest
 from pathlib import Path
 from typing import Any
 from mlip_autopipec.core.orchestrator import Orchestrator
-from mlip_autopipec.domain_models.config import GlobalConfig
+from mlip_autopipec.domain_models.config import GlobalConfig, OracleConfig
 from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.core.dataset import Dataset
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:
-    return GlobalConfig(
-        workdir=tmp_path,
-        max_cycles=2,
-        logging_level="INFO",
-        components={
-            "generator": {"type": "mock", "n_structures": 5},
-            "oracle": {"type": "mock"},
-            "trainer": {"type": "mock"},
-            "dynamics": {"type": "mock", "selection_rate": 1.0},
-            "validator": {"type": "mock"}
+    return GlobalConfig.model_validate({
+        "workdir": tmp_path,
+        "max_cycles": 2,
+        "logging_level": "INFO",
+        "components": {
+            "generator": {"name": "mock", "n_structures": 5},
+            "oracle": {"name": "mock"},
+            "trainer": {"name": "mock"},
+            "dynamics": {"name": "mock", "selection_rate": 1.0},
+            "validator": {"name": "mock"}
         }
-    )
+    })
 
 def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> None:
     # Arrange
@@ -72,7 +72,7 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Inject the failing component via factory override or property patching
 
     orchestrator = Orchestrator(mock_config)
-    orchestrator.oracle = FailingOracle({})
+    orchestrator.oracle = FailingOracle(OracleConfig())
 
     # Verify graceful failure
     with pytest.raises(RuntimeError, match="Simulated DFT failure"):
