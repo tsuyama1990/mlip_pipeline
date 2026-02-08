@@ -170,6 +170,8 @@ class Dataset:
             return
 
         try:
+            # Using a buffer size here is handled by io.TextIOWrapper default behavior (typically 8kb)
+            # This ensures we don't read the whole file at once.
             with self.path.open("r") as f:
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
@@ -214,23 +216,39 @@ class Dataset:
             - forces: atomic forces
             - stress: virial stress (optional)
         """
-        data = []
-        for s in self:
-            atoms = s.to_ase()
-            row: dict[str, Any] = {"ase_atoms": atoms}
-            if s.energy is not None:
-                row["energy"] = s.energy
-            if s.forces is not None:
-                row["forces"] = s.forces
-            if s.stress is not None:
-                row["stress"] = s.stress
-            data.append(row)
-        return pd.DataFrame(data)
+        chunks = []
+        # Process in chunks to avoid creating a massive list of dicts at once
+        for batch in self.iter_batches(batch_size=1000):
+            batch_data = []
+            for s in batch:
+                atoms = s.to_ase()
+                row: dict[str, Any] = {"ase_atoms": atoms}
+                if s.energy is not None:
+                    row["energy"] = s.energy
+                if s.forces is not None:
+                    row["forces"] = s.forces
+                if s.stress is not None:
+                    row["stress"] = s.stress
+                batch_data.append(row)
+            if batch_data:
+                chunks.append(pd.DataFrame(batch_data))
+
+        if not chunks:
+            return pd.DataFrame()
+
+        return pd.concat(chunks, ignore_index=True)
 
     def to_pacemaker_gzip(self, output_path: Path) -> None:
         """
         Export dataset to a gzipped pickle file for Pacemaker.
+
+        Note: This creates a single pickled object.
         """
+        # Validate output path
+        if not output_path.parent.exists():
+            msg = f"Output parent directory does not exist: {output_path.parent}"
+            raise ValueError(msg)
+
         df = self.to_pandas()
         # Pacemaker expects a pickled DataFrame
         try:

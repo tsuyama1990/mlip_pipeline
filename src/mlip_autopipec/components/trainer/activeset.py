@@ -24,16 +24,20 @@ class ActiveSetSelector:
         Returns:
             Path to the output dataset.
         """
+        # Security: Validate paths
+        if not input_path.exists():
+            msg = f"Input path does not exist: {input_path}"
+            raise FileNotFoundError(msg)
+
         # Construct command
         # Note: Actual flags might differ based on pacemaker version.
         # We assume --data-filename, --output, and --max (or similar) are available.
-        # If specific flags are required by the spec (none specified), we use reasonable defaults.
         cmd = [
             "pace_activeset",
             "--data-filename",
-            str(input_path),
+            str(input_path.resolve()),
             "--output",
-            str(output_path),
+            str(output_path.resolve()),
             "--max",
             str(self.limit),
         ]
@@ -46,7 +50,8 @@ class ActiveSetSelector:
                 check=True,
                 capture_output=True,
                 text=True,
-            )  # noqa: S603
+                shell=False,
+            )
             logger.debug(f"pace_activeset output: {result.stdout}")
         except subprocess.CalledProcessError as e:
             msg = f"pace_activeset failed with error: {e.stderr}"

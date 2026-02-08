@@ -47,5 +47,9 @@ def test_activeset_selector_fail(tmp_path):
 
         selector = ActiveSetSelector(limit=100)
 
+        # Create input file so validation passes
+        input_file = tmp_path / "in.gzip"
+        input_file.touch()
+
         with pytest.raises(RuntimeError):
-            selector.select(tmp_path / "in.gzip", tmp_path / "out.gzip")
+            selector.select(input_file, tmp_path / "out.gzip")

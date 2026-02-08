@@ -1,12 +1,18 @@
 import logging
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
 
 from mlip_autopipec.components.trainer.activeset import ActiveSetSelector
 from mlip_autopipec.components.trainer.base import BaseTrainer
+from mlip_autopipec.constants import (
+    PACEMAKER_ACTIVESET_FILENAME,
+    PACEMAKER_DATASET_FILENAME,
+    PACEMAKER_INPUT_FILENAME,
+    PACEMAKER_POTENTIAL_FILENAME,
+)
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models.config import PacemakerTrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
@@ -50,14 +56,14 @@ class PacemakerTrainer(BaseTrainer):
         logger.info(f"Starting training in {workdir}")
 
         # 1. Convert Dataset to Pacemaker format
-        raw_data_path = workdir / "dataset.pckl.gzip"
+        raw_data_path = workdir / PACEMAKER_DATASET_FILENAME
         dataset.to_pacemaker_gzip(raw_data_path)
 
         training_data_path = raw_data_path
 
         # 2. Active Set Selection
         if self.config.active_set_selection:
-            activeset_path = workdir / "dataset_activeset.pckl.gzip"
+            activeset_path = workdir / PACEMAKER_ACTIVESET_FILENAME
             logger.info("Running active set selection...")
             selector = ActiveSetSelector(limit=self.config.active_set_limit)
             try:
@@ -67,16 +73,14 @@ class PacemakerTrainer(BaseTrainer):
                 training_data_path = raw_data_path
 
         # 3. Generate input.yaml
-        input_yaml_path = workdir / "input.yaml"
+        input_yaml_path = workdir / PACEMAKER_INPUT_FILENAME
         self._generate_input_yaml(input_yaml_path, training_data_path, previous_potential)
 
         # 4. Run pace_train
         self._run_pace_train(input_yaml_path, workdir)
 
         # 5. Collect artifacts
-        # Pacemaker usually creates "output_potential.yace" or similar.
-        # We look for the most recently created .yace file or a standard name.
-        potential_path = workdir / "output_potential.yace"
+        potential_path = workdir / PACEMAKER_POTENTIAL_FILENAME
 
         if not potential_path.exists():
              # Try to find any yace file
@@ -104,7 +108,7 @@ class PacemakerTrainer(BaseTrainer):
             path=potential_path,
             format="yace",
             metrics=metrics,
-            creation_date=datetime.now(timezone.utc),
+            creation_date=datetime.now(UTC),
         )
 
     def _generate_input_yaml(
@@ -157,7 +161,8 @@ class PacemakerTrainer(BaseTrainer):
 
     def _run_pace_train(self, input_yaml: Path, workdir: Path) -> None:
         # Assumes pace_train is in PATH
-        cmd = ["pace_train", input_yaml.name]
+        # Use absolute path for input yaml to be safe
+        cmd = ["pace_train", str(input_yaml.resolve())]
         logger.info(f"Executing: {' '.join(cmd)}")
 
         try:
@@ -167,7 +172,8 @@ class PacemakerTrainer(BaseTrainer):
                 check=True,
                 capture_output=True,
                 text=True,
-            )  # noqa: S603
+                shell=False,
+            )
             # Log stdout/stderr for debugging
             logger.debug(f"pace_train stdout: {result.stdout}")
         except subprocess.CalledProcessError as e:

@@ -51,7 +51,7 @@ def test_dataset_to_pacemaker_gzip(tmp_path: Path) -> None:
     # Verify it can be read back by pandas (simulating Pacemaker)
     import pandas as pd
     with gzip.open(output_path, "rb") as f:
-        df = pd.read_pickle(f)
+        df = pd.read_pickle(f)  # noqa: S301
 
     assert len(df) == 5
     assert "energy" in df.columns
