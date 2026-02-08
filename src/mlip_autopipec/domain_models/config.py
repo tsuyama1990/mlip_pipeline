@@ -16,6 +16,9 @@ MAX_ATOMIC_NUMBER = 118
 MAX_FORCE_MAGNITUDE = 1000.0  # eV/A
 MAX_ENERGY_MAGNITUDE = 1e6  # eV
 
+# Constants for Dataset
+DEFAULT_BUFFER_SIZE = 1000
+
 
 class ComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")

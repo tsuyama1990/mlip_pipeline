@@ -20,6 +20,8 @@ def test_healer_reduce_mixing_beta() -> None:
     new_calc = healer.heal(calc, Exception("Convergence failed"))
 
     assert new_calc.parameters["mixing_beta"] == 0.3
+    # Ensure new instance
+    assert new_calc is not calc
 
 
 def test_healer_increase_smearing() -> None:
@@ -59,14 +61,12 @@ def test_healer_exhausted() -> None:
 
 def test_healer_invalid_calculator() -> None:
     """Test healer with non-Espresso calculator (generic)."""
-    # Should try best effort or fail if parameters don't match
-    # Since Healer creates a new instance using type(calc)(**params),
-    # MagicMock works but we need to ensure the mock type can be instantiated with kwargs.
-    # MagicMock()(**kwargs) returns another mock, whose .parameters is not automatically set.
 
-    # Let's use a simple class instead of MagicMock for better control
+    # Should try best effort or fail if parameters don't match
+    # Use simple class that accepts kwargs
     class SimpleCalc(Calculator):
         def __init__(self, **kwargs: Any) -> None:
+            super().__init__()  # type: ignore[no-untyped-call]
             self.parameters = kwargs
 
     calc = SimpleCalc()

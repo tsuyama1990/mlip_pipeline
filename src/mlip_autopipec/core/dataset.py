@@ -4,6 +4,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, cast
 
+from mlip_autopipec.domain_models.config import DEFAULT_BUFFER_SIZE
 from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
@@ -14,16 +15,19 @@ class Dataset:
         # Security: Resolve absolute path and prevent traversal
         try:
             # resolve() handles symlinks and '..' components
-            # We strictly enforce that the path must be within the current working directory
-            # or a specific allowed directory if configured (but for now, we assume CWD rooted).
-            # Actually, `path.resolve()` returns the absolute path.
-            # We just ensure it's a valid path object.
-            self.path = path.resolve()
+            # If path does not exist, resolve works if parents exist or on recent Python versions for non-existing.
+            # strict=False allows the file itself to be missing.
+            self.path = path.resolve(strict=False)
+
+            # Security: Ensure we are not traversing out of expected root?
+            # Without a passed root, we can't strictly enforce confinement to a "jail".
+            # But resolving prevents '..' attacks hiding the true path.
+
         except OSError as e:
             msg = f"Invalid path: {path}"
             raise ValueError(msg) from e
 
-        # Additional check for null bytes (though pathlib usually handles this, explicit is safe)
+        # Additional check for null bytes
         if "\0" in str(self.path):
             msg = "File path contains null byte"
             raise ValueError(msg)
@@ -81,7 +85,9 @@ class Dataset:
             raise TypeError(msg)
         return count
 
-    def append(self, structures: Iterable[Structure], buffer_size: int = 1000) -> None:
+    def append(
+        self, structures: Iterable[Structure], buffer_size: int = DEFAULT_BUFFER_SIZE
+    ) -> None:
         """
         Append structures to the dataset.
         Uses buffered writing for I/O efficiency.
@@ -127,7 +133,7 @@ class Dataset:
 
         try:
             with self.path.open("r") as f:
-                # File iteration in Python is already buffered and memory-safe (line by line)
+                # Standard iteration over file object is buffered and memory efficient
                 for i, raw_line in enumerate(f):
                     line = raw_line.strip()
                     if not line:

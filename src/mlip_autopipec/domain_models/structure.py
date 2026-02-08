@@ -1,4 +1,4 @@
-import contextlib
+import logging
 from typing import Annotated, Any
 
 import numpy as np
@@ -18,6 +18,8 @@ from mlip_autopipec.domain_models.config import (
     MAX_ENERGY_MAGNITUDE,
     MAX_FORCE_MAGNITUDE,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def numpy_to_list(v: Any) -> Any:
@@ -189,18 +191,27 @@ class Structure(BaseModel):
 
         # Try calculator first
         if atoms.calc:
-            with contextlib.suppress(Exception):
+            # Explicit error handling instead of broad suppression
+            try:
                 energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            with contextlib.suppress(Exception):
+            except Exception as e:
+                # Log warning but proceed (properties might be missing)
+                logger.warning(f"Could not retrieve potential energy from ASE atoms: {e}")
+
+            try:
                 forces = atoms.get_forces()  # type: ignore[no-untyped-call]
-            with contextlib.suppress(Exception):
+            except Exception as e:
+                logger.warning(f"Could not retrieve forces from ASE atoms: {e}")
+
+            try:
                 # Try getting full tensor first
                 stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
-
-            # If voigt=False failed or wasn't supported (some older ASE calculators might behave oddly), fallback
-            if stress is None:
-                with contextlib.suppress(Exception):
+            except Exception:
+                # Fallback to Voigt or retry
+                try:
                     stress = atoms.get_stress()  # type: ignore[no-untyped-call]
+                except Exception as e:
+                    logger.warning(f"Could not retrieve stress from ASE atoms: {e}")
 
         # Fallback to arrays/info if not in calc (e.g. read from file)
         if energy is None:
