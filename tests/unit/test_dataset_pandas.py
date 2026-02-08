@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
@@ -42,14 +41,13 @@ def test_dataset_export_to_extxyz(tmp_path: Path) -> None:
     # Check both potential locations
     first_atom = atoms_list[0]
     # Check if first_atom is actually an Atoms object to satisfy MyPy
-    if isinstance(first_atom, Atoms):
-        energy = first_atom.info.get("energy")
-        if energy is None and first_atom.calc:
-            energy = first_atom.get_potential_energy()  # type: ignore[no-untyped-call]
+    assert isinstance(first_atom, Atoms), "Read object is not an ASE Atoms object"
 
-        assert energy == -10.5
-    else:
-        pytest.fail("Read object is not an ASE Atoms object")
+    energy = first_atom.info.get("energy")
+    if energy is None and first_atom.calc:
+        energy = first_atom.get_potential_energy()  # type: ignore[no-untyped-call]
+
+    assert energy == -10.5
 
 def test_dataset_export_to_pacemaker_gzip(tmp_path: Path) -> None:
     dataset_path = tmp_path / "dataset.jsonl"

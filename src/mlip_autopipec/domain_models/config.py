@@ -131,7 +131,7 @@ class PacemakerInputConfig(BaseModel):
     Configuration model for Pacemaker input.yaml file.
     Only includes fields we control dynamically.
     """
-    model_config = ConfigDict(extra="ignore")  # Allow extra fields for now as we don't map everything
+    model_config = ConfigDict(extra="allow")  # Allow extra fields to support custom Pacemaker options
 
     cutoff: float
     data: dict[str, str]
@@ -183,6 +183,7 @@ class PacemakerTrainerConfig(BaseTrainerConfig):
     activeset_filename: str = "dataset_activeset.pckl.gzip"
 
     data_format: Literal["extxyz", "pckl.gzip"] = "extxyz"
+    pacemaker_options: dict[str, Any] = Field(default_factory=dict)
 
 
 TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig

@@ -62,7 +62,8 @@ class ActiveSetSelector:
         is_trusted = any(str(resolved_path).startswith(str(d)) for d in trusted_dirs)
 
         if not is_trusted:
-            logger.warning(f"Executable '{resolved_path}' is not in standard trusted directories.")
+            msg = f"Executable '{resolved_path}' is not in a trusted directory (whitelist: {trusted_dirs})."
+            raise SecurityError(msg)
 
         return str(resolved_path)
 
