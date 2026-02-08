@@ -175,3 +175,33 @@ def test_validate_labeled() -> None:
 
     s.stress = np.zeros(6)
     s.validate_labeled()  # Should pass
+
+
+def test_validate_labeled_partial() -> None:
+    """Test validate_labeled with various combinations of missing labels."""
+    pos = np.zeros((1, 3))
+    numbers = np.array([1])
+    cell = np.eye(3)
+    pbc = np.array([True, True, True])
+
+    # Only Energy
+    s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, energy=-1.0)
+    with pytest.raises(ValueError, match="Structure missing forces label"):
+        s.validate_labeled()
+
+    # Energy and Stress (missing Forces)
+    s.stress = np.zeros(6)
+    with pytest.raises(ValueError, match="Structure missing forces label"):
+        s.validate_labeled()
+
+    # Forces and Stress (missing Energy)
+    s = Structure(
+        positions=pos,
+        atomic_numbers=numbers,
+        cell=cell,
+        pbc=pbc,
+        forces=np.zeros((1, 3)),
+        stress=np.zeros(6)
+    )
+    with pytest.raises(ValueError, match="Structure missing energy label"):
+        s.validate_labeled()

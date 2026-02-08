@@ -61,7 +61,7 @@ class MockOracleConfig(BaseOracleConfig):
 
 class QEOracleConfig(BaseOracleConfig):
     name: Literal[OracleType.QE] = OracleType.QE
-    kspacing: float = 0.05
+    kspacing: float = Field(default=0.05, ge=0.01, le=2.0)
     mixing_beta: float = 0.7
     smearing: str = "mv"
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
@@ -72,7 +72,7 @@ class QEOracleConfig(BaseOracleConfig):
 class VASPOracleConfig(BaseOracleConfig):
     name: Literal[OracleType.VASP] = OracleType.VASP
     encut: float = 520.0
-    kspacing: float = 0.05
+    kspacing: float = Field(default=0.05, ge=0.01, le=2.0)
     ediff: float = 1e-6
 
 
