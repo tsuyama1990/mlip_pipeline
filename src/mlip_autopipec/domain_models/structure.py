@@ -32,6 +32,23 @@ NumpyArray = Annotated[
 ]
 
 
+def voigt_6_to_full_3x3(stress_voigt: np.ndarray) -> np.ndarray:
+    """
+    Convert Voigt notation (6,) to full tensor (3, 3).
+    ASE Voigt order: xx, yy, zz, yz, xz, xy
+    """
+    if stress_voigt.shape != (6,):
+        msg = f"Expected Voigt stress shape (6,), got {stress_voigt.shape}"
+        raise ValueError(msg)
+
+    xx, yy, zz, yz, xz, xy = stress_voigt
+    return np.array([
+        [xx, xy, xz],
+        [xy, yy, yz],
+        [xz, yz, zz]
+    ])
+
+
 class Structure(BaseModel):
     """
     Domain entity representing an atomic structure.
@@ -39,6 +56,8 @@ class Structure(BaseModel):
     Attributes `forces`, `energy`, and `stress` are Optional because structures
     are initially generated without labels. Use `validate_labeled()` to enforce
     their presence for labeled datasets.
+
+    Stress is always stored as a (3, 3) tensor.
     """
 
     model_config = ConfigDict(
@@ -127,12 +146,17 @@ class Structure(BaseModel):
                 raise ValueError(msg)
         return v
 
-    @field_validator("stress", mode="after")
+    @field_validator("stress", mode="before")
     @classmethod
-    def validate_stress_shape(cls, v: np.ndarray | None) -> np.ndarray | None:
-        if v is not None and v.shape not in ((3, 3), (6,)):
-            msg = f"Stress must be (3, 3) or (6,). Conversion should happen before validation. Got {v.shape}"
-            raise ValueError(msg)
+    def validate_stress_shape_and_convert(cls, v: Any) -> Any:
+        if v is not None:
+            v_arr = to_numpy(v)
+            if v_arr.shape == (6,):
+                return voigt_6_to_full_3x3(v_arr)
+            if v_arr.shape != (3, 3):
+                msg = f"Stress must be (3, 3) or (6,), got {v_arr.shape}"
+                raise ValueError(msg)
+            return v_arr
         return v
 
     @model_validator(mode="after")
@@ -172,7 +196,13 @@ class Structure(BaseModel):
             with contextlib.suppress(Exception):
                 forces = atoms.get_forces()  # type: ignore[no-untyped-call]
             with contextlib.suppress(Exception):
-                stress = atoms.get_stress()  # type: ignore[no-untyped-call]
+                # Try getting full tensor first
+                stress = atoms.get_stress(voigt=False)  # type: ignore[no-untyped-call]
+
+            # If voigt=False failed or wasn't supported (some older ASE calculators might behave oddly), fallback
+            if stress is None:
+                 with contextlib.suppress(Exception):
+                    stress = atoms.get_stress() # type: ignore[no-untyped-call]
 
         # Fallback to arrays/info if not in calc (e.g. read from file)
         if energy is None:
@@ -219,6 +249,7 @@ class Structure(BaseModel):
         if self.forces is not None:
             atoms.arrays["forces"] = self.forces
         if self.stress is not None:
+            # Storing stress as full 3x3 in info for maximum fidelity
             atoms.info["stress"] = self.stress
         if self.uncertainty is not None:
             atoms.info["uncertainty"] = self.uncertainty

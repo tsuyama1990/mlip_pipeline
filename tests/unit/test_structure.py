@@ -85,9 +85,10 @@ def test_structure_stress_validation() -> None:
     pbc = np.array([True, True, True])
     stress = np.zeros(6)  # Voigt
 
+    # Voigt input should be converted to 3x3
     s = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=stress)
     assert s.stress is not None
-    assert s.stress.shape == (6,)
+    assert s.stress.shape == (3, 3)
 
     stress_tensor = np.zeros((3, 3))
     s2 = Structure(positions=pos, atomic_numbers=numbers, cell=cell, pbc=pbc, stress=stress_tensor)
@@ -121,7 +122,16 @@ def test_to_ase() -> None:
     assert len(atoms) == 2
     assert atoms.info["energy"] == energy
     assert np.allclose(atoms.arrays["forces"], forces)
-    assert np.allclose(atoms.info["stress"], stress)
+
+    # Stress should be converted to 3x3
+    expected_stress = np.zeros((3, 3))
+    expected_stress[0, 0] = stress[0]
+    expected_stress[1, 1] = stress[1]
+    expected_stress[2, 2] = stress[2]
+    # ... mapping ... but zeros are zeros
+
+    assert np.allclose(atoms.info["stress"], expected_stress)
+    assert atoms.info["stress"].shape == (3, 3)
 
 
 def test_physical_validation() -> None:
