@@ -21,10 +21,13 @@ class GlobalConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    workdir: Path
-    max_cycles: int = Field(ge=1)
+    workdir: Path = Field(default=Path("runs/default"))
+    max_cycles: int = Field(default=5, ge=1)
+    logging_level: str = "INFO"
 
     # Components
+    # We require explicit component config, but provide defaults for mocks in tests?
+    # No, strict config is better. But maybe defaults for optional components.
     generator: ComponentConfig
     oracle: ComponentConfig
     trainer: ComponentConfig
@@ -39,6 +42,19 @@ class GlobalConfig(BaseModel):
     def validate_components(self) -> "GlobalConfig":
         """
         Validates that all components have a type field.
-        (Already enforced by ComponentConfig, but good for explicit check if we changed it).
         """
+        return self
+
+    @model_validator(mode="after")
+    def validate_paths(self) -> "GlobalConfig":
+        """
+        Ensures dataset_filename is relative and safe.
+        """
+        p = Path(self.dataset_filename)
+        if p.is_absolute():
+            msg = f"dataset_filename must be relative, got {self.dataset_filename}"
+            raise ValueError(msg)
+        if ".." in self.dataset_filename:
+             msg = f"dataset_filename cannot contain parent directory traversal: {self.dataset_filename}"
+             raise ValueError(msg)
         return self

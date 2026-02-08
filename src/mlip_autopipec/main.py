@@ -1,5 +1,4 @@
 import logging
-import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -20,7 +19,6 @@ def callback() -> None:
     """
     MLIP Pipeline CLI.
     """
-    pass
 
 
 @app.command()
@@ -39,7 +37,7 @@ def run(
     """
     Run the active learning pipeline using the specified configuration.
     """
-    setup_logging()
+    setup_logging(level="INFO")
 
     # Explicit security check
     if not config_path.is_file():
@@ -53,6 +51,10 @@ def run(
         # Parse and validate config
         logger.info(f"Loading configuration from {config_path}")
         config = GlobalConfig(**config_data)
+
+        # Re-configure logging if specified
+        setup_logging(level=config.logging_level)
+        logger.info(f"Logging level set to {config.logging_level}")
 
         # Run orchestrator
         orchestrator = Orchestrator(config)

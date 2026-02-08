@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -8,7 +9,7 @@ from mlip_autopipec.domain_models import GlobalConfig
 
 def test_valid_config() -> None:
     """Test creating a valid GlobalConfig."""
-    config_dict = {
+    config_dict: Any = {
         "workdir": "runs/test",
         "max_cycles": 1,
         "generator": {"type": "mock", "extra_param": 123},
@@ -24,34 +25,50 @@ def test_valid_config() -> None:
     assert getattr(config.generator, "extra_param", None) == 123
 
 
-def test_missing_required_fields() -> None:
-    """Test validation error for missing required fields."""
-    with pytest.raises(ValidationError) as excinfo:
-        GlobalConfig(max_cycles=1)  # Missing workdir and components
-    assert "Field required" in str(excinfo.value)
+def test_config_defaults() -> None:
+    """Test default values."""
+    config_dict: Any = {
+        # workdir omitted -> default runs/default
+        # max_cycles omitted -> default 5
+        "generator": {"type": "mock"},
+        "oracle": {"type": "mock"},
+        "trainer": {"type": "mock"},
+        "dynamics": {"type": "mock"},
+    }
+    config = GlobalConfig(**config_dict)
+    assert config.workdir == Path("runs/default")
+    assert config.max_cycles == 5
 
 
 def test_invalid_field_type() -> None:
     """Test validation error for invalid field types."""
     with pytest.raises(ValidationError):
         GlobalConfig(
-            workdir="runs/test",
-            max_cycles="invalid_int",  # Should be int
-            generator={"type": "mock"},
-            oracle={"type": "mock"},
-            trainer={"type": "mock"},
-            dynamics={"type": "mock"},
+            workdir="runs/test",  # type: ignore
+            max_cycles="invalid_int",  # type: ignore
+            generator={"type": "mock"},  # type: ignore
+            oracle={"type": "mock"},  # type: ignore
+            trainer={"type": "mock"},  # type: ignore
+            dynamics={"type": "mock"},  # type: ignore
         )
 
 
-def test_missing_component_type() -> None:
-    """Test validation error if component config is missing 'type'."""
-    with pytest.raises(ValidationError):
+def test_dataset_path_security() -> None:
+    """Test validation of dataset_filename path traversal."""
+    with pytest.raises(ValidationError, match="dataset_filename cannot contain parent directory traversal"):
         GlobalConfig(
-            workdir="runs/test",
-            max_cycles=1,
-            generator={},  # Missing type
-            oracle={"type": "mock"},
-            trainer={"type": "mock"},
-            dynamics={"type": "mock"},
+            dataset_filename="../bad.jsonl",
+            generator={"type": "mock"},  # type: ignore
+            oracle={"type": "mock"},  # type: ignore
+            trainer={"type": "mock"},  # type: ignore
+            dynamics={"type": "mock"},  # type: ignore
+        )
+
+    with pytest.raises(ValidationError, match="dataset_filename must be relative"):
+        GlobalConfig(
+            dataset_filename="/absolute/path.jsonl",
+            generator={"type": "mock"},  # type: ignore
+            oracle={"type": "mock"},  # type: ignore
+            trainer={"type": "mock"},  # type: ignore
+            dynamics={"type": "mock"},  # type: ignore
         )

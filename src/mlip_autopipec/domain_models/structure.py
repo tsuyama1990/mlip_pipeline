@@ -1,7 +1,13 @@
-from typing import Annotated, Any, Dict, Optional, Tuple
+from typing import Annotated, Any, cast
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, PlainSerializer, BeforeValidator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    PlainSerializer,
+    model_validator,
+)
 
 
 def to_numpy(v: Any) -> np.ndarray:
@@ -10,13 +16,13 @@ def to_numpy(v: Any) -> np.ndarray:
     return np.array(v)
 
 
-def numpy_to_list(v: np.ndarray) -> list:
-    return v.tolist()
+def numpy_to_list(v: np.ndarray) -> list[Any]:
+    return cast(list[Any], v.tolist())
 
 
 NumpyArray = Annotated[
     np.ndarray,
-    PlainSerializer(numpy_to_list, return_type=list, when_used="json"),
+    PlainSerializer(numpy_to_list, return_type=list[Any], when_used="json"),
     BeforeValidator(to_numpy),
 ]
 
@@ -31,13 +37,13 @@ class Structure(BaseModel):
     positions: NumpyArray
     atomic_numbers: NumpyArray
     cell: NumpyArray
-    pbc: Tuple[bool, bool, bool] = (True, True, True)
+    pbc: tuple[bool, bool, bool] = (True, True, True)
 
     # Optional labels/properties
-    energy: Optional[float] = None
-    forces: Optional[NumpyArray] = None
-    stress: Optional[NumpyArray] = None
-    properties: Optional[Dict[str, Any]] = None
+    energy: float | None = None
+    forces: NumpyArray | None = None
+    stress: NumpyArray | None = None
+    properties: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def validate_shapes(self) -> "Structure":
@@ -47,6 +53,7 @@ class Structure(BaseModel):
         """
         n_atoms = len(self.atomic_numbers)
 
+        # Optimize validation by grouping checks
         if self.positions.shape != (n_atoms, 3):
             msg = f"positions shape {self.positions.shape} does not match ({n_atoms}, 3)"
             raise ValueError(msg)
@@ -62,6 +69,11 @@ class Structure(BaseModel):
         if self.stress is not None and self.stress.shape not in [(3, 3), (6,)]:
             # Allow both Voigt (6,) and full tensor (3, 3)
             msg = f"stress shape {self.stress.shape} must be (3, 3) or (6,)"
+            raise ValueError(msg)
+
+        # Optimize property validation (optional but good practice)
+        if self.properties and not isinstance(self.properties, dict):
+            msg = f"properties must be a dictionary, got {type(self.properties)}"
             raise ValueError(msg)
 
         return self

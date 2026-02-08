@@ -1,5 +1,7 @@
 import logging
+import secrets
 from collections.abc import Iterator
+from typing import Any
 
 import numpy as np
 
@@ -15,10 +17,25 @@ class MockDynamics(BaseDynamics):
     Returns dummy structures representing sampled configurations.
     """
 
+    def __init__(self, fail_rate: float = 0.0, **kwargs: Any) -> None:
+        """
+        Args:
+            fail_rate: Probability of failure during dynamics (0.0 to 1.0).
+            **kwargs: Ignored extra arguments.
+        """
+        self.fail_rate = fail_rate
+        self.rng = np.random.default_rng(secrets.randbits(128))
+        if kwargs:
+            logger.debug(f"MockDynamics received extra args: {kwargs}")
+
     def run(self, potential: Potential) -> Iterator[Structure]:
         """
         Simulates dynamics by generating a few dummy structures.
         """
+        if self.rng.random() < self.fail_rate:
+            msg = "MockDynamics: Simulated failure during dynamics."
+            raise RuntimeError(msg)
+
         logger.info(f"MockDynamics: Running MD with potential {potential.version}...")
 
         # Generate 3 dummy structures

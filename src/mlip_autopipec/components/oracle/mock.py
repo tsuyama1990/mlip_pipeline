@@ -1,5 +1,7 @@
 import logging
+import secrets
 from collections.abc import Iterable, Iterator
+from typing import Any
 
 import numpy as np
 
@@ -15,10 +17,25 @@ class MockOracle(BaseOracle):
     Adds dummy energy, forces, and stress to structures.
     """
 
+    def __init__(self, fail_rate: float = 0.0, **kwargs: Any) -> None:
+        """
+        Args:
+            fail_rate: Probability of failure during computation (0.0 to 1.0).
+            **kwargs: Ignored extra arguments.
+        """
+        self.fail_rate = fail_rate
+        self.rng = np.random.default_rng(secrets.randbits(128))
+        if kwargs:
+            logger.debug(f"MockOracle received extra args: {kwargs}")
+
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         """
         Computes dummy labels for input structures.
         """
+        if self.rng.random() < self.fail_rate:
+            msg = "MockOracle: Simulated failure during computation."
+            raise RuntimeError(msg)
+
         logger.info("MockOracle: Computing labels for structures...")
 
         for i, structure in enumerate(structures):
