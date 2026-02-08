@@ -19,29 +19,46 @@ from mlip_autopipec.domain_models.enums import (
     ValidatorType,
 )
 
+# Constants for test configuration
+MAX_CYCLES = 2
+N_STRUCTURES = 5
+CELL_SIZE = 10.0
+N_ATOMS = 2
+ATOMIC_NUMBERS = [1, 1]
+SELECTION_RATE = 1.0
+UNCERTAINTY_THRESHOLD = 5.0
+CYCLE_01_DIR = "cycle_01"
+CYCLE_02_DIR = "cycle_02"
+CYCLE_03_DIR = "cycle_03"
+POTENTIAL_FILE = "potential.yace"
+DATASET_FILE = "dataset.jsonl"
+STATE_FILE = "workflow_state.json"
+STOPPED_STATUS = "STOPPED"
+ERROR_STATUS = "ERROR"
+
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:
     return GlobalConfig.model_validate(
         {
             "workdir": tmp_path,
-            "max_cycles": 2,
+            "max_cycles": MAX_CYCLES,
             "logging_level": "INFO",
             "components": {
                 "generator": {
                     "name": GeneratorType.MOCK,
-                    "n_structures": 5,
+                    "n_structures": N_STRUCTURES,
                     # Explicitly required params
-                    "cell_size": 10.0,
-                    "n_atoms": 2,
-                    "atomic_numbers": [1, 1],
+                    "cell_size": CELL_SIZE,
+                    "n_atoms": N_ATOMS,
+                    "atomic_numbers": ATOMIC_NUMBERS,
                 },
                 "oracle": {"name": OracleType.MOCK},
                 "trainer": {"name": TrainerType.MOCK},
                 "dynamics": {
                     "name": DynamicsType.MOCK,
-                    "selection_rate": 1.0,
-                    "uncertainty_threshold": 5.0,  # Required for mock now
+                    "selection_rate": SELECTION_RATE,
+                    "uncertainty_threshold": UNCERTAINTY_THRESHOLD,  # Required for mock now
                 },
                 "validator": {"name": ValidatorType.MOCK},
             },
@@ -58,16 +75,16 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
 
     # Assert
     # Check cycles
-    assert (tmp_path / "cycle_01").exists()
-    assert (tmp_path / "cycle_02").exists()
-    assert not (tmp_path / "cycle_03").exists()
+    assert (tmp_path / CYCLE_01_DIR).exists()
+    assert (tmp_path / CYCLE_02_DIR).exists()
+    assert not (tmp_path / CYCLE_03_DIR).exists()
 
     # Check potential files
-    assert (tmp_path / "cycle_01" / "potential.yace").exists()
-    assert (tmp_path / "cycle_02" / "potential.yace").exists()
+    assert (tmp_path / CYCLE_01_DIR / POTENTIAL_FILE).exists()
+    assert (tmp_path / CYCLE_02_DIR / POTENTIAL_FILE).exists()
 
     # Check dataset
-    dataset_path = tmp_path / "dataset.jsonl"
+    dataset_path = tmp_path / DATASET_FILE
     assert dataset_path.exists()
 
     # Verify data flow: check if structures have been processed
@@ -94,13 +111,14 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     # Cycle 1: 5 structures (selection_rate=1.0)
     # Cycle 2: 5 structures selected from generated
     # Total 10.
-    assert count == 10
+    EXPECTED_TOTAL_COUNT = 10
+    assert count == EXPECTED_TOTAL_COUNT
 
     # Check state
-    assert (tmp_path / "workflow_state.json").exists()
+    assert (tmp_path / STATE_FILE).exists()
     state = orchestrator.state_manager.state
-    assert state.current_cycle == 2
-    assert state.status == "STOPPED"
+    assert state.current_cycle == MAX_CYCLES
+    assert state.status == STOPPED_STATUS
 
 
 class FailingOracle(MockOracle):
@@ -129,25 +147,23 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Need to reload state from file to verify persistence
     state_manager = orchestrator.state_manager
     # We can check the in-memory state object as it should be updated
-    assert state_manager.state.status == "ERROR"
+    assert state_manager.state.status == ERROR_STATUS
 
     # Also verify file persistence
     # Re-instantiate StateManager to read from file
     from mlip_autopipec.core.state import StateManager
 
-    loaded_state = StateManager(mock_config.workdir / "workflow_state.json").state
-    assert loaded_state.status == "ERROR"
+    loaded_state = StateManager(mock_config.workdir / STATE_FILE).state
+    assert loaded_state.status == ERROR_STATUS
 
 
 def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path) -> None:
     """Verify that selection_rate in Dynamics actually filters structures."""
-    import random
-
-    random.seed(42)  # Seed for deterministic behavior in this test
-
-    # Modify config to have 50% selection rate
+    # Modify config to have 50% selection rate and deterministic seed
     dyn_config = cast(MockDynamicsConfig, mock_config.components.dynamics)
     dyn_config.selection_rate = 0.5
+    dyn_config.seed = 42  # Ensure MockDynamics uses this seed for its local RNG
+
     # Generate enough structures to be statistically significant or just deterministic
     mock_config.components.generator.n_structures = 20
     # Cycle 1 is cold start (labels all 20). Cycle 2 uses dynamics (filters ~50% of 20 -> ~10).
@@ -157,11 +173,20 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     orchestrator.run()
 
     # Check dataset count
-    dataset_path = tmp_path / "dataset.jsonl"
+    dataset_path = tmp_path / DATASET_FILE
     assert dataset_path.exists()
 
     dataset = Dataset(dataset_path)
-    count = sum(1 for _ in dataset)
+    count = 0
+    # Scalability: Use manual iteration to avoid any potential full materialization
+    # even though sum() on generator is theoretically fine, explicit loop is safer.
+    iterator = iter(dataset)
+    try:
+        while True:
+            next(iterator)
+            count += 1
+    except StopIteration:
+        pass
 
     # Cycle 1: 20
     # Cycle 2: ~10 (with seed 42, likely 11 based on check_rng.py)
@@ -171,5 +196,7 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     # Expected value: 20 (cycle 1) + 20 * 0.5 (cycle 2) = 30.
     # Allowing some variance due to randomness.
     # 20 + 11 = 31 (with seed 42).
-    assert 25 <= count <= 35
+    EXPECTED_MIN = 25
+    EXPECTED_MAX = 35
+    assert EXPECTED_MIN <= count <= EXPECTED_MAX
     # This proves dynamics filtered roughly half.
