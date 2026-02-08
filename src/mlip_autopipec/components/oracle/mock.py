@@ -14,7 +14,13 @@ class MockOracle(BaseOracle):
         logger.info("Computing labels for structures")
         for s in structures:
             n_atoms = len(s.positions)
-            s.forces = np.random.rand(n_atoms, 3) - 0.5
+
+            # Generate random forces, but ensure sum is zero (Newton's 3rd law/translation invariance)
+            raw_forces = np.random.rand(n_atoms, 3) - 0.5
+            force_sum = np.sum(raw_forces, axis=0)
+            correction = force_sum / n_atoms
+            s.forces = raw_forces - correction
+
             s.energy = float(np.random.rand() * n_atoms * -3.0)
             s.stress = np.random.rand(6)
             yield s

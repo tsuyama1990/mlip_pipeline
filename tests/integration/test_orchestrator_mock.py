@@ -59,8 +59,6 @@ class FailingOracle(MockOracle):
 
 def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Inject the failing component via factory override or property patching
-    # Since Orchestrator init calls factory, we can modify the factory or
-    # instantiate orchestrator and then replace the component.
 
     orchestrator = Orchestrator(mock_config)
     orchestrator.oracle = FailingOracle({})
@@ -70,4 +68,14 @@ def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
         orchestrator.run()
 
     # State should be updated to ERROR
-    assert orchestrator.state_manager.state.status == "ERROR"
+    # Need to reload state from file to verify persistence
+    state_manager = orchestrator.state_manager
+    # We can check the in-memory state object as it should be updated
+    assert state_manager.state.status == "ERROR"
+
+    # Also verify file persistence
+    # Re-instantiate StateManager to read from file
+    from mlip_autopipec.core.state import StateManager
+
+    loaded_state = StateManager(mock_config.workdir / "workflow_state.json").state
+    assert loaded_state.status == "ERROR"

@@ -26,3 +26,19 @@ def test_factory_invalid_role() -> None:
 def test_factory_invalid_type() -> None:
     with pytest.raises(ValueError, match="Unknown component type"):
         ComponentFactory.get_generator({"type": "unknown_type"})
+
+
+def test_mock_generator_iterator() -> None:
+    generator = MockGenerator({})
+    structures_iter = generator.generate(n_structures=5)
+
+    # Check that it returns an iterator
+    assert hasattr(structures_iter, "__iter__")
+    assert hasattr(structures_iter, "__next__")
+
+    # Check that we can iterate and get structures
+    count = 0
+    for s in structures_iter:
+        count += 1
+        assert s.positions.shape[0] == 2  # Default n_atoms
+    assert count == 5

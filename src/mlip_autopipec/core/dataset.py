@@ -38,27 +38,22 @@ class Dataset:
         meta = self._load_meta()
         return int(meta.get("count", 0))
 
-    def append(self, structures: Iterable[Structure], batch_size: int = 100) -> None:
-        """Append structures to the dataset in batches."""
+    def append(self, structures: Iterable[Structure], batch_size: int | None = None) -> None:
+        """
+        Append structures to the dataset.
+
+        Args:
+            structures: Iterable of Structure objects.
+            batch_size: Deprecated. Writing is now streamed line-by-line to avoid memory issues.
+        """
         count = len(self)
-        buffer = []
 
-        for s in structures:
-            buffer.append(s.model_dump_json())
-            if len(buffer) >= batch_size:
-                self._write_batch(buffer)
-                count += len(buffer)
-                buffer = []
-                self._save_meta({"count": count})
-
-        if buffer:
-            self._write_batch(buffer)
-            count += len(buffer)
-            self._save_meta({"count": count})
-
-    def _write_batch(self, lines: list[str]) -> None:
         with self.path.open("a") as f:
-            f.write("\n".join(lines) + "\n")
+            for s in structures:
+                f.write(s.model_dump_json() + "\n")
+                count += 1
+
+        self._save_meta({"count": count})
 
     def __iter__(self) -> Iterator[Structure]:
         """Iterate over structures lazily, skipping invalid lines."""

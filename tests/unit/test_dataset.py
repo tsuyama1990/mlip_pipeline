@@ -58,7 +58,7 @@ def test_dataset_persistence(tmp_path: Path) -> None:
     assert len(dataset2) == 1
 
 
-def test_dataset_batch_writing(tmp_path: Path) -> None:
+def test_dataset_streaming_append(tmp_path: Path) -> None:
     dataset_path = tmp_path / "dataset.jsonl"
     dataset = Dataset(dataset_path)
 
@@ -73,8 +73,8 @@ def test_dataset_batch_writing(tmp_path: Path) -> None:
             )
         )
 
-    # Batch size 10, total 15 -> should write 1 batch of 10 and 1 batch of 5
-    dataset.append(structures, batch_size=10)
+    # Should write all 15 structures
+    dataset.append(structures)
     assert len(dataset) == 15
     assert len(list(dataset)) == 15
 
