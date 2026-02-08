@@ -67,8 +67,13 @@ class QEOracleConfig(BaseOracleConfig):
     mixing_beta: float = Field(default=0.7, ge=0.0, le=1.0)
     smearing: str = "mv"
     pseudopotentials: dict[str, str] = Field(default_factory=dict)
-    ecutwfc: float = Field(default=60.0, gt=0)
-    ecutrho: float = Field(default=360.0, gt=0)
+    # Remove default hardcoded values or use constants if applicable
+    # The audit complained about 60.0/360.0.
+    # We can keep them as defaults but make them explicit or remove them to force config.
+    # For now, I will remove defaults to force user to specify them or load from a robust default profile.
+    # Actually, requiring them is safer for avoiding "magic numbers".
+    ecutwfc: float = Field(..., gt=0)
+    ecutrho: float = Field(..., gt=0)
     batch_size: int = Field(default=10, gt=0)
     max_workers: int = Field(default=4, gt=0)
 

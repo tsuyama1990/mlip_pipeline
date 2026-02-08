@@ -53,7 +53,7 @@ def test_embed_cluster_from_bulk() -> None:
     # Ensure unwrapped positions if needed, but bulk usually fits in cell
     distances = np.linalg.norm(si_bulk.positions - center, axis=1)
     mask = distances < 6.0
-    # Mypy complained about unused ignore here previously
+
     cluster = si_bulk[mask]
 
     # Embed

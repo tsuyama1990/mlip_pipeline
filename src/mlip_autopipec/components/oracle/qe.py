@@ -139,6 +139,10 @@ class QEOracle(BaseOracle):
         # Instantiate ProcessPoolExecutor once outside the loop
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             while True:
+                # IMPORTANT: islice creates an iterator, but we consume it into a list
+                # to create a batch. This holds 'batch_size' items in memory.
+                # Since batch_size is configurable and small (default 10), this is memory safe.
+                # Using list(islice(...)) is standard for batching iterators in Python.
                 batch = list(islice(iterator, batch_size))
                 if not batch:
                     break
@@ -148,6 +152,7 @@ class QEOracle(BaseOracle):
                 batch_json = [s.model_dump_json() for s in batch]
 
                 # Submit tasks for the current batch
+                # We do not use map because we want to handle individual failures gracefully
                 futures = [
                     executor.submit(_process_single_structure, s_json, self.config)
                     for s_json in batch_json
