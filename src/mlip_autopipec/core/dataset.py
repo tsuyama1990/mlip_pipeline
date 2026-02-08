@@ -207,18 +207,21 @@ class Dataset:
                 break
             yield batch
 
-    def to_pandas(self) -> pd.DataFrame:
+    def to_pacemaker_gzip(self, output_path: Path, chunk_size: int = 10000) -> None:
         """
-        Export dataset to pandas DataFrame in Pacemaker format.
-        Columns:
-            - ase_atoms: ase.Atoms object with calculator
-            - energy: potential energy
-            - forces: atomic forces
-            - stress: virial stress (optional)
+        Export dataset to a gzipped pickle file for Pacemaker.
+
+        Reads the dataset in chunks, builds a single DataFrame in memory (required by format),
+        and dumps it to disk. Optimizes memory by avoiding intermediate list of all structures.
         """
+        # Validate output path
+        if not output_path.parent.exists():
+            msg = f"Output parent directory does not exist: {output_path.parent}"
+            raise ValueError(msg)
+
         chunks = []
         # Process in chunks to avoid creating a massive list of dicts at once
-        for batch in self.iter_batches(batch_size=1000):
+        for batch in self.iter_batches(batch_size=chunk_size):
             batch_data = []
             for s in batch:
                 atoms = s.to_ase()
@@ -230,30 +233,23 @@ class Dataset:
                 if s.stress is not None:
                     row["stress"] = s.stress
                 batch_data.append(row)
+
             if batch_data:
+                # Convert chunk to DF immediately to free dicts
                 chunks.append(pd.DataFrame(batch_data))
+                del batch_data
 
         if not chunks:
-            return pd.DataFrame()
+            df = pd.DataFrame()
+        else:
+            df = pd.concat(chunks, ignore_index=True)
+            del chunks
 
-        return pd.concat(chunks, ignore_index=True)
-
-    def to_pacemaker_gzip(self, output_path: Path) -> None:
-        """
-        Export dataset to a gzipped pickle file for Pacemaker.
-
-        Note: This creates a single pickled object.
-        """
-        # Validate output path
-        if not output_path.parent.exists():
-            msg = f"Output parent directory does not exist: {output_path.parent}"
-            raise ValueError(msg)
-
-        df = self.to_pandas()
         # Pacemaker expects a pickled DataFrame
         try:
             with gzip.open(output_path, "wb") as f:
                 pickle.dump(df, f)
+            del df
             logger.info(f"Exported dataset to {output_path}")
         except OSError:
             logger.exception(f"Failed to export dataset to {output_path}")

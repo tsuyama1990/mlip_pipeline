@@ -12,7 +12,7 @@ DEFAULT_BUFFER_SIZE = 1000
 HEALER_MIXING_BETA_TARGET = 0.3
 HEALER_DEGAUSS_TARGET = 0.02
 
-# --- Pacemaker Constants ---
+# --- Pacemaker Constants (Defaults) ---
 PACEMAKER_INPUT_FILENAME = "input.yaml"
 PACEMAKER_DATASET_FILENAME = "dataset.pckl.gzip"
 PACEMAKER_ACTIVESET_FILENAME = "dataset_activeset.pckl.gzip"

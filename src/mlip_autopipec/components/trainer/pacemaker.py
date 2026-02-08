@@ -7,15 +7,10 @@ import yaml
 
 from mlip_autopipec.components.trainer.activeset import ActiveSetSelector
 from mlip_autopipec.components.trainer.base import BaseTrainer
-from mlip_autopipec.constants import (
-    PACEMAKER_ACTIVESET_FILENAME,
-    PACEMAKER_DATASET_FILENAME,
-    PACEMAKER_INPUT_FILENAME,
-    PACEMAKER_POTENTIAL_FILENAME,
-)
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models.config import PacemakerTrainerConfig
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -53,17 +48,18 @@ class PacemakerTrainer(BaseTrainer):
             Potential: The trained potential object.
         """
         workdir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Starting training in {workdir}")
+        safe_workdir = validate_safe_path(workdir)
+        logger.info(f"Starting training in {safe_workdir}")
 
         # 1. Convert Dataset to Pacemaker format
-        raw_data_path = workdir / PACEMAKER_DATASET_FILENAME
+        raw_data_path = safe_workdir / self.config.dataset_filename
         dataset.to_pacemaker_gzip(raw_data_path)
 
         training_data_path = raw_data_path
 
         # 2. Active Set Selection
         if self.config.active_set_selection:
-            activeset_path = workdir / PACEMAKER_ACTIVESET_FILENAME
+            activeset_path = safe_workdir / self.config.activeset_filename
             logger.info("Running active set selection...")
             selector = ActiveSetSelector(limit=self.config.active_set_limit)
             try:
@@ -73,14 +69,14 @@ class PacemakerTrainer(BaseTrainer):
                 training_data_path = raw_data_path
 
         # 3. Generate input.yaml
-        input_yaml_path = workdir / PACEMAKER_INPUT_FILENAME
+        input_yaml_path = safe_workdir / self.config.input_filename
         self._generate_input_yaml(input_yaml_path, training_data_path, previous_potential)
 
         # 4. Run pace_train
-        self._run_pace_train(input_yaml_path, workdir)
+        self._run_pace_train(input_yaml_path, safe_workdir)
 
         # 5. Collect artifacts
-        potential_path = workdir / PACEMAKER_POTENTIAL_FILENAME
+        potential_path = safe_workdir / self.config.potential_filename
 
         if not potential_path.exists():
              # Try to find any yace file
@@ -173,7 +169,7 @@ class PacemakerTrainer(BaseTrainer):
                 capture_output=True,
                 text=True,
                 shell=False,
-            )  # noqa: S603
+            )
             # Log stdout/stderr for debugging
             logger.debug(f"pace_train stdout: {result.stdout}")
         except subprocess.CalledProcessError as e:

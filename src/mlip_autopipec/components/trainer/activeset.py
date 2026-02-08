@@ -2,6 +2,8 @@ import logging
 import subprocess
 from pathlib import Path
 
+from mlip_autopipec.utils.security import validate_safe_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,19 +27,23 @@ class ActiveSetSelector:
             Path to the output dataset.
         """
         # Security: Validate paths
-        if not input_path.exists():
-            msg = f"Input path does not exist: {input_path}"
+        safe_input = validate_safe_path(input_path)
+        # Ensure output directory is safe/exists? We assume output_path parent exists.
+        if not output_path.parent.exists():
+             output_path.parent.mkdir(parents=True, exist_ok=True)
+        safe_output = validate_safe_path(output_path.parent) / output_path.name
+
+        if not safe_input.exists():
+            msg = f"Input path does not exist: {safe_input}"
             raise FileNotFoundError(msg)
 
         # Construct command
-        # Note: Actual flags might differ based on pacemaker version.
-        # We assume --data-filename, --output, and --max (or similar) are available.
         cmd = [
             "pace_activeset",
             "--data-filename",
-            str(input_path.resolve()),
+            str(safe_input),
             "--output",
-            str(output_path.resolve()),
+            str(safe_output),
             "--max",
             str(self.limit),
         ]
@@ -51,7 +57,7 @@ class ActiveSetSelector:
                 capture_output=True,
                 text=True,
                 shell=False,
-            )  # noqa: S603
+            )
             logger.debug(f"pace_activeset output: {result.stdout}")
         except subprocess.CalledProcessError as e:
             msg = f"pace_activeset failed with error: {e.stderr}"

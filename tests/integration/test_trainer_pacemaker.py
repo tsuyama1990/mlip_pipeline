@@ -5,11 +5,6 @@ import numpy as np
 import pytest
 
 from mlip_autopipec.components.trainer.pacemaker import PacemakerTrainer
-from mlip_autopipec.constants import (
-    PACEMAKER_ACTIVESET_FILENAME,
-    PACEMAKER_INPUT_FILENAME,
-    PACEMAKER_POTENTIAL_FILENAME,
-)
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models.config import PacemakerTrainerConfig
 from mlip_autopipec.domain_models.enums import TrainerType
@@ -31,7 +26,7 @@ def create_dummy_structure() -> Structure:
 def mock_dataset(tmp_path: Path) -> Dataset:
     dataset = Dataset(tmp_path / "dataset.jsonl", root_dir=tmp_path)
     # Add dummy data
-    dataset.append([create_dummy_structure()])  # type: ignore[no-untyped-call]
+    dataset.append([create_dummy_structure()])
     return dataset
 
 @pytest.fixture
@@ -50,7 +45,7 @@ def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTr
         mock_selector_instance = MockSelector.return_value
 
         # Must verify active set selector returns absolute path to existing file
-        activeset_path = tmp_path / PACEMAKER_ACTIVESET_FILENAME
+        activeset_path = tmp_path / trainer_config.activeset_filename
         activeset_path.touch()
         mock_selector_instance.select.return_value = activeset_path
 
@@ -59,14 +54,14 @@ def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTr
             mock_run.return_value = MagicMock(returncode=0)
 
             # Create dummy potential file that trainer expects
-            (tmp_path / PACEMAKER_POTENTIAL_FILENAME).touch()
+            (tmp_path / trainer_config.potential_filename).touch()
 
             trainer = PacemakerTrainer(trainer_config)
 
             potential = trainer.train(mock_dataset, tmp_path)
 
             # Verify potential object
-            assert potential.path == tmp_path / PACEMAKER_POTENTIAL_FILENAME
+            assert potential.path == tmp_path / trainer_config.potential_filename
 
             # Verify Active Set was called
             mock_selector_instance.select.assert_called_once()
@@ -78,10 +73,10 @@ def test_pacemaker_trainer_execution(tmp_path: Path, trainer_config: PacemakerTr
 
             # Verify input.yaml path in command is absolute
             input_yaml_arg = command[1]
-            assert str(tmp_path / PACEMAKER_INPUT_FILENAME) == input_yaml_arg
+            assert str(tmp_path / trainer_config.input_filename) == input_yaml_arg
 
             # Verify input.yaml exists
-            assert (tmp_path / PACEMAKER_INPUT_FILENAME).exists()
+            assert (tmp_path / trainer_config.input_filename).exists()
 
 
 def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: PacemakerTrainerConfig, mock_dataset: Dataset) -> None:
@@ -90,17 +85,17 @@ def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: Pac
          patch("subprocess.run") as mock_run:
 
         mock_selector_instance = MockSelector.return_value
-        activeset_path = tmp_path / PACEMAKER_ACTIVESET_FILENAME
+        activeset_path = tmp_path / trainer_config.activeset_filename
         activeset_path.touch()
         mock_selector_instance.select.return_value = activeset_path
 
         mock_run.return_value = MagicMock(returncode=0)
-        (tmp_path / PACEMAKER_POTENTIAL_FILENAME).touch()
+        (tmp_path / trainer_config.potential_filename).touch()
 
         trainer = PacemakerTrainer(trainer_config)
         trainer.train(mock_dataset, tmp_path)
 
-        input_yaml = tmp_path / PACEMAKER_INPUT_FILENAME
+        input_yaml = tmp_path / trainer_config.input_filename
         assert input_yaml.exists()
 
         # Check content
@@ -112,4 +107,4 @@ def test_pacemaker_trainer_config_generation(tmp_path: Path, trainer_config: Pac
         # Should point to active set file name relative to workdir, or absolute?
         # In implementation: config_dict["data"]["filename"] = data_path.name (relative)
         # Because we run pace_train with cwd=workdir
-        assert config["data"]["filename"] == PACEMAKER_ACTIVESET_FILENAME
+        assert config["data"]["filename"] == trainer_config.activeset_filename
