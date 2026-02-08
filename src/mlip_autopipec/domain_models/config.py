@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -12,7 +12,7 @@ class ComponentConfig(BaseModel):
     """
 
     type: str
-    params: dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -34,11 +34,14 @@ class GlobalConfig(BaseModel):
     oracle: ComponentConfig
     trainer: ComponentConfig
     dynamics: ComponentConfig
-    validator: ComponentConfig | None = None
+    validator: Optional[ComponentConfig] = None
 
     # Defaults
     dataset_filename: str = "dataset.jsonl"
     potential_extension: str = ".yace"
+
+    # Constants/Defaults that might be used by components
+    default_trainer_output: str = "potential"
 
     @model_validator(mode="after")
     def validate_paths(self) -> "GlobalConfig":

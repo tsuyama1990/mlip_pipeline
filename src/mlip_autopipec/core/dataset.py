@@ -1,7 +1,7 @@
 import json
 import logging
-from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Iterable, Iterator, Optional, List
 
 from mlip_autopipec.domain_models import Structure
 
@@ -14,20 +14,25 @@ class Dataset:
     Maintains a sidecar metadata file for O(1) counting.
     """
 
-    def __init__(self, path: Path, root_dir: Path | None = None) -> None:
+    def __init__(self, path: Path, root_dir: Optional[Path] = None) -> None:
         """
         Args:
             path: Path to the dataset file.
             root_dir: Optional root directory to restrict file operations to.
                       If provided, 'path' must be within 'root_dir'.
         """
-        self.path = path.resolve()
-        self.root_dir: Path | None = None
+        # Resolve paths to handle symlinks and relative segments
+        # strict=False because the dataset file might not exist yet
+        self.path = path.resolve(strict=False)
+        self.root_dir: Optional[Path] = None
 
         if root_dir:
-            self.root_dir = root_dir.resolve()
-            # Explicit symlink-safe check using resolve() on both sides
-            if not str(self.path).startswith(str(self.root_dir)):
+            # Root directory must exist for security check
+            self.root_dir = root_dir.resolve(strict=True)
+
+            # Explicit security check
+            # is_relative_to is the correct way to check containment in Python 3.9+
+            if not self.path.is_relative_to(self.root_dir):
                 msg = f"Dataset path {self.path} is outside root directory {self.root_dir}"
                 raise ValueError(msg)
 
@@ -54,8 +59,8 @@ class Dataset:
             if not self.meta_path.parent.exists():
                 # Security check: verify parent is safe if root_dir is set
                 if self.root_dir:
-                    resolved_parent = self.meta_path.parent.resolve()
-                    if not str(resolved_parent).startswith(str(self.root_dir)):
+                    resolved_parent = self.meta_path.parent.resolve(strict=False)
+                    if not resolved_parent.is_relative_to(self.root_dir):
                          msg = f"Dataset parent {resolved_parent} is outside root {self.root_dir}"
                          raise ValueError(msg)
 
@@ -110,8 +115,8 @@ class Dataset:
         # Ensure parent directory exists
         if not self.path.parent.exists():
             if self.root_dir:
-                resolved_parent = self.path.parent.resolve()
-                if not str(resolved_parent).startswith(str(self.root_dir)):
+                resolved_parent = self.path.parent.resolve(strict=False)
+                if not resolved_parent.is_relative_to(self.root_dir):
                      msg = f"Dataset parent {resolved_parent} is outside root {self.root_dir}"
                      raise ValueError(msg)
             try:
@@ -120,7 +125,7 @@ class Dataset:
                 msg = f"Failed to create dataset directory: {e}"
                 raise RuntimeError(msg) from e
 
-        buffer: list[str] = []
+        buffer: List[str] = []
         try:
             with self.path.open("a") as f:
                 for structure in structures:

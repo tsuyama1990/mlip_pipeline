@@ -1,7 +1,6 @@
 import logging
 import secrets
-from collections.abc import Iterator
-from typing import Any
+from typing import Iterator, Optional, Any
 
 import numpy as np
 
@@ -17,24 +16,30 @@ class MockGenerator(BaseGenerator):
     Generates dummy structures for testing the pipeline.
     """
 
-    def __init__(self, fail_rate: float = 0.0, **kwargs: Any) -> None:
+    def __init__(self, fail_rate: float = 0.0, empty_rate: float = 0.0, **kwargs: Any) -> None:
         """
         Args:
             fail_rate: Probability of failure during generation (0.0 to 1.0).
+            empty_rate: Probability of returning empty iterator (0.0 to 1.0).
             **kwargs: Ignored extra arguments.
         """
         self.fail_rate = fail_rate
+        self.empty_rate = empty_rate
         self.rng = np.random.default_rng(secrets.randbits(128))
         if kwargs:
             logger.debug(f"MockGenerator received extra args: {kwargs}")
 
-    def generate(self, potential: Potential | None = None) -> Iterator[Structure]:
+    def generate(self, potential: Optional[Potential] = None) -> Iterator[Structure]:
         """
         Generates 5 dummy structures.
         """
         if self.rng.random() < self.fail_rate:
             msg = "MockGenerator: Simulated failure during generation."
             raise RuntimeError(msg)
+
+        if self.rng.random() < self.empty_rate:
+            logger.info("MockGenerator: Returning empty iterator (simulated).")
+            return
 
         logger.info("MockGenerator: Generating 5 dummy structures...")
 

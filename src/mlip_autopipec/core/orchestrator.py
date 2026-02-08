@@ -1,5 +1,7 @@
 import logging
 import shutil
+from pathlib import Path
+from typing import Optional
 
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models import GlobalConfig, Potential
@@ -36,7 +38,7 @@ class Orchestrator:
             self.oracle: BaseOracle = create_component("oracle", config.oracle)
             self.trainer: BaseTrainer = create_component("trainer", config.trainer)
             self.dynamics: BaseDynamics = create_component("dynamics", config.dynamics)
-            self.validator: BaseValidator | None = None
+            self.validator: Optional[BaseValidator] = None
             if config.validator:
                 self.validator = create_component("validator", config.validator)
         except Exception as e:
@@ -56,7 +58,7 @@ class Orchestrator:
             msg = "Workdir creation failed"
             raise RuntimeError(msg) from e
 
-        potential: Potential | None = None
+        potential: Optional[Potential] = None
 
         for cycle in range(1, self.config.max_cycles + 1):
             logger.info(f"=== Starting Cycle {cycle} ===")
