@@ -22,19 +22,14 @@ class Dataset:
                       If provided, 'path' must be within 'root_dir'.
         """
         self.path = path.resolve()
+        self.root_dir: Path | None = None
 
-        self.root_dir: Path | None
         if root_dir:
             self.root_dir = root_dir.resolve()
-            if not self.path.is_relative_to(self.root_dir):
+            # Explicit symlink-safe check using resolve() on both sides
+            if not str(self.path).startswith(str(self.root_dir)):
                 msg = f"Dataset path {self.path} is outside root directory {self.root_dir}"
                 raise ValueError(msg)
-
-            # Double check against resolved path for traversal attempts that resolve() might have missed if symbolic links are involved?
-            # pathlib.resolve() handles symlinks and '..', so is_relative_to check on resolved paths is robust.
-            # But we can be paranoid.
-        else:
-            self.root_dir = None
 
         self.meta_path = self.path.with_suffix(".meta.json")
         self._count = 0
@@ -58,10 +53,11 @@ class Dataset:
             # Ensure parent directory exists before saving
             if not self.meta_path.parent.exists():
                 # Security check: verify parent is safe if root_dir is set
-                if self.root_dir and not self.meta_path.parent.resolve().is_relative_to(self.root_dir):
-                     # Should be covered by init check, but good for paranoia
-                     msg = f"Dataset parent {self.meta_path.parent} is outside root {self.root_dir}"
-                     raise ValueError(msg)
+                if self.root_dir:
+                    resolved_parent = self.meta_path.parent.resolve()
+                    if not str(resolved_parent).startswith(str(self.root_dir)):
+                         msg = f"Dataset parent {resolved_parent} is outside root {self.root_dir}"
+                         raise ValueError(msg)
 
                 self.meta_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -113,9 +109,11 @@ class Dataset:
         added = 0
         # Ensure parent directory exists
         if not self.path.parent.exists():
-            if self.root_dir and not self.path.parent.resolve().is_relative_to(self.root_dir):
-                 msg = f"Dataset parent {self.path.parent} is outside root {self.root_dir}"
-                 raise ValueError(msg)
+            if self.root_dir:
+                resolved_parent = self.path.parent.resolve()
+                if not str(resolved_parent).startswith(str(self.root_dir)):
+                     msg = f"Dataset parent {resolved_parent} is outside root {self.root_dir}"
+                     raise ValueError(msg)
             try:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
             except OSError as e:

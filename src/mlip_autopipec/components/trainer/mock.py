@@ -49,6 +49,9 @@ class MockTrainer(BaseTrainer):
         count = 0
         for _ in dataset:
             count += 1
+            # Simulate "work" by checking every 1000th item, or just pass
+            if count % 1000 == 0:
+                pass
 
         logger.info(f"MockTrainer: Processed {count} structures during training.")
 

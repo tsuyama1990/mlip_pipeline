@@ -12,7 +12,7 @@ def test_valid_config() -> None:
     config_dict: Any = {
         "workdir": "runs/test",
         "max_cycles": 1,
-        "generator": {"type": "mock", "extra_param": 123},
+        "generator": {"type": "mock", "params": {"extra_param": 123}},
         "oracle": {"type": "mock"},
         "trainer": {"type": "mock"},
         "dynamics": {"type": "mock"},
@@ -22,7 +22,7 @@ def test_valid_config() -> None:
     assert config.workdir == Path("runs/test")
     assert config.max_cycles == 1
     assert config.generator.type == "mock"
-    assert getattr(config.generator, "extra_param", None) == 123
+    assert config.generator.params["extra_param"] == 123
 
 
 def test_config_defaults() -> None:

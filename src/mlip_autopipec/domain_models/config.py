@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -7,11 +8,13 @@ class ComponentConfig(BaseModel):
     """
     Configuration for a pipeline component.
     Must have a 'type' field.
-    Allows extra fields for component-specific settings.
+    Component-specific parameters should be in the 'params' dictionary.
     """
 
     type: str
-    model_config = ConfigDict(extra="allow")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class GlobalConfig(BaseModel):
@@ -36,13 +39,6 @@ class GlobalConfig(BaseModel):
     # Defaults
     dataset_filename: str = "dataset.jsonl"
     potential_extension: str = ".yace"
-
-    @model_validator(mode="after")
-    def validate_components(self) -> "GlobalConfig":
-        """
-        Validates that all components have a type field.
-        """
-        return self
 
     @model_validator(mode="after")
     def validate_paths(self) -> "GlobalConfig":
