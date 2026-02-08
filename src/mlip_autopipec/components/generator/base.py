@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from collections.abc import Iterator
 from typing import Any
 
 from mlip_autopipec.domain_models.structure import Structure
@@ -11,6 +12,8 @@ class BaseGenerator(BaseComponent):
         return "generator"
 
     @abstractmethod
-    def generate(self, n_structures: int, config: dict[str, Any] | None = None) -> list[Structure]:
+    def generate(
+        self, n_structures: int, config: dict[str, Any] | None = None
+    ) -> Iterator[Structure]:
         """Generate structures."""
         ...

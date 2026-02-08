@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.domain_models.structure import Structure
@@ -55,3 +56,48 @@ def test_dataset_persistence(tmp_path: Path) -> None:
 
     dataset2 = Dataset(dataset_path)
     assert len(dataset2) == 1
+
+
+def test_dataset_batch_writing(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dataset.jsonl"
+    dataset = Dataset(dataset_path)
+
+    structures = []
+    for _ in range(15):
+        structures.append(
+            Structure(
+                positions=np.zeros((1, 3)),
+                atomic_numbers=np.array([1]),
+                cell=np.eye(3),
+                pbc=np.array([True, True, True]),
+            )
+        )
+
+    # Batch size 10, total 15 -> should write 1 batch of 10 and 1 batch of 5
+    dataset.append(structures, batch_size=10)
+    assert len(dataset) == 15
+    assert len(list(dataset)) == 15
+
+
+def test_dataset_malformed_lines(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    dataset_path = tmp_path / "dataset.jsonl"
+    dataset = Dataset(dataset_path)
+
+    # Write some good data
+    good_structure = Structure(
+        positions=np.zeros((1, 3)),
+        atomic_numbers=np.array([1]),
+        cell=np.eye(3),
+        pbc=np.array([True, True, True]),
+    )
+    dataset.append([good_structure])
+
+    # Corrupt the file
+    with dataset_path.open("a") as f:
+        f.write("{invalid_json}\n")
+        f.write(good_structure.model_dump_json() + "\n")
+
+    loaded = list(dataset)
+    # Should skip the bad line and load 2 good structures
+    assert len(loaded) == 2
+    assert "Skipping malformed line" in caplog.text

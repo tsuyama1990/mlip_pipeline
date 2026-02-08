@@ -1,9 +1,12 @@
-import pytest
 from pathlib import Path
 from typing import Any
+
+import pytest
+
+from mlip_autopipec.components.oracle.mock import MockOracle
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import GlobalConfig
-from mlip_autopipec.components.oracle.mock import MockOracle
+
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:
@@ -16,9 +19,10 @@ def mock_config(tmp_path: Path) -> GlobalConfig:
             "oracle": {"type": "mock"},
             "trainer": {"type": "mock"},
             "dynamics": {"type": "mock", "selection_rate": 1.0},
-            "validator": {"type": "mock"}
-        }
+            "validator": {"type": "mock"},
+        },
     )
+
 
 def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> None:
     # Arrange
@@ -46,10 +50,12 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     assert state.current_cycle == 2
     assert state.status == "STOPPED"
 
+
 class FailingOracle(MockOracle):
     def compute(self, structures: Any) -> Any:
         msg = "Simulated DFT failure"
         raise RuntimeError(msg)
+
 
 def test_orchestrator_component_failure(mock_config: GlobalConfig) -> None:
     # Inject the failing component via factory override or property patching
