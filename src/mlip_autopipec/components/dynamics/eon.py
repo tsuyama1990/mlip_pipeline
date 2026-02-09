@@ -11,6 +11,7 @@ from ase.io import read, write
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
 from mlip_autopipec.components.dynamics.otf import get_otf_check_code
+from mlip_autopipec.constants import MAX_EON_ATOMS
 from mlip_autopipec.domain_models.config import EONDynamicsConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
@@ -57,7 +58,7 @@ class EONDriver:
         atoms = structure.to_ase()
         # Security/Scalability: Check structure size before writing
         # EON usually writes full files, but for extreme sizes we might want to warn
-        if len(atoms) > 100000:
+        if len(atoms) > MAX_EON_ATOMS:
             logger.warning(
                 f"Writing large structure ({len(atoms)} atoms) to {self.pos_file}. "
                 "Ensure sufficient disk space and memory."
@@ -81,6 +82,13 @@ class EONDriver:
         prefactor = float(self.config.prefactor)
         n_events = int(self.config.n_events)
 
+        # Validate potential path again for formatting (though handled by strict Pydantic/pathlib)
+        script_name = self.driver_script.name
+        if ".." in script_name or "/" in script_name or "\\" in script_name:
+             # Should be caught by validate_safe_path earlier, but robust check
+             msg = f"Invalid script name: {script_name}"
+             raise ValueError(msg)
+
         config_content = f"""[Main]
 job = parallel_replica
 temperature = {temperature}
@@ -90,7 +98,7 @@ random_seed = {seed}
 potential = script_potential
 
 [Script Potential]
-script = python {self.driver_script.name}
+script = python {script_name}
 
 [Parallel Replica]
 time_step = {time_step}

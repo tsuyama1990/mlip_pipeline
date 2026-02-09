@@ -73,6 +73,11 @@ def test_eon_driver_write_input(
     assert "if gamma > threshold:" in content
     assert "return True" in content
 
+    # Verify imports
+    assert "import sys" in content
+    assert "import numpy as np" in content
+    assert "from ase.io import read" in content
+
 
 @patch("mlip_autopipec.components.dynamics.eon.subprocess.Popen")
 @patch("mlip_autopipec.components.dynamics.eon.read")
