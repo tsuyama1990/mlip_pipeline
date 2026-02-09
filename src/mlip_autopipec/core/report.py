@@ -3,8 +3,8 @@ import io
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
+import matplotlib.figure
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -137,7 +137,7 @@ class ReportGenerator:
 
         return img_tags
 
-    def _fig_to_base64(self, fig: plt.Figure) -> str:
+    def _fig_to_base64(self, fig: matplotlib.figure.Figure) -> str:
         buf = io.BytesIO()
         fig.savefig(buf, format="png")
         buf.seek(0)

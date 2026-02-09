@@ -2,8 +2,8 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from mlip_autopipec.core.report import ReportGenerator
 
+from mlip_autopipec.core.report import ReportGenerator
 from mlip_autopipec.domain_models.config import GlobalConfig, OrchestratorConfig
 
 

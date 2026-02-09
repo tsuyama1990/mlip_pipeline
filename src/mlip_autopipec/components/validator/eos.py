@@ -37,8 +37,6 @@ class EOSCalc:
         atoms = structure.to_ase()
         atoms.calc = calculator
 
-        # Generate volumes
-        v0 = atoms.get_volume()
         volumes = []
         energies = []
 
@@ -46,18 +44,18 @@ class EOSCalc:
         strains = np.linspace(1 - self.strain_range, 1 + self.strain_range, self.n_points)
 
         # We assume isotropic expansion/compression
-        original_cell = atoms.get_cell()
+        original_cell = atoms.get_cell() # type: ignore[no-untyped-call]
 
         for s in strains:
             # Scale cell
-            atoms.set_cell(original_cell * s**(1/3), scale_atoms=True)
+            atoms.set_cell(original_cell * s**(1/3), scale_atoms=True) # type: ignore[no-untyped-call]
             try:
-                e = atoms.get_potential_energy()
-                volumes.append(atoms.get_volume())
+                e = atoms.get_potential_energy() # type: ignore[no-untyped-call]
+                v = atoms.get_volume() # type: ignore[no-untyped-call]
+                volumes.append(v)
                 energies.append(e)
-            except Exception as e:
-                logger.warning(f"EOS calculation failed at strain {s}: {e}")
-                # If fail, skip point
+            except Exception:
+                logger.exception(f"EOS calculation failed at strain {s}")
                 continue
 
         if len(volumes) < 4:
@@ -66,22 +64,19 @@ class EOSCalc:
 
         # Fit EOS using ASE
         try:
-            eos = EquationOfState(volumes, energies, eos="birchmurnaghan")
-            v0_fit, e0_fit, B_fit = eos.fit()
+            eos = EquationOfState(volumes, energies, eos="birchmurnaghan") # type: ignore[no-untyped-call]
+            v0_fit, e0_fit, B_fit = eos.fit() # type: ignore[no-untyped-call]
 
             # Calculate RMSE
-            # eos.func(v) returns energy
             energies_fit = [eos.func(v, v0_fit, e0_fit, B_fit) for v in volumes]
             rmse = np.sqrt(np.mean((np.array(energies) - np.array(energies_fit))**2))
 
-            # Also check if B (Bulk Modulus) is positive
-            # B is in eV/A^3. 1 eV/A^3 = 160.2 GPa.
             if B_fit <= 0:
                  logger.warning(f"EOS Fit gave non-positive Bulk Modulus: {B_fit}")
                  return 1000.0
 
-            return rmse
+            return float(rmse)
 
         except Exception as e:
-            logger.error(f"EOS fit failed: {e}")
+            logger.exception("EOS fit failed")
             return 1000.0

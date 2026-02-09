@@ -2,7 +2,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
@@ -22,7 +22,7 @@ class LammpsSinglePointCalculator(Calculator):
     for a single configuration (static calculation).
     """
 
-    implemented_properties = ["energy", "forces", "stress"]
+    implemented_properties: ClassVar[list[str]] = ["energy", "forces", "stress"]
 
     def __init__(
         self,
@@ -43,10 +43,12 @@ class LammpsSinglePointCalculator(Calculator):
 
     def calculate(
         self,
-        atoms: Atoms = None,
-        properties: list[str] = ["energy"],
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
         system_changes: list[str] = all_changes,
     ) -> None:
+        if properties is None:
+            properties = ["energy"]
         super().calculate(atoms, properties, system_changes)
 
         # 1. Write data file
@@ -96,20 +98,19 @@ run             0
 
         # 3. Run LAMMPS
         if not shutil.which(self.command):
-            logger.warning(f"LAMMPS binary '{self.command}' not found. Cannot run calculation.")
             # We raise so upper layers catch it
             msg = f"LAMMPS binary '{self.command}' not found."
             raise RuntimeError(msg)
 
         try:
             cmd = [self.command, "-in", str(input_file.name), "-log", str(log_file.name)]
-            subprocess.run(
+            subprocess.run(  # noqa: S603
                 cmd, cwd=self.workdir, capture_output=True, text=True, check=True
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             log_content = log_file.read_text() if log_file.exists() else "No log"
-            msg = f"LAMMPS failed: {e}\nLog: {log_content}"
-            logger.error(msg)
+            logger.exception(f"LAMMPS failed. Log: {log_content}")
+            msg = f"LAMMPS failed: {e}"
             raise RuntimeError(msg) from e
 
         # 4. Read results
@@ -147,7 +148,8 @@ run             0
                     continue
 
         if not found:
-            raise RuntimeError("Could not find thermo output in log")
+            msg = "Could not find thermo output in log"
+            raise RuntimeError(msg)
 
     def _read_dump(self, dump_file: Path) -> None:
         try:
