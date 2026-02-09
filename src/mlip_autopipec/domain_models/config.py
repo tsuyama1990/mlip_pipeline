@@ -5,6 +5,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.constants import (
     DEFAULT_BUFFER_SIZE,
+    LAMMPS_TEMPLATE_ATOM_STYLE,
+    LAMMPS_TEMPLATE_BOUNDARY,
+    LAMMPS_TEMPLATE_DUMP,
+    LAMMPS_TEMPLATE_FIX_NVE,
+    LAMMPS_TEMPLATE_UNITS,
+    LAMMPS_TEMPLATE_VELOCITY,
 )
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
@@ -224,15 +230,13 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
     dump_filename: str = "dump.lammps"
 
     # Command Templates
-    # Default values matching what was hardcoded
-    template_units: str = "units           metal"
-    template_atom_style: str = "atom_style      atomic"
-    template_boundary: str = "boundary        p p p"
-    template_velocity: str = "velocity        all create {temperature} 12345 dist gaussian"
-    template_fix_nve: str = "fix             1 all nve"
-    template_dump: str = (
-        "dump            1 all custom {thermo_freq} {dump_filename} id type x y z fx fy fz"
-    )
+    # Default values loaded from constants
+    template_units: str = LAMMPS_TEMPLATE_UNITS
+    template_atom_style: str = LAMMPS_TEMPLATE_ATOM_STYLE
+    template_boundary: str = LAMMPS_TEMPLATE_BOUNDARY
+    template_velocity: str = LAMMPS_TEMPLATE_VELOCITY
+    template_fix_nve: str = LAMMPS_TEMPLATE_FIX_NVE
+    template_dump: str = LAMMPS_TEMPLATE_DUMP
 
 
 class EONDynamicsConfig(BaseDynamicsConfig):

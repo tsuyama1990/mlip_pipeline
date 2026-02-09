@@ -4,6 +4,7 @@ from ase.data import atomic_numbers
 
 from mlip_autopipec.domain_models.config import PhysicsBaselineConfig
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,11 @@ def generate_pair_style(
     """
     # Base PACE style
     # Assuming user-pace is installed as 'pace'
+    # Security: Validate potential path
+    safe_pot_path = validate_safe_path(potential.path, must_exist=True)
+
     pace_style = "pace"
-    pace_coeff_line = f"pair_coeff * * {pace_style} {potential.path} {' '.join(potential.species)}"
+    pace_coeff_line = f"pair_coeff * * {pace_style} {safe_pot_path} {' '.join(potential.species)}"
 
     if not baseline:
         return f"pair_style {pace_style}", pace_coeff_line
