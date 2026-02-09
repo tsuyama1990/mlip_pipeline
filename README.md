@@ -18,8 +18,9 @@
 -   **High-Fidelity Oracle**: Seamless integration with **Quantum Espresso** for accurate DFT labeling of energy, forces, and stress.
 -   **Self-Healing DFT**: Robust error handling that automatically retries failed calculations with adjusted parameters (e.g., mixing beta, smearing).
 -   **Periodic Embedding**: Intelligent extraction of local clusters from large MD snapshots for efficient QM/MM-style labeling.
--   **Active Learning**: Automatically explores configuration space and selects informative structures using D-optimality (MaxVol).
--   **Physics-Informed Robustness**: Implements Delta Learning to fit the residual energy against a physical baseline (Lennard-Jones/ZBL).
+-   **On-the-Fly (OTF) Active Learning**: Dynamics engine (LAMMPS/EON) automatically detects uncertain configurations during simulation and halts for labeling.
+-   **Physics-Informed Robustness**: Implements Hybrid Potentials (ACE + ZBL/LJ) to prevent unphysical behavior at short distances.
+-   **Active Set Selection**: Automatically explores configuration space and selects informative structures using D-optimality (MaxVol).
 -   **Modular Architecture**: Extensible design with swappable components.
 
 ## Requirements
@@ -68,8 +69,11 @@ uv sync
             sigma: 2.5
             epsilon: 0.1
       dynamics:
-        name: mock
-        selection_rate: 0.5
+        name: lammps
+        timestep: 0.001
+        n_steps: 10000
+        temperature: 300.0
+        uncertainty_threshold: 5.0
       validator:
         name: mock
     ```
@@ -101,5 +105,5 @@ src/mlip_autopipec/
 -   [x] Cycle 02: Structure Generator (ASE integration)
 -   [x] Cycle 03: Oracle (Quantum Espresso, Self-Healing, Embedding)
 -   [x] Cycle 04: Trainer (Pacemaker integration)
--   [ ] Cycle 05: Dynamics Engine (LAMMPS/EON integration)
+-   [x] Cycle 05: Dynamics Engine (LAMMPS/EON, OTF Active Learning, Hybrid Potentials)
 -   [ ] Cycle 06: Validation & Full Orchestration

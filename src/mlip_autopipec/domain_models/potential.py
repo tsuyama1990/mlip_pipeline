@@ -10,6 +10,7 @@ class Potential(BaseModel):
 
     path: Path
     format: str = "yace"
+    species: list[str] = Field(default_factory=list)
     metrics: dict[str, Any] = Field(default_factory=dict)
     creation_date: datetime = Field(default_factory=datetime.now)
 

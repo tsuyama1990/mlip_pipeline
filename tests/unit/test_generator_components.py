@@ -115,7 +115,7 @@ class TestAdaptiveGenerator:
             element="Fe",
             crystal_structure="bcc",
             # policy_ratios uses default factory which is reasonable
-            n_structures=10
+            n_structures=10,
         )
         generator = AdaptiveGenerator(config)
 

@@ -28,6 +28,7 @@ def test_dataset_append_and_read(tmp_path: Path) -> None:
 
     # Create dummy structure
     import numpy as np
+
     s = Structure(
         positions=np.zeros((1, 3)),
         atomic_numbers=np.array([1]),
@@ -35,7 +36,7 @@ def test_dataset_append_and_read(tmp_path: Path) -> None:
         pbc=np.array([True, True, True]),
         energy=-1.0,
         forces=np.zeros((1, 3)),
-        stress=np.zeros((3, 3))
+        stress=np.zeros((3, 3)),
     )
 
     # Append

@@ -1,6 +1,6 @@
 import pytest
 
-from mlip_autopipec.components.dynamics import LAMMPSDynamics, MockDynamics
+from mlip_autopipec.components.dynamics import EONDynamics, LAMMPSDynamics, MockDynamics
 from mlip_autopipec.components.generator import AdaptiveGenerator, MockGenerator
 from mlip_autopipec.components.oracle import MockOracle, QEOracle
 from mlip_autopipec.components.trainer import MockTrainer, PacemakerTrainer
@@ -8,6 +8,7 @@ from mlip_autopipec.components.validator import MockValidator, StandardValidator
 from mlip_autopipec.domain_models.config import (
     AdaptiveGeneratorConfig,
     ComponentConfig,
+    EONDynamicsConfig,
     LAMMPSDynamicsConfig,
     MockDynamicsConfig,
     MockGeneratorConfig,
@@ -57,6 +58,7 @@ def test_factory_creation_real() -> None:
         name=TrainerType.PACEMAKER, max_num_epochs=10, basis_size=500, cutoff=4.0
     )
     dyn_config = LAMMPSDynamicsConfig(name=DynamicsType.LAMMPS, timestep=0.001, n_steps=100)
+    eon_config = EONDynamicsConfig(name=DynamicsType.EON, temperature=400.0)
     validator_config = StandardValidatorConfig(name=ValidatorType.STANDARD)
     # Adaptive generator requires a lot of fields
     gen_config = AdaptiveGeneratorConfig(
@@ -66,6 +68,7 @@ def test_factory_creation_real() -> None:
     assert isinstance(ComponentFactory.get_oracle(oracle_config), QEOracle)
     assert isinstance(ComponentFactory.get_trainer(trainer_config), PacemakerTrainer)
     assert isinstance(ComponentFactory.get_dynamics(dyn_config), LAMMPSDynamics)
+    assert isinstance(ComponentFactory.get_dynamics(eon_config), EONDynamics)
     assert isinstance(ComponentFactory.get_validator(validator_config), StandardValidator)
     assert isinstance(ComponentFactory.get_generator(gen_config), AdaptiveGenerator)
 

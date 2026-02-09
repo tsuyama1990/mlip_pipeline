@@ -241,6 +241,7 @@ def test_validate_labeled_partial() -> None:
     with pytest.raises(ValueError, match="Structure missing energy label"):
         s.validate_labeled()
 
+
 def test_structure_copy() -> None:
     # Create structure with all fields
     pos = np.array([[0.0, 0.0, 0.0]])
@@ -279,7 +280,7 @@ def test_structure_copy() -> None:
     assert s.positions[0, 0] == 0.0  # Original should not change
 
     s_copy.tags["type"] = "surface"
-    assert s.tags["type"] == "bulk" # Original should not change
+    assert s.tags["type"] == "bulk"  # Original should not change
 
     s_copy.tags["provenance"]["id"] = 2
-    assert s.tags["provenance"]["id"] == 1 # Deep copy of nested dict
+    assert s.tags["provenance"]["id"] == 1  # Deep copy of nested dict

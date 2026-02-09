@@ -12,6 +12,7 @@ def test_dataset_streaming_append(tmp_path: Path) -> None:
 
     def structure_generator() -> Iterator[Structure]:
         import numpy as np
+
         for i in range(5):
             yield Structure(
                 positions=np.zeros((1, 3)),
@@ -20,7 +21,7 @@ def test_dataset_streaming_append(tmp_path: Path) -> None:
                 pbc=np.array([True, True, True]),
                 energy=float(i),
                 forces=np.zeros((1, 3)),
-                stress=np.zeros((3, 3))
+                stress=np.zeros((3, 3)),
             )
 
     # Append generator
@@ -38,6 +39,7 @@ def test_dataset_iter_batches(tmp_path: Path) -> None:
     d = Dataset(root / "batch.jsonl", root_dir=root)
 
     import numpy as np
+
     s = Structure(
         positions=np.zeros((1, 3)),
         atomic_numbers=np.array([1]),
@@ -45,7 +47,7 @@ def test_dataset_iter_batches(tmp_path: Path) -> None:
         pbc=np.array([True, True, True]),
         energy=0.0,
         forces=np.zeros((1, 3)),
-        stress=np.zeros((3, 3))
+        stress=np.zeros((3, 3)),
     )
 
     # Append 25 items

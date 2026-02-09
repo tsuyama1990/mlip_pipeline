@@ -1,6 +1,11 @@
 from typing import Any, ClassVar
 
-from mlip_autopipec.components.dynamics import BaseDynamics, LAMMPSDynamics, MockDynamics
+from mlip_autopipec.components.dynamics import (
+    BaseDynamics,
+    EONDynamics,
+    LAMMPSDynamics,
+    MockDynamics,
+)
 from mlip_autopipec.components.generator import (
     AdaptiveGenerator,
     BaseGenerator,
@@ -50,6 +55,7 @@ class ComponentFactory:
         ComponentRole.DYNAMICS: {
             DynamicsType.MOCK: MockDynamics,
             DynamicsType.LAMMPS: LAMMPSDynamics,
+            DynamicsType.EON: EONDynamics,
         },
         ComponentRole.VALIDATOR: {
             ValidatorType.MOCK: MockValidator,

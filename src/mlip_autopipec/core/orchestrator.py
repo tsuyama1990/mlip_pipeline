@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterator
 
+from mlip_autopipec.core.candidate_generator import generate_local_candidates
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.core.state import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
@@ -97,8 +98,14 @@ class Orchestrator:
             # Ensure potential is available
             if self.current_potential is None:
                 prev_cycle = cycle - 1
-                prev_cycle_dir_name = self.config.orchestrator.cycle_dir_pattern.format(cycle=prev_cycle)
-                prev_pot_path = self.config.workdir / prev_cycle_dir_name / self.config.orchestrator.potential_filename
+                prev_cycle_dir_name = self.config.orchestrator.cycle_dir_pattern.format(
+                    cycle=prev_cycle
+                )
+                prev_pot_path = (
+                    self.config.workdir
+                    / prev_cycle_dir_name
+                    / self.config.orchestrator.potential_filename
+                )
 
                 if prev_pot_path.exists():
                     self.current_potential = Potential(path=prev_pot_path)
@@ -111,7 +118,11 @@ class Orchestrator:
             start_structures_iter = self.generator.generate(n_structures=n_structures)
 
             # Dynamics explores and yields UNCERTAIN structures
-            structures = self.dynamics.explore(self.current_potential, start_structures_iter)
+            raw_structures = self.dynamics.explore(
+                self.current_potential, start_structures_iter, workdir=cycle_dir
+            )
+            # Enhance structures with local candidates if they are halted
+            structures = self._enhance_structures(raw_structures)
 
         # Step 2: Labeling (Oracle)
         logger.info(f"[Cycle {cycle}] Labeling: Computing DFT properties")
@@ -138,3 +149,22 @@ class Orchestrator:
 
         self.current_potential.metrics.update(metrics.model_dump())
         logger.info(f"=== Cycle {cycle:02d} Completed ===")
+
+    def _enhance_structures(self, structures: Iterator[Structure]) -> Iterator[Structure]:
+        """
+        Enhance stream of structures with local candidates if they are halted.
+        """
+        for s in structures:
+            provenance = s.tags.get("provenance", "")
+            if "halt" in str(provenance).lower():
+                logger.info("Generating local candidates for halted structure")
+                # Generate local candidates (including the original)
+                candidates = generate_local_candidates(s, n_candidates=20)
+
+                # Use D-Optimality (MaxVol) via Trainer to select best candidates
+                # Anchor is already in candidates (first element)
+                selected = self.trainer.select_active_set(candidates, limit=6)
+
+                yield from selected
+            else:
+                yield s

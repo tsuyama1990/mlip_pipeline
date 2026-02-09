@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class FileConfig(BaseModel):
     """Configuration for file names and paths."""
+
     model_config = ConfigDict(extra="forbid")
 
     input_filename: str = Field(default="input.yaml")
