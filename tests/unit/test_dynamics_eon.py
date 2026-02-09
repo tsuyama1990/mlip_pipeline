@@ -176,5 +176,9 @@ def test_run_single_eon_simulation(
     # Verify subprocess called (EON binary)
     mock_subprocess_run.assert_called()
 
+    # Verify output stream reading
+    # mock_process.stdout.read.call_count should be at least 2 (once for chunk, once for empty)
+    assert mock_process.stdout.read.call_count >= 2
+
     # Verify cleanup happened (run_dir should NOT exist)
     assert not run_dir.exists()

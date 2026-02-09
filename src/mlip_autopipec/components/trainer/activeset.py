@@ -72,7 +72,6 @@ class ActiveSetSelector:
             Path("/usr/bin"),
             Path("/usr/local/bin"),
             # Removed /opt/bin per security audit
-            Path.home() / ".local/bin",
         ]
 
         # Check if running in a virtual environment
@@ -207,7 +206,12 @@ class ActiveSetSelector:
                     # For optimization, we use the list but ensure we don't copy it needlessly
                     # Use a generator expression for to_ase() to avoid creating a new list of atoms objects
                     atoms_iter = (s.to_ase() for s in batch)
-                    write(chunk_file, list(atoms_iter), format="extxyz")
+                    # Use ase.io.write with the generator directly to avoid loading all into memory list
+                    # But need to check if write supports generator or consumes it.
+                    # ASE write supports sequence of Atoms.
+                    # To be memory safe, we can write one by one in append mode.
+                    for atoms in atoms_iter:
+                        write(chunk_file, atoms, format="extxyz", append=True)
 
                     # Select from chunk
                     self._run_pace_activeset(chunk_file, chunk_out, self.limit)

@@ -28,17 +28,22 @@ def test_generate_pair_style_zbl(tmp_path: Path) -> None:
     assert str(potential_path) in pace_line
     assert "Cu Au" in pace_line
 
+    from ase.data import atomic_numbers
+
     # Check ZBL lines (Cu=29, Au=79)
     zbl_lines = [line for line in lines if "zbl" in line]
     assert len(zbl_lines) >= 3  # 1-1, 1-2, 2-2
+
+    z_cu = atomic_numbers["Cu"]
+    z_au = atomic_numbers["Au"]
 
     # Check atomic numbers are correct
     # 1 1 -> 29 29
     # 1 2 -> 29 79
     # 2 2 -> 79 79
-    assert any("1 1 zbl 29 29" in line for line in zbl_lines)
-    assert any("1 2 zbl 29 79" in line for line in zbl_lines)
-    assert any("2 2 zbl 79 79" in line for line in zbl_lines)
+    assert any(f"1 1 zbl {z_cu} {z_cu}" in line for line in zbl_lines)
+    assert any(f"1 2 zbl {z_cu} {z_au}" in line for line in zbl_lines)
+    assert any(f"2 2 zbl {z_au} {z_au}" in line for line in zbl_lines)
 
 
 def test_generate_pair_style_no_baseline(tmp_path: Path) -> None:

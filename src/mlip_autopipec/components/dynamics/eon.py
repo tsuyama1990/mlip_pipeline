@@ -213,11 +213,12 @@ if __name__ == "__main__":
             cmd = [self.binary]
             # Stream output to avoid memory buffering issues
             with self.client_log.open("wb") as f_out:
-                process = subprocess.Popen(
+                process = subprocess.Popen(  # noqa: S603
                     cmd,
                     cwd=self.workdir,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
+                    shell=False,
                 )
                 if process.stdout is not None:
                     # Read in chunks
