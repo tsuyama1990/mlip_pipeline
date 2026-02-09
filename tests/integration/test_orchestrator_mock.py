@@ -86,6 +86,7 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
 
     dataset = Dataset(dataset_path, root_dir=tmp_path)
     count = 0
+    # Use iterator to avoid loading full dataset into memory if it were large
     iterator = iter(dataset)
     try:
         while True:
@@ -95,17 +96,9 @@ def test_full_mock_orchestrator(mock_config: GlobalConfig, tmp_path: Path) -> No
     except StopIteration:
         pass
 
-    # Cycle 1: 5 structures (Cold Start from Generator)
-    # Cycle 2:
-    #   Dynamics starts with 5 seeds (from Generator).
-    #   MockDynamics clones them and adds uncertainty.
-    #   Since selection_rate=1.0, all 5 are selected and marked as HALTED ("dynamics_halt").
-    #   Orchestrator._enhance_structures sees halt.
-    #   It generates 20 candidates per halt + 1 original = 21 candidates.
-    #   Trainer.select_active_set(limit=6) picks 6 candidates.
-    #   So 5 halts * 6 candidates = 30 labeled structures.
-    # Total = 5 (Cycle 1) + 30 (Cycle 2) = 35.
-
+    # Cycle 1 yields 5 structures (Generator)
+    # Cycle 2 yields 30 structures (5 seeds -> 5 halts * 6 candidates)
+    # Total count should be 35
     EXPECTED_TOTAL_COUNT = 35
     assert count == EXPECTED_TOTAL_COUNT
 
@@ -167,26 +160,10 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     #   Each halt -> 6 candidates labeled.
     #   Expected total = 20 + (10 * 6) = 80.
 
-    # Let's see actual counts from deterministic seed 42.
-    # With seed 42 and 20 tries:
-    import random
-    rng = random.Random(42)
-    selected = sum(1 for _ in range(20) if rng.random() < 0.5)
-    # selected is likely around 10.
-
-    expected_approx = 20 + (selected * 6)
-
-    # We assert a range to be safe if seed implementation varies slightly (though Random(42) is stable)
+    # We assert a range to be safe if seed implementation varies slightly
     # If selected = 10, total = 80.
-    # If selected = 0, total = 20.
-    # If selected = 20, total = 140.
+    # We expect significantly more than 20 (Generator only)
+    # and significantly less than 140 (100% selection: 20 + 20*6 = 140)
 
-    # The previous assertion failed with: assert 86 < 38
-    # So 86 structures were found.
-    # 86 - 20 = 66.
-    # 66 / 6 = 11 halts.
-    # So 11 halts occurred.
-
-    assert count > 20, "Cycle 2 should add structures"
-    # We just want to check it runs and produces reasonable output
-    assert 20 <= count <= 140
+    assert count > 25, "Cycle 2 should add structures via active learning"
+    assert count < 130, "Selection logic should have filtered some structures"

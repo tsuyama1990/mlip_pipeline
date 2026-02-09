@@ -11,19 +11,33 @@ from mlip_autopipec.utils.security import validate_safe_path
 logger = logging.getLogger(__name__)
 
 
+class SecurityError(Exception):
+    """Exception raised for security violations."""
+    pass
+
+
 class ActiveSetSelector:
     """
     Selects a subset of structures using the MaxVol algorithm (via pace_activeset).
     """
 
-    def __init__(self, limit: int = 1000) -> None:
+    def __init__(
+        self,
+        limit: int = 1000,
+        chunk_threshold_mb: int = 500,
+        batch_size: int = 5000
+    ) -> None:
         """
         Initialize the ActiveSetSelector.
 
         Args:
             limit: The maximum number of structures to select for the active set.
+            chunk_threshold_mb: File size threshold (MB) to trigger chunked processing.
+            batch_size: Number of structures per chunk.
         """
         self.limit = limit
+        self.chunk_threshold_mb = chunk_threshold_mb
+        self.batch_size = batch_size
 
     def __repr__(self) -> str:
         return f"<ActiveSetSelector(limit={self.limit})>"
@@ -46,7 +60,10 @@ class ActiveSetSelector:
         path_str = str(resolved_path)
 
         # Explicitly deny /tmp and /var/tmp usage regardless of setting
-        if path_str.startswith(("/tmp", "/var/tmp")):  # noqa: S108
+        # This is a strict security policy to prevent execution of transient files.
+        # We check common temporary directories.
+        forbidden_prefixes = ("/tmp", "/var/tmp")  # noqa: S108
+        if path_str.startswith(forbidden_prefixes):
             msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
             raise SecurityError(msg)
 
@@ -137,26 +154,18 @@ class ActiveSetSelector:
 
         # Check file size (approximate heuristic)
         # If file is very large, pace_activeset might crash with OOM.
-        # We assume 500MB is a safe limit for direct processing.
-        # If larger, we split and merge.
         file_size_mb = safe_input.stat().st_size / (1024 * 1024)
-        CHUNK_THRESHOLD_MB = 500
 
-        if file_size_mb < CHUNK_THRESHOLD_MB:
+        if file_size_mb < self.chunk_threshold_mb:
             self._run_pace_activeset(safe_input, safe_output, self.limit)
             return safe_output
 
         logger.info(
-            f"Input file size {file_size_mb:.1f}MB exceeds threshold {CHUNK_THRESHOLD_MB}MB. "
+            f"Input file size {file_size_mb:.1f}MB exceeds threshold {self.chunk_threshold_mb}MB. "
             "Using chunked active set selection."
         )
 
         # Chunked processing
-        # Note: This requires reading the file to split it.
-        # We use streaming read (Dataset) to avoid OOM in Python.
-        # But we need to write chunks to disk in a format pace_activeset accepts (extxyz or pckl.gzip).
-        # We assume extxyz is preferred for large files.
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             chunk_paths = []
@@ -166,8 +175,7 @@ class ActiveSetSelector:
             ds = Dataset(safe_input, root_dir=safe_input.parent)
 
             # Iterate in batches and write chunks
-            batch_size = 5000 # Adjust as needed
-            for i, batch in enumerate(ds.iter_batches(batch_size=batch_size)):
+            for i, batch in enumerate(ds.iter_batches(batch_size=self.batch_size)):
                 chunk_file = tmp_path / f"chunk_{i}.extxyz"
 
                 # Write batch to chunk file
@@ -180,10 +188,6 @@ class ActiveSetSelector:
             # Select from each chunk
             selected_chunks = []
             for i, chunk_file in enumerate(chunk_paths):
-                # Select a portion from each chunk
-                # We aim to keep enough to satisfy the final limit.
-                # E.g. select limit/N_chunks * factor?
-                # Or just select 'limit' from each chunk to be safe, then merge.
                 chunk_out = tmp_path / f"selected_{i}.extxyz"
 
                 # We select 'limit' from each chunk to ensure we have candidates
@@ -209,7 +213,3 @@ class ActiveSetSelector:
              logger.warning(f"pace_activeset finished but {safe_output} was not created.")
 
         return safe_output
-
-
-class SecurityError(Exception):
-    pass
