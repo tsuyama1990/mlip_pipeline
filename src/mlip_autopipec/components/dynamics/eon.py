@@ -248,7 +248,12 @@ if __name__ == "__main__":
                     # Read in chunks
                     for chunk in iter(lambda: process.stdout.read(4096), b""):  # type: ignore[union-attr]
                         f_out.write(chunk)
-                process.wait()
+
+                return_code = process.wait()
+                if return_code != 0:
+                    msg = f"EON execution failed with return code {return_code}"
+                    logger.error(msg)
+                    raise subprocess.CalledProcessError(return_code, cmd)
 
         except Exception as e:
             logger.exception(f"EON failed: {e}") # noqa: TRY401
