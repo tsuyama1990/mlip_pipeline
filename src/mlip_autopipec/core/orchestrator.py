@@ -8,6 +8,7 @@ from mlip_autopipec.domain_models.config import GlobalConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.factory import ComponentFactory
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -107,12 +108,14 @@ class Orchestrator:
                     / self.config.orchestrator.potential_filename
                 )
 
-                if prev_pot_path.exists():
-                    self.current_potential = Potential(path=prev_pot_path)
-                    logger.info(f"Loaded potential from {prev_pot_path}")
-                else:
-                    msg = f"Cycle {cycle}: No potential available from Cycle {prev_cycle} at {prev_pot_path}"
-                    raise RuntimeError(msg)
+                try:
+                    # Validate potential path before loading
+                    safe_prev_pot_path = validate_safe_path(prev_pot_path, must_exist=True)
+                    self.current_potential = Potential(path=safe_prev_pot_path)
+                    logger.info(f"Loaded potential from {safe_prev_pot_path}")
+                except Exception as e:
+                    msg = f"Cycle {cycle}: Failed to load potential from Cycle {prev_cycle} at {prev_pot_path}: {e}"
+                    raise RuntimeError(msg) from e
 
             # Generate start structures for dynamics (seeds)
             start_structures_iter = self.generator.generate(n_structures=n_structures)

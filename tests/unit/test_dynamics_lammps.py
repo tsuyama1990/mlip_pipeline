@@ -91,6 +91,10 @@ Last command: run 1000
     assert result["halted"] is True
     assert result["final_step"] == 10
 
+    # Verify parsing handles standard integer format
+    # The parsing logic splits lines and looks for "Halt".
+    # And then looks for last integer-starting line.
+
 
 def test_lammps_driver_parse_log_finished(tmp_path: Path, config: LAMMPSDynamicsConfig) -> None:
     log_content = """

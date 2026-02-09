@@ -65,6 +65,11 @@ def test_eon_driver_write_input(
     assert str(potential.path.resolve()) in content
     assert "check_uncertainty" in content  # Ensuring OTF logic is present
 
+    # Check OTF logic details (check_uncertainty implementation)
+    assert "gamma = atoms.info.get('uncertainty', 0.0)" in content
+    assert "if gamma > threshold:" in content
+    assert "return True" in content
+
 
 @patch("mlip_autopipec.components.dynamics.eon.subprocess.run")
 @patch("mlip_autopipec.components.dynamics.eon.read")
@@ -161,5 +166,6 @@ def test_run_single_eon_simulation(
 
     # Verify subprocess called (EON binary)
     mock_subprocess_run.assert_called()
-    # Verify input files created
-    assert (run_dir / config.config_filename).exists()
+
+    # Verify cleanup happened (run_dir should NOT exist)
+    assert not run_dir.exists()

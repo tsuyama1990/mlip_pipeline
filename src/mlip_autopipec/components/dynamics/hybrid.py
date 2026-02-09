@@ -2,6 +2,7 @@ import logging
 
 from ase.data import atomic_numbers
 
+from mlip_autopipec.constants import ZBL_DEFAULT_INNER_CUTOFF, ZBL_DEFAULT_OUTER_CUTOFF
 from mlip_autopipec.domain_models.config import PhysicsBaselineConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.utils.security import validate_safe_path
@@ -35,16 +36,9 @@ def generate_pair_style(
 
     if baseline.type == "zbl":
         # Hybrid overlay
-        pair_style = (
-            f"pair_style hybrid/overlay {pace_style} zbl 0.5 2.0"  # Default cutoffs for ZBL mixing?
-        )
-        # ZBL usually is very short range. 0.5 inner, 2.0 outer is reasonable for overlay?
-        # Actually ZBL is purely repulsive core.
-        # LAMMPS syntax: pair_style zbl cut_inner cut_outer
-        # But for hybrid/overlay, we specify sub-styles.
         # Let's use params if available
-        inner = baseline.params.get("inner_cutoff", 0.5)
-        outer = baseline.params.get("outer_cutoff", 1.2)
+        inner = baseline.params.get("inner_cutoff", ZBL_DEFAULT_INNER_CUTOFF)
+        outer = baseline.params.get("outer_cutoff", ZBL_DEFAULT_OUTER_CUTOFF)
 
         pair_style = f"pair_style hybrid/overlay {pace_style} zbl {inner} {outer}"
 

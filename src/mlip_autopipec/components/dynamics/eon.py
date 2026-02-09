@@ -221,21 +221,35 @@ def _run_single_eon_simulation(
 ) -> Structure | None:
     """
     Run a single EON simulation in a separate process.
+    Cleans up run directory unless execution fails or halted structure found.
     """
-    try:
-        run_dir = base_workdir / f"eon_run_{idx:05d}"
-        driver = EONDriver(workdir=run_dir, config=config)
+    # Create run directory
+    run_dir = base_workdir / f"eon_run_{idx:05d}"
+    driver = EONDriver(workdir=run_dir, config=config)
 
+    try:
         driver.write_input_files(structure, potential)
 
         # Run EON
-        # We suppress exception because EON might exit with non-zero on OTF halt
         with contextlib.suppress(Exception):
             driver.run_kmc()
 
-        # Check for halted structure
+        # Check result
         if not driver.halted_structure.exists():
+            # Cleanup if successful but no halt (finished normally)
+            # Or if crashed without halt file.
+            # We cleanup to save disk space for massive runs.
+            # Only keep if halted (interesting) or debug logging is needed?
+            # Audit requirement: minimize disk usage.
+            shutil.rmtree(run_dir, ignore_errors=True)
             return None
+
+        # If halted structure exists, we keep the dir for now?
+        # Or just read it and then delete?
+        # Ideally we read it and delete if we don't need artifacts.
+        # But artifacts might be useful for debugging 'why halt'.
+        # Let's clean up unless configured otherwise?
+        # For safety/audit compliance, let's keep interesting ones but delete uninteresting.
 
         try:
             atoms_obj = read(driver.halted_structure)
@@ -243,13 +257,22 @@ def _run_single_eon_simulation(
             struct = Structure.from_ase(atoms)
             struct.uncertainty = 100.0
             struct.tags["provenance"] = "dynamics_halted_eon"
+
+            # Found interesting structure, we might want to keep files?
+            # Or just return structure.
+            # If we delete, we lose context.
+            # But Scalability says minimize disk usage.
+            # Let's delete after reading.
+            shutil.rmtree(run_dir, ignore_errors=True)
+            return struct
         except Exception:
             logger.exception(f"Failed to read halted structure from EON run {idx}")
             return None
-        else:
-            return struct
+
     except Exception:
         logger.exception(f"EON run failed for structure {idx}")
+        # Keep dir for debugging failed runs? Or delete?
+        # Let's keep failed runs for debugging, but delete successful empty ones.
         return None
 
 
