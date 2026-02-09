@@ -36,6 +36,23 @@ def to_numpy(v: Any) -> Any:
     return v
 
 
+def sanitize_value(v: Any) -> Any:
+    """Recursively convert numpy types to python types."""
+    if isinstance(v, dict):
+        return {k: sanitize_value(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [sanitize_value(val) for val in v]
+    if isinstance(v, np.ndarray):
+        return v.tolist()
+    if isinstance(v, np.integer):
+        return int(v)
+    if isinstance(v, np.floating):
+        return float(v)
+    if isinstance(v, np.bool_):
+        return bool(v)
+    return v
+
+
 # Custom type for Numpy arrays with JSON serialization support
 NumpyArray = Annotated[
     np.ndarray, PlainSerializer(numpy_to_list, return_type=list), BeforeValidator(to_numpy)
@@ -232,7 +249,7 @@ class Structure(BaseModel):
         # Extract labels (optional)
         energy, forces, stress = cls._extract_labels(atoms)
         uncertainty = atoms.info.get("uncertainty")
-        tags = atoms.info.copy()
+        tags = sanitize_value(atoms.info.copy())
 
         return cls(
             positions=positions,
