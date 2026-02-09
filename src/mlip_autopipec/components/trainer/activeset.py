@@ -35,7 +35,8 @@ class ActiveSetSelector:
             batch_size: Number of structures per chunk.
         """
         if limit <= 0:
-            raise ValueError(f"Limit must be positive, got {limit}")
+            msg = f"Limit must be positive, got {limit}"
+            raise ValueError(msg)
         self.limit = limit
         self.chunk_threshold_mb = chunk_threshold_mb
         self.batch_size = batch_size
@@ -70,7 +71,7 @@ class ActiveSetSelector:
         trusted_dirs = [
             Path("/usr/bin"),
             Path("/usr/local/bin"),
-            Path("/opt/bin"),
+            # Removed /opt/bin per security audit
             Path.home() / ".local/bin",
         ]
 
@@ -174,44 +175,51 @@ class ActiveSetSelector:
 
     def _process_chunks(self, input_path: Path, output_path: Path) -> None:
         """Process large files by splitting into chunks, selecting, and merging."""
+        from ase.io import write
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
-            chunk_paths = []
+            merged_path = tmp_path / "merged_candidates.extxyz"
 
             # Use Dataset to stream read
             # Note: root_dir is just to satisfy checks, we only read
             ds = Dataset(input_path, root_dir=input_path.parent)
 
-            # Iterate in batches and write chunks
-            # We assume batch writing prevents OOM
+            # Process batches sequentially
+            # Read batch -> Write chunk -> Select from chunk -> Append to merge -> Delete chunk
+            # This minimizes disk usage and memory footprint
+
+            # Initialize merge file
+            merged_path.touch()
+
             for i, batch in enumerate(ds.iter_batches(batch_size=self.batch_size)):
                 chunk_file = tmp_path / f"chunk_{i}.extxyz"
+                chunk_out = tmp_path / f"selected_{i}.extxyz"
 
-                # Write batch to chunk file
-                from ase.io import write
-                atoms_list = [s.to_ase() for s in batch]
-                write(chunk_file, atoms_list, format="extxyz")
+                try:
+                    # Write batch to chunk file
+                    # Batch is a list of Structures.
+                    # We stream write if possible, but ase.io.write takes list or atoms.
+                    # Given batch_size is small (5000), list is acceptable.
+                    atoms_list = [s.to_ase() for s in batch]
+                    write(chunk_file, atoms_list, format="extxyz")
 
-                chunk_paths.append(chunk_file)
+                    # Select from chunk
+                    self._run_pace_activeset(chunk_file, chunk_out, self.limit)
 
-            # Select from each chunk sequentially to avoid holding all results in memory
-            merged_path = tmp_path / "merged_candidates.extxyz"
+                    # Append directly to merged file
+                    if chunk_out.exists():
+                        with merged_path.open("ab") as outfile, chunk_out.open("rb") as infile:
+                            shutil.copyfileobj(infile, outfile)
 
-            with merged_path.open("wb") as outfile:
-                for i, chunk_file in enumerate(chunk_paths):
-                    chunk_out = tmp_path / f"selected_{i}.extxyz"
-
-                    try:
-                        # Select limit from chunk to ensure diversity
-                        self._run_pace_activeset(chunk_file, chunk_out, self.limit)
-
-                        # Append directly to merged file
-                        if chunk_out.exists():
-                            with chunk_out.open("rb") as infile:
-                                shutil.copyfileobj(infile, outfile)
-
-                    except Exception:
-                        logger.warning(f"Failed to select from chunk {i}, skipping.")
+                except Exception:
+                    logger.warning(f"Failed to process chunk {i}, skipping.")
+                finally:
+                    # Cleanup immediate chunk files
+                    if chunk_file.exists():
+                        chunk_file.unlink()
+                    if chunk_out.exists():
+                        chunk_out.unlink()
 
             # Final selection on merged set
             self._run_pace_activeset(merged_path, output_path, self.limit)

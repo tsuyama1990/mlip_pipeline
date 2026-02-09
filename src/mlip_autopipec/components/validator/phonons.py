@@ -7,6 +7,7 @@ from ase.calculators.calculator import Calculator
 from ase.phonons import Phonons
 
 from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,17 @@ class PhononCalc:
             (is_stable, failed_structure)
         """
         workdir.mkdir(parents=True, exist_ok=True)
+        # Security: Validate user provided workdir before operations
+        validate_safe_path(workdir)
+
         atoms = structure.to_ase()
         atoms.calc = calculator
 
         # Prepare Phonons object
         phonon_dir = workdir / "phonons"
         if phonon_dir.exists():
+            # Security: Validate path before deletion
+            validate_safe_path(phonon_dir)
             shutil.rmtree(phonon_dir)
         phonon_dir.mkdir()
 

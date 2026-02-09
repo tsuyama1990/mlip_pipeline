@@ -10,6 +10,11 @@ from ase.io import read, write
 from ase.units import bar
 
 from mlip_autopipec.components.dynamics.hybrid import generate_pair_style
+from mlip_autopipec.constants import (
+    LAMMPS_TEMPLATE_ATOM_STYLE,
+    LAMMPS_TEMPLATE_BOUNDARY,
+    LAMMPS_TEMPLATE_UNITS,
+)
 from mlip_autopipec.domain_models.config import PhysicsBaselineConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.utils.security import validate_safe_path
@@ -32,6 +37,10 @@ class LammpsSinglePointCalculator(Calculator):
         command: str = "lmp",
         physics_baseline: dict[str, Any] | None = None,
         keep_files: bool = False,
+        # Templates
+        template_units: str = LAMMPS_TEMPLATE_UNITS,
+        template_atom_style: str = LAMMPS_TEMPLATE_ATOM_STYLE,
+        template_boundary: str = LAMMPS_TEMPLATE_BOUNDARY,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -40,6 +49,10 @@ class LammpsSinglePointCalculator(Calculator):
         self.command = command
         self.physics_baseline = physics_baseline
         self.keep_files = keep_files
+        self.template_units = template_units
+        self.template_atom_style = template_atom_style
+        self.template_boundary = template_boundary
+
         self.workdir.mkdir(parents=True, exist_ok=True)
 
     def calculate(
@@ -71,6 +84,11 @@ class LammpsSinglePointCalculator(Calculator):
         log_file = self.workdir / "log.lammps"
         dump_file = self.workdir / "dump.lammps"
 
+        # Security: Validate output paths
+        validate_safe_path(input_file)
+        validate_safe_path(log_file)
+        validate_safe_path(dump_file)
+
         baseline_config = None
         if self.physics_baseline:
             baseline_config = PhysicsBaselineConfig.model_validate(self.physics_baseline)
@@ -78,9 +96,9 @@ class LammpsSinglePointCalculator(Calculator):
         pair_style, pair_coeff = generate_pair_style(self.potential, baseline_config)
 
         input_content = f"""
-units           metal
-atom_style      atomic
-boundary        p p p
+{self.template_units}
+{self.template_atom_style}
+{self.template_boundary}
 
 read_data       {data_file.name}
 

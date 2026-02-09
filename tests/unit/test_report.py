@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -30,7 +31,7 @@ def mock_workdir(tmp_path):
     return tmp_path
 
 
-def test_report_generator_collect_metrics(mock_workdir):
+def test_report_generator_collect_metrics(mock_workdir: Path) -> None:
     config = MagicMock(spec=GlobalConfig)
     config.workdir = mock_workdir
 
@@ -45,10 +46,10 @@ def test_report_generator_collect_metrics(mock_workdir):
     assert len(metrics_df) == 3
     assert metrics_df.iloc[0]["dataset_size"] == 100
     # Use equality check for numpy/pandas booleans
-    assert metrics_df.iloc[2]["validation_passed"] == True
+    assert metrics_df.iloc[2]["validation_passed"]
 
 
-def test_report_generator_html(mock_workdir):
+def test_report_generator_html(mock_workdir: Path) -> None:
     config = MagicMock(spec=GlobalConfig)
     config.workdir = mock_workdir
 

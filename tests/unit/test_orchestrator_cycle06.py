@@ -1,18 +1,18 @@
-from unittest.mock import MagicMock, call, patch
-from pathlib import Path
 import contextlib
+from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 import numpy as np
 import pytest
 
 from mlip_autopipec.core.orchestrator import Orchestrator
-from mlip_autopipec.domain_models.config import ComponentsConfig, GlobalConfig, OrchestratorConfig
+from mlip_autopipec.domain_models.config import GlobalConfig, OrchestratorConfig
 from mlip_autopipec.domain_models.results import ValidationMetrics
 from mlip_autopipec.domain_models.structure import Structure
 
 
 @pytest.fixture
-def mock_config(tmp_path):
+def mock_config(tmp_path: Path) -> GlobalConfig:
     # Minimal config for mocks
     config = MagicMock(spec=GlobalConfig)
     config.workdir = tmp_path
@@ -37,7 +37,7 @@ def mock_config(tmp_path):
 @patch("mlip_autopipec.core.orchestrator.Dataset")
 @patch("mlip_autopipec.core.orchestrator.StateManager")
 @patch("mlip_autopipec.core.orchestrator.ComponentFactory")
-def test_orchestrator_halt_logic(mock_factory, mock_state_mgr, mock_dataset_cls, mock_config):
+def test_orchestrator_halt_logic(mock_factory: MagicMock, mock_state_mgr: MagicMock, mock_dataset_cls: MagicMock, mock_config: GlobalConfig) -> None:
     # Setup Mocks
     orchestrator = Orchestrator(mock_config)
     orchestrator.generator = MagicMock()
@@ -64,7 +64,7 @@ def test_orchestrator_halt_logic(mock_factory, mock_state_mgr, mock_dataset_cls,
     orchestrator.trainer.train.return_value = MagicMock() # potential
 
     # Setup Oracle
-    def mock_compute(structures):
+    def mock_compute(structures: list[Structure]) -> iter:
         # Consume iterator to trigger side effects (halt counting)
         list(structures)
         return iter([halted_structure])
@@ -92,7 +92,7 @@ def test_orchestrator_halt_logic(mock_factory, mock_state_mgr, mock_dataset_cls,
 @patch("mlip_autopipec.core.orchestrator.Dataset")
 @patch("mlip_autopipec.core.orchestrator.StateManager")
 @patch("mlip_autopipec.core.orchestrator.ComponentFactory")
-def test_orchestrator_converged_validation_pass(mock_factory, mock_state_mgr, mock_dataset_cls, mock_config):
+def test_orchestrator_converged_validation_pass(mock_factory: MagicMock, mock_state_mgr: MagicMock, mock_dataset_cls: MagicMock, mock_config: GlobalConfig) -> None:
     # Setup Mocks
     orchestrator = Orchestrator(mock_config)
     orchestrator.generator = MagicMock()
@@ -147,7 +147,7 @@ def test_orchestrator_converged_validation_pass(mock_factory, mock_state_mgr, mo
 @patch("mlip_autopipec.core.orchestrator.Dataset")
 @patch("mlip_autopipec.core.orchestrator.StateManager")
 @patch("mlip_autopipec.core.orchestrator.ComponentFactory")
-def test_orchestrator_converged_validation_fail(mock_factory, mock_state_mgr, mock_dataset_cls, mock_config):
+def test_orchestrator_converged_validation_fail(mock_factory: MagicMock, mock_state_mgr: MagicMock, mock_dataset_cls: MagicMock, mock_config: GlobalConfig) -> None:
     # Setup Mocks
     orchestrator = Orchestrator(mock_config)
     orchestrator.generator = MagicMock()

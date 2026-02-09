@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 from ase.build import bulk
+from ase.data import chemical_symbols
 from ase.filters import UnitCellFilter
 from ase.optimize import BFGS
 
@@ -29,6 +30,7 @@ class StandardValidator(BaseValidator):
         self.config: StandardValidatorConfig = config
 
         # Instantiate sub-validators with config
+        # Default displacement from config if available (future improvement), strictly 0.01 for now as per requirement
         self.phonon_calc = PhononCalc(
             supercell_matrix=self.config.phonon_supercell,
             displacement=self.config.phonon_displacement,
@@ -56,13 +58,13 @@ class StandardValidator(BaseValidator):
             return ValidationMetrics(passed=True, details={"warning": "No species"})
 
         element = species[0]
-        struct_type = 'fcc'
-        if element in ['Si', 'Ge', 'C']:
-            struct_type = 'diamond'
-        elif element in ['Fe', 'Cr', 'W', 'Mo', 'V']:
-            struct_type = 'bcc'
-        elif element in ['Ti', 'Mg', 'Zr', 'Be']:
-            struct_type = 'hcp'
+        # Validate element symbol
+        if element not in chemical_symbols:
+             logger.error(f"Invalid element symbol: {element}")
+             return ValidationMetrics(passed=False, details={"error": f"Invalid element: {element}"})
+
+        # Structure selection using configuration
+        struct_type = self.config.structure_map.get(element, 'fcc')
 
         try:
             atoms = bulk(element, struct_type, cubic=True)
@@ -72,6 +74,7 @@ class StandardValidator(BaseValidator):
             atoms = bulk(element, 'fcc', cubic=True)
             structure = Structure.from_ase(atoms)
 
+        # Context manager for temp dir ensures cleanup
         with tempfile.TemporaryDirectory() as tmpdir:
             workdir = Path(tmpdir)
 
@@ -79,7 +82,10 @@ class StandardValidator(BaseValidator):
             calc = LammpsSinglePointCalculator(
                 potential=potential,
                 workdir=workdir,
-                keep_files=False
+                keep_files=False,
+                template_units=self.config.lammps_template_units,
+                template_atom_style=self.config.lammps_template_atom_style,
+                template_boundary=self.config.lammps_template_boundary,
             )
 
             # 1. Relax the structure

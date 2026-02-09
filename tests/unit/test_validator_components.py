@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from mlip_autopipec.components.validator.standard import StandardValidator
-from mlip_autopipec.domain_models.config import StandardValidatorConfig
+from mlip_autopipec.domain_models.config import StandardValidatorConfig, ValidatorType
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -19,14 +19,14 @@ def potential(tmp_path):
 @pytest.fixture
 def validator_config():
     return StandardValidatorConfig(
-        name="standard",
+        name=ValidatorType.STANDARD,
         phonon_supercell=[2, 2, 2],
         eos_strain_range=0.1,
         elastic_strain_magnitude=0.01
     )
 
 
-def test_standard_validator_structure(validator_config):
+def test_standard_validator_structure(validator_config: StandardValidatorConfig) -> None:
     validator = StandardValidator(validator_config)
     assert validator.name == "standard"
 
@@ -37,7 +37,7 @@ def test_standard_validator_structure(validator_config):
 @patch("mlip_autopipec.components.validator.standard.PhononCalc")
 @patch("mlip_autopipec.components.validator.standard.ElasticCalc")
 @patch("mlip_autopipec.components.validator.standard.EOSCalc")
-def test_validate_all_pass(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_bfgs, mock_calc, validator_config, potential):
+def test_validate_all_pass(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_bfgs, mock_calc, validator_config, potential) -> None:
     # Setup Mocks
     mock_phonon_instance = mock_phonon.return_value
     mock_phonon_instance.calculate.return_value = (True, None)  # stable, no failed structure
@@ -56,10 +56,8 @@ def test_validate_all_pass(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_b
     mock_calc_instance = mock_calc.return_value
     mock_calc_instance.get_potential_energy.return_value = -10.0
     # Use side_effect to handle different number of atoms
-    mock_calc_instance.get_forces.side_effect = lambda atoms=None: np.zeros((8, 3)) if atoms is None else np.zeros((len(atoms), 3))
     # Also handle the case where get_forces is called on the calculator without arguments (uses calc.atoms)
     # But Structure.from_ase calls atoms.get_forces(), which calls calc.get_forces(atoms).
-    # Wait, calc.get_forces(atoms) signature.
 
     def get_forces_mock(atoms=None):
         if atoms is not None:
@@ -89,7 +87,7 @@ def test_validate_all_pass(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_b
 @patch("mlip_autopipec.components.validator.standard.PhononCalc")
 @patch("mlip_autopipec.components.validator.standard.ElasticCalc")
 @patch("mlip_autopipec.components.validator.standard.EOSCalc")
-def test_validate_phonon_fail(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_bfgs, mock_calc, validator_config, potential):
+def test_validate_phonon_fail(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_bfgs, mock_calc, validator_config, potential) -> None:
     # Setup Mocks
     failed_struct = Structure(
         positions=np.array([[0, 0, 0]]),
@@ -128,7 +126,7 @@ def test_validate_phonon_fail(mock_eos, mock_elastic, mock_phonon, mock_ucf, moc
 @patch("mlip_autopipec.components.validator.standard.PhononCalc")
 @patch("mlip_autopipec.components.validator.standard.ElasticCalc")
 @patch("mlip_autopipec.components.validator.standard.EOSCalc")
-def test_validate_elastic_fail(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_bfgs, mock_calc, validator_config, potential):
+def test_validate_elastic_fail(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_bfgs, mock_calc, validator_config, potential) -> None:
     # Setup Mocks
     mock_phonon_instance = mock_phonon.return_value
     mock_phonon_instance.calculate.return_value = (True, None)
