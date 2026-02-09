@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 import pytest
 
-from mlip_autopipec.constants import DEFAULT_CONFIG_PATH
 from mlip_autopipec.main import main
 
 
@@ -15,7 +14,7 @@ def test_main_default_args() -> None:
     ):
         main()
 
-        MockOrchestrator.assert_called_once_with(DEFAULT_CONFIG_PATH)
+        MockOrchestrator.assert_called_once_with(Path("config.yaml"))
 
 
 def test_main_custom_config(tmp_path: Path) -> None:

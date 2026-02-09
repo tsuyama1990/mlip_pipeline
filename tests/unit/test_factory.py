@@ -1,3 +1,4 @@
+from mlip_autopipec.components.mocks import MockGenerator, MockOracle
 from mlip_autopipec.config import GeneratorConfig, OracleConfig
 from mlip_autopipec.domain_models.enums import ComponentRole, GeneratorType, OracleType
 from mlip_autopipec.factory import ComponentFactory
@@ -6,11 +7,9 @@ from mlip_autopipec.factory import ComponentFactory
 def test_create_generator() -> None:
     """Test creating a generator component."""
     config = GeneratorConfig(type=GeneratorType.RANDOM)
-    # This will fail until factory is implemented
     generator = ComponentFactory.create(ComponentRole.GENERATOR, config)
     assert generator is not None
-    # We can't check type yet as we haven't implemented the class,
-    # but we can check if it returns something if we mock it.
+    assert isinstance(generator, MockGenerator)
 
 
 def test_create_oracle() -> None:
@@ -18,6 +17,7 @@ def test_create_oracle() -> None:
     config = OracleConfig(type=OracleType.MOCK)
     oracle = ComponentFactory.create(ComponentRole.ORACLE, config)
     assert oracle is not None
+    assert isinstance(oracle, MockOracle)
 
 
 def test_unknown_component_type() -> None:
@@ -27,6 +27,3 @@ def test_unknown_component_type() -> None:
     # Since config validation happens at model creation, we expect ValueError there.
     # However, if we somehow passed a valid config with a mismatched role,
     # the factory might complain.
-
-    # For now, let's assume we pass a config but the factory doesn't know how to handle it
-    # This is hard to test without mocking internal registry.

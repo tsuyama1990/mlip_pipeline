@@ -13,6 +13,7 @@ def test_orchestrator_init_with_config(tmp_path: Path) -> None:
     config.orchestrator.work_dir = tmp_path / "work"
 
     orchestrator = Orchestrator(config)
+    orchestrator.initialize()  # Lazy init
 
     assert orchestrator.config.orchestrator.work_dir == tmp_path / "work"
     assert orchestrator.logger.name == "Orchestrator"
@@ -34,8 +35,16 @@ def test_orchestrator_init_with_path(tmp_path: Path) -> None:
     config_file.write_text(config_content)
 
     orchestrator = Orchestrator(config_file)
+    orchestrator.initialize()
 
     assert orchestrator.config.oracle.type == OracleType.MOCK
+    # Pydantic path validation might resolve paths or keep them relative depending on usage.
+    # Our validate_safe_path resolves it if it exists or returns as-is (absolute) if OSError.
+    # But wait, validate_safe_path returns 'path', which is computed from 'v'.
+    # If we pass relative path "orch_test", validate_safe_path resolves it to check system roots
+    # but returns the *original* path object created from v (variable `path`).
+    # Wait, looking at config.py: `return path`. `path` is `Path(v)`.
+    # It does NOT return `resolved_path`.
     assert orchestrator.config.orchestrator.work_dir == Path("orch_test")
 
 
@@ -50,13 +59,17 @@ def test_orchestrator_component_init_failure(tmp_path: Path) -> None:
     config = ExperimentConfig()
     config.orchestrator.work_dir = tmp_path / "work_fail"
 
+    orchestrator = Orchestrator(config)
+
     from unittest.mock import patch
 
+    # We patch create to fail
     with (
         patch(
             "mlip_autopipec.core.orchestrator.ComponentFactory.create",
             side_effect=RuntimeError("Factory Error"),
         ),
-        pytest.raises(RuntimeError, match="Failed to initialize components"),
+        pytest.raises(RuntimeError, match="Generator init failed"),
     ):
-        Orchestrator(config)
+        # Expect RuntimeError with specific message
+        orchestrator.initialize()

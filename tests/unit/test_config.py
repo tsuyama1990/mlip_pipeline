@@ -89,3 +89,16 @@ def test_path_traversal_validation(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="Path traversal detected"):
         ExperimentConfig.from_yaml(config_file_pseudo)
+
+
+def test_restricted_system_path_validation(tmp_path: Path) -> None:
+    """Test that restricted system paths are rejected."""
+    config_content = """
+    orchestrator:
+      work_dir: "/etc/passwd"
+    """
+    config_file = tmp_path / "system_path_config.yaml"
+    config_file.write_text(config_content)
+
+    with pytest.raises(ValidationError, match="Path points to restricted system directory"):
+        ExperimentConfig.from_yaml(config_file)

@@ -44,10 +44,12 @@ class Orchestrator:
             self.logger.info("Initializing PyAceMaker Orchestrator...")
             self.logger.info("Configuration loaded successfully.")
 
-            # Instantiate Components with Error Handling
-            self._initialize_components()
-
-            self.logger.info("All components initialized successfully.")
+            # Component placeholders (Lazy Initialization)
+            self.generator: BaseGenerator
+            self.oracle: BaseOracle
+            self.trainer: BaseTrainer
+            self.dynamics: BaseDynamics
+            self.validator: BaseValidator
 
         except Exception:
             # If logger is initialized, log the error, otherwise print to stderr is handled by caller (main)
@@ -56,28 +58,56 @@ class Orchestrator:
                 self.logger.exception("Orchestrator initialization failed")
             raise
 
+    def initialize(self) -> None:
+        """Initialize all pipeline components."""
+        self.logger.info("Instantiating components...")
+        self._initialize_generator()
+        self._initialize_oracle()
+        self._initialize_trainer()
+        self._initialize_dynamics()
+        self._initialize_validator()
+        self.logger.info("All components initialized successfully.")
+
     def _raise_invalid_config_type(self, config_path: object) -> None:
         msg = f"Invalid config type: {type(config_path)}"
         raise TypeError(msg)
 
-    def _initialize_components(self) -> None:
-        """Helper to instantiate all components."""
+    def _initialize_generator(self) -> None:
         try:
-            self.generator: BaseGenerator = ComponentFactory.create(
-                ComponentRole.GENERATOR, self.config.generator
-            )
-            self.oracle: BaseOracle = ComponentFactory.create(
-                ComponentRole.ORACLE, self.config.oracle
-            )
-            self.trainer: BaseTrainer = ComponentFactory.create(
-                ComponentRole.TRAINER, self.config.trainer
-            )
-            self.dynamics: BaseDynamics = ComponentFactory.create(
-                ComponentRole.DYNAMICS, self.config.dynamics
-            )
-            self.validator: BaseValidator = ComponentFactory.create(
-                ComponentRole.VALIDATOR, self.config.validator
-            )
+            self.generator = ComponentFactory.create(ComponentRole.GENERATOR, self.config.generator)
         except Exception as e:
-            msg = f"Failed to initialize components: {e}"
+            self.logger.exception("Failed to initialize Generator")
+            msg = f"Generator init failed: {e}"
+            raise RuntimeError(msg) from e
+
+    def _initialize_oracle(self) -> None:
+        try:
+            self.oracle = ComponentFactory.create(ComponentRole.ORACLE, self.config.oracle)
+        except Exception as e:
+            self.logger.exception("Failed to initialize Oracle")
+            msg = f"Oracle init failed: {e}"
+            raise RuntimeError(msg) from e
+
+    def _initialize_trainer(self) -> None:
+        try:
+            self.trainer = ComponentFactory.create(ComponentRole.TRAINER, self.config.trainer)
+        except Exception as e:
+            self.logger.exception("Failed to initialize Trainer")
+            msg = f"Trainer init failed: {e}"
+            raise RuntimeError(msg) from e
+
+    def _initialize_dynamics(self) -> None:
+        try:
+            self.dynamics = ComponentFactory.create(ComponentRole.DYNAMICS, self.config.dynamics)
+        except Exception as e:
+            self.logger.exception("Failed to initialize Dynamics")
+            msg = f"Dynamics init failed: {e}"
+            raise RuntimeError(msg) from e
+
+    def _initialize_validator(self) -> None:
+        try:
+            self.validator = ComponentFactory.create(ComponentRole.VALIDATOR, self.config.validator)
+        except Exception as e:
+            self.logger.exception("Failed to initialize Validator")
+            msg = f"Validator init failed: {e}"
             raise RuntimeError(msg) from e

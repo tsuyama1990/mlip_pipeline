@@ -2,6 +2,8 @@ import logging
 import sys
 from pathlib import Path
 
+from mlip_autopipec.config import validate_safe_path
+
 
 def setup_logging(
     name: str = "mlip_pipeline",
@@ -11,6 +13,9 @@ def setup_logging(
     """
     Configure structured logging for the application.
     """
+    if log_file:
+        validate_safe_path(log_file)
+
     logger = logging.getLogger(name)
     logger.setLevel(level)
 

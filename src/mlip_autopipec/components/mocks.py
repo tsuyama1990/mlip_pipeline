@@ -28,6 +28,10 @@ class MockGenerator(BaseGenerator):
 
     def generate(self, n_structures: int) -> Iterator[Structure]:
         """Yields an empty sequence of structures."""
+        # For testing memory safety, we should be able to yield structures lazily.
+        # But Mock usually just returns nothing or a list.
+        # Let's yield a few dummy structures if n_structures > 0 to simulate work
+        # But for now, returning iter([]) is safe as per original logic.
         return iter([])
 
 
@@ -36,11 +40,17 @@ class MockOracle(BaseOracle):
         super().__init__(config)
 
     def compute(self, structures: Iterator[Structure]) -> Iterator[CalculationResult]:
-        """Consumes structures and yields empty results."""
-        # Consume iterator to prevent "unused" warnings in real scenarios
-        for _ in structures:
-            pass
-        return iter([])
+        """Consumes structures and yields mock results."""
+        for structure in structures:
+            # Yield a result for each structure
+            # In a real scenario, this would compute properties
+            yield CalculationResult(
+                structure=structure,
+                energy=-10.0,
+                forces=[[0.0, 0.0, 0.0] for _ in range(len(structure.atoms))],
+                stress=[0.0] * 6,
+                converged=True,
+            )
 
 
 class MockTrainer(BaseTrainer):
@@ -53,7 +63,7 @@ class MockTrainer(BaseTrainer):
         previous_potential: PotentialArtifact | None = None,
     ) -> PotentialArtifact:
         """Consumes dataset and returns a mock potential."""
-        # Consume iterator
+        # Consume iterator to ensure stream processing is possible
         for _ in dataset:
             pass
         return PotentialArtifact(path="mock.yace", version="0.1")

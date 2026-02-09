@@ -3,7 +3,6 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from mlip_autopipec.constants import DEFAULT_WORK_DIR, MAX_CYCLES
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     GeneratorType,
@@ -15,27 +14,56 @@ from mlip_autopipec.domain_models.enums import (
 
 def validate_safe_path(v: str | Path | None) -> Path | None:
     """
-    Validator to ensure paths are safe and do not traverse up (..).
+    Validator to ensure paths are safe:
+    - Must not traverse up (..) from the base resolution point.
+    - Must not be absolute paths pointing to sensitive system directories.
+    - Resolves the path to check canonical form.
     """
     if v is None:
         return None
 
     path = Path(v)
-    if ".." in str(path) or path.is_absolute():
-        # Ideally we allow absolute paths if they are within allowed directories,
-        # but for now let's just warn or restrict relative traversal.
-        # The audit requirement specifically mentioned path traversal.
-        pass
 
-    # Check for suspicious traversal
-    # Resolve path to check if it tries to escape
-    # This is tricky without a base root.
-    # We will just forbid '..' components for now as a strict rule for user inputs.
-    if ".." in path.parts:
+    # Check for simple traversal before resolution
+    if ".." in str(path) or ".." in path.parts:
         msg = f"Path traversal detected: {path}"
         raise ValueError(msg)
 
+    # Resolve to absolute path
+    # If path is relative, it resolves against CWD
+    try:
+        resolved_path = path.resolve()
+    except OSError:
+        # Path might not exist, but we can still resolve logically if possible
+        # Or if it fails, it might be invalid chars.
+        resolved_path = path.absolute()
+
+    # Define sensitive roots we absolutely want to avoid writing to/reading from blindly
+    sensitive_roots = [
+        Path("/etc"),
+        Path("/usr"),
+        Path("/bin"),
+        Path("/sbin"),
+        Path("/var"),
+        Path("/boot"),
+        Path("/sys"),
+        Path("/proc"),
+    ]
+
+    resolved_path_str = str(resolved_path)
+    for root in sensitive_roots:
+        root_str = str(root)
+        # Using string comparison for stricter "starts with" check
+        if resolved_path_str == root_str or resolved_path_str.startswith(f"{root_str}/"):
+            _raise_unsafe_path_error(resolved_path)
+
     return path
+
+
+def _raise_unsafe_path_error(path: Path) -> None:
+    """Helper to raise ValueError for unsafe paths."""
+    msg = f"Path points to restricted system directory: {path}"
+    raise ValueError(msg)
 
 
 class BaseComponentConfig(BaseModel):
@@ -60,9 +88,7 @@ class OracleConfig(BaseComponentConfig):
     @classmethod
     def validate_pseudos(cls, v: dict[str, str]) -> dict[str, str]:
         for path in v.values():
-            if ".." in Path(path).parts:
-                msg = f"Path traversal detected in pseudopotential: {path}"
-                raise ValueError(msg)
+            validate_safe_path(path)
         return v
 
 
@@ -94,18 +120,16 @@ class OrchestratorConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    work_dir: Path = DEFAULT_WORK_DIR
-    max_cycles: int = Field(default=MAX_CYCLES, ge=1)
+    # Defaults defined here directly
+    work_dir: Path = Field(default=Path("work"))
+    max_cycles: int = Field(default=10, ge=1)
     continue_from_cycle: int = 0
     stop_on_failure: bool = True
 
     @field_validator("work_dir")
     @classmethod
     def check_safe_path(cls, v: Path) -> Path:
-        # Work dir must be safe
-        if ".." in v.parts:
-            msg = f"Path traversal detected in work_dir: {v}"
-            raise ValueError(msg)
+        validate_safe_path(v)
         return v
 
 

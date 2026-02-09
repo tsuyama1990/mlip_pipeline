@@ -2,7 +2,6 @@ import argparse
 import sys
 from pathlib import Path
 
-from mlip_autopipec.constants import DEFAULT_CONFIG_PATH
 from mlip_autopipec.core.orchestrator import Orchestrator
 
 
@@ -12,7 +11,7 @@ def main() -> None:
     parser.add_argument(
         "--config",
         type=Path,
-        default=DEFAULT_CONFIG_PATH,
+        default=Path("config.yaml"),
         help="Path to the configuration YAML file.",
     )
 
