@@ -1,0 +1,116 @@
+from typing import Literal, Union, Dict, Optional
+from pydantic import BaseModel, ConfigDict, Field
+from pathlib import Path
+
+from mlip_autopipec.domain_models.enums import (
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    DynamicsType,
+    ValidatorType,
+)
+
+
+class BaseConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrchestratorConfig(BaseConfig):
+    work_dir: Path
+    max_cycles: int = Field(ge=1, default=10)
+    uncertainty_threshold: float = Field(ge=0.0, default=5.0)
+
+
+# --- Generator Configs ---
+class RandomGeneratorConfig(BaseConfig):
+    type: Literal[GeneratorType.RANDOM] = GeneratorType.RANDOM
+    seed: int = 42
+
+
+class AdaptiveGeneratorConfig(BaseConfig):
+    type: Literal[GeneratorType.ADAPTIVE] = GeneratorType.ADAPTIVE
+    initial_structures_count: int = 10
+    md_ratio: float = 0.5
+
+
+GeneratorConfig = Union[RandomGeneratorConfig, AdaptiveGeneratorConfig]
+
+
+# --- Oracle Configs ---
+class MockOracleConfig(BaseConfig):
+    type: Literal[OracleType.MOCK] = OracleType.MOCK
+
+
+class DFTOracleConfig(BaseConfig):
+    type: Literal[OracleType.DFT] = OracleType.DFT
+    calculator_type: str = "espresso"
+    # Placeholder for more complex DFT settings
+    command: str = "mpirun -np 4 pw.x"
+
+
+OracleConfig = Union[MockOracleConfig, DFTOracleConfig]
+
+
+# --- Trainer Configs ---
+class MockTrainerConfig(BaseConfig):
+    type: Literal[TrainerType.MOCK] = TrainerType.MOCK
+
+
+class PacemakerTrainerConfig(BaseConfig):
+    type: Literal[TrainerType.PACEMAKER] = TrainerType.PACEMAKER
+    cutoff: float = 5.0
+    basis_size: Dict[str, int] = Field(default_factory=lambda: {"max_deg": 6, "max_body": 3})
+    physics_baseline: Optional[str] = None
+
+
+TrainerConfig = Union[MockTrainerConfig, PacemakerTrainerConfig]
+
+
+# --- Dynamics Configs ---
+class MockDynamicsConfig(BaseConfig):
+    type: Literal[DynamicsType.MOCK] = DynamicsType.MOCK
+
+
+class LAMMPSDynamicsConfig(BaseConfig):
+    type: Literal[DynamicsType.LAMMPS] = DynamicsType.LAMMPS
+    timestep: float = 0.001
+    max_workers: int = 1
+    input_filename: str = "in.lammps"
+    log_filename: str = "lammps.log"
+    driver_filename: str = "driver.py"
+
+
+class EONDynamicsConfig(BaseConfig):
+    type: Literal[DynamicsType.EON] = DynamicsType.EON
+    max_workers: int = 1
+    input_filename: str = "config.ini"
+    log_filename: str = "client.log"
+    driver_filename: str = "driver.py"
+
+
+DynamicsConfig = Union[MockDynamicsConfig, LAMMPSDynamicsConfig, EONDynamicsConfig]
+
+
+# --- Validator Configs ---
+class MockValidatorConfig(BaseConfig):
+    type: Literal[ValidatorType.MOCK] = ValidatorType.MOCK
+
+
+class StandardValidatorConfig(BaseConfig):
+    type: Literal[ValidatorType.STANDARD] = ValidatorType.STANDARD
+    phonon_displacement: float = 0.01
+    eos_strain_range: float = 0.1
+    # structure_mapping would be defined here
+
+
+ValidatorConfig = Union[MockValidatorConfig, StandardValidatorConfig]
+
+
+# --- Root Config ---
+class Config(BaseConfig):
+    orchestrator: OrchestratorConfig
+    generator: GeneratorConfig
+    oracle: OracleConfig
+    trainer: TrainerConfig
+    dynamics: DynamicsConfig
+    validator: ValidatorConfig

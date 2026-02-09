@@ -39,3 +39,14 @@ build/
 
 # Cycle 1 specific
 workflow_state.json
+
+# Additional ignores
+dist/
+site/
+.tox/
+.nox/
+.coverage
+htmlcov/
+*.log
+*.sqlite
+.ipynb_checkpoints
