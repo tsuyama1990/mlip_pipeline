@@ -161,16 +161,22 @@ class Orchestrator:
     def _enhance_structures(self, structures: Iterator[Structure]) -> Iterator[Structure]:
         """
         Enhance stream of structures with local candidates if they are halted.
+
+        Using streaming generator to avoid holding all candidates in memory.
         """
         for s in structures:
             provenance = s.tags.get("provenance", "")
             if "halt" in str(provenance).lower():
                 logger.info("Generating local candidates for halted structure")
                 # Generate local candidates (including the original)
+                # Note: generate_local_candidates returns a list, which is acceptable
+                # as n_candidates=20 is small.
                 candidates = generate_local_candidates(s, n_candidates=20)
 
                 # Use D-Optimality (MaxVol) via Trainer to select best candidates
-                # Anchor is already in candidates (first element)
+                # ActiveSetSelector selects from list in memory or file.
+                # Since candidates is small (20), in-memory selection is fine here.
+                # If n_candidates grows, we'd need to write to temp file first.
                 selected = self.trainer.select_active_set(candidates, limit=6)
 
                 yield from selected
