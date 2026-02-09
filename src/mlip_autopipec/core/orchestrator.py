@@ -8,6 +8,7 @@ from mlip_autopipec.domain_models.config import GlobalConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.factory import ComponentFactory
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -107,19 +108,29 @@ class Orchestrator:
                     / self.config.orchestrator.potential_filename
                 )
 
-                if prev_pot_path.exists():
-                    self.current_potential = Potential(path=prev_pot_path)
-                    logger.info(f"Loaded potential from {prev_pot_path}")
-                else:
-                    msg = f"Cycle {cycle}: No potential available from Cycle {prev_cycle} at {prev_pot_path}"
-                    raise RuntimeError(msg)
+                try:
+                    # Validate potential path before loading
+                    safe_prev_pot_path = validate_safe_path(prev_pot_path, must_exist=True)
+                    self.current_potential = Potential(path=safe_prev_pot_path)
+                    logger.info(f"Loaded potential from {safe_prev_pot_path}")
+                except Exception as e:
+                    msg = f"Cycle {cycle}: Failed to load potential from Cycle {prev_cycle} at {prev_pot_path}: {e}"
+                    raise RuntimeError(msg) from e
 
             # Generate start structures for dynamics (seeds)
             start_structures_iter = self.generator.generate(n_structures=n_structures)
 
+            # Convert physics_baseline to dict if present
+            physics_baseline_dict = None
+            if self.config.physics_baseline:
+                physics_baseline_dict = self.config.physics_baseline.model_dump()
+
             # Dynamics explores and yields UNCERTAIN structures
             raw_structures = self.dynamics.explore(
-                self.current_potential, start_structures_iter, workdir=cycle_dir
+                self.current_potential,
+                start_structures_iter,
+                workdir=cycle_dir,
+                physics_baseline=physics_baseline_dict,
             )
             # Enhance structures with local candidates if they are halted
             structures = self._enhance_structures(raw_structures)
@@ -153,16 +164,22 @@ class Orchestrator:
     def _enhance_structures(self, structures: Iterator[Structure]) -> Iterator[Structure]:
         """
         Enhance stream of structures with local candidates if they are halted.
+
+        Using streaming generator to avoid holding all candidates in memory.
         """
         for s in structures:
             provenance = s.tags.get("provenance", "")
             if "halt" in str(provenance).lower():
                 logger.info("Generating local candidates for halted structure")
                 # Generate local candidates (including the original)
+                # Note: generate_local_candidates returns a list, which is acceptable
+                # as n_candidates=20 is small.
                 candidates = generate_local_candidates(s, n_candidates=20)
 
                 # Use D-Optimality (MaxVol) via Trainer to select best candidates
-                # Anchor is already in candidates (first element)
+                # ActiveSetSelector selects from list in memory or file.
+                # Since candidates is small (20), in-memory selection is fine here.
+                # If n_candidates grows, we'd need to write to temp file first.
                 selected = self.trainer.select_active_set(candidates, limit=6)
 
                 yield from selected

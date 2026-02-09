@@ -2,6 +2,7 @@ import logging
 import random
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
 from mlip_autopipec.domain_models.config import MockDynamicsConfig
@@ -35,6 +36,7 @@ class MockDynamics(BaseDynamics):
         potential: Potential,
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
+        physics_baseline: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the potential energy surface starting from given structures.
@@ -43,6 +45,7 @@ class MockDynamics(BaseDynamics):
             potential: The current potential (ignored in Mock).
             start_structures: An iterable of starting structures.
             workdir: Directory to write exploration files (ignored in Mock).
+            physics_baseline: Optional physics baseline configuration (ignored in Mock).
 
         Yields:
             Structure: Selected structures with simulated uncertainty.

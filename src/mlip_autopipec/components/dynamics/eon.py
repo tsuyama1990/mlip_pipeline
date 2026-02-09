@@ -1,9 +1,11 @@
+import concurrent.futures
 import contextlib
 import logging
 import shutil
 import subprocess
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
 from ase.io import read, write
 
@@ -12,6 +14,7 @@ from mlip_autopipec.components.dynamics.otf import get_otf_check_code
 from mlip_autopipec.domain_models.config import EONDynamicsConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -22,44 +25,43 @@ class EONDriver:
     Handles input generation and execution.
     """
 
-    def __init__(self, workdir: Path, binary: str = "eon") -> None:
+    def __init__(self, workdir: Path, config: EONDynamicsConfig, binary: str = "eon") -> None:
         self.workdir = workdir
+        self.config = config
         self.binary = binary
-        self.config_file = self.workdir / "config.ini"
-        self.pos_file = self.workdir / "pos.con"
-        self.driver_script = self.workdir / "pace_driver.py"
-        self.client_log = self.workdir / "client.log"
+
+        # Use filenames from config
+        self.config_file = self.workdir / config.config_filename
+        self.pos_file = self.workdir / config.pos_filename
+        self.driver_script = self.workdir / config.driver_filename
+        self.client_log = self.workdir / config.client_log_filename
+        self.halted_structure = self.workdir / config.halted_structure_filename
 
     def write_input_files(
-        self, structure: Structure, potential: Potential, config: EONDynamicsConfig
+        self, structure: Structure, potential: Potential
     ) -> None:
         """
         Write EON input files: config.ini, pos.con, pace_driver.py.
         """
         self.workdir.mkdir(parents=True, exist_ok=True)
+        validate_safe_path(self.workdir)
 
         # 1. Write structure to pos.con
         atoms = structure.to_ase()
         try:
             write(self.pos_file, atoms, format="eon")
-        except Exception:
-            # Fallback: simple writer or xyz if format not available (but unlikely)
-            # EON format:
-            # Header line
-            # Box vectors
-            # Atom coords
-            # But ASE handles it usually.
-            # If fail, try "con"?
-            # If not, raise error.
-            logger.warning("ASE failed to write EON format, trying generic XYZ but EON needs CON.")
-            raise
+        except Exception as e:
+            # Explicitly catch and log error for data integrity
+            logger.exception(f"Failed to write EON structure file {self.pos_file}")
+            msg = f"Failed to write EON structure: {e}"
+            raise RuntimeError(msg) from e
 
         # 2. Write config.ini
         # Minimal EON config for KMC
         config_content = f"""[Main]
 job = parallel_replica
-temperature = {config.temperature}
-random_seed = {config.seed if config.seed is not None else 0}
+temperature = {self.config.temperature}
+random_seed = {self.config.seed if self.config.seed is not None else 0}
 
 [Potentials]
 potential = script_potential
@@ -68,20 +70,23 @@ potential = script_potential
 script = python {self.driver_script.name}
 
 [Parallel Replica]
-time_step = {config.time_step}
+time_step = {self.config.time_step}
 # EON uses prefactor?
-prefactor = {config.prefactor:.1e}
-max_events = {config.n_events}
+prefactor = {self.config.prefactor:.1e}
+max_events = {self.config.n_events}
 """
         self.config_file.write_text(config_content)
 
         # 3. Generate pace_driver.py
-        # This script must implement EON's script potential interface.
-        # We need to import the calculator.
-        # Assuming `pyjulip` or `tensorpot` or `lammpslib` is used.
+        # Validate potential path
+        potential_path = validate_safe_path(potential.path, must_exist=True)
 
         # Also include OTF logic.
         otf_code = get_otf_check_code()
+
+        # Use config for filenames in script too
+        pos_filename = self.config.pos_filename
+        halted_filename = self.config.halted_structure_filename
 
         driver_content = f"""#!/usr/bin/env python3
 import sys
@@ -118,9 +123,9 @@ def get_calculator(pot_path):
 {otf_code}
 
 def main():
-    pot_path = "{potential.path}"
+    pot_path = "{potential_path}"
     calc = get_calculator(pot_path)
-    threshold = {config.uncertainty_threshold}
+    threshold = {self.config.uncertainty_threshold}
 
     # EON Script Potential Interface loop
     # EON sends commands via stdin
@@ -141,20 +146,20 @@ def main():
 
             elif cmd.startswith("energy") or cmd.startswith("forces"):
                 # EON "script" potential typically expects us to read coordinates
-                # from a file or stdin. We'll assume 'pos.con' is updated by EON client.
+                # from a file or stdin. We'll assume '{pos_filename}' is updated by EON client.
                 try:
-                    atoms = read("pos.con", format="eon")
+                    atoms = read("{pos_filename}", format="eon")
                 except Exception:
                     # Fallback to stdin reading if EON pipes it (simplified)
                     # For now, stick to file assumption which is safer for ASE
-                    atoms = read("pos.con")
+                    atoms = read("{pos_filename}")
 
                 atoms.calc = calc
 
                 # Check Uncertainty (OTF)
                 if check_uncertainty(atoms, threshold):
                     # We write the structure so the Orchestrator can pick it up
-                    write("halted_structure.xyz", atoms)
+                    write("{halted_filename}", atoms)
                     sys.stderr.write("Halt: Uncertainty limit reached\\n")
                     sys.exit(100) # Special exit code for Orchestrator to detect
 
@@ -206,6 +211,71 @@ if __name__ == "__main__":
             raise
 
 
+def _run_single_eon_simulation(
+    idx: int,
+    structure: Structure,
+    potential: Potential,
+    config: EONDynamicsConfig,
+    base_workdir: Path,
+    physics_baseline: dict[str, Any] | None,
+) -> Structure | None:
+    """
+    Run a single EON simulation in a separate process.
+    Cleans up run directory unless execution fails or halted structure found.
+    """
+    # Create run directory
+    run_dir = base_workdir / f"eon_run_{idx:05d}"
+    driver = EONDriver(workdir=run_dir, config=config)
+
+    try:
+        driver.write_input_files(structure, potential)
+
+        # Run EON
+        with contextlib.suppress(Exception):
+            driver.run_kmc()
+
+        # Check result
+        if not driver.halted_structure.exists():
+            # Cleanup if successful but no halt (finished normally)
+            # Or if crashed without halt file.
+            # We cleanup to save disk space for massive runs.
+            # Only keep if halted (interesting) or debug logging is needed?
+            # Audit requirement: minimize disk usage.
+            shutil.rmtree(run_dir, ignore_errors=True)
+            return None
+
+        # If halted structure exists, we keep the dir for now?
+        # Or just read it and then delete?
+        # Ideally we read it and delete if we don't need artifacts.
+        # But artifacts might be useful for debugging 'why halt'.
+        # Let's clean up unless configured otherwise?
+        # For safety/audit compliance, let's keep interesting ones but delete uninteresting.
+
+        try:
+            atoms_obj = read(driver.halted_structure)
+            atoms = atoms_obj[-1] if isinstance(atoms_obj, list) else atoms_obj
+            struct = Structure.from_ase(atoms)
+            struct.uncertainty = 100.0
+            struct.tags["provenance"] = "dynamics_halted_eon"
+
+            # Found interesting structure, we might want to keep files?
+            # Or just return structure.
+            # If we delete, we lose context.
+            # But Scalability says minimize disk usage.
+            # Let's delete after reading.
+            shutil.rmtree(run_dir, ignore_errors=True)
+            return struct
+        except Exception:
+            logger.exception(f"Failed to read halted structure from EON run {idx}")
+            return None
+
+    except Exception:
+        logger.exception(f"EON run failed for structure {idx}")
+        # Keep dir for debugging failed runs? Or delete?
+        # Let's keep failed runs for debugging, but delete successful empty ones.
+        return None
+
+
 class EONDynamics(BaseDynamics):
     """
     EON implementation of the Dynamics component.
@@ -224,47 +294,35 @@ class EONDynamics(BaseDynamics):
         potential: Potential,
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
+        physics_baseline: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the PES using EON KMC simulations.
         """
         base_workdir = workdir or Path.cwd()
+        max_workers = self.config.max_workers
 
-        for idx, structure in enumerate(start_structures):
-            run_dir = base_workdir / f"eon_run_{idx:05d}"
-            driver = EONDriver(workdir=run_dir)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for idx, structure in enumerate(start_structures):
+                future = executor.submit(
+                    _run_single_eon_simulation,
+                    idx,
+                    structure,
+                    potential,
+                    self.config,
+                    base_workdir,
+                    physics_baseline,
+                )
+                futures.append(future)
 
-            try:
-                driver.write_input_files(structure, potential, self.config)
-                # We assume run_kmc handles execution.
-                # EON usually runs for a long time.
-                # If it halts due to OTF (exit code from driver?), we detect it.
-
-                # For now, just run it.
-                with contextlib.suppress(Exception):
-                    driver.run_kmc()
-                    # EON might fail if OTF driver exits with error.
-                    # This is expected behavior for OTF halt.
-
-                # Check for halted structure
-                halted_path = driver.workdir / "halted_structure.xyz"
-                if halted_path.exists():
-                    try:
-                        atoms_obj = read(halted_path)
-                        # Ensure single Atoms object
-                        atoms = atoms_obj[-1] if isinstance(atoms_obj, list) else atoms_obj
-
-                        # Ensure atomic numbers are correct (XYZ usually has symbols)
-                        struct = Structure.from_ase(atoms)
-                        struct.uncertainty = 100.0
-                        struct.tags["provenance"] = "dynamics_halted_eon"
-                        yield struct
-                    except Exception as e:
-                        logger.exception(f"Failed to read halted structure from EON run {idx}: {e}") # noqa: TRY401
-
-            except Exception:
-                logger.exception(f"EON setup failed for structure {idx}")
-                continue
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        yield result
+                except Exception:
+                    logger.exception("Simulation task failed")
 
     def __repr__(self) -> str:
         return f"<EONDynamics(name={self.name}, config={self.config})>"

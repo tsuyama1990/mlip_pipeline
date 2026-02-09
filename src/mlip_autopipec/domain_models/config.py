@@ -5,6 +5,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.constants import (
     DEFAULT_BUFFER_SIZE,
+    LAMMPS_TEMPLATE_ATOM_STYLE,
+    LAMMPS_TEMPLATE_BOUNDARY,
+    LAMMPS_TEMPLATE_DUMP,
+    LAMMPS_TEMPLATE_FIX_NVE,
+    LAMMPS_TEMPLATE_UNITS,
+    LAMMPS_TEMPLATE_VELOCITY,
 )
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
@@ -199,6 +205,7 @@ TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig
 
 class BaseDynamicsConfig(ComponentConfig):
     uncertainty_threshold: float = 5.0
+    max_workers: int = Field(default=1, ge=1)
 
 
 class MockDynamicsConfig(BaseDynamicsConfig):
@@ -216,6 +223,21 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
     pressure: float = 0.0
     thermo_freq: int = 100
 
+    # File names
+    input_filename: str = "in.lammps"
+    data_filename: str = "data.lammps"
+    log_filename: str = "log.lammps"
+    dump_filename: str = "dump.lammps"
+
+    # Command Templates
+    # Default values loaded from constants
+    template_units: str = LAMMPS_TEMPLATE_UNITS
+    template_atom_style: str = LAMMPS_TEMPLATE_ATOM_STYLE
+    template_boundary: str = LAMMPS_TEMPLATE_BOUNDARY
+    template_velocity: str = LAMMPS_TEMPLATE_VELOCITY
+    template_fix_nve: str = LAMMPS_TEMPLATE_FIX_NVE
+    template_dump: str = LAMMPS_TEMPLATE_DUMP
+
 
 class EONDynamicsConfig(BaseDynamicsConfig):
     name: Literal[DynamicsType.EON] = DynamicsType.EON
@@ -229,6 +251,13 @@ class EONDynamicsConfig(BaseDynamicsConfig):
     # EON specific params
     prefactor: float = 1e12
     seed: int | None = None
+
+    # File names
+    config_filename: str = "config.ini"
+    pos_filename: str = "pos.con"
+    driver_filename: str = "pace_driver.py"
+    client_log_filename: str = "client.log"
+    halted_structure_filename: str = "halted_structure.xyz"
 
 
 DynamicsConfig = MockDynamicsConfig | LAMMPSDynamicsConfig | EONDynamicsConfig
