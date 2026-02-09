@@ -1,0 +1,15 @@
+dynamics:
+  type: mock
+generator:
+  seed: 42
+  type: random
+oracle:
+  type: mock
+orchestrator:
+  max_cycles: 1
+  uncertainty_threshold: 5.0
+  work_dir: uat_workspace
+trainer:
+  type: mock
+validator:
+  type: mock

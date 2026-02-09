@@ -4,128 +4,91 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**PyAceMaker** is a comprehensive, automated system designed to democratize the creation of Machine Learning Interatomic Potentials (MLIPs). Leveraging the power of the **Pacemaker** (Atomic Cluster Expansion) engine, it enables researchers to go from a simple chemical composition to a "State-of-the-Art" potential with zero manual configuration.
+**PyAceMaker** is a comprehensive, automated system designed to democratize the creation of Machine Learning Interatomic Potentials (MLIPs).
 
-Bridging the gap between high-accuracy DFT and large-scale MD, PyAceMaker automates the tedious cycle of structure generation, labeling, training, and validation, ensuring both data efficiency and physical robustness.
+## Overview
 
-## 🚀 Key Features
+### What is PyAceMaker?
+PyAceMaker (MLIP AutoPipeline) is an orchestration framework that automates the entire lifecycle of developing atomic cluster expansion (ACE) potentials. From initial random structure generation to active learning loops involving molecular dynamics and DFT calculations.
 
-*   **Zero-Config Workflow**: Define your material system in a single YAML file and let the Orchestrator handle the rest.
-*   **Active Learning Loop**: Intelligently samples the configuration space using uncertainty quantification ($\gamma$), minimizing expensive DFT calculations.
-*   **Physics-Informed Robustness**: Implements "Delta Learning" with a physical baseline (ZBL/LJ) to ensure stability in high-energy regimes and prevent simulation crashes.
-*   **Time-Scale Bridging**: Seamlessly integrates Molecular Dynamics (LAMMPS) for fast kinetics and Adaptive Kinetic Monte Carlo (EON) for rare events like diffusion and ordering.
-*   **Automated Validation**: Rigorous quality assurance with built-in phonon dispersion, elastic constant, and EOS calculations.
+### Why use it?
+Building MLIPs traditionally requires manual hand-holding of DFT calculations, fitting procedures, and validation steps. PyAceMaker provides a "Zero-Config" workflow where a single YAML file drives the entire process, ensuring reproducibility and efficiency.
 
-## 🏗️ Architecture Overview
+## Features
 
-PyAceMaker follows a modular, orchestrator-based architecture. A central "Brain" coordinates specialized agents for exploration, labeling, training, and execution.
+*   **Core Orchestrator**: Centralized management of the active learning loop.
+*   **Schema-First Configuration**: Strict validation of configuration files using Pydantic V2.
+*   **Modular Architecture**: Extensible components for Generator, Oracle, Trainer, Dynamics, and Validator.
+*   **Logging System**: Comprehensive logging to both console and file for audit trails.
+*   **Mock Components**: Built-in mock implementations for testing the pipeline flow without external dependencies (DFT/LAMMPS).
 
-```mermaid
-graph TD
-    User[User Config YAML] --> Orch[Orchestrator]
-
-    subgraph "Active Learning Loop"
-        Orch -->|1. Explore| Dyn[Dynamics Engine<br/>(LAMMPS / EON)]
-        Dyn -->|Stream Structures| Gen[Structure Generator<br/>(Adaptive Policy)]
-        Gen -->|2. Generate Candidates| Cand[Candidate Pool]
-
-        Cand -->|3. Select (D-Opt)| Select[Active Set Selector]
-        Select -->|Selected Structures| Oracle[Oracle<br/>(QE / VASP)]
-
-        Oracle -->|4. Compute Labels| Data[Labeled Dataset]
-
-        Data -->|5. Train| Trainer[Trainer<br/>(Pacemaker)]
-        Trainer -->|New Potential| Dyn
-    end
-
-    Trainer -->|Final Potential| Val[Validator]
-    Val -->|Report| Report[HTML Report]
-```
-
-## 🛠️ Prerequisites
+## Requirements
 
 *   **Python 3.12+**
-*   **uv** (Recommended for dependency management)
-*   **LAMMPS** (compiled with `PACE` package)
-*   **Quantum Espresso** (`pw.x`) or **VASP**
-*   **Pacemaker** (`pace_train`, `pace_activeset`)
+*   **uv** (recommended) or pip
 
-## 📦 Installation & Setup
+## Installation
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/your-org/pyacemaker.git
-    cd pyacemaker
-    ```
-
-2.  **Install dependencies**:
-    ```bash
-    uv sync
-    ```
-
-3.  **Environment Setup**:
-    Copy the example environment file and configure your paths.
-    ```bash
-    cp .env.example .env
-    # Edit .env to point to your LAMMPS and QE executables
-    ```
-
-## ⚡ Usage
-
-### Quick Start
-To train a potential for the Fe-Pt system on MgO:
-
-1.  **Prepare Configuration**:
-    Edit `config.yaml` to specify your target system.
-    ```yaml
-    project_name: "FePt_MgO"
-    generator:
-      type: "adaptive"
-      composition: "FePt"
-    oracle:
-      type: "qe"
-      command: "mpirun -np 4 pw.x"
-    ```
-
-2.  **Run the Pipeline**:
-    ```bash
-    uv run python main.py --config config.yaml
-    ```
-
-3.  **Monitor Progress**:
-    The system will log its progress to `mlip_pipeline.log`. You can watch the active learning loop in real-time.
-
-## 💻 Development Workflow
-
-We follow a strict 8-cycle development plan.
-
-*   **Running Tests**:
-    ```bash
-    uv run pytest
-    ```
-*   **Linting**:
-    ```bash
-    uv run ruff check .
-    uv run mypy .
-    ```
-
-## 📂 Project Structure
-
-```ascii
-src/mlip_pipeline/
-├── core/               # Orchestrator, Config, Logging
-├── components/         # Pluggable Modules
-│   ├── generators/     # Structure Generation
-│   ├── oracles/        # DFT Interface
-│   ├── trainers/       # Pacemaker Interface
-│   ├── dynamics/       # LAMMPS/EON Interface
-│   └── validators/     # Physics Validation
-└── domain_models/      # Pydantic Data Models
-dev_documents/          # Specs and Documentation
-tests/                  # Unit and Integration Tests
-tutorials/              # Jupyter Notebooks
+```bash
+git clone https://github.com/your-org/pyacemaker.git
+cd pyacemaker
+uv sync
 ```
 
-## 📄 License
+## Usage
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Basic Execution
+
+To run the pipeline with a configuration file:
+
+```bash
+uv run python src/mlip_autopipec/main.py config.yaml
+```
+
+### Configuration Example (`config.yaml`)
+
+```yaml
+orchestrator:
+  work_dir: "./my_experiment"
+  max_cycles: 5
+  uncertainty_threshold: 5.0
+
+generator:
+  type: "random"
+  seed: 42
+
+oracle:
+  type: "mock"
+
+trainer:
+  type: "mock"
+
+dynamics:
+  type: "mock"
+
+validator:
+  type: "mock"
+```
+
+## Architecture
+
+The project is structured as follows:
+
+```ascii
+src/mlip_autopipec/
+├── components/       # Abstract Base Classes and Mock implementations
+├── core/             # Orchestrator and Logging logic
+├── domain_models/    # Pydantic Configuration Schemas
+├── constants.py      # System-wide constants
+└── main.py           # CLI Entry Point
+```
+
+## Roadmap
+
+*   **Cycle 02**: Structure Generator (Adaptive & Random)
+*   **Cycle 03**: Oracle (DFT with Quantum Espresso)
+*   **Cycle 04**: Trainer (Pacemaker Integration)
+*   **Cycle 05**: Dynamics (LAMMPS Integration)
+*   **Cycle 06**: Active Learning Loop (OTF)
+*   **Cycle 07**: Advanced Dynamics (EON/kMC)
+*   **Cycle 08**: Validator (Phonons, EOS, Elasticity)
