@@ -51,6 +51,16 @@ class LAMMPSDriver:
         validate_safe_path(self.workdir)
 
         # 1. Write structure to data.lammps
+        # Security: Validate structure positions/cell before writing
+        # Although Structure model validates on init, we double check here
+        # to ensure data integrity before writing to disk.
+        if not structure.positions.shape[0] > 0:
+            msg = "Structure has no atoms"
+            raise ValueError(msg)
+        if structure.cell.shape != (3, 3):
+            msg = "Structure cell is invalid"
+            raise ValueError(msg)
+
         atoms = structure.to_ase()
         write(self.data_file, atoms, format="lammps-data")
 
@@ -70,12 +80,18 @@ class LAMMPSDriver:
         potential_path = validate_safe_path(potential.path, must_exist=True)
 
         # 4. Write in.lammps
-        # Basic NVT/NVE setup
-        # Note: We use f-strings but values are typed from config which is validated by Pydantic.
+        # Basic NVT/NVE setup using configuration templates
+        # Default templates are in the config model, but can be overridden.
+
+        velocity_cmd = self.config.template_velocity.format(temperature=self.config.temperature)
+        dump_cmd = self.config.template_dump.format(
+            thermo_freq=self.config.thermo_freq, dump_filename=self.dump_file.name
+        )
+
         input_content = f"""
-units           metal
-atom_style      atomic
-boundary        p p p
+{self.config.template_units}
+{self.config.template_atom_style}
+{self.config.template_boundary}
 
 read_data       {self.data_file.name}
 
@@ -88,7 +104,6 @@ timestep        {self.config.timestep}
 thermo          {self.config.thermo_freq}
 
 # OTF Monitoring (Compute and Variables)
-# compute pace_gamma all pace {potential.path} {species_str}
 compute         pace_gamma all pace {potential_path} {species_str}
 variable        max_gamma equal max(c_pace_gamma)
 
@@ -98,11 +113,10 @@ thermo_style    custom step temp pe etotal press v_max_gamma
 {otf_monitor_block}
 
 # Run
-velocity        all create {self.config.temperature} 12345 dist gaussian
-fix             1 all nve
-# fix             1 all nvt temp {self.config.temperature} {self.config.temperature} $(100.0*dt)
+{velocity_cmd}
+{self.config.template_fix_nve}
 
-dump            1 all custom {self.config.thermo_freq} {self.dump_file.name} id type x y z fx fy fz
+{dump_cmd}
 
 run             {self.config.n_steps}
 """

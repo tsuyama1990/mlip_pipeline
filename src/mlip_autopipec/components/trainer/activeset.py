@@ -62,6 +62,10 @@ class ActiveSetSelector:
 
         is_trusted = any(str(resolved_path).startswith(str(d)) for d in trusted_dirs)
 
+        # Additional check: If in home directory, ensure it's in .local/bin (already in trusted_dirs)
+        # or a hidden directory to avoid accidental execution of files in ~/Documents etc.
+        # But trusted_dirs handles the positive case. We just need to ensure if it's NOT trusted, it fails.
+
         # If explicitly configured via ENV, allow untrusted paths with warning
         is_explicitly_configured = "PACE_ACTIVESET_BIN" in os.environ
 

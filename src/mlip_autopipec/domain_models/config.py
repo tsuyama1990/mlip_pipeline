@@ -223,6 +223,17 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
     log_filename: str = "log.lammps"
     dump_filename: str = "dump.lammps"
 
+    # Command Templates
+    # Default values matching what was hardcoded
+    template_units: str = "units           metal"
+    template_atom_style: str = "atom_style      atomic"
+    template_boundary: str = "boundary        p p p"
+    template_velocity: str = "velocity        all create {temperature} 12345 dist gaussian"
+    template_fix_nve: str = "fix             1 all nve"
+    template_dump: str = (
+        "dump            1 all custom {thermo_freq} {dump_filename} id type x y z fx fy fz"
+    )
+
 
 class EONDynamicsConfig(BaseDynamicsConfig):
     name: Literal[DynamicsType.EON] = DynamicsType.EON

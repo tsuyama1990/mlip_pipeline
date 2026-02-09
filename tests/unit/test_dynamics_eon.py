@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -74,10 +75,36 @@ def test_eon_dynamics_explore(
     potential: Potential,
     config: EONDynamicsConfig,
 ) -> None:
-    # Need to mock ProcessPoolExecutor to run synchronously or mock return
-    # Since EONDynamics now uses ProcessPoolExecutor, patching Driver directly won't work easily if spawned
-    # But for unit test, we can patch _run_single_eon_simulation or executor
+    # Use context manager for Executor mocking
+    with patch("concurrent.futures.ProcessPoolExecutor") as mock_executor_cls:
+        mock_executor = mock_executor_cls.return_value
+        mock_executor.__enter__.return_value = mock_executor
+        mock_executor.__exit__.return_value = None
 
-    pass
-    # Skipping deep concurrency test for EON here to save time and focus on static analysis fix
-    # Assuming similar test logic as LAMMPS covers the pattern
+        mock_future = MagicMock()
+
+        # Prepare result structure
+        mock_struct = structure.model_deep_copy()
+        mock_struct.uncertainty = 100.0
+        mock_struct.tags["provenance"] = "dynamics_halted_eon"
+
+        mock_future.result.return_value = mock_struct
+
+        # as_completed yields futures
+        def side_effect_as_completed(fs: list[Any]) -> list[Any]:
+            return fs
+
+        with patch("concurrent.futures.as_completed", side_effect=side_effect_as_completed):
+            mock_executor.submit.return_value = mock_future
+
+            dynamics = EONDynamics(config)
+
+            results = list(dynamics.explore(potential, [structure], workdir=tmp_path))
+
+            assert len(results) == 1
+            assert results[0].uncertainty == 100.0
+            assert results[0].tags["provenance"] == "dynamics_halted_eon"
+
+            # Verify internal calls via executor submission
+            assert mock_executor.submit.call_count == 1
+            mock_executor_cls.assert_called_with(max_workers=1)
