@@ -2,6 +2,7 @@ from typing import Literal, Union, Dict, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pathlib import Path
 from enum import StrEnum
+import shlex
 
 from mlip_autopipec.domain_models.enums import (
     GeneratorType,
@@ -9,6 +10,13 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     DynamicsType,
     ValidatorType,
+)
+from mlip_autopipec.constants import (
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_EON_TIME_STEP,
+    DEFAULT_LAMMPS_INPUT,
+    DEFAULT_LAMMPS_LOG,
+    DEFAULT_LAMMPS_DRIVER,
 )
 
 # Constants for validation
@@ -30,10 +38,22 @@ class OrchestratorConfig(BaseConfig):
 
     @field_validator("work_dir")
     def validate_work_dir(cls, v: Path) -> Path:
-        # Basic path safety check
-        if ".." in str(v):
-            raise ValueError("Path traversal (..) not allowed in work_dir")
-        return v
+        # Prevent traversal and ensure path is safe
+        try:
+            # We want to allow creating new directories, so we check the parent if it exists
+            # Or just check for ".." traversal relative to current
+            # A strict check: resolve() throws if not exists on some platforms/versions,
+            # but usually it's fine for non-existent paths on modern Pythons (>=3.6).
+            # However, resolve() resolves symlinks.
+            # Let's check for ".." in parts
+            if ".." in v.parts:
+                 raise ValueError("Path traversal (..) not allowed in work_dir")
+
+            # If path exists, check if it resolves to a sensitive system dir?
+            # For now, ".." check is the primary defense against relative traversal.
+            return v
+        except Exception as e:
+            raise ValueError(f"Invalid work_dir: {e}")
 
 # --- Generator Configs ---
 class RandomGeneratorConfig(BaseConfig):
@@ -55,14 +75,27 @@ class DFTOracleConfig(BaseConfig):
     type: Literal[OracleType.DFT] = OracleType.DFT
     calculator_type: CalculatorType = CalculatorType.ESPRESSO
     command: str = "mpirun -np 4 pw.x"
+    batch_size: int = Field(ge=1, default=DEFAULT_BUFFER_SIZE)
 
     @field_validator("command")
     def validate_command(cls, v: str) -> str:
-        # Basic shell injection prevention
-        forbidden_chars = [";", "&&", "||", "`", "$("]
-        if any(char in v for char in forbidden_chars):
-            raise ValueError("Command contains potentially unsafe shell characters")
-        return v
+        # Sanitization: Ensure command is parseable by shlex and doesn't contain chaining
+        try:
+            tokens = shlex.split(v)
+            if not tokens:
+                raise ValueError("Command cannot be empty")
+
+            # Check for dangerous operators that shlex handles but are risky in shell=True
+            # If we assume shell=False (recommended), we just need arguments.
+            # But the user might expect shell features.
+            # Strictly forbidding chaining operators:
+            forbidden_operators = [";", "&&", "||", "|", "&", ">", "<", "`", "$("]
+            if any(op in v for op in forbidden_operators):
+                 raise ValueError(f"Command contains forbidden shell operators: {forbidden_operators}")
+
+            return v
+        except ValueError as e:
+            raise ValueError(f"Invalid command format: {e}")
 
 OracleConfig = Union[MockOracleConfig, DFTOracleConfig]
 
@@ -86,9 +119,9 @@ class LAMMPSDynamicsConfig(BaseConfig):
     type: Literal[DynamicsType.LAMMPS] = DynamicsType.LAMMPS
     timestep: float = Field(gt=0.0, default=0.001)
     max_workers: int = Field(ge=1, default=1)
-    input_filename: str = "in.lammps"
-    log_filename: str = "lammps.log"
-    driver_filename: str = "driver.py"
+    input_filename: str = DEFAULT_LAMMPS_INPUT
+    log_filename: str = DEFAULT_LAMMPS_LOG
+    driver_filename: str = DEFAULT_LAMMPS_DRIVER
 
 class EONDynamicsConfig(BaseConfig):
     type: Literal[DynamicsType.EON] = DynamicsType.EON
@@ -96,6 +129,7 @@ class EONDynamicsConfig(BaseConfig):
     input_filename: str = "config.ini"
     log_filename: str = "client.log"
     driver_filename: str = "driver.py"
+    time_step: float = Field(gt=0.0, default=DEFAULT_EON_TIME_STEP)
 
 DynamicsConfig = Union[MockDynamicsConfig, LAMMPSDynamicsConfig, EONDynamicsConfig]
 

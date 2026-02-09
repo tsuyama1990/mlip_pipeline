@@ -88,7 +88,8 @@ def test_dft_oracle_command_validation():
             type=OracleType.DFT,
             command="rm -rf /; echo hello"
         )
-    assert "Command contains potentially unsafe shell characters" in str(excinfo.value)
+    # The error message changed in the implementation, update the assertion
+    assert "forbidden shell operators" in str(excinfo.value)
 
 
 def test_work_dir_traversal_validation():

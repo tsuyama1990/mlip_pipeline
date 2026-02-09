@@ -13,6 +13,7 @@ from mlip_autopipec.components.base import (
 from mlip_autopipec.components.mock import (
     MockGenerator, MockOracle, MockTrainer, MockDynamics, MockValidator
 )
+from mlip_autopipec.domain_models.datastructures import StreamingDataset
 
 # Constants
 MAX_CONFIG_SIZE = 1024 * 1024  # 1MB limit
@@ -169,13 +170,28 @@ class Orchestrator:
         """
         logging.info("Starting Active Learning Cycle...")
         try:
-            # Cycle 01 Logic (Mock)
-            # In future:
-            # 1. Generate
-            # 2. Compute
-            # 3. Train
-            # 4. Explore
-            # 5. Validate
+            # Cycle 01 Logic (Basic Loop)
+            # 1. Generate Structures (Stream)
+            structures = self.generator.generate(10)
+
+            # 2. Compute (Stream)
+            labeled_structures = self.oracle.compute_batch(structures)
+
+            # 3. Store in Dataset
+            dataset_path = self.work_dir / "data" / "initial_train.jsonl"
+            dataset = StreamingDataset(dataset_path, mode="w")
+            for s in labeled_structures:
+                dataset.append(s)
+
+            logging.info(f"Dataset created with {len(dataset)} structures.")
+
+            # 4. Train
+            potential = self.trainer.train(dataset)
+            logging.info(f"Potential trained: {potential}")
+
+            # 5. Explore & Validate (Placeholder)
+            # In future cycles, explore() will generate new structures for the next cycle
+
             logging.info("Cycle completed (Mock).")
         except Exception as e:
             logging.error(f"Cycle failed: {e}", exc_info=True)
