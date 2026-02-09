@@ -17,6 +17,7 @@ from mlip_autopipec.constants import (
     DEFAULT_LAMMPS_INPUT,
     DEFAULT_LAMMPS_LOG,
     DEFAULT_LAMMPS_DRIVER,
+    EXT_POTENTIAL,
 )
 
 # Constants for validation
@@ -40,17 +41,19 @@ class OrchestratorConfig(BaseConfig):
     def validate_work_dir(cls, v: Path) -> Path:
         # Prevent traversal and ensure path is safe
         try:
-            # We want to allow creating new directories, so we check the parent if it exists
-            # Or just check for ".." traversal relative to current
-            # A strict check: resolve() throws if not exists on some platforms/versions,
-            # but usually it's fine for non-existent paths on modern Pythons (>=3.6).
-            # However, resolve() resolves symlinks.
-            # Let's check for ".." in parts
+            # Resolve absolute path (note: in Python <3.10 this might fail if file doesn't exist on Windows,
+            # but usually fine on Linux. We only care about logical traversal here).
+            # We strictly forbid ".." in the resolved parts relative to CWD if relative,
+            # or just any ".." in parts.
+
+            # Security: Prevent root directory usage
+            if v == Path("/"):
+                raise ValueError("Cannot use root directory as work_dir")
+
+            # Check for ".." in components to avoid traversal
             if ".." in v.parts:
                  raise ValueError("Path traversal (..) not allowed in work_dir")
 
-            # If path exists, check if it resolves to a sensitive system dir?
-            # For now, ".." check is the primary defense against relative traversal.
             return v
         except Exception as e:
             raise ValueError(f"Invalid work_dir: {e}")
@@ -79,16 +82,13 @@ class DFTOracleConfig(BaseConfig):
 
     @field_validator("command")
     def validate_command(cls, v: str) -> str:
-        # Sanitization: Ensure command is parseable by shlex and doesn't contain chaining
+        # Sanitization: Ensure command is parseable by shlex
         try:
             tokens = shlex.split(v)
             if not tokens:
                 raise ValueError("Command cannot be empty")
 
-            # Check for dangerous operators that shlex handles but are risky in shell=True
-            # If we assume shell=False (recommended), we just need arguments.
-            # But the user might expect shell features.
-            # Strictly forbidding chaining operators:
+            # Check for dangerous operators
             forbidden_operators = [";", "&&", "||", "|", "&", ">", "<", "`", "$("]
             if any(op in v for op in forbidden_operators):
                  raise ValueError(f"Command contains forbidden shell operators: {forbidden_operators}")
@@ -108,6 +108,7 @@ class PacemakerTrainerConfig(BaseConfig):
     cutoff: float = Field(gt=0.0, default=5.0)
     basis_size: Dict[str, int] = Field(default_factory=lambda: {"max_deg": 6, "max_body": 3})
     physics_baseline: Optional[str] = None
+    potential_extension: str = EXT_POTENTIAL
 
 TrainerConfig = Union[MockTrainerConfig, PacemakerTrainerConfig]
 

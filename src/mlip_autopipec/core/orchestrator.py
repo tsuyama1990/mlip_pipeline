@@ -183,7 +183,8 @@ class Orchestrator:
             for s in labeled_structures:
                 dataset.append(s)
 
-            logging.info(f"Dataset created with {len(dataset)} structures.")
+            # Use .count() instead of len() because len() is removed from interface to discourage greedy loading
+            logging.info(f"Dataset created with {dataset.count()} structures.")
 
             # 4. Train
             potential = self.trainer.train(dataset)

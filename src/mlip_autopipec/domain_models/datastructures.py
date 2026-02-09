@@ -3,7 +3,6 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 import json
 
-# Minimal Structure model for now, to be expanded in Cycle 02
 class Structure:
     """
     Represents an atomic structure.
@@ -14,7 +13,6 @@ class Structure:
         self.data = data
 
     def to_dict(self) -> dict:
-        # Placeholder serialization
         return {"data": self.data}
 
     @classmethod
@@ -33,10 +31,7 @@ class Dataset(ABC):
         """Iterate over structures in the dataset."""
         pass
 
-    @abstractmethod
-    def __len__(self) -> int:
-        """Return the number of structures in the dataset."""
-        pass
+    # Removed __len__ from interface to strictly enforce streaming/lazy behavior
 
     @abstractmethod
     def append(self, structure: Structure) -> None:
@@ -61,14 +56,12 @@ class StreamingDataset(Dataset):
                 if line.strip():
                     yield Structure.from_dict(json.loads(line))
 
-    def __len__(self) -> int:
-        # Note: counting lines requires reading the file, but still memory efficient
-        count = 0
-        with open(self.filepath, "r") as f:
-            for _ in f:
-                count += 1
-        return count
-
     def append(self, structure: Structure) -> None:
         with open(self.filepath, "a") as f:
             f.write(json.dumps(structure.to_dict()) + "\n")
+
+    def count(self) -> int:
+        """Efficiently count items without loading them."""
+        # Use a generator to count lines without loading content
+        with open(self.filepath, "r") as f:
+            return sum(1 for _ in f)

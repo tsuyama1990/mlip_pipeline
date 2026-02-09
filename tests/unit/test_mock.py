@@ -2,10 +2,8 @@ from mlip_autopipec.components.mock import (
     MockGenerator, MockOracle, MockTrainer, MockDynamics, MockValidator, MockStructure
 )
 from mlip_autopipec.domain_models.config import BaseConfig
-from mlip_autopipec.domain_models.datastructures import StreamingDataset, Structure
-from pathlib import Path
+from mlip_autopipec.domain_models.datastructures import StreamingDataset
 import pytest
-import shutil
 
 class InMemoryDataset(StreamingDataset):
     """Mock dataset for testing that behaves like StreamingDataset but uses memory/temp file."""
