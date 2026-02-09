@@ -37,8 +37,6 @@ class Orchestrator:
             self.config.orchestrator.work_dir.mkdir(parents=True, exist_ok=True)
 
             # Setup Logging
-            # We use a unique name or ensure we clean up to avoid collision in tests
-            # But normally "Orchestrator" is fine for a single run.
             self.logger = setup_logging(
                 name="Orchestrator",
                 log_file=self.config.orchestrator.work_dir / "pipeline.log",
@@ -84,41 +82,51 @@ class Orchestrator:
             for cycle in range(self.config.orchestrator.max_cycles):
                 self.logger.info(f"--- Starting Cycle {cycle + 1} ---")
 
-                # 1. Generation
-                self.logger.info("Generating structures...")
-                structures_iter = self.generator.generate(self.config.generator.n_structures)
+                try:
+                    # 1. Generation
+                    self.logger.info("Generating structures...")
+                    structures_iter = self.generator.generate(self.config.generator.n_structures)
 
-                # 2. Oracle Calculation
-                self.logger.info("Running Oracle calculations...")
-                # Note: In a real scenario, we might need to batch this or handle lazily
-                # Here we pass the iterator directly
-                dataset_iter = self.oracle.compute(structures_iter)
+                    # 2. Oracle Calculation
+                    self.logger.info("Running Oracle calculations...")
+                    # Note: In a real scenario, we might need to batch this or handle lazily
+                    # Here we pass the iterator directly. The downstream component decides how to consume.
+                    dataset_iter = self.oracle.compute(structures_iter)
 
-                # 3. Training
-                self.logger.info("Training potential...")
-                potential = self.trainer.train(dataset_iter, previous_potential=potential)
-                self.logger.info(f"Potential trained: {potential.version}")
+                    # 3. Training
+                    self.logger.info("Training potential...")
+                    potential = self.trainer.train(dataset_iter, previous_potential=potential)
+                    self.logger.info(f"Potential trained: {potential.version}")
 
-                # 4. Dynamics Exploration
-                self.logger.info("Running Dynamics exploration...")
-                exploration_result = self.dynamics.explore(potential)
-                self.logger.info(f"Exploration complete. Halts: {exploration_result.halt_count}")
+                    # 4. Dynamics Exploration
+                    self.logger.info("Running Dynamics exploration...")
+                    exploration_result = self.dynamics.explore(potential)
+                    self.logger.info(
+                        f"Exploration complete. Halts: {exploration_result.halt_count}"
+                    )
 
-                # 5. Validation
-                # Only validate if exploration was stable enough or at intervals
-                # For simplicity, we validate every cycle here
-                self.logger.info("Validating potential...")
-                is_valid = self.validator.validate(potential)
+                    # 5. Validation
+                    # Only validate if exploration was stable enough or at intervals
+                    # For simplicity, we validate every cycle here
+                    self.logger.info("Validating potential...")
+                    is_valid = self.validator.validate(potential)
 
-                if is_valid:
-                    self.logger.info(f"Cycle {cycle + 1} complete. Potential is VALID.")
+                    if is_valid:
+                        self.logger.info(f"Cycle {cycle + 1} complete. Potential is VALID.")
+                        if self.config.orchestrator.stop_on_failure:
+                            pass
+                    else:
+                        self.logger.warning(f"Cycle {cycle + 1} complete. Potential is INVALID.")
+                        if self.config.orchestrator.stop_on_failure:
+                            self.logger.error("Stopping pipeline due to validation failure.")
+                            break
+
+                except Exception:
+                    self.logger.exception(f"Error during Cycle {cycle + 1}")
                     if self.config.orchestrator.stop_on_failure:
-                        pass
-                else:
-                    self.logger.warning(f"Cycle {cycle + 1} complete. Potential is INVALID.")
-                    if self.config.orchestrator.stop_on_failure:
-                        self.logger.error("Stopping pipeline due to validation failure.")
-                        break
+                        self.logger.exception("Stopping pipeline due to component failure")
+                        raise  # Re-raise if we want to crash hard, or break loop gracefully.
+                        # Raising ensures the exit code is non-zero
 
             self.logger.info("Active Learning Pipeline finished.")
 

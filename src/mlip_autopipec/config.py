@@ -1,3 +1,5 @@
+import os
+import urllib.parse
 from pathlib import Path
 
 import yaml
@@ -18,14 +20,18 @@ def validate_safe_path(v: str | Path | None) -> Path | None:
     - Must not traverse up (..) from the base resolution point.
     - Must not be absolute paths pointing to sensitive system directories.
     - Resolves the path to check canonical form.
+    - Handles URL encoded paths.
     """
     if v is None:
         return None
 
-    path = Path(v)
+    path_str = str(v)
+    # Decode URL encoded characters
+    path_str = urllib.parse.unquote(path_str)
+    path = Path(path_str)
 
     # Check for simple traversal before resolution
-    if ".." in str(path) or ".." in path.parts:
+    if ".." in path_str or ".." in path.parts:
         msg = f"Path traversal detected: {path}"
         raise ValueError(msg)
 
@@ -48,6 +54,7 @@ def validate_safe_path(v: str | Path | None) -> Path | None:
         Path("/boot"),
         Path("/sys"),
         Path("/proc"),
+        Path("/root"),
     ]
 
     resolved_path_str = str(resolved_path)
@@ -120,9 +127,9 @@ class OrchestratorConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # Defaults defined here directly
-    work_dir: Path = Field(default=Path("work"))
-    max_cycles: int = Field(default=10, ge=1)
+    # Defaults defined here directly using ENV vars
+    work_dir: Path = Field(default_factory=lambda: Path(os.getenv("MLIP_WORK_DIR", "work")))
+    max_cycles: int = Field(default_factory=lambda: int(os.getenv("MLIP_MAX_CYCLES", "10")), ge=1)
     continue_from_cycle: int = 0
     stop_on_failure: bool = True
 
