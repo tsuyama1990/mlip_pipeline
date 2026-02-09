@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -138,7 +139,7 @@ def test_lammps_dynamics_explore_concurrent(
         mock_future.result.return_value = dump_struct
 
         # as_completed yields futures
-        def side_effect_as_completed(fs):
+        def side_effect_as_completed(fs: list[Any]) -> list[Any]:
             return fs
 
         with patch("concurrent.futures.as_completed", side_effect=side_effect_as_completed):

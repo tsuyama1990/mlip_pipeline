@@ -234,19 +234,20 @@ def _run_single_eon_simulation(
             driver.run_kmc()
 
         # Check for halted structure
-        if driver.halted_structure.exists():
-            try:
-                atoms_obj = read(driver.halted_structure)
-                atoms = atoms_obj[-1] if isinstance(atoms_obj, list) else atoms_obj
-                struct = Structure.from_ase(atoms)
-                struct.uncertainty = 100.0
-                struct.tags["provenance"] = "dynamics_halted_eon"
-            except Exception:
-                logger.exception(f"Failed to read halted structure from EON run {idx}")
-                return None
-            else:
-                return struct
-        return None
+        if not driver.halted_structure.exists():
+            return None
+
+        try:
+            atoms_obj = read(driver.halted_structure)
+            atoms = atoms_obj[-1] if isinstance(atoms_obj, list) else atoms_obj
+            struct = Structure.from_ase(atoms)
+            struct.uncertainty = 100.0
+            struct.tags["provenance"] = "dynamics_halted_eon"
+        except Exception:
+            logger.exception(f"Failed to read halted structure from EON run {idx}")
+            return None
+        else:
+            return struct
     except Exception:
         logger.exception(f"EON run failed for structure {idx}")
         return None
