@@ -4,13 +4,13 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 22 items
+collected 23 items
 
 tests/uat/test_cycle01_uat.py ...                                        [ 13%]
-tests/unit/test_config.py ......                                         [ 40%]
-tests/unit/test_factory.py ...                                           [ 54%]
-tests/unit/test_logger.py ...                                            [ 68%]
-tests/unit/test_main.py ...                                              [ 81%]
+tests/unit/test_config.py .......                                        [ 43%]
+tests/unit/test_factory.py ...                                           [ 56%]
+tests/unit/test_logger.py ...                                            [ 69%]
+tests/unit/test_main.py ...                                              [ 82%]
 tests/unit/test_orchestrator.py ....                                     [100%]
 
 ================================ tests coverage ================================
@@ -21,20 +21,20 @@ Name                                           Stmts   Miss  Cover   Missing
 src/mlip_autopipec/__init__.py                     0      0   100%
 src/mlip_autopipec/components/__init__.py          0      0   100%
 src/mlip_autopipec/components/base.py             38      0   100%
-src/mlip_autopipec/components/mocks.py            34      9    74%   31, 41-43, 57-59, 67, 75
-src/mlip_autopipec/config.py                      84     14    83%   20-38, 66, 77, 136-138
-src/mlip_autopipec/constants.py                    8      0   100%
+src/mlip_autopipec/components/mocks.py            33      8    76%   35, 44-47, 67-69, 77, 85
+src/mlip_autopipec/config.py                      90      8    91%   23, 36-39, 92, 103, 160-162
+src/mlip_autopipec/constants.py                    4      4     0%   1-8
 src/mlip_autopipec/core/__init__.py                0      0   100%
-src/mlip_autopipec/core/logger.py                 17      0   100%
-src/mlip_autopipec/core/orchestrator.py           37      0   100%
+src/mlip_autopipec/core/logger.py                 22      0   100%
+src/mlip_autopipec/core/orchestrator.py          104     46    56%   58, 75-127, 144-147, 152-155, 160-163, 168-171
 src/mlip_autopipec/domain_models/__init__.py       0      0   100%
 src/mlip_autopipec/domain_models/enums.py         24      0   100%
 src/mlip_autopipec/domain_models/inputs.py        15      1    93%   28
 src/mlip_autopipec/domain_models/results.py       24      0   100%
 src/mlip_autopipec/factory.py                     22      6    73%   56-57, 62-63, 70-71
-src/mlip_autopipec/main.py                        16      1    94%   33
+src/mlip_autopipec/main.py                        15      1    93%   32
 ----------------------------------------------------------------------------
-TOTAL                                            319     31    90%
-============================== 22 passed in 1.08s ==============================
+TOTAL                                            391     74    81%
+============================== 23 passed in 1.00s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

@@ -19,8 +19,14 @@ def setup_logging(
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
-    # Prevent duplicate handlers
+    # Check if handlers already exist to avoid duplicates
+    # But if log_file is provided and not present in handlers, we might want to add it
+    # For now, simplistic check to avoid double-add
     if logger.handlers:
+        # Check if we need to add the new file handler?
+        # Ideally we shouldn't reuse the same logger name for different configs in the same process
+        # without cleanup.
+        # But let's assume we proceed if handlers exist.
         return logger
 
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -37,3 +43,13 @@ def setup_logging(
         logger.addHandler(file_handler)
 
     return logger
+
+
+def shutdown_logging() -> None:
+    """
+    Close all logging handlers to ensure file handles are released.
+    Useful for cleanup and tests.
+    """
+    # We iterate over all loggers? Or just the root?
+    # logging.shutdown() closes everything.
+    logging.shutdown()

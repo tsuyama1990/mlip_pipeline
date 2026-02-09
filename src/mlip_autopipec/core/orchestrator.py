@@ -8,7 +8,7 @@ from mlip_autopipec.components.base import (
     BaseValidator,
 )
 from mlip_autopipec.config import ExperimentConfig
-from mlip_autopipec.core.logger import setup_logging
+from mlip_autopipec.core.logger import setup_logging, shutdown_logging
 from mlip_autopipec.domain_models.enums import ComponentRole
 from mlip_autopipec.factory import ComponentFactory
 
@@ -37,6 +37,8 @@ class Orchestrator:
             self.config.orchestrator.work_dir.mkdir(parents=True, exist_ok=True)
 
             # Setup Logging
+            # We use a unique name or ensure we clean up to avoid collision in tests
+            # But normally "Orchestrator" is fine for a single run.
             self.logger = setup_logging(
                 name="Orchestrator",
                 log_file=self.config.orchestrator.work_dir / "pipeline.log",
@@ -52,10 +54,10 @@ class Orchestrator:
             self.validator: BaseValidator
 
         except Exception:
-            # If logger is initialized, log the error, otherwise print to stderr is handled by caller (main)
-            # But we should ensure we don't crash without trace if possible
             if hasattr(self, "logger"):
                 self.logger.exception("Orchestrator initialization failed")
+            # Ensure we cleanup if we crash during init
+            shutdown_logging()
             raise
 
     def initialize(self) -> None:
@@ -67,6 +69,62 @@ class Orchestrator:
         self._initialize_dynamics()
         self._initialize_validator()
         self.logger.info("All components initialized successfully.")
+
+    def run(self) -> None:
+        """Execute the Active Learning Pipeline."""
+        try:
+            self.logger.info("Starting Active Learning Pipeline...")
+
+            # Ensure components are initialized
+            if not hasattr(self, "generator"):
+                self.initialize()
+
+            potential = None
+
+            for cycle in range(self.config.orchestrator.max_cycles):
+                self.logger.info(f"--- Starting Cycle {cycle + 1} ---")
+
+                # 1. Generation
+                self.logger.info("Generating structures...")
+                structures_iter = self.generator.generate(self.config.generator.n_structures)
+
+                # 2. Oracle Calculation
+                self.logger.info("Running Oracle calculations...")
+                # Note: In a real scenario, we might need to batch this or handle lazily
+                # Here we pass the iterator directly
+                dataset_iter = self.oracle.compute(structures_iter)
+
+                # 3. Training
+                self.logger.info("Training potential...")
+                potential = self.trainer.train(dataset_iter, previous_potential=potential)
+                self.logger.info(f"Potential trained: {potential.version}")
+
+                # 4. Dynamics Exploration
+                self.logger.info("Running Dynamics exploration...")
+                exploration_result = self.dynamics.explore(potential)
+                self.logger.info(f"Exploration complete. Halts: {exploration_result.halt_count}")
+
+                # 5. Validation
+                # Only validate if exploration was stable enough or at intervals
+                # For simplicity, we validate every cycle here
+                self.logger.info("Validating potential...")
+                is_valid = self.validator.validate(potential)
+
+                if is_valid:
+                    self.logger.info(f"Cycle {cycle + 1} complete. Potential is VALID.")
+                    if self.config.orchestrator.stop_on_failure:
+                        pass
+                else:
+                    self.logger.warning(f"Cycle {cycle + 1} complete. Potential is INVALID.")
+                    if self.config.orchestrator.stop_on_failure:
+                        self.logger.error("Stopping pipeline due to validation failure.")
+                        break
+
+            self.logger.info("Active Learning Pipeline finished.")
+
+        finally:
+            # Ensure we close handlers on exit
+            shutdown_logging()
 
     def _raise_invalid_config_type(self, config_path: object) -> None:
         msg = f"Invalid config type: {type(config_path)}"
