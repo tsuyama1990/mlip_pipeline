@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 from mlip_autopipec.components.base import (
     BaseDynamics,
     BaseGenerator,
@@ -24,16 +26,21 @@ class MockGenerator(BaseGenerator):
     def __init__(self, config: GeneratorConfig) -> None:
         super().__init__(config)
 
-    def generate(self, n_structures: int) -> list[Structure]:
-        return []
+    def generate(self, n_structures: int) -> Iterator[Structure]:
+        """Yields an empty sequence of structures."""
+        return iter([])
 
 
 class MockOracle(BaseOracle):
     def __init__(self, config: OracleConfig) -> None:
         super().__init__(config)
 
-    def compute(self, structures: list[Structure]) -> list[CalculationResult]:
-        return []
+    def compute(self, structures: Iterator[Structure]) -> Iterator[CalculationResult]:
+        """Consumes structures and yields empty results."""
+        # Consume iterator to prevent "unused" warnings in real scenarios
+        for _ in structures:
+            pass
+        return iter([])
 
 
 class MockTrainer(BaseTrainer):
@@ -41,8 +48,14 @@ class MockTrainer(BaseTrainer):
         super().__init__(config)
 
     def train(
-        self, dataset: list[CalculationResult], previous_potential: PotentialArtifact | None = None
+        self,
+        dataset: Iterator[CalculationResult],
+        previous_potential: PotentialArtifact | None = None,
     ) -> PotentialArtifact:
+        """Consumes dataset and returns a mock potential."""
+        # Consume iterator
+        for _ in dataset:
+            pass
         return PotentialArtifact(path="mock.yace", version="0.1")
 
 

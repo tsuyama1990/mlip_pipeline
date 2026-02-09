@@ -43,3 +43,20 @@ def test_orchestrator_init_invalid_type() -> None:
     """Test initializing Orchestrator with invalid type."""
     with pytest.raises(TypeError, match="Invalid config type"):
         Orchestrator(123)  # type: ignore
+
+
+def test_orchestrator_component_init_failure(tmp_path: Path) -> None:
+    """Test handling of component initialization failure."""
+    config = ExperimentConfig()
+    config.orchestrator.work_dir = tmp_path / "work_fail"
+
+    from unittest.mock import patch
+
+    with (
+        patch(
+            "mlip_autopipec.core.orchestrator.ComponentFactory.create",
+            side_effect=RuntimeError("Factory Error"),
+        ),
+        pytest.raises(RuntimeError, match="Failed to initialize components"),
+    ):
+        Orchestrator(config)

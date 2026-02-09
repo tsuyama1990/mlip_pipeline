@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 
 from mlip_autopipec.config import (
     BaseComponentConfig,
@@ -31,8 +32,8 @@ class BaseGenerator(BaseComponent, ABC):
         self.config: GeneratorConfig = config  # Type narrowing
 
     @abstractmethod
-    def generate(self, n_structures: int) -> list[Structure]:
-        """Generate a list of structures."""
+    def generate(self, n_structures: int) -> Iterator[Structure]:
+        """Generate a stream of structures."""
 
 
 class BaseOracle(BaseComponent, ABC):
@@ -43,8 +44,8 @@ class BaseOracle(BaseComponent, ABC):
         self.config: OracleConfig = config
 
     @abstractmethod
-    def compute(self, structures: list[Structure]) -> list[CalculationResult]:
-        """Compute properties for a list of structures."""
+    def compute(self, structures: Iterator[Structure]) -> Iterator[CalculationResult]:
+        """Compute properties for a stream of structures."""
 
 
 class BaseTrainer(BaseComponent, ABC):
@@ -56,7 +57,9 @@ class BaseTrainer(BaseComponent, ABC):
 
     @abstractmethod
     def train(
-        self, dataset: list[CalculationResult], previous_potential: PotentialArtifact | None = None
+        self,
+        dataset: Iterator[CalculationResult],
+        previous_potential: PotentialArtifact | None = None,
     ) -> PotentialArtifact:
         """Train a potential on the dataset."""
 
