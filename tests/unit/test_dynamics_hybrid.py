@@ -7,6 +7,7 @@ from mlip_autopipec.domain_models.potential import Potential
 
 def test_generate_pair_style_zbl(tmp_path: Path) -> None:
     potential_path = tmp_path / "test.yace"
+    potential_path.touch()
     potential = Potential(path=potential_path, format="yace", species=["Cu", "Au"])
     baseline = PhysicsBaselineConfig(type="zbl")
 
@@ -42,6 +43,7 @@ def test_generate_pair_style_zbl(tmp_path: Path) -> None:
 
 def test_generate_pair_style_no_baseline(tmp_path: Path) -> None:
     potential_path = tmp_path / "test.yace"
+    potential_path.touch()
     potential = Potential(path=potential_path, format="yace", species=["Cu"])
     pair_style, pair_coeff = generate_pair_style(potential, None)
 

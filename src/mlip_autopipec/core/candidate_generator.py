@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 import numpy as np
 
@@ -11,6 +12,8 @@ def generate_local_candidates(
     structure: Structure, n_candidates: int = 20, rattle_strength: float = 0.05
 ) -> list[Structure]:
     """
+    DEPRECATED: Use Generator.enhance() instead.
+
     Generate local candidates around a structure using random displacement (Rattle).
 
     Args:
@@ -21,6 +24,12 @@ def generate_local_candidates(
     Returns:
         List of generated Structure objects, including the original (anchor).
     """
+    warnings.warn(
+        "generate_local_candidates is deprecated. Use Generator.enhance() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
     candidates = [structure]  # Always include the anchor
 
     # We use the structure's own logic if available, or just manipulate positions

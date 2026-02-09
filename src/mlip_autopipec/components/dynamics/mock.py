@@ -37,6 +37,8 @@ class MockDynamics(BaseDynamics):
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
         physics_baseline: dict[str, Any] | None = None,
+        cycle: int = 0,
+        metrics: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the potential energy surface starting from given structures.
@@ -46,6 +48,8 @@ class MockDynamics(BaseDynamics):
             start_structures: An iterable of starting structures.
             workdir: Directory to write exploration files (ignored in Mock).
             physics_baseline: Optional physics baseline configuration (ignored in Mock).
+            cycle: The current active learning cycle number.
+            metrics: Optional metrics from the previous cycle.
 
         Yields:
             Structure: Selected structures with simulated uncertainty.

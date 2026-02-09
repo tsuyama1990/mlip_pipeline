@@ -80,6 +80,15 @@ def test_orchestrator_halt_logic(mock_factory: MagicMock, mock_state_mgr: MagicM
     orchestrator._run_cycle()
 
     # Assertions
+    # Check if generator/dynamics called with correct cycle
+    orchestrator.generator.generate.assert_called()
+    gen_kwargs = orchestrator.generator.generate.call_args.kwargs
+    assert gen_kwargs.get("cycle") == 2 or orchestrator.generator.generate.call_args.args[1] == 2
+
+    orchestrator.dynamics.explore.assert_called()
+    dyn_kwargs = orchestrator.dynamics.explore.call_args.kwargs
+    assert dyn_kwargs.get("cycle") == 2
+
     # Since halt occurred, validation should NOT be called (or if logic changes, maybe it is called but ignored?)
     # Wait, spec says: "If Converged (no halts) -> Proceed to Validation".
     # So if halts occur, validation is skipped.

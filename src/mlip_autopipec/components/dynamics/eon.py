@@ -264,10 +264,11 @@ def _run_single_eon_simulation(
             # But Scalability says minimize disk usage.
             # Let's delete after reading.
             shutil.rmtree(run_dir, ignore_errors=True)
-            return struct
         except Exception:
             logger.exception(f"Failed to read halted structure from EON run {idx}")
             return None
+        else:
+            return struct
 
     except Exception:
         logger.exception(f"EON run failed for structure {idx}")
@@ -295,6 +296,8 @@ class EONDynamics(BaseDynamics):
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
         physics_baseline: dict[str, Any] | None = None,
+        cycle: int = 0,
+        metrics: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the PES using EON KMC simulations.

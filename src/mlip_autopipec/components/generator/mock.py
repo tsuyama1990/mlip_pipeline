@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterator
+from typing import Any
 
 import numpy as np
 
@@ -18,17 +19,21 @@ class MockGenerator(BaseGenerator):
     Useful for testing the pipeline flow without heavy computation.
     """
 
-    def generate(self, n_structures: int) -> Iterator[Structure]:
+    def generate(
+        self, n_structures: int, cycle: int = 0, metrics: dict[str, Any] | None = None
+    ) -> Iterator[Structure]:
         """
         Generate mock structures.
 
         Args:
             n_structures: The number of structures to generate.
+            cycle: The current active learning cycle number.
+            metrics: Optional metrics from the previous cycle.
 
         Yields:
             Structure: Generated mock structure.
         """
-        logger.info(f"Generating {n_structures} mock structures")
+        logger.info(f"Generating {n_structures} mock structures (Cycle {cycle})")
 
         if n_structures <= 0:
             logger.warning("n_structures must be positive")
@@ -52,6 +57,22 @@ class MockGenerator(BaseGenerator):
             cell = np.eye(3) * cell_size
             pbc = np.array([True, True, True])
             yield Structure(positions=pos, atomic_numbers=full_numbers, cell=cell, pbc=pbc)
+
+    def enhance(self, structure: Structure) -> Iterator[Structure]:
+        """
+        Mock enhancement: yield sufficient candidates to satisfy selection limit.
+        """
+        # Yield anchor
+        yield structure
+
+        # Yield dummy candidates to simulate local exploration
+        # Orchestrator usually selects 6. So we need enough.
+        for i in range(10):
+            cand = structure.model_deep_copy()
+            cand.tags["provenance"] = f"local_candidate_mock_{i}"
+            # Perturb slightly to ensure uniqueness if checked
+            cand.positions += np.random.uniform(-0.1, 0.1, size=cand.positions.shape)
+            yield cand
 
     def __repr__(self) -> str:
         return f"<MockGenerator(name={self.name}, config={self.config})>"

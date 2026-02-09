@@ -21,6 +21,8 @@ class BaseDynamics(BaseComponent[DynamicsConfig]):
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
         physics_baseline: dict[str, Any] | None = None,
+        cycle: int = 0,
+        metrics: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore and find uncertain structures.
@@ -30,6 +32,8 @@ class BaseDynamics(BaseComponent[DynamicsConfig]):
             start_structures: Initial structures to start exploration from.
             workdir: Directory to write exploration files (e.g. MD logs).
             physics_baseline: Optional physics baseline configuration.
+            cycle: The current active learning cycle number.
+            metrics: Optional metrics from the previous cycle.
 
         Returns:
             Iterator of uncertain/new structures found.
