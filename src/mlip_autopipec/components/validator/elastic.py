@@ -104,11 +104,10 @@ class ElasticCalc:
             B_GPa = float(B * 160.21766208)
             G_GPa = float(G * 160.21766208)
 
-            return is_stable, B_GPa, G_GPa
-
         except Exception as e:
             logger.warning(f"Failed to invert C matrix: {e}")
             # Fallback to Voigt
             B_GPa = float(B_V * 160.21766208)
             G_GPa = float(G_V * 160.21766208)
-            return is_stable, B_GPa, G_GPa
+
+        return is_stable, B_GPa, G_GPa

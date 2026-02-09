@@ -71,9 +71,9 @@ class ReportGenerator:
                     state = json.load(f)
                 status = state.get("status", "Unknown")
             except Exception:
-                pass
+                logger.exception("Failed to read state file")
 
-        html = f"""
+        return f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -103,7 +103,6 @@ class ReportGenerator:
 </body>
 </html>
 """
-        return html
 
     def _generate_plots(self, df: pd.DataFrame) -> str:
         """Generate plots using matplotlib and return as base64 img tags."""

@@ -47,25 +47,24 @@ class PhononCalc:
         name = str(phonon_dir / "phonon")
 
         try:
-            ph = Phonons(atoms, calculator, supercell=self.supercell_matrix, delta=self.displacement, name=name)
-            ph.run()
+            ph = Phonons(atoms, calculator, supercell=self.supercell_matrix, delta=self.displacement, name=name) # type: ignore[no-untyped-call]
+            ph.run() # type: ignore[no-untyped-call]
 
             # Read forces and calculate band structure
-            ph.read(acoustic=True)
+            ph.read(acoustic=True) # type: ignore[no-untyped-call]
 
             try:
                 # auto-detect path
                 path = atoms.cell.bandpath(npoints=50) # type: ignore[no-untyped-call]
-                bs = ph.get_band_structure(path)
+                bs = ph.get_band_structure(path) # type: ignore[no-untyped-call]
                 frequencies = bs.energies
             except Exception as e:
                 logger.warning(f"Could not determine bandpath: {e}. Checking Gamma point only.")
-                frequencies = ph.get_frequencies(q=[0, 0, 0])
+                frequencies = ph.get_frequencies(q=[0, 0, 0]) # type: ignore[no-untyped-call]
 
             is_stable = True
-            if np.iscomplexobj(frequencies):
-                 if np.any(np.abs(np.imag(frequencies)) > 1e-3):
-                     is_stable = False
+            if np.iscomplexobj(frequencies) and np.any(np.abs(np.imag(frequencies)) > 1e-3):
+                 is_stable = False
 
             if not is_stable:
                 logger.info("Phonon instability detected.")
@@ -74,9 +73,9 @@ class PhononCalc:
                 failed_struct.tags["provenance"] = "phonon_instability"
                 return False, failed_struct
 
-            return True, None
-
         except Exception:
             logger.exception("Phonon calculation failed")
             # If calculation fails, we flag as unstable
             return False, structure
+
+        return True, None

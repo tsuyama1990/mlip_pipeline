@@ -35,11 +35,11 @@ tests/unit/test_validator_components.py ....                             [100%]
 =================================== FAILURES ===================================
 ___________________________ test_otf_loop_execution ____________________________
 
-mock_state = <MagicMock name='StateManager' id='140363537752640'>
-mock_dataset = <MagicMock name='Dataset' id='140363537752352'>
-mock_factory = <MagicMock name='ComponentFactory' id='140363537746592'>
-mock_config = <GlobalConfig(workdir=/tmp/pytest-of-jules/pytest-37/test_otf_loop_execution0)>
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-37/test_otf_loop_execution0')
+mock_state = <MagicMock name='StateManager' id='140567101054784'>
+mock_dataset = <MagicMock name='Dataset' id='140567106020096'>
+mock_factory = <MagicMock name='ComponentFactory' id='140567101051136'>
+mock_config = <GlobalConfig(workdir=/tmp/pytest-of-jules/pytest-39/test_otf_loop_execution0)>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-39/test_otf_loop_execution0')
 
     @patch("mlip_autopipec.core.orchestrator.ComponentFactory")
     @patch("mlip_autopipec.core.orchestrator.Dataset")
@@ -131,13 +131,13 @@ tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-37/test_otf_loop_execution0')
         # Let's check call count
 >       assert mock_trainer.select_active_set.call_count >= 1
 E       AssertionError: assert 0 >= 1
-E        +  where 0 = <MagicMock name='ComponentFactory.get_trainer().select_active_set' id='140363540055152'>.call_count
-E        +    where <MagicMock name='ComponentFactory.get_trainer().select_active_set' id='140363540055152'> = <MagicMock name='ComponentFactory.get_trainer()' id='140363537863392'>.select_active_set
+E        +  where 0 = <MagicMock name='ComponentFactory.get_trainer().select_active_set' id='140567101253456'>.call_count
+E        +    where <MagicMock name='ComponentFactory.get_trainer().select_active_set' id='140567101253456'> = <MagicMock name='ComponentFactory.get_trainer()' id='140567101037248'>.select_active_set
 
 tests/integration/test_otf_loop.py:130: AssertionError
 _________________________ test_generate_pair_style_zbl _________________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-37/test_generate_pair_style_zbl0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-39/test_generate_pair_style_zbl0')
 
     def test_generate_pair_style_zbl(tmp_path: Path) -> None:
         potential_path = tmp_path / "test.yace"
@@ -154,7 +154,7 @@ src/mlip_autopipec/components/dynamics/hybrid.py:29: in generate_pair_style
                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-path = PosixPath('/tmp/pytest-of-jules/pytest-37/test_generate_pair_style_zbl0/test.yace')
+path = PosixPath('/tmp/pytest-of-jules/pytest-39/test_generate_pair_style_zbl0/test.yace')
 base_dir = None, must_exist = True
 
     def validate_safe_path(path: Path, base_dir: Path | None = None, must_exist: bool = False) -> Path:
@@ -198,12 +198,12 @@ base_dir = None, must_exist = True
         if must_exist and not resolved.exists():
             msg = f"Path does not exist: {resolved}"
 >           raise FileNotFoundError(msg)
-E           FileNotFoundError: Path does not exist: /tmp/pytest-of-jules/pytest-37/test_generate_pair_style_zbl0/test.yace
+E           FileNotFoundError: Path does not exist: /tmp/pytest-of-jules/pytest-39/test_generate_pair_style_zbl0/test.yace
 
 src/mlip_autopipec/utils/security.py:44: FileNotFoundError
 _____________________ test_generate_pair_style_no_baseline _____________________
 
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-37/test_generate_pair_style_no_ba0')
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-39/test_generate_pair_style_no_ba0')
 
     def test_generate_pair_style_no_baseline(tmp_path: Path) -> None:
         potential_path = tmp_path / "test.yace"
@@ -218,7 +218,7 @@ src/mlip_autopipec/components/dynamics/hybrid.py:29: in generate_pair_style
                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
-path = PosixPath('/tmp/pytest-of-jules/pytest-37/test_generate_pair_style_no_ba0/test.yace')
+path = PosixPath('/tmp/pytest-of-jules/pytest-39/test_generate_pair_style_no_ba0/test.yace')
 base_dir = None, must_exist = True
 
     def validate_safe_path(path: Path, base_dir: Path | None = None, must_exist: bool = False) -> Path:
@@ -262,7 +262,7 @@ base_dir = None, must_exist = True
         if must_exist and not resolved.exists():
             msg = f"Path does not exist: {resolved}"
 >           raise FileNotFoundError(msg)
-E           FileNotFoundError: Path does not exist: /tmp/pytest-of-jules/pytest-37/test_generate_pair_style_no_ba0/test.yace
+E           FileNotFoundError: Path does not exist: /tmp/pytest-of-jules/pytest-39/test_generate_pair_style_no_ba0/test.yace
 
 src/mlip_autopipec/utils/security.py:44: FileNotFoundError
 ================================ tests coverage ================================
@@ -301,18 +301,18 @@ src/mlip_autopipec/components/trainer/mock.py                17      2    88%   
 src/mlip_autopipec/components/trainer/pacemaker.py          108     42    61%   35, 62-64, 80-82, 96-105, 114, 129, 138, 142, 191-194, 202-234, 237, 240
 src/mlip_autopipec/components/validator/__init__.py           4      0   100%
 src/mlip_autopipec/components/validator/base.py              15      3    80%   12, 28, 31
-src/mlip_autopipec/components/validator/calculator.py        88     69    22%   36-42, 50-122, 125-152, 155-167
-src/mlip_autopipec/components/validator/elastic.py           54     44    19%   34-114
+src/mlip_autopipec/components/validator/calculator.py        91     72    21%   36-42, 50-126, 129-156, 159-172
+src/mlip_autopipec/components/validator/elastic.py           53     43    19%   34-113
 src/mlip_autopipec/components/validator/eos.py               44     32    27%   36-82
 src/mlip_autopipec/components/validator/mock.py              14      4    71%   13-15, 30, 33
-src/mlip_autopipec/components/validator/phonons.py           46     33    28%   37-82
+src/mlip_autopipec/components/validator/phonons.py           45     32    29%   37-81
 src/mlip_autopipec/components/validator/standard.py          70     14    80%   55-56, 62-65, 70-73, 94-96, 135, 138
 src/mlip_autopipec/constants.py                              15      0   100%
 src/mlip_autopipec/core/__init__.py                           0      0   100%
 src/mlip_autopipec/core/candidate_generator.py               18      0   100%
 src/mlip_autopipec/core/dataset.py                          186     57    69%   45-47, 63-67, 70, 75, 82-85, 92-93, 95-97, 103-105, 115-116, 149-150, 160-162, 167, 176, 180, 184-185, 216, 232-243, 258-259, 263, 293-295, 302, 312-314
-src/mlip_autopipec/core/orchestrator.py                     129     16    88%   57, 60, 72-73, 143, 156-172, 214
-src/mlip_autopipec/core/report.py                            85     10    88%   43-44, 57, 73-74, 148-152
+src/mlip_autopipec/core/orchestrator.py                     130     16    88%   57, 60, 72-73, 143, 156-172, 216
+src/mlip_autopipec/core/report.py                            84     10    88%   43-44, 57, 73-74, 147-151
 src/mlip_autopipec/core/state.py                             38      6    84%   14, 17, 34-35, 51, 54
 src/mlip_autopipec/domain_models/__init__.py                  4      0   100%
 src/mlip_autopipec/domain_models/config.py                  210     24    89%   29, 32, 69-70, 103-109, 131, 134, 156, 159, 299, 302, 317, 320, 341-345, 352
@@ -329,9 +329,9 @@ src/mlip_autopipec/utils/__init__.py                          0      0   100%
 src/mlip_autopipec/utils/logging.py                          13     13     0%   1-19
 src/mlip_autopipec/utils/security.py                         23     13    43%   23-25, 29-30, 33-40
 ---------------------------------------------------------------------------------------
-TOTAL                                                      2488    732    71%
+TOTAL                                                      2489    733    71%
 =========================== short test summary info ============================
 FAILED tests/integration/test_otf_loop.py::test_otf_loop_execution - Assertio...
 FAILED tests/unit/test_dynamics_hybrid.py::test_generate_pair_style_zbl - Fil...
 FAILED tests/unit/test_dynamics_hybrid.py::test_generate_pair_style_no_baseline
-========================= 3 failed, 91 passed in 7.56s =========================
+========================= 3 failed, 91 passed in 8.80s =========================

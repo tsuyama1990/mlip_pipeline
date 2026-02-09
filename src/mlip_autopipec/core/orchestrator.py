@@ -186,7 +186,9 @@ class Orchestrator:
                 self.state_manager.update_status("CONVERGED")
                 self._save_metrics(cycle_dir, metrics)
                 logger.info(f"=== Cycle {cycle:02d} Completed (Converged) ===")
-                raise StopIteration("Converged")
+                # Use a specific exception or message for clarity
+                msg = "Converged"
+                raise StopIteration(msg)
 
             logger.info("Validation failed. Adding failure cases to dataset.")
             if metrics.failed_structures:

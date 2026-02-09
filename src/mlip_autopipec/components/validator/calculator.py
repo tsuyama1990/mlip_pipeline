@@ -2,7 +2,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, cast
 
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
@@ -22,7 +22,7 @@ class LammpsSinglePointCalculator(Calculator):
     for a single configuration (static calculation).
     """
 
-    implemented_properties: ClassVar[list[str]] = ["energy", "forces", "stress"]
+    implemented_properties = ["energy", "forces", "stress"]
 
     def __init__(
         self,
@@ -50,6 +50,10 @@ class LammpsSinglePointCalculator(Calculator):
         if properties is None:
             properties = ["energy"]
         super().calculate(atoms, properties, system_changes)
+
+        if self.atoms is None:
+            msg = "Atoms object not attached to calculator"
+            raise ValueError(msg)
 
         # 1. Write data file
         data_file = self.workdir / "data.lammps"
@@ -158,7 +162,8 @@ run             0
                 msg = "No atoms found in dump"
                 raise RuntimeError(msg)
 
-            atoms = atoms_list[-1]
+            # cast to Atoms to satisfy mypy
+            atoms = cast(Atoms, atoms_list[-1])
             forces = atoms.get_forces() # type: ignore[no-untyped-call]
             self.results["forces"] = forces
 
