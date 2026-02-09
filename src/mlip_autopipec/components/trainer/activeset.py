@@ -197,12 +197,17 @@ class ActiveSetSelector:
                 chunk_out = tmp_path / f"selected_{i}.extxyz"
 
                 try:
-                    # Write batch to chunk file
-                    # Batch is a list of Structures.
-                    # We stream write if possible, but ase.io.write takes list or atoms.
-                    # Given batch_size is small (5000), list is acceptable.
-                    atoms_list = [s.to_ase() for s in batch]
-                    write(chunk_file, atoms_list, format="extxyz")
+                    # Stream write batch to chunk file to avoid holding list in memory
+                    # ase.io.write allows appending, so we can iterate.
+                    # But batch is a generator? No, iter_batches returns lists.
+                    # We can iterate the list and write one by one or pass the list.
+                    # Passing list is fine for batch_size=5000.
+                    # To be strictly streaming, we could modify iter_batches, but 5000 is small.
+
+                    # For optimization, we use the list but ensure we don't copy it needlessly
+                    # Use a generator expression for to_ase() to avoid creating a new list of atoms objects
+                    atoms_iter = (s.to_ase() for s in batch)
+                    write(chunk_file, atoms_iter, format="extxyz")
 
                     # Select from chunk
                     self._run_pace_activeset(chunk_file, chunk_out, self.limit)

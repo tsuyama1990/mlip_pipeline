@@ -9,7 +9,7 @@ from mlip_autopipec.domain_models.config import GlobalConfig, OrchestratorConfig
 
 
 @pytest.fixture
-def mock_workdir(tmp_path):
+def mock_workdir(tmp_path: Path) -> Path:
     # Create cycle directories
     for i in range(1, 4):
         d = tmp_path / f"cycle_{i:02d}"
