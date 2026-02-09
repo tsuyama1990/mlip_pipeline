@@ -55,7 +55,16 @@ class EONDriver:
 
         # 1. Write structure to pos.con
         atoms = structure.to_ase()
+        # Security/Scalability: Check structure size before writing
+        # EON usually writes full files, but for extreme sizes we might want to warn
+        if len(atoms) > 100000:
+            logger.warning(
+                f"Writing large structure ({len(atoms)} atoms) to {self.pos_file}. "
+                "Ensure sufficient disk space and memory."
+            )
+
         try:
+            # ASE write generally handles memory well for single frames, but we rely on it.
             write(self.pos_file, atoms, format="eon")
         except Exception as e:
             # Explicitly catch and log error for data integrity
@@ -65,10 +74,17 @@ class EONDriver:
 
         # 2. Write config.ini
         # Minimal EON config for KMC
+        # Explicit validation/conversion to ensure safe types
+        temperature = float(self.config.temperature)
+        seed = int(self.config.seed) if self.config.seed is not None else 0
+        time_step = float(self.config.time_step)
+        prefactor = float(self.config.prefactor)
+        n_events = int(self.config.n_events)
+
         config_content = f"""[Main]
 job = parallel_replica
-temperature = {self.config.temperature}
-random_seed = {self.config.seed if self.config.seed is not None else 0}
+temperature = {temperature}
+random_seed = {seed}
 
 [Potentials]
 potential = script_potential
@@ -77,10 +93,10 @@ potential = script_potential
 script = python {self.driver_script.name}
 
 [Parallel Replica]
-time_step = {self.config.time_step}
+time_step = {time_step}
 # EON uses prefactor?
-prefactor = {self.config.prefactor:.1e}
-max_events = {self.config.n_events}
+prefactor = {prefactor:.1e}
+max_events = {n_events}
 """
         self.config_file.write_text(config_content)
 

@@ -53,7 +53,7 @@ def test_eon_driver_write_input(
     assert "temperature = 500.0" in content
     # Python formatting might vary slightly, check key exists
     assert "prefactor =" in content
-    assert "13" in content
+    assert "1.0e+13" in content or "1e+13" in content
     assert "max_events = 1000" in content
 
     # Check pos.con (EON structure format)
@@ -118,32 +118,16 @@ def test_eon_dynamics_explore(
 
 
 @patch("mlip_autopipec.components.dynamics.eon.subprocess.Popen")
-@patch("mlip_autopipec.components.dynamics.eon.read")
 def test_run_single_eon_simulation(
-    mock_read: MagicMock,
     mock_subprocess_run: MagicMock,
     tmp_path: Path,
     structure: Structure,
     potential: Potential,
     config: EONDynamicsConfig,
 ) -> None:
-    # Setup mocks for file reading
-    # We must ensure mock_atoms behaves like an ASE Atoms object that Structure.from_ase can handle
-    mock_atoms = MagicMock()
-    mock_atoms.get_positions.return_value = np.array([[0.1, 0.1, 0.1]])
-    mock_atoms.get_atomic_numbers.return_value = np.array([29])
-    mock_atoms.get_cell.return_value = np.array([[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]])
-    mock_atoms.get_pbc.return_value = np.array([True, True, True])
-    mock_atoms.__len__.return_value = 1
-
-    # Crucial: Mock info and arrays to be dicts, and calc/labels to avoid validation errors
-    mock_atoms.info = {"uncertainty": 100.0}
-    mock_atoms.arrays = {}
-    mock_atoms.calc = None # No calculator means get_potential_energy etc might raise or return None if checked differently
-    # But Structure.from_ase calls get_potential_energy if calc exists.
-    # If calc is None, it checks info/arrays.
-
-    mock_read.return_value = mock_atoms
+    # Prepare environment
+    idx = 0
+    run_dir = tmp_path / f"eon_run_{idx:05d}"
 
     # Mock subprocess to simulate EON run
     # Popen returns a process object
@@ -154,12 +138,32 @@ def test_run_single_eon_simulation(
     mock_process.wait.return_value = 0
     mock_subprocess_run.return_value = mock_process
 
-    # We need to simulate the existence of the halted file
-    idx = 0
-    run_dir = tmp_path / f"eon_run_{idx:05d}"
-    run_dir.mkdir(parents=True)
+    # We need to create the halted file that EON would produce
+    # Instead of mocking read(), we write a real file so read() works
+    # This verifies the integration of file writing and reading
+
+    # Create the directory structure that write_input_files would create
+    # But since we are calling _run_single_eon_simulation, it calls write_input_files
+    # which creates the dir. But halted file is created by EON execution (mocked).
+    # So we need to create the halted file via a side effect of subprocess or just pre-create it?
+    # _run_single_eon_simulation -> driver.write_input_files -> driver.run_kmc -> read halted
+
+    # We can patch driver.run_kmc to write the halted file?
+    # Or rely on the fact that run_kmc is mocked (via subprocess) and we can pre-seed the file.
+    # But run_dir is created inside the function. We can't pre-seed it easily unless we know path.
+    # Wait, base_workdir is passed.
+
+    # Pre-create directory to seed halted file?
+    # But write_input_files might fail if dir exists? No, mkdir(exist_ok=True).
+
+    run_dir.mkdir(parents=True, exist_ok=True)
     halted_file = run_dir / config.halted_structure_filename
-    halted_file.touch()
+
+    # Write a valid XYZ/EXTXYZ content
+    halted_file.write_text(
+        '1\nProperties=species:S:1:pos:R:3:uncertainty:R:1 pbc="T T T" Lattice="4.0 0.0 0.0 0.0 4.0 0.0 0.0 0.0 4.0"\n'
+        'Cu 0.1 0.1 0.1 100.0\n'
+    )
 
     result = _run_single_eon_simulation(
         idx=idx,
@@ -172,12 +176,14 @@ def test_run_single_eon_simulation(
 
     assert result is not None
     assert result.tags["provenance"] == "dynamics_halted_eon"
+    assert result.uncertainty == 100.0
+    # Check positions from file
+    assert np.allclose(result.positions, [[0.1, 0.1, 0.1]])
 
     # Verify subprocess called (EON binary)
     mock_subprocess_run.assert_called()
 
     # Verify output stream reading
-    # mock_process.stdout.read.call_count should be at least 2 (once for chunk, once for empty)
     assert mock_process.stdout.read.call_count >= 2
 
     # Verify cleanup happened (run_dir should NOT exist)

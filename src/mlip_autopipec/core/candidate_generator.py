@@ -10,7 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 def generate_local_candidates(
-    structure: Structure, n_candidates: int = 20, rattle_strength: float = 0.05
+    structure: Structure,
+    n_candidates: int = 20,
+    rattle_strength: float = 0.05,
+    seed: int | None = None,
 ) -> Iterator[Structure]:
     """
     DEPRECATED: Use Generator.enhance() instead.
@@ -21,6 +24,7 @@ def generate_local_candidates(
         structure: The seed structure (e.g. halted structure).
         n_candidates: Number of candidates to generate.
         rattle_strength: Magnitude of random displacement in Angstroms.
+        seed: Random seed for reproducibility.
 
     Returns:
         Iterator of generated Structure objects, including the original (anchor).
@@ -33,6 +37,9 @@ def generate_local_candidates(
 
     yield structure  # Always include the anchor
 
+    # Initialize RNG
+    rng = np.random.RandomState(seed)
+
     # We use the structure's own logic if available, or just manipulate positions
     # Structure.positions is a numpy array.
 
@@ -41,7 +48,7 @@ def generate_local_candidates(
         new_struct = structure.model_deep_copy()
 
         # Apply random displacement
-        displacement = np.random.uniform(
+        displacement = rng.uniform(
             -rattle_strength, rattle_strength, size=new_struct.positions.shape
         )
         new_struct.positions += displacement

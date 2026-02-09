@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.constants import (
     DEFAULT_BUFFER_SIZE,
+    EON_DEFAULT_TIME_STEP,
     LAMMPS_TEMPLATE_ATOM_STYLE,
     LAMMPS_TEMPLATE_BOUNDARY,
     LAMMPS_TEMPLATE_DUMP,
@@ -307,8 +308,9 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
 class EONDynamicsConfig(BaseDynamicsConfig):
     name: Literal[DynamicsType.EON] = DynamicsType.EON
     temperature: float = 300.0
-    time_step: float = (
-        1.0  # Time per step in seconds (approx) or similar EON param? EON calculates time.
+    time_step: float = Field(
+        default=EON_DEFAULT_TIME_STEP,
+        description="Time step for KMC simulation (EON parameter)",
     )
     # EON usually runs for a number of events or time.
     n_events: int = 1000
