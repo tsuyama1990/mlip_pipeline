@@ -11,6 +11,7 @@ from mlip_autopipec.components.dynamics.otf import generate_lammps_otf_commands
 from mlip_autopipec.domain_models.config import LAMMPSDynamicsConfig, PhysicsBaselineConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +22,21 @@ class LAMMPSDriver:
     Handles input generation, execution, and output parsing.
     """
 
-    def __init__(self, workdir: Path, binary: str = "lmp") -> None:
+    def __init__(self, workdir: Path, config: LAMMPSDynamicsConfig, binary: str = "lmp") -> None:
         self.workdir = workdir
+        self.config = config
         self.binary = binary
-        self.input_file = self.workdir / "in.lammps"
-        self.data_file = self.workdir / "data.lammps"
-        self.log_file = self.workdir / "log.lammps"
-        self.dump_file = self.workdir / "dump.lammps"
+
+        # Use filenames from config
+        self.input_file = self.workdir / config.input_filename
+        self.data_file = self.workdir / config.data_filename
+        self.log_file = self.workdir / config.log_filename
+        self.dump_file = self.workdir / config.dump_filename
 
     def write_input_files(
         self,
         structure: Structure,
         potential: Potential,
-        config: LAMMPSDynamicsConfig,
         physics_baseline: dict[str, Any] | None = None,
     ) -> None:
         """
@@ -42,10 +45,10 @@ class LAMMPSDriver:
         Args:
             structure: Structure to simulate.
             potential: Potential to use.
-            config: Dynamics configuration.
             physics_baseline: Optional physics baseline configuration.
         """
         self.workdir.mkdir(parents=True, exist_ok=True)
+        validate_safe_path(self.workdir)
 
         # 1. Write structure to data.lammps
         atoms = structure.to_ase()
@@ -59,12 +62,16 @@ class LAMMPSDriver:
         pair_style, pair_coeff = generate_pair_style(potential, baseline_config)
 
         # 3. Generate OTF commands
-        otf_commands = generate_lammps_otf_commands(config.uncertainty_threshold)
+        otf_commands = generate_lammps_otf_commands(self.config.uncertainty_threshold)
         otf_monitor_block = "\n".join(otf_commands)
         species_str = " ".join(potential.species)
 
+        # Validate potential path
+        potential_path = validate_safe_path(potential.path, must_exist=True)
+
         # 4. Write in.lammps
         # Basic NVT/NVE setup
+        # Note: We use f-strings but values are typed from config which is validated by Pydantic.
         input_content = f"""
 units           metal
 atom_style      atomic
@@ -77,12 +84,12 @@ read_data       {self.data_file.name}
 {pair_coeff}
 
 # MD Settings
-timestep        {config.timestep}
-thermo          {config.thermo_freq}
+timestep        {self.config.timestep}
+thermo          {self.config.thermo_freq}
 
 # OTF Monitoring (Compute and Variables)
 # compute pace_gamma all pace {potential.path} {species_str}
-compute         pace_gamma all pace {potential.path} {species_str}
+compute         pace_gamma all pace {potential_path} {species_str}
 variable        max_gamma equal max(c_pace_gamma)
 
 thermo_style    custom step temp pe etotal press v_max_gamma
@@ -91,13 +98,13 @@ thermo_style    custom step temp pe etotal press v_max_gamma
 {otf_monitor_block}
 
 # Run
-velocity        all create {config.temperature} 12345 dist gaussian
+velocity        all create {self.config.temperature} 12345 dist gaussian
 fix             1 all nve
-# fix             1 all nvt temp {config.temperature} {config.temperature} $(100.0*dt)
+# fix             1 all nvt temp {self.config.temperature} {self.config.temperature} $(100.0*dt)
 
-dump            1 all custom {config.thermo_freq} {self.dump_file.name} id type x y z fx fy fz
+dump            1 all custom {self.config.thermo_freq} {self.dump_file.name} id type x y z fx fy fz
 
-run             {config.n_steps}
+run             {self.config.n_steps}
 """
         self.input_file.write_text(input_content)
 
@@ -167,7 +174,7 @@ run             {config.n_steps}
             try:
                 # Map types to numbers
                 # Get types
-                types = atoms.get_array("type")
+                types = atoms.get_array("type")  # type: ignore[no-untyped-call]
                 # Map 1-based index to species
                 species_map = {i + 1: s for i, s in enumerate(potential.species)}
 
@@ -175,7 +182,7 @@ run             {config.n_steps}
                 from ase.data import atomic_numbers
 
                 new_numbers = [atomic_numbers[species_map[t]] for t in types]
-                atoms.set_atomic_numbers(new_numbers)
+                atoms.set_atomic_numbers(new_numbers)  # type: ignore[no-untyped-call]
             except Exception as e:
                 logger.warning(f"Could not map species from potential: {e}")
 

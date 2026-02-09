@@ -199,6 +199,7 @@ TrainerConfig = MockTrainerConfig | PacemakerTrainerConfig
 
 class BaseDynamicsConfig(ComponentConfig):
     uncertainty_threshold: float = 5.0
+    max_workers: int = Field(default=1, ge=1)
 
 
 class MockDynamicsConfig(BaseDynamicsConfig):
@@ -216,6 +217,12 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
     pressure: float = 0.0
     thermo_freq: int = 100
 
+    # File names
+    input_filename: str = "in.lammps"
+    data_filename: str = "data.lammps"
+    log_filename: str = "log.lammps"
+    dump_filename: str = "dump.lammps"
+
 
 class EONDynamicsConfig(BaseDynamicsConfig):
     name: Literal[DynamicsType.EON] = DynamicsType.EON
@@ -229,6 +236,13 @@ class EONDynamicsConfig(BaseDynamicsConfig):
     # EON specific params
     prefactor: float = 1e12
     seed: int | None = None
+
+    # File names
+    config_filename: str = "config.ini"
+    pos_filename: str = "pos.con"
+    driver_filename: str = "pace_driver.py"
+    client_log_filename: str = "client.log"
+    halted_structure_filename: str = "halted_structure.xyz"
 
 
 DynamicsConfig = MockDynamicsConfig | LAMMPSDynamicsConfig | EONDynamicsConfig
