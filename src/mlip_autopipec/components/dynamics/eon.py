@@ -11,6 +11,7 @@ from ase.io import read, write
 
 from mlip_autopipec.components.dynamics.base import BaseDynamics
 from mlip_autopipec.components.dynamics.otf import get_otf_check_code
+from mlip_autopipec.constants import MAX_EON_ATOMS
 from mlip_autopipec.domain_models.config import EONDynamicsConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
@@ -46,9 +47,25 @@ class EONDriver:
         self.workdir.mkdir(parents=True, exist_ok=True)
         validate_safe_path(self.workdir)
 
+        # Validate file paths for security
+        validate_safe_path(self.config_file, base_dir=self.workdir)
+        validate_safe_path(self.pos_file, base_dir=self.workdir)
+        validate_safe_path(self.driver_script, base_dir=self.workdir)
+        validate_safe_path(self.client_log, base_dir=self.workdir)
+        validate_safe_path(self.halted_structure, base_dir=self.workdir)
+
         # 1. Write structure to pos.con
         atoms = structure.to_ase()
+        # Security/Scalability: Check structure size before writing
+        # EON usually writes full files, but for extreme sizes we might want to warn
+        if len(atoms) > MAX_EON_ATOMS:
+            logger.warning(
+                f"Writing large structure ({len(atoms)} atoms) to {self.pos_file}. "
+                "Ensure sufficient disk space and memory."
+            )
+
         try:
+            # ASE write generally handles memory well for single frames, but we rely on it.
             write(self.pos_file, atoms, format="eon")
         except Exception as e:
             # Explicitly catch and log error for data integrity
@@ -58,22 +75,36 @@ class EONDriver:
 
         # 2. Write config.ini
         # Minimal EON config for KMC
+        # Explicit validation/conversion to ensure safe types
+        temperature = float(self.config.temperature)
+        seed = int(self.config.seed) if self.config.seed is not None else 0
+        time_step = float(self.config.time_step)
+        prefactor = float(self.config.prefactor)
+        n_events = int(self.config.n_events)
+
+        # Validate potential path again for formatting (though handled by strict Pydantic/pathlib)
+        script_name = self.driver_script.name
+        if ".." in script_name or "/" in script_name or "\\" in script_name:
+             # Should be caught by validate_safe_path earlier, but robust check
+             msg = f"Invalid script name: {script_name}"
+             raise ValueError(msg)
+
         config_content = f"""[Main]
 job = parallel_replica
-temperature = {self.config.temperature}
-random_seed = {self.config.seed if self.config.seed is not None else 0}
+temperature = {temperature}
+random_seed = {seed}
 
 [Potentials]
 potential = script_potential
 
 [Script Potential]
-script = python {self.driver_script.name}
+script = python {script_name}
 
 [Parallel Replica]
-time_step = {self.config.time_step}
+time_step = {time_step}
 # EON uses prefactor?
-prefactor = {self.config.prefactor:.1e}
-max_events = {self.config.n_events}
+prefactor = {prefactor:.1e}
+max_events = {n_events}
 """
         self.config_file.write_text(config_content)
 
@@ -196,6 +227,7 @@ if __name__ == "__main__":
     def run_kmc(self) -> None:
         """
         Run EON via subprocess.
+        Streams output to client.log to avoid memory issues and unbounded growth checks.
         """
         if not shutil.which(self.binary):
             # Skip if no binary
@@ -203,9 +235,26 @@ if __name__ == "__main__":
 
         try:
             cmd = [self.binary]
-            # Redirect stdout to client.log
-            with self.client_log.open("w") as f:
-                subprocess.run(cmd, cwd=self.workdir, stdout=f, stderr=subprocess.STDOUT, check=False) # noqa: S603
+            # Stream output to avoid memory buffering issues
+            with self.client_log.open("wb") as f_out:
+                process = subprocess.Popen(  # noqa: S603
+                    cmd,
+                    cwd=self.workdir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    shell=False,
+                )
+                if process.stdout is not None:
+                    # Read in chunks
+                    for chunk in iter(lambda: process.stdout.read(4096), b""):  # type: ignore[union-attr]
+                        f_out.write(chunk)
+
+                return_code = process.wait()
+                if return_code != 0:
+                    msg = f"EON execution failed with return code {return_code}"
+                    logger.error(msg)
+                    raise subprocess.CalledProcessError(return_code, cmd)
+
         except Exception as e:
             logger.exception(f"EON failed: {e}") # noqa: TRY401
             raise
@@ -264,10 +313,11 @@ def _run_single_eon_simulation(
             # But Scalability says minimize disk usage.
             # Let's delete after reading.
             shutil.rmtree(run_dir, ignore_errors=True)
-            return struct
         except Exception:
             logger.exception(f"Failed to read halted structure from EON run {idx}")
             return None
+        else:
+            return struct
 
     except Exception:
         logger.exception(f"EON run failed for structure {idx}")
@@ -295,6 +345,8 @@ class EONDynamics(BaseDynamics):
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
         physics_baseline: dict[str, Any] | None = None,
+        cycle: int = 0,
+        metrics: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the PES using EON KMC simulations.

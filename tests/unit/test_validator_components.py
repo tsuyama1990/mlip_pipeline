@@ -49,7 +49,6 @@ def test_validate_all_pass(mock_eos, mock_elastic, mock_phonon, mock_ucf, mock_b
     mock_eos_instance.calculate.return_value = 0.001  # low rmse
 
     # Mock relaxation
-    mock_bfgs_instance = mock_bfgs.return_value
     # opt.run() does nothing, which is fine
 
     # Mock calculator methods

@@ -1,4 +1,5 @@
 import contextlib
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -6,32 +7,54 @@ import numpy as np
 import pytest
 
 from mlip_autopipec.core.orchestrator import Orchestrator
-from mlip_autopipec.domain_models.config import GlobalConfig, OrchestratorConfig
+from mlip_autopipec.domain_models.config import (
+    ComponentsConfig,
+    GlobalConfig,
+    MockDynamicsConfig,
+    MockGeneratorConfig,
+    MockOracleConfig,
+    MockTrainerConfig,
+    MockValidatorConfig,
+    OrchestratorConfig,
+)
+from mlip_autopipec.domain_models.enums import (
+    DynamicsType,
+    GeneratorType,
+    OracleType,
+    TrainerType,
+    ValidatorType,
+)
 from mlip_autopipec.domain_models.results import ValidationMetrics
 from mlip_autopipec.domain_models.structure import Structure
 
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> GlobalConfig:
-    # Minimal config for mocks
-    config = MagicMock(spec=GlobalConfig)
-    config.workdir = tmp_path
-    config.max_cycles = 5
-    config.orchestrator = OrchestratorConfig()
+    # Create real config instances instead of mocks
+    generator_config = MockGeneratorConfig(
+        name=GeneratorType.MOCK, n_structures=10, cell_size=5.0, n_atoms=2, atomic_numbers=[1, 1]
+    )
+    oracle_config = MockOracleConfig(name=OracleType.MOCK)
+    trainer_config = MockTrainerConfig(name=TrainerType.MOCK)
+    dynamics_config = MockDynamicsConfig(name=DynamicsType.MOCK, selection_rate=0.5)
+    validator_config = MockValidatorConfig(name=ValidatorType.MOCK)
 
-    # Explicitly set optional fields to None or Mock to avoid AttributeError with spec
-    config.physics_baseline = None
+    components_config = ComponentsConfig(
+        generator=generator_config,
+        oracle=oracle_config,
+        trainer=trainer_config,
+        dynamics=dynamics_config,
+        validator=validator_config,
+    )
 
-    # Components
-    # Avoid strict spec on ComponentsConfig to prevent issues with Pydantic fields
-    comps = MagicMock()
-    config.components = comps
+    orchestrator_config = OrchestratorConfig()
 
-    # Generator config
-    comps.generator = MagicMock()
-    comps.generator.n_structures = 10
-
-    return config
+    return GlobalConfig(
+        workdir=tmp_path,
+        max_cycles=5,
+        orchestrator=orchestrator_config,
+        components=components_config,
+    )
 
 
 @patch("mlip_autopipec.core.orchestrator.Dataset")
@@ -64,7 +87,7 @@ def test_orchestrator_halt_logic(mock_factory: MagicMock, mock_state_mgr: MagicM
     orchestrator.trainer.train.return_value = MagicMock() # potential
 
     # Setup Oracle
-    def mock_compute(structures: list[Structure]) -> iter:
+    def mock_compute(structures: Iterator[Structure]) -> Iterator[Structure]:
         # Consume iterator to trigger side effects (halt counting)
         list(structures)
         return iter([halted_structure])
@@ -80,6 +103,15 @@ def test_orchestrator_halt_logic(mock_factory: MagicMock, mock_state_mgr: MagicM
     orchestrator._run_cycle()
 
     # Assertions
+    # Check if generator/dynamics called with correct cycle
+    orchestrator.generator.generate.assert_called()
+    gen_kwargs = orchestrator.generator.generate.call_args.kwargs
+    assert gen_kwargs.get("cycle") == 2 or orchestrator.generator.generate.call_args.args[1] == 2
+
+    orchestrator.dynamics.explore.assert_called()
+    dyn_kwargs = orchestrator.dynamics.explore.call_args.kwargs
+    assert dyn_kwargs.get("cycle") == 2
+
     # Since halt occurred, validation should NOT be called (or if logic changes, maybe it is called but ignored?)
     # Wait, spec says: "If Converged (no halts) -> Proceed to Validation".
     # So if halts occur, validation is skipped.

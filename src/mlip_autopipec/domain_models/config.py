@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.constants import (
     DEFAULT_BUFFER_SIZE,
+    EON_DEFAULT_TIME_STEP,
     LAMMPS_TEMPLATE_ATOM_STYLE,
     LAMMPS_TEMPLATE_BOUNDARY,
     LAMMPS_TEMPLATE_DUMP,
@@ -19,6 +20,43 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
+
+__all__ = [
+    "AdaptiveGeneratorConfig",
+    "BaseDynamicsConfig",
+    "BaseGeneratorConfig",
+    "BaseOracleConfig",
+    "BaseTrainerConfig",
+    "BaseValidatorConfig",
+    "ComponentConfig",
+    "ComponentsConfig",
+    "DynamicsConfig",
+    "DynamicsType",
+    "EONDynamicsConfig",
+    "ExplorationPolicyConfig",
+    "GeneratorConfig",
+    "GeneratorType",
+    "GlobalConfig",
+    "LAMMPSDynamicsConfig",
+    "MockDynamicsConfig",
+    "MockGeneratorConfig",
+    "MockOracleConfig",
+    "MockTrainerConfig",
+    "MockValidatorConfig",
+    "OracleConfig",
+    "OracleType",
+    "OrchestratorConfig",
+    "PacemakerInputConfig",
+    "PacemakerTrainerConfig",
+    "PhysicsBaselineConfig",
+    "QEOracleConfig",
+    "StandardValidatorConfig",
+    "TrainerConfig",
+    "TrainerType",
+    "VASPOracleConfig",
+    "ValidatorConfig",
+    "ValidatorType",
+]
 
 
 class ComponentConfig(BaseModel):
@@ -46,6 +84,26 @@ class MockGeneratorConfig(BaseGeneratorConfig):
     atomic_numbers: list[int] = Field(..., min_length=1)
 
 
+class ExplorationPolicyConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Ratio of different builders (e.g. bulk, surface) per cycle
+    # Example: keys like "cycle_0" map to builder ratios like {"bulk": 0.6}
+    ratio_schedule: dict[str, dict[str, float]] = Field(default_factory=dict)
+
+    # Temperature schedule for generation if relevant (e.g. for MD-based generation)
+    temperature_schedule: dict[int, float] | None = None
+
+    # Defect density schedule (e.g. 1 defect per N atoms)
+    defect_density_schedule: dict[int, float] | None = None
+
+    # Number of candidates to generate during enhancement
+    n_candidates: int = Field(default=20, gt=0)
+
+    def __repr__(self) -> str:
+        return "<ExplorationPolicyConfig>"
+
+
 class AdaptiveGeneratorConfig(BaseGeneratorConfig):
     name: Literal[GeneratorType.ADAPTIVE] = GeneratorType.ADAPTIVE
     element: str
@@ -57,6 +115,11 @@ class AdaptiveGeneratorConfig(BaseGeneratorConfig):
     )
     vacuum: float = 10.0
     supercell_dim: int = 2
+
+    # Policy configuration
+    policy: ExplorationPolicyConfig = Field(default_factory=ExplorationPolicyConfig)
+
+    # Legacy field - kept for backward compatibility or initial cycle if policy is empty
     policy_ratios: dict[str, float] = Field(
         default_factory=lambda: {"cycle0_bulk": 0.6, "cycle0_surface": 0.4}
     )
@@ -223,6 +286,9 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
     pressure: float = 0.0
     thermo_freq: int = 100
 
+    # Schedule: cycle_idx -> temperature (e.g. {1: 300, 2: 500})
+    temperature_schedule: dict[int, float] | None = None
+
     # File names
     input_filename: str = "in.lammps"
     data_filename: str = "data.lammps"
@@ -242,8 +308,9 @@ class LAMMPSDynamicsConfig(BaseDynamicsConfig):
 class EONDynamicsConfig(BaseDynamicsConfig):
     name: Literal[DynamicsType.EON] = DynamicsType.EON
     temperature: float = 300.0
-    time_step: float = (
-        1.0  # Time per step in seconds (approx) or similar EON param? EON calculates time.
+    time_step: float = Field(
+        default=EON_DEFAULT_TIME_STEP,
+        description="Time step for KMC simulation (EON parameter)",
     )
     # EON usually runs for a number of events or time.
     n_events: int = 1000

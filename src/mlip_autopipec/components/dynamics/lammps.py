@@ -73,12 +73,25 @@ class LAMMPSDynamics(BaseDynamics):
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
         physics_baseline: dict[str, Any] | None = None,
+        cycle: int = 0,
+        metrics: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the PES using LAMMPS MD simulations.
         """
         base_workdir = workdir or Path.cwd()
         max_workers = self.config.max_workers
+
+        # Update config based on schedule if necessary
+        run_config = self.config
+        if self.config.temperature_schedule and cycle in self.config.temperature_schedule:
+            target_temp = self.config.temperature_schedule[cycle]
+            logger.info(f"Using scheduled temperature {target_temp}K for cycle {cycle}")
+            # Create a copy with updated temperature
+            # Since Pydantic V2 we use model_copy(update=...)
+            run_config = self.config.model_copy(update={"temperature": target_temp})
+            # Validate integrity of the new config
+            LAMMPSDynamicsConfig.model_validate(run_config)
 
         # We submit tasks to executor.
         # Since start_structures is an iterable, we iterate and submit.
@@ -95,7 +108,7 @@ class LAMMPSDynamics(BaseDynamics):
                     idx,
                     structure,
                     potential,
-                    self.config,
+                    run_config,
                     base_workdir,
                     physics_baseline,
                 )

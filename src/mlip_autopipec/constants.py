@@ -17,6 +17,10 @@ HEALER_DEGAUSS_TARGET = 0.02
 # Orchestrator Defaults
 DEFAULT_BUFFER_SIZE = 1000
 
+# EON Defaults
+EON_DEFAULT_TIME_STEP = 1.0
+MAX_EON_ATOMS = 100000
+
 # LAMMPS Templates
 LAMMPS_TEMPLATE_UNITS = "units           metal"
 LAMMPS_TEMPLATE_ATOM_STYLE = "atom_style      atomic"

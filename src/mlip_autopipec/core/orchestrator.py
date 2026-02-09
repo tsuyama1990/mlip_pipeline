@@ -4,7 +4,6 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from mlip_autopipec.core.candidate_generator import generate_local_candidates
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.core.state import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
@@ -128,15 +127,29 @@ class Orchestrator:
         """Step 1: Exploration phase."""
         n_structures = self.config.components.generator.n_structures
 
+        # Get metrics from previous potential if available
+        metrics = self.current_potential.metrics if self.current_potential else None
+
         if cycle == 1:
             logger.info(f"[Cycle {cycle}] Exploration: Generating initial structures (Cold Start)")
-            return self.generator.generate(n_structures=n_structures)
+            return self.generator.generate(
+                n_structures=n_structures, cycle=cycle, metrics=metrics
+            )
 
         logger.info(f"[Cycle {cycle}] Exploration: Running Dynamics with previous potential")
         self._ensure_potential(cycle)
 
+        if self.current_potential is None:
+            msg = f"Cycle {cycle}: Potential not found despite _ensure_potential"
+            raise RuntimeError(msg)
+
+        # Update metrics after ensuring potential
+        metrics = self.current_potential.metrics
+
         # Generate start structures
-        start_structures_iter = self.generator.generate(n_structures=n_structures)
+        start_structures_iter = self.generator.generate(
+            n_structures=n_structures, cycle=cycle, metrics=metrics
+        )
 
         physics_baseline_dict = None
         if self.config.physics_baseline:
@@ -147,6 +160,8 @@ class Orchestrator:
             start_structures_iter,
             workdir=cycle_dir,
             physics_baseline=physics_baseline_dict,
+            cycle=cycle,
+            metrics=metrics,
         )
         return self._enhance_structures(raw_structures)
 
@@ -177,6 +192,10 @@ class Orchestrator:
 
         if cycle > 1 and self.halt_count == 0:
             logger.info(f"[Cycle {cycle}] Convergence check passed (no halts). Running Validation.")
+            if self.current_potential is None:
+                msg = "Cannot validate without a current potential"
+                raise RuntimeError(msg)
+
             metrics = self.validator.validate(self.current_potential)
             logger.info(f"Validation metrics: {metrics}")
 
@@ -209,7 +228,8 @@ class Orchestrator:
             if "halt" in str(provenance).lower():
                 self.halt_count += 1
                 logger.info("Generating local candidates for halted structure")
-                candidates = generate_local_candidates(s, n_candidates=20)
+                # Delegate candidate generation to generator component
+                candidates = list(self.generator.enhance(s))
                 selected = self.trainer.select_active_set(candidates, limit=6)
                 yield from selected
             else:

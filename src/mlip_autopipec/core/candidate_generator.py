@@ -1,4 +1,6 @@
 import logging
+import warnings
+from collections.abc import Iterator
 
 import numpy as np
 
@@ -8,20 +10,35 @@ logger = logging.getLogger(__name__)
 
 
 def generate_local_candidates(
-    structure: Structure, n_candidates: int = 20, rattle_strength: float = 0.05
-) -> list[Structure]:
+    structure: Structure,
+    n_candidates: int = 20,
+    rattle_strength: float = 0.05,
+    seed: int | None = None,
+) -> Iterator[Structure]:
     """
+    DEPRECATED: Use Generator.enhance() instead.
+
     Generate local candidates around a structure using random displacement (Rattle).
 
     Args:
         structure: The seed structure (e.g. halted structure).
         n_candidates: Number of candidates to generate.
         rattle_strength: Magnitude of random displacement in Angstroms.
+        seed: Random seed for reproducibility.
 
     Returns:
-        List of generated Structure objects, including the original (anchor).
+        Iterator of generated Structure objects, including the original (anchor).
     """
-    candidates = [structure]  # Always include the anchor
+    warnings.warn(
+        "generate_local_candidates is deprecated. Use Generator.enhance() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    yield structure  # Always include the anchor
+
+    # Initialize RNG
+    rng = np.random.RandomState(seed)
 
     # We use the structure's own logic if available, or just manipulate positions
     # Structure.positions is a numpy array.
@@ -31,7 +48,7 @@ def generate_local_candidates(
         new_struct = structure.model_deep_copy()
 
         # Apply random displacement
-        displacement = np.random.uniform(
+        displacement = rng.uniform(
             -rattle_strength, rattle_strength, size=new_struct.positions.shape
         )
         new_struct.positions += displacement
@@ -46,6 +63,4 @@ def generate_local_candidates(
         new_struct.stress = None
         new_struct.uncertainty = None
 
-        candidates.append(new_struct)
-
-    return candidates
+        yield new_struct
