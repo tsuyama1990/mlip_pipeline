@@ -90,6 +90,8 @@ class LAMMPSDynamics(BaseDynamics):
             # Create a copy with updated temperature
             # Since Pydantic V2 we use model_copy(update=...)
             run_config = self.config.model_copy(update={"temperature": target_temp})
+            # Validate integrity of the new config
+            LAMMPSDynamicsConfig.model_validate(run_config)
 
         # We submit tasks to executor.
         # Since start_structures is an iterable, we iterate and submit.

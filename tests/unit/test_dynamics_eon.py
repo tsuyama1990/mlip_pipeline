@@ -74,7 +74,7 @@ def test_eon_driver_write_input(
     assert "return True" in content
 
 
-@patch("mlip_autopipec.components.dynamics.eon.subprocess.run")
+@patch("mlip_autopipec.components.dynamics.eon.subprocess.Popen")
 @patch("mlip_autopipec.components.dynamics.eon.read")
 def test_eon_dynamics_explore(
     mock_read: MagicMock,
@@ -117,7 +117,7 @@ def test_eon_dynamics_explore(
             assert mock_executor.submit.call_count == 1
 
 
-@patch("mlip_autopipec.components.dynamics.eon.subprocess.run")
+@patch("mlip_autopipec.components.dynamics.eon.subprocess.Popen")
 @patch("mlip_autopipec.components.dynamics.eon.read")
 def test_run_single_eon_simulation(
     mock_read: MagicMock,
@@ -146,7 +146,13 @@ def test_run_single_eon_simulation(
     mock_read.return_value = mock_atoms
 
     # Mock subprocess to simulate EON run
-    mock_subprocess_run.return_value = MagicMock(returncode=0)
+    # Popen returns a process object
+    mock_process = MagicMock()
+    mock_process.stdout = MagicMock()
+    # Mock iterator behavior of stdout reading: yield one chunk then empty
+    mock_process.stdout.read.side_effect = [b"mock log output", b""]
+    mock_process.wait.return_value = 0
+    mock_subprocess_run.return_value = mock_process
 
     # We need to simulate the existence of the halted file
     idx = 0

@@ -1,5 +1,6 @@
 import logging
 import warnings
+from collections.abc import Iterator
 
 import numpy as np
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def generate_local_candidates(
     structure: Structure, n_candidates: int = 20, rattle_strength: float = 0.05
-) -> list[Structure]:
+) -> Iterator[Structure]:
     """
     DEPRECATED: Use Generator.enhance() instead.
 
@@ -22,15 +23,15 @@ def generate_local_candidates(
         rattle_strength: Magnitude of random displacement in Angstroms.
 
     Returns:
-        List of generated Structure objects, including the original (anchor).
+        Iterator of generated Structure objects, including the original (anchor).
     """
     warnings.warn(
         "generate_local_candidates is deprecated. Use Generator.enhance() instead.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
 
-    candidates = [structure]  # Always include the anchor
+    yield structure  # Always include the anchor
 
     # We use the structure's own logic if available, or just manipulate positions
     # Structure.positions is a numpy array.
@@ -55,6 +56,4 @@ def generate_local_candidates(
         new_struct.stress = None
         new_struct.uncertainty = None
 
-        candidates.append(new_struct)
-
-    return candidates
+        yield new_struct

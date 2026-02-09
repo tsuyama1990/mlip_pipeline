@@ -46,6 +46,13 @@ class EONDriver:
         self.workdir.mkdir(parents=True, exist_ok=True)
         validate_safe_path(self.workdir)
 
+        # Validate file paths for security
+        validate_safe_path(self.config_file, base_dir=self.workdir)
+        validate_safe_path(self.pos_file, base_dir=self.workdir)
+        validate_safe_path(self.driver_script, base_dir=self.workdir)
+        validate_safe_path(self.client_log, base_dir=self.workdir)
+        validate_safe_path(self.halted_structure, base_dir=self.workdir)
+
         # 1. Write structure to pos.con
         atoms = structure.to_ase()
         try:
@@ -196,6 +203,7 @@ if __name__ == "__main__":
     def run_kmc(self) -> None:
         """
         Run EON via subprocess.
+        Streams output to client.log to avoid memory issues and unbounded growth checks.
         """
         if not shutil.which(self.binary):
             # Skip if no binary
@@ -203,9 +211,20 @@ if __name__ == "__main__":
 
         try:
             cmd = [self.binary]
-            # Redirect stdout to client.log
-            with self.client_log.open("w") as f:
-                subprocess.run(cmd, cwd=self.workdir, stdout=f, stderr=subprocess.STDOUT, check=False) # noqa: S603
+            # Stream output to avoid memory buffering issues
+            with self.client_log.open("wb") as f_out:
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=self.workdir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+                if process.stdout is not None:
+                    # Read in chunks
+                    for chunk in iter(lambda: process.stdout.read(4096), b""):  # type: ignore[union-attr]
+                        f_out.write(chunk)
+                process.wait()
+
         except Exception as e:
             logger.exception(f"EON failed: {e}") # noqa: TRY401
             raise

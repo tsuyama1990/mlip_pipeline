@@ -207,7 +207,7 @@ class ActiveSetSelector:
                     # For optimization, we use the list but ensure we don't copy it needlessly
                     # Use a generator expression for to_ase() to avoid creating a new list of atoms objects
                     atoms_iter = (s.to_ase() for s in batch)
-                    write(chunk_file, atoms_iter, format="extxyz")
+                    write(chunk_file, list(atoms_iter), format="extxyz")
 
                     # Select from chunk
                     self._run_pace_activeset(chunk_file, chunk_out, self.limit)
