@@ -64,6 +64,8 @@ class MockDynamics(BaseDynamics):
                 # Create a deep copy using our custom method
                 s_copy = s.model_deep_copy()
                 s_copy.uncertainty = simulated_uncertainty
+                # Mark as halted for Orchestrator logic
+                s_copy.tags["provenance"] = "dynamics_halt"
                 yield s_copy
                 count += 1
 

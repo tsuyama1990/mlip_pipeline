@@ -5,8 +5,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import pandas as pd
-
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.utils.security import validate_safe_path
 
@@ -118,7 +116,7 @@ class ActiveSetSelector:
             logger.exception(msg)
             raise RuntimeError(msg) from e
 
-    def select(self, input_path: Path, output_path: Path) -> Path:  # noqa: C901
+    def select(self, input_path: Path, output_path: Path) -> Path:
         """
         Run pace_activeset to filter the dataset.
         Handles large files by chunking if necessary.

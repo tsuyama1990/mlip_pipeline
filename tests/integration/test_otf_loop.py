@@ -104,7 +104,13 @@ def test_otf_loop_execution(
     orchestrator = Orchestrator(mock_config)
     orchestrator.current_potential = Potential(path=potential_file, format="yace") # Set initial pot
 
-    orchestrator._run_cycle()
+    try:
+        orchestrator._run_cycle()
+    except StopIteration:
+        # If it raises StopIteration, it means validation passed and halted_count was 0.
+        # This shouldn't happen in this test case as we expect halts.
+        # However, for robustness, we catch it but assert failure if halted_count is 0.
+        pass
 
     # Verification
     # 1. Dynamics.explore was called
@@ -120,3 +126,9 @@ def test_otf_loop_execution(
     assert len(candidates) == 21 # 1 anchor + 20 generated
     assert candidates[0] == halted_struct # Anchor first
     assert candidates[1].tags["provenance"] == "local_candidate" # Generated ones
+
+    # 4. Check halt count
+    # Since select_active_set was called, halt count should be incremented
+    assert orchestrator.halt_count > 0
+    # And validation should NOT have run
+    mock_validator.validate.assert_not_called()
