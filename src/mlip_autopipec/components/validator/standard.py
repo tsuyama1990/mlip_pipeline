@@ -31,7 +31,7 @@ class StandardValidator(BaseValidator):
         # Instantiate sub-validators with config
         self.phonon_calc = PhononCalc(
             supercell_matrix=self.config.phonon_supercell,
-            displacement=0.01 # Hardcoded or add to config if needed
+            displacement=self.config.phonon_displacement,
         )
         self.elastic_calc = ElasticCalc(
             strain_magnitude=self.config.elastic_strain_magnitude
@@ -87,9 +87,9 @@ class StandardValidator(BaseValidator):
             atoms_to_relax.calc = calc
 
             try:
-                ucf = UnitCellFilter(atoms_to_relax)
-                opt = BFGS(ucf, logfile=None)
-                opt.run(fmax=0.01, steps=50)
+                ucf = UnitCellFilter(atoms_to_relax) # type: ignore[no-untyped-call]
+                opt = BFGS(ucf, logfile=None) # type: ignore[arg-type, no-untyped-call]
+                opt.run(fmax=0.01, steps=50) # type: ignore[no-untyped-call]
                 relaxed_structure = Structure.from_ase(atoms_to_relax)
             except Exception as e:
                 logger.exception("Relaxation failed")

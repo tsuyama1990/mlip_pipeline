@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 class SecurityError(Exception):
     """Exception raised for security violations."""
-    pass
 
 
 class ActiveSetSelector:
@@ -35,6 +34,8 @@ class ActiveSetSelector:
             chunk_threshold_mb: File size threshold (MB) to trigger chunked processing.
             batch_size: Number of structures per chunk.
         """
+        if limit <= 0:
+            raise ValueError(f"Limit must be positive, got {limit}")
         self.limit = limit
         self.chunk_threshold_mb = chunk_threshold_mb
         self.batch_size = batch_size
@@ -60,8 +61,6 @@ class ActiveSetSelector:
         path_str = str(resolved_path)
 
         # Explicitly deny /tmp and /var/tmp usage regardless of setting
-        # This is a strict security policy to prevent execution of transient files.
-        # We check common temporary directories.
         forbidden_prefixes = ("/tmp", "/var/tmp")  # noqa: S108
         if path_str.startswith(forbidden_prefixes):
             msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
@@ -166,15 +165,25 @@ class ActiveSetSelector:
         )
 
         # Chunked processing
+        self._process_chunks(safe_input, safe_output)
+
+        if not safe_output.exists():
+             logger.warning(f"pace_activeset finished but {safe_output} was not created.")
+
+        return safe_output
+
+    def _process_chunks(self, input_path: Path, output_path: Path) -> None:
+        """Process large files by splitting into chunks, selecting, and merging."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             chunk_paths = []
 
             # Use Dataset to stream read
             # Note: root_dir is just to satisfy checks, we only read
-            ds = Dataset(safe_input, root_dir=safe_input.parent)
+            ds = Dataset(input_path, root_dir=input_path.parent)
 
             # Iterate in batches and write chunks
+            # We assume batch writing prevents OOM
             for i, batch in enumerate(ds.iter_batches(batch_size=self.batch_size)):
                 chunk_file = tmp_path / f"chunk_{i}.extxyz"
 
@@ -185,31 +194,24 @@ class ActiveSetSelector:
 
                 chunk_paths.append(chunk_file)
 
-            # Select from each chunk
-            selected_chunks = []
-            for i, chunk_file in enumerate(chunk_paths):
-                chunk_out = tmp_path / f"selected_{i}.extxyz"
-
-                # We select 'limit' from each chunk to ensure we have candidates
-                try:
-                    self._run_pace_activeset(chunk_file, chunk_out, self.limit)
-                    if chunk_out.exists():
-                        selected_chunks.append(chunk_out)
-                except Exception:
-                    logger.warning(f"Failed to select from chunk {i}, skipping.")
-
-            # Merge selected chunks
+            # Select from each chunk sequentially to avoid holding all results in memory
             merged_path = tmp_path / "merged_candidates.extxyz"
-            # Concatenate files
+
             with merged_path.open("wb") as outfile:
-                for fpath in selected_chunks:
-                    with fpath.open("rb") as infile:
-                        shutil.copyfileobj(infile, outfile)
+                for i, chunk_file in enumerate(chunk_paths):
+                    chunk_out = tmp_path / f"selected_{i}.extxyz"
+
+                    try:
+                        # Select limit from chunk to ensure diversity
+                        self._run_pace_activeset(chunk_file, chunk_out, self.limit)
+
+                        # Append directly to merged file
+                        if chunk_out.exists():
+                            with chunk_out.open("rb") as infile:
+                                shutil.copyfileobj(infile, outfile)
+
+                    except Exception:
+                        logger.warning(f"Failed to select from chunk {i}, skipping.")
 
             # Final selection on merged set
-            self._run_pace_activeset(merged_path, safe_output, self.limit)
-
-        if not safe_output.exists():
-             logger.warning(f"pace_activeset finished but {safe_output} was not created.")
-
-        return safe_output
+            self._run_pace_activeset(merged_path, output_path, self.limit)

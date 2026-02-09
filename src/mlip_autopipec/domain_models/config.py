@@ -279,6 +279,7 @@ class StandardValidatorConfig(BaseValidatorConfig):
     phonon_supercell: list[int] = Field(default_factory=lambda: [4, 4, 4])
     eos_strain_range: float = 0.2
     elastic_strain_magnitude: float = 0.01
+    phonon_displacement: float = 0.01
 
 
 ValidatorConfig = MockValidatorConfig | StandardValidatorConfig

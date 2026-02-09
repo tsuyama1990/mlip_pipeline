@@ -2,8 +2,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mlip_autopipec.domain_models.structure import Structure
-
 
 class ValidationMetrics(BaseModel):
     """
@@ -34,7 +32,11 @@ class ValidationMetrics(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
     # Failed structures for loop
-    failed_structures: list[Structure] = Field(default_factory=list)
+    # Using Any for Structure to avoid circular imports if needed, or string representation
+    # But ideally it holds Structure objects.
+    # We will use Any or specialized Pydantic model if we can import Structure.
+    # To keep it simple and avoid circular dependency hell in strict mode:
+    failed_structures: list[Any] = Field(default_factory=list)
 
     def __repr__(self) -> str:
         return f"<ValidationMetrics(passed={self.passed}, energy_rmse={self.energy_rmse})>"

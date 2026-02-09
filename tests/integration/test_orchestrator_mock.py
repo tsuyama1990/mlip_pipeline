@@ -144,14 +144,8 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
     assert dataset_path.exists()
 
     dataset = Dataset(dataset_path, root_dir=tmp_path)
-    count = 0
-    iterator = iter(dataset)
-    try:
-        while True:
-            next(iterator)
-            count += 1
-    except StopIteration:
-        pass
+    structures = list(dataset) # Load small dataset for checking
+    count = len(structures)
 
     # Cycle 1: 20 structures
     # Cycle 2:
@@ -167,3 +161,9 @@ def test_orchestrator_selection_logic(mock_config: GlobalConfig, tmp_path: Path)
 
     assert count > 25, "Cycle 2 should add structures via active learning"
     assert count < 130, "Selection logic should have filtered some structures"
+
+    # Verify provenance
+    cycle2_structures = structures[20:]
+    # Should contain local candidates from halts
+    halt_candidates = [s for s in cycle2_structures if "local_candidate" in str(s.tags.get("provenance"))]
+    assert len(halt_candidates) > 0, "No local candidates generated"

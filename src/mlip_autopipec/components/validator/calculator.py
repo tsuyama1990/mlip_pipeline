@@ -2,7 +2,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
@@ -12,6 +12,7 @@ from ase.units import bar
 from mlip_autopipec.components.dynamics.hybrid import generate_pair_style
 from mlip_autopipec.domain_models.config import PhysicsBaselineConfig
 from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class LammpsSinglePointCalculator(Calculator):
     for a single configuration (static calculation).
     """
 
-    implemented_properties = ["energy", "forces", "stress"]
+    implemented_properties: ClassVar[list[str]] = ["energy", "forces", "stress"]
 
     def __init__(
         self,
@@ -56,6 +57,9 @@ class LammpsSinglePointCalculator(Calculator):
             raise ValueError(msg)
 
         # 1. Write data file
+        # Security: Validate workdir path before writing
+        validate_safe_path(self.workdir)
+
         data_file = self.workdir / "data.lammps"
         try:
             write(data_file, self.atoms, format="lammps-data", atom_style="atomic")
@@ -152,21 +156,28 @@ run             0
                     continue
 
         if not found:
-            msg = "Could not find thermo output in log"
-            raise RuntimeError(msg)
+            self._raise_error("Could not find thermo output in log")
 
     def _read_dump(self, dump_file: Path) -> None:
         try:
             atoms_list = read(dump_file, index=":", format="lammps-dump-text")
             if not atoms_list:
-                msg = "No atoms found in dump"
-                raise RuntimeError(msg)
+                self._raise_error("No atoms found in dump")
 
             # cast to Atoms to satisfy mypy
             atoms = cast(Atoms, atoms_list[-1])
-            forces = atoms.get_forces() # type: ignore[no-untyped-call]
-            self.results["forces"] = forces
+            # Check if atoms has get_forces method (it does, but type checker might be confused)
+            # Use getattr for safety if needed, or cast
+            if hasattr(atoms, "get_forces"):
+                forces = atoms.get_forces() # type: ignore[no-untyped-call]
+                self.results["forces"] = forces
+            else:
+                self._raise_error("Atoms object has no forces")
 
         except Exception as e:
             msg = f"Failed to read dump file: {e}"
             raise RuntimeError(msg) from e
+
+    def _raise_error(self, msg: str) -> None:
+        """Helper to raise exceptions."""
+        raise RuntimeError(msg)

@@ -58,6 +58,7 @@ class MockDynamics(BaseDynamics):
             self.config.uncertainty_threshold + self.config.simulated_uncertainty
         )
 
+        # Iterate over generator directly to avoid loading full dataset into memory
         for s in start_structures:
             # Randomly select structures to simulate finding "uncertain" regions
             if self._rng.random() < selection_rate:

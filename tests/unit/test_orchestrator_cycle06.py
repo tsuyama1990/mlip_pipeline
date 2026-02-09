@@ -1,11 +1,12 @@
-from pathlib import Path
 from unittest.mock import MagicMock, call, patch
+from pathlib import Path
+import contextlib
 
 import numpy as np
 import pytest
 
 from mlip_autopipec.core.orchestrator import Orchestrator
-from mlip_autopipec.domain_models.config import GlobalConfig, OrchestratorConfig
+from mlip_autopipec.domain_models.config import ComponentsConfig, GlobalConfig, OrchestratorConfig
 from mlip_autopipec.domain_models.results import ValidationMetrics
 from mlip_autopipec.domain_models.structure import Structure
 
@@ -135,11 +136,8 @@ def test_orchestrator_converged_validation_pass(mock_factory, mock_state_mgr, mo
     # But _run_cycle just runs one cycle. The loop is in run().
     # We test _run_cycle behavior.
 
-    try:
+    with contextlib.suppress(StopIteration):
         orchestrator._run_cycle()
-    except StopIteration:
-        pass # If we implement stopping by raising StopIteration or similar.
-             # Or we check status update.
 
     # Assertions
     orchestrator.validator.validate.assert_called_once()
