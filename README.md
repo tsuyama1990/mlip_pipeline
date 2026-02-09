@@ -95,6 +95,24 @@ Generate an HTML summary of the run.
 uv run python -m mlip_autopipec report config.yaml
 ```
 
+## Tutorials
+
+We provide a set of Jupyter Notebooks in the `tutorials/` directory to guide you through a complete scientific workflow (Fe/Pt on MgO).
+
+-   `01_MgO_FePt_Training.ipynb`: Train base potentials for substrate and alloy.
+-   `02_Interface_Learning.ipynb`: Learn the metal-oxide interface.
+-   `03_Deposition_MD.ipynb`: Simulate Physical Vapor Deposition (PVD).
+-   `04_Ordering_aKMC.ipynb`: Explore long-term ordering using aKMC (EON).
+
+To run them:
+```bash
+# Install dependencies
+uv sync
+
+# Run the notebook server
+uv run jupyter notebook tutorials/
+```
+
 ## Architecture
 
 ```
