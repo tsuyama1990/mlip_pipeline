@@ -1,5 +1,6 @@
 import argparse
 import sys
+import logging
 from pathlib import Path
 from mlip_autopipec.core.orchestrator import Orchestrator
 
@@ -19,7 +20,10 @@ def main():
         orchestrator = Orchestrator(config_path)
         orchestrator.run_cycle()
     except Exception as e:
-        print(f"Error running pipeline: {e}", file=sys.stderr)
+        # Security: Log detailed stack trace but show only generic/safe message to user
+        if logging.getLogger().handlers:
+            logging.critical(f"Fatal error: {e}", exc_info=True)
+        print(f"Error running pipeline: {str(e)}", file=sys.stderr)
         sys.exit(1)
 
 

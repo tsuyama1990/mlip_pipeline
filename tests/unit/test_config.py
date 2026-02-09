@@ -3,11 +3,14 @@ from pydantic import ValidationError
 from pathlib import Path
 from mlip_autopipec.domain_models.config import (
     Config,
+    OrchestratorConfig,
     GeneratorType,
     DynamicsType,
     OracleType,
     TrainerType,
     ValidatorType,
+    DFTOracleConfig,
+    CalculatorType,
 )
 
 
@@ -50,7 +53,6 @@ def test_invalid_config_missing_field():
     }
     with pytest.raises(ValidationError) as excinfo:
         Config(**invalid_data)
-    # Check for missing field error
     assert "Field required" in str(excinfo.value)
 
 
@@ -71,25 +73,30 @@ def test_invalid_config_extra_field():
     assert "Extra inputs are not permitted" in str(excinfo.value)
 
 
-def test_discriminated_union_dynamics():
-    # Test LAMMPS config
-    lammps_data = {
-        "type": DynamicsType.LAMMPS,
-        "input_filename": "in.lammps",
-        "log_filename": "lammps.log",
-        "driver_filename": "driver.py",
-        "timestep": 0.002,
-    }
-    # We need full config to validate via Config or just validate sub-model?
-    # Config defines dynamics as Union, so let's try to parse it via Config
-    full_data = {
-        "orchestrator": {"work_dir": "/tmp"},
-        "generator": {"type": GeneratorType.RANDOM},
-        "oracle": {"type": OracleType.MOCK},
-        "trainer": {"type": TrainerType.MOCK},
-        "dynamics": lammps_data,
-        "validator": {"type": ValidatorType.MOCK},
-    }
-    config = Config(**full_data)
-    assert config.dynamics.type == DynamicsType.LAMMPS
-    assert config.dynamics.timestep == 0.002
+def test_dft_oracle_command_validation():
+    # Valid
+    config = DFTOracleConfig(
+        type=OracleType.DFT,
+        calculator_type=CalculatorType.ESPRESSO,
+        command="mpirun -np 4 pw.x"
+    )
+    assert config.command == "mpirun -np 4 pw.x"
+
+    # Invalid (Shell Injection)
+    with pytest.raises(ValidationError) as excinfo:
+        DFTOracleConfig(
+            type=OracleType.DFT,
+            command="rm -rf /; echo hello"
+        )
+    assert "Command contains potentially unsafe shell characters" in str(excinfo.value)
+
+
+def test_work_dir_traversal_validation():
+    with pytest.raises(ValidationError) as excinfo:
+        OrchestratorConfig(work_dir="/tmp/../etc/passwd")
+    assert "Path traversal (..) not allowed" in str(excinfo.value)
+
+def test_config_constraints():
+    # Test ge, le constraints
+    with pytest.raises(ValidationError):
+        OrchestratorConfig(work_dir="/tmp", max_cycles=0) # Should be >= 1

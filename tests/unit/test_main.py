@@ -1,6 +1,6 @@
 import pytest
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from mlip_autopipec.main import main
 
 
@@ -8,7 +8,7 @@ def test_main_no_args(capsys):
     with patch.object(sys, "argv", ["mlip-run"]):
         with pytest.raises(SystemExit) as e:
             main()
-    assert e.type == SystemExit
+    assert e.type is SystemExit
     assert e.value.code == 2
 
 

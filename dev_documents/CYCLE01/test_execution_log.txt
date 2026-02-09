@@ -3,12 +3,12 @@ platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 plugins: cov-7.0.0
-collected 14 items
+collected 19 items
 
-tests/unit/test_config.py ....                                           [ 28%]
-tests/unit/test_logger.py .                                              [ 35%]
-tests/unit/test_main.py ....                                             [ 64%]
-tests/unit/test_mock.py .                                                [ 71%]
-tests/unit/test_orchestrator.py ....                                     [100%]
+tests/unit/test_config.py ......                                         [ 31%]
+tests/unit/test_logger.py .                                              [ 36%]
+tests/unit/test_main.py ....                                             [ 57%]
+tests/unit/test_mock.py ..                                               [ 68%]
+tests/unit/test_orchestrator.py ......                                   [100%]
 
-============================== 14 passed in 0.32s ==============================
+============================== 19 passed in 0.53s ==============================

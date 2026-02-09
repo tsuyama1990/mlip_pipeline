@@ -1,6 +1,4 @@
 import logging
-import pytest
-from pathlib import Path
 from mlip_autopipec.core.logger import setup_logging
 
 def test_setup_logging(tmp_path):
