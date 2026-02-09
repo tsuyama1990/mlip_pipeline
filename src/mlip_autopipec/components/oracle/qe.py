@@ -1,5 +1,4 @@
 import concurrent.futures
-import contextlib
 import logging
 from collections.abc import Iterable, Iterator
 
@@ -97,7 +96,7 @@ class QEOracle(BaseOracle):
     def name(self) -> str:
         return self.config.name
 
-    def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:  # noqa: C901, PLR0912
+    def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:  # noqa: C901
         """
         Compute labels using batched parallel processing with streaming.
         Controls memory usage by limiting the number of in-flight futures and total atoms.
@@ -108,6 +107,7 @@ class QEOracle(BaseOracle):
         max_atoms_in_flight = 100_000  # Safety limit for total atoms in memory
 
         iterator = iter(structures)
+        iterator = iter(structures)
         futures: dict[concurrent.futures.Future[str | None], int] = {}
         pending_atoms = 0
         pending_structure: Structure | None = None
@@ -115,33 +115,24 @@ class QEOracle(BaseOracle):
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             try:
                 while True:
-                    # 1. Fetch next structure if needed
-                    if pending_structure is None:
-                        with contextlib.suppress(StopIteration):
-                            pending_structure = next(iterator)
+                    # 1. Fill queue
+                    while len(futures) < max_pending:
+                        # Get next structure if we don't have one pending
+                        if pending_structure is None:
+                            try:
+                                pending_structure = next(iterator)
+                            except StopIteration:
+                                break # No more structures
 
-                    # 2. Check if we can submit
-                    can_submit = False
-                    if pending_structure is not None:
+                        # Check constraints
                         n_atoms = len(pending_structure.positions)
-                        # Allow submission if:
-                        # - We haven't reached max tasks (max_pending)
-                        # - AND (we have room in atom budget OR it's the only task)
-                        if len(futures) < max_pending:
-                            if pending_atoms == 0 or (
-                                pending_atoms + n_atoms <= max_atoms_in_flight
-                            ):
-                                can_submit = True
-                            elif n_atoms > max_atoms_in_flight:
-                                logger.warning(
-                                    f"Structure with {n_atoms} atoms exceeds safety limit "
-                                    f"({max_atoms_in_flight}). Processing sequentially."
-                                )
-                                # If it's huge, we wait until pending_atoms == 0 (handled by 'pending_atoms == 0' check)
 
-                    # 3. Submit task
-                    if can_submit and pending_structure:
-                        n_atoms = len(pending_structure.positions)
+                        # Atom budget check:
+                        # Allow if empty (must process at least one), or if it fits.
+                        if futures and (pending_atoms + n_atoms > max_atoms_in_flight):
+                            break # Too full, wait for completions
+
+                        # Submit
                         future = executor.submit(
                             _process_single_structure,
                             pending_structure.model_dump_json(),
@@ -149,20 +140,18 @@ class QEOracle(BaseOracle):
                         )
                         futures[future] = n_atoms
                         pending_atoms += n_atoms
-                        pending_structure = None
-                        # Loop back to try filling more if possible
-                        continue
+                        pending_structure = None # Consumed
 
-                    # 4. Exit condition
+                    # 2. Check exit
                     if not futures and pending_structure is None:
                         break
 
-                    # 5. Wait for results
+                    # 3. Wait for results
+                    # wait() is efficient. return_when=FIRST_COMPLETED ensures we keep the pipeline moving.
                     done, _ = concurrent.futures.wait(
                         futures.keys(), return_when=concurrent.futures.FIRST_COMPLETED
                     )
 
-                    # Process completed futures
                     for future in done:
                         atoms_freed = futures.pop(future)
                         pending_atoms -= atoms_freed
@@ -170,12 +159,9 @@ class QEOracle(BaseOracle):
                             result_json = future.result()
                             if result_json:
                                 yield Structure.model_validate_json(result_json)
-                            else:
-                                # Structure failed (logging handled in worker)
-                                pass
                         except Exception:
                             logger.exception("Worker process failed unexpectedly")
+
             finally:
-                # Cancel any pending futures if generator is closed early
                 for f in futures:
                     f.cancel()

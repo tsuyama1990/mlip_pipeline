@@ -56,15 +56,17 @@ class PacemakerTrainer(BaseTrainer):
         logger.info(f"Starting training in {safe_workdir}")
 
         # 1. Convert Dataset to Pacemaker format
-        if self.config.data_format == "extxyz":
-            # Override filename extension if extxyz is selected
-            # Ensure filename ends with .extxyz
+        # Streaming approach: prefer extxyz for large datasets
+        # Pacemaker supports extxyz natively
+        if self.config.data_format == "pckl.gzip":
+            logger.warning("Using legacy pckl.gzip format. Consider switching to extxyz for large datasets.")
+            raw_data_path = safe_workdir / self.config.dataset_filename
+            dataset.to_pacemaker_gzip(raw_data_path)
+        else:
+            # Default to extxyz (chunked writing)
             dataset_filename = Path(self.config.dataset_filename).with_suffix(".extxyz").name
             raw_data_path = safe_workdir / dataset_filename
             dataset.to_extxyz(raw_data_path)
-        else:
-            raw_data_path = safe_workdir / self.config.dataset_filename
-            dataset.to_pacemaker_gzip(raw_data_path)
 
         training_data_path = raw_data_path
 

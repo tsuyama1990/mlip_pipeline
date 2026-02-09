@@ -111,6 +111,7 @@ def test_otf_loop_execution(
     mock_dynamics.explore.assert_called_once()
 
     # 2. Trainer.select_active_set was called (proving OTF logic triggered)
+    # The consumption of the generator should trigger this.
     mock_trainer.select_active_set.assert_called_once()
 
     # 3. Arguments to select_active_set should be candidates list

@@ -86,9 +86,10 @@ class ActiveSetSelector:
             if not output_path.parent.exists():
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Validate output path is safe
-            validate_safe_path(output_path.parent)
+            # Validate output path is safe (including filename)
+            # We validate the parent is safe, and the full path resolves safely
             safe_output = output_path.resolve()
+            validate_safe_path(safe_output)
 
         except Exception as e:
             msg = f"Path validation failed: {e}"
