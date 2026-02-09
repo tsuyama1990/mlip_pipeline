@@ -5,12 +5,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import pandas as pd
-
 from mlip_autopipec.core.dataset import Dataset
 from mlip_autopipec.utils.security import validate_safe_path
 
 logger = logging.getLogger(__name__)
+
+
+class SecurityError(Exception):
+    """Exception raised for security violations."""
 
 
 class ActiveSetSelector:
@@ -18,14 +20,26 @@ class ActiveSetSelector:
     Selects a subset of structures using the MaxVol algorithm (via pace_activeset).
     """
 
-    def __init__(self, limit: int = 1000) -> None:
+    def __init__(
+        self,
+        limit: int = 1000,
+        chunk_threshold_mb: int = 500,
+        batch_size: int = 5000
+    ) -> None:
         """
         Initialize the ActiveSetSelector.
 
         Args:
             limit: The maximum number of structures to select for the active set.
+            chunk_threshold_mb: File size threshold (MB) to trigger chunked processing.
+            batch_size: Number of structures per chunk.
         """
+        if limit <= 0:
+            msg = f"Limit must be positive, got {limit}"
+            raise ValueError(msg)
         self.limit = limit
+        self.chunk_threshold_mb = chunk_threshold_mb
+        self.batch_size = batch_size
 
     def __repr__(self) -> str:
         return f"<ActiveSetSelector(limit={self.limit})>"
@@ -48,7 +62,8 @@ class ActiveSetSelector:
         path_str = str(resolved_path)
 
         # Explicitly deny /tmp and /var/tmp usage regardless of setting
-        if path_str.startswith(("/tmp", "/var/tmp")):  # noqa: S108
+        forbidden_prefixes = ("/tmp", "/var/tmp")  # noqa: S108
+        if path_str.startswith(forbidden_prefixes):
             msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
             raise SecurityError(msg)
 
@@ -56,7 +71,7 @@ class ActiveSetSelector:
         trusted_dirs = [
             Path("/usr/bin"),
             Path("/usr/local/bin"),
-            Path("/opt/bin"),
+            # Removed /opt/bin per security audit
             Path.home() / ".local/bin",
         ]
 
@@ -118,7 +133,7 @@ class ActiveSetSelector:
             logger.exception(msg)
             raise RuntimeError(msg) from e
 
-    def select(self, input_path: Path, output_path: Path) -> Path:  # noqa: C901
+    def select(self, input_path: Path, output_path: Path) -> Path:
         """
         Run pace_activeset to filter the dataset.
         Handles large files by chunking if necessary.
@@ -139,79 +154,77 @@ class ActiveSetSelector:
 
         # Check file size (approximate heuristic)
         # If file is very large, pace_activeset might crash with OOM.
-        # We assume 500MB is a safe limit for direct processing.
-        # If larger, we split and merge.
         file_size_mb = safe_input.stat().st_size / (1024 * 1024)
-        CHUNK_THRESHOLD_MB = 500
 
-        if file_size_mb < CHUNK_THRESHOLD_MB:
+        if file_size_mb < self.chunk_threshold_mb:
             self._run_pace_activeset(safe_input, safe_output, self.limit)
             return safe_output
 
         logger.info(
-            f"Input file size {file_size_mb:.1f}MB exceeds threshold {CHUNK_THRESHOLD_MB}MB. "
+            f"Input file size {file_size_mb:.1f}MB exceeds threshold {self.chunk_threshold_mb}MB. "
             "Using chunked active set selection."
         )
 
         # Chunked processing
-        # Note: This requires reading the file to split it.
-        # We use streaming read (Dataset) to avoid OOM in Python.
-        # But we need to write chunks to disk in a format pace_activeset accepts (extxyz or pckl.gzip).
-        # We assume extxyz is preferred for large files.
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            chunk_paths = []
-
-            # Use Dataset to stream read
-            # Note: root_dir is just to satisfy checks, we only read
-            ds = Dataset(safe_input, root_dir=safe_input.parent)
-
-            # Iterate in batches and write chunks
-            batch_size = 5000 # Adjust as needed
-            for i, batch in enumerate(ds.iter_batches(batch_size=batch_size)):
-                chunk_file = tmp_path / f"chunk_{i}.extxyz"
-
-                # Write batch to chunk file
-                from ase.io import write
-                atoms_list = [s.to_ase() for s in batch]
-                write(chunk_file, atoms_list, format="extxyz")
-
-                chunk_paths.append(chunk_file)
-
-            # Select from each chunk
-            selected_chunks = []
-            for i, chunk_file in enumerate(chunk_paths):
-                # Select a portion from each chunk
-                # We aim to keep enough to satisfy the final limit.
-                # E.g. select limit/N_chunks * factor?
-                # Or just select 'limit' from each chunk to be safe, then merge.
-                chunk_out = tmp_path / f"selected_{i}.extxyz"
-
-                # We select 'limit' from each chunk to ensure we have candidates
-                try:
-                    self._run_pace_activeset(chunk_file, chunk_out, self.limit)
-                    if chunk_out.exists():
-                        selected_chunks.append(chunk_out)
-                except Exception:
-                    logger.warning(f"Failed to select from chunk {i}, skipping.")
-
-            # Merge selected chunks
-            merged_path = tmp_path / "merged_candidates.extxyz"
-            # Concatenate files
-            with merged_path.open("wb") as outfile:
-                for fpath in selected_chunks:
-                    with fpath.open("rb") as infile:
-                        shutil.copyfileobj(infile, outfile)
-
-            # Final selection on merged set
-            self._run_pace_activeset(merged_path, safe_output, self.limit)
+        self._process_chunks(safe_input, safe_output)
 
         if not safe_output.exists():
              logger.warning(f"pace_activeset finished but {safe_output} was not created.")
 
         return safe_output
 
+    def _process_chunks(self, input_path: Path, output_path: Path) -> None:
+        """Process large files by splitting into chunks, selecting, and merging."""
+        from ase.io import write
 
-class SecurityError(Exception):
-    pass
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            merged_path = tmp_path / "merged_candidates.extxyz"
+
+            # Use Dataset to stream read
+            # Note: root_dir is just to satisfy checks, we only read
+            ds = Dataset(input_path, root_dir=input_path.parent)
+
+            # Process batches sequentially
+            # Read batch -> Write chunk -> Select from chunk -> Append to merge -> Delete chunk
+            # This minimizes disk usage and memory footprint
+
+            # Initialize merge file
+            merged_path.touch()
+
+            for i, batch in enumerate(ds.iter_batches(batch_size=self.batch_size)):
+                chunk_file = tmp_path / f"chunk_{i}.extxyz"
+                chunk_out = tmp_path / f"selected_{i}.extxyz"
+
+                try:
+                    # Stream write batch to chunk file to avoid holding list in memory
+                    # ase.io.write allows appending, so we can iterate.
+                    # But batch is a generator? No, iter_batches returns lists.
+                    # We can iterate the list and write one by one or pass the list.
+                    # Passing list is fine for batch_size=5000.
+                    # To be strictly streaming, we could modify iter_batches, but 5000 is small.
+
+                    # For optimization, we use the list but ensure we don't copy it needlessly
+                    # Use a generator expression for to_ase() to avoid creating a new list of atoms objects
+                    atoms_iter = (s.to_ase() for s in batch)
+                    write(chunk_file, atoms_iter, format="extxyz")
+
+                    # Select from chunk
+                    self._run_pace_activeset(chunk_file, chunk_out, self.limit)
+
+                    # Append directly to merged file
+                    if chunk_out.exists():
+                        with merged_path.open("ab") as outfile, chunk_out.open("rb") as infile:
+                            shutil.copyfileobj(infile, outfile)
+
+                except Exception:
+                    logger.warning(f"Failed to process chunk {i}, skipping.")
+                finally:
+                    # Cleanup immediate chunk files
+                    if chunk_file.exists():
+                        chunk_file.unlink()
+                    if chunk_out.exists():
+                        chunk_out.unlink()
+
+            # Final selection on merged set
+            self._run_pace_activeset(merged_path, output_path, self.limit)

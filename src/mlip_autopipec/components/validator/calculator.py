@@ -1,0 +1,201 @@
+import logging
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Any, ClassVar, cast
+
+from ase import Atoms
+from ase.calculators.calculator import Calculator, all_changes
+from ase.io import read, write
+from ase.units import bar
+
+from mlip_autopipec.components.dynamics.hybrid import generate_pair_style
+from mlip_autopipec.constants import (
+    LAMMPS_TEMPLATE_ATOM_STYLE,
+    LAMMPS_TEMPLATE_BOUNDARY,
+    LAMMPS_TEMPLATE_UNITS,
+)
+from mlip_autopipec.domain_models.config import PhysicsBaselineConfig
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.utils.security import validate_safe_path
+
+logger = logging.getLogger(__name__)
+
+
+class LammpsSinglePointCalculator(Calculator):
+    """
+    ASE Calculator that uses LAMMPS to compute energy, forces, and stress
+    for a single configuration (static calculation).
+    """
+
+    implemented_properties: ClassVar[list[str]] = ["energy", "forces", "stress"]
+
+    def __init__(
+        self,
+        potential: Potential,
+        workdir: Path,
+        command: str = "lmp",
+        physics_baseline: dict[str, Any] | None = None,
+        keep_files: bool = False,
+        # Templates
+        template_units: str = LAMMPS_TEMPLATE_UNITS,
+        template_atom_style: str = LAMMPS_TEMPLATE_ATOM_STYLE,
+        template_boundary: str = LAMMPS_TEMPLATE_BOUNDARY,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.potential = potential
+        self.workdir = workdir
+        self.command = command
+        self.physics_baseline = physics_baseline
+        self.keep_files = keep_files
+        self.template_units = template_units
+        self.template_atom_style = template_atom_style
+        self.template_boundary = template_boundary
+
+        self.workdir.mkdir(parents=True, exist_ok=True)
+
+    def calculate(
+        self,
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: list[str] = all_changes,
+    ) -> None:
+        if properties is None:
+            properties = ["energy"]
+        super().calculate(atoms, properties, system_changes)
+
+        if self.atoms is None:
+            msg = "Atoms object not attached to calculator"
+            raise ValueError(msg)
+
+        # 1. Write data file
+        # Security: Validate workdir path before writing
+        validate_safe_path(self.workdir)
+
+        data_file = self.workdir / "data.lammps"
+        try:
+            write(data_file, self.atoms, format="lammps-data", atom_style="atomic")
+        except Exception:
+             write(data_file, self.atoms, format="lammps-data")
+
+        # 2. Write input file
+        input_file = self.workdir / "in.lammps"
+        log_file = self.workdir / "log.lammps"
+        dump_file = self.workdir / "dump.lammps"
+
+        # Security: Validate output paths
+        validate_safe_path(input_file)
+        validate_safe_path(log_file)
+        validate_safe_path(dump_file)
+
+        baseline_config = None
+        if self.physics_baseline:
+            baseline_config = PhysicsBaselineConfig.model_validate(self.physics_baseline)
+
+        pair_style, pair_coeff = generate_pair_style(self.potential, baseline_config)
+
+        input_content = f"""
+{self.template_units}
+{self.template_atom_style}
+{self.template_boundary}
+
+read_data       {data_file.name}
+
+{pair_style}
+{pair_coeff}
+
+# Compute forces and stress
+compute         stress all pressure thermo_temp
+variable        pxx equal c_stress[1]
+variable        pyy equal c_stress[2]
+variable        pzz equal c_stress[3]
+variable        pyz equal c_stress[4]
+variable        pxz equal c_stress[5]
+variable        pxy equal c_stress[6]
+
+thermo_style    custom step temp pe etotal press v_pxx v_pyy v_pzz v_pyz v_pxz v_pxy
+
+dump            1 all custom 1 {dump_file.name} id type x y z fx fy fz
+
+run             0
+"""
+        input_file.write_text(input_content)
+
+        # 3. Run LAMMPS
+        if not shutil.which(self.command):
+            # We raise so upper layers catch it
+            msg = f"LAMMPS binary '{self.command}' not found."
+            raise RuntimeError(msg)
+
+        try:
+            cmd = [self.command, "-in", str(input_file.name), "-log", str(log_file.name)]
+            subprocess.run(  # noqa: S603
+                cmd, cwd=self.workdir, capture_output=True, text=True, check=True
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            log_content = log_file.read_text() if log_file.exists() else "No log"
+            logger.exception(f"LAMMPS failed. Log: {log_content}")
+            msg = f"LAMMPS failed: {e}"
+            raise RuntimeError(msg) from e
+
+        # 4. Read results
+        self.results = {}
+        self._read_log(log_file)
+        self._read_dump(dump_file)
+
+        if not self.keep_files:
+            pass
+
+    def _read_log(self, log_file: Path) -> None:
+        content = log_file.read_text()
+        lines = content.splitlines()
+
+        found = False
+        for line in reversed(lines):
+            parts = line.split()
+            if parts and parts[0] == "0" and len(parts) >= 11:
+                try:
+                    pe = float(parts[2])
+                    self.results["energy"] = pe
+
+                    stress_voigt = [
+                        -float(parts[5]) * bar, # xx
+                        -float(parts[6]) * bar, # yy
+                        -float(parts[7]) * bar, # zz
+                        -float(parts[8]) * bar, # yz
+                        -float(parts[9]) * bar, # xz
+                        -float(parts[10]) * bar # xy
+                    ]
+                    self.results["stress"] = stress_voigt
+                    found = True
+                    break
+                except ValueError:
+                    continue
+
+        if not found:
+            self._raise_error("Could not find thermo output in log")
+
+    def _read_dump(self, dump_file: Path) -> None:
+        try:
+            atoms_list = read(dump_file, index=":", format="lammps-dump-text")
+            if not atoms_list:
+                self._raise_error("No atoms found in dump")
+
+            # cast to Atoms to satisfy mypy
+            atoms = cast(Atoms, atoms_list[-1])
+            # Check if atoms has get_forces method (it does, but type checker might be confused)
+            # Use getattr for safety if needed, or cast
+            if hasattr(atoms, "get_forces"):
+                forces = atoms.get_forces() # type: ignore[no-untyped-call]
+                self.results["forces"] = forces
+            else:
+                self._raise_error("Atoms object has no forces")
+
+        except Exception as e:
+            msg = f"Failed to read dump file: {e}"
+            raise RuntimeError(msg) from e
+
+    def _raise_error(self, msg: str) -> None:
+        """Helper to raise exceptions."""
+        raise RuntimeError(msg)

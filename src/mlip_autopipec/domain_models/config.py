@@ -279,6 +279,23 @@ class StandardValidatorConfig(BaseValidatorConfig):
     phonon_supercell: list[int] = Field(default_factory=lambda: [4, 4, 4])
     eos_strain_range: float = 0.2
     elastic_strain_magnitude: float = 0.01
+    phonon_displacement: float = 0.01
+
+    # Template injection for calculator (optional override)
+    lammps_template_units: str = LAMMPS_TEMPLATE_UNITS
+    lammps_template_atom_style: str = LAMMPS_TEMPLATE_ATOM_STYLE
+    lammps_template_boundary: str = LAMMPS_TEMPLATE_BOUNDARY
+
+    # Structure mapping
+    structure_map: dict[str, str] = Field(
+        default_factory=lambda: {
+            'Si': 'diamond', 'Ge': 'diamond', 'C': 'diamond',
+            'Fe': 'bcc', 'Cr': 'bcc', 'W': 'bcc', 'Mo': 'bcc', 'V': 'bcc',
+            'Ti': 'hcp', 'Mg': 'hcp', 'Zr': 'hcp', 'Be': 'hcp',
+            'Al': 'fcc', 'Cu': 'fcc', 'Ag': 'fcc', 'Au': 'fcc', 'Ni': 'fcc',
+            'Pt': 'fcc', 'Pb': 'fcc'
+        }
+    )
 
 
 ValidatorConfig = MockValidatorConfig | StandardValidatorConfig

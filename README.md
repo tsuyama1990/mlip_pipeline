@@ -1,109 +1,120 @@
-# PYACEMAKER
+# MLIP Pipeline
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 
-**Automated Active Learning for Machine Learning Interatomic Potentials.**
+**Autonomous Active Learning Pipeline for Machine Learning Interatomic Potentials.**
 
 ## Overview
 
-**What:** PYACEMAKER is a fully automated, "Zero-Config" workflow for constructing robust Machine Learning Interatomic Potentials (MLIPs), specifically focusing on Atomic Cluster Expansion (ACE).
+MLIP Pipeline is a modular, automated system for training, validating, and deploying Machine Learning Interatomic Potentials (MLIPs). It orchestrates a complete active learning loop, iteratively refining potentials by exploring atomic configuration space and selecting high-uncertainty structures for first-principles labeling.
 
-**Why:** Developing high-fidelity potentials traditionally involves manual, error-prone cycles of DFT calculations and fitting. PYACEMAKER automates this process using an adaptive active learning loop, democratizing access to state-of-the-art potentials for materials science.
+This tool solves the problem of manual, error-prone potential fitting by automating:
+1.  **Generation**: Creating initial atomic structures.
+2.  **Labeling**: Computing energy/forces/stress via DFT (Quantum Espresso/VASP).
+3.  **Training**: Fitting potentials (ACE/MACE/GAP via Pacemaker).
+4.  **Exploration**: Running MD to find failure cases (Active Learning).
+5.  **Validation**: Verifying physical properties (Phonons, Elastic Constants, EOS).
 
 ## Features
 
--   **Zero-Config Workflow**: Define your material system and target accuracy in a single YAML file.
--   **Adaptive Structure Generation**: Automatically generates diverse structures (bulk, surfaces) with intelligent sampling policies.
--   **High-Fidelity Oracle**: Seamless integration with **Quantum Espresso** for accurate DFT labeling of energy, forces, and stress.
--   **Self-Healing DFT**: Robust error handling that automatically retries failed calculations with adjusted parameters (e.g., mixing beta, smearing).
--   **Periodic Embedding**: Intelligent extraction of local clusters from large MD snapshots for efficient QM/MM-style labeling.
--   **On-the-Fly (OTF) Active Learning**: Dynamics engine (LAMMPS/EON) automatically detects uncertain configurations during simulation and halts for labeling.
--   **Physics-Informed Robustness**: Implements Hybrid Potentials (ACE + ZBL/LJ) to prevent unphysical behavior at short distances.
--   **Active Set Selection**: Automatically explores configuration space and selects informative structures using D-optimality (MaxVol).
--   **Modular Architecture**: Extensible design with swappable components.
+-   **Modular Architecture**: Plug-and-play components for Generator, Oracle, Trainer, Dynamics, and Validator.
+-   **Active Learning**: "Halt & Diagnose" strategy to automatically detect and heal potential failures.
+-   **Physical Validation**: Automated calculation of Phonon stability, Bulk/Shear moduli, and Equation of State.
+-   **Robust Orchestration**: State management, checkpointing, and error recovery.
+-   **Reporting**: Generates HTML reports with learning curves and validation metrics.
+-   **Security**: Strict path validation and input sanitization.
 
 ## Requirements
 
 -   Python >= 3.12
--   [UV](https://github.com/astral-sh/uv) (recommended)
--   Quantum Espresso (`pw.x`) installed and in PATH (for production runs).
--   Pacemaker (`pace_train`, `pace_activeset`) installed and in PATH (for training).
+-   `uv` package manager (recommended) or `pip`.
+-   External dependencies (optional but required for full functionality):
+    -   LAMMPS (for MD and validation)
+    -   Quantum Espresso or VASP (for DFT labeling)
+    -   Pacemaker (for training ACE potentials)
 
 ## Installation
 
 ```bash
-git clone https://github.com/your-org/mlip-pipeline.git
+git clone <repository_url>
 cd mlip-pipeline
 uv sync
 ```
 
 ## Usage
 
-1.  **Create a Configuration File** (`config.yaml`):
+### 1. Configuration
+Create a `config.yaml` file defining your pipeline.
 
-    ```yaml
-    workdir: ./output_experiment
-    max_cycles: 5
-    logging_level: INFO
+```yaml
+workdir: "./experiment_01"
+max_cycles: 5
+logging_level: "INFO"
 
-    components:
-      generator:
-        name: adaptive
-        element: Si
-        crystal_structure: diamond
-        n_structures: 10
-      oracle:
-        name: qe
-        kspacing: 0.1
-        ecutwfc: 30.0
-        ecutrho: 150.0
-        mixing_beta: 0.7
-      trainer:
-        name: pacemaker
-        cutoff: 5.0
-        basis_size: 500
-        physics_baseline:
-          type: lj
-          params:
-            sigma: 2.5
-            epsilon: 0.1
-      dynamics:
-        name: lammps
-        timestep: 0.001
-        n_steps: 10000
-        temperature: 300.0
-        uncertainty_threshold: 5.0
-      validator:
-        name: mock
-    ```
+components:
+  generator:
+    name: "adaptive"
+    n_structures: 10
+    element: "Si"
+    crystal_structure: "diamond"
 
-2.  **Run the Pipeline**:
+  oracle:
+    name: "qe" # Quantum Espresso
+    ecutwfc: 40.0
+    ecutrho: 160.0
+    kspacing: 0.05
 
-    ```bash
-    uv run python src/mlip_autopipec/main.py run config.yaml
-    ```
+  trainer:
+    name: "pacemaker"
+    max_num_epochs: 100
+    cutoff: 5.0
+
+  dynamics:
+    name: "lammps"
+    n_steps: 10000
+    timestep: 0.001
+    uncertainty_threshold: 5.0 # Max Gamma
+
+  validator:
+    name: "standard"
+    phonon_supercell: [2, 2, 2]
+```
+
+### 2. Run Pipeline
+Execute the pipeline using the CLI.
+
+```bash
+uv run python -m mlip_autopipec run config.yaml
+```
+
+### 3. Generate Report
+Generate an HTML summary of the run.
+
+```bash
+uv run python -m mlip_autopipec report config.yaml
+```
 
 ## Architecture
 
-```ascii
+```
 src/mlip_autopipec/
-├── components/         # Pluggable components (Generator, Oracle, Trainer, etc.)
-│   ├── trainer/        # Pacemaker Integration & Active Set Logic
-│   ├── oracle/         # DFT Engines (QE, VASP) & Healing Logic
-│   └── ...
-├── core/               # Core logic (Orchestrator, Dataset, State)
-├── domain_models/      # Pydantic data models (Structure, Potential, Config)
-├── interfaces/         # Abstract base classes
-├── utils/              # Utilities (Logging, etc.)
-└── main.py             # CLI Entry Point
+├── components/       # Component implementations (Dynamics, Oracle, Trainer, etc.)
+│   ├── dynamics/
+│   ├── generator/
+│   ├── oracle/
+│   ├── trainer/
+│   └── validator/    # Physical validation (Phonons, Elastic, EOS)
+├── core/             # Core logic (Orchestrator, Dataset, State)
+│   ├── orchestrator.py
+│   ├── dataset.py
+│   └── report.py
+├── domain_models/    # Pydantic data models
+└── interfaces/       # Abstract base classes
 ```
 
 ## Roadmap
 
--   [x] Cycle 01: Core Framework & Mock Components
--   [x] Cycle 02: Structure Generator (ASE integration)
--   [x] Cycle 03: Oracle (Quantum Espresso, Self-Healing, Embedding)
--   [x] Cycle 04: Trainer (Pacemaker integration)
--   [x] Cycle 05: Dynamics Engine (LAMMPS/EON, OTF Active Learning, Hybrid Potentials)
--   [ ] Cycle 06: Validation & Full Orchestration
+-   [ ] Support for MACE and NequIP architectures.
+-   [ ] Distributed execution via SLURM.
+-   [ ] Advanced sampling strategies (uncertainty quantification).

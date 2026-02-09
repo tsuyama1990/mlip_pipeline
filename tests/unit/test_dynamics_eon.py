@@ -5,8 +5,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from mlip_autopipec.components.dynamics.eon import EONDriver, EONDynamics
-from mlip_autopipec.components.dynamics.eon import _run_single_eon_simulation
+from mlip_autopipec.components.dynamics.eon import (
+    EONDriver,
+    EONDynamics,
+    _run_single_eon_simulation,
+)
 from mlip_autopipec.domain_models.config import EONDynamicsConfig
 from mlip_autopipec.domain_models.enums import DynamicsType
 from mlip_autopipec.domain_models.potential import Potential

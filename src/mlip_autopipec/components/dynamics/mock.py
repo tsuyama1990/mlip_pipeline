@@ -58,12 +58,15 @@ class MockDynamics(BaseDynamics):
             self.config.uncertainty_threshold + self.config.simulated_uncertainty
         )
 
+        # Iterate over generator directly to avoid loading full dataset into memory
         for s in start_structures:
             # Randomly select structures to simulate finding "uncertain" regions
             if self._rng.random() < selection_rate:
                 # Create a deep copy using our custom method
                 s_copy = s.model_deep_copy()
                 s_copy.uncertainty = simulated_uncertainty
+                # Mark as halted for Orchestrator logic
+                s_copy.tags["provenance"] = "dynamics_halt"
                 yield s_copy
                 count += 1
 
