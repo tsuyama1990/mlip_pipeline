@@ -32,6 +32,8 @@ class ActiveSetSelector:
     def _validate_executable(self, executable: str) -> str:
         """
         Validate that the executable is in a trusted directory.
+
+        If PACE_ACTIVESET_BIN is set, we relax the check to a warning.
         """
         path = shutil.which(executable)
         if not path:
@@ -39,9 +41,9 @@ class ActiveSetSelector:
             raise RuntimeError(msg)
 
         resolved_path = Path(path).resolve()
-
-        # Explicitly deny /tmp and /var/tmp usage
         path_str = str(resolved_path)
+
+        # Explicitly deny /tmp and /var/tmp usage regardless of setting
         if path_str.startswith(("/tmp", "/var/tmp")):  # noqa: S108
             msg = f"Executable '{resolved_path}' is in an insecure temporary directory."
             raise SecurityError(msg)
@@ -52,7 +54,6 @@ class ActiveSetSelector:
             Path("/usr/local/bin"),
             Path("/opt/bin"),
             Path.home() / ".local/bin",
-            # Add virtualenv bin if active
         ]
 
         # Check if running in a virtual environment
@@ -61,9 +62,21 @@ class ActiveSetSelector:
 
         is_trusted = any(str(resolved_path).startswith(str(d)) for d in trusted_dirs)
 
+        # If explicitly configured via ENV, allow untrusted paths with warning
+        is_explicitly_configured = "PACE_ACTIVESET_BIN" in os.environ
+
         if not is_trusted:
-            msg = f"Executable '{resolved_path}' is not in a trusted directory (whitelist: {trusted_dirs})."
-            raise SecurityError(msg)
+            if is_explicitly_configured:
+                logger.warning(
+                    f"Executable '{resolved_path}' is outside trusted system directories, "
+                    "but allowed via PACE_ACTIVESET_BIN."
+                )
+            else:
+                msg = (
+                    f"Executable '{resolved_path}' is not in a trusted directory. "
+                    f"Set PACE_ACTIVESET_BIN to override if necessary."
+                )
+                raise SecurityError(msg)
 
         return str(resolved_path)
 

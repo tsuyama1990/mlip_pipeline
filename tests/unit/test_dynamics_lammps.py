@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from mlip_autopipec.components.dynamics.lammps import LAMMPSDriver, LAMMPSDynamics
+from mlip_autopipec.components.dynamics.lammps import LAMMPSDynamics
+from mlip_autopipec.components.dynamics.lammps_driver import LAMMPSDriver
 from mlip_autopipec.domain_models.config import LAMMPSDynamicsConfig
 from mlip_autopipec.domain_models.enums import DynamicsType
 from mlip_autopipec.domain_models.potential import Potential

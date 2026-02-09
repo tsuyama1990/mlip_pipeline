@@ -32,7 +32,6 @@ class ComponentType(StrEnum):
 class GeneratorType(StrEnum):
     MOCK = "mock"
     ADAPTIVE = "adaptive"
-    RANDOM = "random"
 
     def __repr__(self) -> str:
         return f"<GeneratorType.{self.name}>"

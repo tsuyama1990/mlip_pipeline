@@ -117,9 +117,17 @@ class Orchestrator:
             # Generate start structures for dynamics (seeds)
             start_structures_iter = self.generator.generate(n_structures=n_structures)
 
+            # Convert physics_baseline to dict if present
+            physics_baseline_dict = None
+            if self.config.physics_baseline:
+                physics_baseline_dict = self.config.physics_baseline.model_dump()
+
             # Dynamics explores and yields UNCERTAIN structures
             raw_structures = self.dynamics.explore(
-                self.current_potential, start_structures_iter, workdir=cycle_dir
+                self.current_potential,
+                start_structures_iter,
+                workdir=cycle_dir,
+                physics_baseline=physics_baseline_dict,
             )
             # Enhance structures with local candidates if they are halted
             structures = self._enhance_structures(raw_structures)

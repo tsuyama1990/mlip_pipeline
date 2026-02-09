@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
 from ase.io import read, write
 
@@ -224,6 +225,7 @@ class EONDynamics(BaseDynamics):
         potential: Potential,
         start_structures: Iterable[Structure],
         workdir: Path | None = None,
+        physics_baseline: dict[str, Any] | None = None,
     ) -> Iterator[Structure]:
         """
         Explore the PES using EON KMC simulations.
