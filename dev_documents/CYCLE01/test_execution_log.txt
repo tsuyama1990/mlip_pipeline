@@ -1,0 +1,39 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 22 items
+
+tests/e2e/test_orchestrator.py .                                         [  4%]
+tests/unit/test_config.py ...                                            [ 18%]
+tests/unit/test_config_loader.py ..                                      [ 27%]
+tests/unit/test_coverage_boost.py ........                               [ 63%]
+tests/unit/test_datastructures.py .                                      [ 68%]
+tests/unit/test_main.py ....                                             [ 86%]
+tests/unit/test_state_manager.py .../app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+                                     [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                           0      0   100%
+src/mlip_autopipec/components/base.py                   16      0   100%
+src/mlip_autopipec/components/mock.py                   29      0   100%
+src/mlip_autopipec/config.py                            10      0   100%
+src/mlip_autopipec/constants.py                          9      0   100%
+src/mlip_autopipec/core/logger.py                       16      0   100%
+src/mlip_autopipec/core/orchestrator.py                 65      0   100%
+src/mlip_autopipec/core/state_manager.py                32      0   100%
+src/mlip_autopipec/domain_models/__init__.py             4      0   100%
+src/mlip_autopipec/domain_models/config.py              40      0   100%
+src/mlip_autopipec/domain_models/datastructures.py      38      0   100%
+src/mlip_autopipec/domain_models/enums.py               31      0   100%
+src/mlip_autopipec/main.py                              32      1    97%   70
+----------------------------------------------------------------------------------
+TOTAL                                                  322      1    99%
+============================== 22 passed in 3.68s ==============================

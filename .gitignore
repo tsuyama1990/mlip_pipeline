@@ -36,6 +36,11 @@ tmp/
 mlip_pipeline.log
 .coverage
 build/
+dist/
+*.log
+htmlcov/
+.tox/
 
 # Cycle 1 specific
 workflow_state.json
+uat_work/
