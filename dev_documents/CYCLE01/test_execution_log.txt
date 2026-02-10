@@ -31,9 +31,9 @@ src/mlip_autopipec/core/orchestrator.py                 65      0   100%
 src/mlip_autopipec/core/state_manager.py                32      0   100%
 src/mlip_autopipec/domain_models/__init__.py             4      0   100%
 src/mlip_autopipec/domain_models/config.py              40      0   100%
-src/mlip_autopipec/domain_models/datastructures.py      36      0   100%
+src/mlip_autopipec/domain_models/datastructures.py      38      0   100%
 src/mlip_autopipec/domain_models/enums.py               31      0   100%
 src/mlip_autopipec/main.py                              32      1    97%   70
 ----------------------------------------------------------------------------------
-TOTAL                                                  320      1    99%
+TOTAL                                                  322      1    99%
 ============================== 22 passed in 3.68s ==============================

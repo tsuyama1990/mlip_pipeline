@@ -9,7 +9,18 @@ from .enums import WorkflowStage
 
 
 def sanitize_value(v: Any) -> Any:
-    """Recursively convert numpy types to native python types."""
+    """
+    Recursively convert numpy types to native python types.
+
+    This function is critical for Pydantic V2 JSON serialization, which does not
+    natively support Numpy scalars.
+
+    Args:
+        v: The value to sanitize. Can be a scalar, dict, or list.
+
+    Returns:
+        The sanitized value with native Python types.
+    """
     if isinstance(v, (np.integer, np.floating, np.bool_)):
         return v.item()
     if isinstance(v, dict):
@@ -28,7 +39,9 @@ class Structure(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    def __init__(self, **data: Any) -> None:
+    def __init__(self, atoms: Atoms | None = None, **data: Any) -> None:
+        if atoms is not None:
+            data["atoms"] = atoms
         if "tags" in data:
             data["tags"] = sanitize_value(data["tags"])
         super().__init__(**data)

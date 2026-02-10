@@ -1,7 +1,9 @@
 import numpy as np
+
 from mlip_autopipec.domain_models.datastructures import sanitize_value
 
-def test_sanitize_value_nested():
+
+def test_sanitize_value_nested() -> None:
     data = {
         "a": np.int64(1),
         "b": {
