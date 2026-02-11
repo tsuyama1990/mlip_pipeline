@@ -1,13 +1,14 @@
-import pytest
-from typer.testing import CliRunner
-from mlip_autopipec.main import app
 from pathlib import Path
+from typing import Any
+
 import yaml
-from typing import Dict, Any
+from typer.testing import CliRunner
+
+from mlip_autopipec.main import app
 
 runner = CliRunner()
 
-def test_cli_run_success(valid_config_dict: Dict[str, Any], tmp_path: Path) -> None:
+def test_cli_run_success(valid_config_dict: dict[str, Any], tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     work_dir = tmp_path / "work"
     valid_config_dict["orchestrator"]["work_dir"] = str(work_dir)
