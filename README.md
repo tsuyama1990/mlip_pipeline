@@ -12,17 +12,85 @@
 
 Traditionally, constructing an MLIP required deep expertise in DFT, MD, and fitting algorithms. PyAceMaker automates the entire loop: from adaptive structure generation and DFT labeling (Oracle) to Active Learning training and final validation.
 
-## ✨ Key Features
+## ✨ Features (Cycle 01)
 
-*   **Zero-Config Workflow**: Define your material and goals in `config.yaml`, and let the Orchestrator handle the rest.
-*   **Active Learning**: Drastically reduces DFT costs by selecting only the most informative structures using D-Optimality (Active Set Selection).
-*   **Physics-Informed Robustness**: Automatically enforces a physical baseline (Lennard-Jones/ZBL) to prevent non-physical behavior and crashes in extrapolation regions.
-*   **On-the-Fly (OTF) Self-Healing**: Monitors simulation uncertainty in real-time. If the potential becomes unreliable, the system halts, learns from the failure, retrains, and resumes automatically.
-*   **Scalable & Extensible**: Designed to scale from local testing loops to massive HPC simulations involving Deposition and Kinetic Monte Carlo (aKMC).
+*   **Core Orchestrator**: A robust state machine managing the active learning lifecycle.
+*   **Type-Safe Configuration**: Strict validation of `config.yaml` using Pydantic V2 to prevent runtime errors.
+*   **Mock Workflow**: Built-in mock components (Generator, Oracle, Trainer) to verify pipeline logic without heavy physics engines.
+*   **CLI Tools**: Simple commands to initialize projects (`init`) and execute loops (`run-loop`).
+*   **State Persistence**: Automatically saves and resumes workflow state (`workflow_state.json`), ensuring data safety.
+
+## 🛠️ Requirements
+
+*   **Python 3.12+**
+*   **uv** (Recommended package manager)
+*   **Dependencies**: `ase`, `numpy`, `pydantic`, `typer`, `pyyaml`.
+
+## 📦 Installation
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/mlip-pipeline/pyacemaker.git
+    cd pyacemaker
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    uv sync
+    ```
+
+3.  **Verify installation**:
+    ```bash
+    uv run pyacemaker --help
+    ```
+
+## 🚦 Usage
+
+### 1. Initialize a Project
+Create a new project directory with a default configuration.
+
+```bash
+uv run pyacemaker init my_project
+cd my_project
+```
+
+This creates:
+*   `config.yaml`: Default configuration file.
+*   `data/`: Directory for storing structures and potentials.
+
+### 2. Run the Mock Loop
+Execute the active learning loop using the default mock configuration.
+
+```bash
+uv run pyacemaker run-loop
+```
+
+You should see logs indicating the progression of cycles:
+```
+INFO - Cycle 1 Started
+INFO - Step 1: Structure Generation
+INFO - Step 2: Labeling (Oracle)
+INFO - Step 3: Training
+INFO - Step 4: Validation
+INFO - Cycle 1 Completed
+```
+
+### 3. Customize Configuration
+Edit `config.yaml` to change parameters (e.g., number of iterations, mock noise).
+
+```yaml
+orchestrator:
+  work_dir: "/absolute/path/to/my_project"
+  n_iterations: 10
+
+generator:
+  type: mock
+  n_candidates: 50
+```
 
 ## 🏗️ Architecture
 
-PyAceMaker follows a modular "Hub-and-Spoke" architecture orchestrated by a central controller.
+PyAceMaker follows a modular "Hub-and-Spoke" architecture:
 
 ```mermaid
 graph TD
@@ -36,103 +104,22 @@ graph TD
         Orch -->|4. Train| Trainer[Trainer (Pacemaker)]
         Orch -->|5. Verify| Valid[Validator]
     end
-
-    Gen -->|Candidates| Oracle
-    Dyn -->|Halt Structures| Gen
-    Oracle -->|Refined Data| Trainer
-    Trainer -->|Potential (yace)| Dyn
-    Trainer -->|Potential (yace)| Valid
-```
-
-## 🛠️ Prerequisites
-
-*   **Python 3.12+**
-*   **uv** (Recommended package manager)
-*   **Docker** (Optional, for containerized execution)
-*   **External Engines** (for full production runs):
-    *   **Pacemaker**: `pace_train`, `pace_collect`
-    *   **LAMMPS**: With `USER-PACE` package
-    *   **Quantum Espresso** (or VASP): `pw.x`
-
-## 📦 Installation
-
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/mlip-pipeline/pyacemaker.git
-    cd pyacemaker
-    ```
-
-2.  **Install dependencies with uv**:
-    ```bash
-    uv sync
-    ```
-
-3.  **Activate the environment**:
-    ```bash
-    source .venv/bin/activate
-    ```
-
-## 🚦 Usage
-
-### Quick Start (Mock Mode)
-To test the pipeline without external physics engines, run the built-in mock loop:
-
-1.  **Initialize a new project**:
-    ```bash
-    pyacemaker init my_project
-    cd my_project
-    ```
-
-2.  **Run the Active Learning Loop**:
-    ```bash
-    pyacemaker run-loop --config config.yaml
-    ```
-    *This will execute a simulation using Mock components, demonstrating the workflow logic.*
-
-### Production Run
-Edit `config.yaml` to specify your DFT and LAMMPS settings, then run the same command.
-
-```yaml
-orchestrator:
-  mode: real
-  n_iterations: 10
-
-oracle:
-  type: espresso
-  command: "mpirun -np 32 pw.x"
-```
-
-## 💻 Development Workflow
-
-We follow a strictly cycled development process (Cycles 01-08).
-
-### Running Tests
-```bash
-uv run pytest
-```
-
-### Linting & Formatting
-We enforce strict code quality using `ruff` and `mypy`.
-```bash
-uv run ruff check .
-uv run mypy .
 ```
 
 ## 📂 Project Structure
 
 ```
 .
-├── dev_documents/          # Specs and Architecture docs
 ├── src/
 │   └── mlip_autopipec/     # Source code
-│       ├── components/     # Logic modules (Oracle, Trainer, etc.)
-│       ├── core/           # Orchestrator & Utils
-│       └── domain_models/  # Pydantic Schemas
-├── tests/                  # Test suite
+│       ├── components/     # Logic modules (Mock implementations available)
+│       ├── core/           # Orchestrator, Logger, State Manager
+│       └── domain_models/  # Pydantic Schemas (Config, Inputs, Results)
+├── tests/                  # Pytest suite (Unit & E2E)
 ├── pyproject.toml          # Config & Dependencies
 └── README.md
 ```
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.

@@ -1,0 +1,63 @@
+from pathlib import Path
+
+import pytest
+
+from mlip_autopipec.core.orchestrator import Orchestrator
+from mlip_autopipec.domain_models.config import GlobalConfig
+
+
+def test_orchestrator_mock_run(tmp_path: Path) -> None:
+    """Test full execution of the mock loop."""
+    work_dir = tmp_path / "work"
+
+    config_data = {
+        "orchestrator": {
+            "work_dir": work_dir,
+            "n_iterations": 2,
+        },
+        "generator": {
+            "type": "mock",
+            "n_candidates": 5,
+        },
+        "oracle": {
+            "type": "mock",
+        },
+        "trainer": {
+            "type": "mock",
+        },
+        "dynamics": {
+            "type": "mock",
+        },
+        "validator": {
+            "type": "mock",
+        },
+    }
+    config = GlobalConfig.model_validate(config_data)
+
+    # Use the work_dir from config, which is work_dir variable
+    orch = Orchestrator(config, work_dir)
+    orch.run_loop()
+
+    # Verify state
+    state = orch.state_manager.load()
+    assert state.current_iteration == 2
+
+    # Verify artifacts
+    assert (work_dir / "iter_001" / "train.xyz").exists()
+    assert (work_dir / "iter_002" / "train.xyz").exists()
+
+
+def test_orchestrator_init_error(tmp_path: Path) -> None:
+    """Test Orchestrator raises NotImplementedError for non-mock components."""
+    config_data = {
+        "orchestrator": {"work_dir": tmp_path, "n_iterations": 1},
+        "generator": {"type": "random", "elements": ["H"], "n_candidates": 10}, # Not implemented yet
+        "oracle": {"type": "mock"},
+        "trainer": {"type": "mock"},
+        "dynamics": {"type": "mock"},
+        "validator": {"type": "mock"},
+    }
+    config = GlobalConfig.model_validate(config_data)
+
+    with pytest.raises(NotImplementedError):
+        Orchestrator(config, tmp_path)
