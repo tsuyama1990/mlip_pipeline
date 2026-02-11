@@ -11,19 +11,41 @@ from mlip_autopipec.domain_models import (
 
 
 class Orchestrator:
+    """
+    Central controller for the MLIP construction pipeline.
+    Manages the lifecycle of components and the workflow state.
+    """
+
     def __init__(self, config: GlobalConfig) -> None:
+        """
+        Initializes the Orchestrator with the given configuration.
+
+        Args:
+            config: The global configuration object.
+
+        Raises:
+            NotADirectoryError: If work_dir exists but is not a directory.
+        """
         self.config = config
 
-        # Ensure work_dir exists
-        self.config.orchestrator.work_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure work_dir exists and is a directory
+        work_dir = self.config.orchestrator.work_dir
+        if work_dir.exists() and not work_dir.is_dir():
+            msg = f"Work directory {work_dir} exists but is not a directory"
+            raise NotADirectoryError(msg)
+
+        work_dir.mkdir(parents=True, exist_ok=True)
 
         self.logger = setup_logging(config)
-        self.state_manager = StateManager(self.config.orchestrator.work_dir / self.config.orchestrator.state_file)
+        self.state_manager = StateManager(work_dir / self.config.orchestrator.state_file)
         self.state = self.state_manager.load()
 
         self._initialize_components()
 
     def _initialize_components(self) -> None:
+        """
+        Initializes the pipeline components based on the configuration.
+        """
         # Generator
         if self.config.generator.type == GeneratorType.MOCK:
             self.generator = MockGenerator()
@@ -53,6 +75,9 @@ class Orchestrator:
             raise NotImplementedError(msg)
 
     def run(self) -> None:
+        """
+        Executes the workflow logic.
+        """
         self.logger.info("Starting Workflow...")
         self.logger.info("Project: %s", self.config.project_name)
         self.logger.info("Iteration: %s/%s", self.state.current_iteration, self.config.orchestrator.max_iterations)

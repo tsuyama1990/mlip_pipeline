@@ -2,13 +2,24 @@ from mlip_autopipec.components.base_component import BaseComponent
 
 
 class MockGenerator(BaseComponent):
-    pass
+    """
+    Mock implementation of a Structure Generator.
+    """
+
 
 class MockOracle(BaseComponent):
-    pass
+    """
+    Mock implementation of an Oracle (DFT/Property Calculator).
+    """
+
 
 class MockTrainer(BaseComponent):
-    pass
+    """
+    Mock implementation of a Trainer (Machine Learning Potential).
+    """
+
 
 class MockDynamics(BaseComponent):
-    pass
+    """
+    Mock implementation of a Dynamics Engine (MD/MC).
+    """

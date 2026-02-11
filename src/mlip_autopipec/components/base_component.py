@@ -2,4 +2,6 @@ from abc import ABC
 
 
 class BaseComponent(ABC):  # noqa: B024
-    pass
+    """
+    Abstract base class for all components in the pipeline.
+    """
