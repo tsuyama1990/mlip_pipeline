@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 from mlip_autopipec.components.base import (
     BaseDynamics,

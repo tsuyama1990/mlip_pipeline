@@ -7,6 +7,7 @@ from mlip_autopipec.domain_models.config import (
     GlobalConfig,
     LAMMPSDynamicsConfig,
     MockGeneratorConfig,
+    MockOracleConfig,
     PacemakerTrainerConfig,
 )
 

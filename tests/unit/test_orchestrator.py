@@ -50,14 +50,16 @@ def test_orchestrator_mock_run(tmp_path: Path) -> None:
     # Verify provenance (Cycle 1: Global, Cycle 2: Local)
     # Note: ASE reads tags into .info dictionary
     iter1_atoms = read(work_dir / "iter_001" / "train.xyz", index=":")
+    assert isinstance(iter1_atoms, list)
     # We expect at least one atom
-    assert len(iter1_atoms) > 0 # type: ignore[arg-type]
+    assert len(iter1_atoms) > 0
     # Check source tag
-    assert iter1_atoms[0].info["source"] == "mock_generator_global" # type: ignore[index]
+    assert iter1_atoms[0].info["source"] == "mock_generator_global"
 
     iter2_atoms = read(work_dir / "iter_002" / "train.xyz", index=":")
-    assert len(iter2_atoms) > 0 # type: ignore[arg-type]
-    assert iter2_atoms[0].info["source"] == "mock_generator_local" # type: ignore[index]
+    assert isinstance(iter2_atoms, list)
+    assert len(iter2_atoms) > 0
+    assert iter2_atoms[0].info["source"] == "mock_generator_local"
 
 
 def test_orchestrator_init_error(tmp_path: Path) -> None:

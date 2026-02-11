@@ -46,8 +46,8 @@ class MockGenerator(BaseGenerator):
         """Yield rattled versions of the input structure."""
         ase_atoms = input_structure.to_ase()
         for i in range(n_candidates):
-            new_atoms = ase_atoms.copy()
-            new_atoms.rattle(stdev=0.05)  # type: ignore[no-untyped-call]
+            new_atoms = ase_atoms.copy()  # type: ignore[no-untyped-call]
+            new_atoms.rattle(stdev=0.05)
             struct = Structure.from_ase(new_atoms)
             struct.tags["source"] = "mock_generator_local"
             struct.tags["parent_id"] = input_structure.tags.get("candidate_id", "unknown")
