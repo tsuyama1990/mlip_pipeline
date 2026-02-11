@@ -1,0 +1,17 @@
+project_name: "MyFirstProject"
+orchestrator:
+  work_dir: "experiments/run_01"
+  max_iterations: 10
+  state_file: "workflow_state.json"
+generator:
+  type: "MOCK"
+  enabled: true
+oracle:
+  type: "MOCK"
+  enabled: true
+trainer:
+  type: "MOCK"
+  enabled: false
+dynamics:
+  type: "MOCK"
+  enabled: false

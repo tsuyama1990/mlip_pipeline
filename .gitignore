@@ -39,3 +39,7 @@ build/
 
 # Cycle 1 specific
 workflow_state.json
+
+# Added by Cycle 01
+dist/
+*.log
