@@ -47,34 +47,38 @@ def init(project_name: str) -> None:
     typer.echo("To run: cd {project_name} && pyacemaker run-loop --config config.yaml")
 
 
+def _load_config(config_file: Path, work_dir: Path | None) -> GlobalConfig:
+    """Load and validate configuration."""
+    if not config_file.exists():
+        msg = f"Error: Config file '{config_file}' not found."
+        typer.echo(msg, err=True)
+        raise typer.Exit(code=1)
+
+    with config_file.open("r") as f:
+        raw_config = yaml.safe_load(f)
+
+    if work_dir:
+        if "orchestrator" not in raw_config:
+            raw_config["orchestrator"] = {}
+        raw_config["orchestrator"]["work_dir"] = str(work_dir)
+
+    return GlobalConfig(**raw_config)
+
+
 @app.command()
 def run_loop(
-    config_file: Path = typer.Option(
+    config_file: Path = typer.Option( # noqa: B008
         Path("config.yaml"), "--config", "-c", help="Path to configuration file"
     ),
-    work_dir: Path = typer.Option(
+    work_dir: Path = typer.Option( # noqa: B008
         None, "--work-dir", "-w", help="Override working directory"
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ) -> None:
     """Run the active learning loop."""
     try:
-        if not config_file.exists():
-            typer.echo(f"Error: Config file '{config_file}' not found.", err=True)
-            raise typer.Exit(code=1)
-
-        # Load config
-        with config_file.open("r") as f:
-            raw_config = yaml.safe_load(f)
-
-        # Override work_dir if provided
-        if work_dir:
-            if "orchestrator" not in raw_config:
-                raw_config["orchestrator"] = {}
-            raw_config["orchestrator"]["work_dir"] = str(work_dir)
-
         try:
-            config = GlobalConfig(**raw_config)
+            config = _load_config(config_file, work_dir)
         except ValidationError as e:
             typer.echo("Configuration Error:", err=True)
             if debug:
@@ -84,7 +88,6 @@ def run_loop(
                     typer.echo(f"  - {error['loc']}: {error['msg']}", err=True)
             raise typer.Exit(code=1) from e
 
-        # Setup logging
         setup_logging(config.orchestrator.work_dir, level="DEBUG" if debug else "INFO")
 
         logger.info("Initializing Orchestrator...")
