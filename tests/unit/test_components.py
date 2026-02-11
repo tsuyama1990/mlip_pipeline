@@ -26,7 +26,26 @@ def test_mock_generator(tmp_path: Path) -> None:
     structures = list(gen.generate(ProjectState()))
     assert len(structures) == 5
     assert isinstance(structures[0], Structure)
-    assert structures[0].tags["source"] == "mock_generator"
+    assert structures[0].tags["source"] == "mock_generator_global"
+
+
+def test_mock_generator_local(tmp_path: Path) -> None:
+    """Test MockGenerator generates local candidates."""
+    config = MockGeneratorConfig(type="mock", n_candidates=5)
+    gen = MockGenerator(config, tmp_path)
+
+    initial = Structure(
+        positions=[[0, 0, 0]],
+        numbers=[1],
+        cell=[[10, 0, 0], [0, 10, 0], [0, 0, 10]],
+        pbc=[True, True, True],
+        tags={"candidate_id": 99}
+    )
+
+    locals_ = list(gen.generate_local(initial, n_candidates=3))
+    assert len(locals_) == 3
+    assert locals_[0].tags["source"] == "mock_generator_local"
+    assert locals_[0].tags["parent_id"] == 99
 
 
 def test_mock_oracle(tmp_path: Path) -> None:
@@ -65,6 +84,26 @@ def test_mock_trainer(tmp_path: Path) -> None:
     assert isinstance(res, TrainingResult)
     assert res.potential_path.exists()
     assert res.metrics["rmse_energy"] == 0.005
+
+
+def test_mock_trainer_selection(tmp_path: Path) -> None:
+    """Test MockTrainer selects active set."""
+    config = MockTrainerConfig(type="mock")
+    trainer = MockTrainer(config, tmp_path)
+
+    candidates = [
+        Structure(
+            positions=[[i, 0, 0]],
+            numbers=[1],
+            cell=[[10, 0, 0], [0, 10, 0], [0, 0, 10]],
+            pbc=[True, True, True]
+        ) for i in range(10)
+    ]
+
+    selected = list(trainer.select_local_active_set(iter(candidates), n_selection=3))
+    assert len(selected) == 3
+    assert selected[0].positions[0][0] == 0
+    assert selected[2].positions[0][0] == 2
 
 
 def test_mock_dynamics(tmp_path: Path) -> None:

@@ -38,8 +38,20 @@ class MockGenerator(BaseGenerator):
             # Create a simple dummy structure (H2 molecule for simplicity)
             atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0 + random.random()]]) # noqa: S311
             struct = Structure.from_ase(atoms)
-            struct.tags["source"] = "mock_generator"
+            struct.tags["source"] = "mock_generator_global"
             struct.tags["candidate_id"] = i
+            yield struct
+
+    def generate_local(self, input_structure: Structure, n_candidates: int) -> Iterator[Structure]:
+        """Yield rattled versions of the input structure."""
+        ase_atoms = input_structure.to_ase()
+        for i in range(n_candidates):
+            new_atoms = ase_atoms.copy()  # type: ignore[no-untyped-call]
+            new_atoms.rattle(stdev=0.05)
+            struct = Structure.from_ase(new_atoms)
+            struct.tags["source"] = "mock_generator_local"
+            struct.tags["parent_id"] = input_structure.tags.get("candidate_id", "unknown")
+            struct.tags["local_id"] = i
             yield struct
 
 
@@ -90,6 +102,16 @@ class MockTrainer(BaseTrainer):
             history=[{"epoch": 1, "loss": 0.1}, {"epoch": 10, "loss": 0.01}]
         )
 
+    def select_local_active_set(self, candidates: Iterator[Structure], n_selection: int) -> Iterator[Structure]:
+        """Select the first n structures (mock D-Optimality)."""
+        # Convert iterator to list to slice (in reality we might stream)
+        candidates_list = list(candidates)
+        # Select first n or all if fewer
+        selected = candidates_list[:n_selection]
+        for s in selected:
+            s.tags["selected_by_dopt"] = True
+            yield s
+
 
 class MockDynamics(BaseDynamics):
     """Mock Dynamics engine simulating exploration."""
@@ -104,6 +126,7 @@ class MockDynamics(BaseDynamics):
         atoms.rattle(stdev=0.1)  # type: ignore[no-untyped-call]
         struct = Structure.from_ase(atoms)
         struct.tags["provenance"] = "dynamics_halt"
+        struct.tags["max_gamma"] = 10.0 # High uncertainty
         yield struct
 
 

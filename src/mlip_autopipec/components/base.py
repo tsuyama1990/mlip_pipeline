@@ -25,7 +25,11 @@ class BaseGenerator(BaseComponent):
 
     @abc.abstractmethod
     def generate(self, state: ProjectState) -> Iterator[Structure]:
-        """Generate candidate structures."""
+        """Generate global candidate structures (e.g., for Cold Start)."""
+
+    @abc.abstractmethod
+    def generate_local(self, input_structure: Structure, n_candidates: int) -> Iterator[Structure]:
+        """Generate local candidates around an input structure (e.g., for Halt Recovery)."""
 
 
 class BaseOracle(BaseComponent):
@@ -42,6 +46,10 @@ class BaseTrainer(BaseComponent):
     @abc.abstractmethod
     def train(self, dataset_path: Path, previous_potential: Path | None = None) -> TrainingResult:
         """Train a potential on the given dataset."""
+
+    @abc.abstractmethod
+    def select_local_active_set(self, candidates: Iterator[Structure], n_selection: int) -> Iterator[Structure]:
+        """Select the most informative structures from a candidate set (D-Optimality)."""
 
 
 class BaseDynamics(BaseComponent):

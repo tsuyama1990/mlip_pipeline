@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 from pathlib import Path
 
 from mlip_autopipec.components.base import (
@@ -19,7 +20,7 @@ from mlip_autopipec.core.exceptions import OrchestratorError
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
 from mlip_autopipec.domain_models.enums import TaskStatus
-from mlip_autopipec.domain_models.inputs import ProjectState
+from mlip_autopipec.domain_models.inputs import ProjectState, Structure
 
 logger = logging.getLogger("mlip_autopipec.orchestrator")
 
@@ -92,39 +93,69 @@ class Orchestrator:
         state.status = TaskStatus.RUNNING
         self.state_manager.save(state)
 
-        # 1. Generate
-        logger.info("Step 1: Structure Generation")
-        candidates_iter = self.generator.generate(state)
-
-        # 2. Label (Oracle)
-        logger.info("Step 2: Labeling (Oracle)")
-        labeled_structures = self.oracle.compute(candidates_iter)
-
-        iteration_dir = self.work_dir / f"iter_{state.current_iteration:03d}"
-        iteration_dir.mkdir(parents=True, exist_ok=True)
-        dataset_path = iteration_dir / "train.xyz"
-
-        # Import locally to avoid top-level dependency issues if ASE is missing
+        # Import locally to avoid top-level dependency issues
         from ase.io import write
+
+        candidates_iter: Iterator[Structure]
+        is_cold_start = state.current_potential_path is None or not state.current_potential_path.exists()
+
+        if is_cold_start:
+            logger.info("Mode: Cold Start (Global Search)")
+            candidates_iter = self.generator.generate(state)
+        else:
+            logger.info("Mode: Active Learning (Dynamics & Diagnosis)")
+            # 1. Exploration (Dynamics)
+            # We need a seed structure. Use the last structure from training data or random?
+            # For simplicity, we assume we can pick one from the previous dataset or generator.
+            # In a real scenario, this would be more robust.
+            seed_structure = self._get_seed_structure(state)
+
+            logger.info("Step 1: Dynamics Exploration")
+            # This yields "Halt" structures
+            halts = self.dynamics.explore(state.current_potential_path, seed_structure) # type: ignore[arg-type]
+
+            # 2. Selection (Local Generation & D-Optimality)
+            logger.info("Step 2: Diagnosis & Local Selection")
+            local_candidates_pool: list[Structure] = []
+            for halt in halts:
+                # Generate local candidates around the halt
+                locals_ = self.generator.generate_local(halt, n_candidates=20)
+                # Select best ones (D-Optimality)
+                selected_locals = self.trainer.select_local_active_set(locals_, n_selection=5)
+                local_candidates_pool.extend(selected_locals)
+
+            candidates_iter = iter(local_candidates_pool)
+
+        # 3. Labeling (Oracle)
+        logger.info("Step 3: Labeling (Oracle)")
+        labeled_structures = self.oracle.compute(candidates_iter)
         labeled_list = list(labeled_structures)
 
-        if labeled_list:
-            # Convert to ASE atoms
-            ase_atoms = [s.to_ase() for s in labeled_list]
-            write(dataset_path, ase_atoms)
-            state.current_dataset_path = dataset_path
-        else:
+        if not labeled_list:
             logger.warning("No candidates generated/labeled.")
+            # If no candidates, we might want to skip training, but for now we proceed
 
-        # 3. Train
-        logger.info("Step 3: Training")
+        # Save labeled data
+        iteration_dir = self.work_dir / f"iter_{state.current_iteration:03d}"
+        iteration_dir.mkdir(parents=True, exist_ok=True)
+        new_dataset_path = iteration_dir / "train.xyz"
+
+        ase_atoms = [s.to_ase() for s in labeled_list]
+        write(new_dataset_path, ase_atoms)
+
+        # Update cumulative dataset (simplistic approach: just point to new one for now)
+        # In real system, we would merge datasets.
+        # For Mock, we just use the new one.
+        state.current_dataset_path = new_dataset_path
+
+        # 4. Training (Refinement)
+        logger.info("Step 4: Training")
         if state.current_dataset_path and state.current_dataset_path.exists():
             training_result = self.trainer.train(
                 state.current_dataset_path,
                 state.current_potential_path
             )
             state.current_potential_path = training_result.potential_path
-            # Append metrics to history
             state.history.append({
                 "iteration": state.current_iteration,
                 "metrics": training_result.metrics
@@ -132,23 +163,24 @@ class Orchestrator:
         else:
             logger.warning("Skipping training (no dataset).")
 
-        # 4. Verify (Validator)
+        # 5. Validation
         if state.current_potential_path:
-            logger.info("Step 4: Validation")
+            logger.info("Step 5: Validation")
             metrics = self.validator.validate(state.current_potential_path)
             logger.info(f"Validation Metrics: {metrics}")
-
-        # 5. Dynamics (Explore) - Optional for Cycle 01 main flow but good to call
-        # In full loop, this produces halts for next cycle.
-        # For now, we just run it to verify it works.
-        if state.current_potential_path:
-                logger.info("Step 5: Dynamics Exploration")
-                # We need an initial structure. Pick one from labeled set or random?
-                if labeled_list:
-                    initial_struct = labeled_list[0]
-                    halts = list(self.dynamics.explore(state.current_potential_path, initial_struct))
-                    logger.info(f"Dynamics found {len(halts)} halts.")
 
         state.status = TaskStatus.COMPLETED
         logger.info(f"Cycle {state.current_iteration} Completed")
         self.state_manager.save(state)
+
+    def _get_seed_structure(self, state: ProjectState) -> Structure:
+        """Get a seed structure for dynamics."""
+        # Try to load from current dataset
+        from ase.io import read
+        if state.current_dataset_path and state.current_dataset_path.exists():
+            atoms = read(state.current_dataset_path, index=0) # Take first
+            return Structure.from_ase(atoms) # type: ignore[arg-type]
+
+        # Fallback: Generate a random one
+        # This is a bit of a hack for the Mock, but necessary if no data exists yet (shouldn't happen if Cold Start ran)
+        return next(self.generator.generate(state))
