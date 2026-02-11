@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 25 items
+
+tests/e2e/test_cli.py ....                                               [ 16%]
+tests/unit/test_components.py .....                                      [ 36%]
+tests/unit/test_config.py ....                                           [ 52%]
+tests/unit/test_inputs.py .....                                          [ 72%]
+tests/unit/test_orchestrator.py ..                                       [ 80%]
+tests/unit/test_state_manager.py .....                                   [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                           Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                     0      0   100%
+src/mlip_autopipec/components/__init__.py          3      0   100%
+src/mlip_autopipec/components/base.py             26      0   100%
+src/mlip_autopipec/components/mock.py             54      0   100%
+src/mlip_autopipec/core/__init__.py                4      0   100%
+src/mlip_autopipec/core/exceptions.py              5      0   100%
+src/mlip_autopipec/core/logger.py                 22      2    91%   13, 33
+src/mlip_autopipec/core/orchestrator.py           87     12    86%   49, 54, 59, 64, 108, 124, 147-152
+src/mlip_autopipec/core/state_manager.py          26      0   100%
+src/mlip_autopipec/domain_models/__init__.py       3      0   100%
+src/mlip_autopipec/domain_models/config.py        52      0   100%
+src/mlip_autopipec/domain_models/enums.py         36      0   100%
+src/mlip_autopipec/domain_models/inputs.py        59      1    98%   40
+src/mlip_autopipec/domain_models/results.py       16      0   100%
+src/mlip_autopipec/main.py                        64     12    81%   63-64, 72-74, 81, 97-100, 104, 109
+----------------------------------------------------------------------------
+TOTAL                                            457     27    94%
+============================== 25 passed in 2.67s ==============================
