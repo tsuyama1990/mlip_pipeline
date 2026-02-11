@@ -1,7 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import GlobalConfig, MockGeneratorConfig
+from mlip_autopipec.domain_models.config import (
+    AdaptiveGeneratorConfig,
+    DFTOracleConfig,
+    GlobalConfig,
+    LAMMPSDynamicsConfig,
+    MockGeneratorConfig,
+    PacemakerTrainerConfig,
+)
 
 
 def test_valid_config() -> None:
@@ -36,7 +43,45 @@ def test_valid_config() -> None:
     assert config.orchestrator.work_dir.name == "test_project"
     assert isinstance(config.generator, MockGeneratorConfig)
     assert config.generator.n_candidates == 20
+    assert isinstance(config.oracle, MockOracleConfig)
     assert config.oracle.noise_std == 0.05
+
+
+def test_advanced_config() -> None:
+    """Test parsing of advanced component configurations."""
+    config_data = {
+        "orchestrator": {"work_dir": "adv_project"},
+        "generator": {
+            "type": "adaptive",
+            "md_mc_ratio": 0.8,
+            "temperature_max": 2000.0,
+        },
+        "oracle": {
+            "type": "dft",
+            "code": "vasp",
+            "kspacing": 0.03,
+        },
+        "trainer": {
+            "type": "pacemaker",
+            "max_epochs": 500,
+        },
+        "dynamics": {
+            "type": "lammps",
+            "steps": 50000,
+            "timestep": 0.002,
+        },
+        "validator": {"type": "mock"},
+    }
+    config = GlobalConfig.model_validate(config_data)
+
+    assert isinstance(config.generator, AdaptiveGeneratorConfig)
+    assert config.generator.md_mc_ratio == 0.8
+    assert isinstance(config.oracle, DFTOracleConfig)
+    assert config.oracle.code == "vasp"
+    assert isinstance(config.trainer, PacemakerTrainerConfig)
+    assert config.trainer.max_epochs == 500
+    assert isinstance(config.dynamics, LAMMPSDynamicsConfig)
+    assert config.dynamics.timestep == 0.002
 
 
 def test_invalid_iterations() -> None:
@@ -93,4 +138,4 @@ def test_unknown_type_discriminator() -> None:
         GlobalConfig.model_validate(config_data)
 
     # Pydantic error for discriminated union mismatch
-    assert "Input should be 'mock' or 'random'" in str(excinfo.value) or "Input tag 'unknown_generator' found using 'type' does not match any of the expected tags" in str(excinfo.value)
+    assert "Input should be 'mock', 'random' or 'adaptive'" in str(excinfo.value) or "Input tag 'unknown_generator' found using 'type' does not match any of the expected tags" in str(excinfo.value)
