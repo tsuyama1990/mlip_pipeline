@@ -1,0 +1,34 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 10 items
+
+tests/unit/test_config.py ....                                           [ 40%]
+tests/unit/test_main.py ..                                               [ 60%]
+tests/unit/test_orchestrator.py ...                                      [ 90%]
+tests/unit/test_state_manager.py .                                       [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                           0      0   100%
+src/mlip_autopipec/components/base_component.py          3      0   100%
+src/mlip_autopipec/components/mock.py                    9      0   100%
+src/mlip_autopipec/constants.py                          6      0   100%
+src/mlip_autopipec/core/config.py                       14      2    86%   16-17
+src/mlip_autopipec/core/logger.py                       22      1    95%   28
+src/mlip_autopipec/core/orchestrator.py                 36      6    83%   38-39, 45-46, 52-53
+src/mlip_autopipec/core/state_manager.py                18      3    83%   15-17
+src/mlip_autopipec/domain_models/__init__.py             4      0   100%
+src/mlip_autopipec/domain_models/config.py              27      0   100%
+src/mlip_autopipec/domain_models/datastructures.py       5      0   100%
+src/mlip_autopipec/domain_models/enums.py               21      0   100%
+src/mlip_autopipec/main.py                              21      3    86%   21-22, 28
+----------------------------------------------------------------------------------
+TOTAL                                                  186     15    92%
+============================== 10 passed in 0.68s ==============================

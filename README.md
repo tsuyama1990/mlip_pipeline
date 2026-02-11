@@ -4,50 +4,21 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**PyAceMaker** (`mlip_autopipec`) is a "Zero-Config" autonomous system designed to democratise the creation of State-of-the-Art Machine Learning Interatomic Potentials (MLIPs). By orchestrating `Pacemaker`, `QuantumEspresso`, `LAMMPS`, and `EON`, it allows researchers to generate robust, physics-informed potentials for complex materials without writing a single line of code.
+**PyAceMaker** (`mlip-pipeline`) is a "Zero-Config" autonomous system designed to democratise the creation of State-of-the-Art Machine Learning Interatomic Potentials (MLIPs). By orchestrating `Pacemaker`, `QuantumEspresso`, `LAMMPS`, and `EON`, it allows researchers to generate robust, physics-informed potentials for complex materials.
 
-## Key Features
+## Features (Current Release)
 
--   **Zero-Config Workflow**: A single `config.yaml` drives the entire lifecycle from initial structure generation to final validation.
--   **Active Learning Loop**: Autonomous "Explore -> Halt -> Label -> Train" cycle using D-Optimality (MaxVol) to minimize expensive DFT calculations.
--   **Physics-Informed Robustness**: Enforces Delta Learning against physical baselines (LJ/ZBL) and uses Hybrid Potentials in production to prevent non-physical fusion.
--   **Self-Healing Oracle**: Automatically detects and fixes DFT convergence errors (SCF params, mixing beta).
--   **Time-Scale Bridging**: Seamlessly integrates MD (nanoseconds) with Adaptive Kinetic Monte Carlo (seconds/hours) to capture rare events.
-
-## Architecture Overview
-
-PyAceMaker follows a Hub-and-Spoke architecture where the **Orchestrator** manages specialized components.
-
-```mermaid
-graph TD
-    User[User / Config.yaml] --> Orch[Orchestrator]
-
-    subgraph "Core Loop"
-        Orch -->|1. Request Structures| Gen[Structure Generator]
-        Orch -->|2. Compute Properties| Oracle[Oracle (DFT)]
-        Orch -->|3. Train Model| Trainer[Trainer (Pacemaker)]
-        Orch -->|4. Run Simulation| Dyn[Dynamics Engine]
-    end
-
-    subgraph "Quality Gate"
-        Orch -->|5. Verify| Val[Validator]
-    end
-
-    Dyn -.->|Uncertainty Halt| Gen
-```
+-   **Unified Configuration**: A single `config.yaml` validated by Pydantic V2.
+-   **Autonomous Orchestrator**: Manages workflow state and component lifecycle.
+-   **Mock Capabilities**: Includes mock components for pipeline verification without external binaries.
+-   **Robust Logging**: Centralized logging system with file rotation and console output.
 
 ## Prerequisites
 
 -   **Python 3.12+**
 -   **uv** (Recommended package manager)
--   **Docker / Singularity** (Optional, for running external binaries like QE/LAMMPS)
--   **External Binaries** (if running in Real Mode):
-    -   `pw.x` (Quantum Espresso)
-    -   `lmp_mpi` (LAMMPS with USER-PACE)
-    -   `pace_train` (Pacemaker)
-    -   `eonclient` (EON)
 
-## Installation & Setup
+## Installation
 
 1.  **Clone the repository:**
     ```bash
@@ -60,66 +31,55 @@ graph TD
     uv sync
     ```
 
-3.  **Configure environment:**
-    ```bash
-    cp .env.example .env
-    # Edit .env to point to your binary paths if needed
-    ```
-
 ## Usage
 
-### Quick Start (CI/Mock Mode)
-To verify the installation without external binaries:
+### 1. Create a Configuration File
+Create a `config.yaml` file (see `config.example.yaml` for reference):
 
-```bash
-# Initialize a new project directory
-mkdir my_project
-cd my_project
-
-# Run the pipeline in CI mode (uses Mock components)
-export CI=true
-uv run mlip-runner run ../examples/config_ci.yaml
+```yaml
+project_name: "MyFirstProject"
+orchestrator:
+  work_dir: "experiments/run_01"
+  max_iterations: 10
+  state_file: "workflow_state.json"
+generator:
+  type: "MOCK"
+  enabled: true
+oracle:
+  type: "MOCK"
+  enabled: true
+trainer:
+  type: "MOCK"
+  enabled: false
+dynamics:
+  type: "MOCK"
+  enabled: false
 ```
 
-### Production Run
-For a real scientific run:
+### 2. Run the Pipeline
+Execute the CLI using `uv run`:
 
 ```bash
 uv run mlip-runner run config.yaml
 ```
 
-### Monitoring
-The system produces a `workflow_state.json` and a detailed log file. You can also view the validation report:
+The system will validate the configuration, initialize the orchestrator, and run the workflow (currently in mock mode).
+
+### 3. Check Outputs
+Inspect the logs and state file in the working directory:
 ```bash
-open active_learning/iter_XXX/validation_report.html
+cat experiments/run_01/mlip_pipeline.log
+cat experiments/run_01/workflow_state.json
 ```
 
-## Development Workflow
+## Architecture
 
-We follow a strict quality assurance process.
-
-**Run Tests:**
-```bash
-uv run pytest
-```
-
-**Run Linters:**
-```bash
-uv run ruff check .
-uv run mypy .
-```
-
-**Project Structure:**
 ```ascii
 src/mlip_autopipec/
 ├── components/      # Worker modules (Generator, Oracle, Trainer, etc.)
-├── core/            # Logic (Orchestrator, State Manager)
+├── core/            # Logic (Orchestrator, State Manager, Config)
 ├── domain_models/   # Pydantic data models
 └── main.py          # CLI Entry point
-
-dev_documents/       # Architectural specifications (Cycle 01-08)
-tests/               # Unit and Integration tests
-tutorials/           # Jupyter notebooks
 ```
 
 ## License
