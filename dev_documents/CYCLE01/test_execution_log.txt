@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 20 items
+
+tests/integration/test_orchestrator_flow.py .                            [  5%]
+tests/unit/test_config.py ....                                           [ 25%]
+tests/unit/test_io.py ...                                                [ 40%]
+tests/unit/test_main.py .....                                            [ 65%]
+tests/unit/test_orchestrator.py ..                                       [ 75%]
+tests/unit/test_state_manager.py .....                                   [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                           0      0   100%
+src/mlip_autopipec/constants.py                          7      0   100%
+src/mlip_autopipec/core/__init__.py                      0      0   100%
+src/mlip_autopipec/core/logger.py                       17      0   100%
+src/mlip_autopipec/core/orchestrator.py                 47      0   100%
+src/mlip_autopipec/core/state_manager.py                23      0   100%
+src/mlip_autopipec/domain_models/__init__.py             4      0   100%
+src/mlip_autopipec/domain_models/config.py              14      0   100%
+src/mlip_autopipec/domain_models/datastructures.py       9      0   100%
+src/mlip_autopipec/domain_models/enums.py                9      0   100%
+src/mlip_autopipec/main.py                              28      4    86%   41-43, 47
+src/mlip_autopipec/utils/__init__.py                     0      0   100%
+src/mlip_autopipec/utils/io.py                          21      4    81%   26-29
+----------------------------------------------------------------------------------
+TOTAL                                                  179      8    96%
+============================== 20 passed in 2.13s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
