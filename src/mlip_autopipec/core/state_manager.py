@@ -8,7 +8,7 @@ from mlip_autopipec.domain_models.inputs import ProjectState
 class StateManager:
     """Manages the persistent state of the workflow."""
 
-    def __init__(self, work_dir: Path):
+    def __init__(self, work_dir: Path) -> None:
         self.work_dir = Path(work_dir)
         self.state_file = self.work_dir / "workflow_state.json"
 
@@ -22,7 +22,8 @@ class StateManager:
                 data = json.load(f)
             return ProjectState.model_validate(data)
         except (json.JSONDecodeError, ValueError) as e:
-            raise StateError(f"Failed to load state from {self.state_file}: {e}") from e
+            msg = f"Failed to load state from {self.state_file}: {e}"
+            raise StateError(msg) from e
 
     def save(self, state: ProjectState) -> None:
         """Save the workflow state atomically."""
@@ -40,4 +41,5 @@ class StateManager:
             temp_file.replace(self.state_file)
 
         except OSError as e:
-            raise StateError(f"Failed to save state to {self.state_file}: {e}") from e
+            msg = f"Failed to save state to {self.state_file}: {e}"
+            raise StateError(msg) from e

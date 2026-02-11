@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.core.exceptions import StateError
-from mlip_autopipec.domain_models.inputs import ProjectState
+from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.enums import TaskStatus
+from mlip_autopipec.domain_models.inputs import ProjectState
 
 
 def test_save_and_load(tmp_path: Path) -> None:

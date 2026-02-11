@@ -25,15 +25,18 @@ from mlip_autopipec.domain_models.results import TrainingResult
 class MockGenerator(BaseGenerator):
     """Mock generator producing random structures."""
 
-    def __init__(self, config: MockGeneratorConfig, work_dir: Path):
+    def __init__(self, config: MockGeneratorConfig, work_dir: Path) -> None:
         super().__init__(config, work_dir)
         self.config = config
+
+    def _validate_config(self) -> None:
+        pass
 
     def generate(self, state: ProjectState) -> Iterator[Structure]:
         """Yield random dummy structures."""
         for i in range(self.config.n_candidates):
             # Create a simple dummy structure (H2 molecule for simplicity)
-            atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0 + random.random()]])
+            atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0 + random.random()]]) # noqa: S311
             struct = Structure.from_ase(atoms)
             struct.tags["source"] = "mock_generator"
             struct.tags["candidate_id"] = i
@@ -43,9 +46,12 @@ class MockGenerator(BaseGenerator):
 class MockOracle(BaseOracle):
     """Mock Oracle adding random energies/forces."""
 
-    def __init__(self, config: MockOracleConfig, work_dir: Path):
+    def __init__(self, config: MockOracleConfig, work_dir: Path) -> None:
         super().__init__(config, work_dir)
         self.config = config
+
+    def _validate_config(self) -> None:
+        pass
 
     def compute(self, structures: Iterator[Structure]) -> Iterator[Structure]:
         """Compute random properties."""
@@ -66,9 +72,12 @@ class MockOracle(BaseOracle):
 class MockTrainer(BaseTrainer):
     """Mock Trainer producing dummy potential file."""
 
-    def __init__(self, config: MockTrainerConfig, work_dir: Path):
+    def __init__(self, config: MockTrainerConfig, work_dir: Path) -> None:
         super().__init__(config, work_dir)
         self.config = config
+
+    def _validate_config(self) -> None:
+        pass
 
     def train(self, dataset_path: Path, previous_potential: Path | None = None) -> TrainingResult:
         """Simulate training."""
@@ -85,6 +94,9 @@ class MockTrainer(BaseTrainer):
 class MockDynamics(BaseDynamics):
     """Mock Dynamics engine simulating exploration."""
 
+    def _validate_config(self) -> None:
+        pass
+
     def explore(self, potential_path: Path, initial_structure: Structure) -> Iterator[Structure]:
         """Yield a few 'halted' structures."""
         # Yield 1 structure simulating a halt
@@ -97,6 +109,9 @@ class MockDynamics(BaseDynamics):
 
 class MockValidator(BaseValidator):
     """Mock Validator returning passing metrics."""
+
+    def _validate_config(self) -> None:
+        pass
 
     def validate(self, potential_path: Path) -> dict[str, Any]:
         return {

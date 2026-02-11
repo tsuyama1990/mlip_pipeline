@@ -10,10 +10,14 @@ from mlip_autopipec.domain_models.results import TrainingResult
 class BaseComponent(abc.ABC):
     """Base class for all pipeline components."""
 
-    def __init__(self, config: Any, work_dir: Path):
+    def __init__(self, config: Any, work_dir: Path) -> None:
         self.config = config
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    @abc.abstractmethod
+    def _validate_config(self) -> None:
+        """Validate component configuration."""
 
 
 class BaseGenerator(BaseComponent):

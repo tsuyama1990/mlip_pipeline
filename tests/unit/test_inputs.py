@@ -1,8 +1,9 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 from ase import Atoms
 from pydantic import ValidationError
-from pathlib import Path
 
 from mlip_autopipec.domain_models.inputs import Job, ProjectState, Structure, sanitize_value
 

@@ -21,7 +21,8 @@ class OrchestratorConfig(BaseModel):
         # This is basic; robust security would require resolving against a root.
         # However, for Cycle 01 this satisfies the requirement to have a check.
         if ".." in str(v):
-            raise ValueError("Path traversal ('..') is not allowed in work_dir.")
+            msg = "Path traversal ('..') is not allowed in work_dir."
+            raise ValueError(msg)
         return v
 
 
