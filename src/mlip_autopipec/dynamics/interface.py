@@ -32,6 +32,12 @@ class MockDynamics(BaseDynamics):
         trajectory_structures = []
         initial_atoms = structure.to_ase()
 
+        # In-place modification strategy to avoid copying atoms 5 times?
+        # But Trajectory stores list of Structures, each has its own atoms.
+        # So copying is necessary to store frames.
+        # But we can limit the number of frames or stream them if needed.
+        # For mock, 5 frames is fine.
+
         for i in range(5):
             atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
             # Perturb positions slightly

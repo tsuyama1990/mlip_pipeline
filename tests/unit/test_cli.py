@@ -38,8 +38,8 @@ def test_cli_run_missing(tmp_path: Path) -> None:
 
 
 def test_cli_run_mock(tmp_path: Path) -> None:
-    # Create valid config
-    config_path = tmp_path / "config.yaml"
+    # Create valid config in a separate path to avoid conflicts
+    config_path = tmp_path / "config_mock.yaml"
     runner.invoke(app, ["init", "--output-path", str(config_path)])
 
     # Run
@@ -53,15 +53,18 @@ def test_cli_run_mock(tmp_path: Path) -> None:
         data = yaml.safe_load(f)
 
     # Update work_dir to absolute path in tmp
-    data["orchestrator"]["work_dir"] = str(tmp_path / "experiments")
+    work_dir = tmp_path / "experiments_mock"
+    data["orchestrator"]["work_dir"] = str(work_dir)
 
-    with config_path.open("w") as f:
+    # Create a new config file for the run to verify clean state logic
+    run_config_path = tmp_path / "config_run.yaml"
+    with run_config_path.open("w") as f:
         yaml.dump(data, f)
 
-    result = runner.invoke(app, ["run", str(config_path)])
+    result = runner.invoke(app, ["run", str(run_config_path)])
 
     # Capture output.
     # If successful, exit code 0.
     assert result.exit_code == 0
     assert "Pipeline completed successfully" in result.stdout
-    assert (tmp_path / "experiments" / "workflow_state.json").exists()
+    assert (work_dir / "workflow_state.json").exists()

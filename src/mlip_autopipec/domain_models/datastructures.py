@@ -8,7 +8,9 @@ from mlip_autopipec.domain_models.enums import TaskType
 
 
 class Structure(BaseModel):
-    atoms: Any  # ase.Atoms, but Pydantic doesn't like it without arbitrary_types_allowed
+    # Use object as type hint instead of Any, though Pydantic treats them similarly with arbitrary_types_allowed
+    # But Any is discouraged.
+    atoms: object
     provenance: str = Field(..., description="Source of the structure (e.g., 'random', 'md_halt')")
     uncertainty_score: float | None = Field(default=None, description="Uncertainty metric from the model")
     label_status: str = Field(default="unlabeled", description="Status of ground truth availability")
@@ -30,14 +32,16 @@ class Structure(BaseModel):
         """Returns the internal ase.Atoms object with updated info."""
         from typing import cast
 
-        self.atoms.info.update(
+        # atoms is verified to be Atoms in validate_atoms
+        atoms = cast(Atoms, self.atoms)
+        atoms.info.update(
             {
                 "provenance": self.provenance,
                 "uncertainty_score": self.uncertainty_score,
                 "label_status": self.label_status,
             }
         )
-        return cast(Atoms, self.atoms)
+        return atoms
 
 
 class Dataset(BaseModel):

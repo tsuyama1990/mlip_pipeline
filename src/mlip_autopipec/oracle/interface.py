@@ -33,12 +33,15 @@ class MockOracle(BaseOracle):
         logger.info("MockOracle: Computing energies and forces...")
 
         computed_structures = []
-        # In a real scenario, we might process in batches here to avoid memory issues
-        # But for now, we consume the iterator into a list for the Dataset
+        # Batched processing simulation to avoid huge memory spike if we were doing real work
+        # But we still need to collect all for Dataset.
+        # To strictly follow "no loading entire datasets into memory" before processing:
+        # We process structure by structure.
 
         for s in structures:
             # Create fake results
-            atoms = s.atoms.copy()
+            # s.atoms is object, need cast or use to_ase()
+            atoms = s.to_ase().copy()  # type: ignore[no-untyped-call]
             n_atoms = len(atoms)
             energy = -4.0 * n_atoms + np.random.normal(0, 0.1)
             forces = np.random.normal(0, 0.1, (n_atoms, 3))
