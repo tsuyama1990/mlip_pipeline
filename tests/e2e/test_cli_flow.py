@@ -8,43 +8,46 @@ from mlip_autopipec.main import app
 runner = CliRunner()
 
 
-def test_init_command(tmp_path: Path) -> None:
+def test_cli_init(tmp_path: Path) -> None:
     result = runner.invoke(app, ["init", "--output", str(tmp_path / "config.yaml")])
     assert result.exit_code == 0
-    assert "Created default configuration" in result.output
     assert (tmp_path / "config.yaml").exists()
 
+    with (tmp_path / "config.yaml").open() as f:
+        data = yaml.safe_load(f)
+    assert "orchestrator" in data
 
-def test_run_command_valid(tmp_path: Path) -> None:
-    # Prepare a valid config
-    work_dir = tmp_path / "run_dir"
-    config_content = {
-        "orchestrator": {"work_dir": str(work_dir), "max_iterations": 2},
-        "generator": {"type": "RANDOM", "num_structures": 5},
-        "oracle": {"type": "QUANTUM_ESPRESSO", "command": "pw.x"},
-        "trainer": {"type": "PACEMAKER", "r_cut": 4.0, "max_deg": 2},
-    }
+
+def test_cli_run_success(tmp_path: Path) -> None:
+    # First init
     config_file = tmp_path / "config.yaml"
+    work_dir = tmp_path / "run_work"
+
+    config_data = {
+        "orchestrator": {"work_dir": str(work_dir)},
+        "generator": {"type": "RANDOM"},
+        "oracle": {"type": "QUANTUM_ESPRESSO", "command": "pw.x"},
+        "trainer": {"type": "PACEMAKER"},
+    }
+
     with config_file.open("w") as f:
-        yaml.dump(config_content, f)
+        yaml.dump(config_data, f)
 
     result = runner.invoke(app, ["run", str(config_file)])
     assert result.exit_code == 0
-    assert "Configuration loaded successfully" in result.output
     assert "Starting new run" in result.output
-    assert work_dir.exists()
     assert (work_dir / "workflow_state.json").exists()
 
+    # Resume
+    result = runner.invoke(app, ["run", str(config_file)])
+    assert result.exit_code == 0
+    assert "Resuming from iteration 0" in result.output
 
-def test_run_command_invalid(tmp_path: Path) -> None:
-    # Prepare an invalid config (missing required field)
-    config_content = {
-        "orchestrator": {"work_dir": str(tmp_path / "bad_run")},
-        # Missing generator, oracle, trainer
-    }
-    config_file = tmp_path / "bad_config.yaml"
+
+def test_cli_run_invalid_config(tmp_path: Path) -> None:
+    config_file = tmp_path / "bad.yaml"
     with config_file.open("w") as f:
-        yaml.dump(config_content, f)
+        f.write("invalid: yaml")
 
     result = runner.invoke(app, ["run", str(config_file)])
     assert result.exit_code == 1
