@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![Coverage](https://img.shields.io/badge/coverage-92%25-green)
+![Coverage](https://img.shields.io/badge/coverage-91%25-green)
 
 **Zero-Configuration, Physics-Informed Active Learning for Machine Learning Interatomic Potentials.**
 
@@ -19,11 +19,12 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 
 ## Features
 
+*   **Adaptive Structure Generation**: Automatically switches between Random, M3GNet (pre-trained), and MD-based exploration strategies based on the learning cycle.
+*   **Temperature Scheduling**: Implements simulated annealing protocols for efficient PES exploration.
+*   **LAMMPS Integration**: Generates production-ready LAMMPS input scripts for Molecular Dynamics.
 *   **Zero-Config Automation**: Define your material system and let the system handle the rest.
 *   **Active Learning Loop**: Automatically explores chemical space and selects the most informative structures for labeling.
-*   **Modular Architecture**: Easily extensible components for Structure Generation, Oracle (DFT), Training, Dynamics, and Validation.
 *   **Robust Error Handling**: Centralized state management and self-healing capabilities.
-*   **Mock Execution Mode**: Verify workflows without heavy computational resources using the built-in Mock components.
 
 ## Requirements
 
@@ -49,6 +50,8 @@ Create a default configuration file:
 uv run mlip-runner init --output-path config.yaml
 ```
 
+This will generate a YAML file with the new `generator.policy` settings.
+
 ### 2. Run the Pipeline
 
 Execute the workflow using the configuration file:
@@ -67,7 +70,7 @@ Results (potentials, logs, state) are saved in the directory specified in `confi
 src/mlip_autopipec/
 ├── core/               # Orchestrator, Config Parser, State Manager, Logger
 ├── domain_models/      # Pydantic Schemas (Config, Structure, Potential)
-├── generator/          # Structure Generation Strategies
+├── generator/          # Structure Generation (Adaptive, M3GNet, Random)
 ├── oracle/             # DFT Engine Interfaces
 ├── trainer/            # Potential Training Logic
 ├── dynamics/           # MD/MC Simulation Drivers
@@ -77,7 +80,6 @@ src/mlip_autopipec/
 
 ## Roadmap
 
-*   **Cycle 02**: Adaptive Structure Generation Policies.
 *   **Cycle 03**: Quantum Espresso & VASP Integration.
 *   **Cycle 04**: Pacemaker Training Integration.
 *   **Cycle 05**: Uncertainty-driven Active Learning.

@@ -19,15 +19,25 @@ class BaseComponentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ExplorationPolicyConfig(BaseModel):
+    strategy: GeneratorType = Field(default=GeneratorType.ADAPTIVE, description="Exploration strategy to use")
+    temperature_schedule: list[float] = Field(
+        default_factory=lambda: [300.0, 600.0, 1200.0], description="Temperature schedule per cycle"
+    )
+    md_steps: int = Field(default=1000, ge=1, description="Number of MD steps per exploration")
+    mc_swap_prob: float = Field(default=0.1, ge=0.0, le=1.0, description="Probability of MC swap")
+    defect_density: float = Field(default=0.0, ge=0.0, description="Defect density")
+    strain_range: float = Field(default=0.05, ge=0.0, description="Strain range for random generation")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class GeneratorConfig(BaseComponentConfig):
     type: GeneratorType = GeneratorType.MOCK
     ratio_ab_initio: float = Field(default=0.1, ge=0.0, le=1.0)
     mock_count: int = Field(default=2, ge=1, description="Number of structures to generate in Mock mode")
-    # Adaptive Policy Fields
-    ratio_md_mc: float = Field(default=0.5, ge=0.0, le=1.0, description="Ratio of MD vs MC steps")
-    max_temperature: float = Field(default=1000.0, gt=0.0, description="Max temperature for heating schedule")
-    defect_density: float = Field(default=0.01, ge=0.0, description="Defect concentration")
-    strain_range: float = Field(default=0.05, ge=0.0, description="Strain range for deformation")
+    policy: ExplorationPolicyConfig = Field(default_factory=ExplorationPolicyConfig)
+    seed_structure_path: Path | None = Field(default=None, description="Path to initial seed structure")
 
 
 class OracleConfig(BaseComponentConfig):
@@ -46,7 +56,9 @@ class TrainerConfig(BaseComponentConfig):
     max_epochs: int = Field(default=100, ge=1)
     batch_size: int = Field(default=32, ge=1)
     # Active Set
-    active_set_method: ActiveSetMethod = Field(default=ActiveSetMethod.NONE, description="Method for active set selection")
+    active_set_method: ActiveSetMethod = Field(
+        default=ActiveSetMethod.NONE, description="Method for active set selection"
+    )
     selection_ratio: float = Field(default=0.1, ge=0.0, le=1.0, description="Ratio of candidates to select")
 
 

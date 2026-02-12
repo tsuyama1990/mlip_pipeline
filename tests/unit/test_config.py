@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from mlip_autopipec.domain_models.config import (
     DynamicsConfig,
+    ExplorationPolicyConfig,
     GeneratorConfig,
     GlobalConfig,
     OracleConfig,
@@ -24,9 +25,10 @@ def test_generator_config_defaults() -> None:
     config = GeneratorConfig()
     assert config.type == GeneratorType.MOCK
     assert config.ratio_ab_initio == 0.1
-    # Check new defaults
-    assert config.ratio_md_mc == 0.5
-    assert config.max_temperature == 1000.0
+    # Check new defaults via policy
+    assert config.policy.mc_swap_prob == 0.1
+    assert config.policy.md_steps == 1000
+    assert config.policy.temperature_schedule == [300.0, 600.0, 1200.0]
 
 
 def test_generator_config_validation() -> None:
@@ -37,14 +39,17 @@ def test_generator_config_validation() -> None:
 
 
 def test_generator_adaptive_config() -> None:
-    config = GeneratorConfig(
-        ratio_md_mc=0.8,
-        max_temperature=2000.0,
+    policy = ExplorationPolicyConfig(
+        mc_swap_prob=0.8,
+        md_steps=2000,
         defect_density=0.05,
         strain_range=0.1
     )
-    assert config.ratio_md_mc == 0.8
-    assert config.max_temperature == 2000.0
+    config = GeneratorConfig(policy=policy)
+    assert config.policy.mc_swap_prob == 0.8
+    assert config.policy.md_steps == 2000
+    assert config.policy.defect_density == 0.05
+    assert config.policy.strain_range == 0.1
 
 
 def test_oracle_config_defaults() -> None:
