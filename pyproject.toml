@@ -4,7 +4,13 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=1.26.0",
+    "pydantic>=2.7.0",
+    "pyyaml>=6.0.1",
+    "ase",
+    "typer>=0.9.0",
+]
 
 [project.scripts]
 mlip-runner = "mlip_autopipec.main:app"
@@ -15,6 +21,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "types-PyYAML>=6.0.12.20240311",
 ]
 
 [tool.ruff]
@@ -83,7 +90,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]  # Allow assert in tests
+"tests/**/*.py" = ["S101", "S603"]  # Allow assert in tests
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10  # Exceeding this prompts function splitting (prevent AI long functions)
