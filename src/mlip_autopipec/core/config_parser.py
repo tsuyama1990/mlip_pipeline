@@ -12,6 +12,10 @@ class ConfigError(Exception):
     """Raised when configuration loading fails."""
 
 
+# Max config file size: 1MB
+MAX_CONFIG_SIZE = 1 * 1024 * 1024
+
+
 def _expand_vars(content: str) -> str:
     """
     Expands environment variables in the format ${VAR} or $VAR.
@@ -46,6 +50,11 @@ def load_config(config_path: Path) -> GlobalConfig:
     """
     if not config_path.exists():
         msg = f"Configuration file not found: {config_path}"
+        raise ConfigError(msg)
+
+    # Check file size
+    if config_path.stat().st_size > MAX_CONFIG_SIZE:
+        msg = f"Configuration file too large (max {MAX_CONFIG_SIZE} bytes)"
         raise ConfigError(msg)
 
     try:

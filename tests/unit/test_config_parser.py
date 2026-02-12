@@ -27,22 +27,22 @@ def test_load_valid_config(tmp_path: Path) -> None:
 
 def test_load_config_env_var(tmp_path: Path) -> None:
     os.environ["TEST_VAR"] = "mock"
-    config_data = {
-        "orchestrator": {},
-        "generator": {"type": "${TEST_VAR}"},
-        "oracle": {"type": "mock"},
-        "trainer": {"type": "mock"},
-        "dynamics": {"type": "mock"},
-        "validator": {"type": "mock"},
-    }
+    # Create YAML manually to ensure ${TEST_VAR} is preserved as string
+    yaml_content = """
+    orchestrator: {}
+    generator:
+      type: ${TEST_VAR}
+    oracle:
+      type: mock
+    trainer:
+      type: mock
+    dynamics:
+      type: mock
+    validator:
+      type: mock
+    """
     config_file = tmp_path / "config_env.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
-
-    # yaml dump won't preserve ${VAR} literally if passed as string?
-    # Yes it will if quotes are used. But wait, I'm dumping the dict.
-    # If I dump {"type": "${TEST_VAR}"}, yaml file will contain type: '${TEST_VAR}' or similar.
-    # Let's verify content manually if needed.
+    config_file.write_text(yaml_content)
 
     config = load_config(config_file)
     assert config.generator.type == "mock"
@@ -68,4 +68,15 @@ def test_load_invalid_model(tmp_path: Path) -> None:
         yaml.dump(config_data, f)
 
     with pytest.raises(ConfigError, match="validation failed"):
+        load_config(config_file)
+
+
+def test_load_large_config(tmp_path: Path) -> None:
+    config_file = tmp_path / "large_config.yaml"
+    # Write > 1MB file
+    size = 1024 * 1024 + 100
+    with config_file.open("w") as f:
+        f.write("a" * size)
+
+    with pytest.raises(ConfigError, match="too large"):
         load_config(config_file)

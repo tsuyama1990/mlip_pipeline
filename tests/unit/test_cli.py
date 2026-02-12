@@ -62,9 +62,6 @@ def test_cli_run_mock(tmp_path: Path) -> None:
 
     # Capture output.
     # If successful, exit code 0.
-    if result.exit_code != 0:
-        print(result.stdout)
-
     assert result.exit_code == 0
     assert "Pipeline completed successfully" in result.stdout
     assert (tmp_path / "experiments" / "workflow_state.json").exists()

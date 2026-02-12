@@ -84,8 +84,8 @@ class Orchestrator:
 
             # Context can be expanded later
             context = {"cycle": cycle, "temperature": self.config.dynamics.temperature}
-            candidates = self.generator.explore(context)
-            logger.info(f"Generated {len(candidates)} candidates.")
+            candidates_iter = self.generator.explore(context)
+            logger.info("Generated candidates iterator.")
 
             # 2. Oracle (Compute Labels)
             logger.info("Phase: Oracle Computing")
@@ -94,7 +94,7 @@ class Orchestrator:
             # Oracle is technically part of data gen or training prep.
             self.state_manager.save()
 
-            labeled_dataset = self.oracle.compute(candidates)
+            labeled_dataset = self.oracle.compute(candidates_iter)
             logger.info(f"Computed labels for {len(labeled_dataset)} structures.")
 
             # 3. Training

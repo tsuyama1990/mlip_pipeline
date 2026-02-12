@@ -16,7 +16,7 @@ from mlip_autopipec.validator.interface import MockValidator
 
 def test_mock_generator_explore() -> None:
     generator = MockGenerator()
-    structures = generator.explore(context={})
+    structures = list(generator.explore(context={}))
     assert isinstance(structures, list)
     assert len(structures) > 0
     assert isinstance(structures[0], Structure)
@@ -65,19 +65,18 @@ def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
 
     s = Structure(atoms=mock_atoms, provenance="test")
 
-    # MockDynamics simulate might return list of structures or Trajectory object?
-    # Interface says `simulate(potential, structure) -> List[Structure]` or similar.
-    # SPEC says `simulate(potential, structure) -> Trajectory`
-    # Let's assume it returns a list of structures for now or a Trajectory object.
-    # Actually SPEC says `simulate(potential, structure) -> Trajectory`
-    # But for Cycle 01 MockDynamics, "Returns a successful trajectory without running LAMMPS."
-    # I'll update datastructures if needed, or assume Trajectory is List[Structure] for now.
-
     trajectory = dynamics.simulate(pot, s)
     from mlip_autopipec.domain_models.datastructures import Trajectory
     assert isinstance(trajectory, Trajectory)
-    assert len(trajectory.structures) > 0
+    assert len(trajectory.structures) == 5
     assert isinstance(trajectory.structures[0], Structure)
+    # Verify metadata or content
+    assert trajectory.metadata["steps"] == 5
+    # Verify atoms moved
+    first_pos = trajectory.structures[0].to_ase().positions
+    last_pos = trajectory.structures[-1].to_ase().positions
+    import numpy as np
+    assert not np.array_equal(first_pos, last_pos)
 
 def test_mock_validator_validate() -> None:
     validator = MockValidator()

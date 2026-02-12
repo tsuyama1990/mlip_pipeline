@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 
 import numpy as np
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -13,12 +14,12 @@ class BaseOracle(ABC):
     """Abstract Base Class for Oracle (DFT Engine)."""
 
     @abstractmethod
-    def compute(self, structures: list[Structure]) -> Dataset:
+    def compute(self, structures: Iterable[Structure]) -> Dataset:
         """
         Calculates ground-truth properties (energy, forces, stress) for structures.
 
         Args:
-            structures: List of structures to compute.
+            structures: Iterator or list of structures to compute.
 
         Returns:
             A Dataset containing the labeled structures.
@@ -28,15 +29,14 @@ class BaseOracle(ABC):
 class MockOracle(BaseOracle):
     """Mock implementation of Oracle."""
 
-    def compute(self, structures: list[Structure]) -> Dataset:
+    def compute(self, structures: Iterable[Structure]) -> Dataset:
         logger.info("MockOracle: Computing energies and forces...")
 
         computed_structures = []
-        for s in structures:
-            # We copy structure to avoid mutating original list in-place if needed
-            # But Structure wraps Atoms, which is mutable.
-            # We will create a new Structure.
+        # In a real scenario, we might process in batches here to avoid memory issues
+        # But for now, we consume the iterator into a list for the Dataset
 
+        for s in structures:
             # Create fake results
             atoms = s.atoms.copy()
             n_atoms = len(atoms)
