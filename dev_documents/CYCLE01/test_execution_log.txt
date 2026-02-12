@@ -1,0 +1,48 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 27 items
+
+tests/integration/test_pipeline.py .                                     [  3%]
+tests/unit/test_cli.py ....                                              [ 18%]
+tests/unit/test_config.py .....                                          [ 37%]
+tests/unit/test_config_parser.py ......                                  [ 59%]
+tests/unit/test_logger.py .                                              [ 62%]
+tests/unit/test_mocks.py .....                                           [ 81%]
+tests/unit/test_orchestrator.py ..                                       [ 88%]
+tests/unit/test_state_manager.py ...                                     [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                           0      0   100%
+src/mlip_autopipec/core/__init__.py                      0      0   100%
+src/mlip_autopipec/core/config_parser.py                73     13    82%   39-41, 44, 113-123, 163-164
+src/mlip_autopipec/core/logger.py                       18      0   100%
+src/mlip_autopipec/core/orchestrator.py                 92     13    86%   52-53, 58-59, 64-65, 70-71, 76-77, 164, 174, 177
+src/mlip_autopipec/core/state_manager.py                53      7    87%   27-29, 44-47
+src/mlip_autopipec/domain_models/__init__.py             4      0   100%
+src/mlip_autopipec/domain_models/config.py              49      0   100%
+src/mlip_autopipec/domain_models/datastructures.py      55      4    93%   27-28, 54, 57
+src/mlip_autopipec/domain_models/enums.py               38      0   100%
+src/mlip_autopipec/dynamics/__init__.py                  2      0   100%
+src/mlip_autopipec/dynamics/interface.py                18      0   100%
+src/mlip_autopipec/generator/__init__.py                 2      0   100%
+src/mlip_autopipec/generator/interface.py               19      1    95%   48
+src/mlip_autopipec/main.py                              40      6    85%   91-97, 101
+src/mlip_autopipec/oracle/__init__.py                    2      0   100%
+src/mlip_autopipec/oracle/interface.py                  22      0   100%
+src/mlip_autopipec/trainer/__init__.py                   2      0   100%
+src/mlip_autopipec/trainer/interface.py                 25      3    88%   46-48
+src/mlip_autopipec/validator/__init__.py                 2      0   100%
+src/mlip_autopipec/validator/interface.py               11      0   100%
+----------------------------------------------------------------------------------
+TOTAL                                                  527     47    91%
+============================== 27 passed in 0.89s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
