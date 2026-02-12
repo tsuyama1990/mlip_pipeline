@@ -7,6 +7,12 @@ class DFTCode(StrEnum):
     CASTEP = "castep"
 
 
+class DFTTask(StrEnum):
+    SCF = "scf"
+    RELAX = "relax"
+    VC_RELAX = "vc-relax"
+
+
 class TaskType(StrEnum):
     EXPLORATION = "exploration"
     TRAINING = "training"
@@ -37,6 +43,12 @@ class OracleType(StrEnum):
 class TrainerType(StrEnum):
     MOCK = "mock"
     PACEMAKER = "pacemaker"
+
+
+class ActiveSetMethod(StrEnum):
+    MAXVOL = "maxvol"
+    RANDOM = "random"
+    NONE = "none"
 
 
 class DynamicsType(StrEnum):

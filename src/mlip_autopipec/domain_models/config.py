@@ -3,6 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.domain_models.enums import (
+    ActiveSetMethod,
     DFTCode,
     DynamicsType,
     ExecutionMode,
@@ -20,27 +21,42 @@ class BaseComponentConfig(BaseModel):
 
 class GeneratorConfig(BaseComponentConfig):
     type: GeneratorType = GeneratorType.MOCK
-    # Add specific fields for other types later
     ratio_ab_initio: float = Field(default=0.1, ge=0.0, le=1.0)
     mock_count: int = Field(default=2, ge=1, description="Number of structures to generate in Mock mode")
+    # Adaptive Policy Fields
+    ratio_md_mc: float = Field(default=0.5, ge=0.0, le=1.0, description="Ratio of MD vs MC steps")
+    max_temperature: float = Field(default=1000.0, gt=0.0, description="Max temperature for heating schedule")
+    defect_density: float = Field(default=0.01, ge=0.0, description="Defect concentration")
+    strain_range: float = Field(default=0.05, ge=0.0, description="Strain range for deformation")
 
 
 class OracleConfig(BaseComponentConfig):
     type: OracleType = OracleType.MOCK
     dft_code: DFTCode | None = None
     command: str | None = Field(default=None, description="MPI command for DFT execution. Required for DFT mode.")
+    # DFT Parameters
+    kspacing: float = Field(default=0.04, gt=0.0, description="K-point spacing in inverse Angstroms")
+    pseudo_dir: Path | None = Field(default=None, description="Path to pseudopotentials directory")
+    mixing_beta: float = Field(default=0.7, gt=0.0, le=1.0, description="Mixing beta for SCF")
+    smearing_width: float = Field(default=0.01, ge=0.0, description="Smearing width in Ry")
 
 
 class TrainerConfig(BaseComponentConfig):
     type: TrainerType = TrainerType.MOCK
     max_epochs: int = Field(default=100, ge=1)
     batch_size: int = Field(default=32, ge=1)
+    # Active Set
+    active_set_method: ActiveSetMethod = Field(default=ActiveSetMethod.NONE, description="Method for active set selection")
+    selection_ratio: float = Field(default=0.1, ge=0.0, le=1.0, description="Ratio of candidates to select")
 
 
 class DynamicsConfig(BaseComponentConfig):
     type: DynamicsType = DynamicsType.MOCK
     temperature: float = Field(default=300.0, gt=0.0)
     steps: int = Field(default=1000, ge=1)
+    # Halt / OTF
+    halt_on_uncertainty: bool = Field(default=True, description="Whether to stop on high uncertainty")
+    max_gamma_threshold: float = Field(default=5.0, gt=0.0, description="Threshold for extrapolation grade")
 
 
 class ValidatorConfig(BaseComponentConfig):
@@ -55,6 +71,7 @@ class OrchestratorConfig(BaseModel):
     work_dir: Path = Field(..., description="Root directory for outputs")
     execution_mode: ExecutionMode = Field(default=ExecutionMode.MOCK, description="Mode of operation")
     cleanup_on_exit: bool = Field(default=False, description="Whether to remove temporary files")
+    max_candidates: int = Field(default=50, ge=1, description="Maximum number of candidates to process per cycle")
 
     model_config = ConfigDict(extra="forbid")
 

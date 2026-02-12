@@ -1,4 +1,7 @@
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import (
@@ -48,20 +51,75 @@ def test_orchestrator_run_mock(tmp_path: Path) -> None:
     orch = Orchestrator(config)
     orch.run()
 
-    # Verify files created
-    # MockTrainer creates potential.yace
     assert (tmp_path / "potential.yace").exists()
-
-    # Verify state
-    # After run, current_cycle should be max_cycles (2)? No, loop range(start, max).
-    # If start is 0, it runs for 0, then 1.
-    # At end of loop 0, it saves state?
-    # State update cycle happens at start of loop: update_cycle(cycle+1).
-    # So for cycle=0, it updates to 1.
-    # For cycle=1, it updates to 2.
-    # So final state should be 2.
 
     sm = orch.state_manager
     # Reload state from file
     sm_new = type(sm)(tmp_path)
+    # 2 cycles run.
     assert sm_new.state.current_cycle == 2
+
+
+def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
+    """Test the Active Learning logic: Cold Start vs OTF."""
+
+    with patch("mlip_autopipec.core.orchestrator.MockGenerator") as MockGen, \
+         patch("mlip_autopipec.core.orchestrator.MockDynamics") as MockDyn, \
+         patch("mlip_autopipec.core.orchestrator.MockTrainer") as MockTrain, \
+         patch("mlip_autopipec.core.orchestrator.MockOracle") as MockOracleCls, \
+         patch("mlip_autopipec.core.orchestrator.MockValidator") as MockVal:
+
+        # Setup mocks behavior
+        mock_gen = MockGen.return_value
+        mock_dyn = MockDyn.return_value
+        mock_train = MockTrain.return_value
+        mock_oracle = MockOracleCls.return_value
+        mock_val = MockVal.return_value
+
+        # Generator returns iterator of structures - Must return new iterator each call
+        s1 = MagicMock()
+        s1.uncertainty_score = 0.1
+        mock_gen.explore.side_effect = lambda *args, **kwargs: iter([s1])
+
+        # Oracle needs to consume input to trigger lazy generation
+        def consume_and_return(iterator: Iterator[Any]) -> Iterator[Any]:
+            list(iterator) # Trigger generator -> dynamics
+            return iter([s1])
+
+        mock_oracle.compute.side_effect = consume_and_return
+
+        # Trainer returns potential
+        mock_pot = MagicMock()
+        mock_pot.path = tmp_path / "potential.yace"
+        mock_pot.path.touch()
+        mock_train.train.return_value = mock_pot
+
+        # Dynamics returns trajectory with one halted structure (high gamma)
+        s_halt = MagicMock()
+        s_halt.uncertainty_score = 10.0 # Above threshold 5.0
+        mock_dyn.simulate.side_effect = lambda *args, **kwargs: iter([s_halt])
+
+        # Validator returns result
+        mock_val.validate.return_value = MagicMock(passed=True)
+
+        config = GlobalConfig(
+            orchestrator=OrchestratorConfig(
+                max_cycles=2, work_dir=tmp_path, execution_mode=ExecutionMode.MOCK
+            ),
+            generator=GeneratorConfig(type=GeneratorType.MOCK),
+            oracle=OracleConfig(type=OracleType.MOCK),
+            trainer=TrainerConfig(type=TrainerType.MOCK),
+            dynamics=DynamicsConfig(type=DynamicsType.MOCK, max_gamma_threshold=5.0),
+            validator=ValidatorConfig(type=ValidatorType.MOCK),
+        )
+
+        orch = Orchestrator(config)
+        orch.run()
+
+        # Verification
+
+        assert mock_gen.explore.call_count >= 2
+        assert mock_train.train.call_count == 2
+
+        # Verify Dynamics was called in cycle 2
+        assert mock_dyn.simulate.call_count >= 1
