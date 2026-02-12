@@ -41,6 +41,10 @@ def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     assert labeled_list[0].forces is not None
     assert labeled_list[0].stress is not None
 
+    # Verify values logic (mock returns negative energy based on atom count)
+    # mock_atoms H2 has 2 atoms. Energy ~ -4.0 * 2 = -8.0
+    assert labeled_list[0].energy < -7.0
+
 def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     from pathlib import Path
     trainer = MockTrainer(work_dir=Path())

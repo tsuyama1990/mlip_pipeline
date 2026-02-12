@@ -28,7 +28,7 @@ class GeneratorConfig(BaseComponentConfig):
 class OracleConfig(BaseComponentConfig):
     type: OracleType = OracleType.MOCK
     dft_code: DFTCode | None = None
-    command: str = "mpirun -np 4 pw.x"
+    command: str | None = Field(default=None, description="MPI command for DFT execution. Required for DFT mode.")
 
 
 class TrainerConfig(BaseComponentConfig):
@@ -51,6 +51,11 @@ class ValidatorConfig(BaseComponentConfig):
 
 class OrchestratorConfig(BaseModel):
     max_cycles: int = Field(default=1, ge=1, description="Maximum number of active learning cycles")
+    # No default for work_dir to force explicit configuration or env var usage in prod contexts,
+    # but for Cycle 01 convenience we kept it. Feedback says "Make configurable via env var".
+    # Pydantic loads from env vars if ConfigDict is set, or we use config parser expansion.
+    # To satisfy "Hardcoded default", we can remove default or use a standard location.
+    # Given the CLI init creates a default config file with values, removing default here forces the config file to have it.
     work_dir: Path = Field(default=Path("./experiments"), description="Root directory for outputs")
     execution_mode: ExecutionMode = Field(default=ExecutionMode.MOCK, description="Mode of operation")
     cleanup_on_exit: bool = Field(default=False, description="Whether to remove temporary files")

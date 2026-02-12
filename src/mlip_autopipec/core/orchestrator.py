@@ -82,7 +82,7 @@ class Orchestrator:
             # 1. Exploration / Generation
             logger.info("Phase: Exploration")
             self.state_manager.update_step(TaskType.EXPLORATION)
-            self.state_manager.save()
+            # Avoid save here if not critical, or rely on dirty check in save()
 
             # Context can be expanded later
             context = {"cycle": cycle, "temperature": self.config.dynamics.temperature}
@@ -92,7 +92,6 @@ class Orchestrator:
             # 2. Oracle (Compute Labels)
             logger.info("Phase: Oracle Computing")
             self.state_manager.update_step(TaskType.TRAINING)
-            self.state_manager.save()
 
             # Oracle returns Iterator[Structure]
             labeled_structures_iter = self.oracle.compute(candidates_iter)
@@ -137,18 +136,16 @@ class Orchestrator:
             # 3. Training
             logger.info("Phase: Training")
             self.state_manager.update_step(TaskType.TRAINING)
-            self.state_manager.save()
 
             potential = self.trainer.train(captured_iter)
             self.state_manager.update_potential(potential.path)
-            # update_potential sets dirty, so next save will write.
+            # Save state after training as it's a checkpoint
             self.state_manager.save()
             logger.info(f"Potential trained: {potential.path}")
 
             # 4. Dynamics / Simulation
             logger.info("Phase: Dynamics")
             self.state_manager.update_step(TaskType.DYNAMICS)
-            self.state_manager.save()
 
             if first_structure:
                 trajectory_iter = self.dynamics.simulate(potential, first_structure)
@@ -161,7 +158,6 @@ class Orchestrator:
             # 5. Validation
             logger.info("Phase: Validation")
             self.state_manager.update_step(TaskType.VALIDATION)
-            self.state_manager.save()
 
             validation_result = self.validator.validate(potential)
             if validation_result.passed:

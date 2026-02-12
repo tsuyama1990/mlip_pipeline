@@ -15,10 +15,19 @@ def test_setup_logging(tmp_path: Path) -> None:
         setup_logging(log_dir)
 
         assert log_dir.exists()
-        assert (log_dir / "mlip_pipeline.log").exists()
+        log_file = log_dir / "mlip_pipeline.log"
+        assert log_file.exists()
 
         # Verify handlers added
         assert len(root_logger.handlers) >= 2
+
+        # Verify content
+        logging.info("Test log message")
+        # Flush might be needed?
+
+        content = log_file.read_text()
+        assert "Test log message" in content
+
     finally:
         # Restore original handlers
         root_logger.handlers = original_handlers

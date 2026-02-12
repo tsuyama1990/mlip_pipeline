@@ -57,7 +57,7 @@ def test_load_missing_file(tmp_path: Path) -> None:
 def test_load_invalid_yaml(tmp_path: Path) -> None:
     config_file = tmp_path / "invalid.yaml"
     config_file.write_text("invalid: yaml: [ unclosed")
-    with pytest.raises(ConfigError, match="Error parsing YAML"):
+    with pytest.raises(ConfigError, match="Error loading config"):
         load_config(config_file)
 
 

@@ -36,7 +36,7 @@ def test_oracle_config_defaults() -> None:
     config = OracleConfig()
     assert config.type == OracleType.MOCK
     assert config.dft_code is None
-    assert config.command == "mpirun -np 4 pw.x"
+    assert config.command is None
 
 
 def test_orchestrator_config_defaults() -> None:

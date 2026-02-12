@@ -22,9 +22,9 @@ Name                                                 Stmts   Miss  Cover   Missi
 ----------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                           0      0   100%
 src/mlip_autopipec/core/__init__.py                      0      0   100%
-src/mlip_autopipec/core/config_parser.py                43      5    88%   80-81, 91-93
+src/mlip_autopipec/core/config_parser.py                50     13    74%   24-26, 33-56, 59-62, 106-107
 src/mlip_autopipec/core/logger.py                       18      0   100%
-src/mlip_autopipec/core/orchestrator.py                 97     13    87%   44-45, 50-51, 56-57, 62-63, 68-69, 159, 170, 173
+src/mlip_autopipec/core/orchestrator.py                 92     13    86%   44-45, 50-51, 56-57, 62-63, 68-69, 156, 166, 169
 src/mlip_autopipec/core/state_manager.py                53      7    87%   27-29, 44-47
 src/mlip_autopipec/domain_models/__init__.py             4      0   100%
 src/mlip_autopipec/domain_models/config.py              48      0   100%
@@ -38,11 +38,11 @@ src/mlip_autopipec/main.py                              40      6    85%   90-96
 src/mlip_autopipec/oracle/__init__.py                    2      0   100%
 src/mlip_autopipec/oracle/interface.py                  22      0   100%
 src/mlip_autopipec/trainer/__init__.py                   2      0   100%
-src/mlip_autopipec/trainer/interface.py                 21      0   100%
+src/mlip_autopipec/trainer/interface.py                 25      3    88%   46-48
 src/mlip_autopipec/validator/__init__.py                 2      0   100%
 src/mlip_autopipec/validator/interface.py               11      0   100%
 ----------------------------------------------------------------------------------
-TOTAL                                                  497     36    93%
-============================== 27 passed in 0.95s ==============================
+TOTAL                                                  503     47    91%
+============================== 27 passed in 0.97s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

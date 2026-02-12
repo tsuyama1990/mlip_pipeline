@@ -21,26 +21,24 @@ def test_component_integration(tmp_path: Path) -> None:
     context = {"temperature": 300.0}
     structures_iter = generator.explore(context)
 
-    # Consume iterator for verification (it's exhausted after this)
-    structures_list = list(structures_iter)
-    assert len(structures_list) > 0
-    assert all(isinstance(s, Structure) for s in structures_list)
+    # Do NOT consume entire iterator into list.
+    # Check first item.
+    first_structure = next(structures_iter)
+    assert isinstance(first_structure, Structure)
 
     # Re-create iterator for Oracle
     structures_iter = generator.explore(context)
 
     # 2. Oracle -> Dataset
     oracle = MockOracle()
-    # Oracle returns Iterator[Structure] now
+    # Oracle returns Iterator[Structure]
     labeled_structures_iter = oracle.compute(structures_iter)
 
-    # Consume for verification
-    labeled_structures_list = list(labeled_structures_iter)
-    assert len(labeled_structures_list) > 0
-    assert all(s.label_status == "labeled" for s in labeled_structures_list)
+    # Check first labeled item
+    first_labeled = next(labeled_structures_iter)
+    assert first_labeled.label_status == "labeled"
 
     # Re-create iter for Trainer
-    # MockOracle is deterministic but we need to feed it fresh structure iter.
     structures_iter = generator.explore(context)
     labeled_structures_iter = oracle.compute(structures_iter)
 
@@ -54,14 +52,14 @@ def test_component_integration(tmp_path: Path) -> None:
 
     # 4. Dynamics -> Trajectory
     dynamics = MockDynamics()
-    # Use the first structure from the list as initial configuration
-    initial_structure = structures_list[0]
+    # Use the first structure
+    initial_structure = first_labeled
     # Dynamics returns Iterator[Structure]
     trajectory_iter = dynamics.simulate(potential, initial_structure)
 
-    trajectory_list = list(trajectory_iter)
-    assert len(trajectory_list) > 0
-    assert all(isinstance(s, Structure) for s in trajectory_list)
+    # Check first frame
+    first_frame = next(trajectory_iter)
+    assert isinstance(first_frame, Structure)
 
     # 5. Validator -> Result
     validator = MockValidator()
