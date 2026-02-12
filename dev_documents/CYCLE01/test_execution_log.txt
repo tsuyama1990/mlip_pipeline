@@ -21,29 +21,28 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                                 Stmts   Miss  Cover   Missing
 ----------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                           0      0   100%
-src/mlip_autopipec/constants.py                          5      5     0%   3-7
 src/mlip_autopipec/core/__init__.py                      0      0   100%
-src/mlip_autopipec/core/config_parser.py                39      5    87%   81-82, 92-94
+src/mlip_autopipec/core/config_parser.py                43      5    88%   80-81, 91-93
 src/mlip_autopipec/core/logger.py                       18      0   100%
-src/mlip_autopipec/core/orchestrator.py                 87     12    86%   42-43, 48-49, 54-55, 60-61, 66-67, 133, 136
-src/mlip_autopipec/core/state_manager.py                42      7    83%   25-27, 38-41
+src/mlip_autopipec/core/orchestrator.py                 97     13    87%   44-45, 50-51, 56-57, 62-63, 68-69, 159, 170, 173
+src/mlip_autopipec/core/state_manager.py                53      7    87%   27-29, 44-47
 src/mlip_autopipec/domain_models/__init__.py             4      0   100%
-src/mlip_autopipec/domain_models/config.py              39      0   100%
-src/mlip_autopipec/domain_models/datastructures.py      55      3    95%   27-28, 57
+src/mlip_autopipec/domain_models/config.py              48      0   100%
+src/mlip_autopipec/domain_models/datastructures.py      55      4    93%   27-28, 54, 57
 src/mlip_autopipec/domain_models/enums.py               38      0   100%
 src/mlip_autopipec/dynamics/__init__.py                  2      0   100%
-src/mlip_autopipec/dynamics/interface.py                20      0   100%
+src/mlip_autopipec/dynamics/interface.py                18      0   100%
 src/mlip_autopipec/generator/__init__.py                 2      0   100%
 src/mlip_autopipec/generator/interface.py               19      1    95%   48
 src/mlip_autopipec/main.py                              40      6    85%   90-96, 100
 src/mlip_autopipec/oracle/__init__.py                    2      0   100%
-src/mlip_autopipec/oracle/interface.py                  25      0   100%
+src/mlip_autopipec/oracle/interface.py                  22      0   100%
 src/mlip_autopipec/trainer/__init__.py                   2      0   100%
-src/mlip_autopipec/trainer/interface.py                 17      0   100%
+src/mlip_autopipec/trainer/interface.py                 21      0   100%
 src/mlip_autopipec/validator/__init__.py                 2      0   100%
 src/mlip_autopipec/validator/interface.py               11      0   100%
 ----------------------------------------------------------------------------------
-TOTAL                                                  469     39    92%
-============================== 27 passed in 1.00s ==============================
+TOTAL                                                  497     36    93%
+============================== 27 passed in 0.95s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

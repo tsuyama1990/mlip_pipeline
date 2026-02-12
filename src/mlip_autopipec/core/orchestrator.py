@@ -1,7 +1,9 @@
 import logging
+from collections.abc import Iterator
 
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
+from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     GeneratorType,
@@ -79,7 +81,7 @@ class Orchestrator:
 
             # 1. Exploration / Generation
             logger.info("Phase: Exploration")
-            self.state_manager.state.current_step = TaskType.EXPLORATION
+            self.state_manager.update_step(TaskType.EXPLORATION)
             self.state_manager.save()
 
             # Context can be expanded later
@@ -89,41 +91,76 @@ class Orchestrator:
 
             # 2. Oracle (Compute Labels)
             logger.info("Phase: Oracle Computing")
-            self.state_manager.state.current_step = TaskType.TRAINING  # Or keep as Oracle
-            # Note: TaskType has EXPLORATION, TRAINING, DYNAMICS, VALIDATION.
-            # Oracle is technically part of data gen or training prep.
+            self.state_manager.update_step(TaskType.TRAINING)
             self.state_manager.save()
 
-            labeled_dataset = self.oracle.compute(candidates_iter)
-            logger.info(f"Computed labels for {len(labeled_dataset)} structures.")
+            # Oracle returns Iterator[Structure]
+            labeled_structures_iter = self.oracle.compute(candidates_iter)
+
+            # Note: We need to consume this for training.
+            # If we were using Dataset container, we'd fill it here.
+            # But we are streaming.
+            # However, for dynamics later, we need an initial structure.
+            # We can peek/tee, or just store the first one if we want.
+            # Or, Trainer returns statistics.
+
+            # Since mock dynamics needs a structure, and we are streaming training,
+            # we should probably just pick one (maybe valid one).
+            # For Cycle 01 simplicity with streaming:
+            # We'll collect them into a list for now to satisfy the logical need
+            # to pick one for dynamics, OR we rely on Trainer to give us one? No.
+            # Let's collect them into a Dataset object here (in memory) if small enough,
+            # or just take the first one.
+            # Given we want to fix OOM, collecting into list is bad if huge.
+            # But for Cycle 01 Mock, it's small.
+            # BUT the mandate is "No loading entire datasets into memory".
+            # So we cannot collect all into a list.
+
+            # We will tee the iterator? Or just use a generated structure for dynamics?
+            # Or we assume Training saves data to disk and we pick from disk.
+            # For now, let's create a list but limited size, or just pass iter to Trainer.
+
+            # Problem: We need a structure for Dynamics.
+            # Solution: We can implement a "tee" or custom iterator that captures the first item.
+
+            first_structure = None
+
+            def capture_first(iterator: Iterator[Structure]) -> Iterator[Structure]:
+                nonlocal first_structure
+                for i, item in enumerate(iterator):
+                    if i == 0:
+                        first_structure = item
+                    yield item
+
+            captured_iter = capture_first(labeled_structures_iter)
 
             # 3. Training
             logger.info("Phase: Training")
-            self.state_manager.state.current_step = TaskType.TRAINING
+            self.state_manager.update_step(TaskType.TRAINING)
             self.state_manager.save()
 
-            potential = self.trainer.train(labeled_dataset)
+            potential = self.trainer.train(captured_iter)
             self.state_manager.update_potential(potential.path)
+            # update_potential sets dirty, so next save will write.
+            self.state_manager.save()
             logger.info(f"Potential trained: {potential.path}")
 
-            # 4. Dynamics / Simulation (Optional loop check, but here sequential)
-            # In Cycle 01, we just run dynamics as a test or "Simulate" phase?
-            # SPEC says: "Dynamics Engine... executes simulations using the trained potential."
-            # And "Uncertainty Watchdog... halts simulations".
-            # For Cycle 01 mock, we can just run it once per cycle to simulate usage.
+            # 4. Dynamics / Simulation
             logger.info("Phase: Dynamics")
-            self.state_manager.state.current_step = TaskType.DYNAMICS
+            self.state_manager.update_step(TaskType.DYNAMICS)
             self.state_manager.save()
 
-            # Use the first structure from dataset as initial for now
-            if len(labeled_dataset) > 0:
-                initial_structure = labeled_dataset.structures[0]
-                trajectory = self.dynamics.simulate(potential, initial_structure)
-                logger.info(f"Simulated trajectory with {len(trajectory.structures)} frames.")
+            if first_structure:
+                trajectory_iter = self.dynamics.simulate(potential, first_structure)
+                # Consume trajectory to ensure simulation runs
+                traj_count = sum(1 for _ in trajectory_iter)
+                logger.info(f"Simulated trajectory with {traj_count} frames.")
+            else:
+                logger.warning("No structures available for dynamics simulation.")
 
             # 5. Validation
             logger.info("Phase: Validation")
-            self.state_manager.state.current_step = TaskType.VALIDATION
+            self.state_manager.update_step(TaskType.VALIDATION)
             self.state_manager.save()
 
             validation_result = self.validator.validate(potential)

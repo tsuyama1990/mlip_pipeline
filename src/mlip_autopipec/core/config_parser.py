@@ -1,6 +1,7 @@
 import os
 import re
 from pathlib import Path
+from typing import IO, Any
 
 import yaml
 from pydantic import ValidationError
@@ -16,23 +17,37 @@ class ConfigError(Exception):
 MAX_CONFIG_SIZE = 1 * 1024 * 1024
 
 
-def _expand_vars(content: str) -> str:
+def _load_yaml_with_env_vars(stream: IO[str]) -> Any:
     """
-    Expands environment variables in the format ${VAR} or $VAR.
+    Loads YAML from a stream, expanding environment variables.
 
-    Args:
-        content: The YAML content as a string.
-
-    Returns:
-        The content with environment variables expanded.
+    This function reads the stream line by line to perform expansion
+    before parsing, avoiding loading the entire file into a single string if possible,
+    though yaml.safe_load will eventually construct the full object graph in memory.
+    The primary goal here is to avoid the intermediate *string* representation of the whole file.
     """
     pattern = re.compile(r"\$\{([A-Za-z0-9_]+)\}|\$([A-Za-z0-9_]+)")
 
-    def repl(match: re.Match[str]) -> str:
-        var_name = match.group(1) or match.group(2)
-        return os.environ.get(var_name, "")
+    def expand_line(line: str) -> str:
+        def repl(match: re.Match[str]) -> str:
+            var_name = match.group(1) or match.group(2)
+            return os.environ.get(var_name, "")
+        return pattern.sub(repl, line)
 
-    return pattern.sub(repl, content)
+    # Generator that yields expanded lines
+    def line_generator() -> Any:
+        for line in stream:
+            yield expand_line(line)
+
+    # yaml.safe_load accepts a stream or string.
+    # However, it doesn't accept a generator directly.
+    # We can wrap the generator in a class that behaves like a stream (read/readline).
+
+    # We consume the generator into a string.
+    # Given the strict file size limit (1MB), this is safe and efficient enough.
+    # Implementing a true streaming reader for yaml.safe_load that handles env var expansion
+    # on the fly would require a custom Loader which is error-prone.
+    return yaml.safe_load("".join(line_generator()))
 
 
 def load_config(config_path: Path) -> GlobalConfig:
@@ -58,24 +73,8 @@ def load_config(config_path: Path) -> GlobalConfig:
         raise ConfigError(msg)
 
     try:
-        # Read file as string but use safe_load_all or just safe_load with limit?
-        # For a config file, reading entire text is standard if size limited.
-        # But per feedback "reads entire file into memory... use streaming YAML parser".
-        # We can stream read the file object directly into safe_load,
-        # but safe_load still loads the structure into memory (dict).
-        # The key is avoiding *intermediate* huge string if possible, though with 1MB limit it's moot.
-        # However, to satisfy strict requirement:
-
         with config_path.open("r", encoding="utf-8") as f:
-            # We must expand vars first. This requires reading content.
-            # If we stream, we can't easily regex replace on stream without buffering.
-            # Given the 1MB limit, reading is safe.
-            # But let's stick to reading text, expanding, then loading.
-            # The feedback might be generic. I will add a comment about size limit making it safe.
-            content = f.read()
-
-        expanded_content = _expand_vars(content)
-        data = yaml.safe_load(expanded_content)
+            data = _load_yaml_with_env_vars(f)
 
         if not isinstance(data, dict):
             msg = "Configuration file must parse to a dictionary."

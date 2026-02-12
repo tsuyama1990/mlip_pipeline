@@ -4,7 +4,7 @@ from ase import Atoms
 # In strict TDD, we'd create the file and then run tests to see import errors.
 # But for this environment, I will create the test file and then implement the code.
 # I will use safe imports or just standard imports.
-from mlip_autopipec.domain_models.datastructures import Dataset, Structure
+from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.dynamics.interface import MockDynamics
 
 # Assuming these will be available
@@ -30,14 +30,16 @@ def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
         provenance="test",
         label_status="unlabeled"
     )
-    dataset = oracle.compute([s])
-    assert isinstance(dataset, Dataset)
-    assert len(dataset) == 1
+    # Oracle takes iterable, returns iterator
+    labeled_iter = oracle.compute([s])
+    labeled_list = list(labeled_iter)
+
+    assert len(labeled_list) == 1
     # Check if labeled
-    assert dataset.structures[0].label_status == "labeled"
-    assert dataset.structures[0].energy is not None
-    assert dataset.structures[0].forces is not None
-    assert dataset.structures[0].stress is not None
+    assert labeled_list[0].label_status == "labeled"
+    assert labeled_list[0].energy is not None
+    assert labeled_list[0].forces is not None
+    assert labeled_list[0].stress is not None
 
 def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     from pathlib import Path
@@ -50,8 +52,9 @@ def test_mock_trainer_train(mock_atoms: Atoms) -> None:
         forces=[[0, 0, 0], [0, 0, 0]],
         stress=[0, 0, 0, 0, 0, 0]
     )
-    dataset = Dataset(structures=[s])
-    potential = trainer.train(dataset)
+    # Trainer accepts Iterable
+    structures = [s]
+    potential = trainer.train(structures)
     assert potential.path.name == "potential.yace"
     assert potential.format == "yace"
 
@@ -65,16 +68,16 @@ def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
 
     s = Structure(atoms=mock_atoms, provenance="test")
 
-    trajectory = dynamics.simulate(pot, s)
-    from mlip_autopipec.domain_models.datastructures import Trajectory
-    assert isinstance(trajectory, Trajectory)
-    assert len(trajectory.structures) == 5
-    assert isinstance(trajectory.structures[0], Structure)
-    # Verify metadata or content
-    assert trajectory.metadata["steps"] == 5
+    # simulate returns Iterator[Structure]
+    trajectory_iter = dynamics.simulate(pot, s)
+    trajectory_list = list(trajectory_iter)
+
+    assert len(trajectory_list) == 5
+    assert isinstance(trajectory_list[0], Structure)
+
     # Verify atoms moved
-    first_pos = trajectory.structures[0].to_ase().positions
-    last_pos = trajectory.structures[-1].to_ase().positions
+    first_pos = trajectory_list[0].to_ase().positions
+    last_pos = trajectory_list[-1].to_ase().positions
     import numpy as np
     assert not np.array_equal(first_pos, last_pos)
 

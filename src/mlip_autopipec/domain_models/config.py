@@ -22,6 +22,7 @@ class GeneratorConfig(BaseComponentConfig):
     type: GeneratorType = GeneratorType.MOCK
     # Add specific fields for other types later
     ratio_ab_initio: float = Field(default=0.1, ge=0.0, le=1.0)
+    mock_count: int = Field(default=2, ge=1, description="Number of structures to generate in Mock mode")
 
 
 class OracleConfig(BaseComponentConfig):
@@ -57,8 +58,19 @@ class OrchestratorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SystemConfig(BaseModel):
+    max_vacuum_size: float = Field(default=50.0, description="Max vacuum size for embedding (Angstroms)")
+    healer_mixing_beta_target: float = Field(default=0.3, description="Target mixing beta for SCF healing")
+    healer_degauss_target: float = Field(default=0.02, description="Target degauss for SCF healing (Ryd)")
+    default_buffer_size: int = Field(default=1000, description="Streaming buffer size")
+    eon_default_time_step: float = Field(default=1.0, description="Default time step for EON (fs)")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class GlobalConfig(BaseModel):
     orchestrator: OrchestratorConfig
+    system: SystemConfig = Field(default_factory=SystemConfig)
     generator: GeneratorConfig
     oracle: OracleConfig
     trainer: TrainerConfig

@@ -14,6 +14,10 @@ def test_state_manager_save_load(tmp_path: Path) -> None:
     sm = StateManager(tmp_path)
     sm.update_cycle(5)
 
+    # I/O efficiency change: update_cycle sets dirty but doesn't save automatically.
+    # Must call save().
+    sm.save(force=True)
+
     # Reload
     sm2 = StateManager(tmp_path)
     assert sm2.state.current_cycle == 5

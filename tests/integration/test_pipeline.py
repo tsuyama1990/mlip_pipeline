@@ -1,10 +1,8 @@
 from pathlib import Path
 
 from mlip_autopipec.domain_models.datastructures import (
-    Dataset,
     Potential,
     Structure,
-    Trajectory,
     ValidationResult,
 )
 from mlip_autopipec.dynamics import MockDynamics
@@ -33,27 +31,37 @@ def test_component_integration(tmp_path: Path) -> None:
 
     # 2. Oracle -> Dataset
     oracle = MockOracle()
-    dataset = oracle.compute(structures_iter)
+    # Oracle returns Iterator[Structure] now
+    labeled_structures_iter = oracle.compute(structures_iter)
 
-    assert isinstance(dataset, Dataset)
-    # len(dataset) might be different if filtered, but mock preserves count
-    assert all(s.label_status == "labeled" for s in dataset.structures)
+    # Consume for verification
+    labeled_structures_list = list(labeled_structures_iter)
+    assert len(labeled_structures_list) > 0
+    assert all(s.label_status == "labeled" for s in labeled_structures_list)
+
+    # Re-create iter for Trainer
+    # MockOracle is deterministic but we need to feed it fresh structure iter.
+    structures_iter = generator.explore(context)
+    labeled_structures_iter = oracle.compute(structures_iter)
 
     # 3. Trainer -> Potential
     trainer = MockTrainer(work_dir=tmp_path)
-    potential = trainer.train(dataset)
+    # Trainer accepts Iterable
+    potential = trainer.train(labeled_structures_iter)
 
     assert isinstance(potential, Potential)
     assert potential.path.exists()
 
     # 4. Dynamics -> Trajectory
     dynamics = MockDynamics()
-    # Use the first structure from the dataset as initial configuration
-    initial_structure = dataset.structures[0]
-    trajectory = dynamics.simulate(potential, initial_structure)
+    # Use the first structure from the list as initial configuration
+    initial_structure = structures_list[0]
+    # Dynamics returns Iterator[Structure]
+    trajectory_iter = dynamics.simulate(potential, initial_structure)
 
-    assert isinstance(trajectory, Trajectory)
-    assert len(trajectory.structures) > 0
+    trajectory_list = list(trajectory_iter)
+    assert len(trajectory_list) > 0
+    assert all(isinstance(s, Structure) for s in trajectory_list)
 
     # 5. Validator -> Result
     validator = MockValidator()

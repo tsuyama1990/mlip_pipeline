@@ -1,7 +1,8 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 
-from mlip_autopipec.domain_models.datastructures import Potential, Structure, Trajectory
+from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ class BaseDynamics(ABC):
     """Abstract Base Class for Dynamics Engine."""
 
     @abstractmethod
-    def simulate(self, potential: Potential, structure: Structure) -> Trajectory:
+    def simulate(self, potential: Potential, structure: Structure) -> Iterator[Structure]:
         """
         Runs a simulation using the potential.
 
@@ -19,24 +20,20 @@ class BaseDynamics(ABC):
             structure: The initial structure.
 
         Returns:
-            A Trajectory object containing the simulation frames.
+            An iterator of structures representing the simulation trajectory.
         """
 
 
 class MockDynamics(BaseDynamics):
     """Mock implementation of Dynamics Engine."""
 
-    def simulate(self, potential: Potential, structure: Structure) -> Trajectory:
+    def simulate(self, potential: Potential, structure: Structure) -> Iterator[Structure]:
         logger.info("MockDynamics: Simulating trajectory...")
 
-        trajectory_structures = []
         initial_atoms = structure.to_ase()
 
-        # In-place modification strategy to avoid copying atoms 5 times?
-        # But Trajectory stores list of Structures, each has its own atoms.
-        # So copying is necessary to store frames.
-        # But we can limit the number of frames or stream them if needed.
-        # For mock, 5 frames is fine.
+        # Generate frames
+        # For mock, we generate 5 frames.
 
         for i in range(5):
             atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
@@ -45,14 +42,8 @@ class MockDynamics(BaseDynamics):
             positions += 0.01 * i
             atoms.set_positions(positions)
 
-            s = Structure(
+            yield Structure(
                 atoms=atoms,
                 provenance="md_trajectory",
                 label_status="unlabeled"
             )
-            trajectory_structures.append(s)
-
-        return Trajectory(
-            structures=trajectory_structures,
-            metadata={"potential": str(potential.path), "steps": 5}
-        )
