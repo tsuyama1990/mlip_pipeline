@@ -1,0 +1,9 @@
+MAX_VACUUM_SIZE = 50.0
+HEALER_MIXING_BETA_TARGET = 0.3
+HEALER_DEGAUSS_TARGET = 0.02
+DEFAULT_BUFFER_SIZE = 1000
+EON_DEFAULT_TIME_STEP = 1.0
+
+# Logging
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

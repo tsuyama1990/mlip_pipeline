@@ -4,7 +4,16 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "ase",
+    "numpy>=1.26.0",
+    "pydantic>=2.7.0",
+    "pyyaml>=6.0.1",
+    "typer>=0.9.0",
+]
+
+[project.scripts]
+mlip-runner = "mlip_autopipec.main:app"
 
 [dependency-groups]
 dev = [
@@ -12,6 +21,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "types-pyyaml>=6.0.12.20241230",
 ]
 
 [tool.ruff]
@@ -95,3 +105,4 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+exclude = ["^main\\.py$"]
