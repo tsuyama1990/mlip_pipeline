@@ -16,12 +16,12 @@ from mlip_autopipec.validator.interface import MockValidator
 
 def test_mock_generator_explore() -> None:
     generator = MockGenerator()
-    structures = list(generator.explore(context={}))
-    assert isinstance(structures, list)
-    assert len(structures) > 0
-    assert isinstance(structures[0], Structure)
-    assert isinstance(structures[0].atoms, Atoms)
-    assert structures[0].provenance == "mock_generator"
+    structures_iter = generator.explore(context={})
+    # Do not convert to list
+    first_structure = next(structures_iter)
+    assert isinstance(first_structure, Structure)
+    assert isinstance(first_structure.atoms, Atoms)
+    assert first_structure.provenance == "mock_generator"
 
 def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     oracle = MockOracle()
@@ -32,18 +32,17 @@ def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     )
     # Oracle takes iterable, returns iterator
     labeled_iter = oracle.compute([s])
-    labeled_list = list(labeled_iter)
+    first_labeled = next(labeled_iter)
 
-    assert len(labeled_list) == 1
     # Check if labeled
-    assert labeled_list[0].label_status == "labeled"
-    assert labeled_list[0].energy is not None
-    assert labeled_list[0].forces is not None
-    assert labeled_list[0].stress is not None
+    assert first_labeled.label_status == "labeled"
+    assert first_labeled.energy is not None
+    assert first_labeled.forces is not None
+    assert first_labeled.stress is not None
 
     # Verify values logic (mock returns negative energy based on atom count)
     # mock_atoms H2 has 2 atoms. Energy ~ -4.0 * 2 = -8.0
-    assert labeled_list[0].energy < -7.0
+    assert first_labeled.energy < -7.0
 
 def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     from pathlib import Path
@@ -74,14 +73,19 @@ def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
 
     # simulate returns Iterator[Structure]
     trajectory_iter = dynamics.simulate(pot, s)
-    trajectory_list = list(trajectory_iter)
+    first_frame = next(trajectory_iter)
+    assert isinstance(first_frame, Structure)
 
-    assert len(trajectory_list) == 5
-    assert isinstance(trajectory_list[0], Structure)
+    # Verify we can get more frames
+    frames = [first_frame]
+    for _ in range(4):
+        frames.append(next(trajectory_iter))
+
+    assert len(frames) == 5
 
     # Verify atoms moved
-    first_pos = trajectory_list[0].to_ase().positions
-    last_pos = trajectory_list[-1].to_ase().positions
+    first_pos = frames[0].to_ase().positions
+    last_pos = frames[-1].to_ase().positions
     import numpy as np
     assert not np.array_equal(first_pos, last_pos)
 

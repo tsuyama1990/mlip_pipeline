@@ -40,15 +40,15 @@ def test_oracle_config_defaults() -> None:
 
 
 def test_orchestrator_config_defaults() -> None:
-    config = OrchestratorConfig()
+    config = OrchestratorConfig(work_dir=Path("./test_experiments"))
     assert config.max_cycles == 1
-    assert config.work_dir == Path("./experiments")
+    assert config.work_dir == Path("./test_experiments")
     assert config.execution_mode == ExecutionMode.MOCK
 
 
 def test_global_config_instantiation() -> None:
     config = GlobalConfig(
-        orchestrator=OrchestratorConfig(),
+        orchestrator=OrchestratorConfig(work_dir=Path("./test_experiments")),
         generator=GeneratorConfig(),
         oracle=OracleConfig(),
         trainer=TrainerConfig(),

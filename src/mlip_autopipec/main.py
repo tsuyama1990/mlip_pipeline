@@ -35,8 +35,9 @@ def init(
         raise typer.Exit(code=1)
 
     # Create default config
+    # OrchestratorConfig requires work_dir
     config = GlobalConfig(
-        orchestrator=OrchestratorConfig(),
+        orchestrator=OrchestratorConfig(work_dir=Path("./experiments")),
         generator=GeneratorConfig(),
         oracle=OracleConfig(),
         trainer=TrainerConfig(),
@@ -76,7 +77,7 @@ def run(
         config = load_config(config_path)
 
         # Setup logging
-        setup_logging(config.orchestrator.work_dir)
+        setup_logging(config.orchestrator.work_dir, log_filename=config.system.log_file)
 
         logger.info(f"Loaded configuration from {config_path}")
         logger.info(f"Execution Mode: {config.orchestrator.execution_mode}")

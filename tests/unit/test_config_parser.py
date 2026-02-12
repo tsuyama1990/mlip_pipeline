@@ -10,7 +10,7 @@ from mlip_autopipec.domain_models.config import GlobalConfig
 
 def test_load_valid_config(tmp_path: Path) -> None:
     config_data = {
-        "orchestrator": {},
+        "orchestrator": {"work_dir": "./experiments"},
         "generator": {"type": "mock"},
         "oracle": {"type": "mock"},
         "trainer": {"type": "mock"},
@@ -29,7 +29,8 @@ def test_load_config_env_var(tmp_path: Path) -> None:
     os.environ["TEST_VAR"] = "mock"
     # Create YAML manually to ensure ${TEST_VAR} is preserved as string
     yaml_content = """
-    orchestrator: {}
+    orchestrator:
+      work_dir: ./experiments
     generator:
       type: ${TEST_VAR}
     oracle:

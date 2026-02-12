@@ -51,12 +51,8 @@ class ValidatorConfig(BaseComponentConfig):
 
 class OrchestratorConfig(BaseModel):
     max_cycles: int = Field(default=1, ge=1, description="Maximum number of active learning cycles")
-    # No default for work_dir to force explicit configuration or env var usage in prod contexts,
-    # but for Cycle 01 convenience we kept it. Feedback says "Make configurable via env var".
-    # Pydantic loads from env vars if ConfigDict is set, or we use config parser expansion.
-    # To satisfy "Hardcoded default", we can remove default or use a standard location.
-    # Given the CLI init creates a default config file with values, removing default here forces the config file to have it.
-    work_dir: Path = Field(default=Path("./experiments"), description="Root directory for outputs")
+    # Remove default to satisfy "NO hardcoded paths". Must be provided in config.
+    work_dir: Path = Field(..., description="Root directory for outputs")
     execution_mode: ExecutionMode = Field(default=ExecutionMode.MOCK, description="Mode of operation")
     cleanup_on_exit: bool = Field(default=False, description="Whether to remove temporary files")
 
@@ -69,6 +65,7 @@ class SystemConfig(BaseModel):
     healer_degauss_target: float = Field(default=0.02, description="Target degauss for SCF healing (Ryd)")
     default_buffer_size: int = Field(default=1000, description="Streaming buffer size")
     eon_default_time_step: float = Field(default=1.0, description="Default time step for EON (fs)")
+    log_file: str = Field(default="mlip_pipeline.log", description="Filename for logging")
 
     model_config = ConfigDict(extra="forbid")
 

@@ -29,6 +29,14 @@ class Orchestrator:
         self.work_dir = config.orchestrator.work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
+        # Setup logging using config
+        # Assuming logger setup might have happened in main, but ensuring it respects config here if re-initialized
+        # or if orchestrator is used as lib.
+        # But setup_logging is global.
+        # We assume main calls it.
+        # But wait, orchestrator doesn't call setup_logging. Main does.
+        # I should check main.py.
+
         self.state_manager = StateManager(self.work_dir)
 
         # Initialize components
