@@ -12,13 +12,13 @@
 *   **Why**: Manual training is error-prone and inefficient. PYACEMAKER automates the entire loop.
 *   **Key Tech**: ACE (Pacemaker), Active Learning (D-Optimality), Hybrid Potentials (ZBL/LJ), Adaptive Kinetic Monte Carlo (aKMC).
 
-## ✨ Features (Current Status)
+## ✨ Features
 
-*   **Zero-Config Workflow**: Define your material and goals in a single `config.yaml`.
-*   **Robust Configuration**: Strict validation of all inputs using Pydantic schemas.
-*   **State Management**: Atomic state saving ensures workflows can be paused and resumed safely.
-*   **Centralized Logging**: Comprehensive logging for all pipeline activities.
-*   **CLI Interface**: Easy-to-use command line interface (`mlip-runner`).
+*   **Strict Data Validation**: Pydantic V2 schemas ensure all inputs (Structures, Potentials) are valid and type-safe.
+*   **Robust Configuration**: YAML-based configuration with environment variable substitution (`${VAR}`) and schema validation.
+*   **Crash-Resistant State**: Atomic state management allows the pipeline to resume exactly where it left off in case of interruptions.
+*   **Centralized Logging**: Comprehensive, duplicate-free logging for all pipeline activities.
+*   **CLI Interface**: Easy-to-use command line interface (`mlip-runner`) for initialization and execution.
 
 ## 🛠️ Prerequisites
 
@@ -55,7 +55,7 @@ Execute the automated workflow using your configuration.
 uv run mlip-runner run config.yaml
 ```
 
-Example `config.yaml`:
+**Example Configuration (`config.yaml`)**:
 ```yaml
 orchestrator:
   work_dir: mlip_run
@@ -82,7 +82,7 @@ src/mlip_autopipec/
 ├── core/               # Config, Logging, State Management
 ├── domain_models/      # Pydantic Schemas & Data Structures
 ├── main.py             # CLI Entry Point
-└── ...                 # Future modules (Generator, Oracle, Trainer, etc.)
+└── ...                 # Future modules
 ```
 
 ## 💻 Development

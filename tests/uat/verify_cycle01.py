@@ -1,3 +1,6 @@
+import copy
+import json
+import os
 import shutil
 import subprocess
 import sys
@@ -6,61 +9,97 @@ from pathlib import Path
 import yaml
 
 
-def run_command(cmd: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    print(f"Running: {cmd}")  # noqa: T201
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)  # noqa: S602
-    if check and res.returncode != 0:
-        print(f"Error: {res.stderr}")  # noqa: T201
-        sys.exit(1)
-    return res
+def run_command(cmd: list[str], cwd: Path | None = None, expect_fail: bool = False) -> subprocess.CompletedProcess[str]:
+    print(f"Running: {' '.join(cmd)}")  # noqa: T201
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path("src").absolute())
+    result = subprocess.run(  # noqa: S603
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False
+    )
+    if not expect_fail and result.returncode != 0:
+        print(f"STDOUT: {result.stdout}")  # noqa: T201
+        print(f"STDERR: {result.stderr}")  # noqa: T201
+        msg = f"Command failed: {cmd}"
+        raise RuntimeError(msg)
+    if expect_fail and result.returncode == 0:
+        print(f"STDOUT: {result.stdout}")  # noqa: T201
+        msg = f"Command succeeded unexpectedly: {cmd}"
+        raise RuntimeError(msg)
+    return result
 
+def verify_cycle01() -> None:
+    print("=== Starting Cycle 01 UAT ===")  # noqa: T201
 
-def test_cycle01() -> None:
-    print("Starting UAT: Cycle 01")  # noqa: T201
+    work_dir = Path("uat_work_dir")
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir()
 
-    # Clean up previous run
-    if Path("config.yaml").exists():
-        Path("config.yaml").unlink()
-    if Path("uat_run").exists():
-        shutil.rmtree("uat_run")
+    python_exe = sys.executable
 
-    # 1. Init
-    res = run_command("uv run mlip-runner init")
-    assert "Created default configuration" in res.stdout
-    assert Path("config.yaml").exists()
+    # Scenario 1: System Initialization
+    print("\n--- Scenario 1: System Initialization ---")  # noqa: T201
+    run_command([python_exe, "-m", "mlip_autopipec.main", "init"], cwd=work_dir)
 
-    # 2. Modify config
-    with Path("config.yaml").open("r") as f:
+    config_path = work_dir / "config.yaml"
+    assert config_path.exists(), "config.yaml not created"
+
+    with config_path.open() as f:
         config = yaml.safe_load(f)
+    assert "orchestrator" in config
+    print("✓ Init successful")  # noqa: T201
 
-    work_dir = Path("uat_run")
-    config["orchestrator"]["work_dir"] = str(work_dir)
-    config["orchestrator"]["max_iterations"] = 3
+    # Scenario 2: Configuration Validation
+    print("\n--- Scenario 2: Configuration Validation ---")  # noqa: T201
+    bad_config_path = work_dir / "bad_config.yaml"
+    bad_config_data = copy.deepcopy(config)
+    bad_config_data["orchestrator"]["max_iterations"] = "invalid"
 
-    with Path("config.yaml").open("w") as f:
+    with bad_config_path.open("w") as f:
+        yaml.dump(bad_config_data, f)
+
+    res = run_command([python_exe, "-m", "mlip_autopipec.main", "run", "bad_config.yaml"], cwd=work_dir, expect_fail=True)
+    # Check stdout or stderr depending on where typer prints
+    output = res.stdout + res.stderr
+    assert "validation error" in output.lower()
+    print("✓ Invalid config rejected")  # noqa: T201
+
+    # Scenario 3: State Persistence
+    print("\n--- Scenario 3: State Persistence ---")  # noqa: T201
+    # Run correctly
+    # Update config work_dir to absolute path inside uat_work_dir/run
+    run_dir = work_dir / "run"
+    config["orchestrator"]["work_dir"] = str(run_dir.absolute())
+
+    # Save valid config
+    valid_config_path = work_dir / "valid_config.yaml"
+    with valid_config_path.open("w") as f:
         yaml.dump(config, f)
 
-    # 3. Run
-    res = run_command("uv run mlip-runner run config.yaml")
-    assert "Starting new run" in res.stdout
-    assert work_dir.exists()
+    run_command([python_exe, "-m", "mlip_autopipec.main", "run", "valid_config.yaml"], cwd=work_dir)
 
-    # 4. Check state
-    state_file = work_dir / "workflow_state.json"
-    assert state_file.exists()
+    state_file = run_dir / "workflow_state.json"
+    assert state_file.exists(), "State file not created"
 
-    # 5. Resume (simulate by running again)
-    res = run_command("uv run mlip-runner run config.yaml")
-    assert "Resuming from iteration" in res.stdout or "Starting new run" not in res.stdout
+    with state_file.open() as f:
+        state = json.load(f)
+    assert state["iteration"] == 0
 
-    print("UAT Cycle 01 Passed!")  # noqa: T201
+    # Run again (Resume)
+    res = run_command([python_exe, "-m", "mlip_autopipec.main", "run", "valid_config.yaml"], cwd=work_dir)
+    assert "Resuming from iteration 0" in res.stdout
+    print("✓ State persistence verified")  # noqa: T201
+
+    print("\n=== Cycle 01 UAT Passed ===")  # noqa: T201
 
     # Cleanup
-    if Path("config.yaml").exists():
-        Path("config.yaml").unlink()
-    if Path("uat_run").exists():
-        shutil.rmtree("uat_run")
-
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
 
 if __name__ == "__main__":
-    test_cycle01()
+    verify_cycle01()
