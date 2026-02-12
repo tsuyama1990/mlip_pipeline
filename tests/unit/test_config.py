@@ -13,6 +13,7 @@ from mlip_autopipec.domain_models.config import (
     ValidatorConfig,
 )
 from mlip_autopipec.domain_models.enums import (
+    ActiveSetMethod,
     ExecutionMode,
     GeneratorType,
     OracleType,
@@ -23,6 +24,9 @@ def test_generator_config_defaults() -> None:
     config = GeneratorConfig()
     assert config.type == GeneratorType.MOCK
     assert config.ratio_ab_initio == 0.1
+    # Check new defaults
+    assert config.ratio_md_mc == 0.5
+    assert config.max_temperature == 1000.0
 
 
 def test_generator_config_validation() -> None:
@@ -32,11 +36,55 @@ def test_generator_config_validation() -> None:
         GeneratorConfig(ratio_ab_initio=1.1)
 
 
+def test_generator_adaptive_config() -> None:
+    config = GeneratorConfig(
+        ratio_md_mc=0.8,
+        max_temperature=2000.0,
+        defect_density=0.05,
+        strain_range=0.1
+    )
+    assert config.ratio_md_mc == 0.8
+    assert config.max_temperature == 2000.0
+
+
 def test_oracle_config_defaults() -> None:
     config = OracleConfig()
     assert config.type == OracleType.MOCK
     assert config.dft_code is None
     assert config.command is None
+    # Check new defaults
+    assert config.kspacing == 0.04
+    assert config.mixing_beta == 0.7
+
+
+def test_oracle_dft_config() -> None:
+    config = OracleConfig(
+        kspacing=0.03,
+        mixing_beta=0.4
+    )
+    assert config.kspacing == 0.03
+    assert config.mixing_beta == 0.4
+
+
+def test_trainer_config_defaults() -> None:
+    config = TrainerConfig()
+    assert config.active_set_method == ActiveSetMethod.NONE
+    assert config.selection_ratio == 0.1
+
+
+def test_dynamics_config_defaults() -> None:
+    config = DynamicsConfig()
+    assert config.halt_on_uncertainty is True
+    assert config.max_gamma_threshold == 5.0
+
+
+def test_dynamics_halt_config() -> None:
+    config = DynamicsConfig(
+        halt_on_uncertainty=False,
+        max_gamma_threshold=6.0
+    )
+    assert config.halt_on_uncertainty is False
+    assert config.max_gamma_threshold == 6.0
 
 
 def test_orchestrator_config_defaults() -> None:
@@ -44,6 +92,7 @@ def test_orchestrator_config_defaults() -> None:
     assert config.max_cycles == 1
     assert config.work_dir == Path("./test_experiments")
     assert config.execution_mode == ExecutionMode.MOCK
+    assert config.max_candidates == 50
 
 
 def test_global_config_instantiation() -> None:
