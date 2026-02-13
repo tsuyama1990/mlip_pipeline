@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import NoReturn
 
 import numpy as np
 from ase import Atoms
@@ -50,7 +51,10 @@ class PhysicsValidator(BaseValidator):
         volumes = []
         energies = []
 
-        initial_cell = atoms.get_cell() # type: ignore[no-untyped-call]
+        # Fixed unused ignore here: ase get_cell is typed in some envs, but untyped in others.
+        # Audit said unused type ignore at line 53 (now 56).
+        # MyPy error: src/mlip_autopipec/validator/physics.py:56: error: Unused "type: ignore" comment  [unused-ignore]
+        initial_cell = atoms.get_cell()
 
         for s in scales:
             # Scale volume by s -> scale lengths by s^(1/3)
@@ -122,7 +126,7 @@ class PhysicsValidator(BaseValidator):
             logger.exception("Phonon Validation failed")
             return False, PhononResults(is_stable=False, max_imaginary_freq=0.0, band_structure_path=None)
 
-    def _raise_structure_error(self, structure_type: type) -> None:
+    def _raise_structure_error(self, structure_type: type) -> NoReturn:
         """Helper to raise TypeError for invalid structure type."""
         msg = f"Loaded object is not an Atoms object: {structure_type}"
         raise TypeError(msg)
@@ -132,9 +136,10 @@ class PhysicsValidator(BaseValidator):
              structure_raw = read(path)
              structure = structure_raw[0] if isinstance(structure_raw, list) else structure_raw
 
-             if not isinstance(structure, Atoms):
-                 self._raise_structure_error(type(structure))
-             return structure
+             if isinstance(structure, Atoms):
+                 return structure
+
+             self._raise_structure_error(type(structure))
 
         except Exception as e:
              msg = f"Failed to load structure from {path}: {e}"
