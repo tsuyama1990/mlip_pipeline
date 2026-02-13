@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
@@ -22,6 +22,25 @@ class BaseTrainer(ABC):
         Returns:
             A Potential object representing the trained model.
         """
+
+    def select_active_set(self, structures: Iterable[Structure], count: int) -> Iterator[Structure]:
+        """
+        Selects the most informative structures using D-Optimality (or random).
+        Default implementation passes through the first N structures.
+
+        Args:
+            structures: Candidates to select from.
+            count: Number of structures to select.
+
+        Returns:
+            An iterator of selected structures.
+        """
+        logger.warning("Using default select_active_set (pass-through). Subclasses should override.")
+
+        for i, s in enumerate(structures):
+            if i >= count:
+                break
+            yield s
 
 
 class MockTrainer(BaseTrainer):
@@ -60,3 +79,13 @@ class MockTrainer(BaseTrainer):
             format="yace",
             parameters={"mock": True, "count_approx": count}
         )
+
+    def select_active_set(self, structures: Iterable[Structure], count: int) -> Iterator[Structure]:
+        logger.info(f"MockTrainer: Selecting {count} structures from candidates...")
+        # Simple pass-through for mock
+        for i, s in enumerate(structures):
+            if i >= count:
+                break
+            # Mark provenance for tracking in tests
+            s.provenance = f"{s.provenance}_selected"
+            yield s

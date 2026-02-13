@@ -25,6 +25,21 @@ class BaseGenerator(ABC):
             An iterator of Structure objects.
         """
 
+    def generate_local_candidates(self, structure: Structure, count: int = 5) -> Iterator[Structure]:
+        """
+        Generates local candidates around a seed structure (e.g., for active learning).
+        Default implementation returns just the seed to support subclasses that don't implement this yet.
+
+        Args:
+            structure: The seed structure (e.g. from a halt).
+            count: Number of candidates to generate.
+
+        Returns:
+            An iterator of local candidate structures.
+        """
+        logger.warning("Using default generate_local_candidates (no-op). Subclasses should override.")
+        yield structure
+
 
 class MockGenerator(BaseGenerator):
     """Mock implementation of Structure Generator."""
@@ -46,3 +61,21 @@ class MockGenerator(BaseGenerator):
         else:
             # Fallback if not int
             pass
+
+    def generate_local_candidates(self, structure: Structure, count: int = 5) -> Iterator[Structure]:
+        logger.info(f"MockGenerator: Generating {count} local candidates...")
+        original_atoms = structure.to_ase()
+        import numpy as np
+
+        for i in range(count):
+            atoms = original_atoms.copy()
+            # Simple random rattle
+            positions = atoms.get_positions()
+            positions += np.random.normal(0, 0.05, positions.shape)
+            atoms.set_positions(positions)
+
+            yield Structure(
+                atoms=atoms,
+                provenance=f"local_candidate_{i}",
+                label_status="unlabeled"
+            )

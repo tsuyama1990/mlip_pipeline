@@ -93,19 +93,33 @@ class Orchestrator:
         return self._otf_generator(seeds, potential)
 
     def _otf_generator(self, seeds_iter: Iterator[Structure], potential: Potential) -> Iterator[Structure]:
+        halt_threshold = self.config.dynamics.max_gamma_threshold
+        n_local = self.config.generator.policy.n_local_candidates
+        n_select = self.config.trainer.n_active_set_per_halt
+
         for seed in seeds_iter:
             trajectory = self.dynamics.simulate(potential, seed)
+
+            halted_frame = None
             for frame in trajectory:
                 score = frame.uncertainty_score
-                threshold = self.config.dynamics.max_gamma_threshold
 
-                if score is not None and score > threshold:
+                if score is not None and score > halt_threshold:
                     logger.info(f"Halt triggered: gamma={score}")
                     frame.provenance = "md_halt"
-                    yield frame
+                    halted_frame = frame
                     break
-                elif score is None:
-                    yield frame
+                # If score is None or low, continue simulation
+
+            if halted_frame:
+                logger.info("Halt event: Generating local candidates and selecting active set...")
+                # 1. Generate local candidates
+                candidates = self.generator.generate_local_candidates(halted_frame, count=n_local)
+
+                # 2. Select active set (Local D-Optimality)
+                selected = self.trainer.select_active_set(candidates, count=n_select)
+
+                yield from selected
 
     def _select_candidates(self, candidates: Iterator[Structure]) -> Iterator[Structure]:
         max_samples = self.config.orchestrator.max_candidates

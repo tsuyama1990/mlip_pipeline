@@ -1,27 +1,27 @@
-from typing import cast
+from pathlib import Path
+
+import numpy as np
 import pytest
 from ase import Atoms
-from pathlib import Path
-import numpy as np
 
-from mlip_autopipec.domain_models.config import GeneratorConfig, ExplorationPolicyConfig
+from mlip_autopipec.domain_models.config import ExplorationPolicyConfig, GeneratorConfig
 from mlip_autopipec.domain_models.enums import GeneratorType
 
 # Imports that will be available later
 try:
     from mlip_autopipec.generator.random_gen import RandomGenerator
 except ImportError:
-    RandomGenerator = None  # type: ignore
+    RandomGenerator = None
 
 try:
     from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
 except ImportError:
-    M3GNetGenerator = None  # type: ignore
+    M3GNetGenerator = None
 
 try:
     from mlip_autopipec.generator.adaptive import AdaptiveGenerator
 except ImportError:
-    AdaptiveGenerator = None  # type: ignore
+    AdaptiveGenerator = None
 
 class TestRandomGenerator:
     def test_random_generator_import(self) -> None:
@@ -34,7 +34,7 @@ class TestRandomGenerator:
         # Create a dummy seed file
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("MgO", positions=[[0, 0, 0], [2, 0, 0]], cell=[4, 4, 4], pbc=True)
-        atoms.write(seed_path) # type: ignore[no-untyped-call]
+        atoms.write(seed_path)
 
         config = GeneratorConfig(
             type=GeneratorType.RANDOM,
@@ -49,7 +49,7 @@ class TestRandomGenerator:
         for s in candidates:
             assert s.provenance == "random"
             atoms_obj = s.ase_atoms
-            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"] # type: ignore[no-untyped-call]
+            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]
 
         # Check diversity
         pos0 = candidates[0].ase_atoms.positions
@@ -127,7 +127,7 @@ class TestAdaptiveGenerator:
 
         # Need a seed for mock execution now
         seed_path = tmp_path / "seed_adapt.xyz"
-        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path) # type: ignore[no-untyped-call]
+        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path)
 
         # Test explore logic picking up schedule
         policy = ExplorationPolicyConfig(temperature_schedule=[100.0, 200.0])
@@ -159,7 +159,7 @@ class TestAdaptiveGenerator:
 
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("He", positions=[[0, 0, 0]], cell=[10, 10, 10], pbc=True)
-        atoms.write(seed_path) # type: ignore[no-untyped-call]
+        atoms.write(seed_path)
 
         config = GeneratorConfig(
             type=GeneratorType.ADAPTIVE,

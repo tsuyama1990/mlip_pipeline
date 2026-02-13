@@ -81,9 +81,19 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
         s1.uncertainty_score = 0.1
         mock_gen.explore.side_effect = lambda *args, **kwargs: iter([s1])
 
+        # Mock local candidates for OTF loop
+        s_local = MagicMock()
+        s_local.provenance = "local_candidate"
+        # Return 5 candidates
+        mock_gen.generate_local_candidates.return_value = iter([s_local for _ in range(5)])
+
         # Oracle needs to consume input to trigger lazy generation
         def consume_and_return(iterator: Iterator[Any]) -> Iterator[Any]:
-            list(iterator) # Trigger generator -> dynamics
+            # Consume iterator to trigger upstream logic
+            consumed = list(iterator)
+            # If we got candidates, return them as labeled. If mock is yielding nothing (mock oracle default), return s1 to keep loop going.
+            if consumed:
+                return iter(consumed)
             return iter([s1])
 
         mock_oracle.compute.side_effect = consume_and_return
@@ -93,6 +103,9 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
         mock_pot.path = tmp_path / "potential.yace"
         mock_pot.path.touch()
         mock_train.train.return_value = mock_pot
+
+        # Trainer selects subset
+        mock_train.select_active_set.side_effect = lambda c, count: iter(list(c)[:count])
 
         # Dynamics returns trajectory with one halted structure (high gamma)
         s_halt = MagicMock()
@@ -123,6 +136,11 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
 
         # Verify Dynamics was called in cycle 2
         assert mock_dyn.simulate.call_count >= 1
+
+        # Verify OTF Loop: generate_local_candidates and select_active_set called
+        # Cycle 2 uses OTF (potential is not None)
+        assert mock_gen.generate_local_candidates.call_count >= 1
+        assert mock_train.select_active_set.call_count >= 1
 
 
 def test_orchestrator_create_generators(tmp_path: Path) -> None:

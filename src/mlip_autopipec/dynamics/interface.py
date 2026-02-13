@@ -36,7 +36,7 @@ class MockDynamics(BaseDynamics):
         # For mock, we generate 5 frames.
 
         for i in range(5):
-            atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
+            atoms = initial_atoms.copy()
             # Perturb positions slightly
             positions = atoms.get_positions()
             positions += 0.01 * i

@@ -30,6 +30,9 @@ class ExplorationPolicyConfig(BaseModel):
     mc_swap_prob: float = Field(default=0.1, ge=0.0, le=1.0, description="Probability of MC swap")
     defect_density: float = Field(default=0.0, ge=0.0, description="Defect density")
     strain_range: float = Field(default=0.05, ge=0.0, description="Strain range for random generation")
+    # OTF Local Generation
+    n_local_candidates: int = Field(default=20, ge=1, description="Number of local candidates to generate on halt")
+    local_sampling_method: str = Field(default="perturbation", description="Method for local candidate generation")
     lammps_template: str = Field(
         default="""
 units metal
@@ -80,6 +83,7 @@ class TrainerConfig(BaseComponentConfig):
         default=ActiveSetMethod.NONE, description="Method for active set selection"
     )
     selection_ratio: float = Field(default=0.1, ge=0.0, le=1.0, description="Ratio of candidates to select")
+    n_active_set_per_halt: int = Field(default=5, ge=1, description="Number of structures to select per halt event")
 
 
 class DynamicsConfig(BaseComponentConfig):

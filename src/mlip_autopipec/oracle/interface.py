@@ -38,14 +38,14 @@ class MockOracle(BaseOracle):
         for s in structures:
             # Create fake results
             # s.atoms is object, need cast or use to_ase()
-            atoms = s.to_ase().copy()  # type: ignore[no-untyped-call]
+            atoms = s.to_ase().copy()
             n_atoms = len(atoms)
             energy = -4.0 * n_atoms + np.random.normal(0, 0.1)
             forces = np.random.normal(0, 0.1, (n_atoms, 3))
             stress = np.random.normal(0, 0.01, 6)
 
             # Attach calculator results to ASE atoms
-            calc = SinglePointCalculator(  # type: ignore[no-untyped-call]
+            calc = SinglePointCalculator(
                 atoms,
                 energy=energy,
                 forces=forces,

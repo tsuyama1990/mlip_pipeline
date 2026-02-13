@@ -19,7 +19,7 @@ def verify_random_generation(tmp_path: Path) -> None:
     logger.info("--- Verifying Random Generation ---")
     tmp_path.mkdir(parents=True, exist_ok=True)
     seed_path = tmp_path / "seed_random.xyz"
-    Atoms("Cu", positions=[[0, 0, 0]], cell=[3.6, 3.6, 3.6], pbc=True).write(seed_path) # type: ignore[no-untyped-call]
+    Atoms("Cu", positions=[[0, 0, 0]], cell=[3.6, 3.6, 3.6], pbc=True).write(seed_path)
 
     config_dict = {
         "orchestrator": {"work_dir": tmp_path, "max_cycles": 1, "execution_mode": "mock"},
@@ -52,7 +52,7 @@ def verify_adaptive_schedule(tmp_path: Path) -> None:
     logger.info("--- Verifying Adaptive Schedule ---")
     tmp_path.mkdir(parents=True, exist_ok=True)
     seed_path = tmp_path / "seed_adaptive.xyz"
-    Atoms("Cu", positions=[[0, 0, 0]], cell=[3.6, 3.6, 3.6], pbc=True).write(seed_path) # type: ignore[no-untyped-call]
+    Atoms("Cu", positions=[[0, 0, 0]], cell=[3.6, 3.6, 3.6], pbc=True).write(seed_path)
 
     policy = {
         "strategy": "adaptive",
