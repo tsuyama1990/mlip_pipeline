@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from mlip_autopipec.constants import MOCK_POTENTIAL_CONTENT
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class MockTrainer(BaseTrainer):
         logger.info(f"MockTrainer: Consumed {count} structures for training.")
 
         potential_path = self.work_dir / "potential.yace"
-        potential_path.write_text("MOCK POTENTIAL FILE CONTENT")
+        potential_path.write_text(MOCK_POTENTIAL_CONTENT)
 
         return Potential(path=potential_path, format="yace", parameters={"mock": True})
 

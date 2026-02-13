@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -31,23 +32,33 @@ class AdaptiveGenerator(BaseGenerator):
         # Fallback generator
         self.m3gnet_gen = M3GNetGenerator(config)
 
-    def _generate_lammps_input(self, temperature: float, steps: int) -> Path:
+    @contextlib.contextmanager
+    def _lammps_input_context(self, temperature: float, steps: int) -> Iterator[Path]:
         """
-        Generates a LAMMPS input script for MD exploration and writes it to a temporary file.
+        Context manager that generates a LAMMPS input script and ensures cleanup.
 
-        Returns:
+        Yields:
             Path to the generated input file.
         """
         template = self.policy.lammps_template
         content = template.format(temperature=temperature, steps=steps)
 
         # Create a named temporary file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False) as tmp:
+        # usage of delete=False is necessary to close the file and let other processes (LAMMPS) read it by path.
+        # We ensure cleanup in finally block.
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False)
+        try:
             tmp.write(content)
+            tmp.close()
             path = Path(tmp.name)
-
-        logger.debug(f"Generated LAMMPS input file at {path}")
-        return path
+            logger.debug(f"Generated LAMMPS input file at {path}")
+            yield path
+        finally:
+            # Ensure cleanup
+            path = Path(tmp.name)
+            if path.exists():
+                path.unlink()
+            logger.debug(f"Cleaned up LAMMPS input file at {path}")
 
     def explore(self, context: dict[str, Any]) -> Iterator[Structure]:
         cycle = context.get("cycle", 0)
@@ -63,17 +74,11 @@ class AdaptiveGenerator(BaseGenerator):
 
         logger.info(f"AdaptiveGenerator: Cycle {cycle}, using Temperature={temperature}K")
 
-        # Generate LAMMPS script (file-based)
-        lammps_script_path = self._generate_lammps_input(temperature, self.policy.md_steps)
-        # In a real scenario, we would pass this path to the Dynamics engine.
-        # For now, we just log it and clean it up (or let OS handle tmp, but we set delete=False above).
-        # To avoid clutter in mock mode, we delete it immediately after "use".
-        try:
-            logger.debug(f"LAMMPS Script generated at: {lammps_script_path}")
-        finally:
-            # Clean up the temp file
-            if lammps_script_path.exists():
-                lammps_script_path.unlink()
+        # Use context manager for LAMMPS script lifecycle
+        with self._lammps_input_context(temperature, self.policy.md_steps) as lammps_script_path:
+            # In a real scenario, we would pass this path to the Dynamics engine.
+            # For now, we just log it.
+            logger.debug(f"Using LAMMPS Script at: {lammps_script_path}")
 
         count = context.get("count", self.config.mock_count)
 

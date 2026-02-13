@@ -110,6 +110,7 @@ class Orchestrator:
             for frame in trajectory:
                 score = frame.uncertainty_score
 
+                # Strict validation: Only halt if score is explicitly present and exceeds threshold
                 if score is not None and score > halt_threshold:
                     logger.info(f"Halt triggered: gamma={score}")
                     frame.provenance = "md_halt"
