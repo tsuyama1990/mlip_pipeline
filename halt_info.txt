@@ -1,2 +1,0 @@
-reason: uncertainty
-max_gamma: 10.0

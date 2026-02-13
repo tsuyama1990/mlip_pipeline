@@ -34,9 +34,9 @@ class MLIPCalculatorFactory(CalculatorFactory):
 
     def _create_m3gnet(self, path: Path) -> Calculator:
         try:
-            import m3gnet  # type: ignore # noqa: F401
-            from m3gnet.calculators import M3GNetCalculator  # type: ignore
-            from m3gnet.models import M3GNet, Potential  # type: ignore
+            import m3gnet  # noqa: F401
+            from m3gnet.calculators import M3GNetCalculator
+            from m3gnet.models import M3GNet, Potential
 
             # Assuming the path points to a model or we load default
             # For this simplified implementation, we assume path is just a marker or directory
@@ -57,7 +57,7 @@ class MLIPCalculatorFactory(CalculatorFactory):
 
     def _create_pace(self, path: Path) -> Calculator:
         try:
-            from pyace import PyACECalculator  # type: ignore
+            from pyace import PyACECalculator
             return PyACECalculator(filename=str(path)) # type: ignore[no-any-return]
         except ImportError:
             logger.warning("pyace not installed. Falling back to EMT.")
@@ -65,4 +65,4 @@ class MLIPCalculatorFactory(CalculatorFactory):
 
     def _create_fallback(self) -> Calculator:
         """Returns a safe fallback calculator (EMT)."""
-        return EMT() # type: ignore[no-untyped-call, no-any-return]
+        return EMT() # type: ignore[no-untyped-call]

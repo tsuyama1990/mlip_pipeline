@@ -52,33 +52,37 @@ class EONDriver(BaseDynamics):
         self._prepare_run(potential, structure, run_dir)
 
         # 3. Execute EON
+        # Validate client path
+        client_path = Path(self.eon_config.client_path)
+        # Check if absolute path exists or if it's just a command name in PATH
+        # If strict validation required:
+        if client_path.is_absolute() and not client_path.exists():
+             msg = f"EON client not found at {client_path}"
+             raise ValueError(msg)
+        # Could also check shutil.which for PATH commands
+
         client_cmd = [self.eon_config.client_path]
 
         logger.info("Executing: %s in %s", ' '.join(client_cmd), run_dir)
 
         try:
-            # We assume the user has configured client_path securely in config.
-            # S603 check ignored as this is a configured command execution driver.
+            # S603 check ignored as we rely on config validation and list args
             result = subprocess.run(  # noqa: S603
                 client_cmd,
                 cwd=run_dir,
                 capture_output=True,
                 text=True,
-                check=False # We handle return codes manually
+                check=False
             )
 
             if result.returncode == 100:
                 logger.warning("EON halted due to potential server trigger (Halt Code 100).")
                 halt_info = self._parse_halt(run_dir, structure)
-                # Yield the halted structure with metadata
                 yield halt_info.structure
                 return
 
             if result.returncode != 0:
-                logger.error("EON failed with code %s", result.returncode)
-                logger.error("Stdout: %s", result.stdout)
-                logger.error("Stderr: %s", result.stderr)
-                self._raise_runtime_error(result.stderr)
+                self._raise_runtime_error(result.stderr, run_dir)
 
             logger.info("EON simulation completed successfully.")
 
@@ -89,17 +93,17 @@ class EONDriver(BaseDynamics):
             logger.exception("Simulation error")
             raise
 
-    def _raise_runtime_error(self, stderr: str) -> None:
-        """Helper to raise exception with clean message."""
-        msg = f"EON execution failed: {stderr}"
+    def _raise_runtime_error(self, stderr: str, run_dir: Path) -> None:
+        """Helper to raise exception with context."""
+        msg = f"EON execution failed in {run_dir}. Error: {stderr}"
         raise EONExecutionError(msg)
 
     def _prepare_run(self, potential: Potential, structure: Structure, run_dir: Path) -> None:
         """Generates input files for EON."""
 
-        # Validate paths to prevent traversal if they were user inputs (potential path is validated in model, structure provenance is safe)
-        # But we double check relative paths constructed here.
+        # Validate paths
         validate_path_safety(run_dir)
+        validate_path_safety(potential.path)
 
         # Write config.ini using template
         config_content = self.eon_config.config_template.format(
@@ -114,12 +118,16 @@ class EONDriver(BaseDynamics):
 
         # Write Structure (pos.con)
         try:
-            write(run_dir / "pos.con", structure.to_ase(), format="eon") # type: ignore[no-untyped-call]
+            write(run_dir / "pos.con", structure.to_ase(), format="eon")
         except Exception:
              logger.warning("ASE 'eon' format not found, trying manual write or fallback.")
-             write(run_dir / "pos.con", structure.to_ase()) # type: ignore[no-untyped-call]
+             write(run_dir / "pos.con", structure.to_ase())
 
         # Copy/Link Potential
+        # Explicit check for existence
+        if not potential.path.exists():
+             msg = f"Potential file not found: {potential.path}"
+             raise FileNotFoundError(msg)
         shutil.copy(potential.path, run_dir / f"potential.{potential.format}")
 
         # Copy Potential Server Script
@@ -142,7 +150,7 @@ class EONDriver(BaseDynamics):
             atoms = read(bad_struct_path)
             # Create Structure
             halt_struct = Structure(
-                atoms=atoms, # type: ignore[arg-type]
+                atoms=atoms,
                 provenance="eon_halt",
                 label_status="unlabeled",
                 metadata={"halt_reason": "uncertainty"}
@@ -151,6 +159,10 @@ class EONDriver(BaseDynamics):
         if halt_info_path.exists():
             content = halt_info_path.read_text()
             for line in content.splitlines():
+                if "reason" in line:
+                     reason_val = line.split(":", 1)[1].strip()
+                     if reason_val:
+                         reason = reason_val
                 if "max_gamma" in line:
                     with contextlib.suppress(ValueError):
                         max_gamma = float(line.split(":")[1].strip())
@@ -168,7 +180,6 @@ class EONDriver(BaseDynamics):
     def _parse_results(self, run_dir: Path) -> Iterator[Structure]:
         """Reads successful EON results using streaming."""
         # Use iterator for memory efficiency and limit results
-        # glob returns iterator in Python 3.10+
         products = run_dir.glob("product_*.con")
 
         found = False
@@ -184,7 +195,7 @@ class EONDriver(BaseDynamics):
              try:
                  atoms = read(p)
                  yield Structure(
-                     atoms=atoms, # type: ignore[arg-type]
+                     atoms=atoms,
                      provenance="eon_product",
                      label_status="unlabeled",
                      metadata={"source_file": p.name}
@@ -200,7 +211,7 @@ class EONDriver(BaseDynamics):
                  try:
                      atoms = read(final)
                      yield Structure(
-                         atoms=atoms, # type: ignore[arg-type]
+                         atoms=atoms,
                          provenance="eon_product",
                          label_status="unlabeled",
                          metadata={"source_file": "final.con"}

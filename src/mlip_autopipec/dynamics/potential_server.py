@@ -1,7 +1,9 @@
 import argparse
 import logging
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TextIO
 
 import numpy as np
 from ase import Atoms
@@ -16,73 +18,108 @@ except ImportError:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.warning("mlip_autopipec package not found. Using standalone fallback.")
-    setup_logging = None # type: ignore
-    MLIPCalculatorFactory = None # type: ignore
+    setup_logging = None # type: ignore[assignment]
+    MLIPCalculatorFactory = None # type: ignore[assignment, misc]
 
 logger = logging.getLogger("potential_server")
 
 def _raise_error(msg: str) -> None:
     raise ValueError(msg)
 
-def _parse_header(lines: list[str]) -> tuple[int, int]:
-    if not lines:
-        _raise_error("Empty input")
+def _read_input_lines(stream: TextIO) -> Iterator[str]:
+    """Reads input stream line by line."""
+    for line in stream:
+        yield line.strip()
 
-    header = lines[0].strip()
-    if not header:
+def _parse_header(stream: Iterator[str]) -> int:
+    try:
+        line = next(stream)
+    except StopIteration:
+         _raise_error("Empty input received from EON.")
+
+    if not line:
          _raise_error("Empty header")
-    n_atoms = int(header)
+    n_atoms = int(line)
 
     if n_atoms < 0:
         _raise_error(f"Negative atom count: {n_atoms}")
 
-    current_line = 1
-    if current_line < len(lines):
-        parts = lines[current_line].split()
-        if len(parts) == 1:
-            current_line += 1
+    return n_atoms
 
-    return n_atoms, current_line
-
-def _parse_box(lines: list[str], start_line: int) -> tuple[list[list[float]], int]:
-    cell = []
-    current = start_line
-    for _ in range(3):
-        if current >= len(lines):
-            _raise_error("Unexpected end of input while parsing cell.")
-        parts = lines[current].split()
-        if len(parts) != 3:
-            _raise_error(f"Invalid cell vector format at line {current+1}")
-        cell.append([float(x) for x in parts])
-        current += 1
-    return cell, current
-
-def _parse_positions(lines: list[str], start_line: int, n_atoms: int) -> tuple[list[list[float]], int]:
-    positions = []
-    current = start_line
-    for i in range(n_atoms):
-        if current >= len(lines):
-            _raise_error(f"Unexpected end of input while parsing positions. Expected {n_atoms}, got {i}")
-        parts = lines[current].split()
-        if len(parts) != 3:
-            _raise_error(f"Invalid position format at line {current+1}")
-        positions.append([float(x) for x in parts])
-        current += 1
-    return positions, current
-
-def parse_eon_input(input_str: str, symbols: list[str]) -> Atoms:
-    """
-    Parses EON client input format.
-    """
-    if not input_str.strip():
-        _raise_error("Empty input received from EON.")
-
-    lines = input_str.strip().split('\n')
-
+def _parse_energy(stream: Iterator[str]) -> str:
+    # Check if next line is energy (1 float) or Box (3 floats)
     try:
-        n_atoms, current = _parse_header(lines)
-        cell, current = _parse_box(lines, current)
-        positions, current = _parse_positions(lines, current, n_atoms)
+        line = next(stream)
+    except StopIteration:
+         # Just N provided?
+         raise StopIteration from None
+
+    parts = line.split()
+    if len(parts) == 1:
+        # It was energy, consume and return next line for Box A
+        try:
+            line = next(stream)
+        except StopIteration:
+            _raise_error("Unexpected end of input after energy")
+
+    return line
+
+def _parse_cell(stream: Iterator[str], first_line: str) -> list[list[float]]:
+    cell = []
+
+    # First vector is already read
+    parts = first_line.split()
+    if len(parts) != 3:
+         _raise_error(f"Invalid cell vector format: {first_line}")
+    cell.append([float(x) for x in parts])
+
+    # Next 2 vectors
+    for _ in range(2):
+        try:
+            line = next(stream)
+            parts = line.split()
+            if len(parts) != 3:
+                _raise_error(f"Invalid cell vector format: {line}")
+            cell.append([float(x) for x in parts])
+        except StopIteration:
+            _raise_error("Unexpected end of input while parsing cell")
+
+    return cell
+
+def _parse_positions(stream: Iterator[str], n_atoms: int) -> list[list[float]]:
+    positions = []
+    for i in range(n_atoms):
+        try:
+            line = next(stream)
+            parts = line.split()
+            if len(parts) != 3:
+                _raise_error(f"Invalid position format at atom {i}: {line}")
+            positions.append([float(x) for x in parts])
+        except StopIteration:
+            _raise_error(f"Unexpected end of input while parsing positions. Expected {n_atoms}, got {i}")
+    return positions
+
+def parse_eon_input(stream: Iterator[str], symbols: list[str]) -> Atoms:
+    """
+    Parses EON client input format from an iterator of lines.
+    """
+    try:
+        n_atoms = _parse_header(stream)
+
+        if n_atoms == 0:
+             # Try peek next line to ensure stream consumption logic consistency or return immediately
+             # But we need to handle energy line if present? Usually empty system doesn't have much.
+             return Atoms(pbc=True)
+
+        try:
+            first_box_line = _parse_energy(stream)
+        except StopIteration:
+             if n_atoms == 0:
+                 return Atoms(pbc=True) # Redundant safe guard
+             _raise_error("Unexpected end of input after header")
+
+        cell = _parse_cell(stream, first_box_line)
+        positions = _parse_positions(stream, n_atoms)
 
         # Validation
         if len(symbols) != n_atoms:
@@ -103,8 +140,7 @@ def parse_eon_input(input_str: str, symbols: list[str]) -> Atoms:
         logger.exception("Unexpected parsing error")
         _raise_error(f"Parsing failed: {e}")
 
-    # Should be unreachable
-    return Atoms()
+    return Atoms() # unreachable
 
 def format_eon_output(energy: float, forces: np.ndarray, gamma: float | None = None) -> str:
     lines = [f"{energy:.6f}"]
@@ -117,8 +153,8 @@ def load_symbols() -> list[str]:
     try:
         if Path("pos.con").exists():
             atoms = read("pos.con", format="eon")
-    except Exception:
-        logger.debug("Could not read pos.con")
+    except Exception as e:
+        logger.debug("Failed to read pos.con: %s", e)
 
     if isinstance(atoms, Atoms):
          return atoms.get_chemical_symbols() # type: ignore[no-any-return, no-untyped-call]
@@ -126,7 +162,7 @@ def load_symbols() -> list[str]:
     return ["H"] * 100
 
 def process_structure(atoms: Atoms, calculator: object, threshold: float = 5.0) -> tuple[float, np.ndarray, float | None]:
-    atoms.calc = calculator # type: ignore[attr-defined]
+    atoms.calc = calculator
     try:
         # Standard ASE methods trigger calculation
         energy = atoms.get_potential_energy() # type: ignore[no-untyped-call]
@@ -134,7 +170,7 @@ def process_structure(atoms: Atoms, calculator: object, threshold: float = 5.0) 
 
         # Uncertainty check
         gamma = None
-        results = atoms.calc.results # type: ignore[attr-defined]
+        results = atoms.calc.results
         for key in ['uncertainty', 'gamma', 'max_gamma', 'c_pace_gamma']:
             if key in results:
                 gamma = results[key]
@@ -144,12 +180,12 @@ def process_structure(atoms: Atoms, calculator: object, threshold: float = 5.0) 
 
         if gamma is not None and gamma > threshold:
             logger.warning("High uncertainty detected: %s > %s", gamma, threshold)
-            write("bad_structure.xyz", atoms) # type: ignore[no-untyped-call]
+            write("bad_structure.xyz", atoms)
             with Path("halt_info.txt").open("w") as f:
                 f.write(f"reason: uncertainty\nmax_gamma: {gamma}\n")
             sys.exit(100)
 
-        return float(energy), forces, gamma # type: ignore
+        return float(energy), forces, gamma
 
     except SystemExit:
         raise
@@ -163,31 +199,22 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, default=5.0, help="Uncertainty threshold")
     args = parser.parse_args()
 
-    if setup_logging is not None: # type: ignore[truthy-function]
+    if setup_logging is not None:
         setup_logging(Path(), "potential_server.log")
 
     try:
-        input_str = sys.stdin.read()
-        if not input_str:
-            return
+        # Use generator to read stdin lazily
+        input_stream = (line.strip() for line in sys.stdin)
 
         symbols = load_symbols()
 
-        try:
-            atoms = parse_eon_input(input_str, symbols)
-        except Exception:
-            lines = input_str.strip().split()
-            if lines and lines[0].isdigit():
-                n_atoms = int(lines[0])
-                atoms = parse_eon_input(input_str, ["H"]*n_atoms)
-            else:
-                raise
+        atoms = parse_eon_input(input_stream, symbols)
 
-        if MLIPCalculatorFactory is not None: # type: ignore[truthy-function]
+        if MLIPCalculatorFactory is not None:
             factory = MLIPCalculatorFactory()
             calc = factory.create(Path(args.potential))
         else:
-            from ase.calculators.emt import EMT  # type: ignore
+            from ase.calculators.emt import EMT
             calc = EMT()
 
         energy, forces, gamma = process_structure(atoms, calc, args.threshold)
