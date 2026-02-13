@@ -5,7 +5,7 @@ from mlip_autopipec.domain_models.config import DynamicsConfig, EONConfig
 from mlip_autopipec.domain_models.enums import DynamicsType
 
 
-def test_eon_config_defaults():
+def test_eon_config_defaults() -> None:
     config = EONConfig()
     assert config.temperature == 300.0
     assert config.prefactor == 1e13
@@ -15,7 +15,7 @@ def test_eon_config_defaults():
     assert config.potential_format == "yace"
 
 
-def test_eon_config_validation():
+def test_eon_config_validation() -> None:
     # Test valid
     config = EONConfig(temperature=500.0)
     assert config.temperature == 500.0
@@ -30,10 +30,10 @@ def test_eon_config_validation():
 
     # Test extra fields forbidden
     with pytest.raises(ValidationError):
-        EONConfig(extra_field="invalid")
+        EONConfig(extra_field="invalid") # type: ignore[call-arg]
 
 
-def test_dynamics_config_with_eon():
+def test_dynamics_config_with_eon() -> None:
     # Test that we can attach EONConfig to DynamicsConfig
     eon_conf = EONConfig(temperature=100.0)
     dyn_conf = DynamicsConfig(type=DynamicsType.EON, eon=eon_conf)

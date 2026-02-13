@@ -118,15 +118,15 @@ def load_symbols() -> list[str]:
         if Path("pos.con").exists():
             atoms = read("pos.con", format="eon")
     except Exception:
-        logger.debug("Failed to read pos.con, falling back to dummy symbols.")
+        logger.debug("Could not read pos.con")
 
     if isinstance(atoms, Atoms):
          return atoms.get_chemical_symbols() # type: ignore[no-any-return, no-untyped-call]
 
     return ["H"] * 100
 
-def process_structure(atoms: Atoms, calculator, threshold: float = 5.0) -> tuple[float, np.ndarray, float | None]:
-    atoms.calc = calculator
+def process_structure(atoms: Atoms, calculator: object, threshold: float = 5.0) -> tuple[float, np.ndarray, float | None]:
+    atoms.calc = calculator # type: ignore[attr-defined]
     try:
         # Standard ASE methods trigger calculation
         energy = atoms.get_potential_energy() # type: ignore[no-untyped-call]
@@ -134,7 +134,7 @@ def process_structure(atoms: Atoms, calculator, threshold: float = 5.0) -> tuple
 
         # Uncertainty check
         gamma = None
-        results = atoms.calc.results # type: ignore
+        results = atoms.calc.results # type: ignore[attr-defined]
         for key in ['uncertainty', 'gamma', 'max_gamma', 'c_pace_gamma']:
             if key in results:
                 gamma = results[key]

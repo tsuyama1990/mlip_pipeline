@@ -58,6 +58,7 @@ class EONDriver(BaseDynamics):
 
         try:
             # We assume the user has configured client_path securely in config.
+            # S603 check ignored as this is a configured command execution driver.
             result = subprocess.run(  # noqa: S603
                 client_cmd,
                 cwd=run_dir,
@@ -141,7 +142,7 @@ class EONDriver(BaseDynamics):
             atoms = read(bad_struct_path)
             # Create Structure
             halt_struct = Structure(
-                atoms=atoms, # type: ignore
+                atoms=atoms, # type: ignore[arg-type]
                 provenance="eon_halt",
                 label_status="unlabeled",
                 metadata={"halt_reason": "uncertainty"}
@@ -183,7 +184,7 @@ class EONDriver(BaseDynamics):
              try:
                  atoms = read(p)
                  yield Structure(
-                     atoms=atoms, # type: ignore
+                     atoms=atoms, # type: ignore[arg-type]
                      provenance="eon_product",
                      label_status="unlabeled",
                      metadata={"source_file": p.name}
@@ -199,7 +200,7 @@ class EONDriver(BaseDynamics):
                  try:
                      atoms = read(final)
                      yield Structure(
-                         atoms=atoms, # type: ignore
+                         atoms=atoms, # type: ignore[arg-type]
                          provenance="eon_product",
                          label_status="unlabeled",
                          metadata={"source_file": "final.con"}
