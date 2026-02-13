@@ -41,13 +41,13 @@ class Structure(BaseModel):
     def to_ase(self) -> Atoms:
         """Returns a copy of the internal ase.Atoms object with updated info."""
         # Validate that atoms is definitely an Atoms object before copying
-        # This replaces 'cast' with a runtime check for strict type safety
         if not isinstance(self.ase_atoms, Atoms):
             msg = f"Internal atoms object is not of type ase.Atoms, got {type(self.ase_atoms)}"
             raise TypeError(msg)
 
         # Use copy() to prevent side effects on the persistent data model
-        atoms = self.ase_atoms.copy()  # type: ignore[no-untyped-call]
+        # Cast return type of copy() to Atoms since ase doesn't type hint it well
+        atoms: Atoms = self.ase_atoms.copy()  # type: ignore[no-untyped-call]
 
         # Validate critical fields before updating atoms.info
         if not isinstance(self.provenance, str):
@@ -61,7 +61,7 @@ class Structure(BaseModel):
                 "label_status": self.label_status,
             }
         )
-        return atoms  # type: ignore[no-any-return]
+        return atoms
 
 
 class Dataset(BaseModel):

@@ -14,7 +14,6 @@ from mlip_autopipec.domain_models.enums import (
     ValidatorType,
 )
 
-MOCK_POTENTIAL_CONTENT = "MOCK POTENTIAL FILE CONTENT"
 
 # Lazy loader for LAMMPS template
 def get_default_lammps_template() -> str:
@@ -116,6 +115,10 @@ class TrainerConfig(BaseComponentConfig):
     type: TrainerType = TrainerType.MOCK
     max_epochs: int = Field(default=100, ge=1)
     batch_size: int = Field(default=32, ge=1)
+    mock_potential_content: str = Field(
+        default="MOCK POTENTIAL FILE CONTENT",
+        description="Content for mock potential file"
+    )
     # Active Set
     active_set_method: ActiveSetMethod = Field(
         default=ActiveSetMethod.NONE, description="Method for active set selection"

@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from mlip_autopipec.domain_models.config import MOCK_POTENTIAL_CONTENT
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 logger = logging.getLogger(__name__)
@@ -80,9 +79,14 @@ class MockTrainer(BaseTrainer):
         tmp_dir = Path(tempfile.mkdtemp(dir=self.work_dir))
         try:
             tmp_path = tmp_dir / "temp_potential.yace"
-            # In a real app, mock content should be injectable.
-            # For now, we use the constant but avoid hardcoding string literals here.
-            tmp_path.write_text(MOCK_POTENTIAL_CONTENT)
+
+            # Use content from config if available, else default
+            # MockTrainer doesn't have full TrainerConfig usually, but if it did:
+            content = "MOCK_POTENTIAL_CONTENT"
+            if hasattr(self, 'config') and hasattr(self.config, 'mock_potential_content'):
+                 content = self.config.mock_potential_content
+
+            tmp_path.write_text(content)
 
             # Atomic move (rename)
             # rename is atomic on POSIX if on same filesystem (guaranteed by tmp_dir inside work_dir)

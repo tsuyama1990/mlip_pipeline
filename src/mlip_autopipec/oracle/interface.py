@@ -52,17 +52,28 @@ class MockOracle(BaseOracle):
             yield self._process_single(s, SinglePointCalculator, np)
 
     def _process_single(self, structure: Structure, calc_cls: Any, np_mod: Any) -> Structure:
-        atoms = structure.to_ase().copy()  # type: ignore[no-untyped-call]
+        # Instead of deep copying potentially large ASE objects, we construct the result directly.
+        # This mocks the DFT calculation without loading the full atoms object if not needed,
+        # or just modifying a lightweight reference if we were doing real DFT.
+        # For mock, we just need basic info.
+
+        # Get atoms to read properties (e.g. number of atoms)
+        # to_ase() returns a copy, which is safe but we want to be memory conscious.
+        # Ideally, Structure would expose n_atoms directly.
+        # Here we accept the copy overhead for correctness of the Mock logic,
+        # but in a real streaming scenario, we would stream reading from disk.
+
+        atoms = structure.to_ase()
         n_atoms = len(atoms)
         energy = -4.0 * n_atoms + np_mod.random.normal(0, 0.1)
         forces = np_mod.random.normal(0, 0.1, (n_atoms, 3))
         stress = np_mod.random.normal(0, 0.01, 6)
 
-        calc = calc_cls(
-            atoms, energy=energy, forces=forces, stress=stress
-        )
-        atoms.calc = calc
+        # In a real Oracle, we would return a new Structure with the results.
+        # We avoid attaching the heavy calculator object to the Pydantic model if possible,
+        # or we just return the data.
 
+        # We return a new structure with the computed properties.
         return Structure(
             atoms=atoms,
             provenance=structure.provenance,
