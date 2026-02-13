@@ -1,3 +1,4 @@
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -20,29 +21,35 @@ from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Str
 
 # Mocks for external components
 class MockOracle:
-    def compute(self, structures):
+    def compute(self, structures: Iterable[Structure]) -> Iterable[Structure]:
+        out = []
         for s in structures:
             s.label_status = "labeled"
             s.energy = -1.0
-        return structures
+            out.append(s)
+        return out
+
 
 class MockTrainer:
-    def train(self, structures):
+    def train(self, structures: Iterable[Structure]) -> Potential:
         return Potential(path=Path("mock_path.yace"), format="yace")
+
 
 # Mocks for internal components
 class MockCandidateGenerator:
-    def generate_local(self, structure):
+    def generate_local(self, structure: Structure) -> Iterator[Structure]:
         # Return 5 candidates
-        return [Structure(atoms=Atoms("He"), provenance="local") for _ in range(5)]
+        return iter([Structure(atoms=Atoms("He"), provenance="local") for _ in range(5)])
+
 
 class MockActiveSelector:
-    def select_batch(self, candidates):
+    def select_batch(self, candidates: Iterable[Structure]) -> Iterator[Structure]:
         # Select first 3
-        return list(candidates)[:3]
+        return iter(list(candidates)[:3])
+
 
 @pytest.fixture
-def config(tmp_path):
+def config(tmp_path: Path) -> GlobalConfig:
     # Use real configs with minimal valid values
     return GlobalConfig(
         orchestrator=OrchestratorConfig(work_dir=tmp_path),
@@ -54,8 +61,9 @@ def config(tmp_path):
         active_learning=ActiveLearningConfig()
     )
 
+
 @pytest.fixture
-def active_learner(config):
+def active_learner(config: GlobalConfig) -> ActiveLearner:
     # Dependencies
     gen = MagicMock() # BaseGenerator
     oracle = MockOracle()
@@ -66,13 +74,14 @@ def active_learner(config):
     return ActiveLearner(
         config=config,
         generator=gen,
-        oracle=oracle,
-        trainer=trainer,
-        candidate_generator=cand_gen,
-        active_selector=selector
+        oracle=oracle,  # type: ignore[arg-type]
+        trainer=trainer, # type: ignore[arg-type]
+        candidate_generator=cand_gen, # type: ignore[arg-type]
+        active_selector=selector # type: ignore[arg-type]
     )
 
-def test_process_halt(active_learner):
+
+def test_process_halt(active_learner: ActiveLearner) -> None:
     halt_event = HaltInfo(
         step=100,
         max_gamma=10.0,
@@ -85,7 +94,8 @@ def test_process_halt(active_learner):
     assert isinstance(new_potential, Potential)
     assert str(new_potential.path) == "mock_path.yace"
 
-def test_process_halt_flow(active_learner):
+
+def test_process_halt_flow(active_learner: ActiveLearner) -> None:
     halt_event = HaltInfo(
         step=100,
         max_gamma=10.0,
@@ -94,7 +104,9 @@ def test_process_halt_flow(active_learner):
     )
 
     # Spy on trainer.train
-    active_learner.trainer.train = MagicMock(return_value=Potential(path=Path("spy.yace"), format="yace"))
+    # We need to access the trainer on the active_learner instance.
+    # Since we passed a MockTrainer, we can modify it.
+    active_learner.trainer.train = MagicMock(return_value=Potential(path=Path("spy.yace"), format="yace"))  # type: ignore[method-assign]
 
     res = active_learner.process_halt(halt_event)
 

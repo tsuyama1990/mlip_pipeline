@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -214,7 +215,7 @@ class ActiveLearningConfig(BaseModel):
     n_candidates: int = Field(
         default=20, ge=1, description="Number of candidates to generate per halt"
     )
-    sampling_method: str = Field(
+    sampling_method: Literal["perturbation", "md_burst"] = Field(
         default="perturbation", description="Method for local candidate generation"
     )
     max_retries: int = Field(

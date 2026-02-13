@@ -1,17 +1,24 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from mlip_autopipec.domain_models.config import ActiveLearningConfig, GlobalConfig
+from mlip_autopipec.domain_models.config import (
+    ActiveLearningConfig,
+    GlobalConfig,
+    OrchestratorConfig,
+)
 
 
-def test_active_learning_config_defaults():
+def test_active_learning_config_defaults() -> None:
     config = ActiveLearningConfig()
     assert config.perturbation_magnitude == 0.1
     assert config.n_candidates == 20
     assert config.sampling_method == "perturbation"
     assert config.max_retries == 3
 
-def test_active_learning_config_validation():
+
+def test_active_learning_config_validation() -> None:
     # Valid
     config = ActiveLearningConfig(perturbation_magnitude=0.5, n_candidates=10)
     assert config.perturbation_magnitude == 0.5
@@ -28,10 +35,10 @@ def test_active_learning_config_validation():
     with pytest.raises(ValidationError):
         ActiveLearningConfig(max_retries=-1)
 
-def test_global_config_integration(tmp_path):
+
+def test_global_config_integration(tmp_path: Path) -> None:
     # Ensure it's part of GlobalConfig and has defaults
     # We need to provide required fields for GlobalConfig (OrchestratorConfig.work_dir)
-    from mlip_autopipec.domain_models.config import OrchestratorConfig
 
     OrchestratorConfig(work_dir=tmp_path)
 

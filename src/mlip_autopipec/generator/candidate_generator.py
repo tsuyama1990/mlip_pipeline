@@ -15,6 +15,7 @@ class CandidateGenerator:
 
     def __init__(self, config: ActiveLearningConfig) -> None:
         self.config = config
+        self._rng = np.random.default_rng()
 
     def generate_local(self, structure: Structure) -> Iterator[Structure]:
         """
@@ -36,6 +37,16 @@ class CandidateGenerator:
     def _generate_perturbations(self, structure: Structure) -> Iterator[Structure]:
         """
         Generates candidates by random atomic displacement.
+
+        This method creates copies of the seed structure and applies Gaussian noise
+        to the atomic positions. The magnitude of the noise is controlled by
+        `config.perturbation_magnitude`.
+
+        Args:
+            structure: The seed structure to perturb.
+
+        Yields:
+            Perturbed Structure objects.
         """
         count = self.config.n_candidates
         magnitude = self.config.perturbation_magnitude
@@ -55,7 +66,7 @@ class CandidateGenerator:
 
             # Apply random displacement
             # Use standard normal * magnitude
-            displacement = np.random.normal(0, magnitude, atoms.positions.shape)
+            displacement = self._rng.normal(0, magnitude, atoms.positions.shape)
             atoms.positions += displacement
 
             yield Structure(

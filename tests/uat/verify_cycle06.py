@@ -1,10 +1,9 @@
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
-
-from unittest.mock import MagicMock
 
 from ase import Atoms
 
@@ -20,14 +19,15 @@ from mlip_autopipec.domain_models.config import (
     ValidatorConfig,
 )
 from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
+from mlip_autopipec.domain_models.enums import ExecutionMode
 
 
-def test_uat_cycle06_local_loop():
+def test_uat_cycle06_local_loop() -> None:
     print("Starting UAT Cycle 06: Local Learning Loop")  # noqa: T201
 
     # Setup Config
     config = GlobalConfig(
-        orchestrator=OrchestratorConfig(work_dir=Path("uat_work_dir"), execution_mode="mock"),
+        orchestrator=OrchestratorConfig(work_dir=Path("uat_work_dir"), execution_mode=ExecutionMode.MOCK),
         generator=GeneratorConfig(),
         oracle=OracleConfig(),
         trainer=TrainerConfig(),
@@ -43,7 +43,7 @@ def test_uat_cycle06_local_loop():
 
     oracle = MagicMock()
     # Label them
-    def compute_side_effect(structures):
+    def compute_side_effect(structures: list[Structure]) -> list[Structure]:
         labeled = []
         for s in structures:
             s.label_status = "labeled"
