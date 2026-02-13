@@ -11,7 +11,12 @@ class HybridOverlay:
         self.config = config
 
     def get_pair_style(self) -> str:
-        """Returns the pair_style command."""
+        """
+        Returns the pair_style command based on configuration.
+
+        Returns:
+            str: The LAMMPS pair_style command string.
+        """
         base_style = "pair_style"
         potential_type = self.config.hybrid_potential
 
@@ -33,7 +38,20 @@ class HybridOverlay:
         return f"{base_style} {' '.join(hybrid_args)}"
 
     def get_pair_coeff(self, elements: list[str], potential_file: str) -> str:
-        """Returns the pair_coeff commands."""
+        """
+        Returns the pair_coeff commands.
+
+        Args:
+            elements: List of element symbols (e.g., ["Fe", "Pt"]).
+            potential_file: Path/name of the potential file.
+
+        Returns:
+            str: The LAMMPS pair_coeff command string(s).
+        """
+        if not elements:
+            msg = "Elements list cannot be empty for pair coefficients."
+            raise ValueError(msg)
+
         commands = []
 
         # 1. PACE part (always present)

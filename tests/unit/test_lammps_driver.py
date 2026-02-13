@@ -1,18 +1,19 @@
-import pytest
-from unittest.mock import MagicMock, patch, mock_open
 from pathlib import Path
-import tempfile
-import numpy as np
+from typing import Any
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
 from ase import Atoms
+
 from mlip_autopipec.domain_models.config import DynamicsConfig
+from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import DynamicsType
-from mlip_autopipec.domain_models.datastructures import Structure, Potential
 from mlip_autopipec.dynamics.lammps_driver import LAMMPSDriver
 
 
 @pytest.fixture
-def dynamics_config():
+def dynamics_config() -> DynamicsConfig:
     return DynamicsConfig(
         type=DynamicsType.LAMMPS,
         temperature=1000.0,
@@ -26,13 +27,13 @@ def dynamics_config():
 
 
 @pytest.fixture
-def mock_structure():
+def mock_structure() -> Structure:
     atoms = Atoms("Fe2", positions=[[0, 0, 0], [2, 0, 0]], cell=[10, 10, 10], pbc=True)
     return Structure(atoms=atoms, provenance="test", label_status="unlabeled")
 
 
 @pytest.fixture
-def mock_potential(tmp_path):
+def mock_potential(tmp_path: Path) -> Potential:
     p = tmp_path / "potential.yace"
     p.touch()
     return Potential(path=p, format="yace")
@@ -41,10 +42,18 @@ def mock_potential(tmp_path):
 @patch("subprocess.run")
 @patch("mlip_autopipec.dynamics.lammps_driver.write")
 @patch("mlip_autopipec.dynamics.lammps_driver.iread")
-def test_simulate_success(mock_iread, mock_write, mock_run, dynamics_config, mock_structure, mock_potential, tmp_path):
+def test_simulate_success(
+    mock_iread: MagicMock,
+    mock_write: MagicMock,
+    mock_run: MagicMock,
+    dynamics_config: DynamicsConfig,
+    mock_structure: Structure,
+    mock_potential: Potential,
+    tmp_path: Path,
+) -> None:
     driver = LAMMPSDriver(tmp_path, dynamics_config)
 
-    def create_dump_file(*args, **kwargs):
+    def create_dump_file(*args: Any, **kwargs: Any) -> MagicMock:
         # Create the dump file to simulate LAMMPS output
         # Driver creates "md_run_test" dir because provenance is "test"
         dump = tmp_path / "md_run_test" / "traj.dump"
@@ -55,14 +64,14 @@ def test_simulate_success(mock_iread, mock_write, mock_run, dynamics_config, moc
     mock_run.side_effect = create_dump_file
 
     # Mock trajectory reading
-    frame1 = mock_structure.atoms.copy()
-    frame1.new_array('c_pace[1]', np.array([0.1, 0.2])) # Low gamma
+    frame1 = mock_structure.atoms.copy()  # type: ignore[no-untyped-call]
+    frame1.new_array('c_pace[1]', np.array([0.1, 0.2]))  # Low gamma
     # Simulate ASE reading 'type' column as atomic numbers (so 1-based index)
     frame1.set_atomic_numbers([1, 1])
 
-    frame2 = mock_structure.atoms.copy()
+    frame2 = mock_structure.atoms.copy()  # type: ignore[no-untyped-call]
     frame2.positions[0] += 0.1
-    frame2.new_array('c_pace[1]', np.array([0.2, 0.3])) # Low gamma
+    frame2.new_array('c_pace[1]', np.array([0.2, 0.3]))  # Low gamma
     frame2.set_atomic_numbers([1, 1])
 
     mock_iread.return_value = iter([frame1, frame2])
@@ -81,10 +90,18 @@ def test_simulate_success(mock_iread, mock_write, mock_run, dynamics_config, moc
 @patch("subprocess.run")
 @patch("mlip_autopipec.dynamics.lammps_driver.write")
 @patch("mlip_autopipec.dynamics.lammps_driver.iread")
-def test_simulate_halt_event(mock_iread, mock_write, mock_run, dynamics_config, mock_structure, mock_potential, tmp_path):
+def test_simulate_halt_event(
+    mock_iread: MagicMock,
+    mock_write: MagicMock,
+    mock_run: MagicMock,
+    dynamics_config: DynamicsConfig,
+    mock_structure: Structure,
+    mock_potential: Potential,
+    tmp_path: Path,
+) -> None:
     driver = LAMMPSDriver(tmp_path, dynamics_config)
 
-    def create_dump_file_halt(*args, **kwargs):
+    def create_dump_file_halt(*args: Any, **kwargs: Any) -> MagicMock:
         dump = tmp_path / "md_run_test" / "traj.dump"
         dump.parent.mkdir(parents=True, exist_ok=True)
         dump.touch()
@@ -93,8 +110,8 @@ def test_simulate_halt_event(mock_iread, mock_write, mock_run, dynamics_config, 
     mock_run.side_effect = create_dump_file_halt
 
     # Mock trajectory reading - halted frame has high gamma
-    frame1 = mock_structure.atoms.copy()
-    frame1.new_array('c_pace[1]', np.array([1.0, 6.0])) # High gamma > 5.0
+    frame1 = mock_structure.atoms.copy()  # type: ignore[no-untyped-call]
+    frame1.new_array('c_pace[1]', np.array([1.0, 6.0]))  # High gamma > 5.0
     frame1.set_atomic_numbers([1, 1])
 
     mock_iread.return_value = iter([frame1])

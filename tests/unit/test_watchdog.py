@@ -1,11 +1,10 @@
-import pytest
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
 from mlip_autopipec.domain_models.enums import DynamicsType
 from mlip_autopipec.dynamics.watchdog import UncertaintyWatchdog
 
 
-def test_watchdog_enabled():
+def test_watchdog_enabled() -> None:
     config = DynamicsConfig(
         type=DynamicsType.LAMMPS,
         halt_on_uncertainty=True,
@@ -21,7 +20,7 @@ def test_watchdog_enabled():
     assert "fix halt_check all halt 1 v_check_gamma != 0 error 100" in commands
 
 
-def test_watchdog_disabled():
+def test_watchdog_disabled() -> None:
     config = DynamicsConfig(
         type=DynamicsType.LAMMPS,
         halt_on_uncertainty=False,

@@ -5,7 +5,7 @@ from mlip_autopipec.domain_models.config import DynamicsConfig
 from mlip_autopipec.domain_models.enums import DynamicsType, HybridPotentialType
 
 
-def test_dynamics_config_defaults():
+def test_dynamics_config_defaults() -> None:
     config = DynamicsConfig(type=DynamicsType.MOCK)
     assert config.temperature == 300.0
     assert config.steps == 1000
@@ -14,7 +14,7 @@ def test_dynamics_config_defaults():
     assert config.halt_on_uncertainty is True
 
 
-def test_dynamics_config_valid():
+def test_dynamics_config_valid() -> None:
     config = DynamicsConfig(
         type=DynamicsType.LAMMPS,
         temperature=500.0,
@@ -29,7 +29,7 @@ def test_dynamics_config_valid():
     assert config.zbl_cut_inner == 0.7
 
 
-def test_dynamics_config_invalid():
+def test_dynamics_config_invalid() -> None:
     with pytest.raises(ValidationError):
         DynamicsConfig(type=DynamicsType.MOCK, temperature=-10.0)
 
@@ -40,9 +40,10 @@ def test_dynamics_config_invalid():
         DynamicsConfig(type=DynamicsType.MOCK, timestep=0.0)
 
 
-def test_dynamics_config_hybrid_enum():
-    config = DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="zbl")
+def test_dynamics_config_hybrid_enum() -> None:
+    # Pydantic allows passing string to Enum field.
+    config = DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="zbl")  # type: ignore[arg-type]
     assert config.hybrid_potential == HybridPotentialType.ZBL
 
     with pytest.raises(ValidationError):
-        DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="invalid")
+        DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="invalid")  # type: ignore[arg-type]

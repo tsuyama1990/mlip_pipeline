@@ -1,11 +1,10 @@
-import pytest
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
 from mlip_autopipec.domain_models.enums import DynamicsType, HybridPotentialType
 from mlip_autopipec.dynamics.hybrid_overlay import HybridOverlay
 
 
-def test_hybrid_overlay_none():
+def test_hybrid_overlay_none() -> None:
     config = DynamicsConfig(
         type=DynamicsType.LAMMPS,
         hybrid_potential=HybridPotentialType.NONE,
@@ -22,7 +21,7 @@ def test_hybrid_overlay_none():
     assert "zbl" not in coeff
 
 
-def test_hybrid_overlay_zbl():
+def test_hybrid_overlay_zbl() -> None:
     config = DynamicsConfig(
         type=DynamicsType.LAMMPS,
         hybrid_potential=HybridPotentialType.ZBL,
@@ -46,7 +45,7 @@ def test_hybrid_overlay_zbl():
     assert "pair_coeff 2 2 zbl 78 78" in coeff
 
 
-def test_hybrid_overlay_lj():
+def test_hybrid_overlay_lj() -> None:
     config = DynamicsConfig(
         type=DynamicsType.LAMMPS,
         hybrid_potential=HybridPotentialType.LJ,

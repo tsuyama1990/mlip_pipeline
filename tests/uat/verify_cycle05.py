@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 # Add src to path
@@ -19,10 +20,10 @@ from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     ExecutionMode,
     GeneratorType,
+    HybridPotentialType,
     OracleType,
     TrainerType,
     ValidatorType,
-    HybridPotentialType,
 )
 
 
@@ -68,14 +69,12 @@ def main() -> None:
 
     with patch("subprocess.run") as mock_run:
         # Define side effect to create dump file and simulate halt
-        def side_effect(cmd, cwd=None, **kwargs):
+        def side_effect(cmd: list[str] | str, cwd: Path | None = None, **kwargs: Any) -> MagicMock:
             # Check if this is LAMMPS command (list of strings)
             cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
             if "lmp" in cmd_str or "lammps" in cmd_str:
-                # print(f"Mocking LAMMPS execution in {cwd}") # noqa: T201
-
                 # Create dummy dump file
-                dump_file = cwd / "traj.dump"
+                dump_file = cwd / "traj.dump" if cwd else Path("traj.dump")
 
                 # Create dummy content manually to ensure custom column c_pace[1]
                 content = """ITEM: TIMESTEP
@@ -90,8 +89,7 @@ ITEM: ATOMS id type x y z c_pace[1]
 1 1 0.0 0.0 0.0 6.0
 2 1 2.0 0.0 0.0 6.0
 """
-                with open(dump_file, "w") as f:
-                    f.write(content)
+                dump_file.write_text(content)
 
                 # Return halt code 100
                 return MagicMock(returncode=100)
