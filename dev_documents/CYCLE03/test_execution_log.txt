@@ -26,15 +26,15 @@ _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 Name                                                 Stmts   Miss  Cover   Missing
 ----------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                           0      0   100%
-src/mlip_autopipec/constants.py                          1      0   100%
+src/mlip_autopipec/constants.py                         33      0   100%
 src/mlip_autopipec/core/__init__.py                      0      0   100%
-src/mlip_autopipec/core/config_parser.py                76     15    80%   39-41, 44, 113-123, 164-165, 170-171
+src/mlip_autopipec/core/config_parser.py                91     22    76%   41-42, 46-49, 52, 122-132, 143-146, 182-183, 187-188
 src/mlip_autopipec/core/logger.py                       18      0   100%
 src/mlip_autopipec/core/orchestrator.py                125     17    86%   58-59, 64-68, 73-74, 79-80, 85-86, 143-144, 158, 187, 190
 src/mlip_autopipec/core/state_manager.py                53      7    87%   27-29, 44-47
 src/mlip_autopipec/domain_models/__init__.py             4      0   100%
 src/mlip_autopipec/domain_models/config.py              78      0   100%
-src/mlip_autopipec/domain_models/datastructures.py      63      4    94%   30-31, 60, 63
+src/mlip_autopipec/domain_models/datastructures.py      63      4    94%   31-32, 61, 64
 src/mlip_autopipec/domain_models/enums.py               46      0   100%
 src/mlip_autopipec/dynamics/__init__.py                  2      0   100%
 src/mlip_autopipec/dynamics/interface.py                24      1    96%   42
@@ -55,7 +55,7 @@ src/mlip_autopipec/trainer/interface.py                 31      5    84%   38-45
 src/mlip_autopipec/validator/__init__.py                 2      0   100%
 src/mlip_autopipec/validator/interface.py               11      0   100%
 ----------------------------------------------------------------------------------
-TOTAL                                                  914    106    88%
-============================== 56 passed in 2.90s ==============================
+TOTAL                                                  961    113    88%
+============================== 56 passed in 4.39s ==============================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

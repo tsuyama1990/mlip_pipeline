@@ -26,18 +26,26 @@ class EnvVarExpander:
     read chunks, it maintains a buffer.
     """
 
-    def __init__(self, stream: IO[str]) -> None:
+    def __init__(self, stream: IO[str], strict: bool = True) -> None:
         self.stream = stream
         self.pattern = re.compile(r"\$\{([A-Za-z0-9_]+)\}|\$([A-Za-z0-9_]+)")
         self.buffer = ""
         # We need a way to know if we are at EOF of source
         self.eof = False
+        self.strict = strict
+        self.total_read = 0
 
     def read(self, size: int = -1) -> str:
+        # Enforce max read limit to prevent memory bombs
+        if self.total_read > MAX_CONFIG_SIZE:
+            msg = f"Configuration exceeded max size ({MAX_CONFIG_SIZE} bytes) during expansion."
+            raise ConfigError(msg)
+
         if size == -1:
             # Read all remaining
             content = self.buffer + self.stream.read()
             self.buffer = ""
+            self.total_read += len(content)
             return self._expand(content)
 
         if size == 0:
@@ -66,6 +74,7 @@ class EnvVarExpander:
         if self.eof:
             expanded = self._expand(self.buffer)
             self.buffer = ""
+            self.total_read += len(expanded)
             return expanded
 
         # Check for potential partial tokens at the end of buffer.
@@ -122,12 +131,20 @@ class EnvVarExpander:
                     # Let's simplify: return self.read(size) again (it will hit the top logic)
                     return self.read(size)
 
-        return self._expand(to_process)
+        expanded = self._expand(to_process)
+        self.total_read += len(expanded)
+        return expanded
 
     def _expand(self, text: str) -> str:
         def repl(match: re.Match[str]) -> str:
             var_name = match.group(1) or match.group(2)
-            return os.environ.get(var_name, "")
+            val = os.environ.get(var_name)
+            if val is None:
+                if self.strict:
+                    msg = f"Missing environment variable: {var_name}"
+                    raise ConfigError(msg)
+                return ""
+            return val
 
         return self.pattern.sub(repl, text)
 
@@ -157,7 +174,8 @@ def load_config(config_path: Path) -> GlobalConfig:
     try:
         with config_path.open("r", encoding="utf-8") as f:
             # Use EnvVarExpander to stream content
-            stream = EnvVarExpander(f)
+            # strict=True enforces required env vars
+            stream = EnvVarExpander(f, strict=True)
             data = yaml.safe_load(stream)
 
         if not isinstance(data, dict):
@@ -165,7 +183,6 @@ def load_config(config_path: Path) -> GlobalConfig:
             raise ConfigError(msg)
 
         # Basic protection against Billion Laughs expansion if it resulted in huge dict
-        # Though this check happens after loading, so it only catches if memory didn't explode.
         if len(data) > 1000:
             msg = "Configuration file contains too many keys."
             raise ConfigError(msg)
