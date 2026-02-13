@@ -1,10 +1,11 @@
+from pathlib import Path
 from typing import cast
+
+import numpy as np
 import pytest
 from ase import Atoms
-from pathlib import Path
-import numpy as np
 
-from mlip_autopipec.domain_models.config import GeneratorConfig, ExplorationPolicyConfig
+from mlip_autopipec.domain_models.config import ExplorationPolicyConfig, GeneratorConfig
 from mlip_autopipec.domain_models.enums import GeneratorType
 
 # Imports that will be available later
@@ -61,7 +62,7 @@ class TestRandomGenerator:
             pytest.fail("RandomGenerator not implemented")
 
         config = GeneratorConfig(type=GeneratorType.RANDOM, seed_structure_path=None)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="RandomGenerator requires a seed structure path in config"):
              RandomGenerator(config)
 
     def test_random_generator_invalid_seed(self, tmp_path: Path) -> None:
