@@ -52,8 +52,8 @@ class DatasetManager:
         try:
             # Cast generator to Any to satisfy mypy's expectation for write() which might be strict
             write(str(temp_extxyz), structure_generator(), format="extxyz") # type: ignore[arg-type]
-        except Exception as e:
-            logger.exception(f"Failed to write temporary structure file: {e}")
+        except Exception:
+            logger.exception("Failed to write temporary structure file")
             raise
 
         # 2. Call pace_collect
