@@ -2,10 +2,11 @@ import logging
 from collections.abc import Iterator
 from itertools import islice
 
+from mlip_autopipec.core.active_learner import ActiveLearner
 from mlip_autopipec.core.factory import ComponentFactory
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
+from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
 from mlip_autopipec.domain_models.enums import TaskType
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,11 @@ class Orchestrator:
         self.trainer = self.factory.create_trainer(self.work_dir)
         self.dynamics = self.factory.create_dynamics(self.work_dir)
         self.validator = self.factory.create_validator()
+
+        # Cycle 06: Active Learner
+        self.active_learner = ActiveLearner(
+            self.config, self.generator, self.oracle, self.trainer
+        )
 
     def _acquire_training_data(
         self, cycle: int, potential: Potential | None
@@ -54,31 +60,28 @@ class Orchestrator:
         self, seeds_iter: Iterator[Structure], potential: Potential
     ) -> Iterator[Structure]:
         halt_threshold = self.config.dynamics.max_gamma_threshold
-        n_local = self.config.generator.policy.n_local_candidates
-        n_select = self.config.trainer.n_active_set_per_halt
 
-        # Max seeds to process to prevent infinite loop if generator is infinite
-        # Using a hard cap or config-based cap
-        max_seeds_to_check = 1000
+        # Use configurable limit for OTF seeds
+        max_seeds = self.config.orchestrator.max_otf_seeds
+        safe_seeds_iter = islice(seeds_iter, max_seeds)
 
-        # Stream seeds one by one to keep memory usage low
-        # Use islice to enforce a hard limit on seed processing from infinite generators
-        # This prevents unbounded loops if seeds_iter is infinite (e.g. RandomGenerator)
-        safe_seeds_iter = islice(seeds_iter, max_seeds_to_check)
+        # Track potentially updated potential during OTF loop
+        current_potential = potential
 
-        for _seed_count, seed in enumerate(safe_seeds_iter):
+        for seed_idx, seed in enumerate(safe_seeds_iter):
+            if seed_idx > 0 and seed_idx % 10 == 0:
+                logger.info(f"OTF Loop: Processed {seed_idx} seeds...")
 
-            if potential is None:
+            if current_potential is None:
                 logger.error("Potential is None in OTF loop. Cannot simulate.")
                 break
 
-            trajectory = self.dynamics.simulate(potential, seed)
+            trajectory = self.dynamics.simulate(current_potential, seed)
 
             halted_frame = None
             for frame in trajectory:
                 score = frame.uncertainty_score
 
-                # Strict validation: Only halt if score is explicitly present and exceeds threshold
                 if score is not None:
                     if score > halt_threshold:
                         logger.info(f"Halt triggered: gamma={score}")
@@ -93,41 +96,58 @@ class Orchestrator:
                         halted_frame = frame
                         break
                 else:
-                    # Handle None case explicitly as requested by audit
                     logger.debug("Frame encountered with no uncertainty score during OTF.")
                     continue
 
             if halted_frame:
-                logger.info("Halt event: Generating local candidates and selecting active set...")
-                # 1. Generate local candidates
-                candidates = self.generator.generate_local_candidates(halted_frame, count=n_local)
+                logger.info("Halt event: Triggering Local Learning Loop...")
 
-                # 2. Select active set (Local D-Optimality)
-                # Delegated to Trainer's select_active_set which handles D-Optimality
-                selected = self.trainer.select_active_set(candidates, count=n_select)
+                # Extract step from metadata if available, else 0
+                step = halted_frame.metadata.get("step", 0)
+                if not isinstance(step, int):
+                    step = 0
 
-                yield from selected
+                halt_info = HaltInfo(
+                    step=step,
+                    max_gamma=halted_frame.uncertainty_score or 0.0,
+                    structure=halted_frame,
+                    reason="uncertainty_threshold"
+                )
+
+                # Active Learner Loop (Cycle 06)
+                # This updates the potential locally and adds data to trainer
+                new_potential = self.active_learner.process_halt(halt_info)
+
+                # Update current potential for next seed/iteration
+                current_potential = new_potential
+
+                # Update state manager so we don't lose progress if crash
+                self.state_manager.update_potential(new_potential.path)
+                self.state_manager.save()
+
+                # Since ActiveLearner handled labeling and training, we do NOT yield structures
+                # to the outer loop to avoid double-counting or re-training redundancy.
+                # However, if we wanted to allow the outer loop to do a final "Global Train",
+                # we might yield them. But ActiveLearner already trained.
+                # We yield nothing here for this halt event.
+                continue
+
+        # Ensure this function is a generator even if no yield occurred
+        if False:
+            yield
 
     def _select_cold_start(self, candidates: Iterator[Structure]) -> Iterator[Structure]:
         """Applies random sampling and limits for Cold Start candidates."""
         max_samples = self.config.orchestrator.max_candidates
         ratio = self.config.trainer.selection_ratio
 
-        # Guard against zero/negative ratio
         if ratio <= 0:
             logger.warning("Selection ratio <= 0, defaulting to 1 (take all).")
             step = 1
         else:
             step = max(1, int(1.0 / ratio))
 
-        # Explicitly bounds check to prevent infinite generator consumption
-        # Using islice is safe if we don't materialize, but let's be explicit about the cap
-
-        # Step 1: Subsample (Ratio)
         stepped_iter = islice(candidates, 0, None, step)
-
-        # Step 2: Limit Total (Max Candidates)
-        # This effectively stops the infinite generator once max_samples is reached
         limited_iter = islice(stepped_iter, max_samples)
 
         yield from limited_iter
@@ -156,18 +176,23 @@ class Orchestrator:
                 self.state_manager.update_step(TaskType.EXPLORATION)
                 self.state_manager.save()  # Checkpoint: Start Exploration
 
-                # This returns structures that are already selected/filtered
                 structures_to_label = self._acquire_training_data(cycle, current_potential)
 
+                # Check if potential was updated during acquisition (OTF Active Learning)
+                pot_path = self.state_manager.state.active_potential_path
+                if pot_path and pot_path.exists():
+                     # Reload potential to ensure we are up to date if OTF loop updated it
+                     current_potential = Potential(path=pot_path, format="yace")
+
                 # 2. Oracle (Labeling)
-                # We categorize Oracle under TRAINING phase as it's data prep
                 self.state_manager.update_step(TaskType.TRAINING)
                 self.state_manager.save() # Checkpoint: Start Oracle
 
+                # Note: If OTF handled everything, structures_to_label might be empty.
                 labeled = self.oracle.compute(structures_to_label)
 
                 # 3. Training
-                # state step is already TRAINING
+                # If labeled is empty, this might be a no-op or a consolidation training
                 new_potential = self.trainer.train(labeled)
 
                 self.state_manager.update_potential(new_potential.path)

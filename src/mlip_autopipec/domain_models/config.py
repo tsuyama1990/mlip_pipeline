@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -184,6 +185,11 @@ class OrchestratorConfig(BaseModel):
         ge=1,
         description="Maximum number of candidates to process per cycle",
     )
+    max_otf_seeds: int = Field(
+        default=1000,
+        ge=1,
+        description="Maximum number of seeds to simulate in OTF loop",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -206,6 +212,24 @@ class SystemConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ActiveLearningConfig(BaseModel):
+    """Configuration for Active Learning (Local Learning Loop)."""
+    perturbation_magnitude: float = Field(
+        default=0.1, gt=0.0, description="Magnitude of displacement for local candidates (Angstrom)"
+    )
+    n_candidates: int = Field(
+        default=20, ge=1, description="Number of candidates to generate per halt"
+    )
+    sampling_method: Literal["perturbation", "md_burst"] = Field(
+        default="perturbation", description="Method for local candidate generation"
+    )
+    max_retries: int = Field(
+        default=3, ge=0, description="Max retries for the local loop if validation fails"
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class GlobalConfig(BaseModel):
     """Global Configuration Root."""
     orchestrator: OrchestratorConfig
@@ -215,5 +239,6 @@ class GlobalConfig(BaseModel):
     trainer: TrainerConfig
     dynamics: DynamicsConfig
     validator: ValidatorConfig
+    active_learning: ActiveLearningConfig = Field(default_factory=ActiveLearningConfig)
 
     model_config = ConfigDict(extra="forbid")

@@ -21,7 +21,7 @@ src/mlip_autopipec/
 ├── core/
 │   └── **active_learner.py** # Orchestrates the Halt-Diagnose-Train loop
 ├── domain_models/
-│   └── **config.py**         # Update ActiveLearningConfig
+│   └── **config.py**         # Update GlobalConfig with ActiveLearningConfig
 ├── generator/
 │   └── **candidate_generator.py** # Local perturbations (Normal Mode / Random)
 ├── trainer/
@@ -33,29 +33,38 @@ src/mlip_autopipec/
 
 ## 3. Design Architecture
 
-### 3.1 Active Learner (`core/active_learner.py`)
+### 3.1 ActiveLearningConfig (`domain_models/config.py`)
+New configuration block added to `GlobalConfig`.
+*   **Fields**:
+    *   `perturbation_magnitude` (float, default=0.1): Magnitude of displacement for local candidates (Angstrom).
+    *   `n_candidates` (int, default=20): Number of candidates to generate per halt.
+    *   `sampling_method` (str, default="perturbation"): Method for generation ("perturbation", "md_burst").
+    *   `max_retries` (int, default=3): Max retries for the local loop if validation fails.
+
+### 3.2 Active Learner (`core/active_learner.py`)
 This class manages the specific workflow triggered by a `HaltEvent`.
 *   **Input**: `HaltEvent` (containing snapshot and high-gamma atom indices).
-*   **Workflow**:
-    *   Calls `CandidateGenerator.generate_local(snapshot, indices)`.
-    *   Calls `ActiveSelector.select_batch(candidates, method='maxvol')`.
-    *   Calls `Oracle.compute(selected_candidates)`.
-    *   Calls `Trainer.fine_tune(new_data)`.
-    *   Returns updated `Potential`.
+*   **Dependencies**: `CandidateGenerator`, `ActiveSelector`, `Oracle`, `Trainer`.
+*   **Workflow (`process_halt`)**:
+    1.  Calls `CandidateGenerator.generate_local(snapshot)`.
+    2.  Calls `ActiveSelector.select_batch(candidates)`.
+    3.  Calls `Oracle.compute(selected_candidates)`.
+    4.  Calls `Trainer.train(new_data)` (Fine-tuning).
+    5.  Returns updated `Potential`.
 
-### 3.2 Candidate Generator (`generator/candidate_generator.py`)
+### 3.3 Candidate Generator (`generator/candidate_generator.py`)
 Generates variations of a structure.
 *   **Method A (Random Displacement)**: Displaces atoms within a radius $R$ by a random vector $\delta$.
 *   **Method B (Normal Mode - *Advanced*)**: Calculates Hessian (using the current potential) and displaces along soft modes.
 *   **Method C (MD Burst)**: Runs very short, high-T MD trajectories starting from the halt structure.
 
-### 3.3 Local Active Selector (`trainer/active_selector.py`)
+### 3.4 Local Active Selector (`trainer/active_selector.py`)
 Selects the best subset from candidates.
 *   **Logic**: Uses the `pace_activeset` command on the small batch of candidates to find the most distinct ones relative to the *current* active set.
 
 ## 4. Implementation Approach
 
-1.  **Enhance Domain Models**: Add `ActiveLearningConfig` (e.g., perturbation magnitude, number of candidates).
+1.  **Enhance Domain Models**: Add `ActiveLearningConfig`.
 2.  **Implement CandidateGenerator**: Write logic to take an `Atoms` object and return a list of perturbed `Atoms`.
 3.  **Implement ActiveSelector**: Wrapper around `pace_activeset` for small batches.
 4.  **Implement ActiveLearner**: The main logic that ties it all together. This will be called by the `Orchestrator` when `Dynamics.run()` returns a Halt.
