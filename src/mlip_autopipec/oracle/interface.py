@@ -1,8 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING
 
 from mlip_autopipec.domain_models.datastructures import Structure
+
+if TYPE_CHECKING:
+    from mlip_autopipec.domain_models.config import OracleConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,9 @@ class BaseOracle(ABC):
 
 class MockOracle(BaseOracle):
     """Mock implementation of Oracle."""
+
+    def __init__(self, config: "OracleConfig | None" = None) -> None:
+        self.config = config
 
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         logger.info("MockOracle: Computing energies and forces...")

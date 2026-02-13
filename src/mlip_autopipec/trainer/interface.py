@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from mlip_autopipec.constants import MOCK_POTENTIAL_CONTENT
+from mlip_autopipec.domain_models.config import MOCK_POTENTIAL_CONTENT
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,10 @@ class BaseTrainer(ABC):
             A Potential object representing the trained model.
         """
 
+    @abstractmethod
     def select_active_set(self, structures: Iterable[Structure], count: int) -> Iterator[Structure]:
         """
         Selects the most informative structures using D-Optimality (or random).
-        Default implementation passes through the first N structures.
 
         Args:
             structures: Candidates to select from.
@@ -37,14 +37,6 @@ class BaseTrainer(ABC):
         Returns:
             An iterator of selected structures.
         """
-        logger.warning(
-            "Using default select_active_set (pass-through). Subclasses should override."
-        )
-
-        for i, s in enumerate(structures):
-            if i >= count:
-                break
-            yield s
 
 
 class MockTrainer(BaseTrainer):

@@ -29,15 +29,26 @@ class Orchestrator:
         self.dynamics = self.factory.create_dynamics()
         self.validator = self.factory.create_validator()
 
-    def _explore_candidates(self, cycle: int, potential: Potential | None) -> Iterator[Structure]:
+    def _acquire_training_data(
+        self, cycle: int, potential: Potential | None
+    ) -> Iterator[Structure]:
+        """
+        Acquires training data either via Cold Start generation or OTF Active Learning.
+        Returns an iterator of selected structures ready for labeling.
+        """
         if potential is None:
-            logger.info("Cold Start: Using Generator for initial structures.")
+            # Cold Start
+            logger.info("Cold Start: Generating and selecting initial structures.")
             context = {"cycle": cycle, "temperature": self.config.dynamics.temperature}
-            return self.generator.explore(context)
+            raw_candidates = self.generator.explore(context)
+            return self._select_cold_start(raw_candidates)
 
-        logger.info("OTF Mode: Using Dynamics with active potential.")
+        # OTF
+        logger.info("OTF Mode: Running Active Learning Loop.")
         seeds = self.generator.explore({"cycle": cycle, "mode": "seed"})
-        return self._otf_generator(seeds, potential)
+        otf_candidates = self._otf_generator(seeds, potential)
+        # Just limit the total number to avoid infinite loops or runaway costs
+        return islice(otf_candidates, self.config.orchestrator.max_candidates)
 
     def _otf_generator(
         self, seeds_iter: Iterator[Structure], potential: Potential
@@ -69,36 +80,26 @@ class Orchestrator:
                     # Handle None case explicitly as requested by audit
                     logger.debug("Frame encountered with no uncertainty score during OTF.")
                     continue
-                # If score is None or low, continue simulation
 
             if halted_frame:
                 logger.info("Halt event: Generating local candidates and selecting active set...")
                 # 1. Generate local candidates
                 candidates = self.generator.generate_local_candidates(halted_frame, count=n_local)
 
-                # Peek at candidates to ensure we have something (optional, but good for debug)
-                # But since it's an iterator, we just pass it to select_active_set.
-                # However, if generate_local_candidates yields nothing, we might want to know.
-                # For now, we rely on select_active_set to handle empty input gracefully.
-
                 # 2. Select active set (Local D-Optimality)
+                # Delegated to Trainer's select_active_set which handles D-Optimality
                 selected = self.trainer.select_active_set(candidates, count=n_select)
 
-                # Streaming check - if iterator is empty, nothing happens, which is safe.
-                # However, for debugging, we might want to know if selection failed.
                 yield from selected
 
-    def _select_candidates(self, candidates: Iterator[Structure]) -> Iterator[Structure]:
+    def _select_cold_start(self, candidates: Iterator[Structure]) -> Iterator[Structure]:
+        """Applies random sampling and limits for Cold Start candidates."""
         max_samples = self.config.orchestrator.max_candidates
-        # Simple sampling based on selection_ratio (streaming approximation)
         ratio = self.config.trainer.selection_ratio
         step = max(1, int(1.0 / ratio)) if ratio > 0 else 1
 
         # Use itertools.islice to efficiently skip and limit items
-        # Slice syntax: start, stop, step
         stepped_iter = islice(candidates, 0, None, step)
-
-        # Limit total items
         limited_iter = islice(stepped_iter, max_samples)
 
         yield from limited_iter
@@ -121,16 +122,14 @@ class Orchestrator:
             self.state_manager.update_cycle(cycle + 1)
             logger.info(f"--- Starting Cycle {cycle + 1}/{max_cycles} ---")
 
-            # 1. Exploration
+            # 1. Exploration & Selection (Acquire Data)
             self.state_manager.update_step(TaskType.EXPLORATION)
-            candidates = self._explore_candidates(cycle, current_potential)
+            # This returns structures that are already selected/filtered
+            structures_to_label = self._acquire_training_data(cycle, current_potential)
 
-            # 2. Selection
-            selected = self._select_candidates(candidates)
-
-            # 3. Oracle
+            # 2. Oracle
             self.state_manager.update_step(TaskType.TRAINING)
-            labeled = self.oracle.compute(selected)
+            labeled = self.oracle.compute(structures_to_label)
 
             # 4. Training
             self.state_manager.update_step(TaskType.TRAINING)

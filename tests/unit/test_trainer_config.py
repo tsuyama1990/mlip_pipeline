@@ -1,9 +1,9 @@
-from mlip_autopipec.constants import (
+from mlip_autopipec.domain_models.config import (
     DEFAULT_BASIS_SIZE,
     DEFAULT_CUTOFF,
     DEFAULT_ORDER,
+    TrainerConfig,
 )
-from mlip_autopipec.domain_models.config import TrainerConfig
 from mlip_autopipec.domain_models.enums import TrainerType
 
 

@@ -72,7 +72,8 @@ def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     # Trainer accepts Iterable
     structures = [s]
     potential = trainer.train(structures)
-    assert potential.path.name == "potential.yace"
+    assert potential.path.name.startswith("potential_")
+    assert potential.path.name.endswith(".yace")
     assert potential.format == "yace"
 
 

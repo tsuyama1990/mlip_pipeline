@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from mlip_autopipec.constants import DEFAULT_MOCK_FRAMES
+from mlip_autopipec.domain_models.config import DEFAULT_MOCK_FRAMES
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 if TYPE_CHECKING:

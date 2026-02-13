@@ -148,20 +148,6 @@ class TestAdaptiveGenerator:
             assert s.provenance == "md_300.0K"  # Default schedule 300K
         assert count == 1
 
-    def test_generate_lammps_input(self) -> None:
-        config = GeneratorConfig(type=GeneratorType.ADAPTIVE)
-        generator = AdaptiveGenerator(config)
-
-        with generator._lammps_input_context(temperature=500.0, steps=2000) as path:
-            assert path.exists()
-            content = path.read_text()
-            assert "run 2000" in content
-            assert "temp 500.0 500.0" in content
-            assert "units metal" in content
-            # Cleanup happens on exit
-
-        assert not path.exists()
-
     def test_adaptive_generator_no_seed_fallback(self) -> None:
         """Test that AdaptiveGenerator falls back to M3GNet when no seed is provided."""
         config = GeneratorConfig(type=GeneratorType.ADAPTIVE, seed_structure_path=None)

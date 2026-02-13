@@ -22,7 +22,12 @@ class BaseGenerator(ABC):
         Generates candidate structures.
 
         Args:
-            context: Dictionary containing exploration parameters (e.g. temperature).
+            context: Dictionary containing exploration parameters.
+                Common keys:
+                - 'cycle' (int): Current active learning cycle.
+                - 'temperature' (float): Target temperature for generation.
+                - 'count' (int): Number of structures to generate (optional).
+                - 'mode' (str): Generation mode (e.g., 'seed' for OTF).
 
         Returns:
             An iterator of Structure objects.

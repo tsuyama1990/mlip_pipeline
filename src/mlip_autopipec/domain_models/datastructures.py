@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ase import Atoms
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -39,9 +39,10 @@ class Structure(BaseModel):
         return self.atoms
 
     def to_ase(self) -> Atoms:
-        """Returns the internal ase.Atoms object with updated info."""
+        """Returns a copy of the internal ase.Atoms object with updated info."""
         # atoms is verified to be Atoms in validate_atoms
-        atoms = self.ase_atoms
+        # Use copy() to prevent side effects on the persistent data model
+        atoms = cast(Atoms, self.ase_atoms.copy())  # type: ignore[no-untyped-call]
         atoms.info.update(
             {
                 "provenance": self.provenance,
