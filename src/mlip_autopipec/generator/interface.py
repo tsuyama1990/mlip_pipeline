@@ -83,7 +83,8 @@ class MockGenerator(BaseGenerator):
         allowed_keys = {"cycle", "temperature", "count", "mode"}
         for key, value in context.items():
             if key not in allowed_keys:
-                logger.warning(f"Unexpected key in exploration context: {key}")
+                msg = f"Unexpected key in exploration context: {key}"
+                raise ValueError(msg)
 
             # Type checks
             if key == "cycle" and not isinstance(value, int):

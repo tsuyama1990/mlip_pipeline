@@ -43,6 +43,12 @@ class Structure(BaseModel):
         # atoms is verified to be Atoms in validate_atoms
         # Use copy() to prevent side effects on the persistent data model
         atoms = cast(Atoms, self.ase_atoms.copy())  # type: ignore[no-untyped-call]
+
+        # Validate critical fields before updating atoms.info
+        if not isinstance(self.provenance, str):
+            msg = f"Provenance must be a string, got {type(self.provenance)}"
+            raise TypeError(msg)
+
         atoms.info.update(
             {
                 "provenance": self.provenance,

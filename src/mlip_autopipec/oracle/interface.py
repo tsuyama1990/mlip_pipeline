@@ -43,7 +43,14 @@ class MockOracle(BaseOracle):
         batch_size = 50
         batch: list[Structure] = []
 
-        for s in structures:
+        # Max structures safety limit
+        max_structures = 10000
+
+        for count, s in enumerate(structures):
+            if count >= max_structures:
+                logger.warning(f"MockOracle reached max structure limit ({max_structures}). Stopping.")
+                break
+
             batch.append(s)
             if len(batch) >= batch_size:
                 yield from self._process_batch(batch, SinglePointCalculator, np)

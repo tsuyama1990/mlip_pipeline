@@ -53,15 +53,12 @@ DEFAULT_LOG_FILE = "mlip_pipeline.log"
 MOCK_POTENTIAL_CONTENT = "MOCK POTENTIAL FILE CONTENT"
 
 # Defaults moved from constants.py to ensure configuration locality
-# Load default LAMMPS template from file
-def _load_default_lammps_template() -> str:
+# Lazy loader for LAMMPS template
+def get_default_lammps_template() -> str:
     template_path = Path(__file__).parents[1] / "templates" / "default_lammps.in"
     if template_path.exists():
         return template_path.read_text()
     return ""
-
-
-DEFAULT_LAMMPS_TEMPLATE = _load_default_lammps_template()
 
 
 class BaseComponentConfig(BaseModel):
@@ -101,7 +98,7 @@ class ExplorationPolicyConfig(BaseModel):
         default=DEFAULT_LOCAL_SAMPLING_METHOD, description="Method for local candidate generation"
     )
     lammps_template: str = Field(
-        default=DEFAULT_LAMMPS_TEMPLATE, description="Template for LAMMPS input script"
+        default_factory=get_default_lammps_template, description="Template for LAMMPS input script"
     )
 
     model_config = ConfigDict(extra="forbid")

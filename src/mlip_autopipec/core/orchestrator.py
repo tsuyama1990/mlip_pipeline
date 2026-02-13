@@ -57,7 +57,17 @@ class Orchestrator:
         n_local = self.config.generator.policy.n_local_candidates
         n_select = self.config.trainer.n_active_set_per_halt
 
+        # Max seeds to process to prevent infinite loop if generator is infinite
+        # Using a hard cap or config-based cap
+        max_seeds_to_check = 1000
+        seed_count = 0
+
         for seed in seeds_iter:
+            if seed_count >= max_seeds_to_check:
+                logger.warning(f"OTF generator reached max seed check limit ({max_seeds_to_check}).")
+                break
+            seed_count += 1
+
             trajectory = self.dynamics.simulate(potential, seed)
 
             halted_frame = None

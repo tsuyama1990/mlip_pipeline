@@ -70,7 +70,19 @@ class MockTrainer(BaseTrainer):
         # Generate unique filename to avoid overwrites
         filename = f"potential_{uuid.uuid4().hex[:8]}.yace"
         potential_path = self.work_dir / filename
-        potential_path.write_text(MOCK_POTENTIAL_CONTENT)
+
+        # Validate file system permissions before writing
+        if not self.work_dir.exists():
+            # Should have been created in __init__, but check again
+            msg = f"Work directory {self.work_dir} does not exist."
+            raise FileNotFoundError(msg)
+
+        try:
+            potential_path.write_text(MOCK_POTENTIAL_CONTENT)
+        except OSError as e:
+            msg = f"Failed to write potential file to {potential_path}: {e}"
+            logger.exception(msg)
+            raise
 
         return Potential(path=potential_path, format="yace", parameters={"mock": True})
 
