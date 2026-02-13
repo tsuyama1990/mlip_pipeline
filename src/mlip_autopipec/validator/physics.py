@@ -122,6 +122,24 @@ class PhysicsValidator(BaseValidator):
             logger.exception("Phonon Validation failed")
             return False, PhononResults(is_stable=False, max_imaginary_freq=0.0, band_structure_path=None)
 
+    def _raise_structure_error(self, structure_type: type) -> None:
+        """Helper to raise TypeError for invalid structure type."""
+        msg = f"Loaded object is not an Atoms object: {structure_type}"
+        raise TypeError(msg)
+
+    def _load_structure(self, path: Path) -> Atoms:
+        try:
+             structure_raw = read(path)
+             structure = structure_raw[0] if isinstance(structure_raw, list) else structure_raw
+
+             if not isinstance(structure, Atoms):
+                 self._raise_structure_error(type(structure))
+             return structure
+
+        except Exception as e:
+             msg = f"Failed to load structure from {path}: {e}"
+             raise ValueError(msg) from e
+
     def validate(self, potential: Potential) -> ValidationResult:
         logger.info("Starting Physics Validation for %s...", potential.path)
 
@@ -130,18 +148,7 @@ class PhysicsValidator(BaseValidator):
              raise ValueError(msg)
 
         # Load reference structure
-        try:
-             structure_raw = read(self.config.structure_path)
-             structure = structure_raw[0] if isinstance(structure_raw, list) else structure_raw
-
-             if not isinstance(structure, Atoms):
-                 # Should not happen with ASE read unless format is weird
-                 msg = f"Loaded object is not an Atoms object: {type(structure)}"
-                 raise TypeError(msg)
-
-        except Exception as e:
-             msg = f"Failed to load structure from {self.config.structure_path}: {e}"
-             raise ValueError(msg) from e
+        structure = self._load_structure(self.config.structure_path)
 
         metrics: dict[str, float] = {}
 
