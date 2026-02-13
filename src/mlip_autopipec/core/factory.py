@@ -9,7 +9,7 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
-from mlip_autopipec.dynamics import BaseDynamics, MockDynamics
+from mlip_autopipec.dynamics import BaseDynamics, LAMMPSDriver, MockDynamics
 from mlip_autopipec.generator import (
     AdaptiveGenerator,
     BaseGenerator,
@@ -64,10 +64,13 @@ class ComponentFactory:
         msg = f"Unsupported trainer type: {trainer_type}"
         raise ValueError(msg)
 
-    def create_dynamics(self) -> BaseDynamics:
+    def create_dynamics(self, work_dir: Path) -> BaseDynamics:
         dyn_type = self.config.dynamics.type
         if dyn_type == DynamicsType.MOCK:
             return MockDynamics(self.config.dynamics)
+        if dyn_type == DynamicsType.LAMMPS:
+            return LAMMPSDriver(work_dir, self.config.dynamics)
+
         msg = f"Unsupported dynamics type: {dyn_type}"
         raise ValueError(msg)
 

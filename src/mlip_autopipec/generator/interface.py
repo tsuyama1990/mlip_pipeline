@@ -71,8 +71,13 @@ class MockGenerator(BaseGenerator):
 
         if isinstance(count, int):
             for i in range(count):
-                # Create a simple dimer
-                atoms = Atoms("He2", positions=[[0, 0, 0], [0, 0, 1.5 + i * 0.1]])
+                # Create a simple dimer with cell to ensure valid LAMMPS input
+                atoms = Atoms(
+                    "He2",
+                    positions=[[0, 0, 0], [0, 0, 1.5 + i * 0.1]],
+                    cell=[10.0, 10.0, 10.0],
+                    pbc=True,
+                )
                 yield Structure(atoms=atoms, provenance="mock_generator", label_status="unlabeled")
         else:
             # Fallback if not int

@@ -9,6 +9,7 @@ from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     ExecutionMode,
     GeneratorType,
+    HybridPotentialType,
     OracleType,
     TrainerType,
     ValidatorType,
@@ -38,15 +39,9 @@ class ExplorationPolicyConfig(BaseModel):
         default_factory=lambda: [300.0, 600.0, 1200.0],
         description="Temperature schedule per cycle",
     )
-    md_steps: int = Field(
-        default=1000, ge=1, description="Number of MD steps per exploration"
-    )
-    mc_swap_prob: float = Field(
-        default=0.1, ge=0.0, le=1.0, description="Probability of MC swap"
-    )
-    defect_density: float = Field(
-        default=0.0, ge=0.0, description="Defect density"
-    )
+    md_steps: int = Field(default=1000, ge=1, description="Number of MD steps per exploration")
+    mc_swap_prob: float = Field(default=0.1, ge=0.0, le=1.0, description="Probability of MC swap")
+    defect_density: float = Field(default=0.0, ge=0.0, description="Defect density")
     strain_range: float = Field(
         default=0.05, ge=0.0, description="Strain range for random generation"
     )
@@ -95,20 +90,14 @@ class OracleConfig(BaseComponentConfig):
     pseudos: dict[str, str] = Field(
         default_factory=dict, description="Map of element to pseudopotential filename"
     )
-    mixing_beta: float = Field(
-        default=0.7, gt=0.0, le=1.0, description="Mixing beta for SCF"
-    )
-    smearing_width: float = Field(
-        default=0.01, ge=0.0, description="Smearing width in Ry"
-    )
+    mixing_beta: float = Field(default=0.7, gt=0.0, le=1.0, description="Mixing beta for SCF")
+    smearing_width: float = Field(default=0.01, ge=0.0, description="Smearing width in Ry")
     symmetry_precision: float = Field(
         default=1e-5,
         gt=0.0,
         description="Symmetry precision for spglib/Phonopy",
     )
-    n_workers: int = Field(
-        default=1, ge=1, description="Number of parallel DFT calculations"
-    )
+    n_workers: int = Field(default=1, ge=1, description="Number of parallel DFT calculations")
 
 
 class TrainerConfig(BaseComponentConfig):
@@ -116,8 +105,7 @@ class TrainerConfig(BaseComponentConfig):
     max_epochs: int = Field(default=100, ge=1)
     batch_size: int = Field(default=32, ge=1)
     mock_potential_content: str = Field(
-        default="MOCK POTENTIAL FILE CONTENT",
-        description="Content for mock potential file"
+        default="MOCK POTENTIAL FILE CONTENT", description="Content for mock potential file"
     )
     # Active Set
     active_set_method: ActiveSetMethod = Field(
@@ -144,6 +132,20 @@ class DynamicsConfig(BaseComponentConfig):
     type: DynamicsType = DynamicsType.MOCK
     temperature: float = Field(default=300.0, gt=0.0)
     steps: int = Field(default=1000, ge=1)
+    timestep: float = Field(default=0.001, gt=0.0, description="MD timestep in ps")
+    n_thermo: int = Field(default=10, ge=1, description="Thermodynamic output interval")
+    n_dump: int = Field(default=100, ge=1, description="Trajectory dump interval")
+
+    # Hybrid Potential (Baseline)
+    hybrid_potential: HybridPotentialType | None = Field(
+        default=None, description="Baseline potential for hybrid/overlay"
+    )
+    zbl_cut_inner: float = Field(default=0.5, gt=0.0, description="ZBL inner cutoff")
+    zbl_cut_outer: float = Field(default=1.2, gt=0.0, description="ZBL outer cutoff")
+    lj_epsilon: float = Field(default=1.0, gt=0.0, description="LJ epsilon")
+    lj_sigma: float = Field(default=1.0, gt=0.0, description="LJ sigma")
+    lj_cutoff: float = Field(default=2.5, gt=0.0, description="LJ cutoff")
+
     # Mock specific
     mock_frames: int = Field(
         default=5, ge=1, description="Number of frames to generate in mock mode"
@@ -164,9 +166,7 @@ class ValidatorConfig(BaseComponentConfig):
 
 
 class OrchestratorConfig(BaseModel):
-    max_cycles: int = Field(
-        default=1, ge=1, description="Maximum number of active learning cycles"
-    )
+    max_cycles: int = Field(default=1, ge=1, description="Maximum number of active learning cycles")
     # Remove default to satisfy "NO hardcoded paths". Must be provided in config.
     work_dir: Path = Field(..., description="Root directory for outputs")
     execution_mode: ExecutionMode = Field(
@@ -192,12 +192,8 @@ class SystemConfig(BaseModel):
     healer_degauss_target: float = Field(
         default=0.02, description="Target degauss for SCF healing (Ryd)"
     )
-    default_buffer_size: int = Field(
-        default=1000, description="Streaming buffer size"
-    )
-    eon_default_time_step: float = Field(
-        default=1.0, description="Default time step for EON (fs)"
-    )
+    default_buffer_size: int = Field(default=1000, description="Streaming buffer size")
+    eon_default_time_step: float = Field(default=1.0, description="Default time step for EON (fs)")
     log_file: str = Field(default="mlip_pipeline.log", description="Filename for logging")
 
     model_config = ConfigDict(extra="forbid")

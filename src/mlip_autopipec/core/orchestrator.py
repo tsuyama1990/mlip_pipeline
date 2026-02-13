@@ -26,7 +26,7 @@ class Orchestrator:
         self.generator = self.factory.create_generator()
         self.oracle = self.factory.create_oracle()
         self.trainer = self.factory.create_trainer(self.work_dir)
-        self.dynamics = self.factory.create_dynamics()
+        self.dynamics = self.factory.create_dynamics(self.work_dir)
         self.validator = self.factory.create_validator()
 
     def _acquire_training_data(
@@ -68,7 +68,9 @@ class Orchestrator:
 
         for seed_count, seed in enumerate(seeds_iter):
             if seed_count >= max_seeds_to_check:
-                logger.warning(f"OTF generator reached max seed check limit ({max_seeds_to_check}).")
+                logger.warning(
+                    f"OTF generator reached max seed check limit ({max_seeds_to_check})."
+                )
                 break
 
             trajectory = self.dynamics.simulate(potential, seed)
@@ -82,11 +84,13 @@ class Orchestrator:
                     if score > halt_threshold:
                         logger.info(f"Halt triggered: gamma={score}")
                         frame.provenance = "md_halt"
-                        frame.metadata.update({
-                            "halt_reason": "uncertainty_threshold",
-                            "max_gamma": score,
-                            "threshold": halt_threshold,
-                        })
+                        frame.metadata.update(
+                            {
+                                "halt_reason": "uncertainty_threshold",
+                                "max_gamma": score,
+                                "threshold": halt_threshold,
+                            }
+                        )
                         halted_frame = frame
                         break
                 else:
