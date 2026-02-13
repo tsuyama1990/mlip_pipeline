@@ -64,15 +64,15 @@ def test_simulate_success(
     mock_run.side_effect = create_dump_file
 
     # Mock trajectory reading
-    frame1 = mock_structure.atoms.copy()  # type: ignore[no-untyped-call]
-    frame1.new_array('c_pace[1]', np.array([0.1, 0.2]))  # Low gamma
+    frame1 = mock_structure.atoms.copy() # type: ignore[no-untyped-call]
+    frame1.new_array('c_pace[1]', np.array([0.1, 0.2])) # Low gamma
     # Simulate ASE reading 'type' column as atomic numbers (so 1-based index)
-    frame1.set_atomic_numbers([1, 1])
+    frame1.set_atomic_numbers([1, 1]) # type: ignore[no-untyped-call]
 
-    frame2 = mock_structure.atoms.copy()  # type: ignore[no-untyped-call]
+    frame2 = mock_structure.atoms.copy() # type: ignore[no-untyped-call]
     frame2.positions[0] += 0.1
-    frame2.new_array('c_pace[1]', np.array([0.2, 0.3]))  # Low gamma
-    frame2.set_atomic_numbers([1, 1])
+    frame2.new_array('c_pace[1]', np.array([0.2, 0.3])) # Low gamma
+    frame2.set_atomic_numbers([1, 1]) # type: ignore[no-untyped-call]
 
     mock_iread.return_value = iter([frame1, frame2])
 
@@ -105,14 +105,16 @@ def test_simulate_halt_event(
         dump = tmp_path / "md_run_test" / "traj.dump"
         dump.parent.mkdir(parents=True, exist_ok=True)
         dump.touch()
-        return MagicMock(returncode=100, stdout="Fix halt condition met")
+        # Raise CalledProcessError to simulate check=True failure
+        import subprocess
+        raise subprocess.CalledProcessError(100, args[0])
 
     mock_run.side_effect = create_dump_file_halt
 
     # Mock trajectory reading - halted frame has high gamma
-    frame1 = mock_structure.atoms.copy()  # type: ignore[no-untyped-call]
-    frame1.new_array('c_pace[1]', np.array([1.0, 6.0]))  # High gamma > 5.0
-    frame1.set_atomic_numbers([1, 1])
+    frame1 = mock_structure.atoms.copy() # type: ignore[no-untyped-call]
+    frame1.new_array('c_pace[1]', np.array([1.0, 6.0])) # High gamma > 5.0
+    frame1.set_atomic_numbers([1, 1]) # type: ignore[no-untyped-call]
 
     mock_iread.return_value = iter([frame1])
 

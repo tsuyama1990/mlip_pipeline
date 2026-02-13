@@ -69,19 +69,23 @@ class MockGenerator(BaseGenerator):
         default_count = self.config.mock_count if self.config else 2
         count = context.get("count", default_count)
 
-        if isinstance(count, int):
-            for i in range(count):
-                # Create a simple dimer with cell to ensure valid LAMMPS input
-                atoms = Atoms(
-                    "He2",
-                    positions=[[0, 0, 0], [0, 0, 1.5 + i * 0.1]],
-                    cell=[10.0, 10.0, 10.0],
-                    pbc=True,
-                )
-                yield Structure(atoms=atoms, provenance="mock_generator", label_status="unlabeled")
-        else:
-            # Fallback if not int
-            pass
+        if not isinstance(count, int):
+            msg = f"Context 'count' must be int, got {type(count)}"
+            raise TypeError(msg)
+
+        if count <= 0:
+            msg = f"Context 'count' must be positive, got {count}"
+            raise ValueError(msg)
+
+        for i in range(count):
+            # Create a simple dimer with cell to ensure valid LAMMPS input
+            atoms = Atoms(
+                "He2",
+                positions=[[0, 0, 0], [0, 0, 1.5 + i * 0.1]],
+                cell=[10.0, 10.0, 10.0],
+                pbc=True,
+            )
+            yield Structure(atoms=atoms, provenance="mock_generator", label_status="unlabeled")
 
     def _validate_context(self, context: dict[str, Any]) -> None:
         """Validates exploration context to prevent injection and ensuring types."""
@@ -132,6 +136,11 @@ class MockGenerator(BaseGenerator):
         if not isinstance(value, str):
             msg = f"Context 'mode' must be str, got {type(value)}"
             raise TypeError(msg)
+
+        # Sanitize input: allow only alphanumeric characters
+        if not value.isalnum():
+            msg = "Context 'mode' contains invalid characters. Use alphanumeric only."
+            raise ValueError(msg)
 
         # Strict whitelist validation
         allowed_modes = {"seed", "random", "adaptive"}

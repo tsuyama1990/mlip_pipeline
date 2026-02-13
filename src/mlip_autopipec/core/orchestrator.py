@@ -61,17 +61,12 @@ class Orchestrator:
         # Using a hard cap or config-based cap
         max_seeds_to_check = 1000
 
-        # Batch seeds to control memory usage
-        # Although seeds_iter is an iterator, downstream dynamics might hold references
-        # if not careful. Here we process one by one, which is streaming.
-        # But we add a safety break.
+        # Stream seeds one by one to keep memory usage low
+        # Use islice to enforce a hard limit on seed processing from infinite generators
+        # This prevents unbounded loops if seeds_iter is infinite (e.g. RandomGenerator)
+        safe_seeds_iter = islice(seeds_iter, max_seeds_to_check)
 
-        for seed_count, seed in enumerate(seeds_iter):
-            if seed_count >= max_seeds_to_check:
-                logger.warning(
-                    f"OTF generator reached max seed check limit ({max_seeds_to_check})."
-                )
-                break
+        for _seed_count, seed in enumerate(safe_seeds_iter):
 
             trajectory = self.dynamics.simulate(potential, seed)
 
@@ -139,28 +134,34 @@ class Orchestrator:
             self.state_manager.update_cycle(cycle + 1)
             logger.info(f"--- Starting Cycle {cycle + 1}/{max_cycles} ---")
 
-            # 1. Exploration & Selection (Acquire Data)
-            self.state_manager.update_step(TaskType.EXPLORATION)
-            # This returns structures that are already selected/filtered
-            structures_to_label = self._acquire_training_data(cycle, current_potential)
+            try:
+                # 1. Exploration & Selection (Acquire Data)
+                self.state_manager.update_step(TaskType.EXPLORATION)
+                # This returns structures that are already selected/filtered
+                structures_to_label = self._acquire_training_data(cycle, current_potential)
 
-            # 2. Oracle
-            self.state_manager.update_step(TaskType.TRAINING)
-            labeled = self.oracle.compute(structures_to_label)
+                # 2. Oracle
+                self.state_manager.update_step(TaskType.TRAINING)
+                labeled = self.oracle.compute(structures_to_label)
 
-            # 4. Training
-            self.state_manager.update_step(TaskType.TRAINING)
-            new_potential = self.trainer.train(labeled)
-            self.state_manager.update_potential(new_potential.path)
-            current_potential = new_potential
-            self.state_manager.save()
-            logger.info(f"Potential trained: {new_potential.path}")
+                # 4. Training
+                self.state_manager.update_step(TaskType.TRAINING)
+                new_potential = self.trainer.train(labeled)
+                self.state_manager.update_potential(new_potential.path)
+                current_potential = new_potential
+                self.state_manager.save()
+                logger.info(f"Potential trained: {new_potential.path}")
 
-            # 5. Validation
-            self.state_manager.update_step(TaskType.VALIDATION)
-            val_result = self.validator.validate(new_potential)
-            if not val_result.passed:
-                logger.warning("Validation FAILED.")
+                # 5. Validation
+                self.state_manager.update_step(TaskType.VALIDATION)
+                val_result = self.validator.validate(new_potential)
+                if not val_result.passed:
+                    logger.warning("Validation FAILED.")
+            except Exception:
+                logger.exception(f"Cycle {cycle + 1} failed")
+                # We might want to break or continue depending on severity.
+                # For now, we log and break to avoid corrupt state.
+                break
 
         if self.config.orchestrator.cleanup_on_exit:
             self.state_manager.cleanup()

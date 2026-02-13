@@ -70,6 +70,14 @@ class HybridOverlay:
                 for j in range(i, n_types + 1):
                     elem_i = elements[i - 1]
                     elem_j = elements[j - 1]
+
+                    if elem_i not in atomic_numbers:
+                        msg = f"Unknown element: {elem_i}"
+                        raise ValueError(msg)
+                    if elem_j not in atomic_numbers:
+                        msg = f"Unknown element: {elem_j}"
+                        raise ValueError(msg)
+
                     z_i = atomic_numbers[elem_i]
                     z_j = atomic_numbers[elem_j]
                     commands.append(f"pair_coeff {i} {j} zbl {z_i} {z_j}")

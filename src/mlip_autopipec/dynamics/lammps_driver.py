@@ -67,27 +67,37 @@ class LAMMPSDriver(BaseDynamics):
 
         # 3. Execute LAMMPS
         logger.info(f"LAMMPSDriver: Executing in {run_dir}")
+        # Command is hardcoded safe list, no shell=True
         cmd = ["lmp", "-in", "in.md"]
 
         try:
             with (run_dir / "stdout.log").open("w") as stdout:
-                result = subprocess.run(  # noqa: S603
-                    cmd, cwd=run_dir, stdout=stdout, stderr=subprocess.STDOUT, check=False
+                # Use check=True to raise CalledProcessError on non-zero exit
+                # We catch it to handle special code 100
+                subprocess.run(  # noqa: S603
+                    cmd, cwd=run_dir, stdout=stdout, stderr=subprocess.STDOUT, check=True
                 )
-
-            if result.returncode != 0:
-                if result.returncode == 100:
-                    logger.warning("LAMMPSDriver: Simulation halted by Watchdog (Code 100).")
-                else:
-                    logger.error(f"LAMMPSDriver: Simulation failed with code {result.returncode}")
+        except subprocess.CalledProcessError as e:
+            if e.returncode == 100:
+                logger.warning("LAMMPSDriver: Simulation halted by Watchdog (Code 100).")
+            else:
+                logger.exception(f"LAMMPSDriver: Simulation failed with code {e.returncode}")
+                # We continue to try parsing what we have, as partial trajectory might be useful
         except FileNotFoundError as err:
             logger.exception("LAMMPS executable 'lmp' not found in PATH.")
             msg = "LAMMPS executable not found."
             raise RuntimeError(msg) from err
 
         # 4. Parse Output
+        # Use explicit frame limit to prevent OOM
+        max_frames = 10000
         if dump_file.exists():
+            # Use 'index=":"' to create a generator, preventing full file read
             for i, atoms in enumerate(iread(dump_file, format="lammps-dump-text", index=":")):
+                if i >= max_frames:
+                    logger.warning(f"LAMMPSDriver: Reached max frame limit ({max_frames}).")
+                    break
+
                 types = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
                 real_numbers = [atomic_numbers[elements[t - 1]] for t in types]
                 atoms.set_atomic_numbers(real_numbers)  # type: ignore[no-untyped-call]
