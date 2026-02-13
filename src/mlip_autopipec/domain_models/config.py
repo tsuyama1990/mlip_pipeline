@@ -131,9 +131,33 @@ class TrainerConfig(BaseComponentConfig):
     )
 
 
+class EONConfig(BaseModel):
+    """Configuration for EON (Adaptive KMC)."""
+    temperature: float = Field(default=300.0, gt=0.0, description="Temperature (K)")
+    prefactor: float = Field(default=1e13, gt=0.0, description="Prefactor for rate calculation (Hz)")
+    search_method: str = Field(default="akmc", description="Search method (e.g., akmc)")
+    client_path: str = Field(default="eonclient", description="Path to eonclient executable")
+    server_script_name: str = Field(
+        default="potential_server.py", description="Name of the potential server script"
+    )
+    potential_format: str = Field(default="yace", description="Format of the potential file")
+
+    # New fields for flexibility
+    max_result_files: int = Field(
+        default=100, ge=1, description="Max result files to process per cycle to prevent OOM"
+    )
+    config_template: str = Field(
+        default="[Main]\ntemperature = {temperature}\nprefactor = {prefactor}\nsearch_method = {search_method}\n\n[Potential]\ntype = External\ncommand = python {server_script} --potential {potential_file} --threshold {threshold}\n",
+        description="Template for EON config.ini"
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class DynamicsConfig(BaseComponentConfig):
     """Configuration for Dynamics Engine."""
     type: DynamicsType = DynamicsType.MOCK
+    eon: EONConfig | None = Field(default=None, description="EON configuration")
     temperature: float = Field(default=300.0, gt=0.0, description="Simulation temperature (K)")
     steps: int = Field(default=1000, ge=1, description="Number of steps")
     timestep: float = Field(default=0.001, gt=0.0, description="MD timestep in ps")

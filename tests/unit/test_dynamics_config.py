@@ -42,8 +42,8 @@ def test_dynamics_config_invalid() -> None:
 
 def test_dynamics_config_hybrid_enum() -> None:
     # Pydantic allows passing string to Enum field.
-    config = DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="zbl")  # type: ignore[arg-type]
+    config = DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="zbl")
     assert config.hybrid_potential == HybridPotentialType.ZBL
 
     with pytest.raises(ValidationError):
-        DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="invalid")  # type: ignore[arg-type]
+        DynamicsConfig(type=DynamicsType.MOCK, hybrid_potential="invalid")

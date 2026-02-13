@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![Coverage](https://img.shields.io/badge/coverage-88%25-green)
+![Coverage](https://img.shields.io/badge/coverage-86%25-green)
 
 **Zero-Configuration, Physics-Informed Active Learning for Machine Learning Interatomic Potentials.**
 
@@ -19,6 +19,7 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 
 ## Features
 
+*   **Long-Timescale Evolution (aKMC)**: Integrates **EON (Adaptive Kinetic Monte Carlo)** to simulate rare events and diffusion processes over seconds or hours, overcoming MD timescale limitations.
 *   **Adaptive Structure Generation**: Automatically switches between Random, M3GNet (pre-trained), and MD-based exploration strategies based on the learning cycle.
 *   **Automated DFT (Oracle)**:
     *   **Quantum Espresso Integration**: Generates input files and runs calculations via ASE.
@@ -40,6 +41,7 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 *   [Optional] Quantum Espresso (pw.x) in PATH for production Oracle
 *   [Optional] LAMMPS (`lmp` executable) in PATH for production Dynamics
 *   [Optional] Pacemaker (pace_train, pace_collect) for production Training
+*   [Optional] EON (`eonclient` executable) in PATH for aKMC Simulations
 
 ## Installation
 
@@ -82,13 +84,12 @@ src/mlip_autopipec/
 ├── generator/          # Structure Generation (Adaptive, Candidate Generator)
 ├── oracle/             # DFT Engine Interfaces, Embedding, Self-Healing, Drivers
 ├── trainer/            # Potential Training Logic, Active Selector
-├── dynamics/           # MD/MC Simulation Drivers (LAMMPS, Mock)
+├── dynamics/           # MD (LAMMPS) & aKMC (EON) Simulation Drivers
 ├── validator/          # Physics-based Validation Tests
 └── main.py             # CLI Entry Point
 ```
 
 ## Roadmap
 
-*   **Cycle 06**: Local Learning (Completed).
-*   **Cycle 07**: Long-timescale Evolution (aKMC with EON).
+*   **Cycle 07**: Long-timescale Evolution (aKMC with EON) (Completed).
 *   **Cycle 08**: Production Validation (Phonons, EOS).
