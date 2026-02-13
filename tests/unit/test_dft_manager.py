@@ -1,11 +1,9 @@
-import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
 from unittest.mock import MagicMock, patch
-import mlip_autopipec.oracle.dft_manager
 
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
+import mlip_autopipec.oracle.dft_manager
 from mlip_autopipec.domain_models.config import OracleConfig
 from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import OracleType

@@ -112,10 +112,22 @@ class Orchestrator:
         """Applies random sampling and limits for Cold Start candidates."""
         max_samples = self.config.orchestrator.max_candidates
         ratio = self.config.trainer.selection_ratio
-        step = max(1, int(1.0 / ratio)) if ratio > 0 else 1
 
-        # Use itertools.islice to efficiently skip and limit items
+        # Guard against zero/negative ratio
+        if ratio <= 0:
+            logger.warning("Selection ratio <= 0, defaulting to 1 (take all).")
+            step = 1
+        else:
+            step = max(1, int(1.0 / ratio))
+
+        # Explicitly bounds check to prevent infinite generator consumption
+        # Using islice is safe if we don't materialize, but let's be explicit about the cap
+
+        # Step 1: Subsample (Ratio)
         stepped_iter = islice(candidates, 0, None, step)
+
+        # Step 2: Limit Total (Max Candidates)
+        # This effectively stops the infinite generator once max_samples is reached
         limited_iter = islice(stepped_iter, max_samples)
 
         yield from limited_iter
