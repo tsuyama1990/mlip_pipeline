@@ -45,7 +45,7 @@ def test_train_flow(
 
     # Mock DatasetManager instance methods
     mock_dm_instance = mock_dataset_manager_cls.return_value
-    # Return (path, elements, count)
+    # Set return value to tuple: path, elements, count
     mock_dm_instance.create_dataset.return_value = (tmp_path / "dataset.pckl.gzip", ["H", "O"], 1)
     mock_dm_instance.select_active_set.return_value = tmp_path / "dataset_active.pckl.gzip"
 
