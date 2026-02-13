@@ -5,8 +5,9 @@ import pytest
 from ase.build import bulk
 
 from mlip_autopipec.domain_models.config import DynamicsConfig, EONConfig
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import DynamicsType
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.dynamics.eon_driver import EONDriver, EONExecutionError
 
 

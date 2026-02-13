@@ -5,8 +5,8 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import ExplorationPolicyConfig, GeneratorConfig
-from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import GeneratorType
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.generator.adaptive import AdaptiveGenerator
 from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
 

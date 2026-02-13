@@ -4,7 +4,7 @@ from ase import Atoms
 # In strict TDD, we'd create the file and then run tests to see import errors.
 # But for this environment, I will create the test file and then implement the code.
 # I will use safe imports or just standard imports.
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.dynamics.interface import MockDynamics
 
 # Assuming these will be available
@@ -111,7 +111,7 @@ def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
     # Need a potential
     from pathlib import Path
 
-    from mlip_autopipec.domain_models.datastructures import Potential
+    from mlip_autopipec.domain_models.potential import Potential
 
     pot = Potential(path=Path("potential.yace"), format="yace")
 
@@ -141,7 +141,7 @@ def test_mock_validator_validate() -> None:
     validator = MockValidator()
     from pathlib import Path
 
-    from mlip_autopipec.domain_models.datastructures import Potential
+    from mlip_autopipec.domain_models.potential import Potential
 
     pot = Potential(path=Path("potential.yace"), format="yace")
 

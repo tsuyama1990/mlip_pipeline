@@ -4,8 +4,8 @@ import logging
 import tempfile
 from pathlib import Path
 
-from mlip_autopipec.domain_models.datastructures import WorkflowState
 from mlip_autopipec.domain_models.enums import TaskType
+from mlip_autopipec.domain_models.workflow import WorkflowState
 
 logger = logging.getLogger(__name__)
 

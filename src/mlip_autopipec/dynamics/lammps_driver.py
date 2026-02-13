@@ -10,7 +10,8 @@ from ase.data import atomic_numbers
 from ase.io import iread, write
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.dynamics.hybrid_overlay import HybridOverlay
 from mlip_autopipec.dynamics.interface import BaseDynamics
 from mlip_autopipec.dynamics.watchdog import UncertaintyWatchdog

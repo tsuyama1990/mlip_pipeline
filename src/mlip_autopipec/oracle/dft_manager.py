@@ -3,7 +3,7 @@ from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
 from mlip_autopipec.domain_models.config import OracleConfig
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.oracle.interface import BaseOracle
 from mlip_autopipec.oracle.qe_driver import QEDriver
 from mlip_autopipec.oracle.self_healing import run_with_healing

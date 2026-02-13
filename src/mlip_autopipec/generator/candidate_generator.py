@@ -4,7 +4,7 @@ from collections.abc import Iterator
 import numpy as np
 
 from mlip_autopipec.domain_models.config import ActiveLearningConfig
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 

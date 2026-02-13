@@ -7,7 +7,7 @@ from ase import Atoms
 from ase.io import iread
 
 from mlip_autopipec.domain_models.config import GeneratorConfig
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.generator.interface import BaseGenerator
 
 logger = logging.getLogger(__name__)

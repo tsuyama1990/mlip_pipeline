@@ -5,8 +5,8 @@ from ase.calculators.calculator import Calculator
 
 import mlip_autopipec.oracle.dft_manager
 from mlip_autopipec.domain_models.config import OracleConfig
-from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import OracleType
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.oracle.dft_manager import DFTManager
 
 

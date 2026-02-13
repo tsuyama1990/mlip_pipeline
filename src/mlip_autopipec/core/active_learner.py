@@ -3,7 +3,8 @@ import logging
 from collections.abc import Iterator
 
 from mlip_autopipec.domain_models.config import GlobalConfig
-from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import HaltInfo, Structure
 from mlip_autopipec.generator.candidate_generator import CandidateGenerator
 from mlip_autopipec.generator.interface import BaseGenerator
 from mlip_autopipec.oracle.interface import BaseOracle

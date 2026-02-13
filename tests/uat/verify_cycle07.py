@@ -16,8 +16,9 @@ from mlip_autopipec.domain_models.config import (
     TrainerConfig,
     ValidatorConfig,
 )
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import DynamicsType, ExecutionMode
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 
 
 def test_uat_cycle07_eon_integration() -> None:

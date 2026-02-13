@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 

@@ -3,8 +3,8 @@ import random
 from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.domain_models.config import ActiveLearningConfig, TrainerConfig
-from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import ActiveSetMethod
+from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 

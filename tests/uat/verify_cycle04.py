@@ -9,8 +9,8 @@ from ase import Atoms
 
 from mlip_autopipec.core.factory import ComponentFactory
 from mlip_autopipec.domain_models.config import GlobalConfig, TrainerConfig
-from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import TrainerType
+from mlip_autopipec.domain_models.structure import Structure
 
 
 def verify_cycle04() -> None:  # noqa: C901

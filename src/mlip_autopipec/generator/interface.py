@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from ase import Atoms
 
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 
 if TYPE_CHECKING:
     from mlip_autopipec.domain_models.config import GeneratorConfig

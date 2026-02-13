@@ -8,12 +8,9 @@ from pathlib import Path
 from ase.io import read, write
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
-from mlip_autopipec.domain_models.datastructures import (
-    HaltInfo,
-    Potential,
-    Structure,
-    validate_path_safety,
-)
+from mlip_autopipec.domain_models.paths import validate_path_safety
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import HaltInfo, Structure
 from mlip_autopipec.dynamics.interface import BaseDynamics
 
 logger = logging.getLogger(__name__)
