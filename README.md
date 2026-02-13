@@ -27,6 +27,7 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
     *   **Parallel Execution**: Manages concurrent DFT tasks with robust error handling.
 *   **Temperature Scheduling**: Implements simulated annealing protocols for efficient PES exploration.
 *   **LAMMPS Integration**: Generates production-ready LAMMPS input scripts for Molecular Dynamics.
+*   **Pacemaker Integration**: Automates training of ACE potentials with Delta Learning and Active Set Selection.
 *   **Zero-Config Automation**: Define your material system and let the system handle the rest.
 *   **Active Learning Loop**: Automatically explores chemical space and selects the most informative structures for labeling.
 *   **Robust Error Handling**: Centralized state management and self-healing capabilities.
@@ -36,6 +37,7 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 *   Python >= 3.12
 *   [Optional] Quantum Espresso (pw.x) in PATH for production Oracle
 *   [Optional] LAMMPS for production Dynamics
+*   [Optional] Pacemaker (pace_train, pace_collect) for production Training
 
 ## Installation
 
@@ -85,6 +87,5 @@ src/mlip_autopipec/
 
 ## Roadmap
 
-*   **Cycle 04**: Pacemaker Training Integration.
 *   **Cycle 05**: Uncertainty-driven Active Learning.
 *   **Cycle 07**: Long-timescale Evolution (aKMC with EON).

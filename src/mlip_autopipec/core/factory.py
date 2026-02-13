@@ -18,7 +18,7 @@ from mlip_autopipec.generator import (
     RandomGenerator,
 )
 from mlip_autopipec.oracle import BaseOracle, DFTManager, MockOracle
-from mlip_autopipec.trainer import BaseTrainer, MockTrainer
+from mlip_autopipec.trainer import BaseTrainer, MockTrainer, PacemakerTrainer
 from mlip_autopipec.validator import BaseValidator, MockValidator
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,9 @@ class ComponentFactory:
         trainer_type = self.config.trainer.type
         if trainer_type == TrainerType.MOCK:
             return MockTrainer(work_dir)
+        if trainer_type == TrainerType.PACEMAKER:
+            return PacemakerTrainer(work_dir, self.config.trainer)
+
         msg = f"Unsupported trainer type: {trainer_type}"
         raise ValueError(msg)
 
