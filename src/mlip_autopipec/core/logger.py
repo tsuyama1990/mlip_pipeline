@@ -3,6 +3,15 @@ import sys
 from pathlib import Path
 
 
+# Alias for backward compatibility if needed, or standardization
+def get_logger(name: str) -> logging.Logger:
+    return logging.getLogger(name)
+
+def configure_logging(
+    log_dir: Path, log_filename: str = "mlip_pipeline.log", log_level: int = logging.INFO
+) -> None:
+    setup_logging(log_dir, log_filename, log_level)
+
 def setup_logging(
     log_dir: Path, log_filename: str = "mlip_pipeline.log", log_level: int = logging.INFO
 ) -> None:

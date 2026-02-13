@@ -80,8 +80,8 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
 
     # Spy on components to verify interactions without replacing logic
     # We wrap the bound methods with MagicMock(wraps=...)
-    orch.generator.generate_local_candidates = MagicMock(  # type: ignore[method-assign]
-        wraps=orch.generator.generate_local_candidates
+    orch.active_learner.process_halt = MagicMock(  # type: ignore[method-assign]
+        wraps=orch.active_learner.process_halt
     )
     orch.dynamics.simulate = MagicMock(wraps=orch.dynamics.simulate)  # type: ignore[method-assign]
 
@@ -95,8 +95,8 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
 
     # OTF Loop Verification
     # With max_gamma_threshold=5.0, MockDynamics should eventually yield a frame with score > 5.0
-    # triggering generate_local_candidates.
-    assert orch.generator.generate_local_candidates.called
+    # triggering ActiveLearner.process_halt.
+    assert orch.active_learner.process_halt.called
 
 
 def test_orchestrator_create_generators(tmp_path: Path) -> None:

@@ -1,4 +1,5 @@
 from .config import (
+    ActiveLearningConfig,
     BaseComponentConfig,
     DynamicsConfig,
     GeneratorConfig,
@@ -30,6 +31,7 @@ from .enums import (
 )
 
 __all__ = [
+    "ActiveLearningConfig",
     "BaseComponentConfig",
     "ComponentRole",
     "DFTCode",
