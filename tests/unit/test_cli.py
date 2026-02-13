@@ -49,6 +49,7 @@ def test_cli_run_mock(tmp_path: Path) -> None:
     # To keep tests clean, we should update config work_dir.
 
     import yaml
+
     with config_path.open("r") as f:
         data = yaml.safe_load(f)
 

@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterator
+from itertools import islice
 
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
@@ -20,7 +21,7 @@ from mlip_autopipec.generator import (
     MockGenerator,
     RandomGenerator,
 )
-from mlip_autopipec.oracle import BaseOracle, MockOracle
+from mlip_autopipec.oracle import BaseOracle, DFTManager, MockOracle
 from mlip_autopipec.trainer import BaseTrainer, MockTrainer
 from mlip_autopipec.validator import BaseValidator, MockValidator
 
@@ -47,7 +48,7 @@ class Orchestrator:
     def _create_generator(self) -> BaseGenerator:
         gen_type = self.config.generator.type
         if gen_type == GeneratorType.MOCK:
-            return MockGenerator()
+            return MockGenerator(self.config.generator)
         if gen_type == GeneratorType.RANDOM:
             return RandomGenerator(self.config.generator)
         if gen_type == GeneratorType.M3GNET:
@@ -61,6 +62,9 @@ class Orchestrator:
     def _create_oracle(self) -> BaseOracle:
         if self.config.oracle.type == OracleType.MOCK:
             return MockOracle()
+        if self.config.oracle.type == OracleType.DFT:
+            return DFTManager(self.config.oracle)
+
         msg = f"Unsupported oracle type: {self.config.oracle.type}"
         raise ValueError(msg)
 
@@ -92,7 +96,9 @@ class Orchestrator:
         seeds = self.generator.explore({"cycle": cycle, "mode": "seed"})
         return self._otf_generator(seeds, potential)
 
-    def _otf_generator(self, seeds_iter: Iterator[Structure], potential: Potential) -> Iterator[Structure]:
+    def _otf_generator(
+        self, seeds_iter: Iterator[Structure], potential: Potential
+    ) -> Iterator[Structure]:
         halt_threshold = self.config.dynamics.max_gamma_threshold
         n_local = self.config.generator.policy.n_local_candidates
         n_select = self.config.trainer.n_active_set_per_halt
@@ -129,14 +135,14 @@ class Orchestrator:
         ratio = self.config.trainer.selection_ratio
         step = max(1, int(1.0 / ratio)) if ratio > 0 else 1
 
-        accepted = 0
-        for i, s in enumerate(candidates):
-            if i % step == 0:
-                yield s
-                accepted += 1
-                if accepted >= max_samples:
-                    logger.info(f"Selection limit reached ({max_samples}).")
-                    break
+        # Use itertools.islice to efficiently skip and limit items
+        # Slice syntax: start, stop, step
+        stepped_iter = islice(candidates, 0, None, step)
+
+        # Limit total items
+        limited_iter = islice(stepped_iter, max_samples)
+
+        yield from limited_iter
 
     def run(self) -> None:
         """Executes the active learning workflow."""

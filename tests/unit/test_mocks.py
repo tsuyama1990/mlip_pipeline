@@ -23,6 +23,7 @@ def test_mock_generator_explore() -> None:
     assert isinstance(first_structure.atoms, Atoms)
     assert first_structure.provenance == "mock_generator"
 
+
 def test_mock_generator_local_candidates(mock_atoms: Atoms) -> None:
     generator = MockGenerator()
     seed = Structure(atoms=mock_atoms, provenance="seed")
@@ -37,13 +38,10 @@ def test_mock_generator_local_candidates(mock_atoms: Atoms) -> None:
         assert isinstance(c, Structure)
         assert "local_candidate" in c.provenance
 
+
 def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     oracle = MockOracle()
-    s = Structure(
-        atoms=mock_atoms,
-        provenance="test",
-        label_status="unlabeled"
-    )
+    s = Structure(atoms=mock_atoms, provenance="test", label_status="unlabeled")
     # Oracle takes iterable, returns iterator
     labeled_iter = oracle.compute([s])
     first_labeled = next(labeled_iter)
@@ -58,8 +56,10 @@ def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     # mock_atoms H2 has 2 atoms. Energy ~ -4.0 * 2 = -8.0
     assert first_labeled.energy < -7.0
 
+
 def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     from pathlib import Path
+
     trainer = MockTrainer(work_dir=Path())
     s = Structure(
         atoms=mock_atoms,
@@ -67,7 +67,7 @@ def test_mock_trainer_train(mock_atoms: Atoms) -> None:
         label_status="labeled",
         energy=-10.0,
         forces=[[0, 0, 0], [0, 0, 0]],
-        stress=[0, 0, 0, 0, 0, 0]
+        stress=[0, 0, 0, 0, 0, 0],
     )
     # Trainer accepts Iterable
     structures = [s]
@@ -75,13 +75,13 @@ def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     assert potential.path.name == "potential.yace"
     assert potential.format == "yace"
 
+
 def test_mock_trainer_select_active_set(mock_atoms: Atoms) -> None:
     from pathlib import Path
+
     trainer = MockTrainer(work_dir=Path())
 
-    structures = [
-        Structure(atoms=mock_atoms, provenance=f"cand_{i}") for i in range(10)
-    ]
+    structures = [Structure(atoms=mock_atoms, provenance=f"cand_{i}") for i in range(10)]
 
     # Select 3
     selected = trainer.select_active_set(structures, count=3)
@@ -91,12 +91,14 @@ def test_mock_trainer_select_active_set(mock_atoms: Atoms) -> None:
     # Check provenance modified by mock implementation
     assert "selected" in selected_list[0].provenance
 
+
 def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
     dynamics = MockDynamics()
     # Need a potential
     from pathlib import Path
 
     from mlip_autopipec.domain_models.datastructures import Potential
+
     pot = Potential(path=Path("potential.yace"), format="yace")
 
     s = Structure(atoms=mock_atoms, provenance="test")
@@ -117,13 +119,16 @@ def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
     first_pos = frames[0].to_ase().positions
     last_pos = frames[-1].to_ase().positions
     import numpy as np
+
     assert not np.array_equal(first_pos, last_pos)
+
 
 def test_mock_validator_validate() -> None:
     validator = MockValidator()
     from pathlib import Path
 
     from mlip_autopipec.domain_models.datastructures import Potential
+
     pot = Potential(path=Path("potential.yace"), format="yace")
 
     result = validator.validate(pot)

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from ase import Atoms
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -10,10 +10,14 @@ from mlip_autopipec.domain_models.enums import TaskType
 class Structure(BaseModel):
     # Use object as type hint instead of Any, though Pydantic treats them similarly with arbitrary_types_allowed
     # But Any is discouraged.
-    atoms: object
+    atoms: Atoms
     provenance: str = Field(..., description="Source of the structure (e.g., 'random', 'md_halt')")
-    uncertainty_score: float | None = Field(default=None, description="Uncertainty metric from the model")
-    label_status: str = Field(default="unlabeled", description="Status of ground truth availability")
+    uncertainty_score: float | None = Field(
+        default=None, description="Uncertainty metric from the model"
+    )
+    label_status: str = Field(
+        default="unlabeled", description="Status of ground truth availability"
+    )
     energy: float | None = Field(default=None, description="Total energy per atom")
     forces: list[list[float]] | None = Field(default=None, description="Forces on atoms")
     stress: list[float] | None = Field(default=None, description="Stress tensor")
@@ -31,7 +35,7 @@ class Structure(BaseModel):
     @property
     def ase_atoms(self) -> Atoms:
         """Returns the atoms object cast to ase.Atoms for type safety."""
-        return cast(Atoms, self.atoms)
+        return self.atoms
 
     def to_ase(self) -> Atoms:
         """Returns the internal ase.Atoms object with updated info."""

@@ -50,8 +50,4 @@ class MockDynamics(BaseDynamics):
             positions += 0.01 * i
             atoms.set_positions(positions)
 
-            yield Structure(
-                atoms=atoms,
-                provenance="md_trajectory",
-                label_status="unlabeled"
-            )
+            yield Structure(atoms=atoms, provenance="md_trajectory", label_status="unlabeled")

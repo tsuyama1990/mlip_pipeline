@@ -3,7 +3,9 @@ import sys
 from pathlib import Path
 
 
-def setup_logging(log_dir: Path, log_filename: str = "mlip_pipeline.log", log_level: int = logging.INFO) -> None:
+def setup_logging(
+    log_dir: Path, log_filename: str = "mlip_pipeline.log", log_level: int = logging.INFO
+) -> None:
     """
     Configures the root logger to write to console and a file.
 
@@ -24,9 +26,7 @@ def setup_logging(log_dir: Path, log_filename: str = "mlip_pipeline.log", log_le
         return
 
     # Formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # File Handler
     file_handler = logging.FileHandler(log_file)

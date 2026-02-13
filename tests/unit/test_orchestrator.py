@@ -63,12 +63,13 @@ def test_orchestrator_run_mock(tmp_path: Path) -> None:
 def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
     """Test the Active Learning logic: Cold Start vs OTF."""
 
-    with patch("mlip_autopipec.core.orchestrator.MockGenerator") as MockGen, \
-         patch("mlip_autopipec.core.orchestrator.MockDynamics") as MockDyn, \
-         patch("mlip_autopipec.core.orchestrator.MockTrainer") as MockTrain, \
-         patch("mlip_autopipec.core.orchestrator.MockOracle") as MockOracleCls, \
-         patch("mlip_autopipec.core.orchestrator.MockValidator") as MockVal:
-
+    with (
+        patch("mlip_autopipec.core.orchestrator.MockGenerator") as MockGen,
+        patch("mlip_autopipec.core.orchestrator.MockDynamics") as MockDyn,
+        patch("mlip_autopipec.core.orchestrator.MockTrainer") as MockTrain,
+        patch("mlip_autopipec.core.orchestrator.MockOracle") as MockOracleCls,
+        patch("mlip_autopipec.core.orchestrator.MockValidator") as MockVal,
+    ):
         # Setup mocks behavior
         mock_gen = MockGen.return_value
         mock_dyn = MockDyn.return_value
@@ -109,7 +110,7 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
 
         # Dynamics returns trajectory with one halted structure (high gamma)
         s_halt = MagicMock()
-        s_halt.uncertainty_score = 10.0 # Above threshold 5.0
+        s_halt.uncertainty_score = 10.0  # Above threshold 5.0
         mock_dyn.simulate.side_effect = lambda *args, **kwargs: iter([s_halt])
 
         # Validator returns result
@@ -152,10 +153,7 @@ def test_orchestrator_create_generators(tmp_path: Path) -> None:
     for g_type in [GeneratorType.RANDOM, GeneratorType.M3GNET, GeneratorType.ADAPTIVE]:
         config = GlobalConfig(
             orchestrator=OrchestratorConfig(work_dir=tmp_path),
-            generator=GeneratorConfig(
-                type=g_type,
-                seed_structure_path=seed_path
-            ),
+            generator=GeneratorConfig(type=g_type, seed_structure_path=seed_path),
             oracle=OracleConfig(),
             trainer=TrainerConfig(),
             dynamics=DynamicsConfig(),
@@ -164,6 +162,7 @@ def test_orchestrator_create_generators(tmp_path: Path) -> None:
 
         orch = Orchestrator(config)
         assert orch.generator is not None
+
 
 def test_orchestrator_cold_start_mock(tmp_path: Path) -> None:
     """Test Orchestrator runs correctly when no potential exists (Cycle 0)."""
