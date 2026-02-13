@@ -1,11 +1,10 @@
-from pathlib import Path
 from typing import cast
-
-import numpy as np
 import pytest
 from ase import Atoms
+from pathlib import Path
+import numpy as np
 
-from mlip_autopipec.domain_models.config import ExplorationPolicyConfig, GeneratorConfig
+from mlip_autopipec.domain_models.config import GeneratorConfig, ExplorationPolicyConfig
 from mlip_autopipec.domain_models.enums import GeneratorType
 
 # Imports that will be available later
@@ -49,12 +48,12 @@ class TestRandomGenerator:
         assert len(candidates) == 5
         for s in candidates:
             assert s.provenance == "random"
-            atoms_obj = cast(Atoms, s.atoms)
+            atoms_obj = s.ase_atoms
             assert atoms_obj.get_chemical_symbols() == ["Mg", "O"] # type: ignore[no-untyped-call]
 
         # Check diversity
-        pos0 = cast(Atoms, candidates[0].atoms).positions
-        pos1 = cast(Atoms, candidates[1].atoms).positions
+        pos0 = candidates[0].ase_atoms.positions
+        pos1 = candidates[1].ase_atoms.positions
         assert not np.allclose(pos0, pos1), "Structures should be different"
 
     def test_random_generator_no_seed(self) -> None:
@@ -80,6 +79,24 @@ class TestRandomGenerator:
         generator = RandomGenerator(config)
 
         # We expect a ValueError now, specifically about reading failure
+        with pytest.raises(ValueError, match="Failed to read seed structure"):
+             list(generator.explore({"count": 1}))
+
+    def test_malformed_seed(self, tmp_path: Path) -> None:
+        """Test behavior when seed file has malformed content."""
+        if RandomGenerator is None:
+            pytest.fail("RandomGenerator not implemented")
+
+        seed_path = tmp_path / "malformed.xyz"
+        seed_path.write_text("This is not a valid XYZ file")
+
+        config = GeneratorConfig(
+            type=GeneratorType.RANDOM,
+            seed_structure_path=seed_path
+        )
+        generator = RandomGenerator(config)
+
+        # Should raise ValueError wrapping the underlying ASE error
         with pytest.raises(ValueError, match="Failed to read seed structure"):
              list(generator.explore({"count": 1}))
 
@@ -165,7 +182,10 @@ class TestAdaptiveGenerator:
         config = GeneratorConfig(type=GeneratorType.ADAPTIVE)
         generator = AdaptiveGenerator(config)
 
-        script = generator._generate_lammps_input(temperature=500.0, steps=2000)
-        assert "run 2000" in script
-        assert "temp 500.0 500.0" in script
-        assert "units metal" in script
+        path = generator._generate_lammps_input(temperature=500.0, steps=2000)
+        assert path.exists()
+        content = path.read_text()
+        assert "run 2000" in content
+        assert "temp 500.0 500.0" in content
+        assert "units metal" in content
+        path.unlink()

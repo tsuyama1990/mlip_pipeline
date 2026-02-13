@@ -17,10 +17,6 @@ from mlip_autopipec.domain_models.enums import (
 
 class BaseComponentConfig(BaseModel):
     # Allow arbitrary string types for extensibility, but standard configs should use Enums.
-    # We change this to Any to allow Enums to be assigned without validation error if strict type checking is on,
-    # or just keep str but rely on Pydantic's coercion.
-    # However, the audit requirement was to ensure GeneratorConfig uses GeneratorType.
-    # We will enforce this in subclasses.
     type: Any
     model_config = ConfigDict(extra="forbid")
 
@@ -34,6 +30,24 @@ class ExplorationPolicyConfig(BaseModel):
     mc_swap_prob: float = Field(default=0.1, ge=0.0, le=1.0, description="Probability of MC swap")
     defect_density: float = Field(default=0.0, ge=0.0, description="Defect density")
     strain_range: float = Field(default=0.05, ge=0.0, description="Strain range for random generation")
+    lammps_template: str = Field(
+        default="""
+units metal
+atom_style atomic
+boundary p p p
+
+# Potential setup (placeholder)
+pair_style none
+
+# MD Settings
+velocity all create {temperature} 12345 dist gaussian
+fix 1 all nvt temp {temperature} {temperature} 0.1
+timestep 0.001
+
+run {steps}
+""",
+        description="Template for LAMMPS input script"
+    )
 
     model_config = ConfigDict(extra="forbid")
 

@@ -32,6 +32,11 @@ class RandomGenerator(BaseGenerator):
             logger.error(msg)
             raise FileNotFoundError(msg)
 
+        if not self.seed_path.is_file():
+            msg = f"Seed structure path is not a file: {self.seed_path}"
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+
         logger.info(f"RandomGenerator: Generating {count} structures from {self.seed_path}")
 
         try:
@@ -71,7 +76,7 @@ class RandomGenerator(BaseGenerator):
                 deformation = np.eye(3) + strain
                 # atoms.cell is a Cell object, can be treated as 3x3 array for multiplication
                 new_cell = atoms.cell @ deformation
-                atoms.set_cell(new_cell, scale_atoms=True)
+                atoms.set_cell(new_cell, scale_atoms=True)  # type: ignore[no-untyped-call]
 
             # Rattle positions (displace atoms)
             atoms.rattle(stdev=0.1)
