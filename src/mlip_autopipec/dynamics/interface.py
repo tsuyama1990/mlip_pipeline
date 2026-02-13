@@ -51,12 +51,12 @@ class MockDynamics(BaseDynamics):
         # Create a copy to ensure we don't modify the original structure's atoms
         # via any side effects in to_ase() if it were to change.
         # to_ase returns the internal atoms object with updated info.
-        initial_atoms = structure.to_ase().copy()
+        initial_atoms = structure.to_ase().copy()  # type: ignore[no-untyped-call]
 
         for i in range(frame_count):
             logger.debug(f"MockDynamics: Frame {i}/{frame_count}")
             # Stream frames (generator) - ensures O(1) memory usage if consumed properly
-            atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
+            atoms = initial_atoms.copy()
             # Perturb positions slightly
             positions = atoms.get_positions()
             positions += 0.01 * i
