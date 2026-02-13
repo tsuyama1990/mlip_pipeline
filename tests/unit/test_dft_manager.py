@@ -39,11 +39,24 @@ class TestDFTManager:
                 return_value=labeled_structure,
             ) as mock_wrapper,
         ):
-            results = list(manager.compute(structures))
-            assert len(results) == 1
-            assert results[0].label_status == "labeled"
-            assert results[0].energy == -10.0
+            # Consume iterator using next() to avoid list() if possible,
+            # though here we have only 1 structure.
+            # But the goal is to demonstrate scalable testing pattern.
+            results_iter = manager.compute(structures)
+            result = next(results_iter)
+
+            assert result.label_status == "labeled"
+            assert result.energy == -10.0
             mock_wrapper.assert_called_once()
+
+            # Verify no more items
+            try:
+                next(results_iter)
+            except StopIteration:
+                pass
+            else:
+                msg = "Iterator should be empty"
+                raise AssertionError(msg)
 
     def test_compute_failure(self) -> None:
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
@@ -67,10 +80,11 @@ class TestDFTManager:
                 side_effect=mock_process_structure_fail,
             ),
         ):
-            results = list(manager.compute(structures))
-            assert len(results) == 1
-            assert results[0].label_status == "failed"
-            assert results[0].energy is None
+            results_iter = manager.compute(structures)
+            result = next(results_iter)
+
+            assert result.label_status == "failed"
+            assert result.energy is None
 
     def test_process_structure_wrapper_logic(self) -> None:
         """

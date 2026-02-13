@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import (

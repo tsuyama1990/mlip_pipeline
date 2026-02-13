@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -5,6 +6,25 @@ from ase import Atoms
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mlip_autopipec.domain_models.enums import TaskType
+
+
+def validate_path_safety(v: Path | None) -> Path | None:
+    """Validates that a path is safe (no traversal)."""
+    if v is None:
+        return None
+    # Check for traversal attempts
+    # resolve() would follow symlinks and '..', but checking parts is safer strictly
+    # if we don't want to rely on filesystem existence.
+    # However, '..' in a path object is normalized out by resolve() usually.
+    # A simple check is to ensure '..' is not in parts if we want to be strict about inputs string
+    # but Path('a/../b') becomes 'b' in resolve.
+    # The main risk is user input like '../../etc/passwd'.
+    # If we enforce paths to be absolute or relative to CWD, resolve() handles it.
+    # But let's just check '..' is not in parts to be explicit.
+    if ".." in v.parts:
+        msg = f"Path traversal detected in {v}"
+        raise ValueError(msg)
+    return v
 
 
 class Structure(BaseModel):
@@ -92,6 +112,12 @@ class Potential(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: Path) -> Path:
+        validate_path_safety(v)
+        return v
+
 
 class WorkflowState(BaseModel):
     """
@@ -105,6 +131,11 @@ class WorkflowState(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("active_potential_path", "dataset_path")
+    @classmethod
+    def validate_paths(cls, v: Path | None) -> Path | None:
+        return validate_path_safety(v)
+
 
 class ValidationResult(BaseModel):
     """
@@ -116,6 +147,11 @@ class ValidationResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("report_path")
+    @classmethod
+    def validate_path(cls, v: Path | None) -> Path | None:
+        return validate_path_safety(v)
+
 
 class Trajectory(BaseModel):
     """
@@ -125,6 +161,15 @@ class Trajectory(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    def __iter__(self) -> Iterator[Structure]: # type: ignore[override]
+        return iter(self.structures)
+
+    def __len__(self) -> int:
+        return len(self.structures)
+
+    def __getitem__(self, item: int) -> Structure:
+        return self.structures[item]
 
 
 class HaltInfo(BaseModel):
