@@ -2,7 +2,7 @@ from mlip_autopipec.domain_models.config import ValidatorConfig
 from mlip_autopipec.domain_models.enums import ValidatorType
 
 
-def test_validator_config_defaults():
+def test_validator_config_defaults() -> None:
     config = ValidatorConfig()
     assert config.type == ValidatorType.MOCK
     assert config.elastic_tolerance == 0.15
@@ -10,7 +10,7 @@ def test_validator_config_defaults():
     assert config.phonon_supercell == [2, 2, 2]
     assert config.strain_magnitude == 0.01
 
-def test_validator_config_custom_values():
+def test_validator_config_custom_values() -> None:
     config = ValidatorConfig(
         type=ValidatorType.PHYSICS,
         elastic_tolerance=0.1,
@@ -24,7 +24,7 @@ def test_validator_config_custom_values():
     assert config.phonon_supercell == [3, 3, 3]
     assert config.strain_magnitude == 0.02
 
-def test_validator_config_validation_error():
+def test_validator_config_validation_error() -> None:
     import pytest
     from pydantic import ValidationError
 

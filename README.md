@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![Coverage](https://img.shields.io/badge/coverage-86%25-green)
+![Coverage](https://img.shields.io/badge/coverage-84%25-green)
 
 **Zero-Configuration, Physics-Informed Active Learning for Machine Learning Interatomic Potentials.**
 
@@ -19,7 +19,7 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 
 ## Features
 
-*   **Physics-Based Validation (New)**: Acts as a quality gatekeeper before potential deployment.
+*   **Physics-Based Validation (Verified Cycle 08)**: Acts as a quality gatekeeper before potential deployment.
     *   **Phonon Stability**: Calculates phonon dispersion curves using Phonopy to detect dynamic instabilities (imaginary frequencies).
     *   **Elastic Properties**: Computes the stiffness tensor ($C_{ij}$), Bulk Modulus, and Shear Modulus, verifying mechanical stability (Born criteria).
     *   **Equation of State (EOS)**: Fits Energy-Volume curves to the Birch-Murnaghan equation to verify equilibrium properties.
@@ -43,11 +43,11 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 ## Requirements
 
 *   Python >= 3.12
-*   [Optional] Quantum Espresso (pw.x) in PATH for production Oracle
-*   [Optional] LAMMPS (`lmp` executable) in PATH for production Dynamics
-*   [Optional] Pacemaker (pace_train, pace_collect) for production Training
-*   [Optional] EON (`eonclient` executable) in PATH for aKMC Simulations
-*   [Optional] Phonopy (for phonon validation)
+*   **Dependencies**: `numpy`, `scipy`, `ase`, `phonopy`, `matplotlib`, `jinja2`, `pydantic`, `pyyaml`, `typer`.
+*   [Optional] **Quantum Espresso** (`pw.x`) in PATH for production Oracle.
+*   [Optional] **LAMMPS** (`lmp` executable) in PATH for production Dynamics.
+*   [Optional] **Pacemaker** (`pace_train`, `pace_collect`) for production Training.
+*   [Optional] **EON** (`eonclient` executable) in PATH for aKMC Simulations.
 
 ## Installation
 
@@ -98,4 +98,5 @@ src/mlip_autopipec/
 
 ## Roadmap
 
-*   **Cycle 08**: Production Validation (Phonons, EOS) (Completed).
+*   **Cycle 09**: Advanced Sampling Techniques.
+*   **Cycle 10**: Multi-Element Support refinement.

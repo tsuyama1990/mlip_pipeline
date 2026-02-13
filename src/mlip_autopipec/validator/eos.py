@@ -1,5 +1,5 @@
 import logging
-from typing import NamedTuple
+from typing import NamedTuple, Any
 
 import numpy as np
 
@@ -43,7 +43,7 @@ def fit_birch_murnaghan(volumes: list[float], energies: list[float]) -> EOSResul
     # 160.21766208 is conversion factor from eV/A^3 to GPa
     EV_A3_TO_GPA = 160.21766208
 
-    def birch_murnaghan(v, e0, v0, b0, b0_prime):
+    def birch_murnaghan(v: Any, e0: float, v0: float, b0: float, b0_prime: float) -> Any:
         """
         Birch-Murnaghan equation of state.
         b0 is in eV/Angstrom^3.

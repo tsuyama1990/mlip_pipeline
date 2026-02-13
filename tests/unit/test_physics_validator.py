@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +17,7 @@ from mlip_autopipec.validator.physics import PhysicsValidator
 
 
 @pytest.fixture
-def mock_config(tmp_path):
+def mock_config(tmp_path: Path) -> GlobalConfig:
     # Create dummy seed file
     seed_file = tmp_path / "seed.xyz"
     seed_file.touch()
@@ -33,9 +34,9 @@ def mock_config(tmp_path):
     config.orchestrator.max_cycles = 1
     return config
 
-def test_physics_validator_success(mock_config, tmp_path):
+def test_physics_validator_success(mock_config: GlobalConfig, tmp_path: Path) -> None:
     # Setup mocks
-    with patch("mlip_autopipec.validator.physics.EOSAnalyzer") as MockEOS, \
+    with patch("mlip_autopipec.validator.physics.EOSAnalyzer"), \
          patch("mlip_autopipec.validator.physics.ElasticAnalyzer") as MockElastic, \
          patch("mlip_autopipec.validator.physics.PhononAnalyzer") as MockPhonon, \
          patch("mlip_autopipec.validator.physics.ReportGenerator") as MockReport, \
@@ -55,15 +56,18 @@ def test_physics_validator_success(mock_config, tmp_path):
          )
 
          # ElasticAnalyzer returns dict
-         validator.elastic_analyzer.analyze.return_value = {
+         mock_elastic_instance = MockElastic.return_value
+         mock_elastic_instance.analyze.return_value = {
              "C11": 100.0, "C12": 50.0, "C44": 30.0, "bulk_modulus": 66.6, "shear_modulus": 30.0
          }
 
-         validator.phonon_analyzer.analyze.return_value = PhononResults(
+         mock_phonon_instance = MockPhonon.return_value
+         mock_phonon_instance.analyze.return_value = PhononResults(
              max_imaginary_freq=0.0, is_stable=True, band_structure_plot_data={}
          )
 
-         validator.report_generator.generate.return_value = tmp_path / "report.html"
+         mock_report_instance = MockReport.return_value
+         mock_report_instance.generate.return_value = tmp_path / "report.html"
 
          # Run validation
          potential = Potential(path="dummy.yace", format="yace")
@@ -75,11 +79,11 @@ def test_physics_validator_success(mock_config, tmp_path):
          assert result.metrics["max_imaginary_freq"] == 0.0
          assert result.report_path == tmp_path / "report.html"
 
-def test_physics_validator_failure_born(mock_config, tmp_path):
+def test_physics_validator_failure_born(mock_config: GlobalConfig, tmp_path: Path) -> None:
     # Setup mocks for failure case
     with patch("mlip_autopipec.validator.physics.EOSAnalyzer"), \
          patch("mlip_autopipec.validator.physics.ElasticAnalyzer") as MockElastic, \
-         patch("mlip_autopipec.validator.physics.PhononAnalyzer"), \
+         patch("mlip_autopipec.validator.physics.PhononAnalyzer") as MockPhonon, \
          patch("mlip_autopipec.validator.physics.ReportGenerator") as MockReport, \
          patch("mlip_autopipec.validator.physics.fit_birch_murnaghan") as mock_fit_eos, \
          patch("mlip_autopipec.validator.physics.MLIPCalculatorFactory"), \
@@ -89,23 +93,27 @@ def test_physics_validator_failure_born(mock_config, tmp_path):
          mock_read.return_value = [atoms]
 
          validator = PhysicsValidator(mock_config)
-         validator.report_generator.generate.return_value = tmp_path / "report.html"
+
+         mock_report_instance = MockReport.return_value
+         mock_report_instance.generate.return_value = tmp_path / "report.html"
 
          mock_fit_eos.return_value = EOSResults(10, -5, 100, 4)
 
          # Unstable Elastic (C11 - C12 < 0)
-         validator.elastic_analyzer.analyze.return_value = {
+         mock_elastic_instance = MockElastic.return_value
+         mock_elastic_instance.analyze.return_value = {
              "C11": 50.0, "C12": 100.0, "C44": 30.0, "bulk_modulus": 83.3, "shear_modulus": 30.0
          }
 
-         validator.phonon_analyzer.analyze.return_value = PhononResults(0.0, True, {})
+         mock_phonon_instance = MockPhonon.return_value
+         mock_phonon_instance.analyze.return_value = PhononResults(0.0, True, {})
 
          potential = Potential(path="dummy.yace", format="yace")
          result = validator.validate(potential)
 
          assert result.passed is False
 
-def test_physics_validator_no_seed(mock_config):
+def test_physics_validator_no_seed(mock_config: GlobalConfig) -> None:
     # Mock config to have no seed
     mock_config.generator.seed_structure_path = None
 

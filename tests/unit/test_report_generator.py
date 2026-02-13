@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+from typing import Any
 
 from mlip_autopipec.validator.elastic import ElasticResults
 from mlip_autopipec.validator.eos import EOSResults
@@ -6,7 +8,7 @@ from mlip_autopipec.validator.phonon import PhononResults
 from mlip_autopipec.validator.report import ReportGenerator
 
 
-def test_report_generator_full(tmp_path):
+def test_report_generator_full(tmp_path: Any) -> None:
     generator = ReportGenerator()
 
     elastic = ElasticResults(C11=100.0, C12=50.0, C44=30.0, bulk_modulus=70.0, shear_modulus=30.0)
@@ -44,7 +46,7 @@ def test_report_generator_full(tmp_path):
 
     assert (tmp_path / "phonon_dispersion.png").exists()
 
-def test_report_generator_minimal(tmp_path):
+def test_report_generator_minimal(tmp_path: Any) -> None:
     generator = ReportGenerator()
 
     report_path = generator.generate(

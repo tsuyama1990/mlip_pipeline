@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
+from typing import Any
 
 from mlip_autopipec.validator.eos import EOSAnalyzer, fit_birch_murnaghan
 
 
-def test_fit_birch_murnaghan():
+def test_fit_birch_murnaghan() -> None:
     # True parameters
     v0_true = 10.0
     e0_true = -5.0
@@ -14,7 +15,7 @@ def test_fit_birch_murnaghan():
     EV_A3_TO_GPA = 160.21766208
     b0_ev_a3 = b0_gpa_true / EV_A3_TO_GPA
 
-    def bm_eqn(v):
+    def bm_eqn(v: Any) -> Any:
         vv0 = (v0_true / v) ** (2 / 3)
         return e0_true + (9 * v0_true * b0_ev_a3 / 16) * (
             (vv0 - 1) ** 3 * b0_prime_true + (vv0 - 1) ** 2 * (6 - 4 * vv0)
@@ -33,12 +34,12 @@ def test_fit_birch_murnaghan():
     assert results.bulk_modulus == pytest.approx(b0_gpa_true, rel=1e-3)
     assert results.bulk_modulus_derivative == pytest.approx(b0_prime_true, rel=1e-3)
 
-def test_eos_analyzer_not_enough_points():
+def test_eos_analyzer_not_enough_points() -> None:
     analyzer = EOSAnalyzer()
     with pytest.raises(ValueError, match="At least 4 data points"):
         analyzer.analyze([1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
 
-def test_eos_analyzer_integration():
+def test_eos_analyzer_integration() -> None:
     analyzer = EOSAnalyzer()
 
     # Generate data
@@ -50,7 +51,7 @@ def test_eos_analyzer_integration():
     EV_A3_TO_GPA = 160.21766208
     b0_ev_a3 = b0_gpa_true / EV_A3_TO_GPA
 
-    def bm_eqn(v):
+    def bm_eqn(v: Any) -> Any:
         vv0 = (v0_true / v) ** (2 / 3)
         return e0_true + (9 * v0_true * b0_ev_a3 / 16) * (
             (vv0 - 1) ** 3 * b0_prime_true + (vv0 - 1) ** 2 * (6 - 4 * vv0)

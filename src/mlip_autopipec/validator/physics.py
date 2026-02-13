@@ -84,7 +84,7 @@ class PhysicsValidator(BaseValidator):
 
         try:
             from ase.io import read
-            atoms_list = read(seed_path, index=":") # type: ignore[no-untyped-call]
+            atoms_list = read(seed_path, index=":")
             atoms = atoms_list[0] if isinstance(atoms_list, list) else atoms_list
             return Structure(atoms=atoms, provenance="validation_seed")
         except Exception:
@@ -149,7 +149,7 @@ class PhysicsValidator(BaseValidator):
             original_cell = atoms.get_cell()
 
             for s in scales:
-                atoms_scaled = atoms.copy() # type: ignore[no-untyped-call]
+                atoms_scaled = atoms.copy()
                 atoms_scaled.set_cell(original_cell * s, scale_atoms=True)
 
                 calc = self.calculator_factory.create(potential.path)

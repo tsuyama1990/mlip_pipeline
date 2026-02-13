@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -22,9 +23,6 @@ class WorkflowState(BaseModel):
     @classmethod
     def validate_paths(cls, v: Path | None) -> Path | None:
         return validate_path_safety(v)
-
-
-from typing import Any
 
 
 class ValidationResult(BaseModel):

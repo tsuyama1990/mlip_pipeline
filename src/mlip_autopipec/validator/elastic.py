@@ -1,8 +1,7 @@
 import logging
-from typing import NamedTuple
-
 import numpy as np
 from ase.optimize import LBFGS
+from typing import NamedTuple, Any
 
 # ASE 3.24+ moves CellFilter to ase.filters
 try:
@@ -11,10 +10,11 @@ except ImportError:
     # Older ASE or failure
     # Try importing individually to identify issue
     try:
-        from ase.filters import ExpCellFilter, UnitCellFilter
+        from ase.filters import ExpCellFilter
+        from ase.filters import UnitCellFilter
     except ImportError:
         # Fallback to constraints
-        from ase.constraints import ExpCellFilter, UnitCellFilter  # type: ignore
+        from ase.constraints import ExpCellFilter, UnitCellFilter # type: ignore
 
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
@@ -59,7 +59,7 @@ class ElasticAnalyzer:
             try:
                 ucf = UnitCellFilter(atoms) # type: ignore[no-untyped-call]
             except NameError:
-                ucf = ExpCellFilter(atoms) # type: ignore
+                ucf = ExpCellFilter(atoms)
 
             opt = LBFGS(ucf, logfile=None) # type: ignore[arg-type]
             opt.run(fmax=0.01) # type: ignore[no-untyped-call]
@@ -73,10 +73,10 @@ class ElasticAnalyzer:
         EV_A3_TO_GPA = 160.21766208
 
         # Helper to get stress
-        def get_stress(strained_atoms): # type: ignore[no-untyped-def]
+        def get_stress(strained_atoms: Any) -> Any:
             # Returns stress in Voigt notation: [sxx, syy, szz, syz, sxz, sxy]
             # Units are eV per Angstrom cubed
-            return strained_atoms.get_stress(voigt=True) # type: ignore[no-untyped-call]
+            return strained_atoms.get_stress(voigt=True)
 
         # Baseline
         base_stress = get_stress(atoms)
@@ -84,7 +84,7 @@ class ElasticAnalyzer:
 
         # 1. C11 and C12
         # Apply tensile strain in x: e_xx = delta
-        atoms_c11 = atoms.copy() # type: ignore[no-untyped-call]
+        atoms_c11 = atoms.copy()
 
         # strain tensor: [[1+delta, 0, 0], [0, 1, 0], [0, 0, 1]]
         distortion_c11 = np.eye(3)
@@ -103,8 +103,7 @@ class ElasticAnalyzer:
 
         # 2. C44
         # Apply shear strain in yz: gamma_yz = delta
-        # eps_yz = delta / 2
-        atoms_c44 = atoms.copy() # type: ignore[no-untyped-call]
+        atoms_c44 = atoms.copy()
 
         epsilon = np.zeros((3, 3))
         epsilon[1, 2] = delta / 2

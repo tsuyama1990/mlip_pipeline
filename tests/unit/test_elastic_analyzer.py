@@ -9,7 +9,7 @@ from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.validator.elastic import ElasticAnalyzer
 
 
-def test_elastic_analyzer_lj():
+def test_elastic_analyzer_lj() -> None:
     # Use LJ calculator (mocking factory to return LJ)
     with patch("mlip_autopipec.validator.elastic.MLIPCalculatorFactory") as MockFactory:
         mock_factory_instance = MockFactory.return_value
@@ -40,7 +40,7 @@ def test_elastic_analyzer_lj():
         # Check consistency B = (C11 + 2C12)/3 (approximately for cubic)
         assert results["bulk_modulus"] == pytest.approx((results["C11"] + 2*results["C12"])/3, rel=1e-5)
 
-def test_elastic_analyzer_relaxation_failure():
+def test_elastic_analyzer_relaxation_failure() -> None:
     # Test that analyzer proceeds even if relaxation fails
     with patch("mlip_autopipec.validator.elastic.MLIPCalculatorFactory") as MockFactory:
         mock_factory_instance = MockFactory.return_value
