@@ -25,12 +25,13 @@ class PacemakerTrainer(BaseTrainer):
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self.dataset_manager = DatasetManager(self.work_dir)
 
-    def train(self, structures: Iterable[Structure]) -> Potential:
+    def train(self, structures: Iterable[Structure], initial_potential: Potential | None = None) -> Potential:
         """
         Trains a potential on the given structures using Pacemaker.
 
         Args:
             structures: An iterable of labeled structures.
+            initial_potential: Optional starting potential for fine-tuning.
 
         Returns:
             A Potential object representing the trained model.
@@ -60,11 +61,18 @@ class PacemakerTrainer(BaseTrainer):
                 logger.warning("Active set count is 0, skipping active set selection.")
 
         # 4. Generate Input YAML
-        input_yaml_path = self.generate_input_yaml(structure_list, training_dataset_path)
+        input_yaml_path = self.generate_input_yaml(
+            structure_list,
+            training_dataset_path,
+            initial_potential
+        )
 
         # 5. Run Training
         # Run in work_dir so output potential is generated there
         cmd = ["pace_train", input_yaml_path.name]
+        if initial_potential:
+             cmd.extend(["--initial_potential", str(initial_potential.path)])
+
         logger.info(f"Running pace_train: {' '.join(cmd)}")
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=False, cwd=self.work_dir)  # noqa: S603
@@ -92,7 +100,12 @@ class PacemakerTrainer(BaseTrainer):
             parameters=self.config.model_dump(),
         )
 
-    def generate_input_yaml(self, structures: list[Structure], dataset_path: Path) -> Path:
+    def generate_input_yaml(
+        self,
+        structures: list[Structure],
+        dataset_path: Path,
+        initial_potential: Potential | None = None
+    ) -> Path:
         """Generates the input.yaml configuration for Pacemaker."""
         input_yaml_path = self.work_dir / "input.yaml"
 
@@ -114,7 +127,7 @@ class PacemakerTrainer(BaseTrainer):
             "fit": {
                 "loss": {"kappa": 0.01, "L1_coeffs": 1e-8, "L2_coeffs": 1e-8},
                 "optimizer": {
-                    "max_epochs": self.config.max_epochs,
+                    "max_epochs": self.config.max_epochs if not initial_potential else 50, # Fewer epochs for fine-tuning
                     "batch_size": self.config.batch_size,
                 },
             },

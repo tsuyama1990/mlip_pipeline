@@ -41,13 +41,14 @@ class ActiveLearner:
             config.active_learning, config.trainer
         )
 
-    def process_halt(self, halt_event: HaltInfo) -> Potential:
+    def process_halt(self, halt_event: HaltInfo, current_potential: Potential) -> Potential:
         """
         Handles a simulation halt by generating local candidates, labeling them,
         and fine-tuning the potential.
 
         Args:
             halt_event: The event information containing the halt structure and reason.
+            current_potential: The potential currently being used (for fine-tuning).
 
         Returns:
             The updated Potential object.
@@ -68,13 +69,7 @@ class ActiveLearner:
 
         if not has_candidates:
             logger.warning("ActiveLearner: No candidates selected. Returning existing potential (no-op).")
-            # We assume the trainer can handle an "update" request that results in no change
-            # or we need to return the current potential.
-            # But process_halt signature implies it returns *updated* potential.
-            # If no update, maybe we should raise or return None?
-            # But signature says Potential (not Optional).
-            # The Trainer.train() typically returns a Potential.
-            # If we pass empty list to trainer.train, it should handle it.
+            return current_potential
 
         # 3. Label (Oracle)
         logger.info("ActiveLearner: Computing ground truth (Oracle)...")
@@ -82,7 +77,7 @@ class ActiveLearner:
 
         # 4. Train (Fine-tune)
         logger.info("ActiveLearner: Fine-tuning potential...")
-        new_potential = self.trainer.train(labeled_structures)
+        new_potential = self.trainer.train(labeled_structures, initial_potential=current_potential)
 
         if new_potential is None:
              msg = "Trainer returned None potential after fine-tuning."

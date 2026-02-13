@@ -39,27 +39,16 @@ class Structure(BaseModel):
         return self.atoms
 
     def to_ase(self) -> Atoms:
-        """Returns a copy of the internal ase.Atoms object with updated info."""
-        # Validate that atoms is definitely an Atoms object before copying
-        if not isinstance(self.ase_atoms, Atoms):
-            msg = f"Internal atoms object is not of type ase.Atoms, got {type(self.ase_atoms)}"
-            raise TypeError(msg)
+        """
+        Returns a copy of the internal ase.Atoms object with updated info.
 
-        # Use copy() to prevent side effects on the persistent data model
-        # Cast return type of copy() to Atoms since ase doesn't type hint it well
-        atoms: Atoms = self.ase_atoms.copy()  # type: ignore[no-untyped-call]
-
-        # Validate critical fields before updating atoms.info
-        if not isinstance(self.provenance, str):
-            msg = f"Provenance must be a string, got {type(self.provenance)}"
-            raise TypeError(msg)
-
-        if not isinstance(self.label_status, str):
-            msg = f"Label status must be a string, got {type(self.label_status)}"
-            raise TypeError(msg)
-
-        # Basic type checks for optional fields if present are handled by Pydantic on model init
-        # but we are updating atoms.info here.
+        This method creates a deep copy of the underlying ASE Atoms object
+        and populates its `.info` dictionary with metadata from the Structure
+        instance (provenance, label_status, uncertainty_score).
+        This ensures the returned Atoms object carries all relevant context.
+        """
+        # Pydantic guarantees self.atoms is an Atoms object
+        atoms: Atoms = self.atoms.copy()  # type: ignore[no-untyped-call]
 
         info_update: dict[str, Any] = {
             "provenance": self.provenance,

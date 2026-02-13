@@ -125,3 +125,28 @@ def test_simulate_halt_event(
     assert trajectory[0].uncertainty_score == 6.0
 
     mock_run.assert_called()
+
+
+@patch("subprocess.run")
+@patch("mlip_autopipec.dynamics.lammps_driver.write")
+@patch("mlip_autopipec.dynamics.lammps_driver.iread")
+def test_simulate_fatal_error(
+    mock_iread: MagicMock,
+    mock_write: MagicMock,
+    mock_run: MagicMock,
+    dynamics_config: DynamicsConfig,
+    mock_structure: Structure,
+    mock_potential: Potential,
+    tmp_path: Path,
+) -> None:
+    driver = LAMMPSDriver(tmp_path, dynamics_config)
+
+    def raise_fatal_error(*args: Any, **kwargs: Any) -> MagicMock:
+        import subprocess
+        # Code 1 means general error
+        raise subprocess.CalledProcessError(1, args[0])
+
+    mock_run.side_effect = raise_fatal_error
+
+    with pytest.raises(RuntimeError, match="Simulation failed with code 1"):
+        list(driver.simulate(mock_potential, mock_structure))

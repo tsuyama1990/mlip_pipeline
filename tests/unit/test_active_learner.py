@@ -32,7 +32,7 @@ class MockOracle:
 
 
 class MockTrainer:
-    def train(self, structures: Iterable[Structure]) -> Potential:
+    def train(self, structures: Iterable[Structure], initial_potential: Potential | None = None) -> Potential:
         return Potential(path=Path("mock_path.yace"), format="yace")
 
 
@@ -89,8 +89,9 @@ def test_process_halt(active_learner: ActiveLearner) -> None:
         structure=Structure(atoms=Atoms("He"), provenance="halt"),
         reason="high_uncertainty"
     )
+    current_pot = Potential(path=Path("init.yace"), format="yace")
 
-    new_potential = active_learner.process_halt(halt_event)
+    new_potential = active_learner.process_halt(halt_event, current_pot)
 
     assert isinstance(new_potential, Potential)
     assert str(new_potential.path) == "mock_path.yace"
@@ -103,15 +104,20 @@ def test_process_halt_flow(active_learner: ActiveLearner) -> None:
         structure=Structure(atoms=Atoms("He"), provenance="halt"),
         reason="high_uncertainty"
     )
+    current_pot = Potential(path=Path("init.yace"), format="yace")
 
     # Spy on trainer.train
     # We need to access the trainer on the active_learner instance.
     # Since we passed a MockTrainer, we can modify it.
     active_learner.trainer.train = MagicMock(return_value=Potential(path=Path("spy.yace"), format="yace"))  # type: ignore[method-assign]
 
-    res = active_learner.process_halt(halt_event)
+    res = active_learner.process_halt(halt_event, current_pot)
 
     active_learner.trainer.train.assert_called_once()
+    args, kwargs = active_learner.trainer.train.call_args
+    # Check that initial_potential was passed
+    assert kwargs.get('initial_potential') == current_pot
+
     assert str(res.path) == "spy.yace"
 
 
@@ -126,12 +132,14 @@ def test_process_halt_empty_selection(active_learner: ActiveLearner) -> None:
         structure=Structure(atoms=Atoms("He"), provenance="halt"),
         reason="high_uncertainty"
     )
+    current_pot = Potential(path=Path("init.yace"), format="yace")
 
-    # Mock trainer to handle empty input
-    active_learner.trainer.train = MagicMock(return_value=Potential(path=Path("unchanged.yace"), format="yace")) # type: ignore[method-assign]
+    # Mock trainer to ensure it is NOT called
+    active_learner.trainer.train = MagicMock() # type: ignore[method-assign]
 
-    res = active_learner.process_halt(halt_event)
+    res = active_learner.process_halt(halt_event, current_pot)
 
-    assert str(res.path) == "unchanged.yace"
-    # Oracle should compute on empty list (or not called if optimized, but implementation calls it)
-    # Trainer should be called with empty list
+    # Should return current potential
+    assert res == current_pot
+    # Trainer should NOT be called
+    active_learner.trainer.train.assert_not_called()
