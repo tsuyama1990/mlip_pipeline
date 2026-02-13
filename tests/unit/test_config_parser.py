@@ -63,7 +63,7 @@ def test_load_invalid_yaml(tmp_path: Path) -> None:
 
 
 def test_load_invalid_model(tmp_path: Path) -> None:
-    config_data = {"orchestrator": {"max_cycles": -1}} # Invalid
+    config_data = {"orchestrator": {"max_cycles": -1}}  # Invalid
     config_file = tmp_path / "invalid_model.yaml"
     with config_file.open("w") as f:
         yaml.dump(config_data, f)

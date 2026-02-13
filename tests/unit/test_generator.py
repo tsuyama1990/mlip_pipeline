@@ -26,7 +26,7 @@ class TestRandomGenerator:
         config = GeneratorConfig(
             type=GeneratorType.RANDOM,
             seed_structure_path=seed_path,
-            policy=ExplorationPolicyConfig(strain_range=0.1)
+            policy=ExplorationPolicyConfig(strain_range=0.1),
         )
 
         generator = RandomGenerator(config)
@@ -45,38 +45,34 @@ class TestRandomGenerator:
 
     def test_random_generator_no_seed(self) -> None:
         config = GeneratorConfig(type=GeneratorType.RANDOM, seed_structure_path=None)
-        with pytest.raises(ValueError, match="RandomGenerator requires a seed structure path in config"):
-             RandomGenerator(config)
+        with pytest.raises(
+            ValueError, match="RandomGenerator requires a seed structure path in config"
+        ):
+            RandomGenerator(config)
 
     def test_random_generator_invalid_seed(self, tmp_path: Path) -> None:
         """Test behavior when seed file exists but is empty/invalid."""
         seed_path = tmp_path / "empty.xyz"
         seed_path.touch()
 
-        config = GeneratorConfig(
-            type=GeneratorType.RANDOM,
-            seed_structure_path=seed_path
-        )
+        config = GeneratorConfig(type=GeneratorType.RANDOM, seed_structure_path=seed_path)
         generator = RandomGenerator(config)
 
         # We expect a ValueError now, specifically about reading failure
         with pytest.raises(ValueError, match="Failed to read seed structure"):
-             list(generator.explore({"count": 1}))
+            list(generator.explore({"count": 1}))
 
     def test_malformed_seed(self, tmp_path: Path) -> None:
         """Test behavior when seed file has malformed content."""
         seed_path = tmp_path / "malformed.xyz"
         seed_path.write_text("This is not a valid XYZ file")
 
-        config = GeneratorConfig(
-            type=GeneratorType.RANDOM,
-            seed_structure_path=seed_path
-        )
+        config = GeneratorConfig(type=GeneratorType.RANDOM, seed_structure_path=seed_path)
         generator = RandomGenerator(config)
 
         # Should raise ValueError wrapping the underlying ASE error
         with pytest.raises(ValueError, match="Failed to read seed structure"):
-             list(generator.explore({"count": 1}))
+            list(generator.explore({"count": 1}))
 
 
 class TestM3GNetGenerator:
@@ -99,14 +95,12 @@ class TestAdaptiveGenerator:
     def test_temperature_schedule_explore(self, tmp_path: Path) -> None:
         # Need a seed for mock execution now
         seed_path = tmp_path / "seed_adapt.xyz"
-        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path)  # type: ignore[no-untyped-call]
+        Atoms("He", positions=[[0, 0, 0]], cell=[5, 5, 5]).write(seed_path)  # type: ignore[no-untyped-call]
 
         # Test explore logic picking up schedule
         policy = ExplorationPolicyConfig(temperature_schedule=[100.0, 200.0])
         config = GeneratorConfig(
-            type=GeneratorType.ADAPTIVE,
-            policy=policy,
-            seed_structure_path=seed_path
+            type=GeneratorType.ADAPTIVE, policy=policy, seed_structure_path=seed_path
         )
         generator = AdaptiveGenerator(config)
 
@@ -133,7 +127,7 @@ class TestAdaptiveGenerator:
         config = GeneratorConfig(
             type=GeneratorType.ADAPTIVE,
             seed_structure_path=seed_path,
-            policy=ExplorationPolicyConfig(strain_range=0.1)
+            policy=ExplorationPolicyConfig(strain_range=0.1),
         )
         generator = AdaptiveGenerator(config)
 
@@ -142,7 +136,7 @@ class TestAdaptiveGenerator:
 
         candidates = list(generator.explore({"cycle": 0, "count": 1}))
         assert len(candidates) == 1
-        assert candidates[0].provenance == "md_300.0K" # Default schedule 300K
+        assert candidates[0].provenance == "md_300.0K"  # Default schedule 300K
 
     def test_generate_lammps_input(self) -> None:
         config = GeneratorConfig(type=GeneratorType.ADAPTIVE)

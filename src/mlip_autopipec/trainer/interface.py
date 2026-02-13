@@ -35,7 +35,9 @@ class BaseTrainer(ABC):
         Returns:
             An iterator of selected structures.
         """
-        logger.warning("Using default select_active_set (pass-through). Subclasses should override.")
+        logger.warning(
+            "Using default select_active_set (pass-through). Subclasses should override."
+        )
 
         for i, s in enumerate(structures):
             if i >= count:
@@ -60,11 +62,7 @@ class MockTrainer(BaseTrainer):
         potential_path = self.work_dir / "potential.yace"
         potential_path.write_text("MOCK POTENTIAL FILE CONTENT")
 
-        return Potential(
-            path=potential_path,
-            format="yace",
-            parameters={"mock": True}
-        )
+        return Potential(path=potential_path, format="yace", parameters={"mock": True})
 
     def select_active_set(self, structures: Iterable[Structure], count: int) -> Iterator[Structure]:
         logger.info(f"MockTrainer: Selecting {count} structures from candidates...")

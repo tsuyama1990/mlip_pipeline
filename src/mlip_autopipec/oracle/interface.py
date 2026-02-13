@@ -46,10 +46,7 @@ class MockOracle(BaseOracle):
 
             # Attach calculator results to ASE atoms
             calc = SinglePointCalculator(  # type: ignore[no-untyped-call]
-                atoms,
-                energy=energy,
-                forces=forces,
-                stress=stress
+                atoms, energy=energy, forces=forces, stress=stress
             )
             atoms.calc = calc
 
@@ -60,5 +57,5 @@ class MockOracle(BaseOracle):
                 label_status="labeled",
                 energy=energy,
                 forces=forces.tolist(),
-                stress=stress.tolist()
+                stress=stress.tolist(),
             )

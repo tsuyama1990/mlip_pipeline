@@ -33,7 +33,7 @@ def main() -> None:
             max_cycles=1,
             work_dir=Path("./test_uat_output"),
             execution_mode=ExecutionMode.MOCK,
-            cleanup_on_exit=True
+            cleanup_on_exit=True,
         ),
         generator=GeneratorConfig(type=GeneratorType.MOCK),
         oracle=OracleConfig(type=OracleType.MOCK),
@@ -49,6 +49,7 @@ def main() -> None:
     orchestrator.run()
 
     print("UAT Cycle 01 completed successfully")  # noqa: T201
+
 
 if __name__ == "__main__":
     main()

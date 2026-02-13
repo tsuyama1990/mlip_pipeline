@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def init(
     output_path: Path = typer.Option(  # noqa: B008
         Path("config.yaml"), help="Path to create the configuration file."
-    )
+    ),
 ) -> None:
     """
     Initialize a default configuration file.
@@ -58,7 +58,7 @@ def init(
 
 @app.command()
 def run(
-    config_path: Path = typer.Argument(..., help="Path to the configuration YAML file.")  # noqa: B008
+    config_path: Path = typer.Argument(..., help="Path to the configuration YAML file."),  # noqa: B008
 ) -> None:
     """
     Run the pipeline with the specified configuration.

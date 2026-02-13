@@ -25,7 +25,9 @@ class BaseGenerator(ABC):
             An iterator of Structure objects.
         """
 
-    def generate_local_candidates(self, structure: Structure, count: int = 5) -> Iterator[Structure]:
+    def generate_local_candidates(
+        self, structure: Structure, count: int = 5
+    ) -> Iterator[Structure]:
         """
         Generates local candidates around a seed structure (e.g., for active learning).
         Default implementation returns just the seed to support subclasses that don't implement this yet.
@@ -37,7 +39,9 @@ class BaseGenerator(ABC):
         Returns:
             An iterator of local candidate structures.
         """
-        logger.warning("Using default generate_local_candidates (no-op). Subclasses should override.")
+        logger.warning(
+            "Using default generate_local_candidates (no-op). Subclasses should override."
+        )
         yield structure
 
 
@@ -53,16 +57,14 @@ class MockGenerator(BaseGenerator):
             for i in range(count):
                 # Create a simple dimer
                 atoms = Atoms("He2", positions=[[0, 0, 0], [0, 0, 1.5 + i * 0.1]])
-                yield Structure(
-                    atoms=atoms,
-                    provenance="mock_generator",
-                    label_status="unlabeled"
-                )
+                yield Structure(atoms=atoms, provenance="mock_generator", label_status="unlabeled")
         else:
             # Fallback if not int
             pass
 
-    def generate_local_candidates(self, structure: Structure, count: int = 5) -> Iterator[Structure]:
+    def generate_local_candidates(
+        self, structure: Structure, count: int = 5
+    ) -> Iterator[Structure]:
         logger.info(f"MockGenerator: Generating {count} local candidates...")
         original_atoms = structure.to_ase()
         import numpy as np
@@ -75,7 +77,5 @@ class MockGenerator(BaseGenerator):
             atoms.set_positions(positions)
 
             yield Structure(
-                atoms=atoms,
-                provenance=f"local_candidate_{i}",
-                label_status="unlabeled"
+                atoms=atoms, provenance=f"local_candidate_{i}", label_status="unlabeled"
             )

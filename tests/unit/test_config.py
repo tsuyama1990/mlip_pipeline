@@ -40,10 +40,7 @@ def test_generator_config_validation() -> None:
 
 def test_generator_adaptive_config() -> None:
     policy = ExplorationPolicyConfig(
-        mc_swap_prob=0.8,
-        md_steps=2000,
-        defect_density=0.05,
-        strain_range=0.1
+        mc_swap_prob=0.8, md_steps=2000, defect_density=0.05, strain_range=0.1
     )
     config = GeneratorConfig(policy=policy)
     assert config.policy.mc_swap_prob == 0.8
@@ -63,10 +60,7 @@ def test_oracle_config_defaults() -> None:
 
 
 def test_oracle_dft_config() -> None:
-    config = OracleConfig(
-        kspacing=0.03,
-        mixing_beta=0.4
-    )
+    config = OracleConfig(kspacing=0.03, mixing_beta=0.4)
     assert config.kspacing == 0.03
     assert config.mixing_beta == 0.4
 
@@ -84,10 +78,7 @@ def test_dynamics_config_defaults() -> None:
 
 
 def test_dynamics_halt_config() -> None:
-    config = DynamicsConfig(
-        halt_on_uncertainty=False,
-        max_gamma_threshold=6.0
-    )
+    config = DynamicsConfig(halt_on_uncertainty=False, max_gamma_threshold=6.0)
     assert config.halt_on_uncertainty is False
     assert config.max_gamma_threshold == 6.0
 

@@ -30,10 +30,6 @@ class MockValidator(BaseValidator):
 
         return ValidationResult(
             passed=True,
-            metrics={
-                "elastic_error": 0.05,
-                "phonon_stability": 1.0,
-                "eos_error": 0.01
-            },
-            report_path=None
+            metrics={"elastic_error": 0.05, "phonon_stability": 1.0, "eos_error": 0.01},
+            report_path=None,
         )

@@ -1,0 +1,60 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 54 items
+
+tests/integration/test_pipeline.py .                                     [  1%]
+tests/unit/test_cli.py ....                                              [  9%]
+tests/unit/test_config.py ..........                                     [ 27%]
+tests/unit/test_config_parser.py ......                                  [ 38%]
+tests/unit/test_embedding.py ..                                          [ 42%]
+tests/unit/test_generator.py ...........                                 [ 62%]
+tests/unit/test_logger.py .                                              [ 64%]
+tests/unit/test_mocks.py .......                                         [ 77%]
+tests/unit/test_orchestrator.py .....                                    [ 87%]
+tests/unit/test_qe_driver.py .                                           [ 88%]
+tests/unit/test_self_healing.py ...                                      [ 94%]
+tests/unit/test_state_manager.py ...                                     [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                           0      0   100%
+src/mlip_autopipec/constants.py                          1      0   100%
+src/mlip_autopipec/core/__init__.py                      0      0   100%
+src/mlip_autopipec/core/config_parser.py                73     13    82%   39-41, 44, 113-123, 164-165
+src/mlip_autopipec/core/logger.py                       18      0   100%
+src/mlip_autopipec/core/orchestrator.py                125     17    86%   58-59, 64-68, 73-74, 79-80, 85-86, 143-144, 158, 187, 190
+src/mlip_autopipec/core/state_manager.py                53      7    87%   27-29, 44-47
+src/mlip_autopipec/domain_models/__init__.py             4      0   100%
+src/mlip_autopipec/domain_models/config.py              78      0   100%
+src/mlip_autopipec/domain_models/datastructures.py      63      4    94%   31-32, 61, 64
+src/mlip_autopipec/domain_models/enums.py               46      0   100%
+src/mlip_autopipec/dynamics/__init__.py                  2      0   100%
+src/mlip_autopipec/dynamics/interface.py                24      1    96%   42
+src/mlip_autopipec/generator/__init__.py                 5      0   100%
+src/mlip_autopipec/generator/adaptive.py                49      6    88%   27-28, 54, 84-86
+src/mlip_autopipec/generator/interface.py               32      3    91%   42-45, 63
+src/mlip_autopipec/generator/m3gnet_gen.py              25      2    92%   23, 31
+src/mlip_autopipec/generator/random_gen.py              55     11    80%   31-33, 36-38, 49-50, 60, 65-66
+src/mlip_autopipec/main.py                              40      6    85%   91-97, 101
+src/mlip_autopipec/oracle/__init__.py                    6      0   100%
+src/mlip_autopipec/oracle/dft_manager.py                39     26    33%   19-56, 72-73, 79-103
+src/mlip_autopipec/oracle/embedding.py                  23      1    96%   49
+src/mlip_autopipec/oracle/interface.py                  22      0   100%
+src/mlip_autopipec/oracle/qe_driver.py                  24      7    71%   6-7, 71-76
+src/mlip_autopipec/oracle/self_healing.py               38      4    89%   21-22, 55-56
+src/mlip_autopipec/trainer/__init__.py                   2      0   100%
+src/mlip_autopipec/trainer/interface.py                 31      5    84%   38-45
+src/mlip_autopipec/validator/__init__.py                 2      0   100%
+src/mlip_autopipec/validator/interface.py               11      0   100%
+----------------------------------------------------------------------------------
+TOTAL                                                  891    113    87%
+============================== 54 passed in 2.68s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

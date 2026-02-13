@@ -12,8 +12,12 @@ class Structure(BaseModel):
     # But Any is discouraged.
     atoms: object
     provenance: str = Field(..., description="Source of the structure (e.g., 'random', 'md_halt')")
-    uncertainty_score: float | None = Field(default=None, description="Uncertainty metric from the model")
-    label_status: str = Field(default="unlabeled", description="Status of ground truth availability")
+    uncertainty_score: float | None = Field(
+        default=None, description="Uncertainty metric from the model"
+    )
+    label_status: str = Field(
+        default="unlabeled", description="Status of ground truth availability"
+    )
     energy: float | None = Field(default=None, description="Total energy per atom")
     forces: list[list[float]] | None = Field(default=None, description="Forces on atoms")
     stress: list[float] | None = Field(default=None, description="Stress tensor")

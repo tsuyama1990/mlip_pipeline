@@ -15,6 +15,7 @@ from mlip_autopipec.domain_models.config import GlobalConfig
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def verify_random_generation(tmp_path: Path) -> None:
     logger.info("--- Verifying Random Generation ---")
     tmp_path.mkdir(parents=True, exist_ok=True)
@@ -27,15 +28,12 @@ def verify_random_generation(tmp_path: Path) -> None:
             "type": "random",
             "seed_structure_path": str(seed_path),
             "mock_count": 5,
-            "policy": {
-                "strategy": "random",
-                "strain_range": 0.05
-            }
+            "policy": {"strategy": "random", "strain_range": 0.05},
         },
         "oracle": {"type": "mock"},
         "trainer": {"type": "mock"},
         "dynamics": {"type": "mock"},
-        "validator": {"type": "mock"}
+        "validator": {"type": "mock"},
     }
     # Validate config
     config = GlobalConfig.model_validate(config_dict)
@@ -48,16 +46,14 @@ def verify_random_generation(tmp_path: Path) -> None:
     assert candidates[0].provenance == "random"
     logger.info("✓ Random Generation Produced 5 candidates with correct provenance.")
 
+
 def verify_adaptive_schedule(tmp_path: Path) -> None:
     logger.info("--- Verifying Adaptive Schedule ---")
     tmp_path.mkdir(parents=True, exist_ok=True)
     seed_path = tmp_path / "seed_adaptive.xyz"
     Atoms("Cu", positions=[[0, 0, 0]], cell=[3.6, 3.6, 3.6], pbc=True).write(seed_path)  # type: ignore[no-untyped-call]
 
-    policy = {
-        "strategy": "adaptive",
-        "temperature_schedule": [100.0, 500.0, 1000.0]
-    }
+    policy = {"strategy": "adaptive", "temperature_schedule": [100.0, 500.0, 1000.0]}
 
     config_dict = {
         "orchestrator": {"work_dir": tmp_path, "max_cycles": 3, "execution_mode": "mock"},
@@ -65,12 +61,12 @@ def verify_adaptive_schedule(tmp_path: Path) -> None:
             "type": "adaptive",
             "seed_structure_path": str(seed_path),
             "policy": policy,
-            "mock_count": 1
+            "mock_count": 1,
         },
         "oracle": {"type": "mock"},
         "trainer": {"type": "mock"},
         "dynamics": {"type": "mock"},
-        "validator": {"type": "mock"}
+        "validator": {"type": "mock"},
     }
     config = GlobalConfig.model_validate(config_dict)
 
@@ -92,6 +88,7 @@ def verify_adaptive_schedule(tmp_path: Path) -> None:
     assert "md_1000.0K" in c2[0].provenance
 
     logger.info("✓ Adaptive Schedule verified.")
+
 
 if __name__ == "__main__":
     base_tmp = Path("tests/uat/tmp_cycle02")

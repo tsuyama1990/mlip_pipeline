@@ -55,7 +55,11 @@ The `Embedding` class handles the conversion from a large, non-periodic or defec
 
 ## 4. Implementation Approach
 
-1.  **Enhance Domain Models**: Update `OracleConfig` to include DFT parameters (k-spacing, encut, pseudos).
+1.  **Enhance Domain Models**: Update `OracleConfig` to include DFT parameters:
+    - `encut`: float (Energy cutoff in Ry)
+    - `pseudos`: dict[str, str] (Map of element to filename)
+    - `symmetry_precision`: float (default 1e-5)
+    - `n_workers`: int (Number of parallel calculations, default 1)
 2.  **Implement QEDriver**: Use `ase.calculators.espresso` or direct input file generation. Crucially, ensure `tprnfor=.true.` and `tstress=.true.` are set for force/stress output.
 3.  **Implement SelfHealing**: Create a wrapper function `run_with_healing(calc, atoms)` that catches exceptions and retries.
 4.  **Implement PeriodicEmbedding**: Write the geometric logic to select atoms within a radius and define a new unit cell.

@@ -72,7 +72,7 @@ class EnvVarExpander:
         # A partial token starts with $
         # and might be incomplete.
         # We search for the last '$'.
-        last_dollar = self.buffer.rfind('$')
+        last_dollar = self.buffer.rfind("$")
 
         if last_dollar == -1:
             # Safe to expand everything
@@ -110,7 +110,7 @@ class EnvVarExpander:
                 # We need to read more to complete it or determine it's not a token.
                 # Recursive call with small size?
                 # Or just read more here.
-                more = self.stream.read(100) # Read a bit more
+                more = self.stream.read(100)  # Read a bit more
                 if not more:
                     self.eof = True
                     # Process buffer as is
@@ -128,6 +128,7 @@ class EnvVarExpander:
         def repl(match: re.Match[str]) -> str:
             var_name = match.group(1) or match.group(2)
             return os.environ.get(var_name, "")
+
         return self.pattern.sub(repl, text)
 
 

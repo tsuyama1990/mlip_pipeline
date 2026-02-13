@@ -20,7 +20,7 @@ from mlip_autopipec.generator import (
     MockGenerator,
     RandomGenerator,
 )
-from mlip_autopipec.oracle import BaseOracle, MockOracle
+from mlip_autopipec.oracle import BaseOracle, DFTManager, MockOracle
 from mlip_autopipec.trainer import BaseTrainer, MockTrainer
 from mlip_autopipec.validator import BaseValidator, MockValidator
 
@@ -61,6 +61,9 @@ class Orchestrator:
     def _create_oracle(self) -> BaseOracle:
         if self.config.oracle.type == OracleType.MOCK:
             return MockOracle()
+        if self.config.oracle.type == OracleType.DFT:
+            return DFTManager(self.config.oracle)
+
         msg = f"Unsupported oracle type: {self.config.oracle.type}"
         raise ValueError(msg)
 
@@ -92,7 +95,9 @@ class Orchestrator:
         seeds = self.generator.explore({"cycle": cycle, "mode": "seed"})
         return self._otf_generator(seeds, potential)
 
-    def _otf_generator(self, seeds_iter: Iterator[Structure], potential: Potential) -> Iterator[Structure]:
+    def _otf_generator(
+        self, seeds_iter: Iterator[Structure], potential: Potential
+    ) -> Iterator[Structure]:
         halt_threshold = self.config.dynamics.max_gamma_threshold
         n_local = self.config.generator.policy.n_local_candidates
         n_select = self.config.trainer.n_active_set_per_halt
