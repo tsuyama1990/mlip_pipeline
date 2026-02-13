@@ -29,12 +29,10 @@ class MockOracle(BaseOracle):
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         logger.info("MockOracle: Computing energies and forces...")
 
-        # Batched processing simulation to avoid huge memory spike if we were doing real work
-        # For mock, we can just yield one by one.
-
         import numpy as np
         from ase.calculators.singlepoint import SinglePointCalculator
 
+        # Process structures one by one to ensure streaming
         for s in structures:
             # Create fake results
             # s.atoms is object, need cast or use to_ase()
@@ -50,7 +48,7 @@ class MockOracle(BaseOracle):
             )
             atoms.calc = calc
 
-            # Create new Structure and yield
+            # Create new Structure and yield immediately
             yield Structure(
                 atoms=atoms,
                 provenance=s.provenance,
