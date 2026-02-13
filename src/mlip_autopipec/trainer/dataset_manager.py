@@ -1,0 +1,102 @@
+import logging
+import subprocess
+from pathlib import Path
+
+from ase.io import write
+
+from mlip_autopipec.domain_models.datastructures import Structure
+
+logger = logging.getLogger(__name__)
+
+
+class DatasetManager:
+    """Manages dataset collection and active set selection using Pacemaker."""
+
+    def __init__(self, work_dir: Path) -> None:
+        self.work_dir = work_dir
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    def create_dataset(self, structures: list[Structure], output_path: Path) -> Path:
+        """
+        Converts structures to Pacemaker's dataset format.
+
+        Args:
+            structures: List of structures to convert.
+            output_path: Path to the output dataset file (.pckl.gzip).
+
+        Returns:
+            Path to the created dataset file.
+        """
+        # 1. Write structures to a temporary extxyz file
+        temp_extxyz = self.work_dir / "temp_structures.extxyz"
+        ase_atoms_list = [s.to_ase() for s in structures]
+        write(str(temp_extxyz), ase_atoms_list, format="extxyz")
+
+        # 2. Call pace_collect
+        # Usage: pace_collect input_file.extxyz --output dataset.pckl.gzip
+        cmd = [
+            "pace_collect",
+            temp_extxyz.name,
+            "--output",
+            output_path.name,
+        ]
+
+        logger.info(f"Running pace_collect: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, cwd=self.work_dir)  # noqa: S603
+
+        if result.returncode != 0:
+            msg = f"pace_collect failed: {result.stderr}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        if not output_path.exists():
+            # If we are in a test with mocked subprocess but didn't mock file creation,
+            # this will raise. Tests must mock file creation or patch Path.exists.
+            # However, for robustness, we check it.
+            msg = f"pace_collect did not produce output file: {output_path}"
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+
+        # Clean up temp file
+        temp_extxyz.unlink(missing_ok=True)
+
+        return output_path
+
+    def select_active_set(self, dataset_path: Path, count: int) -> Path:
+        """
+        Selects an active set from the dataset.
+
+        Args:
+            dataset_path: Path to the full dataset (.pckl.gzip).
+            count: Number of structures to select.
+
+        Returns:
+            Path to the new dataset containing only the active set.
+        """
+        output_path = self.work_dir / f"active_set_{count}.pckl.gzip"
+
+        # Usage: pace_activeset dataset.pckl.gzip --max_size 100 --output active_set.pckl.gzip
+        # Assuming dataset_path is within work_dir
+        cmd = [
+            "pace_activeset",
+            dataset_path.name,
+            "--max_size",
+            str(count),
+            "--output",
+            output_path.name,
+        ]
+
+        logger.info(f"Running pace_activeset: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, cwd=self.work_dir)  # noqa: S603
+
+        if result.returncode != 0:
+            msg = f"pace_activeset failed: {result.stderr}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        if not output_path.exists():
+            msg = f"pace_activeset did not produce output file: {output_path}"
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+
+        return output_path

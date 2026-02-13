@@ -1,0 +1,55 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 19 items
+
+tests/unit/test_trainer_config.py ..                                     [ 10%]
+tests/unit/test_delta_learning.py ....                                   [ 31%]
+tests/unit/test_dataset_manager.py ......                                [ 63%]
+tests/unit/test_pacemaker_wrapper.py .......                             [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                           0      0   100%
+src/mlip_autopipec/constants.py                         36      0   100%
+src/mlip_autopipec/core/__init__.py                      0      0   100%
+src/mlip_autopipec/core/config_parser.py               102    102     0%   1-188
+src/mlip_autopipec/core/factory.py                      53     53     0%   1-79
+src/mlip_autopipec/core/logger.py                       18     18     0%   1-41
+src/mlip_autopipec/core/orchestrator.py                 88     88     0%   1-152
+src/mlip_autopipec/core/state_manager.py                53     53     0%   1-76
+src/mlip_autopipec/domain_models/__init__.py             4      0   100%
+src/mlip_autopipec/domain_models/config.py              83      0   100%
+src/mlip_autopipec/domain_models/datastructures.py      64      4    94%   32-33, 62, 65
+src/mlip_autopipec/domain_models/enums.py               46      0   100%
+src/mlip_autopipec/dynamics/__init__.py                  2      2     0%   1-3
+src/mlip_autopipec/dynamics/interface.py                28     28     0%   1-69
+src/mlip_autopipec/generator/__init__.py                 5      5     0%   1-6
+src/mlip_autopipec/generator/adaptive.py                60     60     0%   1-104
+src/mlip_autopipec/generator/interface.py               35     35     0%   1-87
+src/mlip_autopipec/generator/m3gnet_gen.py              25     25     0%   1-39
+src/mlip_autopipec/generator/random_gen.py              55     55     0%   1-84
+src/mlip_autopipec/main.py                              40     40     0%   1-101
+src/mlip_autopipec/oracle/__init__.py                    6      6     0%   1-7
+src/mlip_autopipec/oracle/dft_manager.py                56     56     0%   1-124
+src/mlip_autopipec/oracle/embedding.py                  23     23     0%   1-72
+src/mlip_autopipec/oracle/interface.py                  22     22     0%   1-52
+src/mlip_autopipec/oracle/qe_driver.py                  24     24     0%   1-78
+src/mlip_autopipec/oracle/self_healing.py               38     38     0%   1-94
+src/mlip_autopipec/trainer/__init__.py                   3      0   100%
+src/mlip_autopipec/trainer/dataset_manager.py           41      0   100%
+src/mlip_autopipec/trainer/delta_learning.py            15      0   100%
+src/mlip_autopipec/trainer/interface.py                 38     22    42%   40-47, 54-55, 58-73, 76-83
+src/mlip_autopipec/trainer/pacemaker_wrapper.py         71      2    97%   59, 139
+src/mlip_autopipec/validator/__init__.py                 2      2     0%   1-3
+src/mlip_autopipec/validator/interface.py               11     11     0%   1-31
+----------------------------------------------------------------------------------
+TOTAL                                                 1147    774    33%
+============================== 19 passed in 2.34s ==============================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

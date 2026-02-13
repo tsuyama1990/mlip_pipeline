@@ -1,0 +1,25 @@
+b_basis:
+  max_deg: 2
+  n_basis: 200
+  species:
+  - Fe
+cutoff: 4.5
+data:
+  filename: /app/verification_output/dataset.pckl.gzip
+fit:
+  loss:
+    L1_coeffs: 1.0e-08
+    L2_coeffs: 1.0e-08
+    kappa: 0.01
+  optimizer:
+    batch_size: 32
+    max_epochs: 5
+seed: 42
+
+
+potential:
+  delta:
+    reference_potential:
+      pair_style: zbl
+      zbl_cut: 4.0
+      zbl_z: [26]

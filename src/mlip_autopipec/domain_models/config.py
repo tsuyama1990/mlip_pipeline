@@ -3,8 +3,10 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlip_autopipec.constants import (
+    DEFAULT_BASIS_SIZE,
     DEFAULT_BATCH_SIZE,
     DEFAULT_BUFFER_SIZE,
+    DEFAULT_CUTOFF,
     DEFAULT_DEFECT_DENSITY,
     DEFAULT_DYNAMICS_STEPS,
     DEFAULT_DYNAMICS_TEMP,
@@ -29,6 +31,7 @@ from mlip_autopipec.constants import (
     DEFAULT_MOCK_FRAMES,
     DEFAULT_N_ACTIVE_SET,
     DEFAULT_N_WORKERS,
+    DEFAULT_ORDER,
     DEFAULT_RATIO_AB_INITIO,
     DEFAULT_SELECTION_RATIO,
     DEFAULT_SMEARING_WIDTH,
@@ -167,6 +170,13 @@ class TrainerConfig(BaseComponentConfig):
         default=DEFAULT_N_ACTIVE_SET,
         ge=1,
         description="Number of structures to select per halt event",
+    )
+    # Pacemaker parameters
+    cutoff: float = Field(default=DEFAULT_CUTOFF, gt=0.0, description="Radial cutoff")
+    order: int = Field(default=DEFAULT_ORDER, ge=1, description="Body order")
+    basis_size: int = Field(default=DEFAULT_BASIS_SIZE, ge=1, description="Number of basis functions")
+    delta_learning: str | None = Field(
+        default=None, description="Delta learning baseline (e.g., 'zbl', 'lj')"
     )
 
 

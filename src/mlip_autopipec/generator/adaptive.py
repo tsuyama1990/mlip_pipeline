@@ -41,9 +41,11 @@ class AdaptiveGenerator(BaseGenerator):
             Path to the generated input file.
         """
         if temperature <= 0:
-            raise ValueError(f"Temperature must be positive, got {temperature}")
+            msg = f"Temperature must be positive, got {temperature}"
+            raise ValueError(msg)
         if steps <= 0:
-            raise ValueError(f"Steps must be positive, got {steps}")
+            msg = f"Steps must be positive, got {steps}"
+            raise ValueError(msg)
 
         template = self.policy.lammps_template
         content = template.format(temperature=temperature, steps=steps)
