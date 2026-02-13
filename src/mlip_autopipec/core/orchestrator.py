@@ -47,7 +47,7 @@ class Orchestrator:
     def _create_generator(self) -> BaseGenerator:
         gen_type = self.config.generator.type
         if gen_type == GeneratorType.MOCK:
-            return MockGenerator()
+            return MockGenerator(self.config.generator)
         if gen_type == GeneratorType.RANDOM:
             return RandomGenerator(self.config.generator)
         if gen_type == GeneratorType.M3GNET:

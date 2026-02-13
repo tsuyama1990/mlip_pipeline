@@ -1,11 +1,14 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ase import Atoms
 
 from mlip_autopipec.domain_models.datastructures import Structure
+
+if TYPE_CHECKING:
+    from mlip_autopipec.domain_models.config import GeneratorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +51,16 @@ class BaseGenerator(ABC):
 class MockGenerator(BaseGenerator):
     """Mock implementation of Structure Generator."""
 
+    def __init__(self, config: "GeneratorConfig | None" = None) -> None:
+        self.config = config
+
     def explore(self, context: dict[str, Any]) -> Iterator[Structure]:
         logger.info("MockGenerator: Generating random structures...")
 
         # Make number configurable, default to 2
-        count = context.get("count", 2)
+        default_count = self.config.mock_count if self.config else 2
+        count = context.get("count", default_count)
+
         if isinstance(count, int):
             for i in range(count):
                 # Create a simple dimer

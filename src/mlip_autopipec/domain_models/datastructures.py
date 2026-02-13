@@ -8,9 +8,8 @@ from mlip_autopipec.domain_models.enums import TaskType
 
 
 class Structure(BaseModel):
-    # Use object as type hint instead of Any, though Pydantic treats them similarly with arbitrary_types_allowed
-    # But Any is discouraged.
-    atoms: object
+    # Use proper type hint for Atoms to allow better static analysis and validation
+    atoms: Any
     provenance: str = Field(..., description="Source of the structure (e.g., 'random', 'md_halt')")
     uncertainty_score: float | None = Field(
         default=None, description="Uncertainty metric from the model"

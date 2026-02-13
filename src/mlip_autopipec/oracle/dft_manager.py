@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Iterable, Iterator
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
 from mlip_autopipec.domain_models.config import OracleConfig
 from mlip_autopipec.domain_models.datastructures import Structure
@@ -75,33 +75,50 @@ class DFTManager(BaseOracle):
     def compute(self, structures: Iterable[Structure]) -> Iterator[Structure]:
         """
         Computes properties for a batch of structures using parallel workers.
+        Processing is streamed to avoid holding all structures in memory.
         """
         logger.info(f"Starting DFT calculations with {self.n_workers} workers.")
 
-        # Use ProcessPoolExecutor for CPU-bound tasks (DFT is heavy, but usually handled by MPI outside)
-        # If n_workers > 1, we run multiple DFT instances.
-        # Be careful with MPI inside multiprocessing.
-
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-            # Note: _process_structure_wrapper must be picklable
-            future_to_structure = {
-                executor.submit(_process_structure_wrapper, s, self.config): s for s in structures
-            }
+            # Create iterator from input iterable
+            structures_iter = iter(structures)
 
-            for future in as_completed(future_to_structure):
-                s = future_to_structure[future]
+            # Keep track of active futures
+            active_futures = {}
+
+            # Fill the pipeline with 2 * n_workers tasks to keep workers busy
+            initial_batch_size = max(1, self.n_workers * 2)
+
+            for _ in range(initial_batch_size):
                 try:
-                    result = future.result()
-                    # If the task returned a structure (even a failed one), yield it
-                    # If process_structure raised an unhandled exception, it's caught here
-                    yield result
-                except Exception:
-                    logger.exception(f"Structure {s} failed execution")
-                    # In case of process crash, we might want to yield a placeholder?
-                    # Or just log.
-                    # Yielding a failed placeholder is safer for downstream to know it's done.
-                    yield Structure(
-                        atoms=s.atoms,
-                        provenance=s.provenance,
-                        label_status="failed"
-                    )
+                    s = next(structures_iter)
+                    future = executor.submit(_process_structure_wrapper, s, self.config)
+                    active_futures[future] = s
+                except StopIteration:
+                    break
+
+            while active_futures:
+                # Wait for at least one future to complete
+                done_futures, _ = wait(active_futures.keys(), return_when=FIRST_COMPLETED)
+
+                for future in done_futures:
+                    s = active_futures.pop(future)
+                    try:
+                        result = future.result()
+                        yield result
+                    except Exception:
+                        logger.exception(f"Structure {s} failed execution")
+                        # Yield a failed placeholder
+                        yield Structure(
+                            atoms=s.atoms, provenance=s.provenance, label_status="failed"
+                        )
+
+                    # Submit next task if available
+                    try:
+                        next_s = next(structures_iter)
+                        new_future = executor.submit(
+                            _process_structure_wrapper, next_s, self.config
+                        )
+                        active_futures[new_future] = next_s
+                    except StopIteration:
+                        pass

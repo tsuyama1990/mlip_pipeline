@@ -64,8 +64,7 @@ class QEDriver:
                 # Use profile instead of command
                 # EspressoProfile requires command and pseudo_dir
                 kwargs["profile"] = EspressoProfile(  # type: ignore[no-untyped-call]
-                    command=self.config.command,
-                    pseudo_dir=pseudo_dir_str
+                    command=self.config.command, pseudo_dir=pseudo_dir_str
                 )
             else:
                 kwargs["command"] = self.config.command

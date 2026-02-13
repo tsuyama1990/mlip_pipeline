@@ -164,6 +164,12 @@ def load_config(config_path: Path) -> GlobalConfig:
             msg = "Configuration file must parse to a dictionary."
             raise ConfigError(msg)
 
+        # Basic protection against Billion Laughs expansion if it resulted in huge dict
+        # Though this check happens after loading, so it only catches if memory didn't explode.
+        if len(data) > 1000:
+            msg = "Configuration file contains too many keys."
+            raise ConfigError(msg)
+
         return GlobalConfig.model_validate(data)
 
     except (yaml.YAMLError, OSError) as e:

@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![Coverage](https://img.shields.io/badge/coverage-91%25-green)
+![Coverage](https://img.shields.io/badge/coverage-88%25-green)
 
 **Zero-Configuration, Physics-Informed Active Learning for Machine Learning Interatomic Potentials.**
 
@@ -20,6 +20,11 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 ## Features
 
 *   **Adaptive Structure Generation**: Automatically switches between Random, M3GNet (pre-trained), and MD-based exploration strategies based on the learning cycle.
+*   **Automated DFT (Oracle)**:
+    *   **Quantum Espresso Integration**: Generates input files and runs calculations via ASE.
+    *   **Self-Healing**: Automatically recovers from SCF convergence failures by adjusting mixing beta and smearing.
+    *   **Periodic Embedding**: Cuts local clusters from large MD snapshots and embeds them in periodic boxes for efficient DFT.
+    *   **Parallel Execution**: Manages concurrent DFT tasks with robust error handling.
 *   **Temperature Scheduling**: Implements simulated annealing protocols for efficient PES exploration.
 *   **LAMMPS Integration**: Generates production-ready LAMMPS input scripts for Molecular Dynamics.
 *   **Zero-Config Automation**: Define your material system and let the system handle the rest.
@@ -29,8 +34,8 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 ## Requirements
 
 *   Python >= 3.12
-*   [Optional] Quantum Espresso / VASP (for Production Oracle)
-*   [Optional] LAMMPS (for Production Dynamics)
+*   [Optional] Quantum Espresso (pw.x) in PATH for production Oracle
+*   [Optional] LAMMPS for production Dynamics
 
 ## Installation
 
@@ -50,7 +55,7 @@ Create a default configuration file:
 uv run mlip-runner init --output-path config.yaml
 ```
 
-This will generate a YAML file with the new `generator.policy` settings.
+This will generate a YAML file with the new `oracle` settings.
 
 ### 2. Run the Pipeline
 
@@ -71,7 +76,7 @@ src/mlip_autopipec/
 ├── core/               # Orchestrator, Config Parser, State Manager, Logger
 ├── domain_models/      # Pydantic Schemas (Config, Structure, Potential)
 ├── generator/          # Structure Generation (Adaptive, M3GNet, Random)
-├── oracle/             # DFT Engine Interfaces
+├── oracle/             # DFT Engine Interfaces, Embedding, Self-Healing, Drivers
 ├── trainer/            # Potential Training Logic
 ├── dynamics/           # MD/MC Simulation Drivers
 ├── validator/          # Physics-based Validation Tests
@@ -80,7 +85,6 @@ src/mlip_autopipec/
 
 ## Roadmap
 
-*   **Cycle 03**: Quantum Espresso & VASP Integration.
 *   **Cycle 04**: Pacemaker Training Integration.
 *   **Cycle 05**: Uncertainty-driven Active Learning.
 *   **Cycle 07**: Long-timescale Evolution (aKMC with EON).
