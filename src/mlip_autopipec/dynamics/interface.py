@@ -44,7 +44,8 @@ class MockDynamics(BaseDynamics):
         initial_atoms = structure.to_ase()
 
         for i in range(frame_count):
-            atoms = initial_atoms.copy()
+            logger.debug(f"MockDynamics: Frame {i}/{frame_count}")
+            atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
             # Perturb positions slightly
             positions = atoms.get_positions()
             positions += 0.01 * i

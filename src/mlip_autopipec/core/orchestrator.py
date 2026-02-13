@@ -127,6 +127,11 @@ class Orchestrator:
                 # 1. Generate local candidates
                 candidates = self.generator.generate_local_candidates(halted_frame, count=n_local)
 
+                # Peek at candidates to ensure we have something (optional, but good for debug)
+                # But since it's an iterator, we just pass it to select_active_set.
+                # However, if generate_local_candidates yields nothing, we might want to know.
+                # For now, we rely on select_active_set to handle empty input gracefully.
+
                 # 2. Select active set (Local D-Optimality)
                 selected = self.trainer.select_active_set(candidates, count=n_select)
 
