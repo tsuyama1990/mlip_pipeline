@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from mlip_autopipec.core.state_manager import StateManager
-from mlip_autopipec.domain_models.datastructures import WorkflowState
+from mlip_autopipec.domain_models.workflow import WorkflowState
 
 
 def test_state_manager_init(tmp_path: Path) -> None:

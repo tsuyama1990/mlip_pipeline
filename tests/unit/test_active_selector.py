@@ -2,8 +2,8 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import ActiveLearningConfig, TrainerConfig
-from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import ActiveSetMethod
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.trainer.active_selector import ActiveSelector
 
 

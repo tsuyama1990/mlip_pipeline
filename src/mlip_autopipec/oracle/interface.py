@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any
 
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 
 if TYPE_CHECKING:
     from mlip_autopipec.domain_models.config import OracleConfig

@@ -5,8 +5,9 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import TrainerConfig
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import TrainerType
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.trainer.pacemaker_wrapper import PacemakerTrainer
 
 

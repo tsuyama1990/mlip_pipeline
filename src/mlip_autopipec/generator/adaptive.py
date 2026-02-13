@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from mlip_autopipec.domain_models.config import GeneratorConfig
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.generator.interface import BaseGenerator
 from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
 from mlip_autopipec.generator.random_gen import RandomGenerator

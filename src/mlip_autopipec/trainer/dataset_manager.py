@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ase.io import write
 
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.structure import Structure
 
 logger = logging.getLogger(__name__)
 

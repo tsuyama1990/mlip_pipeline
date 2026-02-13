@@ -6,8 +6,9 @@ from mlip_autopipec.core.active_learner import ActiveLearner
 from mlip_autopipec.core.factory import ComponentFactory
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
-from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
 from mlip_autopipec.domain_models.enums import TaskType
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import HaltInfo, Structure
 
 logger = logging.getLogger(__name__)
 
@@ -35,74 +36,100 @@ class Orchestrator:
             self.config, self.generator, self.oracle, self.trainer
         )
 
-    def _acquire_training_data(
-        self, cycle: int, potential: Potential | None
-    ) -> Iterator[Structure]:
+    def _run_cold_start_cycle(self, cycle: int) -> Potential:
         """
-        Acquires training data either via Cold Start generation or OTF Active Learning.
-        Returns an iterator of selected structures ready for labeling.
+        Executes a Cold Start cycle: Generate -> Select -> Label -> Train.
+        Used when no potential exists (typically Cycle 0).
         """
-        if potential is None:
-            # Cold Start
-            logger.info("Cold Start: Generating and selecting initial structures.")
-            context = {"cycle": cycle, "temperature": self.config.dynamics.temperature}
-            raw_candidates = self.generator.explore(context)
-            return self._select_cold_start(raw_candidates)
+        logger.info(f"--- Cold Start (Cycle {cycle + 1}) ---")
+        self.state_manager.update_cycle(cycle + 1)
+        self.state_manager.save()
 
-        # OTF
-        logger.info("OTF Mode: Running Active Learning Loop.")
-        seeds = self.generator.explore({"cycle": cycle, "mode": "seed"})
-        otf_candidates = self._otf_generator(seeds, potential)
-        # Just limit the total number to avoid infinite loops or runaway costs
-        return islice(otf_candidates, self.config.orchestrator.max_candidates)
+        # 1. Exploration
+        self.state_manager.update_step(TaskType.EXPLORATION)
+        self.state_manager.save()
+        logger.info("Cold Start: Generating initial structures.")
+        context = {"cycle": cycle, "temperature": self.config.dynamics.temperature}
+        raw_candidates = self.generator.explore(context)
 
-    def _otf_generator(
-        self, seeds_iter: Iterator[Structure], potential: Potential
-    ) -> Iterator[Structure]:
+        # 2. Selection
+        selected_candidates = self._select_cold_start(raw_candidates)
+
+        # 3. Labeling (Oracle)
+        self.state_manager.update_step(TaskType.TRAINING)
+        self.state_manager.save()
+        logger.info("Cold Start: Labeling structures (Oracle).")
+        labeled_structures = list(self.oracle.compute(selected_candidates))
+
+        if not labeled_structures:
+            msg = "Cold start produced no labeled data."
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        # 4. Training
+        logger.info(f"Cold Start: Training on {len(labeled_structures)} structures.")
+        new_potential = self.trainer.train(labeled_structures)
+
+        # Update State
+        self.state_manager.update_potential(new_potential.path)
+        self.state_manager.save()
+        logger.info(f"Cold Start: Potential trained at {new_potential.path}")
+
+        # 5. Validation
+        self.state_manager.update_step(TaskType.VALIDATION)
+        self.state_manager.save()
+        val_result = self.validator.validate(new_potential)
+        if not val_result.passed:
+            logger.warning("Cold Start: Validation failed.")
+
+        return new_potential
+
+    def _run_otf_cycle(self, cycle: int, potential: Potential) -> Potential:
+        """
+        Executes an OTF (On-The-Fly) Active Learning cycle.
+        Runs dynamics, detects uncertainty, and triggers local learning loops.
+        """
+        logger.info(f"--- OTF Cycle {cycle + 1} ---")
+        self.state_manager.update_cycle(cycle + 1)
+        self.state_manager.save()
+
+        # 1. Exploration (Dynamics)
+        self.state_manager.update_step(TaskType.DYNAMICS)
+        self.state_manager.save()
+
+        logger.info("OTF: Starting Dynamics Loop.")
+        seeds_iter = self.generator.explore({"cycle": cycle, "mode": "seed"})
+
+        # Limit seeds
+        max_seeds = self.config.orchestrator.max_otf_seeds
         halt_threshold = self.config.dynamics.max_gamma_threshold
 
-        # Use configurable limit for OTF seeds
-        max_seeds = self.config.orchestrator.max_otf_seeds
-        safe_seeds_iter = islice(seeds_iter, max_seeds)
-
-        # Track potentially updated potential during OTF loop
         current_potential = potential
 
-        for seed_idx, seed in enumerate(safe_seeds_iter):
+        for seed_idx, seed in enumerate(islice(seeds_iter, max_seeds)):
             if seed_idx > 0 and seed_idx % 10 == 0:
                 logger.info(f"OTF Loop: Processed {seed_idx} seeds...")
-
-            if current_potential is None:
-                logger.error("Potential is None in OTF loop. Cannot simulate.")
-                break
 
             trajectory = self.dynamics.simulate(current_potential, seed)
 
             halted_frame = None
             for frame in trajectory:
                 score = frame.uncertainty_score
-
-                if score is not None:
-                    if score > halt_threshold:
-                        logger.info(f"Halt triggered: gamma={score}")
-                        frame.provenance = "md_halt"
-                        frame.metadata.update(
-                            {
-                                "halt_reason": "uncertainty_threshold",
-                                "max_gamma": score,
-                                "threshold": halt_threshold,
-                            }
-                        )
-                        halted_frame = frame
-                        break
-                else:
-                    logger.debug("Frame encountered with no uncertainty score during OTF.")
-                    continue
+                if score is not None and score > halt_threshold:
+                    logger.info(f"Halt triggered: gamma={score:.2f}")
+                    frame.provenance = "md_halt"
+                    frame.metadata.update({
+                        "halt_reason": "uncertainty_threshold",
+                        "max_gamma": score,
+                        "threshold": halt_threshold,
+                    })
+                    halted_frame = frame
+                    break
 
             if halted_frame:
                 logger.info("Halt event: Triggering Local Learning Loop...")
 
-                # Extract step from metadata if available, else 0
+                # Active Learning Loop
                 step = halted_frame.metadata.get("step", 0)
                 if not isinstance(step, int):
                     step = 0
@@ -114,27 +141,16 @@ class Orchestrator:
                     reason="uncertainty_threshold"
                 )
 
-                # Active Learner Loop (Cycle 06)
-                # This updates the potential locally and adds data to trainer
+                # Update Potential
                 new_potential = self.active_learner.process_halt(halt_info)
-
-                # Update current potential for next seed/iteration
                 current_potential = new_potential
 
-                # Update state manager so we don't lose progress if crash
+                # Update State
                 self.state_manager.update_potential(new_potential.path)
                 self.state_manager.save()
 
-                # Since ActiveLearner handled labeling and training, we do NOT yield structures
-                # to the outer loop to avoid double-counting or re-training redundancy.
-                # However, if we wanted to allow the outer loop to do a final "Global Train",
-                # we might yield them. But ActiveLearner already trained.
-                # We yield nothing here for this halt event.
-                continue
-
-        # Ensure this function is a generator even if no yield occurred
-        if False:
-            yield
+        logger.info("OTF: Dynamics Loop Completed.")
+        return current_potential
 
     def _select_cold_start(self, candidates: Iterator[Structure]) -> Iterator[Structure]:
         """Applies random sampling and limits for Cold Start candidates."""
@@ -154,59 +170,10 @@ class Orchestrator:
 
     def _execute_cycle(self, cycle: int, current_potential: Potential | None) -> Potential | None:
         """Executes a single cycle of the active learning workflow."""
-        self.state_manager.update_cycle(cycle + 1)
-        self.state_manager.save()  # Checkpoint: Start of Cycle
-        logger.info(f"--- Starting Cycle {cycle + 1}/{self.config.orchestrator.max_cycles} ---")
+        if current_potential is None:
+            return self._run_cold_start_cycle(cycle)
 
-        # 1. Exploration & Selection (Acquire Data)
-        self.state_manager.update_step(TaskType.EXPLORATION)
-        self.state_manager.save()  # Checkpoint: Start Exploration
-
-        structures_to_label = self._acquire_training_data(cycle, current_potential)
-
-        # Check if potential was updated during acquisition (OTF Active Learning)
-        pot_path = self.state_manager.state.active_potential_path
-        if pot_path and pot_path.exists():
-            # Reload potential to ensure we are up to date if OTF loop updated it
-            current_potential = Potential(path=pot_path, format="yace")
-
-        # 2. Oracle (Labeling)
-        self.state_manager.update_step(TaskType.TRAINING)
-        self.state_manager.save()  # Checkpoint: Start Oracle
-
-        # Note: If OTF handled everything, structures_to_label might be empty.
-        labeled = list(self.oracle.compute(structures_to_label))
-
-        # 3. Training
-        # Only train if we have new labeled data
-        if labeled:
-            logger.info(f"Training on {len(labeled)} new structures.")
-            new_potential = self.trainer.train(labeled)
-            self.state_manager.update_potential(new_potential.path)
-            current_potential = new_potential
-            self.state_manager.save()  # Checkpoint: After Training
-            logger.info(f"Potential trained: {new_potential.path}")
-        elif current_potential:
-            logger.info("No new data to train on. Using existing potential.")
-        else:
-            logger.warning("No potential and no data to train. Cycle failed?")
-            # This implies Cold Start failed to produce data
-            if cycle == 0:
-                msg = "Cold start produced no data."
-                raise RuntimeError(msg)
-
-        if current_potential:
-            # 4. Validation
-            self.state_manager.update_step(TaskType.VALIDATION)
-            self.state_manager.save()  # Checkpoint: Start Validation
-
-            val_result = self.validator.validate(current_potential)
-            if not val_result.passed:
-                logger.warning("Validation FAILED.")
-
-        # End of Cycle
-        self.state_manager.save()  # Checkpoint: End of Cycle
-        return current_potential
+        return self._run_otf_cycle(cycle, current_potential)
 
     def run(self) -> None:
         """Executes the active learning workflow."""

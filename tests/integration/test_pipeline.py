@@ -1,10 +1,8 @@
 from pathlib import Path
 
-from mlip_autopipec.domain_models.datastructures import (
-    Potential,
-    Structure,
-    ValidationResult,
-)
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
+from mlip_autopipec.domain_models.workflow import ValidationResult
 from mlip_autopipec.dynamics import MockDynamics
 from mlip_autopipec.generator import MockGenerator
 from mlip_autopipec.oracle import MockOracle

@@ -3,7 +3,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 
 if TYPE_CHECKING:
     from mlip_autopipec.domain_models.config import DynamicsConfig

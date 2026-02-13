@@ -6,8 +6,9 @@ from pathlib import Path
 import yaml
 
 from mlip_autopipec.domain_models.config import TrainerConfig
-from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import ActiveSetMethod
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.trainer.dataset_manager import DatasetManager
 from mlip_autopipec.trainer.delta_learning import DeltaLearning
 from mlip_autopipec.trainer.interface import BaseTrainer

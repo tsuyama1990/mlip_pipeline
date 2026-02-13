@@ -16,7 +16,8 @@ from mlip_autopipec.domain_models.config import (
     TrainerConfig,
     ValidatorConfig,
 )
-from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import HaltInfo, Structure
 
 
 # Mocks for external components

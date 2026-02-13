@@ -1,53 +1,55 @@
-from .config import (
+from mlip_autopipec.domain_models.config import (
     ActiveLearningConfig,
-    BaseComponentConfig,
     DynamicsConfig,
+    EONConfig,
     GeneratorConfig,
     GlobalConfig,
     OracleConfig,
     OrchestratorConfig,
+    SystemConfig,
     TrainerConfig,
     ValidatorConfig,
 )
-from .datastructures import (
-    Dataset,
-    HaltInfo,
-    Potential,
-    Structure,
-    Trajectory,
-    ValidationResult,
-    WorkflowState,
-)
-from .enums import (
-    ComponentRole,
+from mlip_autopipec.domain_models.dataset import Dataset
+from mlip_autopipec.domain_models.enums import (
+    ActiveSetMethod,
     DFTCode,
+    DFTTask,
     DynamicsType,
     ExecutionMode,
     GeneratorType,
+    HybridPotentialType,
     OracleType,
     TaskType,
     TrainerType,
     ValidatorType,
 )
+from mlip_autopipec.domain_models.paths import validate_path_safety
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import HaltInfo, Structure, Trajectory
+from mlip_autopipec.domain_models.workflow import ValidationResult, WorkflowState
 
 __all__ = [
     "ActiveLearningConfig",
-    "BaseComponentConfig",
-    "ComponentRole",
+    "ActiveSetMethod",
     "DFTCode",
+    "DFTTask",
     "Dataset",
     "DynamicsConfig",
     "DynamicsType",
+    "EONConfig",
     "ExecutionMode",
     "GeneratorConfig",
     "GeneratorType",
     "GlobalConfig",
     "HaltInfo",
+    "HybridPotentialType",
     "OracleConfig",
     "OracleType",
     "OrchestratorConfig",
     "Potential",
     "Structure",
+    "SystemConfig",
     "TaskType",
     "TrainerConfig",
     "TrainerType",
@@ -56,4 +58,5 @@ __all__ = [
     "ValidatorConfig",
     "ValidatorType",
     "WorkflowState",
+    "validate_path_safety",
 ]

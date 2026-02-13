@@ -18,8 +18,9 @@ from mlip_autopipec.domain_models.config import (
     TrainerConfig,
     ValidatorConfig,
 )
-from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
 from mlip_autopipec.domain_models.enums import ExecutionMode
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.structure import HaltInfo, Structure
 
 
 def test_uat_cycle06_local_loop() -> None:

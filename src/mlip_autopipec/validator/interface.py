@@ -1,7 +1,8 @@
 import logging
 from abc import ABC, abstractmethod
 
-from mlip_autopipec.domain_models.datastructures import Potential, ValidationResult
+from mlip_autopipec.domain_models.potential import Potential
+from mlip_autopipec.domain_models.workflow import ValidationResult
 
 logger = logging.getLogger(__name__)
 
