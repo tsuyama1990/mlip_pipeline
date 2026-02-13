@@ -88,3 +88,12 @@ class Trajectory(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+
+class HaltInfo(BaseModel):
+    step: int = Field(..., ge=0, description="MD/kMC step where halt occurred")
+    max_gamma: float = Field(..., ge=0.0, description="Max extrapolation grade detected")
+    structure: Structure = Field(..., description="The structure snapshot at halt")
+    reason: str = Field(default="uncertainty_threshold", description="Reason for halt")
+
+    model_config = ConfigDict(extra="forbid")

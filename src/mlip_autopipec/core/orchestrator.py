@@ -1,9 +1,16 @@
 import logging
 from collections.abc import Iterator
 
+from mlip_autopipec.constants import (
+    KEY_CYCLE,
+    KEY_TEMPERATURE,
+    MODE_SEED,
+    POTENTIAL_FORMAT_YACE,
+    PROVENANCE_MD_HALT,
+)
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
-from mlip_autopipec.domain_models.datastructures import Structure
+from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import (
     DynamicsType,
     GeneratorType,
@@ -28,14 +35,6 @@ class Orchestrator:
         self.config = config
         self.work_dir = config.orchestrator.work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
-
-        # Setup logging using config
-        # Assuming logger setup might have happened in main, but ensuring it respects config here if re-initialized
-        # or if orchestrator is used as lib.
-        # But setup_logging is global.
-        # We assume main calls it.
-        # But wait, orchestrator doesn't call setup_logging. Main does.
-        # I should check main.py.
 
         self.state_manager = StateManager(self.work_dir)
 
@@ -76,101 +75,87 @@ class Orchestrator:
         msg = f"Unsupported validator type: {self.config.validator.type}"
         raise ValueError(msg)
 
+    def _explore_candidates(self, cycle: int, potential: Potential | None) -> Iterator[Structure]:
+        if potential is None:
+            logger.info("Cold Start: Using Generator for initial structures.")
+            context = {KEY_CYCLE: cycle, KEY_TEMPERATURE: self.config.dynamics.temperature}
+            return self.generator.explore(context)
+
+        logger.info("OTF Mode: Using Dynamics with active potential.")
+        seeds = self.generator.explore({KEY_CYCLE: cycle, "mode": MODE_SEED})
+        return self._otf_generator(seeds, potential)
+
+    def _otf_generator(self, seeds_iter: Iterator[Structure], potential: Potential) -> Iterator[Structure]:
+        for seed in seeds_iter:
+            trajectory = self.dynamics.simulate(potential, seed)
+            for frame in trajectory:
+                score = frame.uncertainty_score
+                threshold = self.config.dynamics.max_gamma_threshold
+
+                if score is not None and score > threshold:
+                    logger.info(f"Halt triggered: gamma={score}")
+                    frame.provenance = PROVENANCE_MD_HALT
+                    yield frame
+                    break
+                elif score is None:
+                    yield frame
+
+    def _select_candidates(self, candidates: Iterator[Structure]) -> Iterator[Structure]:
+        max_samples = self.config.orchestrator.max_candidates
+        # Simple sampling based on selection_ratio (streaming approximation)
+        ratio = self.config.trainer.selection_ratio
+        step = max(1, int(1.0 / ratio)) if ratio > 0 else 1
+
+        accepted = 0
+        for i, s in enumerate(candidates):
+            if i % step == 0:
+                yield s
+                accepted += 1
+                if accepted >= max_samples:
+                    logger.info(f"Selection limit reached ({max_samples}).")
+                    break
+
     def run(self) -> None:
         """Executes the active learning workflow."""
         logger.info("Starting Orchestrator...")
 
-        max_cycles = self.config.orchestrator.max_cycles
+        # Load state
         start_cycle = self.state_manager.state.current_cycle
+        max_cycles = self.config.orchestrator.max_cycles
+
+        # Load potential
+        current_potential = None
+        pot_path = self.state_manager.state.active_potential_path
+        if pot_path and pot_path.exists():
+            current_potential = Potential(path=pot_path, format=POTENTIAL_FORMAT_YACE)
 
         for cycle in range(start_cycle, max_cycles):
             self.state_manager.update_cycle(cycle + 1)
             logger.info(f"--- Starting Cycle {cycle + 1}/{max_cycles} ---")
 
-            # 1. Exploration / Generation
-            logger.info("Phase: Exploration")
+            # 1. Exploration
             self.state_manager.update_step(TaskType.EXPLORATION)
-            # Avoid save here if not critical, or rely on dirty check in save()
+            candidates = self._explore_candidates(cycle, current_potential)
 
-            # Context can be expanded later
-            context = {"cycle": cycle, "temperature": self.config.dynamics.temperature}
-            candidates_iter = self.generator.explore(context)
-            logger.info("Generated candidates iterator.")
+            # 2. Selection
+            selected = self._select_candidates(candidates)
 
-            # 2. Oracle (Compute Labels)
-            logger.info("Phase: Oracle Computing")
+            # 3. Oracle
             self.state_manager.update_step(TaskType.TRAINING)
+            labeled = self.oracle.compute(selected)
 
-            # Oracle returns Iterator[Structure]
-            labeled_structures_iter = self.oracle.compute(candidates_iter)
-
-            # Note: We need to consume this for training.
-            # If we were using Dataset container, we'd fill it here.
-            # But we are streaming.
-            # However, for dynamics later, we need an initial structure.
-            # We can peek/tee, or just store the first one if we want.
-            # Or, Trainer returns statistics.
-
-            # Since mock dynamics needs a structure, and we are streaming training,
-            # we should probably just pick one (maybe valid one).
-            # For Cycle 01 simplicity with streaming:
-            # We'll collect them into a list for now to satisfy the logical need
-            # to pick one for dynamics, OR we rely on Trainer to give us one? No.
-            # Let's collect them into a Dataset object here (in memory) if small enough,
-            # or just take the first one.
-            # Given we want to fix OOM, collecting into list is bad if huge.
-            # But for Cycle 01 Mock, it's small.
-            # BUT the mandate is "No loading entire datasets into memory".
-            # So we cannot collect all into a list.
-
-            # We will tee the iterator? Or just use a generated structure for dynamics?
-            # Or we assume Training saves data to disk and we pick from disk.
-            # For now, let's create a list but limited size, or just pass iter to Trainer.
-
-            # Problem: We need a structure for Dynamics.
-            # Solution: We can implement a "tee" or custom iterator that captures the first item.
-
-            first_structure = None
-
-            def capture_first(iterator: Iterator[Structure]) -> Iterator[Structure]:
-                nonlocal first_structure
-                for i, item in enumerate(iterator):
-                    if i == 0:
-                        first_structure = item
-                    yield item
-
-            captured_iter = capture_first(labeled_structures_iter)
-
-            # 3. Training
-            logger.info("Phase: Training")
+            # 4. Training
             self.state_manager.update_step(TaskType.TRAINING)
-
-            potential = self.trainer.train(captured_iter)
-            self.state_manager.update_potential(potential.path)
-            # Save state after training as it's a checkpoint
+            new_potential = self.trainer.train(labeled)
+            self.state_manager.update_potential(new_potential.path)
+            current_potential = new_potential
             self.state_manager.save()
-            logger.info(f"Potential trained: {potential.path}")
-
-            # 4. Dynamics / Simulation
-            logger.info("Phase: Dynamics")
-            self.state_manager.update_step(TaskType.DYNAMICS)
-
-            if first_structure:
-                trajectory_iter = self.dynamics.simulate(potential, first_structure)
-                # Consume trajectory to ensure simulation runs
-                traj_count = sum(1 for _ in trajectory_iter)
-                logger.info(f"Simulated trajectory with {traj_count} frames.")
-            else:
-                logger.warning("No structures available for dynamics simulation.")
+            logger.info(f"Potential trained: {new_potential.path}")
 
             # 5. Validation
-            logger.info("Phase: Validation")
             self.state_manager.update_step(TaskType.VALIDATION)
-
-            validation_result = self.validator.validate(potential)
-            if validation_result.passed:
-                logger.info("Validation PASSED.")
-            else:
+            val_result = self.validator.validate(new_potential)
+            if not val_result.passed:
                 logger.warning("Validation FAILED.")
 
         if self.config.orchestrator.cleanup_on_exit:
