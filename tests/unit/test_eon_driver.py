@@ -71,16 +71,17 @@ def test_eon_driver_simulate(mock_ase_write: MagicMock, mock_write_text: MagicMo
     # But _prepare_run calls validate_path_safety which checks existence of potential path.
     # Potential path exists due to fixture.
 
-    # We patch shutil.copy
-    with patch("shutil.copy"):
-        # We need to mock glob to return something? Or empty is fine.
-        with patch("pathlib.Path.glob", return_value=[]):
-             # We also need to patch Path.exists inside simulate?
-             # simulate calls _prepare_run -> potential.path.exists() (Real file exists)
-             # simulate calls client_path.exists() if absolute. "eonclient" is relative.
-             # simulate calls run_dir.exists(). run_dir is constructed from work_dir.
-             # work_dir is real tmp_path. run_dir might not exist.
-             _ = list(driver.simulate(mock_potential, mock_structure))
+    # Combined with statements to fix SIM117
+    with (
+        patch("shutil.copy"),
+        patch("pathlib.Path.glob", return_value=[]),
+    ):
+         # We also need to patch Path.exists inside simulate?
+         # simulate calls _prepare_run -> potential.path.exists() (Real file exists)
+         # simulate calls client_path.exists() if absolute. "eonclient" is relative.
+         # simulate calls run_dir.exists(). run_dir is constructed from work_dir.
+         # work_dir is real tmp_path. run_dir might not exist.
+         _ = list(driver.simulate(mock_potential, mock_structure))
 
     mock_subprocess.assert_called_once()
     args = mock_subprocess.call_args[0][0]
