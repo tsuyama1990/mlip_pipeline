@@ -76,7 +76,7 @@ class RandomGenerator(BaseGenerator):
                 deformation = np.eye(3) + strain
                 # atoms.cell is a Cell object, can be treated as 3x3 array for multiplication
                 new_cell = atoms.cell @ deformation
-                atoms.set_cell(new_cell, scale_atoms=True)  # type: ignore[no-untyped-call]
+                atoms.set_cell(new_cell, scale_atoms=True)
 
             # Rattle positions (displace atoms)
             atoms.rattle(stdev=0.1)

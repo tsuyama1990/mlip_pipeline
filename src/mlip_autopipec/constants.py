@@ -1,5 +1,16 @@
-from typing import Final
+# Default LAMMPS input template for MD exploration
+DEFAULT_LAMMPS_TEMPLATE = """
+units metal
+atom_style atomic
+boundary p p p
 
-# Cycle 01 Constants
-DEFAULT_WORK_DIR: Final[str] = "experiments"
-DEFAULT_CONFIG_FILE: Final[str] = "config.yaml"
+# Potential setup (placeholder)
+pair_style none
+
+# MD Settings
+velocity all create {temperature} 12345 dist gaussian
+fix 1 all nvt temp {temperature} {temperature} 0.1
+timestep 0.001
+
+run {steps}
+"""

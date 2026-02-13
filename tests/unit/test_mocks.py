@@ -23,6 +23,20 @@ def test_mock_generator_explore() -> None:
     assert isinstance(first_structure.atoms, Atoms)
     assert first_structure.provenance == "mock_generator"
 
+def test_mock_generator_local_candidates(mock_atoms: Atoms) -> None:
+    generator = MockGenerator()
+    seed = Structure(atoms=mock_atoms, provenance="seed")
+
+    # Generate 5 local candidates
+    candidates = generator.generate_local_candidates(seed, count=5)
+
+    # Verify count and type
+    candidate_list = list(candidates)
+    assert len(candidate_list) == 5
+    for c in candidate_list:
+        assert isinstance(c, Structure)
+        assert "local_candidate" in c.provenance
+
 def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     oracle = MockOracle()
     s = Structure(
@@ -60,6 +74,22 @@ def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     potential = trainer.train(structures)
     assert potential.path.name == "potential.yace"
     assert potential.format == "yace"
+
+def test_mock_trainer_select_active_set(mock_atoms: Atoms) -> None:
+    from pathlib import Path
+    trainer = MockTrainer(work_dir=Path())
+
+    structures = [
+        Structure(atoms=mock_atoms, provenance=f"cand_{i}") for i in range(10)
+    ]
+
+    # Select 3
+    selected = trainer.select_active_set(structures, count=3)
+    selected_list = list(selected)
+
+    assert len(selected_list) == 3
+    # Check provenance modified by mock implementation
+    assert "selected" in selected_list[0].provenance
 
 def test_mock_dynamics_simulate(mock_atoms: Atoms) -> None:
     dynamics = MockDynamics()

@@ -1,40 +1,27 @@
-from typing import cast
+from pathlib import Path
+
+import numpy as np
 import pytest
 from ase import Atoms
-from pathlib import Path
-import numpy as np
 
-from mlip_autopipec.domain_models.config import GeneratorConfig, ExplorationPolicyConfig
+from mlip_autopipec.domain_models.config import ExplorationPolicyConfig, GeneratorConfig
 from mlip_autopipec.domain_models.enums import GeneratorType
+from mlip_autopipec.generator.adaptive import AdaptiveGenerator
+from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
 
 # Imports that will be available later
-try:
-    from mlip_autopipec.generator.random_gen import RandomGenerator
-except ImportError:
-    RandomGenerator = None  # type: ignore
+from mlip_autopipec.generator.random_gen import RandomGenerator
 
-try:
-    from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
-except ImportError:
-    M3GNetGenerator = None  # type: ignore
-
-try:
-    from mlip_autopipec.generator.adaptive import AdaptiveGenerator
-except ImportError:
-    AdaptiveGenerator = None  # type: ignore
 
 class TestRandomGenerator:
     def test_random_generator_import(self) -> None:
         assert RandomGenerator is not None, "RandomGenerator not implemented"
 
     def test_random_generation(self, tmp_path: Path) -> None:
-        if RandomGenerator is None:
-            pytest.fail("RandomGenerator not implemented")
-
         # Create a dummy seed file
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("MgO", positions=[[0, 0, 0], [2, 0, 0]], cell=[4, 4, 4], pbc=True)
-        atoms.write(seed_path) # type: ignore[no-untyped-call]
+        atoms.write(seed_path)  # type: ignore[no-untyped-call]
 
         config = GeneratorConfig(
             type=GeneratorType.RANDOM,
@@ -49,7 +36,7 @@ class TestRandomGenerator:
         for s in candidates:
             assert s.provenance == "random"
             atoms_obj = s.ase_atoms
-            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"] # type: ignore[no-untyped-call]
+            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]  # type: ignore[no-untyped-call]
 
         # Check diversity
         pos0 = candidates[0].ase_atoms.positions
@@ -57,18 +44,12 @@ class TestRandomGenerator:
         assert not np.allclose(pos0, pos1), "Structures should be different"
 
     def test_random_generator_no_seed(self) -> None:
-        if RandomGenerator is None:
-            pytest.fail("RandomGenerator not implemented")
-
         config = GeneratorConfig(type=GeneratorType.RANDOM, seed_structure_path=None)
         with pytest.raises(ValueError, match="RandomGenerator requires a seed structure path in config"):
              RandomGenerator(config)
 
     def test_random_generator_invalid_seed(self, tmp_path: Path) -> None:
         """Test behavior when seed file exists but is empty/invalid."""
-        if RandomGenerator is None:
-            pytest.fail("RandomGenerator not implemented")
-
         seed_path = tmp_path / "empty.xyz"
         seed_path.touch()
 
@@ -84,9 +65,6 @@ class TestRandomGenerator:
 
     def test_malformed_seed(self, tmp_path: Path) -> None:
         """Test behavior when seed file has malformed content."""
-        if RandomGenerator is None:
-            pytest.fail("RandomGenerator not implemented")
-
         seed_path = tmp_path / "malformed.xyz"
         seed_path.write_text("This is not a valid XYZ file")
 
@@ -106,9 +84,6 @@ class TestM3GNetGenerator:
         assert M3GNetGenerator is not None, "M3GNetGenerator not implemented"
 
     def test_m3gnet_generation(self) -> None:
-        if M3GNetGenerator is None:
-            pytest.fail("M3GNetGenerator not implemented")
-
         config = GeneratorConfig(type=GeneratorType.M3GNET)
         generator = M3GNetGenerator(config)
 
@@ -122,12 +97,9 @@ class TestAdaptiveGenerator:
         assert AdaptiveGenerator is not None, "AdaptiveGenerator not implemented"
 
     def test_temperature_schedule_explore(self, tmp_path: Path) -> None:
-        if AdaptiveGenerator is None:
-            pytest.fail("AdaptiveGenerator not implemented")
-
         # Need a seed for mock execution now
         seed_path = tmp_path / "seed_adapt.xyz"
-        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path) # type: ignore[no-untyped-call]
+        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path)  # type: ignore[no-untyped-call]
 
         # Test explore logic picking up schedule
         policy = ExplorationPolicyConfig(temperature_schedule=[100.0, 200.0])
@@ -154,12 +126,9 @@ class TestAdaptiveGenerator:
         assert candidates_c2[0].provenance == "md_200.0K"
 
     def test_adaptive_generator_with_seed(self, tmp_path: Path) -> None:
-        if AdaptiveGenerator is None:
-            pytest.fail("AdaptiveGenerator not implemented")
-
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("He", positions=[[0, 0, 0]], cell=[10, 10, 10], pbc=True)
-        atoms.write(seed_path) # type: ignore[no-untyped-call]
+        atoms.write(seed_path)  # type: ignore[no-untyped-call]
 
         config = GeneratorConfig(
             type=GeneratorType.ADAPTIVE,
@@ -176,9 +145,6 @@ class TestAdaptiveGenerator:
         assert candidates[0].provenance == "md_300.0K" # Default schedule 300K
 
     def test_generate_lammps_input(self) -> None:
-        if AdaptiveGenerator is None:
-            pytest.fail("AdaptiveGenerator not implemented")
-
         config = GeneratorConfig(type=GeneratorType.ADAPTIVE)
         generator = AdaptiveGenerator(config)
 
