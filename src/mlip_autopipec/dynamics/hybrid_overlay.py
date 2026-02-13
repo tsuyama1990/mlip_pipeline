@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from ase.data import atomic_numbers
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
@@ -37,12 +39,12 @@ class HybridOverlay:
 
         return f"{base_style} {' '.join(hybrid_args)}"
 
-    def get_pair_coeff(self, elements: list[str], potential_file: str) -> str:
+    def get_pair_coeff(self, elements: Sequence[str], potential_file: str) -> str:
         """
         Returns the pair_coeff commands.
 
         Args:
-            elements: List of element symbols (e.g., ["Fe", "Pt"]).
+            elements: Sequence of element symbols (e.g., ["Fe", "Pt"]).
             potential_file: Path/name of the potential file.
 
         Returns:

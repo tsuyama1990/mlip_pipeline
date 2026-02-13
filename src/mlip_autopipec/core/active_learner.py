@@ -63,30 +63,17 @@ class ActiveLearner:
         # for Random, so it will consume the input stream but yield output stream.
         selected_candidates_iter = self.active_selector.select_batch(candidates_iter)
 
-        # Use peek mechanism to check for empty stream
-        try:
-            first_candidate = next(selected_candidates_iter)
-            # Reconstruct iterator
-            selected_candidates_stream: Iterator[Structure] = itertools.chain([first_candidate], selected_candidates_iter)
-            has_candidates = True
-        except StopIteration:
-            has_candidates = False
-            selected_candidates_stream = iter([])
+        has_candidates, selected_candidates_stream = self._peek_iterator(selected_candidates_iter)
 
         if not has_candidates:
             logger.warning("ActiveLearner: No candidates selected. Returning existing potential (no-op).")
             # We assume the trainer can handle an "update" request that results in no change
             # or we need to return the current potential.
-            # But we don't track current potential here?
-            # Actually, process_halt returns Potential.
-            # If we don't have labeled data, we can't train.
-            # We should probably return the potential that was used?
             # But process_halt signature implies it returns *updated* potential.
             # If no update, maybe we should raise or return None?
             # But signature says Potential (not Optional).
             # The Trainer.train() typically returns a Potential.
             # If we pass empty list to trainer.train, it should handle it.
-            # Let's see if trainer handles it.
 
         # 3. Label (Oracle)
         logger.info("ActiveLearner: Computing ground truth (Oracle)...")
@@ -104,3 +91,14 @@ class ActiveLearner:
 
         logger.info(f"ActiveLearner: Cycle complete. New potential: {new_potential.path}")
         return new_potential
+
+    def _peek_iterator(self, iterator: Iterator[Structure]) -> tuple[bool, Iterator[Structure]]:
+        """
+        Peeks at the first element of an iterator to check if it's empty,
+        without consuming it permanently from the stream.
+        """
+        try:
+            first = next(iterator)
+            return True, itertools.chain([first], iterator)
+        except StopIteration:
+            return False, iter([])
