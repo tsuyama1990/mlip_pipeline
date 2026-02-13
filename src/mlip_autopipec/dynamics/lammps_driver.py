@@ -3,6 +3,7 @@ import shutil
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from ase.data import atomic_numbers
@@ -43,6 +44,10 @@ class LAMMPSDriver(BaseDynamics):
         yield from self._parse_dump_file(dump_file, elements)
 
     def _setup_run_directory(self, structure: Structure) -> Path:
+        """
+        Creates a unique run directory for the simulation based on structure provenance.
+        Ensures directory names are safe and not too long.
+        """
         run_name = f"md_run_{structure.provenance}" if structure.provenance else "md_run"
         if len(run_name) > 50:
             run_name = run_name[:50]
@@ -54,6 +59,10 @@ class LAMMPSDriver(BaseDynamics):
     def _prepare_simulation_files(
         self, run_dir: Path, structure: Structure, potential: Potential, elements: list[str]
     ) -> tuple[Path, Path, Path]:
+        """
+        Writes necessary input files (structure, potential link, input script) to the run directory.
+        Returns paths to data file, input file, and dump file.
+        """
         data_file = run_dir / "structure.data"
         input_file = run_dir / "in.md"
         potential_link = run_dir / "potential.yace"
@@ -114,36 +123,43 @@ class LAMMPSDriver(BaseDynamics):
             raise RuntimeError(msg) from err
 
     def _parse_dump_file(self, dump_file: Path, elements: list[str]) -> Iterator[Structure]:
-        # Use explicit frame limit to prevent OOM
-        max_frames = self.config.max_frames
-        if dump_file.exists():
-            # Use 'index=":"' to create a generator, preventing full file read
-            for i, atoms in enumerate(iread(dump_file, format="lammps-dump-text", index=":")):
-                if i >= max_frames:
-                    logger.warning(f"LAMMPSDriver: Reached max frame limit ({max_frames}).")
-                    break
-
-                types = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
-                real_numbers = [atomic_numbers[elements[t - 1]] for t in types]
-                atoms.set_atomic_numbers(real_numbers)  # type: ignore[no-untyped-call]
-
-                gamma = 0.0
-                if "c_pace[1]" in atoms.arrays:
-                    gammas = atoms.arrays["c_pace[1]"]
-                    if len(gammas) > 0:
-                        gamma = np.max(gammas)
-
-                yield Structure(
-                    atoms=atoms,
-                    provenance="md_trajectory",
-                    label_status="unlabeled",
-                    uncertainty_score=float(gamma),
-                    metadata={"temperature": self.config.temperature, "frame": i},
-                )
-        else:
+        if not dump_file.exists():
             logger.warning("LAMMPSDriver: No dump file produced.")
+            return
 
-    # Correcting implementation to pass elements
+        max_frames = self.config.max_frames
+
+        # Use 'index=":"' to create a generator, preventing full file read
+        for i, atoms in enumerate(iread(dump_file, format="lammps-dump-text", index=":")):
+            if i >= max_frames:
+                logger.warning(f"LAMMPSDriver: Reached max frame limit ({max_frames}).")
+                break
+
+            types = atoms.get_atomic_numbers()  # type: ignore[no-untyped-call]
+            real_numbers = [atomic_numbers[elements[t - 1]] for t in types]
+            atoms.set_atomic_numbers(real_numbers)  # type: ignore[no-untyped-call]
+
+            gamma = self._extract_gamma(atoms)
+
+            yield Structure(
+                atoms=atoms,
+                provenance="md_trajectory",
+                label_status="unlabeled",
+                uncertainty_score=gamma,
+                metadata={"temperature": self.config.temperature, "frame": i},
+            )
+
+    def _extract_gamma(self, atoms: Any) -> float:
+        """Extracts the maximum gamma value from atoms arrays."""
+        if "c_pace_gamma" in atoms.arrays:
+            gammas = atoms.arrays["c_pace_gamma"]
+            if len(gammas) > 0:
+                return float(np.max(gammas))
+        elif "c_pace[1]" in atoms.arrays:
+            gammas = atoms.arrays["c_pace[1]"]
+            if len(gammas) > 0:
+                return float(np.max(gammas))
+        return 0.0
 
     def _generate_input_script(
         self, structure_file: str, potential_file: str, dump_file: str, elements: list[str]
@@ -175,17 +191,17 @@ class LAMMPSDriver(BaseDynamics):
             f"fix 1 all nvt temp {self.config.temperature} {self.config.temperature} $(100.0*dt)"
         )
 
-        thermo_args = "step temp press etotal"
-        dump_args = "id type x y z"
+        thermo_args = ["step", "temp", "press", "etotal"]
+        dump_args = ["id", "type", "x", "y", "z"]
 
         if self.config.halt_on_uncertainty:
-            thermo_args += " c_max_gamma"
-            dump_args += " c_pace[1]"
+            thermo_args.append("c_max_gamma")
+            dump_args.append("c_pace_gamma")
 
         lines.append(f"thermo {self.config.n_thermo}")
-        lines.append(f"thermo_style custom {thermo_args}")
+        lines.append(f"thermo_style custom {' '.join(thermo_args)}")
 
-        lines.append(f"dump 1 all custom {self.config.n_dump} {dump_file} {dump_args}")
+        lines.append(f"dump 1 all custom {self.config.n_dump} {dump_file} {' '.join(dump_args)}")
         lines.append("dump_modify 1 sort id")
 
         lines.append(f"run {self.config.steps}")

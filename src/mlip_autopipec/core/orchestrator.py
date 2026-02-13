@@ -152,6 +152,62 @@ class Orchestrator:
 
         yield from limited_iter
 
+    def _execute_cycle(self, cycle: int, current_potential: Potential | None) -> Potential | None:
+        """Executes a single cycle of the active learning workflow."""
+        self.state_manager.update_cycle(cycle + 1)
+        self.state_manager.save()  # Checkpoint: Start of Cycle
+        logger.info(f"--- Starting Cycle {cycle + 1}/{self.config.orchestrator.max_cycles} ---")
+
+        # 1. Exploration & Selection (Acquire Data)
+        self.state_manager.update_step(TaskType.EXPLORATION)
+        self.state_manager.save()  # Checkpoint: Start Exploration
+
+        structures_to_label = self._acquire_training_data(cycle, current_potential)
+
+        # Check if potential was updated during acquisition (OTF Active Learning)
+        pot_path = self.state_manager.state.active_potential_path
+        if pot_path and pot_path.exists():
+            # Reload potential to ensure we are up to date if OTF loop updated it
+            current_potential = Potential(path=pot_path, format="yace")
+
+        # 2. Oracle (Labeling)
+        self.state_manager.update_step(TaskType.TRAINING)
+        self.state_manager.save()  # Checkpoint: Start Oracle
+
+        # Note: If OTF handled everything, structures_to_label might be empty.
+        labeled = list(self.oracle.compute(structures_to_label))
+
+        # 3. Training
+        # Only train if we have new labeled data
+        if labeled:
+            logger.info(f"Training on {len(labeled)} new structures.")
+            new_potential = self.trainer.train(labeled)
+            self.state_manager.update_potential(new_potential.path)
+            current_potential = new_potential
+            self.state_manager.save()  # Checkpoint: After Training
+            logger.info(f"Potential trained: {new_potential.path}")
+        elif current_potential:
+            logger.info("No new data to train on. Using existing potential.")
+        else:
+            logger.warning("No potential and no data to train. Cycle failed?")
+            # This implies Cold Start failed to produce data
+            if cycle == 0:
+                msg = "Cold start produced no data."
+                raise RuntimeError(msg)
+
+        if current_potential:
+            # 4. Validation
+            self.state_manager.update_step(TaskType.VALIDATION)
+            self.state_manager.save()  # Checkpoint: Start Validation
+
+            val_result = self.validator.validate(current_potential)
+            if not val_result.passed:
+                logger.warning("Validation FAILED.")
+
+        # End of Cycle
+        self.state_manager.save()  # Checkpoint: End of Cycle
+        return current_potential
+
     def run(self) -> None:
         """Executes the active learning workflow."""
         logger.info("Starting Orchestrator...")
@@ -167,50 +223,8 @@ class Orchestrator:
             current_potential = Potential(path=pot_path, format="yace")
 
         for cycle in range(start_cycle, max_cycles):
-            self.state_manager.update_cycle(cycle + 1)
-            self.state_manager.save()  # Checkpoint: Start of Cycle
-            logger.info(f"--- Starting Cycle {cycle + 1}/{max_cycles} ---")
-
             try:
-                # 1. Exploration & Selection (Acquire Data)
-                self.state_manager.update_step(TaskType.EXPLORATION)
-                self.state_manager.save()  # Checkpoint: Start Exploration
-
-                structures_to_label = self._acquire_training_data(cycle, current_potential)
-
-                # Check if potential was updated during acquisition (OTF Active Learning)
-                pot_path = self.state_manager.state.active_potential_path
-                if pot_path and pot_path.exists():
-                     # Reload potential to ensure we are up to date if OTF loop updated it
-                     current_potential = Potential(path=pot_path, format="yace")
-
-                # 2. Oracle (Labeling)
-                self.state_manager.update_step(TaskType.TRAINING)
-                self.state_manager.save() # Checkpoint: Start Oracle
-
-                # Note: If OTF handled everything, structures_to_label might be empty.
-                labeled = self.oracle.compute(structures_to_label)
-
-                # 3. Training
-                # If labeled is empty, this might be a no-op or a consolidation training
-                new_potential = self.trainer.train(labeled)
-
-                self.state_manager.update_potential(new_potential.path)
-                current_potential = new_potential
-                self.state_manager.save() # Checkpoint: After Training
-                logger.info(f"Potential trained: {new_potential.path}")
-
-                # 4. Validation
-                self.state_manager.update_step(TaskType.VALIDATION)
-                self.state_manager.save() # Checkpoint: Start Validation
-
-                val_result = self.validator.validate(new_potential)
-                if not val_result.passed:
-                    logger.warning("Validation FAILED.")
-
-                # End of Cycle
-                self.state_manager.save() # Checkpoint: End of Cycle
-
+                current_potential = self._execute_cycle(cycle, current_potential)
             except Exception:
                 logger.exception(f"Cycle {cycle + 1} failed")
                 # We log and break to avoid corrupt state.

@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from ase.data import atomic_numbers
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
@@ -37,12 +39,12 @@ class HybridOverlay:
 
         return f"{base_style} {' '.join(hybrid_args)}"
 
-    def get_pair_coeff(self, elements: list[str], potential_file: str) -> str:
+    def get_pair_coeff(self, elements: Sequence[str], potential_file: str) -> str:
         """
         Returns the pair_coeff commands.
 
         Args:
-            elements: List of element symbols (e.g., ["Fe", "Pt"]).
+            elements: Sequence of element symbols (e.g., ["Fe", "Pt"]).
             potential_file: Path/name of the potential file.
 
         Returns:
@@ -53,39 +55,42 @@ class HybridOverlay:
             raise ValueError(msg)
 
         commands = []
-
-        # 1. PACE part (always present)
-        # pair_coeff * * pace <file> <elements>
         elem_str = " ".join(elements)
-        commands.append(f"pair_coeff * * pace {potential_file} {elem_str}")
-
         potential_type = self.config.hybrid_potential
 
-        # 2. Baseline part
-        if potential_type == HybridPotentialType.ZBL:
-            # ZBL requires atomic numbers for each pair
-            # pair_coeff i j zbl Z_i Z_j
-            n_types = len(elements)
-            for i in range(1, n_types + 1):
-                for j in range(i, n_types + 1):
-                    elem_i = elements[i - 1]
-                    elem_j = elements[j - 1]
+        # 1. PACE part
+        if potential_type == HybridPotentialType.NONE or potential_type is None:
+            # Standard pace style: pair_coeff * * <file> <elements>
+            commands.append(f"pair_coeff * * {potential_file} {elem_str}")
+        else:
+            # Hybrid overlay: pair_coeff * * pace <file> <elements>
+            commands.append(f"pair_coeff * * pace {potential_file} {elem_str}")
 
-                    if elem_i not in atomic_numbers:
-                        msg = f"Unknown element: {elem_i}"
-                        raise ValueError(msg)
-                    if elem_j not in atomic_numbers:
-                        msg = f"Unknown element: {elem_j}"
-                        raise ValueError(msg)
+            # 2. Baseline part
+            if potential_type == HybridPotentialType.ZBL:
+                # ZBL requires atomic numbers for each pair
+                # pair_coeff i j zbl Z_i Z_j
+                n_types = len(elements)
+                for i in range(1, n_types + 1):
+                    for j in range(i, n_types + 1):
+                        elem_i = elements[i - 1]
+                        elem_j = elements[j - 1]
 
-                    z_i = atomic_numbers[elem_i]
-                    z_j = atomic_numbers[elem_j]
-                    commands.append(f"pair_coeff {i} {j} zbl {z_i} {z_j}")
+                        if elem_i not in atomic_numbers:
+                            msg = f"Unknown element: {elem_i}"
+                            raise ValueError(msg)
+                        if elem_j not in atomic_numbers:
+                            msg = f"Unknown element: {elem_j}"
+                            raise ValueError(msg)
 
-        elif potential_type == HybridPotentialType.LJ:
-            # LJ
-            epsilon = self.config.lj_epsilon
-            sigma = self.config.lj_sigma
-            commands.append(f"pair_coeff * * lj/cut {epsilon} {sigma}")
+                        z_i = atomic_numbers[elem_i]
+                        z_j = atomic_numbers[elem_j]
+                        commands.append(f"pair_coeff {i} {j} zbl {z_i} {z_j}")
+
+            elif potential_type == HybridPotentialType.LJ:
+                # LJ
+                epsilon = self.config.lj_epsilon
+                sigma = self.config.lj_sigma
+                commands.append(f"pair_coeff * * lj/cut {epsilon} {sigma}")
 
         return "\n".join(commands)
