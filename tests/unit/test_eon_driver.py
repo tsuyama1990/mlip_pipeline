@@ -6,7 +6,7 @@ import pytest
 from mlip_autopipec.domain_models.config import DynamicsConfig, EONConfig
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 from mlip_autopipec.domain_models.enums import DynamicsType
-from mlip_autopipec.dynamics.eon_driver import EONDriver
+from mlip_autopipec.dynamics.eon_driver import EONDriver, EONExecutionError
 
 
 @pytest.fixture
@@ -122,5 +122,5 @@ def test_eon_driver_failure(mock_ase_write: MagicMock, mock_write_text: MagicMoc
     mock_subprocess.return_value.returncode = 1
     mock_subprocess.return_value.stderr = "Fatal Error"
 
-    with patch("shutil.copy"), pytest.raises(RuntimeError, match="EON execution failed"):
+    with patch("shutil.copy"), pytest.raises(EONExecutionError, match="EON execution failed"):
         list(driver.simulate(mock_potential, mock_structure))

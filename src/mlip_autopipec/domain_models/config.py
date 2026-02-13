@@ -142,6 +142,15 @@ class EONConfig(BaseModel):
     )
     potential_format: str = Field(default="yace", description="Format of the potential file")
 
+    # New fields for flexibility
+    max_result_files: int = Field(
+        default=100, ge=1, description="Max result files to process per cycle to prevent OOM"
+    )
+    config_template: str = Field(
+        default="[Main]\ntemperature = {temperature}\nprefactor = {prefactor}\nsearch_method = {search_method}\n\n[Potential]\ntype = External\ncommand = python {server_script} --potential {potential_file} --threshold {threshold}\n",
+        description="Template for EON config.ini"
+    )
+
     model_config = ConfigDict(extra="forbid")
 
 

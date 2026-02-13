@@ -8,10 +8,18 @@ from pathlib import Path
 from ase.io import read, write
 
 from mlip_autopipec.domain_models.config import DynamicsConfig
-from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
+from mlip_autopipec.domain_models.datastructures import (
+    HaltInfo,
+    Potential,
+    Structure,
+    validate_path_safety,
+)
 from mlip_autopipec.dynamics.interface import BaseDynamics
 
 logger = logging.getLogger(__name__)
+
+class EONExecutionError(RuntimeError):
+    """Raised when EON client execution fails."""
 
 class EONDriver(BaseDynamics):
     """
@@ -83,21 +91,24 @@ class EONDriver(BaseDynamics):
     def _raise_runtime_error(self, stderr: str) -> None:
         """Helper to raise exception with clean message."""
         msg = f"EON execution failed: {stderr}"
-        raise RuntimeError(msg)
+        raise EONExecutionError(msg)
 
     def _prepare_run(self, potential: Potential, structure: Structure, run_dir: Path) -> None:
         """Generates input files for EON."""
 
-        # Write config.ini
-        config_content = f"""[Main]
-temperature = {self.eon_config.temperature}
-prefactor = {self.eon_config.prefactor}
-search_method = {self.eon_config.search_method}
+        # Validate paths to prevent traversal if they were user inputs (potential path is validated in model, structure provenance is safe)
+        # But we double check relative paths constructed here.
+        validate_path_safety(run_dir)
 
-[Potential]
-type = External
-command = python {self.eon_config.server_script_name} --potential potential.{potential.format} --threshold {self.config.max_gamma_threshold}
-"""
+        # Write config.ini using template
+        config_content = self.eon_config.config_template.format(
+            temperature=self.eon_config.temperature,
+            prefactor=self.eon_config.prefactor,
+            search_method=self.eon_config.search_method,
+            server_script=self.eon_config.server_script_name,
+            potential_file=f"potential.{potential.format}",
+            threshold=self.config.max_gamma_threshold
+        )
         (run_dir / "config.ini").write_text(config_content)
 
         # Write Structure (pos.con)
@@ -154,13 +165,20 @@ command = python {self.eon_config.server_script_name} --potential potential.{pot
         )
 
     def _parse_results(self, run_dir: Path) -> Iterator[Structure]:
-        """Reads successful EON results."""
-        # Use generator for memory efficiency
+        """Reads successful EON results using streaming."""
+        # Use iterator for memory efficiency and limit results
+        # glob returns iterator in Python 3.10+
         products = run_dir.glob("product_*.con")
-        # Check if empty iterator efficiently? No, just iterate.
 
         found = False
+        count = 0
+        limit = self.eon_config.max_result_files
+
         for p in products:
+             if count >= limit:
+                 logger.warning("Max result files limit reached (%d). Stopping iteration.", limit)
+                 break
+
              found = True
              try:
                  atoms = read(p)
@@ -170,6 +188,7 @@ command = python {self.eon_config.server_script_name} --potential potential.{pot
                      label_status="unlabeled",
                      metadata={"source_file": p.name}
                  )
+                 count += 1
              except Exception:
                  logger.warning("Failed to read result %s", p)
 

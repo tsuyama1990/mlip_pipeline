@@ -1,7 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
 from ase.calculators.calculator import Calculator
 from ase.calculators.emt import EMT
@@ -31,13 +30,13 @@ class MLIPCalculatorFactory(CalculatorFactory):
 
         # 3. Fallback
         logger.warning("Unknown potential format for %s, falling back to EMT (Mock).", potential_path)
-        return EMT() # type: ignore[no-untyped-call, no-any-return]
+        return self._create_fallback()
 
     def _create_m3gnet(self, path: Path) -> Calculator:
         try:
-            import m3gnet # noqa: F401
-            from m3gnet.models import M3GNet, Potential
-            from m3gnet.calculators import M3GNetCalculator
+            import m3gnet  # type: ignore # noqa: F401
+            from m3gnet.calculators import M3GNetCalculator  # type: ignore
+            from m3gnet.models import M3GNet, Potential  # type: ignore
 
             # Assuming the path points to a model or we load default
             # For this simplified implementation, we assume path is just a marker or directory
@@ -51,15 +50,19 @@ class MLIPCalculatorFactory(CalculatorFactory):
             return M3GNetCalculator(potential=potential) # type: ignore[no-any-return]
         except ImportError:
             logger.warning("m3gnet not installed. Falling back to EMT.")
-            return EMT() # type: ignore[no-untyped-call, no-any-return]
+            return self._create_fallback()
         except Exception:
             logger.exception("Failed to load m3gnet")
-            return EMT() # type: ignore[no-untyped-call, no-any-return]
+            return self._create_fallback()
 
     def _create_pace(self, path: Path) -> Calculator:
         try:
-            from pyace import PyACECalculator # type: ignore
+            from pyace import PyACECalculator  # type: ignore
             return PyACECalculator(filename=str(path)) # type: ignore[no-any-return]
         except ImportError:
             logger.warning("pyace not installed. Falling back to EMT.")
-            return EMT() # type: ignore[no-untyped-call, no-any-return]
+            return self._create_fallback()
+
+    def _create_fallback(self) -> Calculator:
+        """Returns a safe fallback calculator (EMT)."""
+        return EMT() # type: ignore[no-any-return, no-untyped-call]
