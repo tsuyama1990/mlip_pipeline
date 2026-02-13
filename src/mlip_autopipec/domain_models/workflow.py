@@ -24,12 +24,16 @@ class WorkflowState(BaseModel):
         return validate_path_safety(v)
 
 
+from typing import Any
+
+
 class ValidationResult(BaseModel):
     """
     Result of a validation run.
     """
     passed: bool = Field(..., description="Whether the validation passed")
     metrics: dict[str, float] = Field(default_factory=dict, description="Validation metrics")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata (e.g. status details)")
     report_path: Path | None = Field(None, description="Path to detailed report")
 
     model_config = ConfigDict(extra="forbid")

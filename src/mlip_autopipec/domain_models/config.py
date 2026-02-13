@@ -194,6 +194,17 @@ class ValidatorConfig(BaseComponentConfig):
     type: ValidatorType = ValidatorType.MOCK
     elastic_tolerance: float = Field(default=0.15, gt=0.0, description="Tolerance for elastic constants")
     phonon_stability: bool = Field(default=True, description="Check phonon stability")
+    phonon_supercell: list[int] = Field(
+        default=[2, 2, 2],
+        min_length=3,
+        max_length=3,
+        description="Supercell size for phonon calculation"
+    )
+    strain_magnitude: float = Field(
+        default=0.01,
+        gt=0.0,
+        description="Strain magnitude for elastic constant calculation"
+    )
 
 
 class OrchestratorConfig(BaseModel):

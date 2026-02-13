@@ -20,6 +20,7 @@ from mlip_autopipec.generator import (
 from mlip_autopipec.oracle import BaseOracle, DFTManager, MockOracle
 from mlip_autopipec.trainer import BaseTrainer, MockTrainer, PacemakerTrainer
 from mlip_autopipec.validator import BaseValidator, MockValidator
+from mlip_autopipec.validator.physics import PhysicsValidator
 
 logger = logging.getLogger(__name__)
 
@@ -80,5 +81,7 @@ class ComponentFactory:
         val_type = self.config.validator.type
         if val_type == ValidatorType.MOCK:
             return MockValidator()
+        if val_type == ValidatorType.PHYSICS:
+            return PhysicsValidator(self.config)
         msg = f"Unsupported validator type: {val_type}"
         raise ValueError(msg)
