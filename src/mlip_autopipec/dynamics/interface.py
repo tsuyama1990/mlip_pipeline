@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from mlip_autopipec.domain_models.config import DEFAULT_MOCK_FRAMES
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 if TYPE_CHECKING:
@@ -43,7 +42,7 @@ class MockDynamics(BaseDynamics):
         """
         logger.info("MockDynamics: Simulating trajectory...")
 
-        frame_count = DEFAULT_MOCK_FRAMES
+        frame_count = 5
         if self.config:
             # Enforce a hard limit for mock safety
             frame_count = min(self.config.mock_frames, 10000)

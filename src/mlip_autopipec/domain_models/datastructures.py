@@ -61,7 +61,7 @@ class Structure(BaseModel):
                 "label_status": self.label_status,
             }
         )
-        return atoms
+        return atoms  # type: ignore[no-any-return]
 
 
 class Dataset(BaseModel):

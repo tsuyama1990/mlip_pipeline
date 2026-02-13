@@ -1,17 +1,13 @@
-from mlip_autopipec.domain_models.config import (
-    DEFAULT_BASIS_SIZE,
-    DEFAULT_CUTOFF,
-    DEFAULT_ORDER,
-    TrainerConfig,
-)
+from mlip_autopipec.domain_models.config import TrainerConfig
 from mlip_autopipec.domain_models.enums import TrainerType
 
 
 def test_trainer_config_defaults() -> None:
     config = TrainerConfig(type=TrainerType.PACEMAKER)
-    assert config.cutoff == DEFAULT_CUTOFF
-    assert config.order == DEFAULT_ORDER
-    assert config.basis_size == DEFAULT_BASIS_SIZE
+    # Using hardcoded expectations as defaults were moved to Pydantic models
+    assert config.cutoff == 5.0
+    assert config.order == 2
+    assert config.basis_size == 500
     assert config.delta_learning is None
 
 def test_trainer_config_custom() -> None:
