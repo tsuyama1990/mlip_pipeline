@@ -66,3 +66,9 @@ class ExecutionMode(StrEnum):
     MOCK = "mock"
     PRODUCTION = "production"
     TEST = "test"
+
+
+class HybridPotentialType(StrEnum):
+    ZBL = "zbl"
+    LJ = "lj"
+    NONE = "none"
