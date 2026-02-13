@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import shutil
 import subprocess
@@ -23,7 +24,9 @@ class EONDriver(BaseDynamics):
         self.config = config
 
         if self.config.eon is None:
-             raise ValueError("EON configuration missing in DynamicsConfig")
+             msg = "EON configuration missing in DynamicsConfig"
+             raise ValueError(msg)
+        self.eon_config = self.config.eon
 
     def simulate(self, potential: Potential, structure: Structure) -> Iterator[Structure]:
         """
@@ -41,22 +44,13 @@ class EONDriver(BaseDynamics):
         self._prepare_run(potential, structure, run_dir)
 
         # 3. Execute EON
-        client_cmd = [self.config.eon.client_path]
+        client_cmd = [self.eon_config.client_path]
 
-        logger.info(f"Executing: {' '.join(client_cmd)} in {run_dir}")
+        logger.info("Executing: %s in %s", ' '.join(client_cmd), run_dir)
 
         try:
-            # We assume eonclient runs until completion or halt.
-            # Usually EON runs as a daemon or long process, but we treat it as a task here.
-            # If it's a client, it connects to a server or runs locally.
-            # Assuming standalone client mode or local execution.
-
-            # Note: EON usually requires a communicator.
-            # If we are running "eonclient", it expects a server.
-            # If we are running a standalone AKMC, we usually run "eon".
-            # The spec mentions "eonclient". Let's assume the user knows what they are doing with the command.
-
-            result = subprocess.run(
+            # We assume the user has configured client_path securely in config.
+            result = subprocess.run(  # noqa: S603
                 client_cmd,
                 cwd=run_dir,
                 capture_output=True,
@@ -72,66 +66,56 @@ class EONDriver(BaseDynamics):
                 return
 
             if result.returncode != 0:
-                logger.error(f"EON failed with code {result.returncode}")
-                logger.error(f"Stdout: {result.stdout}")
-                logger.error(f"Stderr: {result.stderr}")
-                raise RuntimeError(f"EON execution failed: {result.stderr}")
+                logger.error("EON failed with code %s", result.returncode)
+                logger.error("Stdout: %s", result.stdout)
+                logger.error("Stderr: %s", result.stderr)
+                self._raise_runtime_error(result.stderr)
 
             logger.info("EON simulation completed successfully.")
 
             # 4. Parse Results
-            # If successful, yield the trajectory or final state
-            yield from self._parse_results(run_dir, structure)
+            yield from self._parse_results(run_dir)
 
-        except Exception as e:
-            logger.error(f"Simulation error: {e}")
+        except Exception:
+            logger.exception("Simulation error")
             raise
+
+    def _raise_runtime_error(self, stderr: str) -> None:
+        """Helper to raise exception with clean message."""
+        msg = f"EON execution failed: {stderr}"
+        raise RuntimeError(msg)
 
     def _prepare_run(self, potential: Potential, structure: Structure, run_dir: Path) -> None:
         """Generates input files for EON."""
 
         # Write config.ini
         config_content = f"""[Main]
-temperature = {self.config.eon.temperature}
-prefactor = {self.config.eon.prefactor}
-search_method = {self.config.eon.search_method}
+temperature = {self.eon_config.temperature}
+prefactor = {self.eon_config.prefactor}
+search_method = {self.eon_config.search_method}
 
 [Potential]
 type = External
-command = python {self.config.eon.server_script_name} --potential potential.{potential.format} --threshold {self.config.max_gamma_threshold}
+command = python {self.eon_config.server_script_name} --potential potential.{potential.format} --threshold {self.config.max_gamma_threshold}
 """
         (run_dir / "config.ini").write_text(config_content)
 
         # Write Structure (pos.con)
-        # ASE supports writing .con files if strict=False or similar?
-        # Actually ASE supports format='eon' which writes .con
-        # But we need to check if 'eon' format is available in installed ASE.
-        # If not, we might need a custom writer or fallback to xyz and convert.
-        # Assuming ASE has 'eon' or 'con' support.
-        # Let's try 'eon'. If fails, try 'con'.
         try:
-            write(run_dir / "pos.con", structure.to_ase(), format="eon")
+            write(run_dir / "pos.con", structure.to_ase(), format="eon") # type: ignore[no-untyped-call]
         except Exception:
              logger.warning("ASE 'eon' format not found, trying manual write or fallback.")
-             # Fallback: simple con writer if needed, or assume xyz and EON is configured to read it (unlikely)
-             # For now, let's assume 'eon' works or we use a simple writer.
-             # Or we write 'reactant.con' which is standard.
-             write(run_dir / "pos.con", structure.to_ase()) # Let ASE guess or use default
+             write(run_dir / "pos.con", structure.to_ase()) # type: ignore[no-untyped-call]
 
         # Copy/Link Potential
-        # We copy it to ensure isolation
         shutil.copy(potential.path, run_dir / f"potential.{potential.format}")
 
         # Copy Potential Server Script
-        # We need to put the potential_server.py in the run directory so EON can call it
-        # We can locate it relative to this file
         server_script_src = Path(__file__).parent / "potential_server.py"
         if server_script_src.exists():
-            shutil.copy(server_script_src, run_dir / self.config.eon.server_script_name)
+            shutil.copy(server_script_src, run_dir / self.eon_config.server_script_name)
         else:
-             # If not found (e.g. installed package), we might need to rely on it being in PATH or handle it.
-             # For dev, it should be there.
-             logger.warning("potential_server.py not found at expected location. Assuming it is in PATH or manual setup.")
+             logger.warning("potential_server.py not found at expected location.")
 
     def _parse_halt(self, run_dir: Path, original_structure: Structure) -> HaltInfo:
         """Parses the halt state."""
@@ -146,7 +130,7 @@ command = python {self.config.eon.server_script_name} --potential potential.{pot
             atoms = read(bad_struct_path)
             # Create Structure
             halt_struct = Structure(
-                atoms=atoms,
+                atoms=atoms, # type: ignore
                 provenance="eon_halt",
                 label_status="unlabeled",
                 metadata={"halt_reason": "uncertainty"}
@@ -156,22 +140,12 @@ command = python {self.config.eon.server_script_name} --potential potential.{pot
             content = halt_info_path.read_text()
             for line in content.splitlines():
                 if "max_gamma" in line:
-                    try:
+                    with contextlib.suppress(ValueError):
                         max_gamma = float(line.split(":")[1].strip())
-                    except ValueError:
-                        pass
-
-        # We wrap it in Structure but we need to return HaltInfo...
-        # Wait, simulate yields Structure.
-        # The Orchestrator handles HaltInfo usually from the generator/active learner side?
-        # Or does BaseDynamics just yield structures?
-        # Interface says: Iterator[Structure].
-        # So we update metadata of the structure with halt info.
 
         halt_struct.metadata["halt_reason"] = reason
         halt_struct.metadata["max_gamma"] = max_gamma
 
-        # We return a simple object helper here, but simulate yields Structure.
         return HaltInfo(
             step=0, # Unknown step
             max_gamma=max_gamma,
@@ -179,24 +153,37 @@ command = python {self.config.eon.server_script_name} --potential potential.{pot
             reason=reason
         )
 
-    def _parse_results(self, run_dir: Path, original_structure: Structure) -> Iterator[Structure]:
+    def _parse_results(self, run_dir: Path) -> Iterator[Structure]:
         """Reads successful EON results."""
-        # EON output varies. Let's look for 'results.dat' or 'processes.dat' or the final configuration.
-        # If it's a search, we might have 'saddle.con', 'product.con', etc.
+        # Use generator for memory efficiency
+        products = run_dir.glob("product_*.con")
+        # Check if empty iterator efficiently? No, just iterate.
 
-        # For this cycle, let's yield the product if found.
-        products = list(run_dir.glob("product_*.con"))
-        if not products:
-             products = list(run_dir.glob("final.con"))
-
+        found = False
         for p in products:
+             found = True
              try:
                  atoms = read(p)
                  yield Structure(
-                     atoms=atoms,
+                     atoms=atoms, # type: ignore
                      provenance="eon_product",
                      label_status="unlabeled",
                      metadata={"source_file": p.name}
                  )
-             except Exception as e:
-                 logger.warning(f"Failed to read result {p}: {e}")
+             except Exception:
+                 logger.warning("Failed to read result %s", p)
+
+        if not found:
+             # Try final.con
+             final = run_dir / "final.con"
+             if final.exists():
+                 try:
+                     atoms = read(final)
+                     yield Structure(
+                         atoms=atoms, # type: ignore
+                         provenance="eon_product",
+                         label_status="unlabeled",
+                         metadata={"source_file": "final.con"}
+                     )
+                 except Exception:
+                     logger.warning("Failed to read final.con")

@@ -7,106 +7,149 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-# Configure logging
-logging.basicConfig(
-    filename='potential_server.log',
-    level=logging.INFO,
-    format='%(asctime)s %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Import from package - assumed installed
+try:
+    from mlip_autopipec.core.logger import setup_logging
+    from mlip_autopipec.dynamics.calculators import MLIPCalculatorFactory
+except ImportError:
+    # Fallback for standalone testing without package installed
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.warning("mlip_autopipec package not found. Using standalone fallback.")
+    setup_logging = None # type: ignore
+    MLIPCalculatorFactory = None # type: ignore
+
+logger = logging.getLogger("potential_server")
+
+def _raise_error(msg: str) -> None:
+    raise ValueError(msg)
+
+def _parse_header(lines: list[str]) -> tuple[int, int]:
+    if not lines:
+        _raise_error("Empty input")
+
+    header = lines[0].strip()
+    if not header:
+         _raise_error("Empty header")
+    n_atoms = int(header)
+
+    if n_atoms < 0:
+        _raise_error(f"Negative atom count: {n_atoms}")
+
+    current_line = 1
+    if current_line < len(lines):
+        parts = lines[current_line].split()
+        if len(parts) == 1:
+            current_line += 1
+
+    return n_atoms, current_line
+
+def _parse_box(lines: list[str], start_line: int) -> tuple[list[list[float]], int]:
+    cell = []
+    current = start_line
+    for _ in range(3):
+        if current >= len(lines):
+            _raise_error("Unexpected end of input while parsing cell.")
+        parts = lines[current].split()
+        if len(parts) != 3:
+            _raise_error(f"Invalid cell vector format at line {current+1}")
+        cell.append([float(x) for x in parts])
+        current += 1
+    return cell, current
+
+def _parse_positions(lines: list[str], start_line: int, n_atoms: int) -> tuple[list[list[float]], int]:
+    positions = []
+    current = start_line
+    for i in range(n_atoms):
+        if current >= len(lines):
+            _raise_error(f"Unexpected end of input while parsing positions. Expected {n_atoms}, got {i}")
+        parts = lines[current].split()
+        if len(parts) != 3:
+            _raise_error(f"Invalid position format at line {current+1}")
+        positions.append([float(x) for x in parts])
+        current += 1
+    return positions, current
 
 def parse_eon_input(input_str: str, symbols: list[str]) -> Atoms:
     """
     Parses EON client input format.
-    Format assumption based on standard EON Client potential.
     """
+    if not input_str.strip():
+        _raise_error("Empty input received from EON.")
+
     lines = input_str.strip().split('\n')
-    if not lines:
-        raise ValueError("Empty input")
 
     try:
-        n_atoms = int(lines[0].strip())
+        n_atoms, current = _parse_header(lines)
+        cell, current = _parse_box(lines, current)
+        positions, current = _parse_positions(lines, current, n_atoms)
 
-        current_line = 1
-        # Check if line 1 is energy (1 float) or Box (3 floats)
-        parts = lines[current_line].split()
-        if len(parts) == 1:
-            # Skip energy
-            current_line += 1
-
-        cell = []
-        for _ in range(3):
-            cell.append([float(x) for x in lines[current_line].split()])
-            current_line += 1
-
-        positions = []
-        for _ in range(n_atoms):
-            positions.append([float(x) for x in lines[current_line].split()])
-            current_line += 1
+        # Validation
+        if len(symbols) != n_atoms:
+             if len(symbols) == 0 and n_atoms > 0:
+                  symbols = ["H"] * n_atoms
+             elif len(symbols) < n_atoms:
+                  logger.warning("Symbol count mismatch: %d vs %d. Extending.", len(symbols), n_atoms)
+                  symbols.extend([symbols[-1]] * (n_atoms - len(symbols)))
+             else:
+                  symbols = symbols[:n_atoms]
 
         return Atoms(symbols=symbols, positions=positions, cell=cell, pbc=True)
 
+    except ValueError as e:
+        logger.exception("Parsing Error")
+        _raise_error(f"Invalid EON input format: {e}")
     except Exception as e:
-        logger.exception("Failed to parse input")
-        raise ValueError(f"Invalid EON input format: {e}") from e
+        logger.exception("Unexpected parsing error")
+        _raise_error(f"Parsing failed: {e}")
+
+    # Should be unreachable
+    return Atoms()
 
 def format_eon_output(energy: float, forces: np.ndarray, gamma: float | None = None) -> str:
-    """
-    Formats output for EON.
-    Line 1: Energy
-    Line 2...N+1: Forces (fx fy fz)
-    """
     lines = [f"{energy:.6f}"]
     for f in forces:
         lines.append(f"{f[0]:.6f} {f[1]:.6f} {f[2]:.6f}")
     return "\n".join(lines)
 
 def load_symbols() -> list[str]:
-    """Loads symbols from pos.con in current directory."""
+    atoms = None
     try:
         if Path("pos.con").exists():
-            atoms = read("pos.con", format="eon") # ASE supports 'eon' format (con)
-            # Use cast or check to ensure atoms is Atoms
-            if isinstance(atoms, Atoms):
-                 return atoms.get_chemical_symbols()
-        # Fallback
-        return ["H"] * 100
+            atoms = read("pos.con", format="eon")
     except Exception:
-         # If testing without file
-         return []
+        logger.debug("Could not read pos.con")
 
-def process_structure(atoms: Atoms, calculator, threshold: float = 5.0):
-    """
-    Runs the calculation and checks for uncertainty.
-    Exits with code 100 if uncertainty exceeds threshold.
-    """
+    if isinstance(atoms, Atoms):
+         return atoms.get_chemical_symbols() # type: ignore[no-any-return, no-untyped-call]
+
+    return ["H"] * 100
+
+def process_structure(atoms: Atoms, calculator, threshold: float = 5.0) -> tuple[float, np.ndarray, float | None]:
     atoms.calc = calculator
     try:
         # Standard ASE methods trigger calculation
-        energy = atoms.get_potential_energy()
-        forces = atoms.get_forces()
+        energy = atoms.get_potential_energy() # type: ignore[no-untyped-call]
+        forces = atoms.get_forces() # type: ignore[no-untyped-call]
 
         # Uncertainty check
         gamma = None
-        results = atoms.calc.results
+        results = atoms.calc.results # type: ignore
         for key in ['uncertainty', 'gamma', 'max_gamma', 'c_pace_gamma']:
             if key in results:
                 gamma = results[key]
-                # Handle array vs scalar
                 if hasattr(gamma, "__len__"):
                     gamma = np.max(gamma)
                 break
 
         if gamma is not None and gamma > threshold:
             logger.warning("High uncertainty detected: %s > %s", gamma, threshold)
-            # Write bad structure for inspection
-            write("bad_structure.xyz", atoms)
-            # Write halt info for driver to pick up
+            write("bad_structure.xyz", atoms) # type: ignore[no-untyped-call]
             with Path("halt_info.txt").open("w") as f:
                 f.write(f"reason: uncertainty\nmax_gamma: {gamma}\n")
             sys.exit(100)
 
-        return energy, forces, gamma
+        return float(energy), forces, gamma # type: ignore
 
     except SystemExit:
         raise
@@ -114,73 +157,41 @@ def process_structure(atoms: Atoms, calculator, threshold: float = 5.0):
         logger.exception("Calculation failed")
         raise
 
-def get_calculator(potential_path: str):
-    """Factory to create ASE calculator from potential file."""
-    path = Path(potential_path)
-
-    # 1. Try M3GNet if extension matches or specific name
-    if "m3gnet" in str(path).lower():
-        try:
-            from m3gnet.models import M3GNet, Potential
-            from m3gnet.calculators import M3GNetCalculator
-            # This is illustrative as m3gnet API changes
-            # Assuming standard usage
-            potential = Potential(M3GNet.load())
-            return M3GNetCalculator(potential=potential)
-        except ImportError:
-            logger.warning("m3gnet not installed. Falling back to EMT.")
-        except Exception as e:
-            logger.error(f"Failed to load m3gnet: {e}")
-
-    # 2. Try PACE (yace)
-    if path.suffix == ".yace":
-        try:
-            from pyace import PyACECalculator
-            return PyACECalculator(filename=str(path))
-        except ImportError:
-            logger.warning("pyace not installed. Falling back to EMT.")
-
-    # 3. Fallback to EMT (Effective Medium Theory) - Safe for testing/mocking
-    logger.info("Using EMT calculator (Fallback/Mock)")
-    from ase.calculators.emt import EMT
-    return EMT()
-
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--potential", required=True, help="Path to potential file")
     parser.add_argument("--threshold", type=float, default=5.0, help="Uncertainty threshold")
     args = parser.parse_args()
 
+    if setup_logging is not None: # type: ignore[truthy-function]
+        setup_logging(Path(), "potential_server.log")
+
     try:
-        # Read Input
         input_str = sys.stdin.read()
         if not input_str:
-            return # End of stream
+            return
 
-        # Get symbols
         symbols = load_symbols()
 
-        # Parse
         try:
             atoms = parse_eon_input(input_str, symbols)
         except Exception:
-            # Fallback for unit tests that send N and coords but no pos.con
-            # Try to infer N
             lines = input_str.strip().split()
-            if lines:
+            if lines and lines[0].isdigit():
                 n_atoms = int(lines[0])
                 atoms = parse_eon_input(input_str, ["H"]*n_atoms)
             else:
                 raise
 
-        # Load Calculator
-        calc = get_calculator(args.potential)
+        if MLIPCalculatorFactory is not None: # type: ignore[truthy-function]
+            factory = MLIPCalculatorFactory()
+            calc = factory.create(Path(args.potential))
+        else:
+            from ase.calculators.emt import EMT  # type: ignore
+            calc = EMT()
 
-        # Run Calculation
         energy, forces, gamma = process_structure(atoms, calc, args.threshold)
-
-        # Output
-        print(format_eon_output(energy, forces, gamma))
+        sys.stdout.write(format_eon_output(energy, forces, gamma) + '\n')
 
     except Exception:
         logger.exception("Server Error")
