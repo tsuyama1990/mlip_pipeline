@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import tempfile
 from collections.abc import Iterator
@@ -7,6 +8,7 @@ from typing import Any
 from mlip_autopipec.domain_models.config import GeneratorConfig
 from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.generator.interface import BaseGenerator
+from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
 from mlip_autopipec.generator.random_gen import RandomGenerator
 
 logger = logging.getLogger(__name__)
@@ -27,23 +29,42 @@ class AdaptiveGenerator(BaseGenerator):
             except Exception as e:
                 logger.warning(f"Failed to initialize internal RandomGenerator: {e}")
 
-    def _generate_lammps_input(self, temperature: float, steps: int) -> Path:
-        """
-        Generates a LAMMPS input script for MD exploration and writes it to a temporary file.
+        # Fallback generator
+        self.m3gnet_gen = M3GNetGenerator(config)
 
-        Returns:
+    @contextlib.contextmanager
+    def _lammps_input_context(self, temperature: float, steps: int) -> Iterator[Path]:
+        """
+        Context manager that generates a LAMMPS input script and ensures cleanup.
+
+        Yields:
             Path to the generated input file.
         """
+        if temperature <= 0:
+            raise ValueError(f"Temperature must be positive, got {temperature}")
+        if steps <= 0:
+            raise ValueError(f"Steps must be positive, got {steps}")
+
         template = self.policy.lammps_template
         content = template.format(temperature=temperature, steps=steps)
 
         # Create a named temporary file
+        # usage of delete=False is necessary to close the file and let other processes (LAMMPS) read it by path.
+        # We ensure cleanup in finally block.
         with tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False) as tmp:
+            logger.debug(f"Writing LAMMPS input content:\n{content}")
             tmp.write(content)
             path = Path(tmp.name)
 
-        logger.debug(f"Generated LAMMPS input file at {path}")
-        return path
+        # File is closed here, but persists on disk due to delete=False
+        try:
+            logger.debug(f"Generated LAMMPS input file at {path}")
+            yield path
+        finally:
+            # Ensure cleanup
+            if path.exists():
+                path.unlink()
+            logger.debug(f"Cleaned up LAMMPS input file at {path}")
 
     def explore(self, context: dict[str, Any]) -> Iterator[Structure]:
         cycle = context.get("cycle", 0)
@@ -59,17 +80,11 @@ class AdaptiveGenerator(BaseGenerator):
 
         logger.info(f"AdaptiveGenerator: Cycle {cycle}, using Temperature={temperature}K")
 
-        # Generate LAMMPS script (file-based)
-        lammps_script_path = self._generate_lammps_input(temperature, self.policy.md_steps)
-        # In a real scenario, we would pass this path to the Dynamics engine.
-        # For now, we just log it and clean it up (or let OS handle tmp, but we set delete=False above).
-        # To avoid clutter in mock mode, we delete it immediately after "use".
-        try:
-            logger.debug(f"LAMMPS Script generated at: {lammps_script_path}")
-        finally:
-            # Clean up the temp file
-            if lammps_script_path.exists():
-                lammps_script_path.unlink()
+        # Use context manager for LAMMPS script lifecycle
+        with self._lammps_input_context(temperature, self.policy.md_steps) as lammps_script_path:
+            # In a real scenario, we would pass this path to the Dynamics engine.
+            # For now, we just log it.
+            logger.debug(f"Using LAMMPS Script at: {lammps_script_path}")
 
         count = context.get("count", self.config.mock_count)
 
@@ -81,6 +96,7 @@ class AdaptiveGenerator(BaseGenerator):
                 s.provenance = f"md_{temperature}K"
                 yield s
         else:
-            msg = "AdaptiveGenerator requires a seed structure for mock execution (via RandomGenerator)."
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.info(
+                "No seed structure provided. Falling back to M3GNetGenerator for initial structures."
+            )
+            yield from self.m3gnet_gen.explore(context)

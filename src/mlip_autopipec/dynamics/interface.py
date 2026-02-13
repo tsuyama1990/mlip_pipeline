@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from mlip_autopipec.constants import DEFAULT_MOCK_FRAMES
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 if TYPE_CHECKING:
@@ -35,19 +36,40 @@ class MockDynamics(BaseDynamics):
         self.config = config
 
     def simulate(self, potential: Potential, structure: Structure) -> Iterator[Structure]:
+        """
+        Simulates a trajectory (Mock).
+
+        Generates a sequence of structures by perturbing the initial structure.
+        """
         logger.info("MockDynamics: Simulating trajectory...")
 
-        frame_count = 5
+        frame_count = DEFAULT_MOCK_FRAMES
         if self.config:
-            frame_count = self.config.mock_frames
+            # Enforce a hard limit for mock safety
+            frame_count = min(self.config.mock_frames, 10000)
 
-        initial_atoms = structure.to_ase()
+        # Create a copy to ensure we don't modify the original structure's atoms
+        # via any side effects in to_ase() if it were to change.
+        # to_ase returns the internal atoms object with updated info.
+        initial_atoms = structure.to_ase().copy()  # type: ignore[no-untyped-call]
 
         for i in range(frame_count):
-            atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
+            logger.debug(f"MockDynamics: Frame {i}/{frame_count}")
+            # Stream frames (generator) - ensures O(1) memory usage if consumed properly
+            atoms = initial_atoms.copy()
             # Perturb positions slightly
             positions = atoms.get_positions()
             positions += 0.01 * i
             atoms.set_positions(positions)
 
-            yield Structure(atoms=atoms, provenance="md_trajectory", label_status="unlabeled")
+            # Simulate increasing uncertainty
+            score = 1.0 + (i * 1.5)
+            metadata = {"step": i, "temperature": 300.0}
+
+            yield Structure(
+                atoms=atoms,
+                provenance="md_trajectory",
+                label_status="unlabeled",
+                uncertainty_score=score,
+                metadata=metadata,
+            )

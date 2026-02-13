@@ -1,8 +1,10 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
+from mlip_autopipec.constants import MOCK_POTENTIAL_CONTENT
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 logger = logging.getLogger(__name__)
@@ -57,10 +59,16 @@ class MockTrainer(BaseTrainer):
 
         # In a real scenario, we would stream this to a file or tool.
         # For mock, we simply acknowledge the iterable exists.
-        # We do NOT consume the iterator to ensure OOM safety.
+        # We MUST consume the iterator to drive the pipeline (Oracle -> Trainer).
+        count = 0
+        for _ in structures:
+            count += 1
+        logger.info(f"MockTrainer: Consumed {count} structures for training.")
 
-        potential_path = self.work_dir / "potential.yace"
-        potential_path.write_text("MOCK POTENTIAL FILE CONTENT")
+        # Generate unique filename to avoid overwrites
+        filename = f"potential_{uuid.uuid4().hex[:8]}.yace"
+        potential_path = self.work_dir / filename
+        potential_path.write_text(MOCK_POTENTIAL_CONTENT)
 
         return Potential(path=potential_path, format="yace", parameters={"mock": True})
 

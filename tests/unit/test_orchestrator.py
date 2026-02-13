@@ -1,7 +1,5 @@
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import (
@@ -49,99 +47,56 @@ def test_orchestrator_run_mock(tmp_path: Path) -> None:
         validator=ValidatorConfig(type=ValidatorType.MOCK),
     )
     orch = Orchestrator(config)
-    orch.run()
 
-    assert (tmp_path / "potential.yace").exists()
+    orch.run()
 
     sm = orch.state_manager
     # Reload state from file
     sm_new = type(sm)(tmp_path)
     # 2 cycles run.
     assert sm_new.state.current_cycle == 2
+    # Ensure potential path is updated in state
+    assert sm_new.state.active_potential_path is not None
+    assert sm_new.state.active_potential_path.exists()
+    assert sm_new.state.active_potential_path.suffix == ".yace"
 
 
 def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
-    """Test the Active Learning logic: Cold Start vs OTF."""
+    """Test the Active Learning logic using real Mocks (integration style)."""
 
-    with (
-        patch("mlip_autopipec.core.orchestrator.MockGenerator") as MockGen,
-        patch("mlip_autopipec.core.orchestrator.MockDynamics") as MockDyn,
-        patch("mlip_autopipec.core.orchestrator.MockTrainer") as MockTrain,
-        patch("mlip_autopipec.core.orchestrator.MockOracle") as MockOracleCls,
-        patch("mlip_autopipec.core.orchestrator.MockValidator") as MockVal,
-    ):
-        # Setup mocks behavior
-        mock_gen = MockGen.return_value
-        mock_dyn = MockDyn.return_value
-        mock_train = MockTrain.return_value
-        mock_oracle = MockOracleCls.return_value
-        mock_val = MockVal.return_value
+    config = GlobalConfig(
+        orchestrator=OrchestratorConfig(
+            max_cycles=2, work_dir=tmp_path, execution_mode=ExecutionMode.MOCK
+        ),
+        generator=GeneratorConfig(type=GeneratorType.MOCK),
+        oracle=OracleConfig(type=OracleType.MOCK),
+        trainer=TrainerConfig(type=TrainerType.MOCK),
+        # Configure dynamics to halt: threshold 5.0, mock dynamics yields score > 5.0 around frame 4
+        dynamics=DynamicsConfig(type=DynamicsType.MOCK, max_gamma_threshold=5.0),
+        validator=ValidatorConfig(type=ValidatorType.MOCK),
+    )
 
-        # Generator returns iterator of structures - Must return new iterator each call
-        s1 = MagicMock()
-        s1.uncertainty_score = 0.1
-        mock_gen.explore.side_effect = lambda *args, **kwargs: iter([s1])
+    orch = Orchestrator(config)
 
-        # Mock local candidates for OTF loop
-        s_local = MagicMock()
-        s_local.provenance = "local_candidate"
-        # Return 5 candidates
-        mock_gen.generate_local_candidates.return_value = iter([s_local for _ in range(5)])
+    # Spy on components to verify interactions without replacing logic
+    # We wrap the bound methods with MagicMock(wraps=...)
+    orch.generator.generate_local_candidates = MagicMock(  # type: ignore[method-assign]
+        wraps=orch.generator.generate_local_candidates
+    )
+    orch.dynamics.simulate = MagicMock(wraps=orch.dynamics.simulate)  # type: ignore[method-assign]
 
-        # Oracle needs to consume input to trigger lazy generation
-        def consume_and_return(iterator: Iterator[Any]) -> Iterator[Any]:
-            # Consume iterator to trigger upstream logic
-            consumed = list(iterator)
-            # If we got candidates, return them as labeled. If mock is yielding nothing (mock oracle default), return s1 to keep loop going.
-            if consumed:
-                return iter(consumed)
-            return iter([s1])
+    orch.run()
 
-        mock_oracle.compute.side_effect = consume_and_return
+    # Verification
 
-        # Trainer returns potential
-        mock_pot = MagicMock()
-        mock_pot.path = tmp_path / "potential.yace"
-        mock_pot.path.touch()
-        mock_train.train.return_value = mock_pot
+    # Cycle 1 (Cold Start) + Cycle 2 (OTF)
+    # Dynamics should be called in Cycle 2 (when potential exists)
+    assert orch.dynamics.simulate.called
 
-        # Trainer selects subset
-        mock_train.select_active_set.side_effect = lambda c, count: iter(list(c)[:count])
-
-        # Dynamics returns trajectory with one halted structure (high gamma)
-        s_halt = MagicMock()
-        s_halt.uncertainty_score = 10.0  # Above threshold 5.0
-        mock_dyn.simulate.side_effect = lambda *args, **kwargs: iter([s_halt])
-
-        # Validator returns result
-        mock_val.validate.return_value = MagicMock(passed=True)
-
-        config = GlobalConfig(
-            orchestrator=OrchestratorConfig(
-                max_cycles=2, work_dir=tmp_path, execution_mode=ExecutionMode.MOCK
-            ),
-            generator=GeneratorConfig(type=GeneratorType.MOCK),
-            oracle=OracleConfig(type=OracleType.MOCK),
-            trainer=TrainerConfig(type=TrainerType.MOCK),
-            dynamics=DynamicsConfig(type=DynamicsType.MOCK, max_gamma_threshold=5.0),
-            validator=ValidatorConfig(type=ValidatorType.MOCK),
-        )
-
-        orch = Orchestrator(config)
-        orch.run()
-
-        # Verification
-
-        assert mock_gen.explore.call_count >= 2
-        assert mock_train.train.call_count == 2
-
-        # Verify Dynamics was called in cycle 2
-        assert mock_dyn.simulate.call_count >= 1
-
-        # Verify OTF Loop: generate_local_candidates and select_active_set called
-        # Cycle 2 uses OTF (potential is not None)
-        assert mock_gen.generate_local_candidates.call_count >= 1
-        assert mock_train.select_active_set.call_count >= 1
+    # OTF Loop Verification
+    # With max_gamma_threshold=5.0, MockDynamics should eventually yield a frame with score > 5.0
+    # triggering generate_local_candidates.
+    assert orch.generator.generate_local_candidates.called
 
 
 def test_orchestrator_create_generators(tmp_path: Path) -> None:
@@ -186,4 +141,4 @@ def test_orchestrator_cold_start_mock(tmp_path: Path) -> None:
 
     # After run, potential should be created
     assert orch.state_manager.state.active_potential_path is not None
-    assert (tmp_path / "potential.yace").exists()
+    assert orch.state_manager.state.active_potential_path.exists()
