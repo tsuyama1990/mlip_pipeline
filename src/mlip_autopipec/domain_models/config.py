@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -52,26 +53,21 @@ DEFAULT_LOG_FILE = "mlip_pipeline.log"
 MOCK_POTENTIAL_CONTENT = "MOCK POTENTIAL FILE CONTENT"
 
 # Defaults moved from constants.py to ensure configuration locality
-DEFAULT_LAMMPS_TEMPLATE = """
-units metal
-atom_style atomic
-boundary p p p
+# Load default LAMMPS template from file
+def _load_default_lammps_template() -> str:
+    template_path = Path(__file__).parents[1] / "templates" / "default_lammps.in"
+    if template_path.exists():
+        return template_path.read_text()
+    return ""
 
-# Potential setup (placeholder)
-pair_style none
 
-# MD Settings
-velocity all create {temperature} 12345 dist gaussian
-fix 1 all nvt temp {temperature} {temperature} 0.1
-timestep 0.001
-
-run {steps}
-"""
+DEFAULT_LAMMPS_TEMPLATE = _load_default_lammps_template()
 
 
 class BaseComponentConfig(BaseModel):
     # Component type identifier (e.g., 'random', 'm3gnet', 'mock')
-    type: str
+    # Allow Any to support Enums in subclasses
+    type: Any
     model_config = ConfigDict(extra="forbid")
 
 

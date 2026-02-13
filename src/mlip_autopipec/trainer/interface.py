@@ -49,12 +49,22 @@ class MockTrainer(BaseTrainer):
     def train(self, structures: Iterable[Structure]) -> Potential:
         logger.info("MockTrainer: Training process started (streaming mode)...")
 
-        # In a real scenario, we would stream this to a file or tool.
-        # For mock, we simply acknowledge the iterable exists.
-        # We MUST consume the iterator to drive the pipeline (Oracle -> Trainer).
+        # Streaming with batching simulation
+        batch_size = 100
         count = 0
-        for _ in structures:
-            count += 1
+        current_batch = []
+
+        for s in structures:
+            current_batch.append(s)
+            if len(current_batch) >= batch_size:
+                count += len(current_batch)
+                # Flush batch to simulated disk/process
+                current_batch = []
+
+        # Flush remaining
+        if current_batch:
+            count += len(current_batch)
+
         logger.info(f"MockTrainer: Consumed {count} structures for training.")
 
         # Generate unique filename to avoid overwrites

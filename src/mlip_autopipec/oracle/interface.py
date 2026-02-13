@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mlip_autopipec.domain_models.datastructures import Structure
 
@@ -39,23 +39,33 @@ class MockOracle(BaseOracle):
         import numpy as np
         from ase.calculators.singlepoint import SinglePointCalculator
 
-        # Process structures one by one to ensure streaming
+        # Simulate batch processing
+        batch_size = 50
+        batch: list[Structure] = []
+
         for s in structures:
-            # Create fake results
-            # s.atoms is object, need cast or use to_ase()
+            batch.append(s)
+            if len(batch) >= batch_size:
+                yield from self._process_batch(batch, SinglePointCalculator, np)
+                batch = []
+
+        if batch:
+            yield from self._process_batch(batch, SinglePointCalculator, np)
+
+    def _process_batch(self, batch: list[Structure], calc_cls: Any, np_mod: Any) -> Iterator[Structure]:
+        # Batch processing simulation
+        for s in batch:
             atoms = s.to_ase().copy()  # type: ignore[no-untyped-call]
             n_atoms = len(atoms)
-            energy = -4.0 * n_atoms + np.random.normal(0, 0.1)
-            forces = np.random.normal(0, 0.1, (n_atoms, 3))
-            stress = np.random.normal(0, 0.01, 6)
+            energy = -4.0 * n_atoms + np_mod.random.normal(0, 0.1)
+            forces = np_mod.random.normal(0, 0.1, (n_atoms, 3))
+            stress = np_mod.random.normal(0, 0.01, 6)
 
-            # Attach calculator results to ASE atoms
-            calc = SinglePointCalculator(  # type: ignore[no-untyped-call]
+            calc = calc_cls(
                 atoms, energy=energy, forces=forces, stress=stress
             )
             atoms.calc = calc
 
-            # Create new Structure and yield immediately
             yield Structure(
                 atoms=atoms,
                 provenance=s.provenance,

@@ -16,12 +16,16 @@ from mlip_autopipec.validator.interface import MockValidator
 
 def test_mock_generator_explore() -> None:
     generator = MockGenerator()
-    structures_iter = generator.explore(context={})
+    structures_iter = generator.explore(context={"count": 2})
     # Do not convert to list
     first_structure = next(structures_iter)
     assert isinstance(first_structure, Structure)
     assert isinstance(first_structure.atoms, Atoms)
     assert first_structure.provenance == "mock_generator"
+    # Verify content
+    assert len(first_structure.atoms) == 2  # He2
+    assert first_structure.atoms.get_chemical_symbols() == ["He", "He"]  # type: ignore[no-untyped-call]
+    assert first_structure.label_status == "unlabeled"
 
 
 def test_mock_generator_local_candidates(mock_atoms: Atoms) -> None:

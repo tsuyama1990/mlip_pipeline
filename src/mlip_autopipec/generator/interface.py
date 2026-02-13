@@ -62,6 +62,9 @@ class MockGenerator(BaseGenerator):
     def explore(self, context: dict[str, Any]) -> Iterator[Structure]:
         logger.info("MockGenerator: Generating random structures...")
 
+        # Validate context
+        self._validate_context(context)
+
         # Make number configurable, default to 2
         default_count = self.config.mock_count if self.config else 2
         count = context.get("count", default_count)
@@ -74,6 +77,27 @@ class MockGenerator(BaseGenerator):
         else:
             # Fallback if not int
             pass
+
+    def _validate_context(self, context: dict[str, Any]) -> None:
+        """Validates exploration context to prevent injection and ensuring types."""
+        allowed_keys = {"cycle", "temperature", "count", "mode"}
+        for key, value in context.items():
+            if key not in allowed_keys:
+                logger.warning(f"Unexpected key in exploration context: {key}")
+
+            # Type checks
+            if key == "cycle" and not isinstance(value, int):
+                msg = f"Context 'cycle' must be int, got {type(value)}"
+                raise TypeError(msg)
+            if key == "temperature" and not isinstance(value, (int, float)):
+                msg = f"Context 'temperature' must be number, got {type(value)}"
+                raise TypeError(msg)
+            if key == "count" and not isinstance(value, int):
+                msg = f"Context 'count' must be int, got {type(value)}"
+                raise TypeError(msg)
+            if key == "mode" and not isinstance(value, str):
+                msg = f"Context 'mode' must be str, got {type(value)}"
+                raise TypeError(msg)
 
     def generate_local_candidates(
         self, structure: Structure, count: int = 5
