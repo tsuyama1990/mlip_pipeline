@@ -64,15 +64,15 @@ def test_simulate_success(
     mock_run.side_effect = create_dump_file
 
     # Mock trajectory reading
-    frame1 = mock_structure.atoms.copy() # type: ignore[no-untyped-call]
-    frame1.new_array('c_pace[1]', np.array([0.1, 0.2])) # Low gamma
+    frame1 = mock_structure.atoms.copy()
+    frame1.new_array('c_pace[1]', np.array([0.1, 0.2]))  # Low gamma
     # Simulate ASE reading 'type' column as atomic numbers (so 1-based index)
-    frame1.set_atomic_numbers([1, 1]) # type: ignore[no-untyped-call]
+    frame1.set_atomic_numbers([1, 1])
 
-    frame2 = mock_structure.atoms.copy() # type: ignore[no-untyped-call]
+    frame2 = mock_structure.atoms.copy()
     frame2.positions[0] += 0.1
-    frame2.new_array('c_pace[1]', np.array([0.2, 0.3])) # Low gamma
-    frame2.set_atomic_numbers([1, 1]) # type: ignore[no-untyped-call]
+    frame2.new_array('c_pace[1]', np.array([0.2, 0.3]))  # Low gamma
+    frame2.set_atomic_numbers([1, 1])
 
     mock_iread.return_value = iter([frame1, frame2])
 
@@ -112,9 +112,9 @@ def test_simulate_halt_event(
     mock_run.side_effect = create_dump_file_halt
 
     # Mock trajectory reading - halted frame has high gamma
-    frame1 = mock_structure.atoms.copy() # type: ignore[no-untyped-call]
-    frame1.new_array('c_pace[1]', np.array([1.0, 6.0])) # High gamma > 5.0
-    frame1.set_atomic_numbers([1, 1]) # type: ignore[no-untyped-call]
+    frame1 = mock_structure.atoms.copy()
+    frame1.new_array('c_pace[1]', np.array([1.0, 6.0]))  # High gamma > 5.0
+    frame1.set_atomic_numbers([1, 1])
 
     mock_iread.return_value = iter([frame1])
 

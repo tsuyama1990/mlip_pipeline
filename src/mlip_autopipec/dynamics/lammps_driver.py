@@ -31,14 +31,29 @@ class LAMMPSDriver(BaseDynamics):
         """
         logger.info("LAMMPSDriver: Setting up simulation...")
 
-        # 1. Prepare files
+        run_dir = self._setup_run_directory(structure)
+        # We need elements to correctly map types back when parsing the dump file
+        ase_atoms = structure.to_ase()
+        elements = sorted(set(ase_atoms.get_chemical_symbols()))  # type: ignore[no-untyped-call]
+
+        _, _, dump_file = self._prepare_simulation_files(run_dir, structure, potential, elements)
+
+        self._run_lammps(run_dir)
+
+        yield from self._parse_dump_file(dump_file, elements)
+
+    def _setup_run_directory(self, structure: Structure) -> Path:
         run_name = f"md_run_{structure.provenance}" if structure.provenance else "md_run"
         if len(run_name) > 50:
             run_name = run_name[:50]
 
         run_dir = self.work_dir / run_name
         run_dir.mkdir(exist_ok=True)
+        return run_dir
 
+    def _prepare_simulation_files(
+        self, run_dir: Path, structure: Structure, potential: Potential, elements: list[str]
+    ) -> tuple[Path, Path, Path]:
         data_file = run_dir / "structure.data"
         input_file = run_dir / "in.md"
         potential_link = run_dir / "potential.yace"
@@ -53,10 +68,9 @@ class LAMMPSDriver(BaseDynamics):
 
         # Write structure
         ase_atoms = structure.to_ase()
-        elements = sorted(set(ase_atoms.get_chemical_symbols()))  # type: ignore[no-untyped-call]
         write(data_file, ase_atoms, format="lammps-data", specorder=elements)
 
-        # 2. Generate Input Script
+        # Generate Input Script
         commands = self._generate_input_script(
             structure_file="structure.data",
             potential_file="potential.yace",
@@ -65,7 +79,9 @@ class LAMMPSDriver(BaseDynamics):
         )
         input_file.write_text(commands)
 
-        # 3. Execute LAMMPS
+        return data_file, input_file, dump_file
+
+    def _run_lammps(self, run_dir: Path) -> None:
         logger.info(f"LAMMPSDriver: Executing in {run_dir}")
         # Command is hardcoded safe list, no shell=True
         cmd = ["lmp", "-in", "in.md"]
@@ -88,7 +104,7 @@ class LAMMPSDriver(BaseDynamics):
             msg = "LAMMPS executable not found."
             raise RuntimeError(msg) from err
 
-        # 4. Parse Output
+    def _parse_dump_file(self, dump_file: Path, elements: list[str]) -> Iterator[Structure]:
         # Use explicit frame limit to prevent OOM
         max_frames = 10000
         if dump_file.exists():
@@ -117,6 +133,8 @@ class LAMMPSDriver(BaseDynamics):
                 )
         else:
             logger.warning("LAMMPSDriver: No dump file produced.")
+
+    # Correcting implementation to pass elements
 
     def _generate_input_script(
         self, structure_file: str, potential_file: str, dump_file: str, elements: list[str]
