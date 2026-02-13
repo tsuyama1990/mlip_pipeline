@@ -38,40 +38,41 @@ class PacemakerTrainer(BaseTrainer):
         """
         logger.info("PacemakerTrainer: Starting training process...")
 
-        # 1. Collect structures into a list
-        structure_list = list(structures)
-        if not structure_list:
+        # 1. Create Dataset (Streams structures to disk to save memory)
+        dataset_path = self.work_dir / "dataset.pckl.gzip"
+        # create_dataset returns path, elements list, and structure count
+        dataset_path, elements, total_structures = self.dataset_manager.create_dataset(structures, dataset_path)
+
+        logger.info(f"Dataset created at {dataset_path} with {total_structures} structures.")
+
+        if total_structures == 0:
             msg = "No structures provided for training."
             logger.error(msg)
             raise ValueError(msg)
 
-        # 2. Create Dataset
-        dataset_path = self.work_dir / "dataset.pckl.gzip"
-        self.dataset_manager.create_dataset(structure_list, dataset_path)
-        logger.info(f"Dataset created at {dataset_path}")
-
-        # 3. Active Set Selection (if enabled)
+        # 2. Active Set Selection (if enabled)
         training_dataset_path = dataset_path
         if self.config.active_set_method != ActiveSetMethod.NONE:
-            count = int(len(structure_list) * self.config.selection_ratio)
+            count = int(total_structures * self.config.selection_ratio)
             if count > 0:
                 logger.info(f"Selecting active set of size {count} using {self.config.active_set_method}")
                 training_dataset_path = self.dataset_manager.select_active_set(dataset_path, count)
             else:
                 logger.warning("Active set count is 0, skipping active set selection.")
 
-        # 4. Generate Input YAML
+        # 3. Generate Input YAML
         input_yaml_path = self.generate_input_yaml(
-            structure_list,
+            elements,
             training_dataset_path,
             initial_potential
         )
 
-        # 5. Run Training
-        # Run in work_dir so output potential is generated there
+        # 4. Run Training
+        # Use absolute path for command execution if possible or rely on PATH
+        # Since we don't have absolute path for pace_train, we rely on PATH but run in work_dir
         cmd = ["pace_train", input_yaml_path.name]
         if initial_potential:
-             cmd.extend(["--initial_potential", str(initial_potential.path)])
+             cmd.extend(["--initial_potential", str(initial_potential.path.absolute())])
 
         logger.info(f"Running pace_train: {' '.join(cmd)}")
 
@@ -82,7 +83,7 @@ class PacemakerTrainer(BaseTrainer):
             logger.error(msg)
             raise RuntimeError(msg)
 
-        # 6. Verify Output
+        # 5. Verify Output
         potential_path = self.work_dir / "output_potential.yace"
         if not potential_path.exists():
             # Try to find any .yace file in work_dir if default name differs
@@ -102,15 +103,12 @@ class PacemakerTrainer(BaseTrainer):
 
     def generate_input_yaml(
         self,
-        structures: list[Structure],
+        elements: list[str],
         dataset_path: Path,
         initial_potential: Potential | None = None
     ) -> Path:
         """Generates the input.yaml configuration for Pacemaker."""
         input_yaml_path = self.work_dir / "input.yaml"
-
-        # Determine elements from structures
-        elements = sorted({atom.symbol for s in structures for atom in s.ase_atoms})
 
         # Delta Learning config string
         delta_config_str = DeltaLearning.get_config(elements, self.config.delta_learning)
@@ -118,14 +116,18 @@ class PacemakerTrainer(BaseTrainer):
         # Basic Pacemaker configuration structure
         config_dict = {
             "cutoff": self.config.cutoff,
-            "seed": 42,
+            "seed": self.config.seed,
             "b_basis": {
                 "max_deg": self.config.order,
                 "n_basis": self.config.basis_size,
                 "species": elements,
             },
             "fit": {
-                "loss": {"kappa": 0.01, "L1_coeffs": 1e-8, "L2_coeffs": 1e-8},
+                "loss": {
+                    "kappa": self.config.kappa,
+                    "L1_coeffs": self.config.l1_coeffs,
+                    "L2_coeffs": self.config.l2_coeffs
+                },
                 "optimizer": {
                     "max_epochs": self.config.max_epochs if not initial_potential else 50, # Fewer epochs for fine-tuning
                     "batch_size": self.config.batch_size,

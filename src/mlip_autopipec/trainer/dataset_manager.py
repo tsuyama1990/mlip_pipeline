@@ -1,5 +1,6 @@
 import logging
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
 
 from ase.io import write
@@ -16,21 +17,42 @@ class DatasetManager:
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-    def create_dataset(self, structures: list[Structure], output_path: Path) -> Path:
+    def create_dataset(self, structures: Iterable[Structure], output_path: Path) -> tuple[Path, list[str], int]:
         """
         Converts structures to Pacemaker's dataset format.
 
         Args:
-            structures: List of structures to convert.
+            structures: Iterable of structures to convert.
             output_path: Path to the output dataset file (.pckl.gzip).
 
         Returns:
-            Path to the created dataset file.
+            Tuple containing:
+            - Path to the created dataset file.
+            - List of unique chemical symbols found in the dataset.
+            - Count of structures written.
         """
-        # 1. Write structures to a temporary extxyz file
+        # 1. Write structures to a temporary extxyz file using streaming
         temp_extxyz = self.work_dir / "temp_structures.extxyz"
-        ase_atoms_list = [s.to_ase() for s in structures]
-        write(str(temp_extxyz), ase_atoms_list, format="extxyz")
+        elements: set[str] = set()
+        count = 0
+
+        def structure_generator() -> Iterable:
+            nonlocal count
+            for s in structures:
+                atoms = s.to_ase()
+                # Update elements set
+                # get_chemical_symbols returns a list of strings
+                unique_syms = set(atoms.get_chemical_symbols()) # type: ignore[no-untyped-call]
+                elements.update(unique_syms)
+                count += 1
+                yield atoms
+
+        # Write streaming to disk to avoid OOM
+        try:
+            write(str(temp_extxyz), structure_generator(), format="extxyz")
+        except Exception as e:
+            logger.error(f"Failed to write temporary structure file: {e}")
+            raise
 
         # 2. Call pace_collect
         # Usage: pace_collect input_file.extxyz --output dataset.pckl.gzip
@@ -47,20 +69,21 @@ class DatasetManager:
         if result.returncode != 0:
             msg = f"pace_collect failed: {result.stderr}"
             logger.error(msg)
+            # Try to cleanup
+            temp_extxyz.unlink(missing_ok=True)
             raise RuntimeError(msg)
 
         if not output_path.exists():
-            # If we are in a test with mocked subprocess but didn't mock file creation,
-            # this will raise. Tests must mock file creation or patch Path.exists.
-            # However, for robustness, we check it.
             msg = f"pace_collect did not produce output file: {output_path}"
             logger.error(msg)
+            # Try to cleanup
+            temp_extxyz.unlink(missing_ok=True)
             raise FileNotFoundError(msg)
 
         # Clean up temp file
         temp_extxyz.unlink(missing_ok=True)
 
-        return output_path
+        return output_path, sorted(elements), count
 
     def select_active_set(self, dataset_path: Path, count: int) -> Path:
         """

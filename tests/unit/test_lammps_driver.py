@@ -150,3 +150,29 @@ def test_simulate_fatal_error(
 
     with pytest.raises(RuntimeError, match="Simulation failed with code 1"):
         list(driver.simulate(mock_potential, mock_structure))
+
+
+@patch("subprocess.run")
+@patch("mlip_autopipec.dynamics.lammps_driver.write")
+@patch("mlip_autopipec.dynamics.lammps_driver.iread")
+def test_simulate_missing_dump(
+    mock_iread: MagicMock,
+    mock_write: MagicMock,
+    mock_run: MagicMock,
+    dynamics_config: DynamicsConfig,
+    mock_structure: Structure,
+    mock_potential: Potential,
+    tmp_path: Path,
+) -> None:
+    driver = LAMMPSDriver(tmp_path, dynamics_config)
+
+    # Mock run success but DO NOT create dump file
+    mock_run.return_value.returncode = 0
+
+    # iread should not be called if dump file is missing
+    trajectory = list(driver.simulate(mock_potential, mock_structure))
+
+    assert len(trajectory) == 0
+    # Should log warning but not raise exception (unless we enforce it)
+    # The current implementation returns empty iterator if dump missing.
+    mock_iread.assert_not_called()
