@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from mlip_autopipec.constants import DEFAULT_MOCK_FRAMES
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
 
 if TYPE_CHECKING:
@@ -43,15 +42,25 @@ class MockDynamics(BaseDynamics):
         """
         logger.info("MockDynamics: Simulating trajectory...")
 
-        frame_count = DEFAULT_MOCK_FRAMES
+        frame_count = 5
         if self.config:
             # Enforce a hard limit for mock safety
             frame_count = min(self.config.mock_frames, 10000)
 
         # Create a copy to ensure we don't modify the original structure's atoms
         # via any side effects in to_ase() if it were to change.
-        # to_ase returns the internal atoms object with updated info.
-        initial_atoms = structure.to_ase().copy()  # type: ignore[no-untyped-call]
+        # to_ase returns a copy, but we enforce explicit validation and copying here for robustness.
+
+        # Validate that we got a proper Atoms object before copying
+        ase_obj = structure.to_ase()
+        # The import is delayed to avoid circular imports if any, but usually ase is top level
+        from ase import Atoms
+
+        if not isinstance(ase_obj, Atoms):
+             msg = f"Structure.to_ase() returned {type(ase_obj)}, expected ase.Atoms"
+             raise TypeError(msg)
+
+        initial_atoms = ase_obj.copy()  # type: ignore[no-untyped-call]
 
         for i in range(frame_count):
             logger.debug(f"MockDynamics: Frame {i}/{frame_count}")

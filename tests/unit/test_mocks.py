@@ -16,12 +16,16 @@ from mlip_autopipec.validator.interface import MockValidator
 
 def test_mock_generator_explore() -> None:
     generator = MockGenerator()
-    structures_iter = generator.explore(context={})
+    structures_iter = generator.explore(context={"count": 2})
     # Do not convert to list
     first_structure = next(structures_iter)
     assert isinstance(first_structure, Structure)
     assert isinstance(first_structure.atoms, Atoms)
     assert first_structure.provenance == "mock_generator"
+    # Verify content
+    assert len(first_structure.atoms) == 2  # He2
+    assert first_structure.atoms.get_chemical_symbols() == ["He", "He"]  # type: ignore[no-untyped-call]
+    assert first_structure.label_status == "unlabeled"
 
 
 def test_mock_generator_local_candidates(mock_atoms: Atoms) -> None:
@@ -56,6 +60,15 @@ def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     # mock_atoms H2 has 2 atoms. Energy ~ -4.0 * 2 = -8.0
     assert first_labeled.energy < -7.0
 
+    # Check dimensions
+    assert len(first_labeled.forces) == 2
+    assert len(first_labeled.stress) == 6
+
+    # Check randomness (roughly, values shouldn't be exactly zero unless designed)
+    # Force on first atom
+    f0 = first_labeled.forces[0]
+    assert any(abs(x) > 0 for x in f0), "Forces should not be all zero in mock"
+
 
 def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     from pathlib import Path
@@ -72,7 +85,8 @@ def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     # Trainer accepts Iterable
     structures = [s]
     potential = trainer.train(structures)
-    assert potential.path.name == "potential.yace"
+    assert potential.path.name.startswith("potential_")
+    assert potential.path.name.endswith(".yace")
     assert potential.format == "yace"
 
 

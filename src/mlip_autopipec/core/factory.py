@@ -47,7 +47,7 @@ class ComponentFactory:
     def create_oracle(self) -> BaseOracle:
         oracle_type = self.config.oracle.type
         if oracle_type == OracleType.MOCK:
-            return MockOracle()
+            return MockOracle(self.config.oracle)
         if oracle_type == OracleType.DFT:
             return DFTManager(self.config.oracle)
 

@@ -39,9 +39,21 @@ class Structure(BaseModel):
         return self.atoms
 
     def to_ase(self) -> Atoms:
-        """Returns the internal ase.Atoms object with updated info."""
-        # atoms is verified to be Atoms in validate_atoms
-        atoms = self.ase_atoms
+        """Returns a copy of the internal ase.Atoms object with updated info."""
+        # Validate that atoms is definitely an Atoms object before copying
+        if not isinstance(self.ase_atoms, Atoms):
+            msg = f"Internal atoms object is not of type ase.Atoms, got {type(self.ase_atoms)}"
+            raise TypeError(msg)
+
+        # Use copy() to prevent side effects on the persistent data model
+        # Cast return type of copy() to Atoms since ase doesn't type hint it well
+        atoms: Atoms = self.ase_atoms.copy()  # type: ignore[no-untyped-call]
+
+        # Validate critical fields before updating atoms.info
+        if not isinstance(self.provenance, str):
+            msg = f"Provenance must be a string, got {type(self.provenance)}"
+            raise TypeError(msg)
+
         atoms.info.update(
             {
                 "provenance": self.provenance,

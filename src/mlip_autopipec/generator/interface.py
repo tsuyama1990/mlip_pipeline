@@ -22,7 +22,12 @@ class BaseGenerator(ABC):
         Generates candidate structures.
 
         Args:
-            context: Dictionary containing exploration parameters (e.g. temperature).
+            context: Dictionary containing exploration parameters.
+                Common keys:
+                - 'cycle' (int): Current active learning cycle.
+                - 'temperature' (float): Target temperature for generation.
+                - 'count' (int): Number of structures to generate (optional).
+                - 'mode' (str): Generation mode (e.g., 'seed' for OTF).
 
         Returns:
             An iterator of Structure objects.
@@ -57,6 +62,9 @@ class MockGenerator(BaseGenerator):
     def explore(self, context: dict[str, Any]) -> Iterator[Structure]:
         logger.info("MockGenerator: Generating random structures...")
 
+        # Validate context
+        self._validate_context(context)
+
         # Make number configurable, default to 2
         default_count = self.config.mock_count if self.config else 2
         count = context.get("count", default_count)
@@ -69,6 +77,62 @@ class MockGenerator(BaseGenerator):
         else:
             # Fallback if not int
             pass
+
+    def _validate_context(self, context: dict[str, Any]) -> None:
+        """Validates exploration context to prevent injection and ensuring types."""
+        allowed_keys = {"cycle", "temperature", "count", "mode"}
+        for key, value in context.items():
+            if key not in allowed_keys:
+                msg = f"Unexpected key in exploration context: {key}"
+                raise ValueError(msg)
+
+            self._validate_key(key, value)
+
+    def _validate_key(self, key: str, value: Any) -> None:
+        """Helper to validate individual keys."""
+        if key == "cycle":
+            self._validate_cycle(value)
+        elif key == "temperature":
+            self._validate_temperature(value)
+        elif key == "count":
+            self._validate_count(value)
+        elif key == "mode":
+            self._validate_mode(value)
+
+    def _validate_cycle(self, value: Any) -> None:
+        if not isinstance(value, int):
+            msg = f"Context 'cycle' must be int, got {type(value)}"
+            raise TypeError(msg)
+        if value < 0:
+            msg = f"Context 'cycle' must be non-negative, got {value}"
+            raise ValueError(msg)
+
+    def _validate_temperature(self, value: Any) -> None:
+        if not isinstance(value, (int, float)):
+            msg = f"Context 'temperature' must be number, got {type(value)}"
+            raise TypeError(msg)
+        if value <= 0:
+            msg = f"Context 'temperature' must be positive, got {value}"
+            raise ValueError(msg)
+
+    def _validate_count(self, value: Any) -> None:
+        if not isinstance(value, int):
+            msg = f"Context 'count' must be int, got {type(value)}"
+            raise TypeError(msg)
+        if value <= 0:
+            msg = f"Context 'count' must be positive, got {value}"
+            raise ValueError(msg)
+
+    def _validate_mode(self, value: Any) -> None:
+        if not isinstance(value, str):
+            msg = f"Context 'mode' must be str, got {type(value)}"
+            raise TypeError(msg)
+
+        # Strict whitelist validation
+        allowed_modes = {"seed", "random", "adaptive"}
+        if value not in allowed_modes:
+            msg = f"Context 'mode' must be one of {allowed_modes}, got {value}"
+            raise ValueError(msg)
 
     def generate_local_candidates(
         self, structure: Structure, count: int = 5
