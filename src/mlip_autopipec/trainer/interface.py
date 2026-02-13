@@ -57,7 +57,11 @@ class MockTrainer(BaseTrainer):
 
         # In a real scenario, we would stream this to a file or tool.
         # For mock, we simply acknowledge the iterable exists.
-        # We do NOT consume the iterator to ensure OOM safety.
+        # We MUST consume the iterator to drive the pipeline (Oracle -> Trainer).
+        count = 0
+        for _ in structures:
+            count += 1
+        logger.info(f"MockTrainer: Consumed {count} structures for training.")
 
         potential_path = self.work_dir / "potential.yace"
         potential_path.write_text("MOCK POTENTIAL FILE CONTENT")

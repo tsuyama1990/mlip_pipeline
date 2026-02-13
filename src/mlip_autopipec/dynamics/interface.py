@@ -44,10 +44,20 @@ class MockDynamics(BaseDynamics):
         initial_atoms = structure.to_ase()
 
         for i in range(frame_count):
-            atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
+            atoms = initial_atoms.copy()
             # Perturb positions slightly
             positions = atoms.get_positions()
             positions += 0.01 * i
             atoms.set_positions(positions)
 
-            yield Structure(atoms=atoms, provenance="md_trajectory", label_status="unlabeled")
+            # Simulate increasing uncertainty
+            score = 1.0 + (i * 1.5)
+            metadata = {"step": i, "temperature": 300.0}
+
+            yield Structure(
+                atoms=atoms,
+                provenance="md_trajectory",
+                label_status="unlabeled",
+                uncertainty_score=score,
+                metadata=metadata,
+            )

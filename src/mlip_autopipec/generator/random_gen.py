@@ -68,7 +68,7 @@ class RandomGenerator(BaseGenerator):
         strain_range = self.config.policy.strain_range
 
         for _ in range(count):
-            atoms = seed_atoms.copy()  # type: ignore[no-untyped-call]
+            atoms = seed_atoms.copy()
 
             # Apply random strain
             if strain_range > 0:

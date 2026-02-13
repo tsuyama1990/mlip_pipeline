@@ -21,7 +21,7 @@ class TestRandomGenerator:
         # Create a dummy seed file
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("MgO", positions=[[0, 0, 0], [2, 0, 0]], cell=[4, 4, 4], pbc=True)
-        atoms.write(seed_path)  # type: ignore[no-untyped-call]
+        atoms.write(seed_path)
 
         config = GeneratorConfig(
             type=GeneratorType.RANDOM,
@@ -36,7 +36,7 @@ class TestRandomGenerator:
         for s in candidates:
             assert s.provenance == "random"
             atoms_obj = s.ase_atoms
-            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]  # type: ignore[no-untyped-call]
+            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]
 
         # Check diversity
         pos0 = candidates[0].ase_atoms.positions
@@ -95,7 +95,7 @@ class TestAdaptiveGenerator:
     def test_temperature_schedule_explore(self, tmp_path: Path) -> None:
         # Need a seed for mock execution now
         seed_path = tmp_path / "seed_adapt.xyz"
-        Atoms("He", positions=[[0, 0, 0]], cell=[5, 5, 5]).write(seed_path)  # type: ignore[no-untyped-call]
+        Atoms("He", positions=[[0, 0, 0]], cell=[5, 5, 5]).write(seed_path)
 
         # Test explore logic picking up schedule
         policy = ExplorationPolicyConfig(temperature_schedule=[100.0, 200.0])
@@ -122,7 +122,7 @@ class TestAdaptiveGenerator:
     def test_adaptive_generator_with_seed(self, tmp_path: Path) -> None:
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("He", positions=[[0, 0, 0]], cell=[10, 10, 10], pbc=True)
-        atoms.write(seed_path)  # type: ignore[no-untyped-call]
+        atoms.write(seed_path)
 
         config = GeneratorConfig(
             type=GeneratorType.ADAPTIVE,
@@ -149,3 +149,18 @@ class TestAdaptiveGenerator:
         assert "temp 500.0 500.0" in content
         assert "units metal" in content
         path.unlink()
+
+    def test_adaptive_generator_no_seed_fallback(self) -> None:
+        """Test that AdaptiveGenerator falls back to M3GNet when no seed is provided."""
+        config = GeneratorConfig(type=GeneratorType.ADAPTIVE, seed_structure_path=None)
+        generator = AdaptiveGenerator(config)
+
+        # Should not have random_gen
+        assert generator.random_gen is None
+        # Should have m3gnet_gen
+        assert generator.m3gnet_gen is not None
+
+        # Explore should return M3GNet structures
+        candidates = list(generator.explore({"cycle": 0, "count": 1}))
+        assert len(candidates) == 1
+        assert candidates[0].provenance == "m3gnet"

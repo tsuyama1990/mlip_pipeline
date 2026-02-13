@@ -111,6 +111,7 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
         # Dynamics returns trajectory with one halted structure (high gamma)
         s_halt = MagicMock()
         s_halt.uncertainty_score = 10.0  # Above threshold 5.0
+        s_halt.metadata = {}
         mock_dyn.simulate.side_effect = lambda *args, **kwargs: iter([s_halt])
 
         # Validator returns result
@@ -142,6 +143,10 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
         # Cycle 2 uses OTF (potential is not None)
         assert mock_gen.generate_local_candidates.call_count >= 1
         assert mock_train.select_active_set.call_count >= 1
+
+        # Verify halted structure metadata
+        assert s_halt.metadata.get("halt_reason") == "uncertainty_threshold"
+        assert s_halt.metadata.get("max_gamma") == 10.0
 
 
 def test_orchestrator_create_generators(tmp_path: Path) -> None:

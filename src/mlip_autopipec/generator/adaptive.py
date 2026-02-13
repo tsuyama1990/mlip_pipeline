@@ -7,6 +7,7 @@ from typing import Any
 from mlip_autopipec.domain_models.config import GeneratorConfig
 from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.generator.interface import BaseGenerator
+from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
 from mlip_autopipec.generator.random_gen import RandomGenerator
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ class AdaptiveGenerator(BaseGenerator):
                 self.random_gen = RandomGenerator(config)
             except Exception as e:
                 logger.warning(f"Failed to initialize internal RandomGenerator: {e}")
+
+        # Fallback generator
+        self.m3gnet_gen = M3GNetGenerator(config)
 
     def _generate_lammps_input(self, temperature: float, steps: int) -> Path:
         """
@@ -81,6 +85,7 @@ class AdaptiveGenerator(BaseGenerator):
                 s.provenance = f"md_{temperature}K"
                 yield s
         else:
-            msg = "AdaptiveGenerator requires a seed structure for mock execution (via RandomGenerator)."
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.info(
+                "No seed structure provided. Falling back to M3GNetGenerator for initial structures."
+            )
+            yield from self.m3gnet_gen.explore(context)
