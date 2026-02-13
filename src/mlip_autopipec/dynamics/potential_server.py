@@ -118,7 +118,7 @@ def load_symbols() -> list[str]:
         if Path("pos.con").exists():
             atoms = read("pos.con", format="eon")
     except Exception:
-        logger.debug("Could not read pos.con")
+        logger.debug("Failed to read pos.con, falling back to dummy symbols.")
 
     if isinstance(atoms, Atoms):
          return atoms.get_chemical_symbols() # type: ignore[no-any-return, no-untyped-call]

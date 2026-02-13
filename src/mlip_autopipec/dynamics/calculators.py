@@ -65,4 +65,4 @@ class MLIPCalculatorFactory(CalculatorFactory):
 
     def _create_fallback(self) -> Calculator:
         """Returns a safe fallback calculator (EMT)."""
-        return EMT() # type: ignore[no-any-return, no-untyped-call]
+        return EMT() # type: ignore[no-untyped-call, no-any-return]
