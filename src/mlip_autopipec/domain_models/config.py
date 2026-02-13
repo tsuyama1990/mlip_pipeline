@@ -192,8 +192,19 @@ class DynamicsConfig(BaseComponentConfig):
 class ValidatorConfig(BaseComponentConfig):
     """Configuration for Validator."""
     type: ValidatorType = ValidatorType.MOCK
-    elastic_tolerance: float = Field(default=0.15, gt=0.0, description="Tolerance for elastic constants")
+    elastic_tolerance: float = Field(
+        default=0.15, gt=0.0, description="Tolerance for elastic constants"
+    )
     phonon_stability: bool = Field(default=True, description="Check phonon stability")
+    phonon_supercell: list[int] = Field(
+        default_factory=lambda: [2, 2, 2], description="Supercell for phonon calculation"
+    )
+    strain_magnitude: float = Field(
+        default=0.01, gt=0.0, description="Magnitude of strain for elastic constants"
+    )
+    structure_path: Path | None = Field(
+        default=None, description="Path to the reference structure for validation"
+    )
 
 
 class OrchestratorConfig(BaseModel):
