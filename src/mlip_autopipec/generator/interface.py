@@ -137,12 +137,8 @@ class MockGenerator(BaseGenerator):
             msg = f"Context 'mode' must be str, got {type(value)}"
             raise TypeError(msg)
 
-        # Sanitize input: allow only alphanumeric characters
-        if not value.isalnum():
-            msg = "Context 'mode' contains invalid characters. Use alphanumeric only."
-            raise ValueError(msg)
-
-        # Strict whitelist validation
+        # Strict whitelist validation is sufficient and safer than relying on alphanumeric check
+        # which might allow underscores/unicode depending on implementation.
         allowed_modes = {"seed", "random", "adaptive"}
         if value not in allowed_modes:
             msg = f"Context 'mode' must be one of {allowed_modes}, got {value}"

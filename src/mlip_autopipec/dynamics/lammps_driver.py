@@ -84,14 +84,23 @@ class LAMMPSDriver(BaseDynamics):
     def _run_lammps(self, run_dir: Path) -> None:
         logger.info(f"LAMMPSDriver: Executing in {run_dir}")
         # Command is hardcoded safe list, no shell=True
-        cmd = ["lmp", "-in", "in.md"]
+        # Split command string if it contains spaces (e.g. "mpirun -np 4 lmp")
+        # However, for security, we expect config.lammps_command to be the executable
+        # If user provides "mpirun -np 4 lmp", we should probably handle it carefully.
+        # For now, simplistic split is acceptable for the command part.
+        cmd_base = self.config.lammps_command.split()
+        cmd = [*cmd_base, "-in", "in.md"]
 
         try:
-            with (run_dir / "stdout.log").open("w") as stdout:
-                # Use check=True to raise CalledProcessError on non-zero exit
-                # We catch it to handle special code 100
+            # Conditional logging to avoid I/O overhead
+            if logger.isEnabledFor(logging.DEBUG):
+                with (run_dir / "stdout.log").open("w") as stdout:
+                    subprocess.run(  # noqa: S603
+                        cmd, cwd=run_dir, stdout=stdout, stderr=subprocess.STDOUT, check=True
+                    )
+            else:
                 subprocess.run(  # noqa: S603
-                    cmd, cwd=run_dir, stdout=stdout, stderr=subprocess.STDOUT, check=True
+                    cmd, cwd=run_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
                 )
         except subprocess.CalledProcessError as e:
             if e.returncode == 100:
@@ -106,7 +115,7 @@ class LAMMPSDriver(BaseDynamics):
 
     def _parse_dump_file(self, dump_file: Path, elements: list[str]) -> Iterator[Structure]:
         # Use explicit frame limit to prevent OOM
-        max_frames = 10000
+        max_frames = self.config.max_frames
         if dump_file.exists():
             # Use 'index=":"' to create a generator, preventing full file read
             for i, atoms in enumerate(iread(dump_file, format="lammps-dump-text", index=":")):

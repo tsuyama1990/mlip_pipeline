@@ -135,6 +135,8 @@ class DynamicsConfig(BaseComponentConfig):
     timestep: float = Field(default=0.001, gt=0.0, description="MD timestep in ps")
     n_thermo: int = Field(default=10, ge=1, description="Thermodynamic output interval")
     n_dump: int = Field(default=100, ge=1, description="Trajectory dump interval")
+    max_frames: int = Field(default=1000, ge=1, description="Max frames to read per simulation")
+    lammps_command: str = Field(default="lmp", description="LAMMPS executable command")
 
     # Hybrid Potential (Baseline)
     hybrid_potential: HybridPotentialType | None = Field(

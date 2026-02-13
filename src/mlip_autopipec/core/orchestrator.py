@@ -68,6 +68,10 @@ class Orchestrator:
 
         for _seed_count, seed in enumerate(safe_seeds_iter):
 
+            if potential is None:
+                logger.error("Potential is None in OTF loop. Cannot simulate.")
+                break
+
             trajectory = self.dynamics.simulate(potential, seed)
 
             halted_frame = None
