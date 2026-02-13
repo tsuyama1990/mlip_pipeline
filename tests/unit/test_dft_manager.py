@@ -53,21 +53,16 @@ class TestDFTManager:
                 side_effect=mock_process_structure,
             ),
         ):
-            # Use deque to consume iterator without building full list in memory
-            # maxlen=None implies storing all, but we can verify results one by one if we want.
-            # But to check all, we effectively need to iterate.
-            # The audit complaint was "data = [row for row in db.select()]".
-            # For a unit test with 4 items, it's trivial.
-            # But adhering to the pattern:
+            # Consume iterator using deque to avoid building full list
             results_iter = manager.compute(structures)
-            results = []
-            for res in results_iter:
-                results.append(res)
 
-        assert len(results) == 4
-        for res in results:
-            assert res.label_status == "labeled"
-            assert res.energy == -10.0
+            # Verify results one by one or count
+            count = 0
+            for res in results_iter:
+                assert res.label_status == "labeled"
+                assert res.energy == -10.0
+                count += 1
+            assert count == 4
 
     def test_compute_failure(self) -> None:
         config = OracleConfig(type=OracleType.DFT, n_workers=2)
@@ -88,12 +83,12 @@ class TestDFTManager:
                 side_effect=mock_process_structure_fail,
             ),
         ):
+            # Consume iterator
             results_iter = manager.compute(structures)
-            results = []
-            for res in results_iter:
-                results.append(res)
 
-        assert len(results) == 4
-        for res in results:
-            assert res.label_status == "failed"
-            assert res.energy is None
+            count = 0
+            for res in results_iter:
+                assert res.label_status == "failed"
+                assert res.energy is None
+                count += 1
+            assert count == 4
