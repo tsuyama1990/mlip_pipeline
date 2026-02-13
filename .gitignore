@@ -40,3 +40,4 @@ build/
 # Cycle 1 specific
 workflow_state.json
 tests/uat/tmp_cycle02/
+outputs/

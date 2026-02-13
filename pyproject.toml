@@ -24,6 +24,9 @@ dev = [
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
     "types-PyYAML>=6.0.12.20240311",
+    "nbconvert>=7.16.2",
+    "ipykernel>=6.29.3",
+    "nbformat>=5.10.3",
 ]
 
 [tool.ruff]
