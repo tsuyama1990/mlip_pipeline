@@ -1,19 +1,19 @@
 import logging
 from pathlib import Path
-from typing import Any
 
 import numpy as np
-from ase.io import read
 from ase import Atoms
+from ase.io import read
+
 from mlip_autopipec.domain_models.config import ValidatorConfig
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.workflow import ValidationResult
-from mlip_autopipec.validator.interface import BaseValidator
-from mlip_autopipec.validator.eos import EOSAnalyzer, EOSResults
+from mlip_autopipec.dynamics.calculators import MLIPCalculatorFactory
 from mlip_autopipec.validator.elastic import ElasticAnalyzer, ElasticResults
+from mlip_autopipec.validator.eos import EOSAnalyzer, EOSResults
+from mlip_autopipec.validator.interface import BaseValidator
 from mlip_autopipec.validator.phonon import PhononAnalyzer, PhononResults
 from mlip_autopipec.validator.report import ReportGenerator
-from mlip_autopipec.dynamics.calculators import MLIPCalculatorFactory
 
 logger = logging.getLogger(__name__)
 
@@ -116,9 +116,8 @@ class PhysicsValidator(BaseValidator):
                     logger.warning("Phonon instability detected (max imag freq=%.4f)", phonon_res.max_imaginary_freq)
                     return False, phonon_res
                 return True, phonon_res
-            else:
-                metrics["phonon_stable"] = 1.0 # Skipped considered safe?
-                return True, PhononResults(is_stable=True, max_imaginary_freq=0.0, band_structure_path=None)
+            metrics["phonon_stable"] = 1.0 # Skipped considered safe?
+            return True, PhononResults(is_stable=True, max_imaginary_freq=0.0, band_structure_path=None)
         except Exception:
             logger.exception("Phonon Validation failed")
             return False, PhononResults(is_stable=False, max_imaginary_freq=0.0, band_structure_path=None)
@@ -132,7 +131,14 @@ class PhysicsValidator(BaseValidator):
 
         # Load reference structure
         try:
-             structure = read(self.config.structure_path) # type: ignore[no-untyped-call]
+             structure_raw = read(self.config.structure_path)
+             structure = structure_raw[0] if isinstance(structure_raw, list) else structure_raw
+
+             if not isinstance(structure, Atoms):
+                 # Should not happen with ASE read unless format is weird
+                 msg = f"Loaded object is not an Atoms object: {type(structure)}"
+                 raise TypeError(msg)
+
         except Exception as e:
              msg = f"Failed to load structure from {self.config.structure_path}: {e}"
              raise ValueError(msg) from e

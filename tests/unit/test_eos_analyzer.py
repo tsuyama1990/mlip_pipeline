@@ -1,4 +1,5 @@
 from typing import Any, cast
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -40,9 +41,9 @@ def test_eos_analyzer_fit() -> None:
     results = analyzer.fit_birch_murnaghan(volumes, energies)
 
     assert isinstance(results, EOSResults)
-    assert results.V0 == pytest.approx(v0_true, rel=1e-3)
-    assert results.B0 == pytest.approx(b0_true, rel=1e-2) # B0 in GPa
-    assert results.E0 == pytest.approx(e0_true, rel=1e-3)
+    assert pytest.approx(v0_true, rel=1e-3) == results.V0
+    assert pytest.approx(b0_true, rel=1e-2) == results.B0 # B0 in GPa
+    assert pytest.approx(e0_true, rel=1e-3) == results.E0
 
 def test_eos_analyzer_fit_failure() -> None:
     """Test behavior when fit fails."""
@@ -59,12 +60,10 @@ def test_eos_analyzer_fit_failure() -> None:
     # Test with fitting error (garbage data that causes optimization failure)
     # This is covered by test_eos_analyzer_runtime_error using mocks.
 
-from unittest.mock import patch
-
 def test_eos_analyzer_runtime_error() -> None:
     """Test RuntimeError handling during fit."""
     analyzer = EOSAnalyzer()
 
-    with patch("mlip_autopipec.validator.eos.curve_fit", side_effect=RuntimeError("Mock Failure")):
-        with pytest.raises(ValueError, match="EOS fit failed: Mock Failure"):
-            analyzer.fit_birch_murnaghan([1,2,3,4], [1,2,3,4])
+    with patch("mlip_autopipec.validator.eos.curve_fit", side_effect=RuntimeError("Mock Failure")), \
+         pytest.raises(ValueError, match="EOS fit failed: Mock Failure"):
+        analyzer.fit_birch_murnaghan([1,2,3,4], [1,2,3,4])
