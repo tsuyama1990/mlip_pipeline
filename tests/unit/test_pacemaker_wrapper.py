@@ -5,7 +5,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import TrainerConfig
-from mlip_autopipec.domain_models.enums import ActiveSetMethod, TrainerType
+from mlip_autopipec.domain_models.enums import TrainerType, ActiveSetMethod
 from mlip_autopipec.domain_models.potential import Potential
 from mlip_autopipec.domain_models.structure import Structure
 from mlip_autopipec.trainer.pacemaker_wrapper import PacemakerTrainer
@@ -45,7 +45,7 @@ def test_train_flow(
 
     # Mock DatasetManager instance methods
     mock_dm_instance = mock_dataset_manager_cls.return_value
-    # Set return value to tuple: path, elements, count
+    # Return (path, elements, count)
     mock_dm_instance.create_dataset.return_value = (tmp_path / "dataset.pckl.gzip", ["H", "O"], 1)
     mock_dm_instance.select_active_set.return_value = tmp_path / "dataset_active.pckl.gzip"
 

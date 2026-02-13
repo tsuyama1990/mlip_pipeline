@@ -3,7 +3,6 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
-from ase import Atoms
 from ase.io import write
 
 from mlip_autopipec.domain_models.structure import Structure
@@ -37,7 +36,7 @@ class DatasetManager:
         elements: set[str] = set()
         count = 0
 
-        def structure_generator() -> Iterable[Atoms]:
+        def structure_generator() -> Iterable:
             nonlocal count
             for s in structures:
                 atoms = s.to_ase()
@@ -50,10 +49,9 @@ class DatasetManager:
 
         # Write streaming to disk to avoid OOM
         try:
-            # Cast generator to Any to satisfy mypy's expectation for write() which might be strict
-            write(str(temp_extxyz), structure_generator(), format="extxyz") # type: ignore[arg-type]
-        except Exception:
-            logger.exception("Failed to write temporary structure file")
+            write(str(temp_extxyz), structure_generator(), format="extxyz")
+        except Exception as e:
+            logger.error(f"Failed to write temporary structure file: {e}")
             raise
 
         # 2. Call pace_collect
