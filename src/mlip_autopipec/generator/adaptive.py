@@ -46,16 +46,17 @@ class AdaptiveGenerator(BaseGenerator):
         # Create a named temporary file
         # usage of delete=False is necessary to close the file and let other processes (LAMMPS) read it by path.
         # We ensure cleanup in finally block.
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False)
-        try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".in", delete=False) as tmp:
+            logger.debug(f"Writing LAMMPS input content:\n{content}")
             tmp.write(content)
-            tmp.close()
             path = Path(tmp.name)
+
+        # File is closed here, but persists on disk due to delete=False
+        try:
             logger.debug(f"Generated LAMMPS input file at {path}")
             yield path
         finally:
             # Ensure cleanup
-            path = Path(tmp.name)
             if path.exists():
                 path.unlink()
             logger.debug(f"Cleaned up LAMMPS input file at {path}")
