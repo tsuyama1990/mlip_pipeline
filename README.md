@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
-![Coverage](https://img.shields.io/badge/coverage-86%25-green)
+![Coverage](https://img.shields.io/badge/coverage-84%25-green)
 
 **Zero-Configuration, Physics-Informed Active Learning for Machine Learning Interatomic Potentials.**
 
@@ -19,6 +19,11 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 
 ## Features
 
+*   **Physics-Based Validation (Verified Cycle 08)**: Acts as a quality gatekeeper before potential deployment.
+    *   **Phonon Stability**: Calculates phonon dispersion curves using Phonopy to detect dynamic instabilities (imaginary frequencies).
+    *   **Elastic Properties**: Computes the stiffness tensor ($C_{ij}$), Bulk Modulus, and Shear Modulus, verifying mechanical stability (Born criteria).
+    *   **Equation of State (EOS)**: Fits Energy-Volume curves to the Birch-Murnaghan equation to verify equilibrium properties.
+    *   **Automated Reporting**: Generates comprehensive HTML validation reports with interactive plots.
 *   **Long-Timescale Evolution (aKMC)**: Integrates **EON (Adaptive Kinetic Monte Carlo)** to simulate rare events and diffusion processes over seconds or hours, overcoming MD timescale limitations.
 *   **Adaptive Structure Generation**: Automatically switches between Random, M3GNet (pre-trained), and MD-based exploration strategies based on the learning cycle.
 *   **Automated DFT (Oracle)**:
@@ -38,10 +43,11 @@ Constructing an MLIP typically requires expertise in multiple domains (DFT, MD, 
 ## Requirements
 
 *   Python >= 3.12
-*   [Optional] Quantum Espresso (pw.x) in PATH for production Oracle
-*   [Optional] LAMMPS (`lmp` executable) in PATH for production Dynamics
-*   [Optional] Pacemaker (pace_train, pace_collect) for production Training
-*   [Optional] EON (`eonclient` executable) in PATH for aKMC Simulations
+*   **Dependencies**: `numpy`, `scipy`, `ase`, `phonopy`, `matplotlib`, `jinja2`, `pydantic`, `pyyaml`, `typer`.
+*   [Optional] **Quantum Espresso** (`pw.x`) in PATH for production Oracle.
+*   [Optional] **LAMMPS** (`lmp` executable) in PATH for production Dynamics.
+*   [Optional] **Pacemaker** (`pace_train`, `pace_collect`) for production Training.
+*   [Optional] **EON** (`eonclient` executable) in PATH for aKMC Simulations.
 
 ## Installation
 
@@ -61,7 +67,7 @@ Create a default configuration file:
 uv run mlip-runner init --output-path config.yaml
 ```
 
-This will generate a YAML file with the new `oracle`, `dynamics`, and `active_learning` settings.
+This will generate a YAML file with the new `oracle`, `dynamics`, `active_learning`, and `validator` settings.
 
 ### 2. Run the Pipeline
 
@@ -74,6 +80,7 @@ uv run mlip-runner run config.yaml
 ### 3. Check Outputs
 
 Results (potentials, logs, state) are saved in the directory specified in `config.yaml` (default: `experiments/`).
+Validation reports are generated in `experiments/validation_report/validation_report.html`.
 
 ## Architecture
 
@@ -85,11 +92,11 @@ src/mlip_autopipec/
 ├── oracle/             # DFT Engine Interfaces, Embedding, Self-Healing, Drivers
 ├── trainer/            # Potential Training Logic, Active Selector
 ├── dynamics/           # MD (LAMMPS) & aKMC (EON) Simulation Drivers
-├── validator/          # Physics-based Validation Tests
+├── validator/          # Physics-based Validation Tests (EOS, Elastic, Phonon)
 └── main.py             # CLI Entry Point
 ```
 
 ## Roadmap
 
-*   **Cycle 07**: Long-timescale Evolution (aKMC with EON) (Completed).
-*   **Cycle 08**: Production Validation (Phonons, EOS).
+*   **Cycle 09**: Advanced Sampling Techniques.
+*   **Cycle 10**: Multi-Element Support refinement.

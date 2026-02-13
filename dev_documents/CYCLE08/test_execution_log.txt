@@ -1,0 +1,232 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /app/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collecting ... collected 132 items
+
+tests/integration/test_pipeline.py::test_component_integration PASSED    [  0%]
+tests/unit/test_active_learner.py::test_process_halt PASSED              [  1%]
+tests/unit/test_active_learner.py::test_process_halt_flow PASSED         [  2%]
+tests/unit/test_active_learner.py::test_process_halt_empty_selection PASSED [  3%]
+tests/unit/test_active_learning_config.py::test_active_learning_config_defaults PASSED [  3%]
+tests/unit/test_active_learning_config.py::test_active_learning_config_validation PASSED [  4%]
+tests/unit/test_active_learning_config.py::test_global_config_integration PASSED [  5%]
+tests/unit/test_active_selector.py::test_selector_limit PASSED           [  6%]
+tests/unit/test_active_selector.py::test_selector_empty_input PASSED     [  6%]
+tests/unit/test_active_selector.py::test_selector_maxvol_not_implemented PASSED [  7%]
+tests/unit/test_calculators.py::test_calculator_factory_emt_fallback PASSED [  8%]
+tests/unit/test_calculators.py::test_calculator_factory_pace PASSED      [  9%]
+tests/unit/test_calculators.py::test_calculator_factory_m3gnet PASSED    [  9%]
+tests/unit/test_candidate_generator.py::test_candidate_generator_count PASSED [ 10%]
+tests/unit/test_candidate_generator.py::test_perturbation_applied PASSED [ 11%]
+tests/unit/test_candidate_generator.py::test_consistent_cell PASSED      [ 12%]
+tests/unit/test_cli.py::test_cli_init PASSED                             [ 12%]
+tests/unit/test_cli.py::test_cli_init_exists PASSED                      [ 13%]
+tests/unit/test_cli.py::test_cli_run_missing PASSED                      [ 14%]
+tests/unit/test_cli.py::test_cli_run_mock PASSED                         [ 15%]
+tests/unit/test_config.py::test_generator_config_defaults PASSED         [ 15%]
+tests/unit/test_config.py::test_generator_config_validation PASSED       [ 16%]
+tests/unit/test_config.py::test_generator_adaptive_config PASSED         [ 17%]
+tests/unit/test_config.py::test_oracle_config_defaults PASSED            [ 18%]
+tests/unit/test_config.py::test_oracle_dft_config PASSED                 [ 18%]
+tests/unit/test_config.py::test_trainer_config_defaults PASSED           [ 19%]
+tests/unit/test_config.py::test_dynamics_config_defaults PASSED          [ 20%]
+tests/unit/test_config.py::test_dynamics_halt_config PASSED              [ 21%]
+tests/unit/test_config.py::test_orchestrator_config_defaults PASSED      [ 21%]
+tests/unit/test_config.py::test_global_config_instantiation PASSED       [ 22%]
+tests/unit/test_config_parser.py::test_load_valid_config PASSED          [ 23%]
+tests/unit/test_config_parser.py::test_load_config_env_var PASSED        [ 24%]
+tests/unit/test_config_parser.py::test_load_missing_file PASSED          [ 25%]
+tests/unit/test_config_parser.py::test_load_invalid_yaml PASSED          [ 25%]
+tests/unit/test_config_parser.py::test_load_invalid_model PASSED         [ 26%]
+tests/unit/test_config_parser.py::test_load_large_config PASSED          [ 27%]
+tests/unit/test_dataset_manager.py::test_create_dataset PASSED           [ 28%]
+tests/unit/test_dataset_manager.py::test_select_active_set PASSED        [ 28%]
+tests/unit/test_dataset_manager.py::test_create_dataset_failure PASSED   [ 29%]
+tests/unit/test_dataset_manager.py::test_create_dataset_missing_output PASSED [ 30%]
+tests/unit/test_dataset_manager.py::test_select_active_set_failure PASSED [ 31%]
+tests/unit/test_dataset_manager.py::test_select_active_set_missing_output PASSED [ 31%]
+tests/unit/test_delta_learning.py::test_delta_learning_zbl PASSED        [ 32%]
+tests/unit/test_delta_learning.py::test_delta_learning_lj PASSED         [ 33%]
+tests/unit/test_delta_learning.py::test_delta_learning_none PASSED       [ 34%]
+tests/unit/test_delta_learning.py::test_delta_learning_invalid PASSED    [ 34%]
+tests/unit/test_dft_manager.py::TestDFTManager::test_compute_success PASSED [ 35%]
+tests/unit/test_dft_manager.py::TestDFTManager::test_compute_failure PASSED [ 36%]
+tests/unit/test_dft_manager.py::TestDFTManager::test_process_structure_wrapper_logic PASSED [ 37%]
+tests/unit/test_dynamics_config.py::test_dynamics_config_defaults PASSED [ 37%]
+tests/unit/test_dynamics_config.py::test_dynamics_config_valid PASSED    [ 38%]
+tests/unit/test_dynamics_config.py::test_dynamics_config_invalid PASSED  [ 39%]
+tests/unit/test_dynamics_config.py::test_dynamics_config_hybrid_enum PASSED [ 40%]
+tests/unit/test_elastic_analyzer.py::test_elastic_analyzer_lj PASSED     [ 40%]
+tests/unit/test_elastic_analyzer.py::test_elastic_analyzer_relaxation_failure PASSED [ 41%]
+tests/unit/test_embedding.py::test_embedding_cut_cluster PASSED          [ 42%]
+tests/unit/test_embedding.py::test_embedding_invalid_index PASSED        [ 43%]
+tests/unit/test_eon_config.py::test_eon_config_defaults PASSED           [ 43%]
+tests/unit/test_eon_config.py::test_eon_config_validation PASSED         [ 44%]
+tests/unit/test_eon_config.py::test_dynamics_config_with_eon PASSED      [ 45%]
+tests/unit/test_eon_driver.py::test_eon_driver_init PASSED               [ 46%]
+tests/unit/test_eon_driver.py::test_eon_driver_init_fail_no_eon_config PASSED [ 46%]
+tests/unit/test_eon_driver.py::test_eon_driver_simulate PASSED           [ 47%]
+tests/unit/test_eon_driver.py::test_eon_driver_prepare_run PASSED        [ 48%]
+tests/unit/test_eon_driver.py::test_eon_driver_halt_detection PASSED     [ 49%]
+tests/unit/test_eon_driver.py::test_eon_driver_failure PASSED            [ 50%]
+tests/unit/test_eos_analyzer.py::test_fit_birch_murnaghan PASSED         [ 50%]
+tests/unit/test_eos_analyzer.py::test_eos_analyzer_not_enough_points PASSED [ 51%]
+tests/unit/test_eos_analyzer.py::test_eos_analyzer_integration PASSED    [ 52%]
+tests/unit/test_generator.py::TestRandomGenerator::test_random_generation PASSED [ 53%]
+tests/unit/test_generator.py::TestRandomGenerator::test_random_generator_no_seed PASSED [ 53%]
+tests/unit/test_generator.py::TestRandomGenerator::test_random_generator_invalid_seed PASSED [ 54%]
+tests/unit/test_generator.py::TestRandomGenerator::test_malformed_seed PASSED [ 55%]
+tests/unit/test_generator.py::TestM3GNetGenerator::test_m3gnet_generation PASSED [ 56%]
+tests/unit/test_generator.py::TestAdaptiveGenerator::test_temperature_schedule_explore PASSED [ 56%]
+tests/unit/test_generator.py::TestAdaptiveGenerator::test_adaptive_generator_with_seed PASSED [ 57%]
+tests/unit/test_generator.py::TestAdaptiveGenerator::test_adaptive_generator_no_seed_fallback PASSED [ 58%]
+tests/unit/test_hybrid_overlay.py::test_hybrid_overlay_none PASSED       [ 59%]
+tests/unit/test_hybrid_overlay.py::test_hybrid_overlay_zbl PASSED        [ 59%]
+tests/unit/test_hybrid_overlay.py::test_hybrid_overlay_lj PASSED         [ 60%]
+tests/unit/test_lammps_driver.py::test_simulate_success PASSED           [ 61%]
+tests/unit/test_lammps_driver.py::test_simulate_halt_event PASSED        [ 62%]
+tests/unit/test_logger.py::test_setup_logging PASSED                     [ 62%]
+tests/unit/test_mocks.py::test_mock_generator_explore PASSED             [ 63%]
+tests/unit/test_mocks.py::test_mock_generator_local_candidates PASSED    [ 64%]
+tests/unit/test_mocks.py::test_mock_oracle_compute PASSED                [ 65%]
+tests/unit/test_mocks.py::test_mock_trainer_train PASSED                 [ 65%]
+tests/unit/test_mocks.py::test_mock_trainer_select_active_set PASSED     [ 66%]
+tests/unit/test_mocks.py::test_mock_dynamics_simulate PASSED             [ 67%]
+tests/unit/test_mocks.py::test_mock_validator_validate PASSED            [ 68%]
+tests/unit/test_orchestrator.py::test_orchestrator_init PASSED           [ 68%]
+tests/unit/test_orchestrator.py::test_orchestrator_run_mock PASSED       [ 69%]
+tests/unit/test_orchestrator.py::test_orchestrator_active_learning_loop PASSED [ 70%]
+tests/unit/test_orchestrator.py::test_orchestrator_create_generators PASSED [ 71%]
+tests/unit/test_orchestrator.py::test_orchestrator_cold_start_mock PASSED [ 71%]
+tests/unit/test_orchestrator.py::test_orchestrator_state_saving PASSED   [ 72%]
+tests/unit/test_pacemaker_wrapper.py::test_train_flow PASSED             [ 73%]
+tests/unit/test_pacemaker_wrapper.py::test_train_config_generation PASSED [ 74%]
+tests/unit/test_pacemaker_wrapper.py::test_train_empty_structures PASSED [ 75%]
+tests/unit/test_pacemaker_wrapper.py::test_train_with_active_set PASSED  [ 75%]
+tests/unit/test_pacemaker_wrapper.py::test_train_failure PASSED          [ 76%]
+tests/unit/test_pacemaker_wrapper.py::test_train_missing_output PASSED   [ 77%]
+tests/unit/test_pacemaker_wrapper.py::test_select_active_set_fallback PASSED [ 78%]
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt PASSED      [ 78%]
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable PASSED [ 79%]
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_missing_phonopy PASSED [ 80%]
+tests/unit/test_physics_validator.py::test_physics_validator_success PASSED [ 81%]
+tests/unit/test_physics_validator.py::test_physics_validator_failure_born PASSED [ 81%]
+tests/unit/test_physics_validator.py::test_physics_validator_no_seed PASSED [ 82%]
+tests/unit/test_potential_server.py::test_parse_eon_input PASSED         [ 83%]
+tests/unit/test_potential_server.py::test_parse_eon_input_empty PASSED   [ 84%]
+tests/unit/test_potential_server.py::test_parse_eon_input_malformed_header PASSED [ 84%]
+tests/unit/test_potential_server.py::test_parse_eon_input_negative_atoms PASSED [ 85%]
+tests/unit/test_potential_server.py::test_format_eon_output PASSED       [ 86%]
+tests/unit/test_potential_server.py::test_process_structure_halt PASSED  [ 87%]
+tests/unit/test_potential_server.py::test_process_structure_success PASSED [ 87%]
+tests/unit/test_qe_driver.py::test_qe_driver_calculator_config PASSED    [ 88%]
+tests/unit/test_report_generator.py::test_report_generator_full PASSED   [ 89%]
+tests/unit/test_report_generator.py::test_report_generator_minimal PASSED [ 90%]
+tests/unit/test_self_healing.py::test_self_healing_success_first_try PASSED [ 90%]
+tests/unit/test_self_healing.py::test_self_healing_recovery PASSED       [ 91%]
+tests/unit/test_self_healing.py::test_self_healing_failure PASSED        [ 92%]
+tests/unit/test_state_manager.py::test_state_manager_init PASSED         [ 93%]
+tests/unit/test_state_manager.py::test_state_manager_save_load PASSED    [ 93%]
+tests/unit/test_state_manager.py::test_state_manager_cleanup PASSED      [ 94%]
+tests/unit/test_trainer_config.py::test_trainer_config_defaults PASSED   [ 95%]
+tests/unit/test_trainer_config.py::test_trainer_config_custom PASSED     [ 96%]
+tests/unit/test_validator_config.py::test_validator_config_defaults PASSED [ 96%]
+tests/unit/test_validator_config.py::test_validator_config_custom_values PASSED [ 97%]
+tests/unit/test_validator_config.py::test_validator_config_validation_error PASSED [ 98%]
+tests/unit/test_watchdog.py::test_watchdog_enabled PASSED                [ 99%]
+tests/unit/test_watchdog.py::test_watchdog_disabled PASSED               [100%]/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+
+
+=============================== warnings summary ===============================
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+  /app/.venv/lib/python3.12/site-packages/spglib/reduce.py:131: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+  /app/.venv/lib/python3.12/site-packages/spglib/spg.py:438: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error(_throw)
+
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+  /app/.venv/lib/python3.12/site-packages/spglib/_internal.py:66: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+  /app/.venv/lib/python3.12/site-packages/spglib/_internal.py:186: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_emt
+tests/unit/test_phonon_analyzer.py::test_phonon_analyzer_unstable
+  /app/.venv/lib/python3.12/site-packages/spglib/_internal.py:388: DeprecationWarning: Set OLD_ERROR_HANDLING to false and catch the errors directly.
+    _set_no_error()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+src/mlip_autopipec/__init__.py                            0      0   100%
+src/mlip_autopipec/core/__init__.py                       6      0   100%
+src/mlip_autopipec/core/active_learner.py                45      3    93%   88-91
+src/mlip_autopipec/core/config_parser.py                102     27    74%   43-44, 48-51, 54, 67-68, 101-123, 134-137, 173-174, 178-179
+src/mlip_autopipec/core/factory.py                       60     20    67%   45-46, 52-56, 62-66, 72-78, 84-87
+src/mlip_autopipec/core/logger.py                        22      2    91%   8, 13
+src/mlip_autopipec/core/orchestrator.py                 126     15    88%   65-67, 83, 111, 135, 158-160, 171-172, 200, 205-208, 211
+src/mlip_autopipec/core/state_manager.py                 57      8    86%   29-31, 53-58
+src/mlip_autopipec/domain_models/__init__.py              8      0   100%
+src/mlip_autopipec/domain_models/config.py              116      0   100%
+src/mlip_autopipec/domain_models/dataset.py              10      2    80%   16, 19
+src/mlip_autopipec/domain_models/enums.py                50      0   100%
+src/mlip_autopipec/domain_models/paths.py                 8      2    75%   18-19
+src/mlip_autopipec/domain_models/potential.py            16      2    88%   26-27
+src/mlip_autopipec/domain_models/structure.py            56     11    80%   32-33, 45-46, 54-55, 58-59, 86, 89, 92
+src/mlip_autopipec/domain_models/workflow.py             26      0   100%
+src/mlip_autopipec/dynamics/__init__.py                   4      0   100%
+src/mlip_autopipec/dynamics/calculators.py               44     22    50%   15, 36-56, 59-64
+src/mlip_autopipec/dynamics/eon_driver.py               116     23    80%   57-58, 119-121, 126-127, 135, 187-202, 208-217
+src/mlip_autopipec/dynamics/hybrid_overlay.py            51      6    88%   54-55, 80-81, 83-84
+src/mlip_autopipec/dynamics/interface.py                 33      2    94%   61-62
+src/mlip_autopipec/dynamics/lammps_driver.py            112     18    84%   54, 76-77, 107-108, 119-124, 128-129, 136-137, 156-158, 163
+src/mlip_autopipec/dynamics/potential_server.py         166     71    57%   16-22, 31-32, 41, 53-55, 62-63, 73, 82, 84-85, 96, 98-99, 112, 116-119, 126-132, 139-143, 152-162, 178, 190-194, 197-225, 228
+src/mlip_autopipec/dynamics/watchdog.py                  20      2    90%   26-27
+src/mlip_autopipec/generator/__init__.py                  6      0   100%
+src/mlip_autopipec/generator/adaptive.py                 35      3    91%   26-27, 38
+src/mlip_autopipec/generator/candidate_generator.py      29      5    83%   34-35, 59-61
+src/mlip_autopipec/generator/interface.py                85     24    72%   50-53, 73-74, 77-78, 95-96, 113-114, 116-117, 121-122, 124-125, 129-130, 132-133, 137-138, 144-145
+src/mlip_autopipec/generator/m3gnet_gen.py               25      2    92%   23, 31
+src/mlip_autopipec/generator/random_gen.py               55     11    80%   31-33, 36-38, 49-50, 60, 65-66
+src/mlip_autopipec/main.py                               40      6    85%   91-97, 101
+src/mlip_autopipec/oracle/__init__.py                     6      0   100%
+src/mlip_autopipec/oracle/dft_manager.py                 57      5    91%   55-58, 121-124
+src/mlip_autopipec/oracle/embedding.py                   23      1    96%   49
+src/mlip_autopipec/oracle/interface.py                   29      2    93%   47-48
+src/mlip_autopipec/oracle/qe_driver.py                   24      7    71%   6-7, 70-75
+src/mlip_autopipec/oracle/self_healing.py                38      4    89%   21-22, 55-56
+src/mlip_autopipec/trainer/__init__.py                    4      0   100%
+src/mlip_autopipec/trainer/active_selector.py            42      0   100%
+src/mlip_autopipec/trainer/dataset_manager.py            41      0   100%
+src/mlip_autopipec/trainer/delta_learning.py             15      0   100%
+src/mlip_autopipec/trainer/interface.py                  55      9    84%   70-71, 76-77, 88, 96-99
+src/mlip_autopipec/trainer/pacemaker_wrapper.py          72      2    97%   60, 141
+src/mlip_autopipec/validator/__init__.py                  2      0   100%
+src/mlip_autopipec/validator/elastic.py                  70      8    89%   9-17, 61-62
+src/mlip_autopipec/validator/eos.py                      43      7    84%   30-32, 67-71
+src/mlip_autopipec/validator/interface.py                12      0   100%
+src/mlip_autopipec/validator/phonon.py                   60      5    92%   43, 62-63, 113-114
+src/mlip_autopipec/validator/physics.py                 123     25    80%   64-66, 82-83, 90-92, 106-107, 121-122, 132-133, 135-136, 163-165, 178-180, 190-192
+src/mlip_autopipec/validator/report.py                   39      2    95%   163-164
+-----------------------------------------------------------------------------------
+TOTAL                                                  2284    364    84%
+======================= 132 passed, 14 warnings in 7.07s =======================

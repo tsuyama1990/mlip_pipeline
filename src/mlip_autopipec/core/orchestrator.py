@@ -143,11 +143,21 @@ class Orchestrator:
 
                 # Update Potential
                 new_potential = self.active_learner.process_halt(halt_info)
-                current_potential = new_potential
 
-                # Update State
-                self.state_manager.update_potential(new_potential.path)
-                self.state_manager.save()
+                # Validation Gate
+                logger.info("OTF: Validating new potential...")
+                val_result = self.validator.validate(new_potential)
+
+                if val_result.passed:
+                    logger.info("OTF: Validation passed. Updating potential.")
+                    current_potential = new_potential
+                    # Update State
+                    self.state_manager.update_potential(new_potential.path)
+                    self.state_manager.save()
+                else:
+                    logger.error("OTF: Validation failed! Discarding potential and aborting seed.")
+                    # Abort this seed loop to prevent infinite cycling on bad potential
+                    break
 
         logger.info("OTF: Dynamics Loop Completed.")
         return current_potential

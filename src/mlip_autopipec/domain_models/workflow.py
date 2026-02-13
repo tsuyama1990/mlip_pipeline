@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -30,6 +31,7 @@ class ValidationResult(BaseModel):
     """
     passed: bool = Field(..., description="Whether the validation passed")
     metrics: dict[str, float] = Field(default_factory=dict, description="Validation metrics")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata (e.g. status details)")
     report_path: Path | None = Field(None, description="Path to detailed report")
 
     model_config = ConfigDict(extra="forbid")
