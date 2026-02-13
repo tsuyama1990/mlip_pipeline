@@ -1,4 +1,6 @@
 import logging
+import shutil
+import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
@@ -77,8 +79,21 @@ class MockTrainer(BaseTrainer):
             msg = f"Work directory {self.work_dir} does not exist."
             raise FileNotFoundError(msg)
 
+        # Check disk space (mock check, but good practice)
+        total, used, free = shutil.disk_usage(self.work_dir)
+        if free < 1024 * 1024:  # 1MB
+            msg = f"Insufficient disk space in {self.work_dir}"
+            raise OSError(msg)
+
+        # Atomic write pattern
         try:
-            potential_path.write_text(MOCK_POTENTIAL_CONTENT)
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=self.work_dir) as tmp:
+                tmp.write(MOCK_POTENTIAL_CONTENT)
+                tmp_path = Path(tmp.name)
+
+            # Move to final destination (atomic on POSIX)
+            shutil.move(str(tmp_path), str(potential_path))
+
         except OSError as e:
             msg = f"Failed to write potential file to {potential_path}: {e}"
             logger.exception(msg)

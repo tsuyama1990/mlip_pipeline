@@ -51,10 +51,13 @@ class MockOracle(BaseOracle):
                 logger.warning(f"MockOracle reached max structure limit ({max_structures}). Stopping.")
                 break
 
-            batch.append(s)
+            # Memory check (mock): Ensure we don't accumulate too many atoms in memory
+            # In a real scenario, we might check sys.getsizeof(batch)
             if len(batch) >= batch_size:
                 yield from self._process_batch(batch, SinglePointCalculator, np)
                 batch = []
+
+            batch.append(s)
 
         if batch:
             yield from self._process_batch(batch, SinglePointCalculator, np)

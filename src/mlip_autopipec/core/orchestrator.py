@@ -60,13 +60,16 @@ class Orchestrator:
         # Max seeds to process to prevent infinite loop if generator is infinite
         # Using a hard cap or config-based cap
         max_seeds_to_check = 1000
-        seed_count = 0
 
-        for seed in seeds_iter:
+        # Batch seeds to control memory usage
+        # Although seeds_iter is an iterator, downstream dynamics might hold references
+        # if not careful. Here we process one by one, which is streaming.
+        # But we add a safety break.
+
+        for seed_count, seed in enumerate(seeds_iter):
             if seed_count >= max_seeds_to_check:
                 logger.warning(f"OTF generator reached max seed check limit ({max_seeds_to_check}).")
                 break
-            seed_count += 1
 
             trajectory = self.dynamics.simulate(potential, seed)
 

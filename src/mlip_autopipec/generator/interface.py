@@ -86,19 +86,44 @@ class MockGenerator(BaseGenerator):
                 msg = f"Unexpected key in exploration context: {key}"
                 raise ValueError(msg)
 
-            # Type checks
-            if key == "cycle" and not isinstance(value, int):
+            self._validate_key(key, value)
+
+    def _validate_key(self, key: str, value: Any) -> None:
+        """Helper to validate individual keys."""
+        if key == "cycle":
+            if not isinstance(value, int):
                 msg = f"Context 'cycle' must be int, got {type(value)}"
                 raise TypeError(msg)
-            if key == "temperature" and not isinstance(value, (int, float)):
+            if value < 0:
+                msg = f"Context 'cycle' must be non-negative, got {value}"
+                raise ValueError(msg)
+
+        elif key == "temperature":
+            if not isinstance(value, (int, float)):
                 msg = f"Context 'temperature' must be number, got {type(value)}"
                 raise TypeError(msg)
-            if key == "count" and not isinstance(value, int):
+            if value <= 0:
+                msg = f"Context 'temperature' must be positive, got {value}"
+                raise ValueError(msg)
+
+        elif key == "count":
+            if not isinstance(value, int):
                 msg = f"Context 'count' must be int, got {type(value)}"
                 raise TypeError(msg)
-            if key == "mode" and not isinstance(value, str):
+            if value <= 0:
+                msg = f"Context 'count' must be positive, got {value}"
+                raise ValueError(msg)
+
+        elif key == "mode":
+            if not isinstance(value, str):
                 msg = f"Context 'mode' must be str, got {type(value)}"
                 raise TypeError(msg)
+            if len(value) > 64:  # Reasonable length limit
+                msg = "Context 'mode' string is too long"
+                raise ValueError(msg)
+            if not value.isidentifier(): # Prevent weird injection
+                msg = f"Context 'mode' must be a valid identifier, got {value}"
+                raise ValueError(msg)
 
     def generate_local_candidates(
         self, structure: Structure, count: int = 5
