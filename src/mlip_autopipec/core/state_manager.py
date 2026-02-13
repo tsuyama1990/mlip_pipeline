@@ -1,5 +1,7 @@
+import contextlib
 import json
 import logging
+import tempfile
 from pathlib import Path
 
 from mlip_autopipec.domain_models.datastructures import WorkflowState
@@ -34,28 +36,31 @@ class StateManager:
         if not self.dirty and not force:
             return
 
-        tmp_file = self.state_file.with_suffix(".tmp")
+        tmp_path = None
         try:
-            with tmp_file.open("w") as f:
-                f.write(self.state.model_dump_json(indent=2))
-            tmp_file.replace(self.state_file)
+            # Use tempfile in the same directory to ensure atomic move support
+            # Use delete=False so we can rename it later
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=self.work_dir, delete=False, suffix=".tmp"
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+                tmp_file.write(self.state.model_dump_json(indent=2))
+
+            # File is closed now. Safe to rename on all platforms.
+            tmp_path.replace(self.state_file)
             logger.debug(f"State saved to {self.state_file}")
             self.dirty = False
         except Exception:
             logger.exception("Failed to save state")
-            if tmp_file.exists():
-                tmp_file.unlink()
+            # Attempt cleanup if tmp file exists and wasn't moved
+            if tmp_path and tmp_path.exists():
+                with contextlib.suppress(OSError):
+                    tmp_path.unlink()
 
     def update_cycle(self, cycle: int) -> None:
         if self.state.current_cycle != cycle:
             self.state.current_cycle = cycle
             self.dirty = True
-            # For critical updates like cycle change, we might want to force save,
-            # but batched efficiency suggests relying on periodic or manual save calls.
-            # However, orchestrator logic often calls save() explicitly.
-            # I will let orchestrator control the save trigger, but save() will check dirty.
-            # Wait, update_cycle logic in orchestrator calls save().
-            # If I set dirty=True, save() will write.
 
     def update_step(self, step: TaskType) -> None:
         if self.state.current_step != step:
@@ -69,8 +74,9 @@ class StateManager:
 
     def cleanup(self) -> None:
         """Removes temporary files."""
-        # For now, just remove tmp state file if exists
-        tmp_file = self.state_file.with_suffix(".tmp")
-        if tmp_file.exists():
-            tmp_file.unlink()
+        # Clean up any .tmp files in work_dir that look like state files
+        # Pattern: *.tmp
+        for p in self.work_dir.glob("*.tmp"):
+            with contextlib.suppress(OSError):
+                p.unlink()
         logger.info("Cleanup completed.")

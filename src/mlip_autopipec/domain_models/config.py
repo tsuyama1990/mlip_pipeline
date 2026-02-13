@@ -25,25 +25,26 @@ def get_default_lammps_template() -> str:
 
 
 class BaseComponentConfig(BaseModel):
-    # Component type identifier (e.g., 'random', 'm3gnet', 'mock')
-    # Allow Any to support Enums in subclasses
+    """Base configuration for pipeline components."""
+    # Allow Any to support Enums in subclasses (e.g. GeneratorType)
     type: Any
     model_config = ConfigDict(extra="forbid")
 
 
 class ExplorationPolicyConfig(BaseModel):
+    """Configuration for adaptive exploration policy."""
     strategy: GeneratorType = Field(
         default=GeneratorType.ADAPTIVE, description="Exploration strategy to use"
     )
     temperature_schedule: list[float] = Field(
         default_factory=lambda: [300.0, 600.0, 1200.0],
-        description="Temperature schedule per cycle",
+        description="Temperature schedule per cycle (Kelvin)",
     )
     md_steps: int = Field(default=1000, ge=1, description="Number of MD steps per exploration")
     mc_swap_prob: float = Field(default=0.1, ge=0.0, le=1.0, description="Probability of MC swap")
-    defect_density: float = Field(default=0.0, ge=0.0, description="Defect density")
+    defect_density: float = Field(default=0.0, ge=0.0, description="Defect density per supercell")
     strain_range: float = Field(
-        default=0.05, ge=0.0, description="Strain range for random generation"
+        default=0.05, ge=0.0, description="Strain range (fraction) for random generation"
     )
     # OTF Local Generation
     n_local_candidates: int = Field(
@@ -62,8 +63,9 @@ class ExplorationPolicyConfig(BaseModel):
 
 
 class GeneratorConfig(BaseComponentConfig):
+    """Configuration for Structure Generator."""
     type: GeneratorType = GeneratorType.MOCK
-    ratio_ab_initio: float = Field(default=0.1, ge=0.0, le=1.0)
+    ratio_ab_initio: float = Field(default=0.1, ge=0.0, le=1.0, description="Ratio of ab initio structures")
     mock_count: int = Field(
         default=2,
         ge=1,
@@ -71,13 +73,14 @@ class GeneratorConfig(BaseComponentConfig):
     )
     policy: ExplorationPolicyConfig = Field(default_factory=ExplorationPolicyConfig)
     seed_structure_path: Path | None = Field(
-        default=None, description="Path to initial seed structure"
+        default=None, description="Path to initial seed structure file"
     )
 
 
 class OracleConfig(BaseComponentConfig):
+    """Configuration for Oracle (DFT Engine)."""
     type: OracleType = OracleType.MOCK
-    dft_code: DFTCode | None = None
+    dft_code: DFTCode | None = Field(default=None, description="DFT code to use")
     command: str | None = Field(
         default=None, description="MPI command for DFT execution. Required for DFT mode."
     )
@@ -101,6 +104,7 @@ class OracleConfig(BaseComponentConfig):
 
 
 class TrainerConfig(BaseComponentConfig):
+    """Configuration for Potential Trainer."""
     type: TrainerType = TrainerType.MOCK
     max_epochs: int = Field(default=100, ge=1)
     batch_size: int = Field(default=32, ge=1)
@@ -120,7 +124,7 @@ class TrainerConfig(BaseComponentConfig):
         description="Number of structures to select per halt event",
     )
     # Pacemaker parameters
-    cutoff: float = Field(default=5.0, gt=0.0, description="Radial cutoff")
+    cutoff: float = Field(default=5.0, gt=0.0, description="Radial cutoff (Angstrom)")
     order: int = Field(default=2, ge=1, description="Body order")
     basis_size: int = Field(default=500, ge=1, description="Number of basis functions")
     delta_learning: str | None = Field(
@@ -129,9 +133,10 @@ class TrainerConfig(BaseComponentConfig):
 
 
 class DynamicsConfig(BaseComponentConfig):
+    """Configuration for Dynamics Engine."""
     type: DynamicsType = DynamicsType.MOCK
-    temperature: float = Field(default=300.0, gt=0.0)
-    steps: int = Field(default=1000, ge=1)
+    temperature: float = Field(default=300.0, gt=0.0, description="Simulation temperature (K)")
+    steps: int = Field(default=1000, ge=1, description="Number of steps")
     timestep: float = Field(default=0.001, gt=0.0, description="MD timestep in ps")
     n_thermo: int = Field(default=10, ge=1, description="Thermodynamic output interval")
     n_dump: int = Field(default=100, ge=1, description="Trajectory dump interval")
@@ -162,14 +167,15 @@ class DynamicsConfig(BaseComponentConfig):
 
 
 class ValidatorConfig(BaseComponentConfig):
+    """Configuration for Validator."""
     type: ValidatorType = ValidatorType.MOCK
-    elastic_tolerance: float = Field(default=0.15, gt=0.0)
-    phonon_stability: bool = True
+    elastic_tolerance: float = Field(default=0.15, gt=0.0, description="Tolerance for elastic constants")
+    phonon_stability: bool = Field(default=True, description="Check phonon stability")
 
 
 class OrchestratorConfig(BaseModel):
+    """Configuration for the Orchestrator."""
     max_cycles: int = Field(default=1, ge=1, description="Maximum number of active learning cycles")
-    # Remove default to satisfy "NO hardcoded paths". Must be provided in config.
     work_dir: Path = Field(..., description="Root directory for outputs")
     execution_mode: ExecutionMode = Field(
         default=ExecutionMode.MOCK, description="Mode of operation"
@@ -185,6 +191,7 @@ class OrchestratorConfig(BaseModel):
 
 
 class SystemConfig(BaseModel):
+    """System-wide configuration."""
     max_vacuum_size: float = Field(
         default=50.0, description="Max vacuum size for embedding (Angstroms)"
     )
@@ -202,6 +209,7 @@ class SystemConfig(BaseModel):
 
 
 class GlobalConfig(BaseModel):
+    """Global Configuration Root."""
     orchestrator: OrchestratorConfig
     system: SystemConfig = Field(default_factory=SystemConfig)
     generator: GeneratorConfig

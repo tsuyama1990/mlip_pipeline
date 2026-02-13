@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 from mlip_autopipec.core.orchestrator import Orchestrator
 from mlip_autopipec.domain_models.config import (
@@ -142,3 +142,28 @@ def test_orchestrator_cold_start_mock(tmp_path: Path) -> None:
     # After run, potential should be created
     assert orch.state_manager.state.active_potential_path is not None
     assert orch.state_manager.state.active_potential_path.exists()
+
+
+def test_orchestrator_state_saving(tmp_path: Path) -> None:
+    """Test that state manager saves are called during the loop."""
+    config = GlobalConfig(
+        orchestrator=OrchestratorConfig(
+            max_cycles=1, work_dir=tmp_path, execution_mode=ExecutionMode.MOCK
+        ),
+        generator=GeneratorConfig(type=GeneratorType.MOCK),
+        oracle=OracleConfig(type=OracleType.MOCK),
+        trainer=TrainerConfig(type=TrainerType.MOCK),
+        dynamics=DynamicsConfig(type=DynamicsType.MOCK),
+        validator=ValidatorConfig(type=ValidatorType.MOCK),
+    )
+    orch = Orchestrator(config)
+
+    # Mock state manager save
+    orch.state_manager.save = MagicMock() # type: ignore[method-assign]
+
+    orch.run()
+
+    # Verify save calls
+    # Should be called at start of cycle, after exploration, after oracle, after training, after validation/end
+    # At least 5 times per cycle
+    assert orch.state_manager.save.call_count >= 5

@@ -136,35 +136,47 @@ class Orchestrator:
 
         for cycle in range(start_cycle, max_cycles):
             self.state_manager.update_cycle(cycle + 1)
+            self.state_manager.save()  # Checkpoint: Start of Cycle
             logger.info(f"--- Starting Cycle {cycle + 1}/{max_cycles} ---")
 
             try:
                 # 1. Exploration & Selection (Acquire Data)
                 self.state_manager.update_step(TaskType.EXPLORATION)
+                self.state_manager.save()  # Checkpoint: Start Exploration
+
                 # This returns structures that are already selected/filtered
                 structures_to_label = self._acquire_training_data(cycle, current_potential)
 
-                # 2. Oracle
+                # 2. Oracle (Labeling)
+                # We categorize Oracle under TRAINING phase as it's data prep
                 self.state_manager.update_step(TaskType.TRAINING)
+                self.state_manager.save() # Checkpoint: Start Oracle
+
                 labeled = self.oracle.compute(structures_to_label)
 
-                # 4. Training
-                self.state_manager.update_step(TaskType.TRAINING)
+                # 3. Training
+                # state step is already TRAINING
                 new_potential = self.trainer.train(labeled)
+
                 self.state_manager.update_potential(new_potential.path)
                 current_potential = new_potential
-                self.state_manager.save()
+                self.state_manager.save() # Checkpoint: After Training
                 logger.info(f"Potential trained: {new_potential.path}")
 
-                # 5. Validation
+                # 4. Validation
                 self.state_manager.update_step(TaskType.VALIDATION)
+                self.state_manager.save() # Checkpoint: Start Validation
+
                 val_result = self.validator.validate(new_potential)
                 if not val_result.passed:
                     logger.warning("Validation FAILED.")
+
+                # End of Cycle
+                self.state_manager.save() # Checkpoint: End of Cycle
+
             except Exception:
                 logger.exception(f"Cycle {cycle + 1} failed")
-                # We might want to break or continue depending on severity.
-                # For now, we log and break to avoid corrupt state.
+                # We log and break to avoid corrupt state.
                 break
 
         if self.config.orchestrator.cleanup_on_exit:
