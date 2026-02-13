@@ -27,7 +27,7 @@ class Structure(BaseModel):
 
     @field_validator("atoms")
     @classmethod
-    def validate_atoms(cls, v: Any) -> Any:
+    def validate_atoms(cls, v: Atoms) -> Atoms:
         if not isinstance(v, Atoms):
             msg = "Must be an ase.Atoms object"
             raise TypeError(msg)

@@ -2,28 +2,11 @@ import logging
 from collections.abc import Iterator
 from itertools import islice
 
+from mlip_autopipec.core.factory import ComponentFactory
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
-from mlip_autopipec.domain_models.enums import (
-    DynamicsType,
-    GeneratorType,
-    OracleType,
-    TaskType,
-    TrainerType,
-    ValidatorType,
-)
-from mlip_autopipec.dynamics import BaseDynamics, MockDynamics
-from mlip_autopipec.generator import (
-    AdaptiveGenerator,
-    BaseGenerator,
-    M3GNetGenerator,
-    MockGenerator,
-    RandomGenerator,
-)
-from mlip_autopipec.oracle import BaseOracle, DFTManager, MockOracle
-from mlip_autopipec.trainer import BaseTrainer, MockTrainer
-from mlip_autopipec.validator import BaseValidator, MockValidator
+from mlip_autopipec.domain_models.enums import TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -37,54 +20,14 @@ class Orchestrator:
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
         self.state_manager = StateManager(self.work_dir)
+        self.factory = ComponentFactory(self.config)
 
-        # Initialize components
-        self.generator = self._create_generator()
-        self.oracle = self._create_oracle()
-        self.trainer = self._create_trainer()
-        self.dynamics = self._create_dynamics()
-        self.validator = self._create_validator()
-
-    def _create_generator(self) -> BaseGenerator:
-        gen_type = self.config.generator.type
-        if gen_type == GeneratorType.MOCK:
-            return MockGenerator(self.config.generator)
-        if gen_type == GeneratorType.RANDOM:
-            return RandomGenerator(self.config.generator)
-        if gen_type == GeneratorType.M3GNET:
-            return M3GNetGenerator(self.config.generator)
-        if gen_type == GeneratorType.ADAPTIVE:
-            return AdaptiveGenerator(self.config.generator)
-
-        msg = f"Unsupported generator type: {gen_type}"
-        raise ValueError(msg)
-
-    def _create_oracle(self) -> BaseOracle:
-        if self.config.oracle.type == OracleType.MOCK:
-            return MockOracle()
-        if self.config.oracle.type == OracleType.DFT:
-            return DFTManager(self.config.oracle)
-
-        msg = f"Unsupported oracle type: {self.config.oracle.type}"
-        raise ValueError(msg)
-
-    def _create_trainer(self) -> BaseTrainer:
-        if self.config.trainer.type == TrainerType.MOCK:
-            return MockTrainer(self.work_dir)
-        msg = f"Unsupported trainer type: {self.config.trainer.type}"
-        raise ValueError(msg)
-
-    def _create_dynamics(self) -> BaseDynamics:
-        if self.config.dynamics.type == DynamicsType.MOCK:
-            return MockDynamics(self.config.dynamics)
-        msg = f"Unsupported dynamics type: {self.config.dynamics.type}"
-        raise ValueError(msg)
-
-    def _create_validator(self) -> BaseValidator:
-        if self.config.validator.type == ValidatorType.MOCK:
-            return MockValidator()
-        msg = f"Unsupported validator type: {self.config.validator.type}"
-        raise ValueError(msg)
+        # Initialize components using factory
+        self.generator = self.factory.create_generator()
+        self.oracle = self.factory.create_oracle()
+        self.trainer = self.factory.create_trainer(self.work_dir)
+        self.dynamics = self.factory.create_dynamics()
+        self.validator = self.factory.create_validator()
 
     def _explore_candidates(self, cycle: int, potential: Potential | None) -> Iterator[Structure]:
         if potential is None:

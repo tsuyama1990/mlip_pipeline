@@ -1,20 +1,3 @@
-# Default LAMMPS input template for MD exploration
-DEFAULT_LAMMPS_TEMPLATE = """
-units metal
-atom_style atomic
-boundary p p p
-
-# Potential setup (placeholder)
-pair_style none
-
-# MD Settings
-velocity all create {temperature} 12345 dist gaussian
-fix 1 all nvt temp {temperature} {temperature} 0.1
-timestep 0.001
-
-run {steps}
-"""
-
 # Default exploration parameters
 DEFAULT_TEMPERATURE_SCHEDULE = [300.0, 600.0, 1200.0]
 DEFAULT_MD_STEPS = 1000

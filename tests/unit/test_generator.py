@@ -15,9 +15,6 @@ from mlip_autopipec.generator.random_gen import RandomGenerator
 
 
 class TestRandomGenerator:
-    def test_random_generator_import(self) -> None:
-        assert RandomGenerator is not None, "RandomGenerator not implemented"
-
     def test_random_generation(self, tmp_path: Path) -> None:
         # Create a dummy seed file
         seed_path = tmp_path / "seed.xyz"
@@ -85,9 +82,6 @@ class TestRandomGenerator:
 
 
 class TestM3GNetGenerator:
-    def test_m3gnet_generator_import(self) -> None:
-        assert M3GNetGenerator is not None, "M3GNetGenerator not implemented"
-
     def test_m3gnet_generation(self) -> None:
         config = GeneratorConfig(type=GeneratorType.M3GNET)
         generator = M3GNetGenerator(config)
@@ -100,9 +94,6 @@ class TestM3GNetGenerator:
 
 
 class TestAdaptiveGenerator:
-    def test_adaptive_generator_import(self) -> None:
-        assert AdaptiveGenerator is not None, "AdaptiveGenerator not implemented"
-
     def test_temperature_schedule_explore(self, tmp_path: Path) -> None:
         # Need a seed for mock execution now
         seed_path = tmp_path / "seed_adapt.xyz"

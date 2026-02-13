@@ -14,7 +14,6 @@ from mlip_autopipec.constants import (
     DEFAULT_HEALER_DEGAUSS,
     DEFAULT_HEALER_MIXING_BETA,
     DEFAULT_KSPACING,
-    DEFAULT_LAMMPS_TEMPLATE,
     DEFAULT_LOCAL_CANDIDATES,
     DEFAULT_LOCAL_SAMPLING_METHOD,
     DEFAULT_LOG_FILE,
@@ -47,6 +46,23 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
+
+# Defaults moved from constants.py to ensure configuration locality
+DEFAULT_LAMMPS_TEMPLATE = """
+units metal
+atom_style atomic
+boundary p p p
+
+# Potential setup (placeholder)
+pair_style none
+
+# MD Settings
+velocity all create {temperature} 12345 dist gaussian
+fix 1 all nvt temp {temperature} {temperature} 0.1
+timestep 0.001
+
+run {steps}
+"""
 
 
 class BaseComponentConfig(BaseModel):
