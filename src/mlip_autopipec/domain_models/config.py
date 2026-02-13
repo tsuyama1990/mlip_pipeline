@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,7 +16,12 @@ from mlip_autopipec.domain_models.enums import (
 
 
 class BaseComponentConfig(BaseModel):
-    type: str
+    # Allow arbitrary string types for extensibility, but standard configs should use Enums.
+    # We change this to Any to allow Enums to be assigned without validation error if strict type checking is on,
+    # or just keep str but rely on Pydantic's coercion.
+    # However, the audit requirement was to ensure GeneratorConfig uses GeneratorType.
+    # We will enforce this in subclasses.
+    type: Any
     model_config = ConfigDict(extra="forbid")
 
 
