@@ -8,7 +8,15 @@ from .config import (
     TrainerConfig,
     ValidatorConfig,
 )
-from .datastructures import Dataset, Potential, Structure, ValidationResult, WorkflowState
+from .datastructures import (
+    Dataset,
+    HaltInfo,
+    Potential,
+    Structure,
+    Trajectory,
+    ValidationResult,
+    WorkflowState,
+)
 from .enums import (
     ComponentRole,
     DFTCode,
@@ -32,6 +40,7 @@ __all__ = [
     "GeneratorConfig",
     "GeneratorType",
     "GlobalConfig",
+    "HaltInfo",
     "OracleConfig",
     "OracleType",
     "OrchestratorConfig",
@@ -40,6 +49,7 @@ __all__ = [
     "TaskType",
     "TrainerConfig",
     "TrainerType",
+    "Trajectory",
     "ValidationResult",
     "ValidatorConfig",
     "ValidatorType",

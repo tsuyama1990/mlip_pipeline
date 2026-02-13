@@ -18,11 +18,13 @@ def _process_structure_wrapper(structure: Structure, config: OracleConfig) -> St
     """
     try:
         # Convert to ASE atoms
-        # Note: structure.to_ase() creates a copy, but we need to ensure calculator is fresh.
-        # Actually, run_with_healing takes atoms and config.
-        # But run_with_healing expects atoms to have a calculator attached.
-
-        atoms = structure.ase_atoms
+        # Note: structure.ase_atoms returns the internal object.
+        # We should use structure.to_ase() to get a safe copy with info updated,
+        # or structure.ase_atoms.copy() to ensure we have a fresh object to attach calculator to.
+        # structure.ase_atoms is a property returning self.atoms.
+        # If we modify self.atoms in the process, it doesn't affect the parent process (because pickling copies),
+        # but cleaner to work on a copy.
+        atoms = structure.ase_atoms.copy() # type: ignore[no-untyped-call]
 
         # Create driver and attach calculator
         driver = QEDriver(config)
@@ -33,14 +35,14 @@ def _process_structure_wrapper(structure: Structure, config: OracleConfig) -> St
         run_with_healing(atoms, config)
 
         # Extract results
-        energy = atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-        forces = atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
-        stress = atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+        energy = atoms.get_potential_energy()
+        forces = atoms.get_forces().tolist()
+        stress = atoms.get_stress().tolist()
 
-        # Update structure
-        # We return a new Structure with updated properties
-        # But wait, structure is immutable Pydantic?
-        # We can construct a new one.
+        # Detach calculator to prevent pickling issues and reduce size
+        atoms.calc = None
+
+        # Return new Structure with updated properties
         return Structure(
             atoms=atoms,
             provenance=structure.provenance,

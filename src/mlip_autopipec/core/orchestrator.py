@@ -112,10 +112,22 @@ class Orchestrator:
         """Applies random sampling and limits for Cold Start candidates."""
         max_samples = self.config.orchestrator.max_candidates
         ratio = self.config.trainer.selection_ratio
-        step = max(1, int(1.0 / ratio)) if ratio > 0 else 1
 
-        # Use itertools.islice to efficiently skip and limit items
+        # Guard against zero/negative ratio
+        if ratio <= 0:
+            logger.warning("Selection ratio <= 0, defaulting to 1 (take all).")
+            step = 1
+        else:
+            step = max(1, int(1.0 / ratio))
+
+        # Explicitly bounds check to prevent infinite generator consumption
+        # Using islice is safe if we don't materialize, but let's be explicit about the cap
+
+        # Step 1: Subsample (Ratio)
         stepped_iter = islice(candidates, 0, None, step)
+
+        # Step 2: Limit Total (Max Candidates)
+        # This effectively stops the infinite generator once max_samples is reached
         limited_iter = islice(stepped_iter, max_samples)
 
         yield from limited_iter
@@ -136,35 +148,47 @@ class Orchestrator:
 
         for cycle in range(start_cycle, max_cycles):
             self.state_manager.update_cycle(cycle + 1)
+            self.state_manager.save()  # Checkpoint: Start of Cycle
             logger.info(f"--- Starting Cycle {cycle + 1}/{max_cycles} ---")
 
             try:
                 # 1. Exploration & Selection (Acquire Data)
                 self.state_manager.update_step(TaskType.EXPLORATION)
+                self.state_manager.save()  # Checkpoint: Start Exploration
+
                 # This returns structures that are already selected/filtered
                 structures_to_label = self._acquire_training_data(cycle, current_potential)
 
-                # 2. Oracle
+                # 2. Oracle (Labeling)
+                # We categorize Oracle under TRAINING phase as it's data prep
                 self.state_manager.update_step(TaskType.TRAINING)
+                self.state_manager.save() # Checkpoint: Start Oracle
+
                 labeled = self.oracle.compute(structures_to_label)
 
-                # 4. Training
-                self.state_manager.update_step(TaskType.TRAINING)
+                # 3. Training
+                # state step is already TRAINING
                 new_potential = self.trainer.train(labeled)
+
                 self.state_manager.update_potential(new_potential.path)
                 current_potential = new_potential
-                self.state_manager.save()
+                self.state_manager.save() # Checkpoint: After Training
                 logger.info(f"Potential trained: {new_potential.path}")
 
-                # 5. Validation
+                # 4. Validation
                 self.state_manager.update_step(TaskType.VALIDATION)
+                self.state_manager.save() # Checkpoint: Start Validation
+
                 val_result = self.validator.validate(new_potential)
                 if not val_result.passed:
                     logger.warning("Validation FAILED.")
+
+                # End of Cycle
+                self.state_manager.save() # Checkpoint: End of Cycle
+
             except Exception:
                 logger.exception(f"Cycle {cycle + 1} failed")
-                # We might want to break or continue depending on severity.
-                # For now, we log and break to avoid corrupt state.
+                # We log and break to avoid corrupt state.
                 break
 
         if self.config.orchestrator.cleanup_on_exit:
