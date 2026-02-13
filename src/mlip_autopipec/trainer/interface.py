@@ -1,4 +1,5 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -64,7 +65,9 @@ class MockTrainer(BaseTrainer):
             count += 1
         logger.info(f"MockTrainer: Consumed {count} structures for training.")
 
-        potential_path = self.work_dir / "potential.yace"
+        # Generate unique filename to avoid overwrites
+        filename = f"potential_{uuid.uuid4().hex[:8]}.yace"
+        potential_path = self.work_dir / filename
         potential_path.write_text(MOCK_POTENTIAL_CONTENT)
 
         return Potential(path=potential_path, format="yace", parameters={"mock": True})

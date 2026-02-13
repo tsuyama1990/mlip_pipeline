@@ -47,13 +47,8 @@ def test_orchestrator_run_mock(tmp_path: Path) -> None:
         validator=ValidatorConfig(type=ValidatorType.MOCK),
     )
     orch = Orchestrator(config)
-    # Initially no potential
-    assert not (tmp_path / "potential.yace").exists()
 
     orch.run()
-
-    # After run, potential should be created (Cold Start handled)
-    assert (tmp_path / "potential.yace").exists()
 
     sm = orch.state_manager
     # Reload state from file
@@ -61,7 +56,9 @@ def test_orchestrator_run_mock(tmp_path: Path) -> None:
     # 2 cycles run.
     assert sm_new.state.current_cycle == 2
     # Ensure potential path is updated in state
-    assert sm_new.state.active_potential_path == tmp_path / "potential.yace"
+    assert sm_new.state.active_potential_path is not None
+    assert sm_new.state.active_potential_path.exists()
+    assert sm_new.state.active_potential_path.suffix == ".yace"
 
 
 def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
@@ -144,4 +141,4 @@ def test_orchestrator_cold_start_mock(tmp_path: Path) -> None:
 
     # After run, potential should be created
     assert orch.state_manager.state.active_potential_path is not None
-    assert (tmp_path / "potential.yace").exists()
+    assert orch.state_manager.state.active_potential_path.exists()

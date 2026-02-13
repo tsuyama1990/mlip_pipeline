@@ -111,16 +111,21 @@ class Orchestrator:
                 score = frame.uncertainty_score
 
                 # Strict validation: Only halt if score is explicitly present and exceeds threshold
-                if score is not None and score > halt_threshold:
-                    logger.info(f"Halt triggered: gamma={score}")
-                    frame.provenance = "md_halt"
-                    frame.metadata.update({
-                        "halt_reason": "uncertainty_threshold",
-                        "max_gamma": score,
-                        "threshold": halt_threshold,
-                    })
-                    halted_frame = frame
-                    break
+                if score is not None:
+                    if score > halt_threshold:
+                        logger.info(f"Halt triggered: gamma={score}")
+                        frame.provenance = "md_halt"
+                        frame.metadata.update({
+                            "halt_reason": "uncertainty_threshold",
+                            "max_gamma": score,
+                            "threshold": halt_threshold,
+                        })
+                        halted_frame = frame
+                        break
+                else:
+                    # Handle None case explicitly as requested by audit
+                    logger.debug("Frame encountered with no uncertainty score during OTF.")
+                    continue
                 # If score is None or low, continue simulation
 
             if halted_frame:

@@ -5,6 +5,7 @@ import pytest
 from ase import Atoms
 
 from mlip_autopipec.domain_models.config import ExplorationPolicyConfig, GeneratorConfig
+from mlip_autopipec.domain_models.datastructures import Structure
 from mlip_autopipec.domain_models.enums import GeneratorType
 from mlip_autopipec.generator.adaptive import AdaptiveGenerator
 from mlip_autopipec.generator.m3gnet_gen import M3GNetGenerator
@@ -30,17 +31,23 @@ class TestRandomGenerator:
         )
 
         generator = RandomGenerator(config)
-        candidates = list(generator.explore({"count": 5}))
 
-        assert len(candidates) == 5
-        for s in candidates:
+        # Stream results to test memory efficiency
+        count = 0
+        first_two: list[Structure] = []
+        for s in generator.explore({"count": 5}):
+            count += 1
             assert s.provenance == "random"
             atoms_obj = s.ase_atoms
             assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]  # type: ignore[no-untyped-call]
+            if len(first_two) < 2:
+                first_two.append(s)
 
-        # Check diversity
-        pos0 = candidates[0].ase_atoms.positions
-        pos1 = candidates[1].ase_atoms.positions
+        assert count == 5
+
+        # Check diversity on the samples we kept
+        pos0 = first_two[0].ase_atoms.positions
+        pos1 = first_two[1].ase_atoms.positions
         assert not np.allclose(pos0, pos1), "Structures should be different"
 
     def test_random_generator_no_seed(self) -> None:
@@ -60,7 +67,8 @@ class TestRandomGenerator:
 
         # We expect a ValueError now, specifically about reading failure
         with pytest.raises(ValueError, match="Failed to read seed structure"):
-            list(generator.explore({"count": 1}))
+            for _ in generator.explore({"count": 1}):
+                pass
 
     def test_malformed_seed(self, tmp_path: Path) -> None:
         """Test behavior when seed file has malformed content."""
@@ -72,7 +80,8 @@ class TestRandomGenerator:
 
         # Should raise ValueError wrapping the underlying ASE error
         with pytest.raises(ValueError, match="Failed to read seed structure"):
-            list(generator.explore({"count": 1}))
+            for _ in generator.explore({"count": 1}):
+                pass
 
 
 class TestM3GNetGenerator:
@@ -83,9 +92,11 @@ class TestM3GNetGenerator:
         config = GeneratorConfig(type=GeneratorType.M3GNET)
         generator = M3GNetGenerator(config)
 
-        candidates = list(generator.explore({"count": 2}))
-        assert len(candidates) > 0
-        assert candidates[0].provenance == "m3gnet"
+        count = 0
+        for s in generator.explore({"count": 2}):
+            count += 1
+            assert s.provenance == "m3gnet"
+        assert count > 0
 
 
 class TestAdaptiveGenerator:
@@ -105,19 +116,25 @@ class TestAdaptiveGenerator:
         generator = AdaptiveGenerator(config)
 
         # Cycle 0 -> 100K
-        candidates_c0 = list(generator.explore({"cycle": 0, "count": 1}))
-        assert len(candidates_c0) == 1
-        assert candidates_c0[0].provenance == "md_100.0K"
+        count_c0 = 0
+        for s in generator.explore({"cycle": 0, "count": 1}):
+            count_c0 += 1
+            assert s.provenance == "md_100.0K"
+        assert count_c0 == 1
 
         # Cycle 1 -> 200K
-        candidates_c1 = list(generator.explore({"cycle": 1, "count": 1}))
-        assert len(candidates_c1) == 1
-        assert candidates_c1[0].provenance == "md_200.0K"
+        count_c1 = 0
+        for s in generator.explore({"cycle": 1, "count": 1}):
+            count_c1 += 1
+            assert s.provenance == "md_200.0K"
+        assert count_c1 == 1
 
         # Cycle 2 -> Clamped to 200K
-        candidates_c2 = list(generator.explore({"cycle": 2, "count": 1}))
-        assert len(candidates_c2) == 1
-        assert candidates_c2[0].provenance == "md_200.0K"
+        count_c2 = 0
+        for s in generator.explore({"cycle": 2, "count": 1}):
+            count_c2 += 1
+            assert s.provenance == "md_200.0K"
+        assert count_c2 == 1
 
     def test_adaptive_generator_with_seed(self, tmp_path: Path) -> None:
         seed_path = tmp_path / "seed.xyz"
@@ -134,9 +151,11 @@ class TestAdaptiveGenerator:
         # Should use RandomGenerator internally
         assert generator.random_gen is not None
 
-        candidates = list(generator.explore({"cycle": 0, "count": 1}))
-        assert len(candidates) == 1
-        assert candidates[0].provenance == "md_300.0K"  # Default schedule 300K
+        count = 0
+        for s in generator.explore({"cycle": 0, "count": 1}):
+            count += 1
+            assert s.provenance == "md_300.0K"  # Default schedule 300K
+        assert count == 1
 
     def test_generate_lammps_input(self) -> None:
         config = GeneratorConfig(type=GeneratorType.ADAPTIVE)
@@ -163,6 +182,8 @@ class TestAdaptiveGenerator:
         assert generator.m3gnet_gen is not None
 
         # Explore should return M3GNet structures
-        candidates = list(generator.explore({"cycle": 0, "count": 1}))
-        assert len(candidates) == 1
-        assert candidates[0].provenance == "m3gnet"
+        count = 0
+        for s in generator.explore({"cycle": 0, "count": 1}):
+            count += 1
+            assert s.provenance == "m3gnet"
+        assert count == 1

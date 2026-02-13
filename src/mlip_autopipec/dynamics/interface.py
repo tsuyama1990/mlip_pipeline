@@ -56,7 +56,7 @@ class MockDynamics(BaseDynamics):
         for i in range(frame_count):
             logger.debug(f"MockDynamics: Frame {i}/{frame_count}")
             # Stream frames (generator) - ensures O(1) memory usage if consumed properly
-            atoms = initial_atoms.copy()
+            atoms = initial_atoms.copy()  # type: ignore[no-untyped-call]
             # Perturb positions slightly
             positions = atoms.get_positions()
             positions += 0.01 * i
