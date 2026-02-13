@@ -60,6 +60,15 @@ def test_mock_oracle_compute(mock_atoms: Atoms) -> None:
     # mock_atoms H2 has 2 atoms. Energy ~ -4.0 * 2 = -8.0
     assert first_labeled.energy < -7.0
 
+    # Check dimensions
+    assert len(first_labeled.forces) == 2
+    assert len(first_labeled.stress) == 6
+
+    # Check randomness (roughly, values shouldn't be exactly zero unless designed)
+    # Force on first atom
+    f0 = first_labeled.forces[0]
+    assert any(abs(x) > 0 for x in f0), "Forces should not be all zero in mock"
+
 
 def test_mock_trainer_train(mock_atoms: Atoms) -> None:
     from pathlib import Path

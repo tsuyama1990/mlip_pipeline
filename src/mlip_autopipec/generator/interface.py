@@ -91,39 +91,48 @@ class MockGenerator(BaseGenerator):
     def _validate_key(self, key: str, value: Any) -> None:
         """Helper to validate individual keys."""
         if key == "cycle":
-            if not isinstance(value, int):
-                msg = f"Context 'cycle' must be int, got {type(value)}"
-                raise TypeError(msg)
-            if value < 0:
-                msg = f"Context 'cycle' must be non-negative, got {value}"
-                raise ValueError(msg)
-
+            self._validate_cycle(value)
         elif key == "temperature":
-            if not isinstance(value, (int, float)):
-                msg = f"Context 'temperature' must be number, got {type(value)}"
-                raise TypeError(msg)
-            if value <= 0:
-                msg = f"Context 'temperature' must be positive, got {value}"
-                raise ValueError(msg)
-
+            self._validate_temperature(value)
         elif key == "count":
-            if not isinstance(value, int):
-                msg = f"Context 'count' must be int, got {type(value)}"
-                raise TypeError(msg)
-            if value <= 0:
-                msg = f"Context 'count' must be positive, got {value}"
-                raise ValueError(msg)
-
+            self._validate_count(value)
         elif key == "mode":
-            if not isinstance(value, str):
-                msg = f"Context 'mode' must be str, got {type(value)}"
-                raise TypeError(msg)
-            if len(value) > 64:  # Reasonable length limit
-                msg = "Context 'mode' string is too long"
-                raise ValueError(msg)
-            if not value.isidentifier(): # Prevent weird injection
-                msg = f"Context 'mode' must be a valid identifier, got {value}"
-                raise ValueError(msg)
+            self._validate_mode(value)
+
+    def _validate_cycle(self, value: Any) -> None:
+        if not isinstance(value, int):
+            msg = f"Context 'cycle' must be int, got {type(value)}"
+            raise TypeError(msg)
+        if value < 0:
+            msg = f"Context 'cycle' must be non-negative, got {value}"
+            raise ValueError(msg)
+
+    def _validate_temperature(self, value: Any) -> None:
+        if not isinstance(value, (int, float)):
+            msg = f"Context 'temperature' must be number, got {type(value)}"
+            raise TypeError(msg)
+        if value <= 0:
+            msg = f"Context 'temperature' must be positive, got {value}"
+            raise ValueError(msg)
+
+    def _validate_count(self, value: Any) -> None:
+        if not isinstance(value, int):
+            msg = f"Context 'count' must be int, got {type(value)}"
+            raise TypeError(msg)
+        if value <= 0:
+            msg = f"Context 'count' must be positive, got {value}"
+            raise ValueError(msg)
+
+    def _validate_mode(self, value: Any) -> None:
+        if not isinstance(value, str):
+            msg = f"Context 'mode' must be str, got {type(value)}"
+            raise TypeError(msg)
+
+        # Strict whitelist validation
+        allowed_modes = {"seed", "random", "adaptive"}
+        if value not in allowed_modes:
+            msg = f"Context 'mode' must be one of {allowed_modes}, got {value}"
+            raise ValueError(msg)
 
     def generate_local_candidates(
         self, structure: Structure, count: int = 5

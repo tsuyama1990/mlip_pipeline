@@ -39,10 +39,6 @@ class MockOracle(BaseOracle):
         import numpy as np
         from ase.calculators.singlepoint import SinglePointCalculator
 
-        # Simulate batch processing
-        batch_size = 50
-        batch: list[Structure] = []
-
         # Max structures safety limit
         max_structures = 10000
 
@@ -51,36 +47,27 @@ class MockOracle(BaseOracle):
                 logger.warning(f"MockOracle reached max structure limit ({max_structures}). Stopping.")
                 break
 
-            # Memory check (mock): Ensure we don't accumulate too many atoms in memory
-            # In a real scenario, we might check sys.getsizeof(batch)
-            if len(batch) >= batch_size:
-                yield from self._process_batch(batch, SinglePointCalculator, np)
-                batch = []
+            # Process immediately (True Streaming) to guarantee O(1) memory
+            # Batching logic removed as per audit request to process one-by-one or discard immediately
+            yield self._process_single(s, SinglePointCalculator, np)
 
-            batch.append(s)
+    def _process_single(self, structure: Structure, calc_cls: Any, np_mod: Any) -> Structure:
+        atoms = structure.to_ase().copy()  # type: ignore[no-untyped-call]
+        n_atoms = len(atoms)
+        energy = -4.0 * n_atoms + np_mod.random.normal(0, 0.1)
+        forces = np_mod.random.normal(0, 0.1, (n_atoms, 3))
+        stress = np_mod.random.normal(0, 0.01, 6)
 
-        if batch:
-            yield from self._process_batch(batch, SinglePointCalculator, np)
+        calc = calc_cls(
+            atoms, energy=energy, forces=forces, stress=stress
+        )
+        atoms.calc = calc
 
-    def _process_batch(self, batch: list[Structure], calc_cls: Any, np_mod: Any) -> Iterator[Structure]:
-        # Batch processing simulation
-        for s in batch:
-            atoms = s.to_ase().copy()  # type: ignore[no-untyped-call]
-            n_atoms = len(atoms)
-            energy = -4.0 * n_atoms + np_mod.random.normal(0, 0.1)
-            forces = np_mod.random.normal(0, 0.1, (n_atoms, 3))
-            stress = np_mod.random.normal(0, 0.01, 6)
-
-            calc = calc_cls(
-                atoms, energy=energy, forces=forces, stress=stress
-            )
-            atoms.calc = calc
-
-            yield Structure(
-                atoms=atoms,
-                provenance=s.provenance,
-                label_status="labeled",
-                energy=energy,
-                forces=forces.tolist(),
-                stress=stress.tolist(),
-            )
+        return Structure(
+            atoms=atoms,
+            provenance=structure.provenance,
+            label_status="labeled",
+            energy=energy,
+            forces=forces.tolist(),
+            stress=stress.tolist(),
+        )

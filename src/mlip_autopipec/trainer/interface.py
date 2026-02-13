@@ -51,21 +51,12 @@ class MockTrainer(BaseTrainer):
     def train(self, structures: Iterable[Structure]) -> Potential:
         logger.info("MockTrainer: Training process started (streaming mode)...")
 
-        # Streaming with batching simulation
-        batch_size = 100
+        # True Streaming: Count structures without accumulating them in memory
         count = 0
-        current_batch = []
-
-        for s in structures:
-            current_batch.append(s)
-            if len(current_batch) >= batch_size:
-                count += len(current_batch)
-                # Flush batch to simulated disk/process
-                current_batch = []
-
-        # Flush remaining
-        if current_batch:
-            count += len(current_batch)
+        for _ in structures:
+            # In a real scenario, here we would stream-write 's' to a dataset file
+            # e.g., dataset_writer.write(s)
+            count += 1
 
         logger.info(f"MockTrainer: Consumed {count} structures for training.")
 
@@ -85,19 +76,25 @@ class MockTrainer(BaseTrainer):
             msg = f"Insufficient disk space in {self.work_dir}"
             raise OSError(msg)
 
-        # Atomic write pattern
+        # Atomic write pattern with unique temp directory
+        tmp_dir = Path(tempfile.mkdtemp(dir=self.work_dir))
         try:
-            with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=self.work_dir) as tmp:
-                tmp.write(MOCK_POTENTIAL_CONTENT)
-                tmp_path = Path(tmp.name)
+            tmp_path = tmp_dir / "temp_potential.yace"
+            # In a real app, mock content should be injectable.
+            # For now, we use the constant but avoid hardcoding string literals here.
+            tmp_path.write_text(MOCK_POTENTIAL_CONTENT)
 
-            # Move to final destination (atomic on POSIX)
-            shutil.move(str(tmp_path), str(potential_path))
+            # Atomic move (rename)
+            # rename is atomic on POSIX if on same filesystem (guaranteed by tmp_dir inside work_dir)
+            tmp_path.rename(potential_path)
 
         except OSError as e:
             msg = f"Failed to write potential file to {potential_path}: {e}"
             logger.exception(msg)
             raise
+        finally:
+            # Cleanup temp directory
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
         return Potential(path=potential_path, format="yace", parameters={"mock": True})
 

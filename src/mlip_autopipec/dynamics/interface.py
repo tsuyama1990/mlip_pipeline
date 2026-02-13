@@ -50,8 +50,18 @@ class MockDynamics(BaseDynamics):
 
         # Create a copy to ensure we don't modify the original structure's atoms
         # via any side effects in to_ase() if it were to change.
-        # to_ase returns the internal atoms object with updated info.
-        initial_atoms = structure.to_ase().copy()  # type: ignore[no-untyped-call]
+        # to_ase returns a copy, but we enforce explicit validation and copying here for robustness.
+
+        # Validate that we got a proper Atoms object before copying
+        ase_obj = structure.to_ase()
+        # The import is delayed to avoid circular imports if any, but usually ase is top level
+        from ase import Atoms
+
+        if not isinstance(ase_obj, Atoms):
+             msg = f"Structure.to_ase() returned {type(ase_obj)}, expected ase.Atoms"
+             raise TypeError(msg)
+
+        initial_atoms = ase_obj.copy()  # type: ignore[no-untyped-call]
 
         for i in range(frame_count):
             logger.debug(f"MockDynamics: Frame {i}/{frame_count}")
