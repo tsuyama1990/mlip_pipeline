@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterator
+from itertools import islice
 
 from mlip_autopipec.core.state_manager import StateManager
 from mlip_autopipec.domain_models.config import GlobalConfig
@@ -134,14 +135,14 @@ class Orchestrator:
         ratio = self.config.trainer.selection_ratio
         step = max(1, int(1.0 / ratio)) if ratio > 0 else 1
 
-        accepted = 0
-        for i, s in enumerate(candidates):
-            if i % step == 0:
-                yield s
-                accepted += 1
-                if accepted >= max_samples:
-                    logger.info(f"Selection limit reached ({max_samples}).")
-                    break
+        # Use itertools.islice to efficiently skip and limit items
+        # Slice syntax: start, stop, step
+        stepped_iter = islice(candidates, 0, None, step)
+
+        # Limit total items
+        limited_iter = islice(stepped_iter, max_samples)
+
+        yield from limited_iter
 
     def run(self) -> None:
         """Executes the active learning workflow."""

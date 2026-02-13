@@ -15,6 +15,8 @@ class ConfigError(Exception):
 
 # Max config file size: 1MB
 MAX_CONFIG_SIZE = 1 * 1024 * 1024
+# Max buffer size during expansion
+MAX_BUFFER_SIZE = 64 * 1024
 
 
 class EnvVarExpander:
@@ -51,18 +53,19 @@ class EnvVarExpander:
         if size == 0:
             return ""
 
-        # We need to ensure we return roughly 'size' bytes,
-        # but we must ensure we don't split a ${VAR} token.
-        # Strategy: Read 'size' + extra from stream.
-        # Append to buffer.
-        # Find the last safe position (not inside a potential ${...}).
-        # Expand up to that position.
-        # Keep the rest in buffer.
+        # Read logic extracted to helper
+        return self._read_chunk(size)
 
+    def _read_chunk(self, size: int) -> str:
         # Heuristic: Read size.
         chunk = self.stream.read(size)
         if not chunk:
             self.eof = True
+
+        # Check buffer size to prevent memory exhaustion
+        if len(self.buffer) + len(chunk) > MAX_BUFFER_SIZE:
+            msg = f"Expansion buffer exceeded max size ({MAX_BUFFER_SIZE} bytes). Possible incomplete variable token."
+            raise ConfigError(msg)
 
         self.buffer += chunk
 
@@ -77,10 +80,10 @@ class EnvVarExpander:
             self.total_read += len(expanded)
             return expanded
 
+        return self._process_buffer(size)
+
+    def _process_buffer(self, size: int) -> str:
         # Check for potential partial tokens at the end of buffer.
-        # A partial token starts with $
-        # and might be incomplete.
-        # We search for the last '$'.
         last_dollar = self.buffer.rfind("$")
 
         if last_dollar == -1:
@@ -88,47 +91,35 @@ class EnvVarExpander:
             to_process = self.buffer
             self.buffer = ""
         else:
-            # Check if it looks like an incomplete var
-            # Case 1: $ at end
-            # Case 2: ${ at end
-            # Case 3: ${VA at end
-            # We treat everything from the last $ as potentially incomplete
-            # UNLESS it's clearly complete (e.g. $VAR followed by non-var char, or ${VAR})
-            # Simplifying: Just keep the part from last '$' in buffer
-            # unless it's way too long (avoid buffer growth exploit).
-            # But wait, what if we have multiple $?
-            # We process up to last_dollar.
-
-            # Optimization: If last_dollar is very old (buffer large), force process?
-            # For config parsing, vars are usually short.
-
+            # Found a dollar sign, potentially start of a variable
             to_process = self.buffer[:last_dollar]
             self.buffer = self.buffer[last_dollar:]
 
-            # Edge case: What if buffer contains ONLY a partial token?
-            # e.g. we read "$". We put "$" in buffer. to_process is empty.
-            # We return empty. Next read calls. We assume yaml parser handles short reads (it does).
-
-            # But what if we return empty string? Does loader think EOF?
-            # PyYAML's reader checks for empty string.
-            # If we return empty but not EOF, we might hang or error.
-            # We MUST return at least 1 char if available, unless EOF.
-
             if not to_process and self.buffer:
-                # We have only potential partial token in buffer.
-                # We need to read more to complete it or determine it's not a token.
-                # Recursive call with small size?
-                # Or just read more here.
+                # Only potential partial token in buffer.
+                # Need to read more.
                 more = self.stream.read(100)  # Read a bit more
                 if not more:
                     self.eof = True
-                    # Process buffer as is
                     to_process = self.buffer
                     self.buffer = ""
                 else:
+                    if len(self.buffer) + len(more) > MAX_BUFFER_SIZE:
+                        msg = f"Expansion buffer exceeded max size ({MAX_BUFFER_SIZE} bytes)."
+                        raise ConfigError(msg)
                     self.buffer += more
-                    # Recurse logic? Or loop?
-                    # Let's simplify: return self.read(size) again (it will hit the top logic)
+                    # Recurse logic via read(size) which calls _read_chunk again
+                    # But _read_chunk calls stream.read(size), we want to just process buffer again?
+                    # Actually, calling read(size) again is fine, it will try to read from stream
+                    # but stream pointer moved.
+                    # Wait, if we recurse, read(size) reads MORE from stream.
+                    # We want to re-evaluate buffer.
+                    # Let's just call _process_buffer recursively?
+                    # No, _process_buffer expects logic to split.
+                    # If we added 'more' to buffer, last_dollar position might change (if 'more' has no $).
+                    # Actually, if we added 'more', we should loop back.
+                    # Recursion via read(size) is simplest but might over-read.
+                    # Let's allow recursion.
                     return self.read(size)
 
         expanded = self._expand(to_process)
