@@ -77,16 +77,22 @@ class Structure(BaseModel):
             msg = f"Provenance must be a string, got {type(self.provenance)}"
             raise TypeError(msg)
 
-        # Ensure label_status is a string (default "unlabeled" if not set in model)
-        # But wait, self.label_status is str.
+        if not isinstance(self.label_status, str):
+            msg = f"Label status must be a string, got {type(self.label_status)}"
+            raise TypeError(msg)
 
-        atoms.info.update(
-            {
-                "provenance": self.provenance,
-                "uncertainty_score": self.uncertainty_score,
-                "label_status": self.label_status,
-            }
-        )
+        # Basic type checks for optional fields if present are handled by Pydantic on model init
+        # but we are updating atoms.info here.
+
+        info_update: dict[str, Any] = {
+            "provenance": self.provenance,
+            "label_status": self.label_status,
+        }
+
+        if self.uncertainty_score is not None:
+             info_update["uncertainty_score"] = self.uncertainty_score
+
+        atoms.info.update(info_update)
         return atoms
 
 
