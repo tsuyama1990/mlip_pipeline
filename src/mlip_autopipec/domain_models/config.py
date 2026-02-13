@@ -2,23 +2,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mlip_autopipec.constants import (
-    DEFAULT_BASIS_SIZE,
-    DEFAULT_BATCH_SIZE,
-    DEFAULT_CUTOFF,
-    DEFAULT_ENCUT,
-    DEFAULT_KSPACING,
-    DEFAULT_LAMMPS_TEMPLATE,
-    DEFAULT_MAX_CANDIDATES,
-    DEFAULT_MAX_CYCLES,
-    DEFAULT_MAX_EPOCHS,
-    DEFAULT_MD_STEPS,
-    DEFAULT_MIXING_BETA,
-    DEFAULT_ORDER,
-    DEFAULT_SMEARING_WIDTH,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_TIMESTEP,
-)
 from mlip_autopipec.domain_models.enums import (
     ActiveSetMethod,
     DFTCode,
@@ -30,6 +13,14 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
+
+
+# Minimal safe default template
+def get_default_lammps_template() -> str:
+    return """
+# Default LAMMPS input script (Minimal)
+# Please configure 'lammps_template' in GeneratorConfig.
+"""
 
 
 class BaseComponentConfig(BaseModel):
@@ -47,7 +38,7 @@ class ExplorationPolicyConfig(BaseModel):
         default_factory=lambda: [300.0, 600.0, 1200.0],
         description="Temperature schedule per cycle (Kelvin)",
     )
-    md_steps: int = Field(default=DEFAULT_MD_STEPS, ge=1, description="Number of MD steps per exploration")
+    md_steps: int = Field(default=1000, ge=1, description="Number of MD steps per exploration")
     mc_swap_prob: float = Field(default=0.1, ge=0.0, le=1.0, description="Probability of MC swap")
     defect_density: float = Field(default=0.0, ge=0.0, description="Defect density per supercell")
     strain_range: float = Field(
@@ -63,7 +54,7 @@ class ExplorationPolicyConfig(BaseModel):
         default="perturbation", description="Method for local candidate generation"
     )
     lammps_template: str = Field(
-        default=DEFAULT_LAMMPS_TEMPLATE, description="Template for LAMMPS input script"
+        default_factory=get_default_lammps_template, description="Template for LAMMPS input script"
     )
 
     model_config = ConfigDict(extra="forbid")
@@ -93,15 +84,15 @@ class OracleConfig(BaseComponentConfig):
     )
     # DFT Parameters
     kspacing: float = Field(
-        default=DEFAULT_KSPACING, gt=0.0, description="K-point spacing in inverse Angstroms"
+        default=0.04, gt=0.0, description="K-point spacing in inverse Angstroms"
     )
-    encut: float = Field(default=DEFAULT_ENCUT, gt=0.0, description="Energy cutoff in Ry")
+    encut: float = Field(default=60.0, gt=0.0, description="Energy cutoff in Ry")
     pseudo_dir: Path | None = Field(default=None, description="Path to pseudopotentials directory")
     pseudos: dict[str, str] = Field(
         default_factory=dict, description="Map of element to pseudopotential filename"
     )
-    mixing_beta: float = Field(default=DEFAULT_MIXING_BETA, gt=0.0, le=1.0, description="Mixing beta for SCF")
-    smearing_width: float = Field(default=DEFAULT_SMEARING_WIDTH, ge=0.0, description="Smearing width in Ry")
+    mixing_beta: float = Field(default=0.7, gt=0.0, le=1.0, description="Mixing beta for SCF")
+    smearing_width: float = Field(default=0.01, ge=0.0, description="Smearing width in Ry")
     symmetry_precision: float = Field(
         default=1e-5,
         gt=0.0,
@@ -113,8 +104,8 @@ class OracleConfig(BaseComponentConfig):
 class TrainerConfig(BaseComponentConfig):
     """Configuration for Potential Trainer."""
     type: TrainerType = TrainerType.MOCK
-    max_epochs: int = Field(default=DEFAULT_MAX_EPOCHS, ge=1)
-    batch_size: int = Field(default=DEFAULT_BATCH_SIZE, ge=1)
+    max_epochs: int = Field(default=100, ge=1)
+    batch_size: int = Field(default=32, ge=1)
     mock_potential_content: str = Field(
         default="MOCK POTENTIAL FILE CONTENT", description="Content for mock potential file"
     )
@@ -131,9 +122,9 @@ class TrainerConfig(BaseComponentConfig):
         description="Number of structures to select per halt event",
     )
     # Pacemaker parameters
-    cutoff: float = Field(default=DEFAULT_CUTOFF, gt=0.0, description="Radial cutoff (Angstrom)")
-    order: int = Field(default=DEFAULT_ORDER, ge=1, description="Body order")
-    basis_size: int = Field(default=DEFAULT_BASIS_SIZE, ge=1, description="Number of basis functions")
+    cutoff: float = Field(default=5.0, gt=0.0, description="Radial cutoff (Angstrom)")
+    order: int = Field(default=2, ge=1, description="Body order")
+    basis_size: int = Field(default=500, ge=1, description="Number of basis functions")
     delta_learning: str | None = Field(
         default=None, description="Delta learning baseline (e.g., 'zbl', 'lj')"
     )
@@ -142,9 +133,9 @@ class TrainerConfig(BaseComponentConfig):
 class DynamicsConfig(BaseComponentConfig):
     """Configuration for Dynamics Engine."""
     type: DynamicsType = DynamicsType.MOCK
-    temperature: float = Field(default=DEFAULT_TEMPERATURE, gt=0.0, description="Simulation temperature (K)")
-    steps: int = Field(default=DEFAULT_MD_STEPS, ge=1, description="Number of steps")
-    timestep: float = Field(default=DEFAULT_TIMESTEP, gt=0.0, description="MD timestep in ps")
+    temperature: float = Field(default=300.0, gt=0.0, description="Simulation temperature (K)")
+    steps: int = Field(default=1000, ge=1, description="Number of steps")
+    timestep: float = Field(default=0.001, gt=0.0, description="MD timestep in ps")
     n_thermo: int = Field(default=10, ge=1, description="Thermodynamic output interval")
     n_dump: int = Field(default=100, ge=1, description="Trajectory dump interval")
     max_frames: int = Field(default=1000, ge=1, description="Max frames to read per simulation")
@@ -182,14 +173,14 @@ class ValidatorConfig(BaseComponentConfig):
 
 class OrchestratorConfig(BaseModel):
     """Configuration for the Orchestrator."""
-    max_cycles: int = Field(default=DEFAULT_MAX_CYCLES, ge=1, description="Maximum number of active learning cycles")
+    max_cycles: int = Field(default=1, ge=1, description="Maximum number of active learning cycles")
     work_dir: Path = Field(..., description="Root directory for outputs")
     execution_mode: ExecutionMode = Field(
         default=ExecutionMode.MOCK, description="Mode of operation"
     )
     cleanup_on_exit: bool = Field(default=False, description="Whether to remove temporary files")
     max_candidates: int = Field(
-        default=DEFAULT_MAX_CANDIDATES,
+        default=50,
         ge=1,
         description="Maximum number of candidates to process per cycle",
     )

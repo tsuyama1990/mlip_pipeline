@@ -9,21 +9,22 @@ from mlip_autopipec.domain_models.enums import TaskType
 
 
 def validate_path_safety(v: Path | None) -> Path | None:
-    """Validates that a path is safe (no traversal)."""
+    """
+    Validates that a path is safe (no traversal).
+
+    This function checks if the path contains '..' components in its parts,
+    which would indicate a directory traversal attempt.
+    Absolute paths are allowed (as users may specify absolute paths for inputs),
+    but relative paths must not attempt to go up the directory tree.
+    """
     if v is None:
         return None
-    # Check for traversal attempts
-    # resolve() would follow symlinks and '..', but checking parts is safer strictly
-    # if we don't want to rely on filesystem existence.
-    # However, '..' in a path object is normalized out by resolve() usually.
-    # A simple check is to ensure '..' is not in parts if we want to be strict about inputs string
-    # but Path('a/../b') becomes 'b' in resolve.
-    # The main risk is user input like '../../etc/passwd'.
-    # If we enforce paths to be absolute or relative to CWD, resolve() handles it.
-    # But let's just check '..' is not in parts to be explicit.
+
+    # Check for explicit traversal components
     if ".." in v.parts:
         msg = f"Path traversal detected in {v}"
         raise ValueError(msg)
+
     return v
 
 
