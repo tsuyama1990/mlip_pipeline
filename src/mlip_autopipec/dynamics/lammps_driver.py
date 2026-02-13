@@ -1,4 +1,5 @@
 import logging
+import shlex
 import shutil
 import subprocess
 from collections.abc import Iterator
@@ -93,12 +94,9 @@ class LAMMPSDriver(BaseDynamics):
 
     def _run_lammps(self, run_dir: Path) -> None:
         logger.info(f"LAMMPSDriver: Executing in {run_dir}")
-        # Command is hardcoded safe list, no shell=True
-        # Split command string if it contains spaces (e.g. "mpirun -np 4 lmp")
-        # However, for security, we expect config.lammps_command to be the executable
-        # If user provides "mpirun -np 4 lmp", we should probably handle it carefully.
-        # For now, simplistic split is acceptable for the command part.
-        cmd_base = self.config.lammps_command.split()
+
+        # Use shlex for safe command splitting
+        cmd_base = shlex.split(self.config.lammps_command)
         cmd = [*cmd_base, "-in", "in.md"]
 
         try:
@@ -116,10 +114,12 @@ class LAMMPSDriver(BaseDynamics):
             if e.returncode == 100:
                 logger.warning("LAMMPSDriver: Simulation halted by Watchdog (Code 100).")
             else:
-                logger.exception(f"LAMMPSDriver: Simulation failed with code {e.returncode}")
-                # We continue to try parsing what we have, as partial trajectory might be useful
+                # Log error and RAISE exception instead of suppressing it
+                msg = f"LAMMPSDriver: Simulation failed with code {e.returncode}"
+                logger.exception(msg)
+                raise RuntimeError(msg) from e
         except FileNotFoundError as err:
-            logger.exception("LAMMPS executable 'lmp' not found in PATH.")
+            logger.exception("LAMMPS executable not found in PATH.")
             msg = "LAMMPS executable not found."
             raise RuntimeError(msg) from err
 

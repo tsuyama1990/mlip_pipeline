@@ -142,7 +142,7 @@ class Orchestrator:
                 )
 
                 # Update Potential
-                new_potential = self.active_learner.process_halt(halt_info)
+                new_potential = self.active_learner.process_halt(halt_info, current_potential)
                 current_potential = new_potential
 
                 # Update State

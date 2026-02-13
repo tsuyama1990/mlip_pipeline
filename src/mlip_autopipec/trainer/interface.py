@@ -16,12 +16,13 @@ class BaseTrainer(ABC):
     """Abstract Base Class for Potential Trainer."""
 
     @abstractmethod
-    def train(self, structures: Iterable[Structure]) -> Potential:
+    def train(self, structures: Iterable[Structure], initial_potential: Potential | None = None) -> Potential:
         """
         Trains a potential on the given structures.
 
         Args:
             structures: An iterable of labeled structures.
+            initial_potential: Optional starting potential for fine-tuning.
 
         Returns:
             A Potential object representing the trained model.
@@ -48,8 +49,10 @@ class MockTrainer(BaseTrainer):
         self.work_dir = work_dir
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-    def train(self, structures: Iterable[Structure]) -> Potential:
+    def train(self, structures: Iterable[Structure], initial_potential: Potential | None = None) -> Potential:
         logger.info("MockTrainer: Training process started (streaming mode)...")
+        if initial_potential:
+            logger.info(f"MockTrainer: Fine-tuning from {initial_potential.path}")
 
         # True Streaming: Count structures without accumulating them in memory
         count = 0

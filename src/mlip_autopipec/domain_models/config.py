@@ -129,6 +129,11 @@ class TrainerConfig(BaseComponentConfig):
     delta_learning: str | None = Field(
         default=None, description="Delta learning baseline (e.g., 'zbl', 'lj')"
     )
+    # Hyperparameters
+    seed: int = Field(default=42, description="Random seed for training")
+    kappa: float = Field(default=0.01, description="Kappa parameter for loss")
+    l1_coeffs: float = Field(default=1e-8, description="L1 regularization for coefficients")
+    l2_coeffs: float = Field(default=1e-8, description="L2 regularization for coefficients")
 
 
 class EONConfig(BaseModel):
