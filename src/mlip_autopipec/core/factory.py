@@ -9,7 +9,7 @@ from mlip_autopipec.domain_models.enums import (
     TrainerType,
     ValidatorType,
 )
-from mlip_autopipec.dynamics import BaseDynamics, LAMMPSDriver, MockDynamics
+from mlip_autopipec.dynamics import BaseDynamics, EONDriver, LAMMPSDriver, MockDynamics
 from mlip_autopipec.generator import (
     AdaptiveGenerator,
     BaseGenerator,
@@ -70,6 +70,8 @@ class ComponentFactory:
             return MockDynamics(self.config.dynamics)
         if dyn_type == DynamicsType.LAMMPS:
             return LAMMPSDriver(work_dir, self.config.dynamics)
+        if dyn_type == DynamicsType.EON:
+            return EONDriver(work_dir, self.config.dynamics)
 
         msg = f"Unsupported dynamics type: {dyn_type}"
         raise ValueError(msg)
