@@ -77,6 +77,9 @@ class Structure(BaseModel):
             msg = f"Provenance must be a string, got {type(self.provenance)}"
             raise TypeError(msg)
 
+        # Ensure label_status is a string (default "unlabeled" if not set in model)
+        # But wait, self.label_status is str.
+
         atoms.info.update(
             {
                 "provenance": self.provenance,
