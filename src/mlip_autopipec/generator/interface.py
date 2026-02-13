@@ -68,7 +68,7 @@ class MockGenerator(BaseGenerator):
         import numpy as np
 
         for i in range(count):
-            atoms = original_atoms.copy()
+            atoms = original_atoms.copy()  # type: ignore[no-untyped-call]
             # Simple random rattle
             positions = atoms.get_positions()
             positions += np.random.normal(0, 0.05, positions.shape)

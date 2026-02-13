@@ -21,7 +21,7 @@ class TestRandomGenerator:
         # Create a dummy seed file
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("MgO", positions=[[0, 0, 0], [2, 0, 0]], cell=[4, 4, 4], pbc=True)
-        atoms.write(seed_path)
+        atoms.write(seed_path)  # type: ignore[no-untyped-call]
 
         config = GeneratorConfig(
             type=GeneratorType.RANDOM,
@@ -36,7 +36,7 @@ class TestRandomGenerator:
         for s in candidates:
             assert s.provenance == "random"
             atoms_obj = s.ase_atoms
-            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]
+            assert atoms_obj.get_chemical_symbols() == ["Mg", "O"]  # type: ignore[no-untyped-call]
 
         # Check diversity
         pos0 = candidates[0].ase_atoms.positions
@@ -99,7 +99,7 @@ class TestAdaptiveGenerator:
     def test_temperature_schedule_explore(self, tmp_path: Path) -> None:
         # Need a seed for mock execution now
         seed_path = tmp_path / "seed_adapt.xyz"
-        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path)
+        Atoms("He", positions=[[0,0,0]], cell=[5,5,5]).write(seed_path)  # type: ignore[no-untyped-call]
 
         # Test explore logic picking up schedule
         policy = ExplorationPolicyConfig(temperature_schedule=[100.0, 200.0])
@@ -128,7 +128,7 @@ class TestAdaptiveGenerator:
     def test_adaptive_generator_with_seed(self, tmp_path: Path) -> None:
         seed_path = tmp_path / "seed.xyz"
         atoms = Atoms("He", positions=[[0, 0, 0]], cell=[10, 10, 10], pbc=True)
-        atoms.write(seed_path)
+        atoms.write(seed_path)  # type: ignore[no-untyped-call]
 
         config = GeneratorConfig(
             type=GeneratorType.ADAPTIVE,
