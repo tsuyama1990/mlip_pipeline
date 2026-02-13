@@ -1,4 +1,5 @@
 import logging
+import random
 from collections.abc import Iterable, Iterator
 
 from mlip_autopipec.domain_models.config import ActiveLearningConfig, TrainerConfig
@@ -27,37 +28,51 @@ class ActiveSelector:
         Returns:
             An iterator of selected structures.
         """
-        candidates_list = list(candidates)
-        if not candidates_list:
-            logger.warning("No candidates provided to ActiveSelector.")
-            return
-
         method = self.trainer_config.active_set_method
         count = self.trainer_config.n_active_set_per_halt
 
-        # If count > available, return all
-        if count >= len(candidates_list):
-            logger.info(f"ActiveSelector: Selecting all {len(candidates_list)} candidates (requested {count}).")
-            for c in candidates_list:
-                c.provenance += "_active_all"
-                yield c
-            return
-
         if method == ActiveSetMethod.RANDOM:
-            yield from self._select_random(candidates_list, count)
+            yield from self._select_random(candidates, count)
         elif method == ActiveSetMethod.MAXVOL:
-             # TODO: Implement proper MaxVol wrapper calling pacemaker
-             # For now, fallback to random or mock MaxVol
-            logger.info("ActiveSelector: MAXVOL requested, falling back to Random/Mock for Cycle 06 implementation.")
-            yield from self._select_random(candidates_list, count)
+            # MAXVOL implementation requires full batch loading or complex incremental update.
+            # Currently disabled as per strict memory safety requirement until efficient implementation.
+            msg = "ActiveSetMethod.MAXVOL is not yet implemented. Please use ActiveSetMethod.RANDOM."
+            logger.error(msg)
+            raise NotImplementedError(msg)
         else:
-             # Default: Take first N (or random)
-            yield from self._select_random(candidates_list, count)
+            # Default: Take first N
+            yield from self._select_first_n(candidates, count)
 
-    def _select_random(self, candidates: list[Structure], count: int) -> Iterator[Structure]:
-        import random
-        selected = random.sample(candidates, count)
-        logger.info(f"ActiveSelector: Randomly selected {count} structures.")
-        for s in selected:
+    def _select_random(self, candidates: Iterable[Structure], count: int) -> Iterator[Structure]:
+        """
+        Selects random candidates using reservoir sampling to support streaming.
+        """
+        reservoir: list[Structure] = []
+
+        for i, candidate in enumerate(candidates):
+            if len(reservoir) < count:
+                reservoir.append(candidate)
+            else:
+                # Replace elements with decreasing probability
+                j = random.randint(0, i) # noqa: S311
+                if j < count:
+                    reservoir[j] = candidate
+
+        logger.info(f"ActiveSelector: Randomly selected {len(reservoir)} structures.")
+        for s in reservoir:
             s.provenance += "_active_random"
             yield s
+
+    def _select_first_n(self, candidates: Iterable[Structure], count: int) -> Iterator[Structure]:
+        """
+        Selects the first N candidates from the stream.
+        """
+        selected_count = 0
+        for s in candidates:
+            if selected_count >= count:
+                break
+            s.provenance += "_active_first"
+            yield s
+            selected_count += 1
+
+        logger.info(f"ActiveSelector: Selected first {selected_count} structures.")

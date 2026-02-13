@@ -4,26 +4,26 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 95 items
+collected 97 items
 
 tests/integration/test_pipeline.py .                                     [  1%]
-tests/unit/test_active_learner.py ..                                     [  3%]
-tests/unit/test_active_learning_config.py ...                            [  6%]
-tests/unit/test_active_selector.py ..                                    [  8%]
-tests/unit/test_candidate_generator.py ...                               [ 11%]
-tests/unit/test_cli.py ....                                              [ 15%]
-tests/unit/test_config.py ..........                                     [ 26%]
-tests/unit/test_config_parser.py ......                                  [ 32%]
-tests/unit/test_dataset_manager.py ......                                [ 38%]
-tests/unit/test_delta_learning.py ....                                   [ 43%]
-tests/unit/test_dft_manager.py ...                                       [ 46%]
-tests/unit/test_dynamics_config.py ....                                  [ 50%]
-tests/unit/test_embedding.py ..                                          [ 52%]
+tests/unit/test_active_learner.py ...                                    [  4%]
+tests/unit/test_active_learning_config.py ...                            [  7%]
+tests/unit/test_active_selector.py ...                                   [ 10%]
+tests/unit/test_candidate_generator.py ...                               [ 13%]
+tests/unit/test_cli.py ....                                              [ 17%]
+tests/unit/test_config.py ..........                                     [ 27%]
+tests/unit/test_config_parser.py ......                                  [ 34%]
+tests/unit/test_dataset_manager.py ......                                [ 40%]
+tests/unit/test_delta_learning.py ....                                   [ 44%]
+tests/unit/test_dft_manager.py ...                                       [ 47%]
+tests/unit/test_dynamics_config.py ....                                  [ 51%]
+tests/unit/test_embedding.py ..                                          [ 53%]
 tests/unit/test_generator.py ........                                    [ 61%]
 tests/unit/test_hybrid_overlay.py ...                                    [ 64%]
-tests/unit/test_lammps_driver.py ..                                      [ 66%]
-tests/unit/test_logger.py .                                              [ 67%]
-tests/unit/test_mocks.py .......                                         [ 74%]
+tests/unit/test_lammps_driver.py ..                                      [ 67%]
+tests/unit/test_logger.py .                                              [ 68%]
+tests/unit/test_mocks.py .......                                         [ 75%]
 tests/unit/test_orchestrator.py ......                                   [ 81%]
 tests/unit/test_pacemaker_wrapper.py .......                             [ 88%]
 tests/unit/test_qe_driver.py .                                           [ 89%]
@@ -41,14 +41,14 @@ Name                                                  Stmts   Miss  Cover   Miss
 -----------------------------------------------------------------------------------
 src/mlip_autopipec/__init__.py                            0      0   100%
 src/mlip_autopipec/core/__init__.py                       6      0   100%
-src/mlip_autopipec/core/active_learner.py                32      1    97%   64
+src/mlip_autopipec/core/active_learner.py                43      3    93%   101-103
 src/mlip_autopipec/core/config_parser.py                102     27    74%   43-44, 48-51, 54, 67-68, 101-123, 134-137, 173-174, 178-179
 src/mlip_autopipec/core/factory.py                       55     16    71%   44-45, 51-55, 61-65, 71-75, 81-82
 src/mlip_autopipec/core/logger.py                        22      2    91%   8, 13
-src/mlip_autopipec/core/orchestrator.py                 116     13    89%   74-75, 97-98, 106, 143-144, 165, 207, 212-215, 218
+src/mlip_autopipec/core/orchestrator.py                 118     14    88%   73, 76-77, 99-100, 108, 145-146, 167, 209, 214-217, 220
 src/mlip_autopipec/core/state_manager.py                 57      8    86%   29-31, 53-58
 src/mlip_autopipec/domain_models/__init__.py              4      0   100%
-src/mlip_autopipec/domain_models/config.py              101      0   100%
+src/mlip_autopipec/domain_models/config.py              103      0   100%
 src/mlip_autopipec/domain_models/datastructures.py      103     15    85%   25-26, 55-56, 68-69, 77-78, 81-82, 109, 112, 176, 179, 182
 src/mlip_autopipec/domain_models/enums.py                50      0   100%
 src/mlip_autopipec/dynamics/__init__.py                   3      0   100%
@@ -58,7 +58,7 @@ src/mlip_autopipec/dynamics/lammps_driver.py            103     13    87%   48, 
 src/mlip_autopipec/dynamics/watchdog.py                  20      2    90%   26-27
 src/mlip_autopipec/generator/__init__.py                  6      0   100%
 src/mlip_autopipec/generator/adaptive.py                 35      3    91%   26-27, 38
-src/mlip_autopipec/generator/candidate_generator.py      28      5    82%   33-34, 48-50
+src/mlip_autopipec/generator/candidate_generator.py      29      5    83%   34-35, 59-61
 src/mlip_autopipec/generator/interface.py                85     24    72%   50-53, 73-74, 77-78, 95-96, 113-114, 116-117, 121-122, 124-125, 129-130, 132-133, 137-138, 144-145
 src/mlip_autopipec/generator/m3gnet_gen.py               25      2    92%   23, 31
 src/mlip_autopipec/generator/random_gen.py               55     11    80%   31-33, 36-38, 49-50, 60, 65-66
@@ -70,7 +70,7 @@ src/mlip_autopipec/oracle/interface.py                   29      2    93%   47-4
 src/mlip_autopipec/oracle/qe_driver.py                   24      7    71%   6-7, 70-75
 src/mlip_autopipec/oracle/self_healing.py                38      4    89%   21-22, 55-56
 src/mlip_autopipec/trainer/__init__.py                    4      0   100%
-src/mlip_autopipec/trainer/active_selector.py            35      7    80%   39-43, 50-51
+src/mlip_autopipec/trainer/active_selector.py            42      0   100%
 src/mlip_autopipec/trainer/dataset_manager.py            41      0   100%
 src/mlip_autopipec/trainer/delta_learning.py             15      0   100%
 src/mlip_autopipec/trainer/interface.py                  54      9    83%   69-70, 75-76, 87, 95-98
@@ -78,5 +78,5 @@ src/mlip_autopipec/trainer/pacemaker_wrapper.py          71      2    97%   59, 
 src/mlip_autopipec/validator/__init__.py                  2      0   100%
 src/mlip_autopipec/validator/interface.py                11      0   100%
 -----------------------------------------------------------------------------------
-TOTAL                                                  1538    193    87%
-============================== 95 passed in 3.04s ==============================
+TOTAL                                                  1561    189    88%
+============================== 97 passed in 2.88s ==============================

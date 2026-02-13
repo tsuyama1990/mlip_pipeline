@@ -61,14 +61,16 @@ class Orchestrator:
     ) -> Iterator[Structure]:
         halt_threshold = self.config.dynamics.max_gamma_threshold
 
-        # Max seeds to process to prevent infinite loop if generator is infinite
-        max_seeds_to_check = 1000
-        safe_seeds_iter = islice(seeds_iter, max_seeds_to_check)
+        # Use configurable limit for OTF seeds
+        max_seeds = self.config.orchestrator.max_otf_seeds
+        safe_seeds_iter = islice(seeds_iter, max_seeds)
 
         # Track potentially updated potential during OTF loop
         current_potential = potential
 
-        for _seed_count, seed in enumerate(safe_seeds_iter):
+        for seed_idx, seed in enumerate(safe_seeds_iter):
+            if seed_idx > 0 and seed_idx % 10 == 0:
+                logger.info(f"OTF Loop: Processed {seed_idx} seeds...")
 
             if current_potential is None:
                 logger.error("Potential is None in OTF loop. Cannot simulate.")

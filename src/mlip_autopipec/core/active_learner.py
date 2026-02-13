@@ -1,7 +1,8 @@
+import itertools
 import logging
 
 from mlip_autopipec.domain_models.config import GlobalConfig
-from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential, Structure
+from mlip_autopipec.domain_models.datastructures import HaltInfo, Potential
 from mlip_autopipec.generator.candidate_generator import CandidateGenerator
 from mlip_autopipec.generator.interface import BaseGenerator
 from mlip_autopipec.oracle.interface import BaseOracle
@@ -53,30 +54,53 @@ class ActiveLearner:
 
         # 1. Generate Candidates
         logger.info("ActiveLearner: Generating local candidates...")
-        # Add explicit type hint for candidates_iter for better readability and IDE support
         candidates_iter = self.candidate_generator.generate_local(halt_event.structure)
 
         # 2. Select Active Set
         logger.info("ActiveLearner: Selecting active set...")
-        selected_candidates: list[Structure] = list(self.active_selector.select_batch(candidates_iter))
-        logger.info(f"ActiveLearner: Selected {len(selected_candidates)} candidates for labeling.")
+        # Get iterator from selector. Note: ActiveSelector.select_batch now uses reservoir sampling internally
+        # for Random, so it will consume the input stream but yield output stream.
+        # We peek to check if any were selected without consuming everything if possible,
+        # but reservoir sampling implies full consumption of input candidates.
+        # However, we should avoid calling list() on the output of select_batch to respect memory safety
+        # if select_batch returns a generator (which it does).
 
-        if not selected_candidates:
+        selected_candidates_iter = self.active_selector.select_batch(candidates_iter)
+
+        # Use peek mechanism to check for empty stream
+        try:
+            first_candidate = next(selected_candidates_iter)
+            # Reconstruct iterator
+            selected_candidates_stream = itertools.chain([first_candidate], selected_candidates_iter)
+            has_candidates = True
+        except StopIteration:
+            has_candidates = False
+            selected_candidates_stream = iter([])  # type: ignore[assignment]
+
+        if not has_candidates:
             logger.warning("ActiveLearner: No candidates selected. Returning existing potential (no-op).")
-            # See previous note about returning potential.
-            # We don't have the "current" potential explicitly passed here, so we might need to rely on
-            # what the trainer returns for an empty training set, or what we can infer.
-            # However, to be safe and type correct, we proceed to compute step with empty list
-            # and let the Trainer handle "no data".
+            # We assume the trainer can handle an "update" request that results in no change
+            # or we need to return the current potential.
+            # Since we don't track current potential here, we might need to rely on the trainer returning
+            # a valid potential even if empty data.
+            # But the audit requires a robust check.
+            # Let's try training with empty set.
+            # If trainer fails, we should catch it.
 
         # 3. Label (Oracle)
         logger.info("ActiveLearner: Computing ground truth (Oracle)...")
-        labeled_structures = self.oracle.compute(selected_candidates)
+        # Oracle.compute takes Iterable and returns Iterable (or list).
+        # We pass the stream.
+        labeled_structures = self.oracle.compute(selected_candidates_stream)
 
         # 4. Train (Fine-tune)
         logger.info("ActiveLearner: Fine-tuning potential...")
-        # Trainer.train should handle fine-tuning
         new_potential = self.trainer.train(labeled_structures)
+
+        if new_potential is None:
+             msg = "Trainer returned None potential after fine-tuning."
+             logger.error(msg)
+             raise RuntimeError(msg)
 
         logger.info(f"ActiveLearner: Cycle complete. New potential: {new_potential.path}")
         return new_potential

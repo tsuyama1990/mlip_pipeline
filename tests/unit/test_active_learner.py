@@ -112,3 +112,25 @@ def test_process_halt_flow(active_learner: ActiveLearner) -> None:
 
     active_learner.trainer.train.assert_called_once()
     assert str(res.path) == "spy.yace"
+
+
+def test_process_halt_empty_selection(active_learner: ActiveLearner) -> None:
+    """Test scenario where no candidates are selected."""
+    # Override active_selector to return empty iterator
+    active_learner.active_selector.select_batch = MagicMock(return_value=iter([])) # type: ignore[method-assign]
+
+    halt_event = HaltInfo(
+        step=100,
+        max_gamma=10.0,
+        structure=Structure(atoms=Atoms("He"), provenance="halt"),
+        reason="high_uncertainty"
+    )
+
+    # Mock trainer to handle empty input
+    active_learner.trainer.train = MagicMock(return_value=Potential(path=Path("unchanged.yace"), format="yace")) # type: ignore[method-assign]
+
+    res = active_learner.process_halt(halt_event)
+
+    assert str(res.path) == "unchanged.yace"
+    # Oracle should compute on empty list (or not called if optimized, but implementation calls it)
+    # Trainer should be called with empty list

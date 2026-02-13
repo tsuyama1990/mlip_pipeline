@@ -185,6 +185,11 @@ class OrchestratorConfig(BaseModel):
         ge=1,
         description="Maximum number of candidates to process per cycle",
     )
+    max_otf_seeds: int = Field(
+        default=1000,
+        ge=1,
+        description="Maximum number of seeds to simulate in OTF loop",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
