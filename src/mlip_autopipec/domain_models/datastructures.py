@@ -48,7 +48,7 @@ class Structure(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    @field_validator("atoms")
+    @field_validator("atoms", mode="before")
     @classmethod
     def validate_atoms(cls, v: Any) -> Atoms:
         if not isinstance(v, Atoms):
@@ -125,7 +125,12 @@ class Potential(BaseModel):
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: Path) -> Path:
-        validate_path_safety(v)
+        # Pydantic 2.x validators are classmethods
+        if not validate_path_safety(v):
+             # Should not happen as validate_path_safety raises or returns Path
+             # But just in case validation logic changes
+             msg = "Invalid path"
+             raise ValueError(msg)
         return v
 
 
@@ -187,7 +192,7 @@ class HaltInfo(BaseModel):
     Information about a simulation halt event due to uncertainty or error.
     """
     step: int = Field(..., ge=0, description="MD/kMC step where halt occurred")
-    max_gamma: float = Field(..., ge=0.0, description="Max extrapolation grade detected")
+    max_gamma: float = Field(..., ge=0, description="Max extrapolation grade detected")
     structure: Structure = Field(..., description="The structure snapshot at halt")
     reason: str = Field(default="uncertainty_threshold", description="Reason for halt")
 

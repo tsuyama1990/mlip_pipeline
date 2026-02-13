@@ -33,12 +33,13 @@ class UncertaintyWatchdog:
         elem_str = " ".join(elements)
 
         # 1. Compute per-atom uncertainty
-        # compute ID group-ID pace filename elements...
-        commands.append(f"compute pace all pace {potential_file} {elem_str}")
+        # Use specific ID 'pace_gamma' to avoid conflict
+        # gamma_mode=1 enables extrapolation grade calculation
+        commands.append(f"compute pace_gamma all pace {potential_file} {elem_str} gamma_mode=1")
 
         # Reduce to get global max
-        # Assuming c_pace[1] is gamma. If index differs, this needs update.
-        commands.append("compute max_gamma all reduce max c_pace[1]")
+        # Assuming pace_gamma produces a scalar per atom representing gamma
+        commands.append("compute max_gamma all reduce max c_pace_gamma")
 
         # Variable for check
         threshold = self.config.max_gamma_threshold

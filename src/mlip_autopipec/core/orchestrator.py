@@ -189,24 +189,33 @@ class Orchestrator:
                 self.state_manager.save() # Checkpoint: Start Oracle
 
                 # Note: If OTF handled everything, structures_to_label might be empty.
-                labeled = self.oracle.compute(structures_to_label)
+                labeled = list(self.oracle.compute(structures_to_label))
 
                 # 3. Training
-                # If labeled is empty, this might be a no-op or a consolidation training
-                new_potential = self.trainer.train(labeled)
+                # Only train if we have new labeled data
+                if labeled:
+                    logger.info(f"Training on {len(labeled)} new structures.")
+                    new_potential = self.trainer.train(labeled)
+                    self.state_manager.update_potential(new_potential.path)
+                    current_potential = new_potential
+                    self.state_manager.save() # Checkpoint: After Training
+                    logger.info(f"Potential trained: {new_potential.path}")
+                elif current_potential:
+                    logger.info("No new data to train on. Using existing potential.")
+                else:
+                    logger.warning("No potential and no data to train. Cycle failed?")
+                    # This implies Cold Start failed to produce data
+                    if cycle == 0:
+                        raise RuntimeError("Cold start produced no data.")
 
-                self.state_manager.update_potential(new_potential.path)
-                current_potential = new_potential
-                self.state_manager.save() # Checkpoint: After Training
-                logger.info(f"Potential trained: {new_potential.path}")
+                if current_potential:
+                    # 4. Validation
+                    self.state_manager.update_step(TaskType.VALIDATION)
+                    self.state_manager.save() # Checkpoint: Start Validation
 
-                # 4. Validation
-                self.state_manager.update_step(TaskType.VALIDATION)
-                self.state_manager.save() # Checkpoint: Start Validation
-
-                val_result = self.validator.validate(new_potential)
-                if not val_result.passed:
-                    logger.warning("Validation FAILED.")
+                    val_result = self.validator.validate(current_potential)
+                    if not val_result.passed:
+                        logger.warning("Validation FAILED.")
 
                 # End of Cycle
                 self.state_manager.save() # Checkpoint: End of Cycle

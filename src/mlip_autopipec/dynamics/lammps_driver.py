@@ -128,22 +128,24 @@ class LAMMPSDriver(BaseDynamics):
                 atoms.set_atomic_numbers(real_numbers)  # type: ignore[no-untyped-call]
 
                 gamma = 0.0
-                if "c_pace[1]" in atoms.arrays:
-                    gammas = atoms.arrays["c_pace[1]"]
+                if "c_pace_gamma" in atoms.arrays:
+                    gammas = atoms.arrays["c_pace_gamma"]
                     if len(gammas) > 0:
-                        gamma = np.max(gammas)
+                        gamma = float(np.max(gammas))
+                elif "c_pace[1]" in atoms.arrays:
+                     gammas = atoms.arrays["c_pace[1]"]
+                     if len(gammas) > 0:
+                        gamma = float(np.max(gammas))
 
                 yield Structure(
                     atoms=atoms,
                     provenance="md_trajectory",
                     label_status="unlabeled",
-                    uncertainty_score=float(gamma),
+                    uncertainty_score=gamma,
                     metadata={"temperature": self.config.temperature, "frame": i},
                 )
         else:
             logger.warning("LAMMPSDriver: No dump file produced.")
-
-    # Correcting implementation to pass elements
 
     def _generate_input_script(
         self, structure_file: str, potential_file: str, dump_file: str, elements: list[str]
@@ -180,7 +182,7 @@ class LAMMPSDriver(BaseDynamics):
 
         if self.config.halt_on_uncertainty:
             thermo_args += " c_max_gamma"
-            dump_args += " c_pace[1]"
+            dump_args += " c_pace_gamma"
 
         lines.append(f"thermo {self.config.n_thermo}")
         lines.append(f"thermo_style custom {thermo_args}")

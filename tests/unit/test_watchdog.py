@@ -13,8 +13,8 @@ def test_watchdog_enabled() -> None:
     watchdog = UncertaintyWatchdog(config)
 
     commands = watchdog.get_commands("potential.yace", ["Fe", "Pt"])
-    assert "compute pace all pace potential.yace Fe Pt" in commands
-    assert "compute max_gamma all reduce max c_pace[1]" in commands
+    assert "compute pace_gamma all pace potential.yace Fe Pt gamma_mode=1" in commands
+    assert "compute max_gamma all reduce max c_pace_gamma" in commands
     # The variable should check if max_gamma > threshold
     assert "variable check_gamma equal c_max_gamma>5.0" in commands
     assert "fix halt_check all halt 1 v_check_gamma != 0 error 100" in commands

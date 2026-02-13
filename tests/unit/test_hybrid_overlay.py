@@ -17,7 +17,8 @@ def test_hybrid_overlay_none() -> None:
     assert "pace" in style
 
     coeff = overlay.get_pair_coeff(["Fe", "Pt"], "potential.yace")
-    assert "pair_coeff * * pace potential.yace Fe Pt" in coeff
+    # For single style, we do NOT use the 'pace' keyword
+    assert "pair_coeff * * potential.yace Fe Pt" in coeff
     assert "zbl" not in coeff
 
 
@@ -37,6 +38,7 @@ def test_hybrid_overlay_zbl() -> None:
 
     coeff = overlay.get_pair_coeff(["Fe", "Pt"], "potential.yace")
     # Must contain both pace and zbl lines
+    # For hybrid, we DO use the 'pace' keyword
     assert "pair_coeff * * pace potential.yace Fe Pt" in coeff
     # Check ZBL specific coefficients using atomic numbers (Fe=26, Pt=78)
     # The implementation should handle looking up atomic numbers
