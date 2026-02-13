@@ -1,8 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from mlip_autopipec.domain_models.datastructures import Potential, Structure
+
+if TYPE_CHECKING:
+    from mlip_autopipec.domain_models.config import DynamicsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +31,19 @@ class BaseDynamics(ABC):
 class MockDynamics(BaseDynamics):
     """Mock implementation of Dynamics Engine."""
 
+    def __init__(self, config: "DynamicsConfig | None" = None) -> None:
+        self.config = config
+
     def simulate(self, potential: Potential, structure: Structure) -> Iterator[Structure]:
         logger.info("MockDynamics: Simulating trajectory...")
 
+        frame_count = 5
+        if self.config:
+            frame_count = self.config.mock_frames
+
         initial_atoms = structure.to_ase()
 
-        # Generate frames
-        # For mock, we generate 5 frames.
-
-        for i in range(5):
+        for i in range(frame_count):
             atoms = initial_atoms.copy()
             # Perturb positions slightly
             positions = atoms.get_positions()

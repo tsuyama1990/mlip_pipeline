@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from mlip_autopipec.constants import DEFAULT_LAMMPS_TEMPLATE
 from mlip_autopipec.domain_models.enums import (
     ActiveSetMethod,
     DFTCode,
@@ -16,8 +16,8 @@ from mlip_autopipec.domain_models.enums import (
 
 
 class BaseComponentConfig(BaseModel):
-    # Allow arbitrary string types for extensibility, but standard configs should use Enums.
-    type: Any
+    # Component type identifier (e.g., 'random', 'm3gnet', 'mock')
+    type: str
     model_config = ConfigDict(extra="forbid")
 
 
@@ -34,21 +34,7 @@ class ExplorationPolicyConfig(BaseModel):
     n_local_candidates: int = Field(default=20, ge=1, description="Number of local candidates to generate on halt")
     local_sampling_method: str = Field(default="perturbation", description="Method for local candidate generation")
     lammps_template: str = Field(
-        default="""
-units metal
-atom_style atomic
-boundary p p p
-
-# Potential setup (placeholder)
-pair_style none
-
-# MD Settings
-velocity all create {temperature} 12345 dist gaussian
-fix 1 all nvt temp {temperature} {temperature} 0.1
-timestep 0.001
-
-run {steps}
-""",
+        default=DEFAULT_LAMMPS_TEMPLATE,
         description="Template for LAMMPS input script"
     )
 
@@ -90,6 +76,8 @@ class DynamicsConfig(BaseComponentConfig):
     type: DynamicsType = DynamicsType.MOCK
     temperature: float = Field(default=300.0, gt=0.0)
     steps: int = Field(default=1000, ge=1)
+    # Mock specific
+    mock_frames: int = Field(default=5, ge=1, description="Number of frames to generate in mock mode")
     # Halt / OTF
     halt_on_uncertainty: bool = Field(default=True, description="Whether to stop on high uncertainty")
     max_gamma_threshold: float = Field(default=5.0, gt=0.0, description="Threshold for extrapolation grade")

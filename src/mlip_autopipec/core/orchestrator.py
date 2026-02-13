@@ -72,7 +72,7 @@ class Orchestrator:
 
     def _create_dynamics(self) -> BaseDynamics:
         if self.config.dynamics.type == DynamicsType.MOCK:
-            return MockDynamics()
+            return MockDynamics(self.config.dynamics)
         msg = f"Unsupported dynamics type: {self.config.dynamics.type}"
         raise ValueError(msg)
 
@@ -119,6 +119,8 @@ class Orchestrator:
                 # 2. Select active set (Local D-Optimality)
                 selected = self.trainer.select_active_set(candidates, count=n_select)
 
+                # Streaming check - if iterator is empty, nothing happens, which is safe.
+                # However, for debugging, we might want to know if selection failed.
                 yield from selected
 
     def _select_candidates(self, candidates: Iterator[Structure]) -> Iterator[Structure]:

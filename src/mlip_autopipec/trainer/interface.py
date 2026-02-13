@@ -51,25 +51,11 @@ class MockTrainer(BaseTrainer):
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
     def train(self, structures: Iterable[Structure]) -> Potential:
-        # Avoid consuming entire iterable into counting if we want to be strictly streaming safe.
-        # But we need to do *something*.
-        # Let's iterate and just log the first few or count a few.
-        # The audit said "consumes entire iterable into memory by counting structures".
-        # This is technically false (counting doesn't store items), but iteration takes time.
-        # We will just verify it's iterable.
+        logger.info("MockTrainer: Training process started (streaming mode)...")
 
-        # Check if empty (peek)
-        iterator = iter(structures)
-        try:
-            next(iterator)
-        except StopIteration:
-            logger.warning("MockTrainer: No structures to train on.")
-            count = 0
-        else:
-            # We found at least one.
-            count = 1
-            # We don't need to consume the rest for mock training.
-            logger.info("MockTrainer: Training process started...")
+        # In a real scenario, we would stream this to a file or tool.
+        # For mock, we simply acknowledge the iterable exists.
+        # We do NOT consume the iterator to ensure OOM safety.
 
         potential_path = self.work_dir / "potential.yace"
         potential_path.write_text("MOCK POTENTIAL FILE CONTENT")
@@ -77,7 +63,7 @@ class MockTrainer(BaseTrainer):
         return Potential(
             path=potential_path,
             format="yace",
-            parameters={"mock": True, "count_approx": count}
+            parameters={"mock": True}
         )
 
     def select_active_set(self, structures: Iterable[Structure], count: int) -> Iterator[Structure]:

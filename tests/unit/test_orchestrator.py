@@ -164,3 +164,27 @@ def test_orchestrator_create_generators(tmp_path: Path) -> None:
 
         orch = Orchestrator(config)
         assert orch.generator is not None
+
+def test_orchestrator_cold_start_mock(tmp_path: Path) -> None:
+    """Test Orchestrator runs correctly when no potential exists (Cycle 0)."""
+    # Configure so that state has no potential path initially
+    config = GlobalConfig(
+        orchestrator=OrchestratorConfig(
+            max_cycles=1, work_dir=tmp_path, execution_mode=ExecutionMode.MOCK
+        ),
+        generator=GeneratorConfig(type=GeneratorType.MOCK),
+        oracle=OracleConfig(type=OracleType.MOCK),
+        trainer=TrainerConfig(type=TrainerType.MOCK),
+        dynamics=DynamicsConfig(type=DynamicsType.MOCK),
+        validator=ValidatorConfig(type=ValidatorType.MOCK),
+    )
+    orch = Orchestrator(config)
+
+    # Ensure no initial potential
+    assert orch.state_manager.state.active_potential_path is None
+
+    orch.run()
+
+    # After run, potential should be created
+    assert orch.state_manager.state.active_potential_path is not None
+    assert (tmp_path / "potential.yace").exists()
