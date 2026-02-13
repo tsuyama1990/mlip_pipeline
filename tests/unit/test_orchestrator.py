@@ -123,3 +123,26 @@ def test_orchestrator_active_learning_loop(tmp_path: Path) -> None:
 
         # Verify Dynamics was called in cycle 2
         assert mock_dyn.simulate.call_count >= 1
+
+
+def test_orchestrator_create_generators(tmp_path: Path) -> None:
+    # Create a dummy seed file
+    seed_path = tmp_path / "seed.xyz"
+    seed_path.write_text("2\n\nHe 0 0 0\nHe 1 0 0")
+
+    # Test creation of different generators
+    for g_type in [GeneratorType.RANDOM, GeneratorType.M3GNET, GeneratorType.ADAPTIVE]:
+        config = GlobalConfig(
+            orchestrator=OrchestratorConfig(work_dir=tmp_path),
+            generator=GeneratorConfig(
+                type=g_type,
+                seed_structure_path=seed_path
+            ),
+            oracle=OracleConfig(),
+            trainer=TrainerConfig(),
+            dynamics=DynamicsConfig(),
+            validator=ValidatorConfig(),
+        )
+
+        orch = Orchestrator(config)
+        assert orch.generator is not None

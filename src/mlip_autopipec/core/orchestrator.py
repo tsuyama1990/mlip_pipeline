@@ -13,7 +13,13 @@ from mlip_autopipec.domain_models.enums import (
     ValidatorType,
 )
 from mlip_autopipec.dynamics import BaseDynamics, MockDynamics
-from mlip_autopipec.generator import BaseGenerator, MockGenerator
+from mlip_autopipec.generator import (
+    AdaptiveGenerator,
+    BaseGenerator,
+    M3GNetGenerator,
+    MockGenerator,
+    RandomGenerator,
+)
 from mlip_autopipec.oracle import BaseOracle, MockOracle
 from mlip_autopipec.trainer import BaseTrainer, MockTrainer
 from mlip_autopipec.validator import BaseValidator, MockValidator
@@ -39,9 +45,17 @@ class Orchestrator:
         self.validator = self._create_validator()
 
     def _create_generator(self) -> BaseGenerator:
-        if self.config.generator.type == GeneratorType.MOCK:
+        gen_type = self.config.generator.type
+        if gen_type == GeneratorType.MOCK:
             return MockGenerator()
-        msg = f"Unsupported generator type: {self.config.generator.type}"
+        if gen_type == GeneratorType.RANDOM:
+            return RandomGenerator(self.config.generator)
+        if gen_type == GeneratorType.M3GNET:
+            return M3GNetGenerator(self.config.generator)
+        if gen_type == GeneratorType.ADAPTIVE:
+            return AdaptiveGenerator(self.config.generator)
+
+        msg = f"Unsupported generator type: {gen_type}"
         raise ValueError(msg)
 
     def _create_oracle(self) -> BaseOracle:
