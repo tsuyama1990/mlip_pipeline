@@ -54,6 +54,31 @@ cd mlip-pipeline
 uv sync
 ```
 
+## Tutorials (UAT)
+
+We provide executable Jupyter Notebooks to guide you through the system.
+
+### Running Tutorials
+The tutorials support two modes:
+*   **Mock Mode (CI)**: Runs quickly on any machine using mock data (no external tools required).
+*   **Real Mode**: Runs actual scientific simulations (requires Quantum Espresso, LAMMPS, Pacemaker).
+
+To run in **Mock Mode**:
+```bash
+export CI=true
+jupyter notebook tutorials/
+```
+
+To run in **Real Mode** (if tools are installed):
+```bash
+unset CI
+jupyter notebook tutorials/
+```
+
+### Available Tutorials
+1.  **01_MgO_FePt_Training.ipynb**: Train a potential for an interface system from scratch using Active Learning.
+2.  **02_Deposition_and_Ordering.ipynb**: Simulate deposition (MD) and ordering (aKMC) using the trained potential.
+
 ## Usage
 
 ### 1. Initialize a Configuration
