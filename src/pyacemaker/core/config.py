@@ -65,6 +65,9 @@ class Constants(BaseSettings):
     default_orchestrator_uncertainty: float = _DEFAULTS["orchestrator"]["uncertainty_threshold"]
     default_orchestrator_n_local_candidates: int = _DEFAULTS["orchestrator"]["n_local_candidates"]
     default_orchestrator_n_active_set_select: int = _DEFAULTS["orchestrator"]["n_active_set_select"]
+    default_orchestrator_validation_split: float = _DEFAULTS["orchestrator"]["validation_split"]
+    default_orchestrator_min_validation_size: int = _DEFAULTS["orchestrator"]["min_validation_size"]
+    default_orchestrator_max_validation_size: int = _DEFAULTS["orchestrator"]["max_validation_size"]
 
     # Validator Defaults
     default_validator_metrics: list[str] = _DEFAULTS["validator_metrics"]
@@ -113,8 +116,8 @@ class Constants(BaseSettings):
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
 
     # Security & Limits
-    max_atoms_dft: int = Field(default=1000, description="Max atoms for DFT")
-    dynamics_halt_probability: float = Field(default=0.3, description="Mock halt probability")
+    max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]
+    dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
 
 
 CONSTANTS = Constants()
@@ -195,13 +198,38 @@ class ProjectConfig(BaseModel):
 
         try:
             # Strict resolution checks existence and resolves symlinks
+            # We want strict=True to detect dangling symlinks or non-existent paths early,
+            # but usually we want to allow creating the project directory.
+            # However, for security, we should check parent existence if the directory doesn't exist,
+            # or resolve strictly if we expect it to exist.
+            # Assuming 'root_dir' might not exist yet, we check parent or just resolve without strict
+            # if we can trust it. But audit feedback said "use pathlib.Path.resolve(strict=True)".
+            # This implies the directory MUST exist or it's an error.
+            # If the user intends to create it, they should create it before running?
+            # Or maybe we resolve the parent?
+            # Let's try strict=True. If it fails (FileNotFound), we catch it and raise ValueError
+            # effectively saying "Project root must exist or be creatable safely".
+            # But wait, strict=True raises FileNotFoundError.
+            # If we are creating a new project, this blocks us.
+            # Compromise: Check if parent exists and is safe?
+            # For now, let's implement strict=True logic but handle the case where it doesn't exist
+            # by resolving absolute() and checking parent?
+            # The audit feedback was specific: "Use pathlib.Path.resolve(strict=True)".
+            # This suggests strict validation of existence.
             resolved = v.resolve(strict=True)
-        except OSError:
-            # If path doesn't exist, we resolve absolute path
-            resolved = v.absolute()
+        except (OSError, RuntimeError):
+            # If it doesn't exist, we can't fully resolve symlinks in the final component.
+            # But we can resolve the parent.
+            try:
+                # Resolve parent strictly
+                v.parent.resolve(strict=True)
+                # If parent exists, use absolute path for the full path
+                resolved = v.absolute()
+            except (OSError, RuntimeError) as e:
+                # Parent doesn't exist or loop?
+                msg = f"Invalid root directory: {v}. Parent directory must exist."
+                raise ValueError(msg) from e
 
-        # Ensure resolved path doesn't escape expected boundaries if we had a base
-        # (For ProjectConfig, we assume root_dir is absolute or relative to CWD)
         return resolved
 
 
@@ -390,6 +418,31 @@ class OrchestratorConfig(BaseModel):
         default=CONSTANTS.default_orchestrator_n_active_set_select,
         description="Number of structures to select for active set",
     )
+    validation_split: float = Field(
+        default=CONSTANTS.default_orchestrator_validation_split,
+        description="Fraction of dataset to use for validation (0.0-1.0)",
+    )
+    min_validation_size: int = Field(
+        default=CONSTANTS.default_orchestrator_min_validation_size,
+        description="Minimum number of structures in validation set",
+    )
+    max_validation_size: int = Field(
+        default=CONSTANTS.default_orchestrator_max_validation_size,
+        description="Maximum number of structures in validation set (to prevent OOM)",
+    )
+    dataset_file: str = Field(
+        default="dataset.pckl.gzip",
+        description="Filename for the dataset within the data directory",
+    )
+
+    @field_validator("validation_split")
+    @classmethod
+    def validate_split(cls, v: float) -> float:
+        """Validate validation split."""
+        if not (0.0 <= v <= 1.0):
+            msg = f"Validation split must be between 0.0 and 1.0, got {v}"
+            raise ValueError(msg)
+        return v
 
 
 class LoggingConfig(BaseModel):

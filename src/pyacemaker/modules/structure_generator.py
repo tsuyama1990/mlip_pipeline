@@ -38,7 +38,7 @@ class RandomStructureGenerator(StructureGenerator):
         yield from generate_dummy_structures(n_candidates, tags=tags)
 
     def generate_local_candidates(
-        self, seed_structure: StructureMetadata, n_candidates: int
+        self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1
     ) -> Iterator[StructureMetadata]:
         """Generate local candidates."""
         if seed_structure is None:
@@ -48,18 +48,23 @@ class RandomStructureGenerator(StructureGenerator):
             msg = "Number of candidates must be positive"
             raise ValueError(msg)
 
-        self.logger.info(f"Generating {n_candidates} local candidates around {seed_structure.id}")
+        self.logger.info(
+            f"Generating {n_candidates} local candidates around {seed_structure.id} (Cycle {cycle})"
+        )
         yield from self._generate_candidates_common(n_candidates, tags=["candidate", "local"])
 
     def generate_batch_candidates(
-        self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
+        self,
+        seed_structures: Iterable[StructureMetadata],
+        n_candidates_per_seed: int,
+        cycle: int = 1,
     ) -> Iterator[StructureMetadata]:
         """Generate candidate structures for a batch of seeds."""
         if n_candidates_per_seed <= 0:
             msg = "Number of candidates per seed must be positive"
             raise ValueError(msg)
 
-        self.logger.info("Generating batch candidates from seed structures")
+        self.logger.info(f"Generating batch candidates from seed structures (Cycle {cycle})")
 
         for _ in seed_structures:
             yield from self._generate_candidates_common(
@@ -115,7 +120,7 @@ class AdaptiveStructureGenerator(StructureGenerator):
                 yield proto
 
     def generate_local_candidates(
-        self, seed_structure: StructureMetadata, n_candidates: int
+        self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1
     ) -> Iterator[StructureMetadata]:
         """Generate local candidates using adaptive policy."""
         if seed_structure is None:
@@ -127,7 +132,7 @@ class AdaptiveStructureGenerator(StructureGenerator):
 
         # Assuming refinement cycle (cycle > 0)
         context = ExplorationContext(
-            cycle=1,
+            cycle=cycle,
             seed_structure=seed_structure,
             uncertainty_state=seed_structure.uncertainty_state,
         )
@@ -154,17 +159,20 @@ class AdaptiveStructureGenerator(StructureGenerator):
             )
 
     def generate_batch_candidates(
-        self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
+        self,
+        seed_structures: Iterable[StructureMetadata],
+        n_candidates_per_seed: int,
+        cycle: int = 1,
     ) -> Iterator[StructureMetadata]:
         """Generate candidate structures for a batch of seeds."""
         if n_candidates_per_seed <= 0:
             msg = "Number of candidates per seed must be positive"
             raise ValueError(msg)
 
-        self.logger.info("Generating batch candidates (Adaptive)")
+        self.logger.info(f"Generating batch candidates (Adaptive, Cycle {cycle})")
 
         for seed in seed_structures:
-            yield from self.generate_local_candidates(seed, n_candidates_per_seed)
+            yield from self.generate_local_candidates(seed, n_candidates_per_seed, cycle=cycle)
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""

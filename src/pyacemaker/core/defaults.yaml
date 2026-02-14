@@ -15,6 +15,9 @@ orchestrator:
   uncertainty_threshold: 0.1
   n_local_candidates: 10
   n_active_set_select: 5
+  validation_split: 0.1
+  min_validation_size: 10
+  max_validation_size: 1000
 
 # Structure Generator
 structure_strategy: "random"
@@ -31,6 +34,7 @@ trainer_batch_size: 100
 # Dynamics Engine
 engine: "lammps"
 dynamics_gamma_threshold: 10.0
+dynamics_halt_probability: 0.3
 
 # Validator
 validator_metrics:
@@ -72,3 +76,4 @@ version_regex: "^\\d+\\.\\d+\\.\\d+$"
 # Physical Bounds
 max_energy_ev: 1000000.0  # 1e6
 max_force_ev_a: 1000.0
+max_atoms_dft: 1000

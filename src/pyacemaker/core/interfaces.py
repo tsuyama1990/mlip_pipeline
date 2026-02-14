@@ -4,13 +4,23 @@ from abc import abstractmethod
 from collections.abc import Iterable, Iterator
 from typing import Any
 
-from pyacemaker.core.base import BaseModule, ModuleResult
+from pydantic import BaseModel
+
+from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.domain_models.models import (
     ActiveSet,
     CycleStatus,
     Potential,
     StructureMetadata,
 )
+
+
+class CycleResult(BaseModel):
+    """Result of an active learning cycle."""
+
+    status: CycleStatus
+    metrics: Metrics
+    error: str | None = None
 
 
 class StructureGenerator(BaseModule):
@@ -23,14 +33,17 @@ class StructureGenerator(BaseModule):
 
     @abstractmethod
     def generate_local_candidates(
-        self, seed_structure: StructureMetadata, n_candidates: int
+        self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1
     ) -> Iterator[StructureMetadata]:
         """Generate candidate structures around a seed structure (e.g., high uncertainty)."""
         ...
 
     @abstractmethod
     def generate_batch_candidates(
-        self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
+        self,
+        seed_structures: Iterable[StructureMetadata],
+        n_candidates_per_seed: int,
+        cycle: int = 1,
     ) -> Iterator[StructureMetadata]:
         """Generate candidate structures for a batch of seeds."""
         ...
@@ -103,6 +116,6 @@ class IOrchestrator(BaseModule):
     """Interface for the main Orchestrator."""
 
     @abstractmethod
-    def run_cycle(self) -> CycleStatus:
+    def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle."""
         ...

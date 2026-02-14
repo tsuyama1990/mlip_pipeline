@@ -2,6 +2,7 @@
 
 import gzip
 import pickle
+import struct
 from pathlib import Path
 
 import pytest
@@ -32,7 +33,7 @@ def test_save_load_iter(tmp_path: Path) -> None:
 
 
 def test_load_iter_legacy_list_rejection(tmp_path: Path) -> None:
-    """Test that loading a dataset saved as a single list raises TypeError."""
+    """Test that loading a dataset saved as a single list raises ValueError (invalid header)."""
     dataset_path = tmp_path / "legacy_dataset.pckl.gzip"
     manager = DatasetManager()
 
@@ -43,9 +44,10 @@ def test_load_iter_legacy_list_rejection(tmp_path: Path) -> None:
     with gzip.open(dataset_path, "wb") as f:
         pickle.dump(data, f)
 
-    # load_iter should reject it
+    # load_iter should reject it due to header validation failure (or size)
+    # The header validation is stricter now, so we expect ValueError (corrupted or too large)
     iterator = manager.load_iter(dataset_path)
-    with pytest.raises(TypeError, match="Legacy single-list dumps are not supported"):
+    with pytest.raises(ValueError, match="Object size .* exceeds limit"):
         next(iterator)
 
 
@@ -63,10 +65,17 @@ def test_load_iter_corrupted(tmp_path: Path) -> None:
 
     atoms1 = Atoms("H2")
 
+    # Manually write a valid Framed Pickle object
+    obj_bytes = pickle.dumps(atoms1)
+    size = len(obj_bytes)
+
     with gzip.open(dataset_path, "wb") as f:
-        pickle.dump(atoms1, f)
-        # Write garbage
-        f.write(b"garbage_data_that_is_not_pickle")
+        # Valid header and payload
+        f.write(struct.pack(">Q", size))
+        f.write(obj_bytes)
+
+        # Write garbage (short, to trigger partial read handling)
+        f.write(b"short")
 
     iterator = manager.load_iter(dataset_path)
     # Should read the first atom
@@ -81,7 +90,9 @@ def test_load_iter_corrupted(tmp_path: Path) -> None:
 def test_load_iter_empty(tmp_path: Path) -> None:
     """Test loading an empty file."""
     dataset_path = tmp_path / "empty.pckl.gzip"
-    dataset_path.touch()
+    # Create empty gzip file
+    with gzip.open(dataset_path, "wb"):
+        pass
 
     manager = DatasetManager()
     iterator = manager.load_iter(dataset_path)

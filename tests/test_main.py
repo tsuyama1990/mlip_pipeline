@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from pyacemaker.main import app
@@ -17,11 +18,13 @@ def test_app_help() -> None:
     assert "Options" in result.stdout
 
 
-def test_run_command_valid(tmp_path: Path) -> None:
+def test_run_command_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test running the pipeline with a valid configuration."""
+    monkeypatch.setenv("PYACEMAKER_SKIP_FILE_CHECKS", "true")
+
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
-        "project:\n  name: Test\n  root_dir: .\noracle:\n  dft:\n    code: qe\n    pseudopotentials:\n      Fe: Fe.pbe.UPF\n  mock: true\ntrainer:\n  mock: true",
+        f"version: '0.1.0'\nproject:\n  name: Test\n  root_dir: {tmp_path}\noracle:\n  dft:\n    code: qe\n    pseudopotentials:\n      Fe: Fe.pbe.UPF\n  mock: true\ntrainer:\n  mock: true",
         encoding="utf-8",
     )
 

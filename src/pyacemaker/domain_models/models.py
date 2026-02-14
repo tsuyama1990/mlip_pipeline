@@ -216,6 +216,16 @@ class Potential(BaseModel):
         if str(v).strip() == "":
             msg = "Path cannot be empty"
             raise ValueError(msg)
+
+        # Check against basic path traversal patterns
+        if ".." in v.parts:
+            msg = f"Path traversal not allowed in potential path: {v}"
+            raise ValueError(msg)
+
+        # We can't strictly enforce existence or absolute paths here because this model
+        # might be used for paths that will be created, or relative paths within a project.
+        # But we can resolve it to check if it's safe if it exists.
+
         return v
 
 
