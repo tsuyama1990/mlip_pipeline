@@ -28,7 +28,7 @@ class DFTConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field("quantum_espresso", description="DFT code to use")
+    code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
 class PYACEMAKERConfig(BaseModel):
@@ -36,6 +36,9 @@ class PYACEMAKERConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    version: str = Field(
+        "0.1.0", description="Configuration schema version", pattern=r"^\d+\.\d+\.\d+$"
+    )
     project: ProjectConfig
     dft: DFTConfig
 

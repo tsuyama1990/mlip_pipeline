@@ -32,9 +32,12 @@ def test_project_config_invalid() -> None:
 
 
 def test_dft_config_default() -> None:
-    """Test DFTConfig default values."""
-    config = DFTConfig()  # type: ignore[call-arg]
-    assert config.code == "quantum_espresso"
+    """Test DFTConfig required fields."""
+    with pytest.raises(ValidationError):
+        DFTConfig()  # type: ignore[call-arg]
+
+    config = DFTConfig(code="vasp")
+    assert config.code == "vasp"
 
 
 def test_full_config_valid() -> None:

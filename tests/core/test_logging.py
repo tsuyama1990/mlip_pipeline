@@ -54,3 +54,9 @@ def test_logging_propagation(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     assert "Test message from module" in captured.err
     assert "[pyacemaker.core.test_module]" in captured.err
+
+
+def test_logging_invalid_level() -> None:
+    """Test invalid log level raises ValueError."""
+    with pytest.raises(ValueError, match="Invalid log level"):
+        setup_logging("INVALID_LEVEL")
