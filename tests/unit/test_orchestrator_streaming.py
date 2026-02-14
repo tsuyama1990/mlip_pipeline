@@ -16,7 +16,11 @@ from pyacemaker.core.config import (
     PYACEMAKERConfig,
     StructureGeneratorConfig,
 )
-from pyacemaker.domain_models.models import StructureMetadata
+from pyacemaker.domain_models.models import (
+    ActiveSet,
+    StructureMetadata,
+    UncertaintyState,
+)
 from pyacemaker.orchestrator import Orchestrator
 
 
@@ -29,9 +33,7 @@ def streaming_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> PYACEMA
         project=ProjectConfig(name="test", root_dir=tmp_path),
         oracle=OracleConfig(dft=DFTConfig(pseudopotentials={"H": "H.upf"})),
         structure_generator=StructureGeneratorConfig(strategy="random"),
-        orchestrator=OrchestratorConfig(
-            validation_split=0.1, max_validation_size=10
-        ),
+        orchestrator=OrchestratorConfig(validation_split=0.1, max_validation_size=10),
     )
 
 
@@ -42,9 +44,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
     def structure_gen() -> Iterator[StructureMetadata]:
         for _ in range(5):
             # Must provide atoms for metadata_to_atoms
-            yield StructureMetadata(
-                features={"atoms": Atoms("H", positions=[[0, 0, 0]])}
-            )
+            yield StructureMetadata(features={"atoms": Atoms("H", positions=[[0, 0, 0]])})
 
     mock_gen = MagicMock()
     mock_gen.generate_initial_structures.return_value = structure_gen()
@@ -133,3 +133,35 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     # Explicitly check identity or content
     assert test_set is val_list
     assert len(test_set) == 10
+
+
+def test_exploration_integration(streaming_config: PYACEMAKERConfig) -> None:
+    """Test exploration phase integration."""
+    orchestrator = Orchestrator(config=streaming_config)
+    orchestrator.current_potential = MagicMock()  # Mock potential
+
+    # Mock DynamicsEngine
+    mock_dynamics = MagicMock()
+    s = StructureMetadata()
+    s.uncertainty_state = UncertaintyState(gamma_max=10.0)
+    mock_dynamics.run_exploration.return_value = iter([s])
+    orchestrator.dynamics_engine = mock_dynamics
+
+    # Mock Generator
+    mock_gen = MagicMock()
+    mock_gen.generate_batch_candidates.return_value = iter([s])  # Just return same structure
+    orchestrator.structure_generator = mock_gen
+
+    # Mock Trainer
+    mock_trainer = MagicMock()
+    mock_trainer.select_active_set.return_value = ActiveSet(
+        structure_ids=[s.id], structures=[s], selection_criteria="test"
+    )
+    orchestrator.trainer = mock_trainer
+
+    # Run
+    selected = orchestrator._run_exploration_and_selection_phase()
+
+    assert selected is not None
+    assert len(selected) == 1
+    assert selected[0] == s

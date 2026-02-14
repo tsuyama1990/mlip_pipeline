@@ -83,8 +83,14 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
 
     # Create a file slightly larger than limit
     # We create a valid YAML structure but repeat it to exceed size
-    content = "key: value\n" * (CONSTANTS.max_config_size // 10 + 100)
-    config_file.write_text(content)
+    # Use chunked write to avoid large in-memory string
+    chunk = "key: value\n"
+    target_size = CONSTANTS.max_config_size + 100
+    with config_file.open("w") as f:
+        written = 0
+        while written < target_size:
+            f.write(chunk)
+            written += len(chunk)
 
     # Patch stat size to be small so it passes the initial check
     # But reading it will fail
@@ -102,9 +108,9 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
         # Let's try to patch os.access as well just in case
         with (
             patch("os.access", return_value=True),
-        # Check for both possible error messages depending on where it's caught
-        # But implementation raises "Configuration file exceeds limit" from ValueError
-        pytest.raises(ConfigurationError, match="exceeds limit"),
+            # Check for both possible error messages depending on where it's caught
+            # But implementation raises "Configuration file exceeds size limit"
+            pytest.raises(ConfigurationError, match="exceeds size limit"),
         ):
             load_config(config_file)
 
@@ -125,8 +131,9 @@ def test_load_config_corrupted_stream(tmp_path: Path) -> None:
     with config_file.open("wb") as f:
         f.write(b"\x80\x81\xff")
 
-    # This should raise UnicodeDecodeError during read, caught as Unexpected error
-    with pytest.raises(ConfigurationError, match="Unexpected error"):
+    # This should raise UnicodeDecodeError which inherits from ValueError
+    # It is caught by the ValueError block in _read_config_file
+    with pytest.raises(ConfigurationError, match="codec can't decode"):
         load_config(config_file)
 
 

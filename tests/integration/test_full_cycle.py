@@ -8,6 +8,7 @@ from ase import Atoms
 
 from pyacemaker.core.config import (
     DFTConfig,
+    DynamicsEngineConfig,
     OracleConfig,
     OrchestratorConfig,
     ProjectConfig,
@@ -15,7 +16,12 @@ from pyacemaker.core.config import (
     StructureGeneratorConfig,
     TrainerConfig,
 )
-from pyacemaker.domain_models.models import Potential, StructureMetadata
+from pyacemaker.domain_models.models import (
+    HaltInfo,
+    Potential,
+    StructureMetadata,
+    UncertaintyState,
+)
 from pyacemaker.modules.oracle import MockOracle
 from pyacemaker.orchestrator import Orchestrator
 
@@ -43,16 +49,31 @@ class TestFullCycleIntegration:
                 mock=True,
             ),
             trainer=TrainerConfig(mock=True),
+            dynamics_engine=DynamicsEngineConfig(mock=True),
         )
 
         with (
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.select_active_set") as mock_select,
-            patch(
-                "pyacemaker.modules.dynamics_engine.LAMMPSEngine._simulate_halt_condition",
-                return_value=True,
-            ),
+            patch("pyacemaker.modules.dynamics_engine.MDInterface.run_md") as mock_run_md,
+            # We also need to ensure the random check passes to trigger run_md call effectively
+            # or just force run_exploration to yield something if we mocked run_exploration.
+            # But we are testing integration, so let's mock run_md.
+            # However, LAMMPSEngine.run_exploration has a random check.
+            patch("pyacemaker.modules.dynamics_engine.secrets.SystemRandom") as mock_random,
         ):
+            # Force random check to trigger halt logic in run_exploration loop
+            # The loop: if secrets.SystemRandom().random() < float(probability):
+            # We want this to be True (random < 0.3)
+            mock_random.return_value.random.return_value = 0.1
+            # MockOracle uses uniform, so we need to return a float to avoid MagicMock in energy
+            mock_random.return_value.uniform.return_value = 0.5
+
+            # Setup MDInterface Mock
+            s = StructureMetadata(features={"atoms": Atoms("Fe")})
+            s.uncertainty_state = UncertaintyState(gamma_max=10.0)
+            mock_run_md.return_value = HaltInfo(halted=True, step=10, max_gamma=10.0, structure=s)
+
             # Setup Trainer Mocks
             mock_potential = MagicMock()
             mock_potential.path = tmp_path / "mock.yace"
@@ -116,9 +137,7 @@ class TestFullCycleIntegration:
             orchestrator = Orchestrator(config)
             # Pre-populate dataset so training runs
             dataset_path = orchestrator.dataset_path
-            orchestrator.dataset_manager.save_iter(
-                iter([Atoms("Fe")]), dataset_path
-            )
+            orchestrator.dataset_manager.save_iter(iter([Atoms("Fe")]), dataset_path)
 
             result = orchestrator.run()
 

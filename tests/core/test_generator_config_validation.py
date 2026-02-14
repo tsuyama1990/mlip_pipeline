@@ -9,10 +9,7 @@ from pyacemaker.core.config import StructureGeneratorConfig
 def test_valid_generator_config() -> None:
     """Test valid configuration values."""
     config = StructureGeneratorConfig(
-        strain_range=0.15,
-        rattle_amplitude=0.1,
-        defect_density=0.01,
-        initial_exploration="m3gnet"
+        strain_range=0.15, rattle_amplitude=0.1, defect_density=0.01, initial_exploration="m3gnet"
     )
     assert config.strain_range == 0.15
     assert config.rattle_amplitude == 0.1

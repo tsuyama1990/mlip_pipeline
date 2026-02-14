@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from pyacemaker.domain_models.models import (
     ActiveSet,
     CycleStatus,
+    HaltInfo,
     MaterialDNA,
     Potential,
     PotentialType,
@@ -104,3 +105,34 @@ def test_active_set_validation() -> None:
     s1 = StructureMetadata()
     aset = ActiveSet(structure_ids=[s1.id], selection_criteria="random")
     assert len(aset.structure_ids) == 1
+
+
+def test_halt_info_creation() -> None:
+    """Test creation of HaltInfo."""
+    # Not halted
+    h = HaltInfo(halted=False)
+    assert not h.halted
+    assert h.step is None
+    assert h.max_gamma is None
+    assert h.structure is None
+
+    # Halted
+    s = StructureMetadata()
+    h = HaltInfo(halted=True, step=100, max_gamma=5.5, structure=s)
+    assert h.halted
+    assert h.step == 100
+    assert h.max_gamma == 5.5
+    assert h.structure == s
+
+
+def test_halt_info_validation() -> None:
+    """Test validation of HaltInfo."""
+    # Halted but missing info
+    with pytest.raises(ValidationError, match="Step must be provided"):
+        HaltInfo(halted=True)
+
+    with pytest.raises(ValidationError, match="Max gamma must be provided"):
+        HaltInfo(halted=True, step=100)
+
+    with pytest.raises(ValidationError, match="Structure must be provided"):
+        HaltInfo(halted=True, step=100, max_gamma=5.5)

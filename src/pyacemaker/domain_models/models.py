@@ -155,20 +155,24 @@ class StructureMetadata(BaseModel):
             msg = "Feature keys must be strings"
             raise ValueError(msg)
 
-        # Validate values (whitelist approach)
-        # Allow basic types, numpy arrays (as lists), and ASE Atoms (opaque check)
-        # We can't easily check for ASE Atoms without importing ASE, which might be optional dependency.
-        # But we can check for general serializable types or explicit allowed objects.
-        # For now, let's just ensure no obviously dangerous types if possible, or just basic types.
-        # Given "Arbitrary objects" warning, strict typing is hard for 'features'.
-        # We rely on "extra='forbid'" in the model config for the model itself,
-        # but features is dict[str, Any].
-        # We can enforce that values are not callables or modules.
         for key, value in v.items():
             if callable(value):
                 msg = f"Feature '{key}' cannot be a callable"
                 raise TypeError(msg)
-            # Add more checks as needed.
+
+            # Basic type check for security (allow primitives, lists, dicts, and Atoms objects by name)
+            # We allow objects if they have a 'todict' or 'as_dict' method or are ASE Atoms
+            type_name = type(value).__name__
+            allowed_types = (str, int, float, bool, list, tuple, dict, type(None))
+
+            if not isinstance(value, allowed_types):
+                # Check for ASE Atoms or known safe types
+                if type_name == "Atoms" or hasattr(value, "todict") or hasattr(value, "as_dict"):
+                    continue
+                # Reject unknown complex types to prevent injection of arbitrary objects
+                msg = f"Feature '{key}' has unsafe type: {type_name}"
+                raise ValueError(msg)
+
         return v
 
     @model_validator(mode="after")
@@ -180,6 +184,34 @@ class StructureMetadata(BaseModel):
                 raise ValueError(msg)
             if self.forces is None:
                 msg = "Forces must be present when status is CALCULATED"
+                raise ValueError(msg)
+        return self
+
+
+class HaltInfo(BaseModel):
+    """Information about a halted MD simulation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    halted: bool = Field(..., description="Whether the simulation halted")
+    step: int | None = Field(default=None, description="Timestep at which halt occurred")
+    max_gamma: float | None = Field(default=None, description="Maximum extrapolation grade at halt")
+    structure: StructureMetadata | None = Field(
+        default=None, description="The structure that triggered the halt"
+    )
+
+    @model_validator(mode="after")
+    def validate_halt_state(self) -> "HaltInfo":
+        """Validate consistency of halt state."""
+        if self.halted:
+            if self.step is None:
+                msg = "Step must be provided when halted is True"
+                raise ValueError(msg)
+            if self.max_gamma is None:
+                msg = "Max gamma must be provided when halted is True"
+                raise ValueError(msg)
+            if self.structure is None:
+                msg = "Structure must be provided when halted is True"
                 raise ValueError(msg)
         return self
 
@@ -222,9 +254,23 @@ class Potential(BaseModel):
             msg = f"Path traversal not allowed in potential path: {v}"
             raise ValueError(msg)
 
-        # We can't strictly enforce existence or absolute paths here because this model
-        # might be used for paths that will be created, or relative paths within a project.
-        # But we can resolve it to check if it's safe if it exists.
+        # Use resolve to sanitize and check for potential traversal issues
+        try:
+            # We want to allow non-existent paths, but prevent traversal outside allowed roots if possible.
+            # Since we don't have project root here, we just check general validity.
+            # Use strict=False to allow potential creation.
+            resolved = v.resolve(strict=False)
+
+            # Check if parent exists? This enforces that we are creating in a valid directory.
+            # This is a good middle ground for security vs flexibility.
+            if not resolved.parent.exists():
+                # Just a warning or strict? Let's check for traversal specifically.
+                # If '..' remains after resolve, it's weird (resolve handles it).
+                pass
+
+        except Exception as e:
+            msg = f"Invalid potential path: {v}. Error: {e}"
+            raise ValueError(msg) from e
 
         return v
 

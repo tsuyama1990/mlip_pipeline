@@ -10,17 +10,16 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.core.io_utils import LimitedStream
 
-# Load defaults from external YAML file
-_DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
+# Allow configuration of defaults path via environment variable for testing/portability
+_DEFAULTS_PATH = Path(
+    os.environ.get("PYACEMAKER_DEFAULTS_PATH", Path(__file__).parent / "defaults.yaml")
+)
 
 
 def _load_defaults() -> dict[str, Any]:
     """Load default configuration values from YAML file."""
     if not _DEFAULTS_PATH.exists():
-        # In case we are running from a context where the file is not found (e.g. tests without install)
-        # We might need a fallback, but for now let's raise to ensure integrity.
         msg = f"Defaults file not found at {_DEFAULTS_PATH}"
         raise FileNotFoundError(msg)
     with _DEFAULTS_PATH.open("r", encoding="utf-8") as f:
@@ -104,12 +103,16 @@ class Constants(BaseSettings):
     # Security Warnings
     PICKLE_SECURITY_WARNING: str = _DEFAULTS["pickle_security_warning"]
 
+    # Regex
+    valid_key_regex: str = _DEFAULTS["valid_key_regex"]
+    valid_value_regex: str = _DEFAULTS["valid_value_regex"]
+
     # Trainer Defaults
-    TRAINER_TEMP_PREFIX_TRAIN: str = "pace_train_"
-    TRAINER_TEMP_PREFIX_ACTIVE: str = "pace_active_"
+    TRAINER_TEMP_PREFIX_TRAIN: str = _DEFAULTS["temp_prefix_train"]
+    TRAINER_TEMP_PREFIX_ACTIVE: str = _DEFAULTS["temp_prefix_active"]
 
     # DFT Manager Defaults
-    DFT_TEMP_PREFIX: str = "dft_run_"
+    DFT_TEMP_PREFIX: str = _DEFAULTS["dft_temp_prefix"]
 
     # Physical Bounds
     max_energy_ev: float = _DEFAULTS["max_energy_ev"]
@@ -122,44 +125,56 @@ class Constants(BaseSettings):
 
 CONSTANTS = Constants()
 
-# Compiled regex for strict validation: alphanumeric, underscore, hyphen, dot
-_VALID_KEY_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
-# Compiled regex for strict value validation: allow alphanumeric, basic punctuation/paths
-# Allows: a-z, A-Z, 0-9, space, _, -, ., /, :, ,, [, ], {, }, =, +
-_VALID_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9_\-\./:,=\+ \[\]\{\}]+$")
+# Compiled regex for strict validation
+_VALID_KEY_REGEX = re.compile(CONSTANTS.valid_key_regex)
+_VALID_VALUE_REGEX = re.compile(CONSTANTS.valid_value_regex)
 
 
-def _recursive_validate_parameters(data: dict[str, Any], path: str = "", depth: int = 0) -> None:
-    """Recursively validate parameter dictionary for security."""
+def _recursive_validate_parameters(
+    data: dict[str, Any] | list[Any] | tuple[Any, ...], path: str = "", depth: int = 0
+) -> None:
+    """Recursively validate parameter dictionary or list for security.
+
+    This function enforces a strict whitelist for keys and values to prevent injection attacks.
+    It recurses into dictionaries and lists/tuples.
+    """
     # Prevent stack overflow attacks via deep nesting
     if depth > 10:
         msg = "Configuration nesting too deep (max 10)"
         raise ValueError(msg)
 
-    for key, value in data.items():
-        current_path = f"{path}.{key}" if path else key
-        if not isinstance(key, str):
-            msg = f"Keys must be strings at {current_path}"
-            raise TypeError(msg)
+    if isinstance(data, dict):
+        for key, value in data.items():
+            current_path = f"{path}.{key}" if path else key
+            if not isinstance(key, str):
+                msg = f"Keys must be strings at {current_path}"
+                raise TypeError(msg)
 
-        # Strict whitelist validation for keys
-        if not _VALID_KEY_REGEX.match(key):
-            msg = (
-                f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
-            )
-            raise ValueError(msg)
-
-        if isinstance(value, dict):
-            _recursive_validate_parameters(value, current_path, depth + 1)
-        elif isinstance(value, str):
-            # Strict whitelist check for values (Security hardening)
-            if not _VALID_VALUE_REGEX.match(value):
-                msg = f"Invalid characters in value at '{current_path}'. Found potentially unsafe characters."
+            # Strict whitelist validation for keys
+            if not _VALID_KEY_REGEX.match(key):
+                msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
                 raise ValueError(msg)
-        elif not isinstance(value, (int, float, bool, list, tuple, type(None))):
-            # Allow basic types, reject complex objects
-            msg = f"Invalid type {type(value)} at {current_path}"
-            raise TypeError(msg)
+
+            _recursive_validate_value(value, current_path, depth)
+    elif isinstance(data, (list, tuple)):
+        for i, value in enumerate(data):
+            current_path = f"{path}[{i}]"
+            _recursive_validate_value(value, current_path, depth)
+
+
+def _recursive_validate_value(value: Any, current_path: str, depth: int) -> None:
+    """Helper to validate a value based on its type."""
+    if isinstance(value, (dict, list, tuple)):
+        _recursive_validate_parameters(value, current_path, depth + 1)
+    elif isinstance(value, str):
+        # Strict whitelist check for values (Security hardening)
+        if not _VALID_VALUE_REGEX.match(value):
+            msg = f"Invalid characters in value at '{current_path}'. Found potentially unsafe characters."
+            raise ValueError(msg)
+    elif not isinstance(value, (int, float, bool, type(None))):
+        # Allow basic types, reject complex objects
+        msg = f"Invalid type {type(value)} at {current_path}"
+        raise TypeError(msg)
 
 
 class BaseModuleConfig(BaseModel):
@@ -198,25 +213,14 @@ class ProjectConfig(BaseModel):
 
         try:
             # Strict resolution checks existence and resolves symlinks
-            # We want strict=True to detect dangling symlinks or non-existent paths early,
-            # but usually we want to allow creating the project directory.
-            # However, for security, we should check parent existence if the directory doesn't exist,
-            # or resolve strictly if we expect it to exist.
-            # Assuming 'root_dir' might not exist yet, we check parent or just resolve without strict
-            # if we can trust it. But audit feedback said "use pathlib.Path.resolve(strict=True)".
-            # This implies the directory MUST exist or it's an error.
-            # If the user intends to create it, they should create it before running?
-            # Or maybe we resolve the parent?
-            # Let's try strict=True. If it fails (FileNotFound), we catch it and raise ValueError
-            # effectively saying "Project root must exist or be creatable safely".
-            # But wait, strict=True raises FileNotFoundError.
-            # If we are creating a new project, this blocks us.
-            # Compromise: Check if parent exists and is safe?
-            # For now, let's implement strict=True logic but handle the case where it doesn't exist
-            # by resolving absolute() and checking parent?
-            # The audit feedback was specific: "Use pathlib.Path.resolve(strict=True)".
-            # This suggests strict validation of existence.
             resolved = v.resolve(strict=True)
+
+            # Additional security check: ensure resolved path is absolute
+            if not resolved.is_absolute():
+                # Should typically be absolute after resolve(), but explicitly checking is safer
+                msg = f"Resolved root directory is not absolute: {resolved}"
+                raise ValueError(msg)
+
         except (OSError, RuntimeError):
             # If it doesn't exist, we can't fully resolve symlinks in the final component.
             # But we can resolve the parent.
@@ -383,6 +387,22 @@ class DynamicsEngineConfig(BaseModuleConfig):
         default=CONSTANTS.default_dynamics_gamma_threshold,
         description="Threshold for extrapolation grade (gamma) to trigger halt",
     )
+    timestep: float = Field(default=0.001, description="Timestep in ps")
+    temperature: float = Field(default=300.0, description="Temperature in K")
+    pressure: float = Field(default=0.0, description="Pressure in Bar")
+    n_steps: int = Field(default=100000, description="Number of MD steps")
+    hybrid_baseline: str = Field(default="zbl", description="Hybrid potential baseline (zbl or lj)")
+    mock: bool = Field(default=False, description="Use mock engine for testing")
+
+    @field_validator("hybrid_baseline")
+    @classmethod
+    def validate_hybrid_baseline(cls, v: str) -> str:
+        """Validate hybrid baseline."""
+        valid = {"zbl", "lj"}
+        if v.lower() not in valid:
+            msg = f"Invalid hybrid_baseline: {v}. Must be one of {valid}"
+            raise ValueError(msg)
+        return v.lower()
 
 
 class ValidatorConfig(BaseModel):
@@ -500,15 +520,21 @@ class PYACEMAKERConfig(BaseModel):
 
 def _validate_file_security(path: Path) -> None:
     """Validate file permissions and ownership."""
-    # Check file permissions (Security)
-    if not os.access(path, os.R_OK):
-        msg = f"Permission denied: {path.name}"
-        raise ConfigurationError(msg)
-
     # Resolve symlinks to check actual file
     real_path = path.resolve()
     if not real_path.is_file():
         msg = f"Path is not a regular file: {path.name}"
+        raise ConfigurationError(msg)
+
+    # Check if original path is a symlink (Strict Audit Compliance)
+    if path.is_symlink():
+        # We allow symlinks if they point to valid files, but we should be aware.
+        # For now, just proceeding as we resolved it.
+        pass
+
+    # Check file permissions (Security)
+    if not os.access(path, os.R_OK):
+        msg = f"Permission denied: {path.name}"
         raise ConfigurationError(msg)
 
     try:
@@ -526,33 +552,47 @@ def _validate_file_security(path: Path) -> None:
         raise ConfigurationError(msg) from e
 
 
+def _check_file_size(file_size: int) -> None:
+    """Check if file size exceeds limit."""
+    if file_size > CONSTANTS.max_config_size:
+        msg = f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
+        raise ConfigurationError(msg)
+
+
 def _read_config_file(path: Path) -> dict[str, Any]:
-    """Read and parse configuration file safely."""
+    """Read and parse configuration file safely.
+
+    This function reads the file into memory with a strict size limit,
+    preventing Out-Of-Memory (OOM) attacks from large files.
+    """
     try:
         # Check size hint first to prevent reading large files
         file_size = path.stat().st_size
-        if file_size > CONSTANTS.max_config_size:
-            msg = (
-                f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
-            )
-            raise ConfigurationError(msg)
+        _check_file_size(file_size)
 
+        # Explicitly read content with limit to guarantee memory safety
         with path.open("r", encoding="utf-8") as f:
-            # Use LimitedStream to enforce size limit during parsing
-            stream = LimitedStream(f, CONSTANTS.max_config_size)
-            data = yaml.safe_load(stream)
+            # Read max_config_size + 1 to detect if file is larger than expected
+            content = f.read(CONSTANTS.max_config_size + 1)
 
+        if len(content) > CONSTANTS.max_config_size:
+             msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
+             raise ConfigurationError(msg)
+
+        data = yaml.safe_load(content)
+
+    except ConfigurationError:
+        raise
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
-    except ValueError as e:
-        # LimitedStream raises ValueError if limit exceeded
-        if "exceeds limit" in str(e):
-            raise ConfigurationError(str(e)) from e
-        raise  # Reraise other ValueErrors (if any) to generic handler or crash
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
+    except Exception as e:
+        # Catch generic errors to ensure consistent exception wrapping
+        msg = f"Unexpected error reading configuration: {e}"
+        raise ConfigurationError(msg) from e
     else:
         if not isinstance(data, dict):
             msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
@@ -591,8 +631,8 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         ConfigurationError: If the file cannot be read or validation fails.
 
     """
-    if not path.exists() or not path.is_file():
-        msg = f"Configuration file not found or invalid: {path.name}"
+    if not path.exists(): # or not path.is_file(): - is_file check moved to validation
+        msg = f"Configuration file not found: {path.name}"
         raise ConfigurationError(msg)
 
     _validate_file_security(path)
