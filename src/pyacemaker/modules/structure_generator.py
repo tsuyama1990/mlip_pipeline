@@ -3,6 +3,7 @@
 from typing import Any
 
 from pyacemaker.core.base import Metrics, ModuleResult
+from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import StructureGenerator
 from pyacemaker.core.utils import generate_dummy_structures
 from pyacemaker.domain_models.models import StructureMetadata
@@ -10,6 +11,10 @@ from pyacemaker.domain_models.models import StructureMetadata
 
 class RandomStructureGenerator(StructureGenerator):
     """Generates random structures for testing."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize."""
+        super().__init__(config)
 
     def run(self) -> ModuleResult:
         """Run the main structure generation workflow."""
@@ -24,7 +29,8 @@ class RandomStructureGenerator(StructureGenerator):
     def generate_initial_structures(self) -> list[StructureMetadata]:
         """Generate initial structures."""
         self.logger.info("Generating initial structures (mock)")
-        return generate_dummy_structures(5, tags=["initial", "random"])
+        # Convert iterator to list to satisfy interface
+        return list(generate_dummy_structures(5, tags=["initial", "random"]))
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int
@@ -38,7 +44,7 @@ class RandomStructureGenerator(StructureGenerator):
             raise ValueError(msg)
 
         self.logger.info(f"Generating {n_candidates} local candidates around {seed_structure.id}")
-        return generate_dummy_structures(n_candidates, tags=["candidate", "local"])
+        return list(generate_dummy_structures(n_candidates, tags=["candidate", "local"]))
 
     def generate_batch_candidates(
         self, seed_structures: list[StructureMetadata], n_candidates_per_seed: int
@@ -54,7 +60,7 @@ class RandomStructureGenerator(StructureGenerator):
 
         # Batch generation logic (mock)
         total_candidates = len(seed_structures) * n_candidates_per_seed
-        return generate_dummy_structures(total_candidates, tags=["candidate", "batch"])
+        return list(generate_dummy_structures(total_candidates, tags=["candidate", "batch"]))
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""

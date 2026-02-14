@@ -1,5 +1,6 @@
 """Oracle (DFT) module implementation."""
 
+import concurrent.futures
 import contextlib
 import random
 import secrets
@@ -41,8 +42,6 @@ class BaseOracle(Oracle):
             return
 
         # Prepare values before setting status to CALCULATED
-        # to ensure atomic update and satisfy model validation if we were re-validating.
-        # Note: Pydantic model validation runs on init/assignment, but here we update fields.
         try:
             # We use type: ignore because ASE types are often missing
             energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
@@ -95,7 +94,7 @@ class MockOracle(BaseOracle):
         """Get random float using configured RNG."""
         if isinstance(self.rng, random.Random):
             return self.rng.uniform(a, b)
-        # SystemRandom doesn't have uniform in all python versions? It does.
+        # SystemRandom logic
         return self.rng.uniform(a, b)
 
     def compute_batch(
@@ -146,39 +145,67 @@ class DFTOracle(BaseOracle):
     def compute_batch(
         self, structures: Iterable[StructureMetadata]
     ) -> Iterator[StructureMetadata]:
-        """Compute energy/forces for a batch of structures.
+        """Compute energy/forces for a batch of structures."""
+        self.logger.info("Computing batch of structures (DFT Parallel Streaming)")
 
-        Streaming implementation: Processes structures one-by-one to avoid memory overhead.
+        chunk_size = self.config.oracle.dft.chunk_size
+        iterator = iter(structures)
 
-        Args:
-            structures: Iterable of structure metadata to process.
+        while True:
+            chunk = self._read_chunk(iterator, chunk_size)
+            if not chunk:
+                break
 
-        Yields:
-            Updated structure metadata (streaming).
+            yield from self._process_parallel_chunk(chunk)
 
-        """
-        self.logger.info("Computing batch of structures (DFT Streaming)")
+    def _read_chunk(
+        self, iterator: Iterator[StructureMetadata], size: int
+    ) -> list[StructureMetadata]:
+        """Read a chunk of items from an iterator."""
+        chunk: list[StructureMetadata] = []
+        try:
+            for _ in range(size):
+                chunk.append(next(iterator))
+        except StopIteration:
+            pass
+        return chunk
 
-        for s in structures:
+    def _process_parallel_chunk(
+        self, chunk: list[StructureMetadata]
+    ) -> list[StructureMetadata]:
+        """Process a chunk of structures in parallel."""
+        # Validate and filter
+        to_process = []
+        for s in chunk:
             self.validate_structure(s)
+            if s.status != StructureStatus.CALCULATED:
+                atoms = self._extract_atoms(s)
+                if atoms:
+                    to_process.append((s, atoms))
+                else:
+                    s.status = StructureStatus.FAILED
 
-            # 1. Check status
-            if s.status == StructureStatus.CALCULATED:
-                yield s
-                continue
+        # If nothing to process in this chunk (all calculated or failed), yield immediately
+        if not to_process:
+            return chunk
 
-            # 2. Extract atoms
-            atoms = self._extract_atoms(s)
-            if not atoms:
-                # Failed to extract atoms, mark failed
-                s.status = StructureStatus.FAILED
-                yield s
-                continue
+        # Process in parallel
+        max_workers = min(len(to_process), 4)  # Conservative limit
 
-            # 3. Compute (Delegate to DFTManager for single item)
-            # DFTManager.compute returns the Atoms object with results attached
-            result_atoms = self.dft_manager.compute(atoms)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Map futures to structures
+            future_to_struct = {
+                executor.submit(self.dft_manager.compute, atoms): s
+                for s, atoms in to_process
+            }
 
-            # 4. Update structure
-            self._update_structure_common(s, result_atoms)
-            yield s
+            for future in concurrent.futures.as_completed(future_to_struct):
+                s = future_to_struct[future]
+                try:
+                    result_atoms = future.result()
+                    self._update_structure_common(s, result_atoms)
+                except Exception:
+                    self.logger.exception(f"Error computing structure {s.id}")
+                    s.status = StructureStatus.FAILED
+
+        return chunk

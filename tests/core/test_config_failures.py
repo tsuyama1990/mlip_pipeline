@@ -1,6 +1,7 @@
 """Tests for configuration failure scenarios."""
 
 import io
+import os
 import stat
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -96,4 +97,24 @@ def test_load_config_validation_error(tmp_path: Path) -> None:
     config_file.write_text(yaml.dump(data))
 
     with pytest.raises(ConfigurationError, match="Invalid configuration"):
+        load_config(config_file)
+
+def test_load_config_partial_yaml(tmp_path: Path) -> None:
+    """Test loading partial/incomplete YAML."""
+    config_file = tmp_path / "partial.yaml"
+    config_file.write_text("key: value\nother_key:") # Unexpected end
+
+    # PyYAML might fail parsing or return data that fails validation
+    with pytest.raises(ConfigurationError):
+        load_config(config_file)
+
+def test_load_config_corrupted_stream(tmp_path: Path) -> None:
+    """Test corrupted stream content (e.g. binary data in text file)."""
+    config_file = tmp_path / "corrupted.yaml"
+    with config_file.open("wb") as f:
+        f.write(b"\x80\x00\x00") # Binary junk
+
+    # Match generic unexpected error or specific error depending on implementation
+    # The traceback showed UnicodeDecodeError caught as "Unexpected error"
+    with pytest.raises(ConfigurationError, match="Unexpected error loading configuration"):
         load_config(config_file)

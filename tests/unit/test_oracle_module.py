@@ -153,6 +153,8 @@ def test_mock_oracle_randomness(config: PYACEMAKERConfig) -> None:
 
 def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     """Test that DFTOracle streams data (yields results incrementally)."""
+    # Reduce chunk size for test
+    config.oracle.dft.chunk_size = 2
     oracle = DFTOracle(config)
 
     # Create a generator that yields structures
@@ -173,17 +175,22 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     ) as mock_compute:
         results_iter = oracle.compute_batch(structure_generator())
 
-        # Consume 1st
+        # Consume 1st (Should process 1st chunk of 2)
         r1 = next(results_iter)
-        assert mock_compute.call_count == 1
-        assert r1.status == StructureStatus.CALCULATED
+        # Because we parallelize chunks, processing 1st chunk (size 2) might call compute 2 times immediately
+        # But yield one by one.
+        # r1 and r2 are in first chunk.
 
         # Consume 2nd
         r2 = next(results_iter)
-        assert mock_compute.call_count == 2
+
+        # Check calls after first chunk fully consumed
+        # mock_compute should have been called for struct 0 and 1
+        assert mock_compute.call_count >= 2
+        assert r1.status == StructureStatus.CALCULATED
         assert r2.status == StructureStatus.CALCULATED
 
-        # Consume 3rd
+        # Consume 3rd (Second chunk, size 1)
         r3 = next(results_iter)
         assert mock_compute.call_count == 3
         assert r3.status == StructureStatus.CALCULATED

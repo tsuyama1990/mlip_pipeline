@@ -3,6 +3,7 @@
 from typing import Any
 
 from pyacemaker.core.base import ModuleResult
+from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import DynamicsEngine
 from pyacemaker.core.utils import generate_dummy_structures
 from pyacemaker.domain_models.models import Potential, StructureMetadata, UncertaintyState
@@ -10,6 +11,11 @@ from pyacemaker.domain_models.models import Potential, StructureMetadata, Uncert
 
 class LAMMPSEngine(DynamicsEngine):
     """LAMMPS Dynamics Engine implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize the LAMMPS Engine."""
+        super().__init__(config)
+        self.gamma_threshold = config.dynamics_engine.gamma_threshold
 
     def run(self) -> ModuleResult:
         """Run the engine."""
@@ -21,10 +27,13 @@ class LAMMPSEngine(DynamicsEngine):
         self.logger.info(f"Running exploration with {potential.path} (mock)")
 
         # Return dummy high-uncertainty structures
-        structures = generate_dummy_structures(5, tags=["high_uncertainty", "exploration"])
+        # Note: generate_dummy_structures returns an iterator, we convert to list here
+        # because the interface currently expects a list.
+        structures = list(generate_dummy_structures(5, tags=["high_uncertainty", "exploration"]))
         for s in structures:
+            # Use configured threshold logic (mocked)
             s.uncertainty_state = UncertaintyState(
-                gamma_max=10.0, gamma_mean=2.0, gamma_variance=0.5
+                gamma_max=self.gamma_threshold, gamma_mean=2.0, gamma_variance=0.5
             )
 
         return structures

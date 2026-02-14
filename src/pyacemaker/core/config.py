@@ -54,6 +54,9 @@ class Constants(BaseSettings):
     ]
     # Allowed input keys for security validation
     dft_allowed_input_sections: list[str] = ["control", "system", "electrons", "ions", "cell"]
+    # Dynamics Engine Defaults
+    default_dynamics_gamma_threshold: float = 10.0
+
     # Security Warnings
     PICKLE_SECURITY_WARNING: str = (
         "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. "
@@ -168,11 +171,8 @@ class DFTConfig(BaseModel):
         for key in v:
             if key.lower() not in CONSTANTS.dft_allowed_input_sections and key not in {"seed", "simulate_failure"}:
                  # Allow specific testing keys, block others
-                 # Or just warn? Strict for now.
-                 # Actually, MockOracle uses 'seed' and 'simulate_failure'.
-                 # We should probably allow them or have a separate config.
-                 # Let's verify if they are in CONSTANTS.
-                 pass
+                 msg = f"Security Error: Input section '{key}' is not allowed in DFT parameters."
+                 raise ValueError(msg)
         return v
 
 
@@ -206,6 +206,10 @@ class DynamicsEngineConfig(BaseModuleConfig):
     """Dynamics Engine module configuration."""
 
     engine: str = Field(default=CONSTANTS.default_engine, description="MD/kMC engine")
+    gamma_threshold: float = Field(
+        default=CONSTANTS.default_dynamics_gamma_threshold,
+        description="Threshold for extrapolation grade (gamma) to trigger halt",
+    )
 
 
 class ValidatorConfig(BaseModel):
