@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator
 from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
-from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
+from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
@@ -16,6 +16,12 @@ from pyacemaker.oracle.manager import DFTManager
 
 class BaseOracle(Oracle):
     """Base implementation for Oracle modules with common utilities."""
+
+    def validate_structure(self, structure: StructureMetadata) -> None:
+        """Validate structure metadata before processing."""
+        if not isinstance(structure, StructureMetadata):
+            msg = f"Expected StructureMetadata, got {type(structure).__name__}"
+            raise TypeError(msg)
 
     def _extract_atoms(self, structure: StructureMetadata) -> Atoms | None:
         """Extract ASE Atoms object from structure metadata."""
@@ -86,6 +92,7 @@ class MockOracle(BaseOracle):
         self.logger.info("Computing batch of structures (mock)")
 
         for s in structures:
+            self.validate_structure(s)
             # Skip if already calculated
             if s.status == StructureStatus.CALCULATED:
                 yield s
@@ -143,13 +150,14 @@ class DFTOracle(BaseOracle):
         """
         self.logger.info("Computing batch of structures (DFT)")
 
-        chunk_size = CONSTANTS.default_dft_chunk_size
+        chunk_size = self.config.oracle.dft.chunk_size
 
         current_chunk_structs: list[StructureMetadata] = []
         current_chunk_atoms: list[Atoms] = []
         current_chunk_indices: list[int] = []  # Relative index in chunk for valid atoms
 
         for s in structures:
+            self.validate_structure(s)
             # 1. Validation check
             if s.status == StructureStatus.CALCULATED:
                 # If we have a pending chunk, we must flush it to maintain order

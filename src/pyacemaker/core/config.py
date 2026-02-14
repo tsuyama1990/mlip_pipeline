@@ -127,6 +127,10 @@ class DFTConfig(BaseModel):
         default=CONSTANTS.default_dft_max_retries,
         description="Maximum number of retries for failed calculations",
     )
+    chunk_size: int = Field(
+        default=CONSTANTS.default_dft_chunk_size,
+        description="Number of structures to process in a single batch (DFT)",
+    )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters (e.g. for mocking)"
     )
