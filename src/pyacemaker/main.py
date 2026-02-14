@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 from loguru import logger
 
-from pyacemaker.core.config import load_config
+from pyacemaker.core.config import LoggingConfig, load_config
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.logging import setup_logging
 
@@ -26,11 +26,17 @@ def run(
 ) -> None:
     """Run the PYACEMAKER pipeline."""
     log_level = "DEBUG" if verbose else "INFO"
-    setup_logging(log_level)
+
+    # Setup temporary logging for startup
+    logging_config = LoggingConfig(level=log_level)
+    setup_logging(logging_config)
     logger.debug(f"Verbose mode enabled. Log level: {log_level}")
 
     try:
         config = load_config(config_path)
+        # Re-configure logging with file settings if needed, but CLI verbose overrides
+        if not verbose:
+            setup_logging(config.logging)
         typer.echo(f"Configuration loaded successfully. Project: {config.project.name}")
         # Phase 2 logic ends here (placeholder)
     except PYACEMAKERError as e:

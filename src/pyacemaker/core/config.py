@@ -31,6 +31,27 @@ class DFTConfig(BaseModel):
     code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+    format: str = Field(
+        default="[{time}] [{level}] [{extra[name]}] {message}", description="Log message format"
+    )
+
+    @field_validator("level")
+    @classmethod
+    def validate_level(cls, v: str) -> str:
+        """Validate log level."""
+        valid = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if v.upper() not in valid:
+            msg = f"Invalid log level: {v}. Must be one of {valid}"
+            raise ValueError(msg)
+        return v.upper()
+
+
 class PYACEMAKERConfig(BaseModel):
     """Main configuration for the application."""
 
@@ -41,6 +62,7 @@ class PYACEMAKERConfig(BaseModel):
     )
     project: ProjectConfig
     dft: DFTConfig
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)  # type: ignore[arg-type]
 
 
 def load_config(path: str | Path) -> PYACEMAKERConfig:

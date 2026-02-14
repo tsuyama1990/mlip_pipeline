@@ -5,26 +5,23 @@ from typing import Any
 
 from loguru import logger
 
+from pyacemaker.core.config import LoggingConfig
 
-def setup_logging(level: str = "INFO") -> None:
+
+def setup_logging(config: LoggingConfig) -> None:
     """Configure the logging system.
 
     Args:
-        level: The logging level (e.g., "DEBUG", "INFO"). Must be one of:
-               DEBUG, INFO, WARNING, ERROR, CRITICAL.
-
-    Raises:
-        ValueError: If the log level is invalid.
+        config: Logging configuration object.
 
     """
-    valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-    if level.upper() not in valid_levels:
-        msg = f"Invalid log level: {level}. Must be one of {valid_levels}"
-        raise ValueError(msg)
-
     logger.remove()
     logger.configure(extra={"name": "pyacemaker"})
-    logger.add(sys.stderr, level=level, format="[{time}] [{level}] [{extra[name]}] {message}")
+    logger.add(
+        sys.stderr,
+        level=config.level,
+        format=config.format,
+    )
 
 
 def get_logger(name: str) -> Any:  # Loguru type stubs are incomplete

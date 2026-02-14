@@ -5,6 +5,7 @@ from collections.abc import Generator
 import pytest
 from loguru import logger
 
+from pyacemaker.core.config import LoggingConfig
 from pyacemaker.core.logging import get_logger, setup_logging
 
 
@@ -18,7 +19,8 @@ def clean_logger() -> Generator[None, None, None]:
 
 def test_setup_logging(capsys: pytest.CaptureFixture[str]) -> None:
     """Test logging setup."""
-    setup_logging("DEBUG")
+    config = LoggingConfig(level="DEBUG")
+    setup_logging(config)
     logger.debug("Test debug message")
 
     captured = capsys.readouterr()
@@ -32,7 +34,7 @@ def test_setup_logging(capsys: pytest.CaptureFixture[str]) -> None:
 def test_get_logger(capsys: pytest.CaptureFixture[str]) -> None:
     """Test get_logger returns a bound logger."""
     # Ensure handler exists
-    setup_logging("INFO")
+    setup_logging(LoggingConfig(level="INFO"))
 
     log = get_logger("TestLogger")
     log.info("Message from bound logger")
@@ -45,7 +47,7 @@ def test_get_logger(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_logging_propagation(capsys: pytest.CaptureFixture[str]) -> None:
     """Verify that logger names are correctly bound."""
-    setup_logging("DEBUG")
+    setup_logging(LoggingConfig(level="DEBUG"))
 
     # Simulate a module logger
     module_logger = get_logger("pyacemaker.core.test_module")
@@ -59,4 +61,4 @@ def test_logging_propagation(capsys: pytest.CaptureFixture[str]) -> None:
 def test_logging_invalid_level() -> None:
     """Test invalid log level raises ValueError."""
     with pytest.raises(ValueError, match="Invalid log level"):
-        setup_logging("INVALID_LEVEL")
+        LoggingConfig(level="INVALID_LEVEL")
