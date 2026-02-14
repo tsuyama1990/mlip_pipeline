@@ -26,6 +26,7 @@ class LimitedStream:
                 if not chunk:
                     break
                 chunks.append(chunk)
+            # Use join for efficient string concatenation
             return "".join(chunks)
 
         chunk = self.stream.read(size)

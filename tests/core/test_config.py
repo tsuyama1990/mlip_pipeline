@@ -1,5 +1,6 @@
 """Tests for configuration management."""
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -137,6 +138,9 @@ def test_load_config_content_too_large(
 
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
 
+    # Mock os.access
+    monkeypatch.setattr(os, "access", lambda path, mode: True)
+
     with pytest.raises(ConfigurationError, match="exceeds limit"):
         load_config(config_file)
 
@@ -180,6 +184,8 @@ def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         msg = "Simulated read error"
         raise OSError(msg)
 
+    # Mock os.access
+    monkeypatch.setattr(os, "access", lambda path, mode: True)
     monkeypatch.setattr("pathlib.Path.open", mock_open)
 
     with pytest.raises(ConfigurationError, match="Error reading configuration"):
@@ -224,3 +230,14 @@ def test_extra_fields_forbidden(tmp_path: Path) -> None:
             load_config(config_file)
     finally:
         CONSTANTS.skip_file_checks = original_skip
+
+def test_load_config_permission_denied(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test handling of permission error."""
+    config_file = tmp_path / "protected.yaml"
+    config_file.touch()
+
+    # Mock os.access to return False
+    monkeypatch.setattr(os, "access", lambda path, mode: False)
+
+    with pytest.raises(ConfigurationError, match="Permission denied"):
+        load_config(config_file)

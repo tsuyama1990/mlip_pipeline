@@ -1,6 +1,8 @@
 """Orchestrator module implementation."""
 
-from pyacemaker.core.base import Metrics, ModuleResult
+from typing import TypeVar
+
+from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -21,6 +23,13 @@ from pyacemaker.modules.structure_generator import RandomStructureGenerator
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
 
+T = TypeVar("T", bound=BaseModule)
+
+
+def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T:
+    """Factory to create a default module instance."""
+    return module_class(config)
+
 
 class Orchestrator(IOrchestrator):
     """Main Orchestrator for the active learning cycle."""
@@ -36,19 +45,22 @@ class Orchestrator(IOrchestrator):
     ) -> None:
         """Initialize the orchestrator and sub-modules.
 
-        Dependencies can be injected; otherwise, default implementations are instantiated.
+        Dependencies can be injected; otherwise, default implementations are instantiated via factory.
         """
         super().__init__(config)
         self.config = config
 
-        # Dependency Injection with fallbacks
+        # Dependency Injection with fallbacks using factory pattern
         self.structure_generator: StructureGenerator = (
-            structure_generator or RandomStructureGenerator(config)
+            structure_generator
+            or _create_default_module(RandomStructureGenerator, config)
         )
-        self.oracle: Oracle = oracle or MockOracle(config)
-        self.trainer: Trainer = trainer or PacemakerTrainer(config)
-        self.dynamics_engine: DynamicsEngine = dynamics_engine or LAMMPSEngine(config)
-        self.validator: Validator = validator or MockValidator(config)
+        self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
+        self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
+        self.dynamics_engine: DynamicsEngine = (
+            dynamics_engine or _create_default_module(LAMMPSEngine, config)
+        )
+        self.validator: Validator = validator or _create_default_module(MockValidator, config)
 
         # State
         self.current_potential: Potential | None = None

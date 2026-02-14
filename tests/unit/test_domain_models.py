@@ -14,6 +14,7 @@ from pyacemaker.domain_models.models import (
     PotentialType,
     PredictedProperties,
     StructureMetadata,
+    StructureStatus,
     Task,
     TaskStatus,
     TaskType,
@@ -57,6 +58,21 @@ def test_structure_metadata_with_features() -> None:
     assert len(s.forces) == 1
     assert s.stress
     assert len(s.stress) == 6
+
+
+def test_structure_metadata_validation() -> None:
+    """Test validation of StructureMetadata status consistency."""
+    # Should fail if CALCULATED but missing energy/forces
+    with pytest.raises(ValidationError, match="Energy must be present"):
+        StructureMetadata(status=StructureStatus.CALCULATED)
+
+    # Should succeed if CALCULATED and has fields
+    s = StructureMetadata(
+        status=StructureStatus.CALCULATED,
+        energy=-10.0,
+        forces=[[0.0, 0.0, 0.0]]
+    )
+    assert s.status == StructureStatus.CALCULATED
 
 
 def test_potential_validation() -> None:

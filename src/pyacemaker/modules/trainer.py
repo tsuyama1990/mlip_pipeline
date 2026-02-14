@@ -25,10 +25,11 @@ class PacemakerTrainer(Trainer):
         self, dataset: list[StructureMetadata], initial_potential: Potential | None = None
     ) -> Potential:
         """Train a potential."""
-        # Filter dataset for valid structures (with energy)
-        valid_dataset = [s for s in dataset if s.energy is not None]
+        # Use generator expression to avoid creating intermediate list
+        valid_dataset_count = sum(1 for s in dataset if s.energy is not None)
+
         self.logger.info(
-            f"Training on {len(valid_dataset)} valid structures out of {len(dataset)} (mock)"
+            f"Training on {valid_dataset_count} valid structures out of {len(dataset)} (mock)"
         )
 
         # Create a dummy potential file

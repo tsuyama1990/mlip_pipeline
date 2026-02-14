@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def utc_now() -> datetime:
@@ -98,6 +98,16 @@ class StructureMetadata(BaseModel):
     )
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=utc_now, description="Last update timestamp")
+
+    @model_validator(mode="after")
+    def validate_calculated_fields(self) -> "StructureMetadata":
+        """Ensure energy and forces are present if status is CALCULATED."""
+        if self.status == StructureStatus.CALCULATED:
+            if self.energy is None:
+                raise ValueError("Energy must be present when status is CALCULATED")
+            if self.forces is None:
+                raise ValueError("Forces must be present when status is CALCULATED")
+        return self
 
 
 class PotentialType(str, Enum):

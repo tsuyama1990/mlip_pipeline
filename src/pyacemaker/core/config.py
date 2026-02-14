@@ -38,6 +38,8 @@ class Constants(BaseSettings):
     skip_file_checks: bool = False
 
     # Oracle / DFT defaults
+    default_dft_code: str = "quantum_espresso"
+    default_dft_command: str = "mpirun -np 4 pw.x"
     default_dft_kspacing: float = 0.04
     default_dft_smearing: float = 0.02
     default_dft_max_retries: int = 3
@@ -110,9 +112,11 @@ class DFTConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     code: str = Field(
-        default="quantum_espresso", description="DFT code to use (e.g., 'quantum_espresso')"
+        default=CONSTANTS.default_dft_code, description="DFT code to use (e.g., 'quantum_espresso')"
     )
-    command: str = Field(default="mpirun -np 4 pw.x", description="Command to run the DFT code")
+    command: str = Field(
+        default=CONSTANTS.default_dft_command, description="Command to run the DFT code"
+    )
     pseudo_dir: Path = Field(
         default=Path(), description="Directory containing pseudopotential files"
     )
@@ -122,7 +126,9 @@ class DFTConfig(BaseModel):
     kspacing: float = Field(
         default=CONSTANTS.default_dft_kspacing, description="K-point spacing in inverse Angstroms"
     )
-    smearing: float = Field(default=CONSTANTS.default_dft_smearing, description="Smearing width in eV")
+    smearing: float = Field(
+        default=CONSTANTS.default_dft_smearing, description="Smearing width in eV"
+    )
     max_retries: int = Field(
         default=CONSTANTS.default_dft_max_retries,
         description="Maximum number of retries for failed calculations",
@@ -291,6 +297,12 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration file not found or invalid: {path.name}"
         raise ConfigurationError(msg)
 
+    # Check file permissions (Security)
+    # Ensure file is readable by current user
+    if not os.access(path, os.R_OK):
+        msg = f"Permission denied: {path.name}"
+        raise ConfigurationError(msg)
+
     try:
         # Check size hint first, though LimitedStream is the real guard
         if path.stat().st_size > CONSTANTS.max_config_size:
@@ -299,12 +311,6 @@ def load_config(path: Path) -> PYACEMAKERConfig:
 
         with path.open("r", encoding="utf-8") as f:
             # Use LimitedStream to enforce size limit during parsing
-            # yaml.safe_load reads from the stream directly.
-            # While yaml.safe_load loads the whole structure into memory,
-            # the LimitedStream ensures that we don't read more bytes than allowed.
-            # This protects against DoS/OOM for massive files.
-            # For configuration (YAML), random access/chunking is complex
-            # and usually unnecessary for <1MB files.
             stream = LimitedStream(f, CONSTANTS.max_config_size)
             data = yaml.safe_load(stream)
 
@@ -330,3 +336,5 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Invalid configuration: {e}"
         details = {"errors": e.errors()}
         raise ConfigurationError(msg, details=details) from e
+
+import os

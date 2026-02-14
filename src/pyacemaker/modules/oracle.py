@@ -2,6 +2,7 @@
 
 import contextlib
 import random
+import secrets
 from collections.abc import Iterable, Iterator
 
 from ase import Atoms
@@ -39,18 +40,28 @@ class BaseOracle(Oracle):
             structure.status = StructureStatus.FAILED
             return
 
-        structure.status = StructureStatus.CALCULATED
+        # Prepare values before setting status to CALCULATED
+        # to ensure atomic update and satisfy model validation if we were re-validating.
+        # Note: Pydantic model validation runs on init/assignment, but here we update fields.
         try:
             # We use type: ignore because ASE types are often missing
-            # Update explicit fields
-            structure.energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
-            structure.forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
+            energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
+            forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
+            stress = None
 
-            # Stress might not always be calculated
             with contextlib.suppress(Exception):
-                structure.stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+                stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+
+            # Update explicit fields
+            structure.energy = energy
+            structure.forces = forces
+            if stress:
+                structure.stress = stress
 
             structure.features["atoms"] = result_atoms
+            # Set status last
+            structure.status = StructureStatus.CALCULATED
+
         except Exception:
             self.logger.exception(f"Failed to extract properties for {structure.id}")
             structure.status = StructureStatus.FAILED
@@ -62,9 +73,12 @@ class MockOracle(BaseOracle):
     def __init__(self, config: PYACEMAKERConfig) -> None:
         """Initialize the Mock Oracle."""
         super().__init__(config)
-        # Use seeded random for determinism if configured, else strict determinism for tests
-        self.seed = config.oracle.dft.parameters.get("seed", 42)
-        self.rng = random.Random(self.seed)  # noqa: S311
+        self.seed = config.oracle.dft.parameters.get("seed")
+        # Use secrets for secure random if no seed provided, else random for determinism (tests)
+        if self.seed is not None:
+            self.rng = random.Random(self.seed)  # noqa: S311
+        else:
+            self.rng = secrets.SystemRandom()
 
     def run(self) -> ModuleResult:
         """Run the oracle (batch processing)."""
@@ -76,6 +90,13 @@ class MockOracle(BaseOracle):
             raise PYACEMAKERError(msg)
 
         return ModuleResult(status="success")
+
+    def _get_random_uniform(self, a: float, b: float) -> float:
+        """Get random float using configured RNG."""
+        if isinstance(self.rng, random.Random):
+            return self.rng.uniform(a, b)
+        # SystemRandom doesn't have uniform in all python versions? It does.
+        return self.rng.uniform(a, b)
 
     def compute_batch(
         self, structures: Iterable[StructureMetadata]
@@ -98,13 +119,14 @@ class MockOracle(BaseOracle):
                 yield s
                 continue
 
-            # Update structure status
-            s.status = StructureStatus.CALCULATED
-            # Mock results with slight randomness using seeded RNG
-            s.energy = -100.0 + self.rng.uniform(-1.0, 1.0)
-            s.forces = [[self.rng.uniform(-0.1, 0.1) for _ in range(3)]]
+            # Generate random values
+            energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
+            forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)]]
 
-            # No atoms update needed for mock simple
+            # Update structure
+            s.energy = energy
+            s.forces = forces
+            s.status = StructureStatus.CALCULATED
             yield s
 
 
@@ -118,28 +140,15 @@ class DFTOracle(BaseOracle):
 
     def run(self) -> ModuleResult:
         """Run the oracle (batch processing)."""
-        # This method is from BaseModule, typically for standalone execution
         self.logger.info("Running DFTOracle")
         return ModuleResult(status="success")
-
-    def _process_chunk(
-        self,
-        structures: list[StructureMetadata],
-        atoms_list: list[Atoms],
-        indices: list[int],
-    ) -> None:
-        """Helper to process a buffered chunk."""
-        if not atoms_list:
-            return
-
-        results_iter = self.dft_manager.compute_batch(atoms_list)
-        for idx, result_atoms in zip(indices, results_iter, strict=True):
-            self._update_structure_common(structures[idx], result_atoms)
 
     def compute_batch(
         self, structures: Iterable[StructureMetadata]
     ) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch of structures.
+
+        Streaming implementation: Processes structures one-by-one to avoid memory overhead.
 
         Args:
             structures: Iterable of structure metadata to process.
@@ -148,55 +157,28 @@ class DFTOracle(BaseOracle):
             Updated structure metadata (streaming).
 
         """
-        self.logger.info("Computing batch of structures (DFT)")
-
-        chunk_size = self.config.oracle.dft.chunk_size
-
-        current_chunk_structs: list[StructureMetadata] = []
-        current_chunk_atoms: list[Atoms] = []
-        current_chunk_indices: list[int] = []  # Relative index in chunk for valid atoms
+        self.logger.info("Computing batch of structures (DFT Streaming)")
 
         for s in structures:
             self.validate_structure(s)
-            # 1. Validation check
-            if s.status == StructureStatus.CALCULATED:
-                # If we have a pending chunk, we must flush it to maintain order
-                if current_chunk_structs:
-                    self._process_chunk(
-                        current_chunk_structs, current_chunk_atoms, current_chunk_indices
-                    )
-                    yield from current_chunk_structs
-                    current_chunk_structs = []
-                    current_chunk_atoms = []
-                    current_chunk_indices = []
 
+            # 1. Check status
+            if s.status == StructureStatus.CALCULATED:
                 yield s
                 continue
 
             # 2. Extract atoms
             atoms = self._extract_atoms(s)
+            if not atoms:
+                # Failed to extract atoms, mark failed
+                s.status = StructureStatus.FAILED
+                yield s
+                continue
 
-            # Add to chunk buffer
-            current_chunk_structs.append(s)
-            if atoms:
-                current_chunk_atoms.append(atoms)
-                current_chunk_indices.append(len(current_chunk_structs) - 1)
+            # 3. Compute (Delegate to DFTManager for single item)
+            # DFTManager.compute returns the Atoms object with results attached
+            result_atoms = self.dft_manager.compute(atoms)
 
-            # Process if chunk full
-            if len(current_chunk_structs) >= chunk_size:
-                self._process_chunk(
-                    current_chunk_structs, current_chunk_atoms, current_chunk_indices
-                )
-                yield from current_chunk_structs
-
-                # Reset buffers
-                current_chunk_structs = []
-                current_chunk_atoms = []
-                current_chunk_indices = []
-
-        # Process remaining
-        if current_chunk_structs:
-            self._process_chunk(
-                current_chunk_structs, current_chunk_atoms, current_chunk_indices
-            )
-            yield from current_chunk_structs
+            # 4. Update structure
+            self._update_structure_common(s, result_atoms)
+            yield s
