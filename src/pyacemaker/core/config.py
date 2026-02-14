@@ -105,6 +105,9 @@ class Constants(BaseSettings):
     TRAINER_TEMP_PREFIX_TRAIN: str = "pace_train_"
     TRAINER_TEMP_PREFIX_ACTIVE: str = "pace_active_"
 
+    # DFT Manager Defaults
+    DFT_TEMP_PREFIX: str = "dft_run_"
+
 
 CONSTANTS = Constants()
 
@@ -440,6 +443,11 @@ def _read_config_file(path: Path) -> dict[str, Any]:
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
+    except ValueError as e:
+        # LimitedStream raises ValueError if limit exceeded
+        if "exceeds limit" in str(e):
+             raise ConfigurationError(str(e)) from e
+        raise # Reraise other ValueErrors (if any) to generic handler or crash
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e

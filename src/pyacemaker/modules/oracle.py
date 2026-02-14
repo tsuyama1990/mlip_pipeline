@@ -13,6 +13,7 @@ from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
+from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
 from pyacemaker.oracle.manager import DFTManager
 
@@ -25,6 +26,7 @@ class BaseOracle(Oracle):
         if not isinstance(structure, StructureMetadata):
             msg = f"Expected StructureMetadata, got {type(structure).__name__}"
             raise TypeError(msg)
+        validate_structure_integrity(structure)
 
     def _extract_atoms(self, structure: StructureMetadata) -> Atoms | None:
         """Extract ASE Atoms object from structure metadata."""
@@ -139,6 +141,15 @@ class DFTOracle(BaseOracle):
         """Initialize the DFT Oracle."""
         super().__init__(config)
         self.dft_manager = DFTManager(config.oracle.dft)
+        # Use a persistent executor to avoid overhead of creating one per chunk
+        # Initialize lazily or in __init__? __init__ is better but BaseModule doesn't have close()
+        # So we'll use a managed executor within compute_batch if possible, but compute_batch is a generator.
+        # A generator cannot easily manage a "with executor" block that spans multiple yield calls if it's infinite.
+        # However, typically compute_batch is finite.
+        # But if we want true parallelism across chunks, we need the executor to live outside the chunk loop.
+        # We will initialize it here but we must ensure it's used correctly.
+        # Actually, Python's ThreadPoolExecutor is best used as a context manager.
+        # Since compute_batch yields, we can wrap the whole loop in the executor context.
 
     def run(self) -> ModuleResult:
         """Run the oracle (batch processing)."""
@@ -149,24 +160,34 @@ class DFTOracle(BaseOracle):
         """Compute energy/forces for a batch of structures."""
         self.logger.info("Computing batch of structures (DFT Parallel Streaming)")
 
+        max_workers = self.config.oracle.dft.max_workers
         chunk_size = self.config.oracle.dft.chunk_size
         iterator = iter(structures)
 
-        while True:
-            chunk = list(islice(iterator, chunk_size))
-            if not chunk:
-                break
+        # We use a single ThreadPoolExecutor for the entire batch to avoid overhead
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            while True:
+                # We still consume in chunks to avoid submitting infinite tasks if iterator is huge
+                chunk = list(islice(iterator, chunk_size))
+                if not chunk:
+                    break
 
-            yield from self._process_parallel_chunk(chunk)
+                # Submit chunk tasks
+                # To maintain streaming behavior and not block on the whole chunk finishing,
+                # we can submit all, yield futures as they complete.
+                # However, to avoid OOM by submitting 1M tasks, we do it in chunks.
+                # But we can process the chunk *using the shared executor*.
+                yield from self._process_chunk_with_executor(chunk, executor)
 
-    def _process_parallel_chunk(
-        self, chunk: list[StructureMetadata]
+    def _process_chunk_with_executor(
+        self,
+        chunk: list[StructureMetadata],
+        executor: concurrent.futures.ThreadPoolExecutor,
     ) -> Iterator[StructureMetadata]:
-        """Process a chunk of structures in parallel (Yielding as completed)."""
+        """Process a chunk using the provided executor."""
         to_process = []
         already_done = []
 
-        # Validate and filter
         for s in chunk:
             self.validate_structure(s)
             if s.status != StructureStatus.CALCULATED:
@@ -179,27 +200,21 @@ class DFTOracle(BaseOracle):
             else:
                 already_done.append(s)
 
-        # Yield already done first (low latency)
         yield from already_done
 
-        # If nothing to process, we are done
         if not to_process:
             return
 
-        # Process in parallel
-        max_workers = min(len(to_process), self.config.oracle.dft.max_workers)
+        future_to_struct = {
+            executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
+        }
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_struct = {
-                executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
-            }
-
-            for future in concurrent.futures.as_completed(future_to_struct):
-                s = future_to_struct[future]
-                try:
-                    result_atoms = future.result()
-                    self._update_structure_common(s, result_atoms)
-                except Exception:
-                    self.logger.exception(f"Error computing structure {s.id}")
-                    s.status = StructureStatus.FAILED
-                yield s
+        for future in concurrent.futures.as_completed(future_to_struct):
+            s = future_to_struct[future]
+            try:
+                result_atoms = future.result()
+                self._update_structure_common(s, result_atoms)
+            except Exception:
+                self.logger.exception(f"Error computing structure {s.id}")
+                s.status = StructureStatus.FAILED
+            yield s

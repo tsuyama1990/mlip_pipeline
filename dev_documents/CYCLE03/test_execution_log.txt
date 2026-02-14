@@ -173,7 +173,7 @@ Traceback:
 /usr/lib/python3.12/importlib/__init__.py:90: in import_module
     return _bootstrap._gcd_import(name[level:], package, level)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/unit/test_trainer_module.py:9: in <module>
+tests/unit/test_trainer_module.py:10: in <module>
     from pyacemaker.core.config import PYACEMAKERConfig, TrainerConfig
 E   ModuleNotFoundError: No module named 'pyacemaker'
 _____________ ERROR collecting tests/unit/test_trainer_wrapper.py ______________
@@ -206,4 +206,4 @@ ERROR tests/unit/test_trainer_config.py
 ERROR tests/unit/test_trainer_module.py
 ERROR tests/unit/test_trainer_wrapper.py
 !!!!!!!!!!!!!!!!!!! Interrupted: 18 errors during collection !!!!!!!!!!!!!!!!!!!
-============================== 18 errors in 0.34s ==============================
+============================== 18 errors in 0.31s ==============================

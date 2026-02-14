@@ -84,14 +84,15 @@ class TestPacemakerWrapper:
 
     @patch("subprocess.run")
     def test_activeset_command_construction(
-        self, mock_run: MagicMock, wrapper: PacemakerWrapper
+        self, mock_run: MagicMock, wrapper: PacemakerWrapper, tmp_path: Path
     ) -> None:
         """Test that pace_activeset command is constructed correctly."""
         mock_run.return_value = MagicMock(returncode=0)
 
-        candidates_path = Path("candidates.pckl.gzip")
+        candidates_path = tmp_path / "candidates.pckl.gzip"
+        candidates_path.touch()
         num_select = 50
-        output_path = Path("selected.pckl.gzip")
+        output_path = tmp_path / "selected.pckl.gzip"
 
         wrapper.select_active_set(candidates_path, num_select, output_path)
 

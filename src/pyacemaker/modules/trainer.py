@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
+from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import (
     ActiveSet,
     Potential,
@@ -80,6 +81,10 @@ class PacemakerTrainer(Trainer):
         # Remove internal config keys not used by pace_train directly
         # Delta learning is handled via baseline file, so remove it from params
         params.pop("delta_learning", None)
+        # Parameters dict is internal/complex, not a CLI flag
+        params.pop("parameters", None)
+        # Mock flag is internal
+        params.pop("mock", None)
 
         # If baseline file exists, pass it (assuming pace_train supports --baseline)
         if baseline_file:
@@ -170,6 +175,7 @@ class PacemakerTrainer(Trainer):
 
     def _metadata_to_atoms(self, metadata: StructureMetadata) -> Any:
         """Convert StructureMetadata to ASE Atoms."""
+        validate_structure_integrity(metadata)
         atoms = metadata.features.get("atoms")
         if atoms is None:
             msg = f"Structure {metadata.id} does not contain 'atoms' feature."

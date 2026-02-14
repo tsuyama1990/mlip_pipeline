@@ -36,7 +36,7 @@ class DFTManager:
 
         """
         # Create a unique temporary directory for this calculation to ensure thread safety
-        with tempfile.TemporaryDirectory(prefix="dft_run_") as tmp_dir:
+        with tempfile.TemporaryDirectory(prefix=CONSTANTS.DFT_TEMP_PREFIX) as tmp_dir:
             for attempt in range(self.config.max_retries):
                 try:
                     calc = create_calculator(self.config, attempt, directory=tmp_dir)

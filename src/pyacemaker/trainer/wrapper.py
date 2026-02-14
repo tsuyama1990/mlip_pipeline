@@ -1,5 +1,6 @@
 """Pacemaker Wrapper."""
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,16 @@ class PacemakerWrapper:
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _is_safe_string(self, value: str) -> bool:
+        """Check if string contains only safe characters (alphanumeric, -, _, ., /, :, =, @)."""
+        # Strict whitelist pattern: only allow characters commonly used in file paths and options
+        # A-Z, a-z, 0-9, dash, underscore, dot, forward slash, colon (for drives/urls?), equals, at
+        pattern = r"^[a-zA-Z0-9\-\_\.\/\:\=\@]+$"
+        return bool(re.match(pattern, value))
+
     def _sanitize_arg(self, key: str, value: Any) -> list[str]:
         """Sanitize and format a single argument."""
-        # Basic sanitization: keys should be simple strings
+        # Basic sanitization: keys should be simple strings (alphanumeric + underscore)
         if not key.replace("_", "").isalnum():
             msg = f"Invalid parameter key: {key}"
             raise ValueError(msg)
@@ -33,10 +41,8 @@ class PacemakerWrapper:
             args = [cli_arg]
             for item in value:
                 item_str = str(item)
-                # Strict check for list items (mostly numeric expected)
-                if not item_str.replace(".", "").isdigit() and not item_str.replace(
-                    "-", ""
-                ).isalnum():
+                # Strict check for list items using whitelist
+                if not self._is_safe_string(item_str):
                     msg = f"Invalid list item value: {item}"
                     raise ValueError(msg)
                 args.append(item_str)
@@ -44,11 +50,10 @@ class PacemakerWrapper:
 
         # Sanitize scalar value
         val_str = str(value)
-        # Check for dangerous shell characters
-        dangerous_chars = [";", "&", "|", "$", "`", "\n", "\r"]
-        if any(char in val_str for char in dangerous_chars):
-            msg = f"Potential command injection in parameter value: {val_str}"
+        if not self._is_safe_string(val_str):
+            msg = f"Potential unsafe value or command injection detected in: {val_str}"
             raise ValueError(msg)
+
         return [cli_arg, val_str]
 
     def train(
@@ -108,6 +113,16 @@ class PacemakerWrapper:
             Path to the selected dataset.
 
         """
+        # Validate inputs strictly even here
+        if not candidates_path.exists():
+             msg = f"Candidates path does not exist: {candidates_path}"
+             raise FileNotFoundError(msg)
+
+        # Ensure num_select is positive integer
+        if num_select <= 0:
+            msg = f"Number of structures to select must be positive: {num_select}"
+            raise ValueError(msg)
+
         cmd = ["pace_activeset"]
         cmd.extend(["--dataset", str(candidates_path)])
         cmd.extend(["--select", str(num_select)])

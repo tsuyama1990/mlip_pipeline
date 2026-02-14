@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -54,10 +55,12 @@ class TestTrainerModule:
         # Configure mock return values
         trainer.mock_wrapper.train.return_value = Path("output.yace")  # type: ignore[attr-defined]
 
-        # Ensure save_iter consumes the iterator to trigger counting
-        def consume_iterator(data, path):
+        # Ensure save_iter consumes the iterator to trigger counting AND creates file
+        def consume_iterator(data: Iterator[Any], path: Path) -> None:
             for _ in data:
                 pass
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
 
         trainer.mock_dataset_manager.save_iter.side_effect = consume_iterator  # type: ignore[attr-defined]
 

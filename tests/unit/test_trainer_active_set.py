@@ -21,9 +21,10 @@ class TestActiveSetSelector:
         mock_run.return_value = MagicMock(returncode=0)
 
         candidates_path = Path("candidates.pckl.gzip")
-        num_select = 100
-
-        result_path = selector.select(candidates_path, num_select)
+        # Mock exists
+        with patch("pathlib.Path.exists", return_value=True):
+            num_select = 100
+            result_path = selector.select(candidates_path, num_select)
 
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]

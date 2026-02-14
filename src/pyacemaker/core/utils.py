@@ -1,76 +1,86 @@
-"""Utility functions for pyacemaker."""
+"""Utility functions for PYACEMAKER."""
 
 import io
-import random
 from collections.abc import Iterator
-from typing import IO, Any
+from typing import Any
+from uuid import uuid4
 
-from ase import Atoms
+from pyacemaker.domain_models.models import (
+    MaterialDNA,
+    StructureMetadata,
+    StructureStatus,
+)
 
-from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.domain_models.models import MaterialDNA, StructureMetadata
+
+class LimitedStream(io.StringIO):
+    """Stream wrapper that enforces a maximum size limit."""
+
+    def __init__(self, stream: Any, limit: int) -> None:
+        """Initialize LimitedStream.
+
+        Args:
+            stream: The underlying stream object.
+            limit: The maximum number of bytes to read.
+
+        Raises:
+            ValueError: If the stream content exceeds the limit.
+
+        """
+        content = stream.read(limit + 1)
+        if len(content) > limit:
+            msg = f"Configuration file exceeds limit of {limit} bytes"
+            raise ValueError(msg)
+        self.total_read = len(content)  # Track bytes read for testing
+        super().__init__(content)
 
 
-class LimitedStream:
-    """Wrapper around a file object to limit the number of bytes read."""
+def validate_structure_integrity(structure: StructureMetadata) -> None:
+    """Validate the integrity of a structure metadata object.
 
-    def __init__(self, stream: IO[str], limit: int) -> None:
-        """Initialize the limited stream."""
-        self.stream = stream
-        self.limit = limit
-        self.total_read = 0
+    Args:
+        structure: The structure metadata to validate.
 
-    def read(self, size: int = -1) -> str:
-        """Read from the stream, tracking total bytes read."""
-        if size < 0:
-            # Read all, but in chunks to enforce limit
-            chunk_size = 4096
-            buffer = io.StringIO()
-            while True:
-                chunk = self.read(chunk_size)
-                if not chunk:
-                    break
-                buffer.write(chunk)
-            return buffer.getvalue()
+    Raises:
+        ValueError: If validation fails.
 
-        chunk = self.stream.read(size)
-        self.total_read += len(chunk)
-        if self.total_read > self.limit:
-            msg = f"Configuration file exceeds limit of {self.limit} bytes"
-            raise ConfigurationError(msg)
-        return chunk
-
-    def __getattr__(self, name: str) -> Any:
-        """Delegate other attributes to the underlying stream."""
-        return getattr(self.stream, name)
+    """
+    # Check for features dictionary keys
+    if not all(isinstance(k, str) for k in structure.features):
+        msg = "Structure features keys must be strings."
+        raise ValueError(msg)
 
 
 def generate_dummy_structures(
-    count: int, tags: list[str] | None = None
+    count: int = 10, tags: list[str] | None = None
 ) -> Iterator[StructureMetadata]:
-    """Generate a sequence of dummy structures for testing/mocking.
+    """Generate dummy structures for testing (Lazily).
 
-    Returns an iterator to avoid loading all structures into memory at once.
+    Args:
+        count: Number of structures to generate.
+        tags: Optional tags to add.
+
+    Yields:
+        Dummy StructureMetadata objects.
+
     """
-    tags = tags or ["dummy"]
+    try:
+        from ase import Atoms
+    except ImportError:
+        Atoms_cls = None
+    else:
+        Atoms_cls = Atoms
 
-    # Create dummy atoms template
-    base_atoms = Atoms("Fe", positions=[[0, 0, 0]], cell=[2.87, 2.87, 2.87], pbc=True)
+    tags_list = tags or ["dummy"]
 
-    for i in range(count):
-        # Generate diverse MaterialDNA
-        # Vary composition slightly to simulate diversity
-        comp_fe = 0.9 + (0.1 * random.random())  # noqa: S311
-        dna = MaterialDNA(
-            composition={"Fe": comp_fe, "C": 1.0 - comp_fe},
-            crystal_system="cubic",
-            space_group="Im-3m" if i % 2 == 0 else "Fm-3m",
-        )
+    for _ in range(count):
+        features = {}
+        if Atoms_cls:
+            features["atoms"] = Atoms_cls("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         yield StructureMetadata(
-            tags=tags,
-            material_dna=dna,
-            # Features can be used for extra data, but core properties are explicit now
-            # Include 'atoms' feature for Trainer compatibility
-            features={"mock_feature": "test", "atoms": base_atoms.copy()},  # type: ignore[no-untyped-call]
+            id=uuid4(),
+            tags=list(tags_list),  # Copy tags
+            status=StructureStatus.NEW,
+            features=features,
+            material_dna=MaterialDNA(composition={"H": 1.0}),  # Dummy DNA
         )
