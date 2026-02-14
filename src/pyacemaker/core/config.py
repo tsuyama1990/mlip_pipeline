@@ -1,12 +1,62 @@
 """Configuration models for PYACEMAKER."""
 
+import re
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
+from pyacemaker.core.utils import LimitedStream
+
+
+class Constants(BaseSettings):
+    """System-wide constants configuration.
+
+    Values can be overridden by environment variables (e.g., PYACEMAKER_MAX_CONFIG_SIZE).
+    """
+
+    model_config = SettingsConfigDict(extra="forbid", env_prefix="PYACEMAKER_")
+
+    default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
+    # 1 MB limit for configuration files to prevent OOM/DOS
+    max_config_size: int = 1 * 1024 * 1024
+    default_version: str = "0.1.0"
+    default_log_level: str = "INFO"
+    default_structure_strategy: str = "random"
+    default_trainer_potential: str = "pace"
+    default_engine: str = "lammps"
+    default_orchestrator_max_cycles: int = 10
+    default_orchestrator_uncertainty: float = 0.1
+    default_orchestrator_n_local_candidates: int = 10
+    default_orchestrator_n_active_set_select: int = 5
+    default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
+    version_regex: str = r"^\d+\.\d+\.\d+$"
+
+
+CONSTANTS = Constants()
+
+
+class BaseModuleConfig(BaseModel):
+    """Base configuration for modules with parameters."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    parameters: dict[str, Any] = Field(
+        default_factory=dict, description="Module-specific parameters"
+    )
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        # Ensure keys are strings
+        if not all(isinstance(k, str) for k in v):
+            msg = "Parameter keys must be strings"
+            raise ValueError(msg)
+        return v
 
 
 class ProjectConfig(BaseModel):
@@ -21,36 +71,88 @@ class ProjectConfig(BaseModel):
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
         """Validate root directory for path traversal."""
-        # Check components before resolve to catch explicit ".."
-        if ".." in v.parts:
-            msg = f"Invalid root directory: {v}. Path traversal not allowed."
-            raise ValueError(msg)
-        return v.resolve()
+        try:
+            # Strict resolution checks existence and resolves symlinks
+            return v.resolve(strict=True)
+        except OSError:
+            # If path doesn't exist yet (e.g., initial setup), check for traversal in parts
+            if ".." in v.parts:
+                msg = f"Invalid root directory: {v}. Path traversal not allowed."
+                raise ValueError(msg) from None
+            return v.absolute()
 
 
-class DFTConfig(BaseModel):
+class DFTConfig(BaseModuleConfig):
     """DFT calculation configuration."""
-
-    model_config = ConfigDict(extra="forbid")
 
     code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
-class Constants(BaseSettings):
-    """System-wide constants configuration.
+class OracleConfig(BaseModel):
+    """Oracle module configuration."""
 
-    Values can be overridden by environment variables (e.g., PYACEMAKER_MAX_CONFIG_SIZE).
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    model_config = SettingsConfigDict(extra="forbid", env_prefix="PYACEMAKER_")
-
-    default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
-    max_config_size: int = 1 * 1024 * 1024  # 1 MB limit for safety
-    default_version: str = "0.1.0"
-    default_log_level: str = "INFO"
+    dft: DFTConfig = Field(..., description="DFT configuration")
+    mock: bool = Field(default=False, description="Use mock oracle for testing")
 
 
-CONSTANTS = Constants()
+class StructureGeneratorConfig(BaseModuleConfig):
+    """Structure Generator module configuration."""
+
+    strategy: str = Field(
+        default=CONSTANTS.default_structure_strategy,
+        description="Generation strategy (e.g., 'random', 'adaptive')",
+    )
+
+
+class TrainerConfig(BaseModuleConfig):
+    """Trainer module configuration."""
+
+    potential_type: str = Field(
+        default=CONSTANTS.default_trainer_potential, description="Type of potential to train"
+    )
+
+
+class DynamicsEngineConfig(BaseModuleConfig):
+    """Dynamics Engine module configuration."""
+
+    engine: str = Field(default=CONSTANTS.default_engine, description="MD/kMC engine")
+
+
+class ValidatorConfig(BaseModel):
+    """Validator module configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    metrics: list[str] = Field(
+        default_factory=lambda: CONSTANTS.default_validator_metrics,
+        description="Metrics to validate",
+    )
+    thresholds: dict[str, float] = Field(default_factory=dict, description="Validation thresholds")
+
+
+class OrchestratorConfig(BaseModel):
+    """Orchestrator configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_cycles: int = Field(
+        default=CONSTANTS.default_orchestrator_max_cycles,
+        description="Maximum number of active learning cycles",
+    )
+    uncertainty_threshold: float = Field(
+        default=CONSTANTS.default_orchestrator_uncertainty,
+        description="Threshold for uncertainty sampling",
+    )
+    n_local_candidates: int = Field(
+        default=CONSTANTS.default_orchestrator_n_local_candidates,
+        description="Number of local candidates to generate per seed",
+    )
+    n_active_set_select: int = Field(
+        default=CONSTANTS.default_orchestrator_n_active_set_select,
+        description="Number of structures to select for active set",
+    )
 
 
 class LoggingConfig(BaseModel):
@@ -83,11 +185,27 @@ class PYACEMAKERConfig(BaseModel):
     version: str = Field(
         CONSTANTS.default_version,
         description="Configuration schema version",
-        pattern=r"^\d+\.\d+\.\d+$",
+        pattern=CONSTANTS.version_regex,
     )
     project: ProjectConfig
-    dft: DFTConfig
     logging: LoggingConfig = Field(default_factory=LoggingConfig)  # type: ignore[arg-type]
+
+    # Module configurations
+    orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
+    structure_generator: StructureGeneratorConfig = Field(default_factory=StructureGeneratorConfig)
+    oracle: OracleConfig = Field(..., description="Oracle configuration")
+    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
+    dynamics_engine: DynamicsEngineConfig = Field(default_factory=DynamicsEngineConfig)
+    validator: ValidatorConfig = Field(default_factory=ValidatorConfig)
+
+    @field_validator("version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        """Validate semantic version."""
+        if not re.match(CONSTANTS.version_regex, v):
+            msg = f"Invalid version format: {v}. Must match {CONSTANTS.version_regex}"
+            raise ValueError(msg)
+        return v
 
 
 def load_config(path: Path) -> PYACEMAKERConfig:
@@ -103,31 +221,33 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         ConfigurationError: If the file cannot be read or validation fails.
 
     """
-    if not path.exists():
-        msg = f"Configuration file not found: {path.name}"
+    if not path.exists() or not path.is_file():
+        msg = f"Configuration file not found or invalid: {path.name}"
         raise ConfigurationError(msg)
 
-    if not path.is_file():
-        msg = f"Configuration path is not a file: {path.name}"
-        raise ConfigurationError(msg)
-
-    if path.stat().st_size > CONSTANTS.max_config_size:
-        msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
-        raise ConfigurationError(msg)
-
-    # yaml.safe_load is used to prevent arbitrary code execution.
-    # The file size check above mitigates OOM risks (DoS).
     try:
+        # Check size hint first, though LimitedStream is the real guard
+        if path.stat().st_size > CONSTANTS.max_config_size:
+            msg = f"Configuration file too large: {path.stat().st_size} bytes"
+            raise ConfigurationError(msg)  # noqa: TRY301
+
         with path.open("r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+            # Use LimitedStream to enforce size limit during parsing
+            # yaml.safe_load reads from the stream directly
+            stream = LimitedStream(f, CONSTANTS.max_config_size)
+            data = yaml.safe_load(stream)
+
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
-        # Avoid exposing full path in details if possible, or assume logs are secure.
-        # Audit requested sanitization.
         raise ConfigurationError(msg, details={"filename": path.name}) from e
+    except ConfigurationError:
+        raise
+    except Exception as e:  # Catch unexpected errors during load
+        msg = f"Unexpected error loading configuration: {e}"
+        raise ConfigurationError(msg) from e
 
     if not isinstance(data, dict):
         msg = "Configuration file must contain a YAML dictionary."
