@@ -155,20 +155,24 @@ class StructureMetadata(BaseModel):
             msg = "Feature keys must be strings"
             raise ValueError(msg)
 
-        # Validate values (whitelist approach)
-        # Allow basic types, numpy arrays (as lists), and ASE Atoms (opaque check)
-        # We can't easily check for ASE Atoms without importing ASE, which might be optional dependency.
-        # But we can check for general serializable types or explicit allowed objects.
-        # For now, let's just ensure no obviously dangerous types if possible, or just basic types.
-        # Given "Arbitrary objects" warning, strict typing is hard for 'features'.
-        # We rely on "extra='forbid'" in the model config for the model itself,
-        # but features is dict[str, Any].
-        # We can enforce that values are not callables or modules.
         for key, value in v.items():
             if callable(value):
                 msg = f"Feature '{key}' cannot be a callable"
                 raise TypeError(msg)
-            # Add more checks as needed.
+
+            # Basic type check for security (allow primitives, lists, dicts, and Atoms objects by name)
+            # We allow objects if they have a 'todict' or 'as_dict' method or are ASE Atoms
+            type_name = type(value).__name__
+            allowed_types = (str, int, float, bool, list, tuple, dict, type(None))
+
+            if not isinstance(value, allowed_types):
+                # Check for ASE Atoms or known safe types
+                if type_name == "Atoms" or hasattr(value, "todict") or hasattr(value, "as_dict"):
+                    continue
+                # Reject unknown complex types to prevent injection of arbitrary objects
+                msg = f"Feature '{key}' has unsafe type: {type_name}"
+                raise ValueError(msg)
+
         return v
 
     @model_validator(mode="after")

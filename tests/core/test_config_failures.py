@@ -83,8 +83,14 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
 
     # Create a file slightly larger than limit
     # We create a valid YAML structure but repeat it to exceed size
-    content = "key: value\n" * (CONSTANTS.max_config_size // 10 + 100)
-    config_file.write_text(content)
+    # Use chunked write to avoid large in-memory string
+    chunk = "key: value\n"
+    target_size = CONSTANTS.max_config_size + 100
+    with config_file.open("w") as f:
+        written = 0
+        while written < target_size:
+            f.write(chunk)
+            written += len(chunk)
 
     # Patch stat size to be small so it passes the initial check
     # But reading it will fail
