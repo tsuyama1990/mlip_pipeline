@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from pyacemaker.core.config import (
@@ -42,6 +43,8 @@ def test_dft_config_parameters_validation() -> None:
     """Test DFTConfig parameters validation."""
     with pytest.raises(ValidationError) as excinfo:
         DFTConfig(code="vasp", parameters={1: "invalid"})  # type: ignore[dict-item]
+    # Pydantic's default validation happens before our validator if types mismatch.
+    # The message should relate to string type expectation.
     assert "Input should be a valid string" in str(excinfo.value)
 
 
@@ -54,6 +57,7 @@ def test_version_validation() -> None:
     }
     with pytest.raises(ValidationError) as excinfo:
         PYACEMAKERConfig(**data)  # type: ignore[arg-type]
+    # Check for Pydantic's pattern mismatch message
     assert "String should match pattern" in str(excinfo.value)
 
 
@@ -118,4 +122,27 @@ def test_load_config_parsing_error(tmp_path: Path) -> None:
     config_file.write_text("key: value: error", encoding="utf-8")
 
     with pytest.raises(ConfigurationError, match="Error parsing YAML"):
+        load_config(config_file)
+
+
+def test_empty_config(tmp_path: Path) -> None:
+    """Test loading an empty configuration file."""
+    config_file = tmp_path / "empty.yaml"
+    config_file.write_text("")
+    with pytest.raises(ConfigurationError, match="must contain a YAML dictionary"):
+        load_config(config_file)
+
+
+def test_extra_fields_forbidden(tmp_path: Path) -> None:
+    """Test that extra fields are forbidden."""
+    config_data = {
+        "version": "0.1.0",
+        "project": {"name": "Test", "root_dir": ".", "extra_field": "forbidden"},
+        "oracle": {"dft": {"code": "vasp"}},
+    }
+    config_file = tmp_path / "extra.yaml"
+    with config_file.open("w") as f:
+        yaml.dump(config_data, f)
+
+    with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
         load_config(config_file)
