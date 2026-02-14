@@ -383,6 +383,22 @@ class DynamicsEngineConfig(BaseModuleConfig):
         default=CONSTANTS.default_dynamics_gamma_threshold,
         description="Threshold for extrapolation grade (gamma) to trigger halt",
     )
+    timestep: float = Field(default=0.001, description="Timestep in ps")
+    temperature: float = Field(default=300.0, description="Temperature in K")
+    pressure: float = Field(default=0.0, description="Pressure in Bar")
+    n_steps: int = Field(default=100000, description="Number of MD steps")
+    hybrid_baseline: str = Field(default="zbl", description="Hybrid potential baseline (zbl or lj)")
+    mock: bool = Field(default=False, description="Use mock engine for testing")
+
+    @field_validator("hybrid_baseline")
+    @classmethod
+    def validate_hybrid_baseline(cls, v: str) -> str:
+        """Validate hybrid baseline."""
+        valid = {"zbl", "lj"}
+        if v.lower() not in valid:
+            msg = f"Invalid hybrid_baseline: {v}. Must be one of {valid}"
+            raise ValueError(msg)
+        return v.lower()
 
 
 class ValidatorConfig(BaseModel):

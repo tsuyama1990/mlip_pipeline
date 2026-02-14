@@ -80,5 +80,5 @@ def test_policy_consistent_behavior(mock_config: MagicMock) -> None:
 
     # Check same internal parameters
     if isinstance(decision1, RandomStrategy) and isinstance(decision2, RandomStrategy):
-         assert decision1.strain_range == decision2.strain_range
-         assert decision1.rattle_amplitude == decision2.rattle_amplitude
+        assert decision1.strain_range == decision2.strain_range
+        assert decision1.rattle_amplitude == decision2.rattle_amplitude

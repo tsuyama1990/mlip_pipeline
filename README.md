@@ -17,6 +17,7 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 -   **Delta Learning**: Automatically configures physics-based baselines (ZBL/LJ) to ensure core repulsion, allowing the ACE potential to learn only the difference ($E_{ACE} = E_{DFT} - E_{Baseline}$).
 -   **Dataset Management**: Efficient handling of large atomic structure datasets (`.pckl.gzip`), fully compatible with Pacemaker. Includes streaming support for large files.
 -   **Active Learning Loop**: Uses "Halt & Diagnose" logic to monitor MD simulations. If uncertainty ($\gamma$) spikes, the simulation halts, and the problematic structure is automatically sent for labeling and retraining.
+-   **Dynamics Engine Integration**:  Support for running MD simulations via LAMMPS with automated input generation (including hybrid potentials like ACE+ZBL/LJ).
 
 ## Requirements
 
@@ -154,7 +155,7 @@ pyacemaker/
 -   [x] Cycle 02: Oracle (DFT) & Data Management
 -   [x] Cycle 03: Trainer (Pacemaker Integration)
 -   [x] Cycle 04: Structure Generation
--   [ ] Cycle 05: Dynamics Engine (MD/kMC)
+-   [x] Cycle 05: Dynamics Engine (MD/kMC) & On-the-Fly Learning
 -   [ ] Cycle 06: Validator & Final Polish
 
 ## License

@@ -184,6 +184,34 @@ class StructureMetadata(BaseModel):
         return self
 
 
+class HaltInfo(BaseModel):
+    """Information about a halted MD simulation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    halted: bool = Field(..., description="Whether the simulation halted")
+    step: int | None = Field(default=None, description="Timestep at which halt occurred")
+    max_gamma: float | None = Field(default=None, description="Maximum extrapolation grade at halt")
+    structure: StructureMetadata | None = Field(
+        default=None, description="The structure that triggered the halt"
+    )
+
+    @model_validator(mode="after")
+    def validate_halt_state(self) -> "HaltInfo":
+        """Validate consistency of halt state."""
+        if self.halted:
+            if self.step is None:
+                msg = "Step must be provided when halted is True"
+                raise ValueError(msg)
+            if self.max_gamma is None:
+                msg = "Max gamma must be provided when halted is True"
+                raise ValueError(msg)
+            if self.structure is None:
+                msg = "Structure must be provided when halted is True"
+                raise ValueError(msg)
+        return self
+
+
 class PotentialType(str, Enum):
     """Type of interatomic potential."""
 
