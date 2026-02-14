@@ -122,11 +122,15 @@ class Orchestrator(IOrchestrator):
         # 4. Selection (Local Candidates & Active Set)
         self.logger.info("Phase: Selection")
         candidates = []
+        n_local = self.config.orchestrator.n_local_candidates
         for seed in high_uncertainty_structures:
-            local = self.structure_generator.generate_local_candidates(seed, n_candidates=10)
+            local = self.structure_generator.generate_local_candidates(
+                seed, n_candidates=n_local
+            )
             candidates.extend(local)
 
-        active_set = self.trainer.select_active_set(candidates, n_select=5)
+        n_select = self.config.orchestrator.n_active_set_select
+        active_set = self.trainer.select_active_set(candidates, n_select=n_select)
 
         # Filter candidates by ID
         selected_structures = [c for c in candidates if c.id in active_set.structure_ids]

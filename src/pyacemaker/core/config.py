@@ -29,6 +29,8 @@ class Constants(BaseSettings):
     default_engine: str = "lammps"
     default_orchestrator_max_cycles: int = 10
     default_orchestrator_uncertainty: float = 0.1
+    default_orchestrator_n_local_candidates: int = 10
+    default_orchestrator_n_active_set_select: int = 5
     default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
     version_regex: str = r"^\d+\.\d+\.\d+$"
 
@@ -183,6 +185,14 @@ class OrchestratorConfig(BaseModel):
         default=CONSTANTS.default_orchestrator_uncertainty,
         description="Threshold for uncertainty sampling"
     )
+    n_local_candidates: int = Field(
+        default=CONSTANTS.default_orchestrator_n_local_candidates,
+        description="Number of local candidates to generate per seed"
+    )
+    n_active_set_select: int = Field(
+        default=CONSTANTS.default_orchestrator_n_active_set_select,
+        description="Number of structures to select for active set"
+    )
 
 
 class LoggingConfig(BaseModel):
@@ -259,8 +269,7 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration path is not a file: {path.name}"
         raise ConfigurationError(msg)
 
-    # Check file size to prevent DOS (OOM)
-    # This is critical: we check size BEFORE opening or parsing.
+    # File size check (preliminary stat)
     try:
         if path.stat().st_size > CONSTANTS.max_config_size:
             msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
@@ -271,9 +280,17 @@ def load_config(path: Path) -> PYACEMAKERConfig:
 
     try:
         with path.open("r", encoding="utf-8") as f:
-            # safe_load is sufficient here because we have already enforced a small file size limit (1MB).
-            # This prevents loading massive files into memory.
-            data = yaml.safe_load(f)
+            # Safe loading with hard limit on read size
+            # We read file content into a string with strict size limit
+            content = f.read(CONSTANTS.max_config_size + 1)
+
+            # Second check: verify read content size (in case file grew between stat and read)
+            if len(content) > CONSTANTS.max_config_size:
+                msg = f"Configuration file content exceeds limit of {CONSTANTS.max_config_size} bytes"
+                raise ConfigurationError(msg)
+
+            data = yaml.safe_load(content)
+
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e

@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 from pydantic import ValidationError
 
 from pyacemaker.core.config import (
@@ -73,6 +72,25 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
 
     with pytest.raises(ConfigurationError, match="Configuration file too large"):
+        load_config(config_file)
+
+
+def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that reading stops if content exceeds limit (race condition simulation)."""
+    config_file = tmp_path / "race_large.yaml"
+
+    # Write content slightly larger than limit
+    content = "a" * (CONSTANTS.max_config_size + 10)
+    config_file.write_text(content)
+
+    # We skip the stat check to simulate race condition where file grew
+    class MockStat:
+        st_size = 100 # Small size reported
+        st_mode = 33188
+
+    monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
+
+    with pytest.raises(ConfigurationError, match="exceeds limit"):
         load_config(config_file)
 
 
