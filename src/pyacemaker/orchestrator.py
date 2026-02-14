@@ -1,6 +1,10 @@
 """Orchestrator module implementation."""
 
-from pyacemaker.core.base import Metrics, ModuleResult
+from collections.abc import Iterable, Iterator
+from itertools import chain
+from typing import TypeVar
+
+from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -21,6 +25,13 @@ from pyacemaker.modules.structure_generator import RandomStructureGenerator
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
 
+T = TypeVar("T", bound=BaseModule)
+
+
+def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T:
+    """Factory to create a default module instance."""
+    return module_class(config)
+
 
 class Orchestrator(IOrchestrator):
     """Main Orchestrator for the active learning cycle."""
@@ -36,19 +47,22 @@ class Orchestrator(IOrchestrator):
     ) -> None:
         """Initialize the orchestrator and sub-modules.
 
-        Dependencies can be injected; otherwise, default implementations are instantiated.
+        Dependencies can be injected; otherwise, default implementations are instantiated via factory.
         """
         super().__init__(config)
         self.config = config
 
-        # Dependency Injection with fallbacks
+        # Dependency Injection with fallbacks using factory pattern
         self.structure_generator: StructureGenerator = (
-            structure_generator or RandomStructureGenerator(config)
+            structure_generator
+            or _create_default_module(RandomStructureGenerator, config)
         )
-        self.oracle: Oracle = oracle or MockOracle(config)
-        self.trainer: Trainer = trainer or PacemakerTrainer(config)
-        self.dynamics_engine: DynamicsEngine = dynamics_engine or LAMMPSEngine(config)
-        self.validator: Validator = validator or MockValidator(config)
+        self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
+        self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
+        self.dynamics_engine: DynamicsEngine = (
+            dynamics_engine or _create_default_module(LAMMPSEngine, config)
+        )
+        self.validator: Validator = validator or _create_default_module(MockValidator, config)
 
         # State
         self.current_potential: Potential | None = None
@@ -63,6 +77,8 @@ class Orchestrator(IOrchestrator):
         if not self.dataset:
             self.logger.info("Cold Start: Generating initial structures")
             initial_structures = self.structure_generator.generate_initial_structures()
+            # Stream: initial_structures (iter) -> compute_batch (iter) -> extend (consumes)
+            # This avoids holding intermediate lists in memory.
             self.dataset.extend(self.oracle.compute_batch(initial_structures))
 
         # Main Loop
@@ -101,41 +117,69 @@ class Orchestrator(IOrchestrator):
         # 2. Validation
         self.logger.info("Phase: Validation")
         # Split dataset for validation (simple holdout for now)
-        # TODO: Implement better splitting strategy (e.g., config based)
         test_size = max(1, int(len(self.dataset) * 0.1))
+        # Use slicing carefully, dataset is a list so this creates a copy
+        # For very large datasets, we might need indices instead
         test_set = self.dataset[:test_size]
         val_result = self.validator.validate(potential, test_set)
 
         if val_result.status == "failed":
             self.logger.warning("Validation failed, but continuing for exploration...")
-            # In a real system, we might stop or adjust strategy
 
         # 3. Exploration (MD)
         self.logger.info("Phase: Exploration")
-        high_uncertainty_structures = self.dynamics_engine.run_exploration(potential)
+        high_uncertainty_iter = self.dynamics_engine.run_exploration(potential)
 
-        if not high_uncertainty_structures:
+        # Check if we found anything without consuming the whole stream
+        try:
+            first_structure = next(high_uncertainty_iter)
+        except StopIteration:
             self.logger.info("No high uncertainty structures found. Converged?")
             return CycleStatus.CONVERGED
+
+        # Reconstruct iterator
+        high_uncertainty_stream = chain([first_structure], high_uncertainty_iter)
+
+        # Spy on the stream to calculate metrics (max gamma) without materializing list
+        max_gamma = 0.0
+
+        def stats_spy(iterator: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+            nonlocal max_gamma
+            for s in iterator:
+                if s.uncertainty_state and s.uncertainty_state.gamma_max:
+                    max_gamma = max(max_gamma, s.uncertainty_state.gamma_max)
+                yield s
+
+        high_uncertainty_stream_with_stats = stats_spy(high_uncertainty_stream)
 
         # 4. Selection (Local Candidates & Active Set)
         self.logger.info("Phase: Selection")
         n_local = self.config.orchestrator.n_local_candidates
 
-        # Batch generation of candidates (improved I/O efficiency)
-        candidates = self.structure_generator.generate_batch_candidates(
-            high_uncertainty_structures, n_candidates_per_seed=n_local
+        # Stream candidates generation
+        candidates_iter = self.structure_generator.generate_batch_candidates(
+            high_uncertainty_stream_with_stats, n_candidates_per_seed=n_local
         )
 
-        n_select = self.config.orchestrator.n_active_set_select
-        active_set = self.trainer.select_active_set(candidates, n_select=n_select)
+        # For selection (FPS/CUR), we typically need the full pool.
+        # So we materialize the *candidates* (not the full dataset).
+        # Candidates are derived from high_uncertainty seeds * n_local.
+        # This list should fit in memory (e.g. 100 seeds * 10 candidates = 1000 structures).
+        candidates_list = list(candidates_iter)
 
-        # Filter candidates by ID (Optimized with Set)
+        # Log stats after consumption
+        self.logger.info(f"Exploration max gamma: {max_gamma:.2f}")
+
+        n_select = self.config.orchestrator.n_active_set_select
+        active_set = self.trainer.select_active_set(candidates_list, n_select=n_select)
+
+        # Filter candidates by ID
         active_ids = set(active_set.structure_ids)
-        selected_structures = [c for c in candidates if c.id in active_ids]
+        selected_structures = [c for c in candidates_list if c.id in active_ids]
 
         # 5. Calculation (Oracle)
         self.logger.info(f"Phase: Calculation ({len(selected_structures)} structures)")
+        # Stream processing: list -> compute_batch(iter) -> extend
         new_data = self.oracle.compute_batch(selected_structures)
         self.dataset.extend(new_data)
 

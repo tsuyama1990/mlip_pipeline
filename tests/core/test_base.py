@@ -1,7 +1,7 @@
 """Tests for BaseModule."""
 
 from pyacemaker.core.base import BaseModule, ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 
 
 class ConcreteModule(BaseModule):
@@ -15,17 +15,32 @@ class ConcreteModule(BaseModule):
 
 def test_base_module_initialization() -> None:
     """Test BaseModule initialization and logger setup."""
-    config_data = {
-        "project": {"name": "Test", "root_dir": "."},
-        "oracle": {"dft": {"code": "qe", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
-    }
-    config = PYACEMAKERConfig(**config_data)  # type: ignore[arg-type]
+    # Skip file checks
+    original_skip = CONSTANTS.skip_file_checks
+    CONSTANTS.skip_file_checks = True
 
-    module = ConcreteModule(config)
+    try:
+        config_data = {
+            "version": "0.1.0",
+            "project": {"name": "Test", "root_dir": "."},
+            "oracle": {
+                "dft": {
+                    "code": "qe",
+                    "pseudopotentials": {"Fe": "Fe.pbe.UPF"},
+                    "parameters": {},
+                },
+                "mock": True,
+            },
+        }
+        config = PYACEMAKERConfig(**config_data)  # type: ignore[arg-type]
 
-    assert module.config == config
-    assert module.logger is not None
+        module = ConcreteModule(config)
 
-    # Verify run execution
-    result = module.run()
-    assert result.status == "success"
+        assert module.config == config
+        assert module.logger is not None
+
+        # Verify run execution
+        result = module.run()
+        assert result.status == "success"
+    finally:
+        CONSTANTS.skip_file_checks = original_skip

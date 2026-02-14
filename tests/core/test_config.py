@@ -1,5 +1,6 @@
 """Tests for configuration management."""
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -84,18 +85,25 @@ def test_dft_config_pseudopotentials_valid(tmp_path: Path) -> None:
 
 def test_version_validation() -> None:
     """Test semantic version validation."""
-    data = {
-        "version": "invalid",
-        "project": {"name": "Test", "root_dir": "."},
-        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
-    }
-    with pytest.raises(ValidationError) as excinfo:
-        PYACEMAKERConfig(**data)  # type: ignore[arg-type]
-    # Pydantic's regex mismatch message
-    assert "String should match pattern" in str(excinfo.value)
+    original_skip = CONSTANTS.skip_file_checks
+    CONSTANTS.skip_file_checks = True
+    try:
+        data = {
+            "version": "invalid",
+            "project": {"name": "Test", "root_dir": "."},
+            "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
+        }
+        with pytest.raises(ValidationError) as excinfo:
+            PYACEMAKERConfig(**data)  # type: ignore[arg-type]
+        # Pydantic's regex mismatch message
+        assert "String should match pattern" in str(excinfo.value)
+    finally:
+        CONSTANTS.skip_file_checks = original_skip
 
 
-def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_config_file_too_large(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test loading a file that exceeds the size limit."""
     config_file = tmp_path / "large.yaml"
     config_file.touch()
@@ -113,7 +121,9 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         load_config(config_file)
 
 
-def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_config_content_too_large(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that reading stops if content exceeds limit (race condition simulation)."""
     config_file = tmp_path / "race_large.yaml"
 
@@ -128,23 +138,38 @@ def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.Monke
 
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
 
+    # Mock os.access
+    monkeypatch.setattr(os, "access", lambda path, mode: True)
+
     with pytest.raises(ConfigurationError, match="exceeds limit"):
         load_config(config_file)
 
 
 def test_load_config_chunked_read(tmp_path: Path) -> None:
     """Test reading a valid file in chunks (implicit test of logic)."""
-    config_data = {
-        "version": "0.1.0",
-        "project": {"name": "ChunkTest", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
-    }
-    config_file = tmp_path / "chunk_config.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
+    original_skip = CONSTANTS.skip_file_checks
+    CONSTANTS.skip_file_checks = True
+    try:
+        config_data = {
+            "version": "0.1.0",
+            "project": {"name": "ChunkTest", "root_dir": str(tmp_path)},
+            "oracle": {
+                "dft": {
+                    "code": "vasp",
+                    "pseudopotentials": {"Fe": "Fe.pbe.UPF"},
+                    "parameters": {},
+                },
+                "mock": True,
+            },
+        }
+        config_file = tmp_path / "chunk_config.yaml"
+        with config_file.open("w") as f:
+            yaml.dump(config_data, f)
 
-    config = load_config(config_file)
-    assert config.project.name == "ChunkTest"
+        config = load_config(config_file)
+        assert config.project.name == "ChunkTest"
+    finally:
+        CONSTANTS.skip_file_checks = original_skip
 
 
 def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -159,6 +184,8 @@ def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         msg = "Simulated read error"
         raise OSError(msg)
 
+    # Mock os.access
+    monkeypatch.setattr(os, "access", lambda path, mode: True)
     monkeypatch.setattr("pathlib.Path.open", mock_open)
 
     with pytest.raises(ConfigurationError, match="Error reading configuration"):
@@ -184,14 +211,33 @@ def test_empty_config(tmp_path: Path) -> None:
 
 def test_extra_fields_forbidden(tmp_path: Path) -> None:
     """Test that extra fields are forbidden."""
-    config_data = {
-        "version": "0.1.0",
-        "project": {"name": "Test", "root_dir": ".", "extra_field": "forbidden"},
-        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
-    }
-    config_file = tmp_path / "extra.yaml"
-    with config_file.open("w") as f:
-        yaml.dump(config_data, f)
+    original_skip = CONSTANTS.skip_file_checks
+    CONSTANTS.skip_file_checks = True
+    try:
+        config_data = {
+            "version": "0.1.0",
+            "project": {"name": "Test", "root_dir": ".", "extra_field": "forbidden"},
+            "oracle": {
+                "dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}},
+                "mock": True,
+            },
+        }
+        config_file = tmp_path / "extra.yaml"
+        with config_file.open("w") as f:
+            yaml.dump(config_data, f)
 
-    with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
+        with pytest.raises(ConfigurationError, match="Extra inputs are not permitted"):
+            load_config(config_file)
+    finally:
+        CONSTANTS.skip_file_checks = original_skip
+
+def test_load_config_permission_denied(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test handling of permission error."""
+    config_file = tmp_path / "protected.yaml"
+    config_file.touch()
+
+    # Mock os.access to return False
+    monkeypatch.setattr(os, "access", lambda path, mode: False)
+
+    with pytest.raises(ConfigurationError, match="Permission denied"):
         load_config(config_file)

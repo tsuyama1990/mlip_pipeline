@@ -27,8 +27,8 @@ def test_save_load_iter(tmp_path: Path) -> None:
     iterator = manager.load_iter(dataset_path)
     loaded_data = list(iterator)
     assert len(loaded_data) == 2
-    assert loaded_data[0].get_chemical_formula() == "H2"
-    assert loaded_data[1].get_chemical_formula() == "O2"
+    assert loaded_data[0].get_chemical_formula() == "H2"  # type: ignore[no-untyped-call]
+    assert loaded_data[1].get_chemical_formula() == "O2"  # type: ignore[no-untyped-call]
 
 
 def test_load_iter_legacy_list_rejection(tmp_path: Path) -> None:
@@ -71,7 +71,7 @@ def test_load_iter_corrupted(tmp_path: Path) -> None:
     iterator = manager.load_iter(dataset_path)
     # Should read the first atom
     first = next(iterator)
-    assert first.get_chemical_formula() == "H2"
+    assert first.get_chemical_formula() == "H2"  # type: ignore[no-untyped-call]
 
     # Should stop iteration (StopIteration implicitly)
     with pytest.raises(StopIteration):

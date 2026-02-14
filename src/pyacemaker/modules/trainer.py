@@ -25,7 +25,12 @@ class PacemakerTrainer(Trainer):
         self, dataset: list[StructureMetadata], initial_potential: Potential | None = None
     ) -> Potential:
         """Train a potential."""
-        self.logger.info(f"Training on dataset of size {len(dataset)} (mock)")
+        # Use generator expression to avoid creating intermediate list
+        valid_dataset_count = sum(1 for s in dataset if s.energy is not None)
+
+        self.logger.info(
+            f"Training on {valid_dataset_count} valid structures out of {len(dataset)} (mock)"
+        )
 
         # Create a dummy potential file
         # Use NamedTemporaryFile to avoid hardcoded paths
@@ -38,6 +43,7 @@ class PacemakerTrainer(Trainer):
             type=PotentialType.PACE,
             version="1.0",
             metrics={"rmse_energy": 0.005},
+            parameters={"cutoff": 5.0, "max_deg": 12, "ladder_step": 1},
         )
 
     def select_active_set(self, candidates: list[StructureMetadata], n_select: int) -> ActiveSet:

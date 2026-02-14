@@ -1,5 +1,7 @@
 """Tests for Oracle module."""
 
+import secrets
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,14 +21,18 @@ from pyacemaker.modules.oracle import DFTOracle, MockOracle
 
 
 @pytest.fixture
-def config() -> PYACEMAKERConfig:
+def config(tmp_path: Path) -> PYACEMAKERConfig:
     """Return a valid configuration for DFTOracle."""
+    # Create dummy pseudopotential file
+    pp_file = tmp_path / "Fe.pbe.UPF"
+    pp_file.touch()
+
     return PYACEMAKERConfig(
         version="0.1.0",
-        project=ProjectConfig(name="Test", root_dir=Path(".")),
+        project=ProjectConfig(name="Test", root_dir=tmp_path),
         oracle=OracleConfig(
             dft=DFTConfig(
-                code="qe", pseudopotentials={"Fe": "Fe.pbe.UPF"}, parameters={}
+                code="qe", pseudopotentials={"Fe": str(pp_file)}, parameters={}
             ),
             mock=False,
         ),
@@ -48,41 +54,61 @@ def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
     oracle._update_structure_common(s1, result_atoms)
 
     assert s1.status == StructureStatus.CALCULATED
-    assert s1.features["energy"] == -13.6
-    assert s1.features["forces"] == [[0.0, 0.0, 0.0]]
+    assert s1.energy == -13.6
+    assert s1.forces == [[0.0, 0.0, 0.0]]
     assert s1.features["atoms"] == result_atoms
 
 
 def test_dft_oracle_compute_batch_flow(config: PYACEMAKERConfig) -> None:
-    """Test DFTOracle compute_batch flow (chunking and skipping)."""
+    """Test DFTOracle compute_batch flow (streaming)."""
     oracle = DFTOracle(config)
 
     # Create structures
     atoms1 = Atoms("H")
     s1 = StructureMetadata(tags=["test"], features={"atoms": atoms1})
-    s2 = StructureMetadata(tags=["test"]) # No atoms
-    s3 = StructureMetadata(tags=["test"], status=StructureStatus.CALCULATED)
+    s2 = StructureMetadata(tags=["test"])  # No atoms (should fail)
+    # s3 is already calculated, so it must have energy/forces
+    s3 = StructureMetadata(
+        tags=["test"],
+        status=StructureStatus.CALCULATED,
+        energy=-5.0,
+        forces=[[0.0, 0.0, 0.0]],
+    )
 
     structures = [s1, s2, s3]
-    result_atoms = Atoms("H") # Placeholder result
+    result_atoms = Atoms("H")  # Placeholder result
+    result_atoms.get_potential_energy = MagicMock(return_value=-10.0)  # type: ignore[method-assign]
+    result_atoms.get_forces = MagicMock(return_value=np.array([[0.0, 0.0, 0.0]]))  # type: ignore[method-assign]
 
     # Mock DFTManager to return iterator
     # Mock _update_structure_common to verify it is called
-    with patch("pyacemaker.oracle.manager.DFTManager.compute_batch", return_value=iter([result_atoms])) as mock_compute:
-        with patch.object(oracle, "_update_structure_common") as mock_update:
-            results_iter = oracle.compute_batch(structures)
-            results = list(results_iter)
+    with (
+        patch(
+            "pyacemaker.modules.oracle.DFTManager.compute",
+            return_value=result_atoms,
+        ) as mock_compute,
+        patch.object(
+            oracle, "_update_structure_common", wraps=oracle._update_structure_common
+        ) as mock_update,
+    ):
+        results_iter = oracle.compute_batch(structures)
+        results = list(results_iter)
 
-            assert len(results) == 3
-            # Check calling args
-            mock_compute.assert_called_once()
-            # Verify update called for s1
-            mock_update.assert_called_once_with(s1, result_atoms)
+        assert len(results) == 3
 
-            # s3 should be skipped (yielded as is)
-            # Compare IDs because Pydantic equality might be strict or object identity issues in iterator
-            assert results[2].id == s3.id
-            assert results[2].status == StructureStatus.CALCULATED
+        # Verify call count:
+        # s1 -> compute called
+        # s2 -> compute NOT called (no atoms)
+        # s3 -> compute NOT called (already calculated)
+        assert mock_compute.call_count == 1
+        mock_compute.assert_called_with(atoms1)
+
+        mock_update.assert_called_with(s1, result_atoms)
+
+        # Check statuses
+        assert results[0].status == StructureStatus.CALCULATED  # s1
+        assert results[1].status == StructureStatus.FAILED  # s2
+        assert results[2].status == StructureStatus.CALCULATED  # s3
 
 
 def test_mock_oracle_simulation_failure(config: PYACEMAKERConfig) -> None:
@@ -111,5 +137,72 @@ def test_mock_oracle_determinism(config: PYACEMAKERConfig) -> None:
     res2_iter = oracle2.compute_batch([s2])
     res2 = next(res2_iter)
 
-    assert res1.features["energy"] == res2.features["energy"]
-    assert res1.features["forces"] == res2.features["forces"]
+    assert res1.energy == res2.energy
+    assert res1.forces == res2.forces
+
+
+def test_mock_oracle_randomness(config: PYACEMAKERConfig) -> None:
+    """Test that MockOracle uses secure random if no seed provided."""
+    # Ensure no seed
+    if "seed" in config.oracle.dft.parameters:
+        del config.oracle.dft.parameters["seed"]
+
+    oracle = MockOracle(config)
+    assert isinstance(oracle.rng, secrets.SystemRandom)
+
+
+def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
+    """Test that DFTOracle streams data (yields results incrementally)."""
+    # Reduce chunk size for test
+    config.oracle.dft.chunk_size = 2
+    oracle = DFTOracle(config)
+
+    # Create a generator that yields structures
+    def structure_generator() -> Iterator[StructureMetadata]:
+        for i in range(3):
+            yield StructureMetadata(tags=[f"test_{i}"], features={"atoms": Atoms("H")})
+
+    # Mock DFTManager to return dummy atoms
+    dummy_atom = MagicMock(spec=Atoms)
+    dummy_atom.get_potential_energy.return_value = -1.0
+    dummy_atom.get_forces.return_value = np.array([[0.0, 0.0, 0.0]])
+    dummy_atom.get_stress.return_value = np.array([0.0] * 6)
+
+    # Use side_effect or return value
+    with patch(
+        "pyacemaker.modules.oracle.DFTManager.compute",
+        return_value=dummy_atom,
+    ) as mock_compute:
+        results_iter = oracle.compute_batch(structure_generator())
+
+        # Consume 1st (Should process 1st chunk of 2)
+        r1 = next(results_iter)
+        # Because we parallelize chunks, processing 1st chunk (size 2) might call compute 2 times immediately
+        # But yield one by one.
+        # r1 and r2 are in first chunk.
+
+        # Consume 2nd
+        r2 = next(results_iter)
+
+        # Check calls after first chunk fully consumed
+        # mock_compute should have been called for struct 0 and 1
+        assert mock_compute.call_count >= 2
+        assert r1.status == StructureStatus.CALCULATED
+        assert r2.status == StructureStatus.CALCULATED
+
+        # Consume 3rd (Second chunk, size 1)
+        r3 = next(results_iter)
+        assert mock_compute.call_count == 3
+        assert r3.status == StructureStatus.CALCULATED
+
+        # Should be empty now
+        with pytest.raises(StopIteration):
+            next(results_iter)
+
+
+def test_oracle_validation(config: PYACEMAKERConfig) -> None:
+    """Test structure validation."""
+    oracle = DFTOracle(config)
+    # Using ignore because we are intentionally passing invalid type
+    with pytest.raises(TypeError, match="Expected StructureMetadata"):
+        next(oracle.compute_batch(["invalid"]))  # type: ignore[list-item]

@@ -15,7 +15,10 @@ class MockValidator(Validator):
 
     def validate(self, potential: Potential, test_set: list[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
-        self.logger.info(f"Validating {potential.path} on {len(test_set)} structures (mock)")
+        valid_set = [s for s in test_set if s.energy is not None]
+        self.logger.info(
+            f"Validating {potential.path} on {len(valid_set)} valid structures (mock)"
+        )
 
         # Check metrics against thresholds (mock)
         metrics = {"rmse_energy": 0.005, "rmse_forces": 0.05}

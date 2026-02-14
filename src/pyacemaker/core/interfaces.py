@@ -17,22 +17,27 @@ class StructureGenerator(BaseModule):
     """Interface for structure generation module."""
 
     @abstractmethod
-    def generate_initial_structures(self) -> list[StructureMetadata]:
+    def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures for cold start."""
         ...
 
     @abstractmethod
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int
-    ) -> list[StructureMetadata]:
+    ) -> Iterator[StructureMetadata]:
         """Generate candidate structures around a seed structure (e.g., high uncertainty)."""
         ...
 
     @abstractmethod
     def generate_batch_candidates(
-        self, seed_structures: list[StructureMetadata], n_candidates_per_seed: int
-    ) -> list[StructureMetadata]:
+        self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
+    ) -> Iterator[StructureMetadata]:
         """Generate candidate structures for a batch of seeds."""
+        ...
+
+    @abstractmethod
+    def get_strategy_info(self) -> dict[str, Any]:
+        """Return information about the current exploration strategy."""
         ...
 
 
@@ -70,8 +75,11 @@ class DynamicsEngine(BaseModule):
     """Interface for Dynamics Engine (MD/kMC) module."""
 
     @abstractmethod
-    def run_exploration(self, potential: Potential) -> list[StructureMetadata]:
-        """Run MD exploration and return high-uncertainty structures."""
+    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
+        """Run MD exploration and return high-uncertainty structures.
+
+        The returned structures should have `uncertainty_state` populated.
+        """
         ...
 
     @abstractmethod

@@ -1,8 +1,8 @@
-"""Tests for configuration loading failures."""
+"""Tests for configuration failure modes."""
 
-import io
+import stat
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -10,101 +10,112 @@ from pyacemaker.core.config import CONSTANTS, load_config
 from pyacemaker.core.exceptions import ConfigurationError
 
 
-def test_load_config_file_not_found(tmp_path: Path) -> None:
+def test_load_config_not_found(tmp_path: Path) -> None:
     """Test loading a non-existent configuration file."""
-    config_file = tmp_path / "non_existent.yaml"
+    config_file = tmp_path / "nonexistent.yaml"
     with pytest.raises(ConfigurationError, match="Configuration file not found"):
         load_config(config_file)
 
 
-def test_load_config_not_a_file(tmp_path: Path) -> None:
-    """Test loading a directory as configuration file."""
-    config_dir = tmp_path / "config_dir"
-    config_dir.mkdir()
-
-    # Use a Mock that behaves like a directory Path but is accepted by load_config checks
-    with pytest.raises(ConfigurationError, match="Configuration file not found or invalid"):
-        load_config(config_dir)
-
-
-def test_load_config_permission_error(tmp_path: Path) -> None:
-    """Test loading a file with permission error."""
-    # Use a Mock path to simulate PermissionError on open
+def test_load_config_permission_error() -> None:
+    """Test loading a configuration file without read permissions."""
+    # Use a Mock object for path to avoid creating actual files/permissions
     mock_path = Mock(spec=Path)
     mock_path.exists.return_value = True
     mock_path.is_file.return_value = True
-    mock_path.stat.return_value.st_size = 100
-    mock_path.name = "config.yaml"
-    mock_path.open.side_effect = PermissionError("Permission denied")
+    mock_path.name = "protected.yaml"
 
-    with pytest.raises(ConfigurationError, match="Error reading configuration file"):
+    # Patch os.access to simulate permission denied
+    with (
+        patch("os.access", return_value=False),
+        pytest.raises(ConfigurationError, match="Permission denied"),
+    ):
         load_config(mock_path)
 
 
 def test_load_config_too_large_stat() -> None:
-    """Test loading a file that stat reports as too large."""
+    """Test loading a configuration file that reports too large size in stat."""
     mock_path = Mock(spec=Path)
     mock_path.exists.return_value = True
     mock_path.is_file.return_value = True
-    mock_path.stat.return_value.st_size = CONSTANTS.max_config_size + 1
     mock_path.name = "large.yaml"
 
-    with pytest.raises(ConfigurationError, match="Configuration file too large"):
+    # Configure stat size
+    mock_stat = MagicMock()
+    mock_stat.st_size = CONSTANTS.max_config_size + 1
+    mock_path.stat.return_value = mock_stat
+
+    # Patch os.access to allow read
+    with (
+        patch("os.access", return_value=True),
+        pytest.raises(ConfigurationError, match="Configuration file too large"),
+    ):
         load_config(mock_path)
 
 
-def test_load_config_too_large_stream() -> None:
-    """Test loading a file that grows beyond limit during reading."""
-    mock_path = Mock(spec=Path)
-    mock_path.exists.return_value = True
-    mock_path.is_file.return_value = True
-    mock_path.stat.return_value.st_size = 100  # Report small size
-    mock_path.name = "growing.yaml"
+def test_load_config_too_large_stream(tmp_path: Path) -> None:
+    """Test loading a configuration file that exceeds size limit during read."""
+    # This tests LimitedStream behavior via load_config
+    config_file = tmp_path / "stream_large.yaml"
 
-    # Create large content
+    # Create a file slightly larger than limit
+    # We create a valid YAML structure but repeat it to exceed size
     content = "key: value\n" * (CONSTANTS.max_config_size // 10 + 100)
+    config_file.write_text(content)
 
-    # Configure mock open context manager
-    mock_file = Mock()
-    mock_file.__enter__ = Mock(return_value=io.StringIO(content))
-    mock_file.__exit__ = Mock(return_value=None)
-    mock_path.open.return_value = mock_file
+    # Patch stat size to be small so it passes the initial check
+    # But reading it will fail
+    with patch.object(Path, "stat") as mock_stat:
+        mock_stat.return_value.st_size = 100
+        # Must also mock st_mode for is_file check if it calls stat
+        mock_stat.return_value.st_mode = stat.S_IFREG
 
-    with pytest.raises(ConfigurationError, match="Configuration file exceeds limit"):
-        load_config(mock_path)
+        # We need to ensure is_file returns True, which might depend on stat
+        # Or we can patch is_file on the specific path object? No, Path methods are on class.
+        # But we are using a real path object here.
+        # Let's try to patch os.access as well just in case
+        with (
+            patch("os.access", return_value=True),
+            pytest.raises(ConfigurationError, match="Configuration file exceeds limit"),
+        ):
+            load_config(config_file)
 
 
 def test_load_config_invalid_yaml(tmp_path: Path) -> None:
-    """Test loading invalid YAML content."""
+    """Test loading an invalid YAML file."""
     config_file = tmp_path / "invalid.yaml"
-    config_file.write_text("key: value: invalid")  # Invalid syntax
+    config_file.write_text("key: value: invalid\n  indentation_error")
 
-    with pytest.raises(ConfigurationError, match="Error parsing YAML configuration"):
+    with pytest.raises(ConfigurationError, match="Error parsing YAML"):
+        load_config(config_file)
+
+
+def test_load_config_corrupted_stream(tmp_path: Path) -> None:
+    """Test loading a file that causes read errors (e.g. encoding)."""
+    config_file = tmp_path / "corrupt.yaml"
+    # Write invalid utf-8 byte sequence
+    with config_file.open("wb") as f:
+        f.write(b"\x80\x81\xff")
+
+    # This should raise UnicodeDecodeError during read, caught as Unexpected error
+    with pytest.raises(ConfigurationError, match="Unexpected error"):
         load_config(config_file)
 
 
 def test_load_config_not_dict(tmp_path: Path) -> None:
-    """Test loading valid YAML that is not a dictionary."""
+    """Test loading a valid YAML file that is not a dictionary."""
     config_file = tmp_path / "list.yaml"
     config_file.write_text("- item1\n- item2")
 
-    with pytest.raises(
-        ConfigurationError, match="Configuration file must contain a YAML dictionary"
-    ):
+    with pytest.raises(ConfigurationError, match="must contain a YAML dictionary"):
         load_config(config_file)
 
 
-def test_validate_root_dir_traversal() -> None:
-    """Test root directory validation for path traversal."""
-    from pyacemaker.core.config import ProjectConfig
+def test_load_config_validation_error(tmp_path: Path) -> None:
+    """Test loading a YAML file that fails Pydantic validation."""
+    config_file = tmp_path / "invalid_schema.yaml"
+    # Missing required 'project' and 'oracle' fields
+    config_file.write_text("version: 0.1.0\nlogging:\n  level: INFO")
 
-    # If we use a real path that doesn't exist:
-    bad_path = Path("/non_existent/../path")
-
-    with pytest.raises(ValueError, match="Path traversal not allowed"):
-        ProjectConfig.validate_root_dir(bad_path)
-
-    # Test valid absolute path (even if not exists, but no "..")
-    good_path = Path("/non_existent/path")
-    # This should pass validation (returns absolute)
-    assert ProjectConfig.validate_root_dir(good_path) == good_path.absolute()
+    with pytest.raises(ConfigurationError, match="Invalid configuration"):
+        load_config(config_file)

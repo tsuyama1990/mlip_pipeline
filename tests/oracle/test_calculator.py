@@ -1,8 +1,10 @@
 """Tests for Calculator Factory."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
+from ase.calculators.espresso import Espresso
 
 from pyacemaker.core.config import DFTConfig
 from pyacemaker.oracle.calculator import create_calculator
@@ -27,19 +29,24 @@ def config(tmp_path: Path) -> DFTConfig:
 def test_create_calculator(config: DFTConfig) -> None:
     """Test creating a calculator with default config."""
     calc = create_calculator(config)
+    # Cast to Espresso to access specific attributes
+    espresso_calc = cast(Espresso, calc)
+
     # Check command
-    assert calc.profile.command == "pw.x"
-    assert calc.parameters["kspacing"] == 0.1
+    # profile is an attribute of Espresso
+    assert espresso_calc.profile.command == "pw.x"
+    assert espresso_calc.parameters["kspacing"] == 0.1
 
     # Check mixing beta default
-    assert calc.parameters["input_data"]["electrons"]["mixing_beta"] == 0.7
+    assert espresso_calc.parameters["input_data"]["electrons"]["mixing_beta"] == 0.7
 
 
 def test_create_calculator_retry(config: DFTConfig) -> None:
     """Test calculator parameters adjustment on retry."""
     calc = create_calculator(config, attempt=1)
+    espresso_calc = cast(Espresso, calc)
     # Check mixing beta adjustment (0.7 - 0.1 = 0.6)
-    assert calc.parameters["input_data"]["electrons"]["mixing_beta"] == 0.6
+    assert espresso_calc.parameters["input_data"]["electrons"]["mixing_beta"] == 0.6
 
 
 def test_create_calculator_user_override(config: DFTConfig) -> None:
@@ -49,9 +56,10 @@ def test_create_calculator_user_override(config: DFTConfig) -> None:
     config.parameters = {"system": {"ecutwfc": 80.0}}
 
     calc = create_calculator(config)
-    assert calc.parameters["input_data"]["system"]["ecutwfc"] == 80.0
+    espresso_calc = cast(Espresso, calc)
+    assert espresso_calc.parameters["input_data"]["system"]["ecutwfc"] == 80.0
     # Other defaults should remain
-    assert calc.parameters["input_data"]["system"]["ecutrho"] == 200.0
+    assert espresso_calc.parameters["input_data"]["system"]["ecutrho"] == 200.0
 
 
 def test_create_calculator_unsupported_code(config: DFTConfig) -> None:

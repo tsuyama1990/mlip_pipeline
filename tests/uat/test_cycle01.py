@@ -1,5 +1,6 @@
 """User Acceptance Tests for Cycle 01."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -18,24 +19,35 @@ def test_uat_cli_help() -> None:
 
 def test_uat_valid_config(tmp_path: Path) -> None:
     """Scenario 02: Valid Configuration Loading."""
-    config_content = """
+    # Ensure config matches schema (version required)
+    config_content = f"""
+version: "0.1.0"
 project:
   name: "TestProject"
-  root_dir: "./"
+  root_dir: "{tmp_path.resolve()}"
 oracle:
   dft:
     code: "quantum_espresso"
     pseudopotentials:
       Fe: Fe.pbe.UPF
+  mock: true
 """
     config_file = tmp_path / "valid_config.yaml"
     config_file.write_text(config_content)
+
+    # Need to set PYTHONPATH to include src
+    env = {"PYTHONPATH": "src"}
+    # Also skip file checks to avoid missing pseudopotential error
+    env["PYACEMAKER_SKIP_FILE_CHECKS"] = "true"
+
+    env.update(os.environ)
 
     result = subprocess.run(
         ["pyacemaker", "run", str(config_file)],
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
     assert result.returncode == 0
@@ -55,11 +67,15 @@ project:
     config_file = tmp_path / "invalid_config.yaml"
     config_file.write_text(config_content)
 
+    env = {"PYTHONPATH": "src"}
+    env.update(os.environ)
+
     result = subprocess.run(
         ["pyacemaker", "run", str(config_file)],
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
     assert result.returncode != 0

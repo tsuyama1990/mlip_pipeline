@@ -4,12 +4,15 @@ from pathlib import Path
 
 import yaml
 
-from pyacemaker.core.config import load_config
+from pyacemaker.core.config import CONSTANTS, load_config
 from pyacemaker.orchestrator import Orchestrator
 
 
 def test_pipeline_integration(tmp_path: Path) -> None:
     """Test running the orchestrator with a loaded configuration and mock modules."""
+    # Skip file checks for this test
+    CONSTANTS.skip_file_checks = True
+
     # Create a valid configuration file
     config_data = {
         "version": "0.1.0",
