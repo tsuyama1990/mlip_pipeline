@@ -23,7 +23,7 @@ def config() -> PYACEMAKERConfig:
     """Return a valid configuration for DFTOracle."""
     return PYACEMAKERConfig(
         version="0.1.0",
-        project=ProjectConfig(name="Test", root_dir=Path()),
+        project=ProjectConfig(name="Test", root_dir=Path(".")),
         oracle=OracleConfig(
             dft=DFTConfig(
                 code="qe", pseudopotentials={"Fe": "Fe.pbe.UPF"}, parameters={}
@@ -33,50 +33,56 @@ def config() -> PYACEMAKERConfig:
     )
 
 
-def test_dft_oracle_compute_batch(config: PYACEMAKERConfig) -> None:
-    """Test DFTOracle compute_batch logic."""
+def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
+    """Test the _update_structure_common method logic in isolation."""
     oracle = DFTOracle(config)
+    s1 = StructureMetadata(tags=["test"])
 
-    # Create structures with atoms attached
-    atoms1 = Atoms("H")
-    s1 = StructureMetadata(tags=["test"], features={"atoms": atoms1})
-
-    # Create structure without atoms (should skip)
-    s2 = StructureMetadata(tags=["test"])
-
-    structures = [s1, s2]
-
-    # Mock DFTManager.compute_batch
-    # It receives list of atoms. Should receive [atoms1].
-    # Returns an iterator of [result_atoms].
-    # Use MagicMock for result atoms to avoid method assignment issues
+    # mock result atoms
     result_atoms = MagicMock(spec=Atoms)
     result_atoms.get_potential_energy.return_value = -13.6
-    # ASE methods return numpy arrays, which have tolist()
+    # ASE methods return numpy arrays, we must mock this so .tolist() works
     result_atoms.get_forces.return_value = np.array([[0.0, 0.0, 0.0]])
     result_atoms.get_stress.return_value = np.array([0.0] * 6)
 
-    # Mock return value as iterator
-    with patch(
-        "pyacemaker.oracle.manager.DFTManager.compute_batch", return_value=iter([result_atoms])
-    ) as mock_compute:
-        results = oracle.compute_batch(structures)
+    oracle._update_structure_common(s1, result_atoms)
 
-        assert len(results) == 2
+    assert s1.status == StructureStatus.CALCULATED
+    assert s1.features["energy"] == -13.6
+    assert s1.features["forces"] == [[0.0, 0.0, 0.0]]
+    assert s1.features["atoms"] == result_atoms
 
-        # s1 should be calculated
-        assert results[0].status == StructureStatus.CALCULATED
-        assert results[0].features["energy"] == -13.6
-        assert results[0].features["atoms"] == result_atoms
 
-        # s2 should remain NEW (skipped)
-        assert results[1].status == StructureStatus.NEW
+def test_dft_oracle_compute_batch_flow(config: PYACEMAKERConfig) -> None:
+    """Test DFTOracle compute_batch flow (chunking and skipping)."""
+    oracle = DFTOracle(config)
 
-        mock_compute.assert_called_once()
-        args = mock_compute.call_args[0][0]
-        # In the new implementation, we pass a list of valid atoms
-        assert len(args) == 1
-        assert args[0] == atoms1
+    # Create structures
+    atoms1 = Atoms("H")
+    s1 = StructureMetadata(tags=["test"], features={"atoms": atoms1})
+    s2 = StructureMetadata(tags=["test"]) # No atoms
+    s3 = StructureMetadata(tags=["test"], status=StructureStatus.CALCULATED)
+
+    structures = [s1, s2, s3]
+    result_atoms = Atoms("H") # Placeholder result
+
+    # Mock DFTManager to return iterator
+    # Mock _update_structure_common to verify it is called
+    with patch("pyacemaker.oracle.manager.DFTManager.compute_batch", return_value=iter([result_atoms])) as mock_compute:
+        with patch.object(oracle, "_update_structure_common") as mock_update:
+            results_iter = oracle.compute_batch(structures)
+            results = list(results_iter)
+
+            assert len(results) == 3
+            # Check calling args
+            mock_compute.assert_called_once()
+            # Verify update called for s1
+            mock_update.assert_called_once_with(s1, result_atoms)
+
+            # s3 should be skipped (yielded as is)
+            # Compare IDs because Pydantic equality might be strict or object identity issues in iterator
+            assert results[2].id == s3.id
+            assert results[2].status == StructureStatus.CALCULATED
 
 
 def test_mock_oracle_simulation_failure(config: PYACEMAKERConfig) -> None:
@@ -96,12 +102,14 @@ def test_mock_oracle_determinism(config: PYACEMAKERConfig) -> None:
     oracle1 = MockOracle(config)
 
     s1 = StructureMetadata(tags=["test"])
-    res1 = oracle1.compute_batch([s1])[0]
+    res1_iter = oracle1.compute_batch([s1])
+    res1 = next(res1_iter)
 
     # Reset oracle with same seed
     oracle2 = MockOracle(config)
     s2 = StructureMetadata(tags=["test"])
-    res2 = oracle2.compute_batch([s2])[0]
+    res2_iter = oracle2.compute_batch([s2])
+    res2 = next(res2_iter)
 
     assert res1.features["energy"] == res2.features["energy"]
     assert res1.features["forces"] == res2.features["forces"]

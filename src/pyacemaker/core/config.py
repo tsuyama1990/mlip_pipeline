@@ -49,6 +49,8 @@ class Constants(BaseSettings):
         "convergence not achieved",
         "electronic convergence failed",
     ]
+    # Allowed input keys for security validation
+    dft_allowed_input_sections: list[str] = ["control", "system", "electrons", "ions", "cell"]
     # Security Warnings
     PICKLE_SECURITY_WARNING: str = (
         "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. "
@@ -111,6 +113,9 @@ class DFTConfig(BaseModel):
         default="quantum_espresso", description="DFT code to use (e.g., 'quantum_espresso')"
     )
     command: str = Field(default="mpirun -np 4 pw.x", description="Command to run the DFT code")
+    pseudo_dir: Path = Field(
+        default=Path(), description="Directory containing pseudopotential files"
+    )
     pseudopotentials: dict[str, str] = Field(
         ..., description="Map of element symbol to pseudopotential filename"
     )

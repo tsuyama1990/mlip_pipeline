@@ -20,6 +20,7 @@ def config(tmp_path: Path) -> DFTConfig:
         kspacing=0.1,
         smearing=0.1,
         max_retries=3,
+        pseudo_dir=tmp_path,
     )
 
 
@@ -27,7 +28,7 @@ def test_create_calculator(config: DFTConfig) -> None:
     """Test creating a calculator with default config."""
     calc = create_calculator(config)
     # Check command
-    assert calc.profile.command == "pw.x"  # type: ignore[attr-defined]
+    assert calc.profile.command == "pw.x"
     assert calc.parameters["kspacing"] == 0.1
 
     # Check mixing beta default
@@ -44,6 +45,7 @@ def test_create_calculator_retry(config: DFTConfig) -> None:
 def test_create_calculator_user_override(config: DFTConfig) -> None:
     """Test user parameters override."""
     # User wants to set ecutwfc to 80.0
+    # Must use allowed sections
     config.parameters = {"system": {"ecutwfc": 80.0}}
 
     calc = create_calculator(config)
@@ -59,4 +61,12 @@ def test_create_calculator_unsupported_code(config: DFTConfig) -> None:
     object.__setattr__(config, "code", "vasp")
 
     with pytest.raises(NotImplementedError, match="not supported"):
+        create_calculator(config)
+
+
+def test_create_calculator_invalid_parameters(config: DFTConfig) -> None:
+    """Test error on invalid/restricted parameters."""
+    config.parameters = {"INVALID_SECTION": {"key": "value"}}
+
+    with pytest.raises(ValueError, match="Security Error"):
         create_calculator(config)

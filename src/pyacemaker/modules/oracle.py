@@ -2,6 +2,7 @@
 
 import contextlib
 import random
+from collections.abc import Iterable, Iterator
 
 from ase import Atoms
 
@@ -69,11 +70,26 @@ class MockOracle(BaseOracle):
 
         return ModuleResult(status="success")
 
-    def compute_batch(self, structures: list[StructureMetadata]) -> list[StructureMetadata]:
-        """Compute energy/forces for a batch."""
-        self.logger.info(f"Computing batch of {len(structures)} structures (mock)")
+    def compute_batch(
+        self, structures: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Compute energy/forces for a batch.
+
+        Args:
+            structures: Iterable of structure metadata.
+
+        Yields:
+            Updated structure metadata.
+
+        """
+        self.logger.info("Computing batch of structures (mock)")
 
         for s in structures:
+            # Skip if already calculated
+            if s.status == StructureStatus.CALCULATED:
+                yield s
+                continue
+
             # Update structure status
             s.status = StructureStatus.CALCULATED
             # Mock results with slight randomness using seeded RNG
@@ -83,8 +99,7 @@ class MockOracle(BaseOracle):
             s.features["energy"] = energy
             s.features["forces"] = forces
             # No atoms update needed for mock simple
-
-        return structures
+            yield s
 
 
 class DFTOracle(BaseOracle):
@@ -101,40 +116,80 @@ class DFTOracle(BaseOracle):
         self.logger.info("Running DFTOracle")
         return ModuleResult(status="success")
 
-    def compute_batch(self, structures: list[StructureMetadata]) -> list[StructureMetadata]:
+    def _process_chunk(
+        self,
+        structures: list[StructureMetadata],
+        atoms_list: list[Atoms],
+        indices: list[int],
+    ) -> None:
+        """Helper to process a buffered chunk."""
+        if not atoms_list:
+            return
+
+        results_iter = self.dft_manager.compute_batch(atoms_list)
+        for idx, result_atoms in zip(indices, results_iter, strict=True):
+            self._update_structure_common(structures[idx], result_atoms)
+
+    def compute_batch(
+        self, structures: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch of structures.
 
         Args:
-            structures: List of structure metadata to process.
+            structures: Iterable of structure metadata to process.
 
-        Returns:
-            List of updated structure metadata.
+        Yields:
+            Updated structure metadata (streaming).
 
         """
-        self.logger.info(f"Computing batch of {len(structures)} structures (DFT)")
+        self.logger.info("Computing batch of structures (DFT)")
 
         chunk_size = CONSTANTS.default_dft_chunk_size
-        total = len(structures)
 
-        for i in range(0, total, chunk_size):
-            chunk_structures = structures[i : i + chunk_size]
-            chunk_atoms = []
-            chunk_indices = []
+        current_chunk_structs: list[StructureMetadata] = []
+        current_chunk_atoms: list[Atoms] = []
+        current_chunk_indices: list[int] = []  # Relative index in chunk for valid atoms
 
-            # Prepare chunk
-            for j, s in enumerate(chunk_structures):
-                atoms = self._extract_atoms(s)
-                if atoms:
-                    chunk_atoms.append(atoms)
-                    chunk_indices.append(j)  # Relative index in chunk
+        for s in structures:
+            # 1. Validation check
+            if s.status == StructureStatus.CALCULATED:
+                # If we have a pending chunk, we must flush it to maintain order
+                if current_chunk_structs:
+                    self._process_chunk(
+                        current_chunk_structs, current_chunk_atoms, current_chunk_indices
+                    )
+                    yield from current_chunk_structs
+                    current_chunk_structs = []
+                    current_chunk_atoms = []
+                    current_chunk_indices = []
 
-            if not chunk_atoms:
+                yield s
                 continue
 
-            # Process chunk (returns iterator, we consume it immediately to update)
-            results_iter = self.dft_manager.compute_batch(chunk_atoms)
+            # 2. Extract atoms
+            atoms = self._extract_atoms(s)
 
-            for idx, result_atoms in zip(chunk_indices, results_iter, strict=True):
-                self._update_structure_common(chunk_structures[idx], result_atoms)
+            # Add to chunk buffer
+            current_chunk_structs.append(s)
+            if atoms:
+                current_chunk_atoms.append(atoms)
+                current_chunk_indices.append(len(current_chunk_structs) - 1)
 
-        return structures
+            # Process if chunk full
+            if len(current_chunk_structs) >= chunk_size:
+                self._process_chunk(
+                    current_chunk_structs, current_chunk_atoms, current_chunk_indices
+                )
+                yield from current_chunk_structs
+
+                # Reset buffers
+                current_chunk_structs = []
+                current_chunk_atoms = []
+                current_chunk_indices = []
+
+        # Process remaining
+        if current_chunk_structs:
+            self._process_chunk(
+                current_chunk_structs, current_chunk_atoms, current_chunk_indices
+            )
+            yield from current_chunk_structs

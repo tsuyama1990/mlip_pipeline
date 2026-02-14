@@ -30,7 +30,7 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
 
     Raises:
         NotImplementedError: If the configured DFT code is not supported.
-        ValueError: If input parameters are invalid.
+        ValueError: If input parameters are invalid or contain restricted keys.
 
     """
     if config.code != "quantum_espresso":
@@ -42,7 +42,7 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         "control": {
             "calculation": "scf",
             "restart_mode": "from_scratch",
-            "pseudo_dir": ".",  # In a real setup, this might be configured
+            "pseudo_dir": str(config.pseudo_dir),
             "tprnfor": True,
             "tstress": True,
         },
@@ -59,11 +59,21 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         },
     }
 
-    # Override with user parameters
+    # Override with user parameters (Secure)
     if config.parameters:
         if not isinstance(config.parameters, dict):
             msg = "Parameters must be a dictionary"
             raise ValueError(msg)
+
+        # Validate allowed sections
+        for key in config.parameters:
+            if key.lower() not in CONSTANTS.dft_allowed_input_sections:
+                msg = (
+                    f"Security Error: Input section '{key}' is not allowed. "
+                    f"Allowed sections: {CONSTANTS.dft_allowed_input_sections}"
+                )
+                raise ValueError(msg)
+
         _deep_update(input_data, config.parameters)
 
     # Adjust parameters based on attempt (Self-Healing)
@@ -88,7 +98,7 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
     # ASE Espresso calculator
     # Use EspressoProfile for newer ASE versions
     profile = EspressoProfile(  # type: ignore[no-untyped-call]
-        command=config.command, pseudo_dir="."
+        command=config.command, pseudo_dir=str(config.pseudo_dir)
     )
 
     # We use type: ignore because ASE types are often missing/incomplete

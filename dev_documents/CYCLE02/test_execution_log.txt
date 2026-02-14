@@ -4,21 +4,21 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 60 items
+collected 62 items
 
 tests/core/test_base.py .                                                [  1%]
-tests/core/test_config.py ..............                                 [ 25%]
-tests/core/test_config_failures.py ........                              [ 38%]
-tests/core/test_logging.py ....                                          [ 45%]
-tests/integration/test_pipeline.py .                                     [ 46%]
-tests/oracle/test_calculator.py ....                                     [ 53%]
+tests/core/test_config.py ..............                                 [ 24%]
+tests/core/test_config_failures.py ........                              [ 37%]
+tests/core/test_logging.py ....                                          [ 43%]
+tests/integration/test_pipeline.py .                                     [ 45%]
+tests/oracle/test_calculator.py .....                                    [ 53%]
 tests/oracle/test_dataset.py .....                                       [ 61%]
-tests/oracle/test_manager.py .....                                       [ 70%]
-tests/test_main.py ....                                                  [ 76%]
-tests/uat/test_cycle01.py ...                                            [ 81%]
-tests/unit/test_config_full.py ...                                       [ 86%]
-tests/unit/test_domain_models.py .....                                   [ 95%]
-tests/unit/test_oracle_module.py ...                                     [100%]
+tests/oracle/test_manager.py .....                                       [ 69%]
+tests/test_main.py ....                                                  [ 75%]
+tests/uat/test_cycle01.py ...                                            [ 80%]
+tests/unit/test_config_full.py ...                                       [ 85%]
+tests/unit/test_domain_models.py .....                                   [ 93%]
+tests/unit/test_oracle_module.py ....                                    [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
@@ -28,9 +28,9 @@ Name                                            Stmts   Miss  Cover   Missing
 src/pyacemaker/__init__.py                          5      2    60%   5-6
 src/pyacemaker/core/__init__.py                     0      0   100%
 src/pyacemaker/core/base.py                        17      0   100%
-src/pyacemaker/core/config.py                     160      9    94%   76-79, 263-264, 310-312
+src/pyacemaker/core/config.py                     162      9    94%   78-81, 268-269, 315-317
 src/pyacemaker/core/exceptions.py                   6      0   100%
-src/pyacemaker/core/interfaces.py                  30      0   100%
+src/pyacemaker/core/interfaces.py                  31      0   100%
 src/pyacemaker/core/logging.py                     10      0   100%
 src/pyacemaker/core/utils.py                       29      8    72%   22-29
 src/pyacemaker/domain_models/__init__.py            0      0   100%
@@ -38,15 +38,15 @@ src/pyacemaker/domain_models/models.py             65      0   100%
 src/pyacemaker/main.py                             39      5    87%   28-30, 41-42
 src/pyacemaker/modules/__init__.py                  6      0   100%
 src/pyacemaker/modules/dynamics_engine.py          15      4    73%   16-17, 28-29
-src/pyacemaker/modules/oracle.py                   76      9    88%   32-33, 46-48, 70, 101-102, 132
+src/pyacemaker/modules/oracle.py                   97     18    81%   33-34, 47-49, 71, 90-91, 116-117, 127, 180-188, 192-195
 src/pyacemaker/modules/structure_generator.py      30     14    53%   14-17, 31-39, 46, 48-49
 src/pyacemaker/modules/trainer.py                  19      2    89%   21-22
 src/pyacemaker/modules/validator.py                14      3    79%   13-14, 25
 src/pyacemaker/oracle/__init__.py                   4      0   100%
-src/pyacemaker/oracle/calculator.py                31      4    87%   65-66, 75, 83
-src/pyacemaker/oracle/dataset.py                   35      1    97%   79
+src/pyacemaker/oracle/calculator.py                35      4    89%   65-66, 85, 93
+src/pyacemaker/oracle/dataset.py                   39      2    95%   86-91
 src/pyacemaker/oracle/manager.py                   37      0   100%
 src/pyacemaker/orchestrator.py                     66      7    89%   77-78, 80-81, 110, 118-119
 -----------------------------------------------------------------------------
-TOTAL                                             694     68    90%
-============================= 60 passed in 30.71s ==============================
+TOTAL                                             726     78    89%
+============================= 62 passed in 32.82s ==============================

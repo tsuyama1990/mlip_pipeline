@@ -2,6 +2,7 @@
 
 import gzip
 import pickle
+import warnings
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -28,9 +29,10 @@ class DatasetManager:
         This method reads objects sequentially from the file. It expects the file
         to be created using `save_iter` (sequentially dumped objects).
 
-        If the file was created as a single list dump (legacy format), this method
-        will fail gracefully or attempt to read the first object if possible, but
-        streaming support is primarily for sequential dumps.
+        CRITICAL SCALABILITY NOTE:
+        This method STRICTLY supports sequential streams. If a file contains
+        a single pickled list object (legacy format), this method will raise
+        a TypeError to prevent implicit loading of massive datasets into memory.
 
         Args:
             path: Path to the .pckl.gzip file.
@@ -40,6 +42,7 @@ class DatasetManager:
 
         Raises:
             FileNotFoundError: If the file does not exist.
+            TypeError: If a list object is encountered (Legacy format rejected).
 
         """
         if not path.exists():
@@ -53,10 +56,14 @@ class DatasetManager:
                 try:
                     obj = pickle.load(f)  # noqa: S301
                     if isinstance(obj, list):
-                        # If we encounter a list, it means it's a legacy dump or chunk.
-                        # We yield from it, but warn about memory usage if it's huge.
-                        # Since we already loaded it, the memory hit happened.
-                        yield from obj
+                        msg = (
+                            "Encountered a list object in stream. "
+                            "Legacy single-list dumps are not supported in load_iter "
+                            "to prevent Out-Of-Memory errors. "
+                            "Please convert dataset to sequential format using safe tools."
+                        )
+                        self.logger.error(msg)
+                        raise TypeError(msg)
                     elif isinstance(obj, Atoms):
                         yield obj
                 except EOFError:
@@ -76,6 +83,11 @@ class DatasetManager:
             path: Target path.
 
         """
+        warnings.warn(
+            "DatasetManager.save() delegates to save_iter() for scalability. "
+            "Prefer using save_iter() directly with iterators.",
+            stacklevel=2,
+        )
         self.save_iter(data, path)
 
     def save_iter(self, data: Iterator[Atoms] | list[Atoms], path: Path) -> None:

@@ -31,24 +31,22 @@ def test_save_load_iter(tmp_path: Path) -> None:
     assert loaded_data[1].get_chemical_formula() == "O2"
 
 
-def test_load_iter_legacy_list(tmp_path: Path) -> None:
-    """Test loading a dataset saved as a single list (legacy fallback)."""
+def test_load_iter_legacy_list_rejection(tmp_path: Path) -> None:
+    """Test that loading a dataset saved as a single list raises TypeError."""
     dataset_path = tmp_path / "legacy_dataset.pckl.gzip"
     manager = DatasetManager()
 
     atoms1 = Atoms("H2")
-    atoms2 = Atoms("O2")
-    data = [atoms1, atoms2]
+    data = [atoms1]
 
     # Save as single list pickle
     with gzip.open(dataset_path, "wb") as f:
         pickle.dump(data, f)
 
-    # load_iter should handle it by loading the list and yielding
+    # load_iter should reject it
     iterator = manager.load_iter(dataset_path)
-    loaded_data = list(iterator)
-    assert len(loaded_data) == 2
-    assert loaded_data[0].get_chemical_formula() == "H2"
+    with pytest.raises(TypeError, match="Legacy single-list dumps are not supported"):
+        next(iterator)
 
 
 def test_load_non_existent_file() -> None:
