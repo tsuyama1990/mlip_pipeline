@@ -38,7 +38,13 @@ class LAMMPSEngine(DynamicsEngine):
         # Simple random mock for simulation using secrets for safety
         import secrets
 
-        return secrets.SystemRandom().random() < 0.3  # 30% chance of halt per check
+        # Use configured halt probability or default
+        probability = self.config.dynamics_engine.parameters.get(
+            "dynamics_halt_probability", 0.3
+        )
+        # Type hint probability as float to satisfy mypy
+        prob_float = float(probability)
+        return secrets.SystemRandom().random() < prob_float
 
     def _extract_halt_structure(self) -> StructureMetadata:
         """Extract the structure that triggered the halt event.

@@ -112,8 +112,17 @@ class Constants(BaseSettings):
     max_energy_ev: float = _DEFAULTS["max_energy_ev"]
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
 
+    # Security & Limits
+    max_atoms_dft: int = 1000  # Hard limit for DFT calculations
+    dynamics_halt_probability: float = 0.3  # Default mock probability
+
 
 CONSTANTS = Constants()
+
+# Compiled regex for strict validation: alphanumeric, underscore, hyphen, dot
+_VALID_KEY_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
+# Compiled regex for value validation: prevent shell metacharacters
+_DANGEROUS_CHARS_REGEX = re.compile(r'[;&|`$()<>]')
 
 
 def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None:
@@ -124,15 +133,16 @@ def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None
             msg = f"Keys must be strings at {current_path}"
             raise TypeError(msg)
 
-        # Check for injection in keys too
-        if ";" in key or "&" in key:
-            msg = f"Potential injection detected in key '{current_path}'"
+        # Strict whitelist validation for keys
+        if not _VALID_KEY_REGEX.match(key):
+            msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
             raise ValueError(msg)
 
         if isinstance(value, dict):
             _recursive_validate_parameters(value, current_path)
         elif isinstance(value, str):
-            if ";" in value or "&" in value:
+            # Strict blacklist check for values
+            if _DANGEROUS_CHARS_REGEX.search(value):
                 msg = f"Potential injection detected in value at '{current_path}'"
                 raise ValueError(msg)
         elif not isinstance(value, (int, float, bool, list, tuple, type(None))):

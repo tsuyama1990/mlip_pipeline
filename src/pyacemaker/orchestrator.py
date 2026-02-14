@@ -153,7 +153,8 @@ class Orchestrator(IOrchestrator):
             return
 
         # Split dataset for validation using islice to avoid copying list slice
-        test_size = max(1, int(len(self.dataset) * 0.1))
+        # Limit validation set size to prevent OOM
+        test_size = min(max(1, int(len(self.dataset) * 0.1)), 1000)
         # Use islice to get an iterator over the first test_size elements
         # Note: validate method takes a list, so we must materialize this small subset.
         # But we avoid creating the full slice copy if list implementation is smart (CPython copies anyway for slice)

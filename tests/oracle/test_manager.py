@@ -7,6 +7,7 @@ import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import DFTConfig
+from pyacemaker.core.exceptions import DFTError
 from pyacemaker.oracle.manager import DFTManager
 
 
@@ -66,8 +67,8 @@ def test_compute_failure_fatal(config: DFTConfig) -> None:
     # Fatal error
     error_msg = "Syntax error in input file"
     with patch("ase.Atoms.get_potential_energy", side_effect=Exception(error_msg)) as mock_get_pe:
-        result = manager.compute(atoms)
-        assert result is None
+        with pytest.raises(DFTError):
+            manager.compute(atoms)
         # Should NOT retry
         assert mock_get_pe.call_count == 1
 
@@ -79,8 +80,8 @@ def test_compute_failure_permanent(config: DFTConfig) -> None:
 
     error_msg = "SCF not converged"
     with patch("ase.Atoms.get_potential_energy", side_effect=Exception(error_msg)) as mock_get_pe:
-        result = manager.compute(atoms)
-        assert result is None
+        with pytest.raises(DFTError):
+            manager.compute(atoms)
         # Should retry max_retries times
         assert mock_get_pe.call_count == config.max_retries
 

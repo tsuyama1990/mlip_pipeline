@@ -7,6 +7,7 @@ from ase import Atoms
 from loguru import logger
 
 from pyacemaker.core.config import CONSTANTS, DFTConfig
+from pyacemaker.core.exceptions import DFTError, StructureError
 from pyacemaker.oracle.calculator import create_calculator
 
 
@@ -46,27 +47,33 @@ class DFTManager:
             f"Applied periodic embedding with buffer {self.config.embedding_buffer} A"
         )
 
-    def compute(self, structure: Atoms) -> Atoms | None:
+    def compute(self, structure: Atoms) -> Atoms:
         """Run a DFT calculation for a single structure with retries.
 
         Args:
             structure: The atomic structure to calculate.
 
         Returns:
-            The calculated structure with results attached, or None if failed.
+            The calculated structure with results attached.
+
+        Raises:
+            StructureError: If structure is invalid or too large.
+            DFTError: If calculation fails after retries.
 
         """
         # Security: Validate structure size
-        if len(structure) > 1000:  # Arbitrary limit for example
-            self.logger.error(f"Structure too large: {len(structure)} atoms")
-            return None
+        if len(structure) > CONSTANTS.max_atoms_dft:
+            msg = f"Structure too large: {len(structure)} atoms (max {CONSTANTS.max_atoms_dft})"
+            self.logger.error(msg)
+            raise StructureError(msg)
 
         # Create a deep copy to avoid modifying the input structure
         calc_structure = structure.copy()  # type: ignore[no-untyped-call]
         if not isinstance(calc_structure, Atoms):
             # Should not happen with ASE, but satisfies mypy if copy() returns Any
-            self.logger.error("Failed to copy structure")
-            return None
+            msg = "Failed to copy structure (invalid type)"
+            self.logger.error(msg)
+            raise StructureError(msg)
 
         # Apply embedding if needed (modifies structure in-place)
         self._apply_periodic_embedding(calc_structure)
@@ -106,18 +113,23 @@ class DFTManager:
                     return calc_structure
 
         self.logger.error("DFT calculation failed")
-        return None
+        msg = "DFT calculation failed after maximum retries"
+        raise DFTError(msg)
 
-    def compute_batch(self, structures: list[Atoms] | Iterator[Atoms]) -> Iterator[Atoms | None]:
+    def compute_batch(self, structures: list[Atoms] | Iterator[Atoms]) -> Iterator[Atoms]:
         """Run DFT calculations for a batch of structures (Generator).
 
         Args:
             structures: List or Iterator of structures.
 
         Yields:
-            Calculated structure or None.
+            Calculated structure. Skips failed calculations.
 
         """
         for s in structures:
-            result = self.compute(s)
-            yield result
+            try:
+                result = self.compute(s)
+                yield result
+            except (DFTError, StructureError):
+                self.logger.exception("Skipping structure due to error")
+                continue
