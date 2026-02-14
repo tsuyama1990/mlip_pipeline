@@ -1,29 +1,209 @@
 ============================= test session starts ==============================
-platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
-plugins: cov-7.0.0
-collected 83 items
+collected 3 items / 18 errors
 
-tests/core/test_base.py .                                                [  1%]
-tests/core/test_config.py ...............                                [ 19%]
-tests/core/test_config_failures.py ........                              [ 28%]
-tests/core/test_logging.py ....                                          [ 33%]
-tests/integration/test_pipeline.py .                                     [ 34%]
-tests/oracle/test_calculator.py .....                                    [ 40%]
-tests/oracle/test_dataset.py .....                                       [ 46%]
-tests/oracle/test_manager.py .....                                       [ 53%]
-tests/test_main.py ....                                                  [ 57%]
-tests/uat/test_cycle01.py ...                                            [ 61%]
-tests/uat/test_cycle03.py ...                                            [ 65%]
-tests/unit/test_config_full.py ...                                       [ 68%]
-tests/unit/test_domain_models.py .......                                 [ 77%]
-tests/unit/test_oracle_module.py .......                                 [ 85%]
-tests/unit/test_structure_generator.py ...                               [ 89%]
-tests/unit/test_trainer_active_set.py .                                  [ 90%]
-tests/unit/test_trainer_config.py ...                                    [ 93%]
-tests/unit/test_trainer_module.py ..                                     [ 96%]
-tests/unit/test_trainer_wrapper.py ...                                   [100%]
-
-============================= 83 passed in 14.75s ==============================
+==================================== ERRORS ====================================
+___________________ ERROR collecting tests/core/test_base.py ___________________
+ImportError while importing test module '/app/tests/core/test_base.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/core/test_base.py:3: in <module>
+    from pyacemaker.core.base import BaseModule, ModuleResult
+E   ModuleNotFoundError: No module named 'pyacemaker'
+__________________ ERROR collecting tests/core/test_config.py __________________
+ImportError while importing test module '/app/tests/core/test_config.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/core/test_config.py:8: in <module>
+    import yaml
+E   ModuleNotFoundError: No module named 'yaml'
+_____________ ERROR collecting tests/core/test_config_failures.py ______________
+ImportError while importing test module '/app/tests/core/test_config_failures.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/core/test_config_failures.py:9: in <module>
+    from pyacemaker.core.config import CONSTANTS, load_config
+E   ModuleNotFoundError: No module named 'pyacemaker'
+_________________ ERROR collecting tests/core/test_logging.py __________________
+ImportError while importing test module '/app/tests/core/test_logging.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/core/test_logging.py:6: in <module>
+    from loguru import logger
+E   ModuleNotFoundError: No module named 'loguru'
+_____________ ERROR collecting tests/integration/test_pipeline.py ______________
+ImportError while importing test module '/app/tests/integration/test_pipeline.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_pipeline.py:5: in <module>
+    import yaml
+E   ModuleNotFoundError: No module named 'yaml'
+_______________ ERROR collecting tests/oracle/test_calculator.py _______________
+ImportError while importing test module '/app/tests/oracle/test_calculator.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oracle/test_calculator.py:7: in <module>
+    from ase.calculators.espresso import Espresso
+E   ModuleNotFoundError: No module named 'ase'
+________________ ERROR collecting tests/oracle/test_dataset.py _________________
+ImportError while importing test module '/app/tests/oracle/test_dataset.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oracle/test_dataset.py:8: in <module>
+    from ase import Atoms
+E   ModuleNotFoundError: No module named 'ase'
+________________ ERROR collecting tests/oracle/test_manager.py _________________
+ImportError while importing test module '/app/tests/oracle/test_manager.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oracle/test_manager.py:7: in <module>
+    from ase import Atoms
+E   ModuleNotFoundError: No module named 'ase'
+_____________________ ERROR collecting tests/test_main.py ______________________
+ImportError while importing test module '/app/tests/test_main.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_main.py:5: in <module>
+    from typer.testing import CliRunner
+E   ModuleNotFoundError: No module named 'typer'
+__________________ ERROR collecting tests/uat/test_cycle03.py __________________
+ImportError while importing test module '/app/tests/uat/test_cycle03.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/uat/test_cycle03.py:6: in <module>
+    from ase import Atoms
+E   ModuleNotFoundError: No module named 'ase'
+_______________ ERROR collecting tests/unit/test_config_full.py ________________
+ImportError while importing test module '/app/tests/unit/test_config_full.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_config_full.py:6: in <module>
+    import yaml
+E   ModuleNotFoundError: No module named 'yaml'
+______________ ERROR collecting tests/unit/test_domain_models.py _______________
+ImportError while importing test module '/app/tests/unit/test_domain_models.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_domain_models.py:7: in <module>
+    from pydantic import ValidationError
+E   ModuleNotFoundError: No module named 'pydantic'
+______________ ERROR collecting tests/unit/test_oracle_module.py _______________
+ImportError while importing test module '/app/tests/unit/test_oracle_module.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_oracle_module.py:8: in <module>
+    import numpy as np
+E   ModuleNotFoundError: No module named 'numpy'
+___________ ERROR collecting tests/unit/test_structure_generator.py ____________
+ImportError while importing test module '/app/tests/unit/test_structure_generator.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_structure_generator.py:7: in <module>
+    from pyacemaker.core.config import (
+E   ModuleNotFoundError: No module named 'pyacemaker'
+____________ ERROR collecting tests/unit/test_trainer_active_set.py ____________
+ImportError while importing test module '/app/tests/unit/test_trainer_active_set.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_trainer_active_set.py:8: in <module>
+    from pyacemaker.trainer.active_set import ActiveSetSelector
+E   ModuleNotFoundError: No module named 'pyacemaker'
+______________ ERROR collecting tests/unit/test_trainer_config.py ______________
+ImportError while importing test module '/app/tests/unit/test_trainer_config.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_trainer_config.py:4: in <module>
+    from pydantic import ValidationError
+E   ModuleNotFoundError: No module named 'pydantic'
+______________ ERROR collecting tests/unit/test_trainer_module.py ______________
+ImportError while importing test module '/app/tests/unit/test_trainer_module.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_trainer_module.py:9: in <module>
+    from pyacemaker.core.config import PYACEMAKERConfig, TrainerConfig
+E   ModuleNotFoundError: No module named 'pyacemaker'
+_____________ ERROR collecting tests/unit/test_trainer_wrapper.py ______________
+ImportError while importing test module '/app/tests/unit/test_trainer_wrapper.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_trainer_wrapper.py:8: in <module>
+    from pyacemaker.trainer.wrapper import PacemakerWrapper
+E   ModuleNotFoundError: No module named 'pyacemaker'
+=========================== short test summary info ============================
+ERROR tests/core/test_base.py
+ERROR tests/core/test_config.py
+ERROR tests/core/test_config_failures.py
+ERROR tests/core/test_logging.py
+ERROR tests/integration/test_pipeline.py
+ERROR tests/oracle/test_calculator.py
+ERROR tests/oracle/test_dataset.py
+ERROR tests/oracle/test_manager.py
+ERROR tests/test_main.py
+ERROR tests/uat/test_cycle03.py
+ERROR tests/unit/test_config_full.py
+ERROR tests/unit/test_domain_models.py
+ERROR tests/unit/test_oracle_module.py
+ERROR tests/unit/test_structure_generator.py
+ERROR tests/unit/test_trainer_active_set.py
+ERROR tests/unit/test_trainer_config.py
+ERROR tests/unit/test_trainer_module.py
+ERROR tests/unit/test_trainer_wrapper.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 18 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 18 errors in 0.34s ==============================

@@ -50,15 +50,15 @@ def create_calculator(
             "tstress": True,
         },
         "system": {
-            "ecutwfc": 50.0,  # Default cutoff
-            "ecutrho": 200.0,
-            "occupations": "smearing",
-            "smearing": "mv",
+            "ecutwfc": CONSTANTS.default_dft_ecutwfc,
+            "ecutrho": CONSTANTS.default_dft_ecutrho,
+            "occupations": CONSTANTS.default_dft_occupations,
+            "smearing": CONSTANTS.default_dft_smearing_method,
             "degauss": config.smearing,
         },
         "electrons": {
             "mixing_beta": CONSTANTS.default_dft_mixing_beta,
-            "conv_thr": 1.0e-6,
+            "conv_thr": CONSTANTS.default_dft_conv_thr,
         },
     }
 

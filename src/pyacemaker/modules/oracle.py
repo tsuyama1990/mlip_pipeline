@@ -159,10 +159,14 @@ class DFTOracle(BaseOracle):
 
             yield from self._process_parallel_chunk(chunk)
 
-    def _process_parallel_chunk(self, chunk: list[StructureMetadata]) -> list[StructureMetadata]:
-        """Process a chunk of structures in parallel."""
-        # Validate and filter
+    def _process_parallel_chunk(
+        self, chunk: list[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Process a chunk of structures in parallel (Yielding as completed)."""
         to_process = []
+        already_done = []
+
+        # Validate and filter
         for s in chunk:
             self.validate_structure(s)
             if s.status != StructureStatus.CALCULATED:
@@ -171,37 +175,31 @@ class DFTOracle(BaseOracle):
                     to_process.append((s, atoms))
                 else:
                     s.status = StructureStatus.FAILED
+                    already_done.append(s)
+            else:
+                already_done.append(s)
 
-        # If nothing to process in this chunk (all calculated or failed), return immediately
+        # Yield already done first (low latency)
+        yield from already_done
+
+        # If nothing to process, we are done
         if not to_process:
-            return chunk
+            return
 
         # Process in parallel
-        # Use configured max_workers, bounded by chunk size
         max_workers = min(len(to_process), self.config.oracle.dft.max_workers)
 
-        # Use ThreadPoolExecutor with strict context management
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            try:
-                # Map futures to structures
-                future_to_struct = {
-                    executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
-                }
+            future_to_struct = {
+                executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
+            }
 
-                # Process results as they complete with timeout support
-                # Note: as_completed allows generic timeout, but per-task timeouts are harder.
-                # Here we ensure clean exit if iteration fails.
-                for future in concurrent.futures.as_completed(future_to_struct):
-                    s = future_to_struct[future]
-                    try:
-                        result_atoms = future.result()
-                        self._update_structure_common(s, result_atoms)
-                    except Exception:
-                        self.logger.exception(f"Error computing structure {s.id}")
-                        s.status = StructureStatus.FAILED
-            finally:
-                # Executor context manager handles shutdown, but we can be explicit if needed
-                # shutdown(wait=True) is default.
-                pass
-
-        return chunk
+            for future in concurrent.futures.as_completed(future_to_struct):
+                s = future_to_struct[future]
+                try:
+                    result_atoms = future.result()
+                    self._update_structure_common(s, result_atoms)
+                except Exception:
+                    self.logger.exception(f"Error computing structure {s.id}")
+                    s.status = StructureStatus.FAILED
+                yield s

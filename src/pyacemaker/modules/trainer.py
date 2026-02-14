@@ -1,8 +1,10 @@
 """Trainer (Pacemaker) module implementation."""
 
 import tempfile
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
@@ -34,22 +36,37 @@ class PacemakerTrainer(Trainer):
         return {"status": "success"}
 
     def train(
-        self, dataset: list[StructureMetadata], initial_potential: Potential | None = None
+        self,
+        dataset: Iterable[StructureMetadata],
+        initial_potential: Potential | None = None,
     ) -> Potential:
-        """Train a potential."""
+        """Train a potential (Streaming)."""
         # 1. Prepare Dataset
-        valid_structures = [s for s in dataset if s.energy is not None and s.forces is not None]
-        if not valid_structures:
-            msg = "No valid structures with energy and forces found for training."
-            raise ValueError(msg)
+        # Generator for valid structures
+        valid_structures = (
+            s for s in dataset if s.energy is not None and s.forces is not None
+        )
 
         # Create work directory
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
         dataset_path = work_dir / "training_set.pckl.gzip"
 
-        # Convert to Atoms and save
-        atoms_list = [self._metadata_to_atoms(s) for s in valid_structures]
-        self.dataset_manager.save_iter(atoms_list, dataset_path)
+        # Convert to Atoms and save (Streaming)
+        # We need to count to ensure we have data, but save_iter consumes.
+        # We can wrap the generator to count.
+        count = 0
+
+        def counting_wrapper(gen: Iterable[StructureMetadata]) -> Iterator[Any]:
+            nonlocal count
+            for s in gen:
+                count += 1
+                yield self._metadata_to_atoms(s)
+
+        self.dataset_manager.save_iter(counting_wrapper(valid_structures), dataset_path)
+
+        if count == 0:
+            msg = "No valid structures with energy and forces found for training."
+            raise ValueError(msg)
 
         # 2. Configure Delta Learning (Baseline)
         baseline_file = None
@@ -86,38 +103,68 @@ class PacemakerTrainer(Trainer):
             parameters=self.trainer_config.model_dump(),
         )
 
-    def select_active_set(self, candidates: list[StructureMetadata], n_select: int) -> ActiveSet:
+    def select_active_set(
+        self, candidates: Iterable[StructureMetadata], n_select: int
+    ) -> ActiveSet:
         """Select active set."""
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_ACTIVE))
         candidates_path = work_dir / "candidates.pckl.gzip"
 
-        # Save candidates
-        atoms_list = [self._metadata_to_atoms(s) for s in candidates]
-        self.dataset_manager.save_iter(atoms_list, candidates_path)
+        # Save candidates (Streaming)
+        atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
+        self.dataset_manager.save_iter(atoms_gen, candidates_path)
+
+        selected_structures_list: list[StructureMetadata] = []
 
         # Run selection
         if self.trainer_config.mock:
             self.logger.info("Mock Mode: Skipping pace_activeset execution.")
-            # Just pick first n_select as dummy selection
-            selected_candidates = candidates[:n_select]
+            # We can't easily slice a generator without consuming it or caching.
+            # But in mock mode, we usually just want to test flow.
+            # We'll reload the saved candidates and take first n_select
             selected_path = work_dir / "selected.pckl.gzip"
-            atoms_list_selected = [self._metadata_to_atoms(s) for s in selected_candidates]
-            self.dataset_manager.save_iter(atoms_list_selected, selected_path)
+            # Limit generator
+            reloaded_gen = self.dataset_manager.load_iter(candidates_path)
+
+            def limited_gen() -> Iterator[Any]:
+                for i, atoms in enumerate(reloaded_gen):
+                    if i >= n_select:
+                        break
+                    yield atoms
+
+            self.dataset_manager.save_iter(limited_gen(), selected_path)
         else:
             selected_path = self.active_set_selector.select(candidates_path, n_select)
 
-        # Load selected to get IDs
-        selected_ids = []
+        # Load selected structures from file to reconstruct metadata
         for atoms in self.dataset_manager.load_iter(selected_path):
-            if "uuid" in atoms.info:
-                from uuid import UUID
+            uid_str = atoms.info.get("uuid")
+            uid = UUID(uid_str) if uid_str else uuid4()
 
-                selected_ids.append(UUID(atoms.info["uuid"]))
-            else:
-                self.logger.warning("Selected structure missing UUID in info")
+            # Reconstruct minimal metadata
+            meta = StructureMetadata(
+                id=uid,
+                features={"atoms": atoms},
+                energy=atoms.info.get("energy"),
+                # Forces/Stress reconstruction if available
+            )
+            if "forces" in atoms.arrays:
+                meta.forces = atoms.arrays["forces"].tolist()
+            if "stress" in atoms.info:
+                stress_val = atoms.info["stress"]
+                meta.stress = (
+                    stress_val.tolist()
+                    if hasattr(stress_val, "tolist")
+                    else stress_val
+                )
+
+            selected_structures_list.append(meta)
+
+        selected_ids = [s.id for s in selected_structures_list]
 
         return ActiveSet(
             structure_ids=selected_ids,
+            structures=selected_structures_list,
             selection_criteria="max_vol",
         )
 

@@ -88,6 +88,12 @@ class TestCycle03UAT:
         trainer = Trainer(config)
         trainer.dataset_manager = MagicMock()  # Mock to avoid file IO issues
 
+        # Ensure save_iter consumes the iterator
+        def consume_iterator(data, path):
+            for _ in data:
+                pass
+        trainer.dataset_manager.save_iter.side_effect = consume_iterator
+
         structure = StructureMetadata(
             features={"atoms": Atoms("Fe")},
             energy=-10.0,

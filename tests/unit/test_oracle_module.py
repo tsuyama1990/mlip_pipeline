@@ -40,7 +40,7 @@ def config(tmp_path: Path) -> PYACEMAKERConfig:
 def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
     """Test the _update_structure_common method logic in isolation."""
     oracle = DFTOracle(config)
-    s1 = StructureMetadata(tags=["test"])
+    s1 = StructureMetadata(tags=["test"], features={"atoms": Atoms("H")})
 
     # mock result atoms
     result_atoms = MagicMock(spec=Atoms)
@@ -103,10 +103,16 @@ def test_dft_oracle_compute_batch_flow(config: PYACEMAKERConfig) -> None:
 
         mock_update.assert_called_with(s1, result_atoms)
 
-        # Check statuses
-        assert results[0].status == StructureStatus.CALCULATED  # s1
-        assert results[1].status == StructureStatus.FAILED  # s2
-        assert results[2].status == StructureStatus.CALCULATED  # s3
+        # Check statuses (Order independent checks)
+        # s1 should be CALCULATED
+        assert s1.status == StructureStatus.CALCULATED
+        # s2 should be FAILED
+        assert s2.status == StructureStatus.FAILED
+        # s3 should be CALCULATED
+        assert s3.status == StructureStatus.CALCULATED
+
+        # Verify values for s1
+        assert s1.energy == -10.0
 
 
 def test_mock_oracle_simulation_failure(config: PYACEMAKERConfig) -> None:
@@ -122,14 +128,18 @@ def test_mock_oracle_simulation_failure(config: PYACEMAKERConfig) -> None:
 
 def test_mock_oracle_determinism(config: PYACEMAKERConfig) -> None:
     """Test that MockOracle produces deterministic results with seed."""
+    # Initialize config parameters first
     config.oracle.dft.parameters["seed"] = 123
-    oracle1 = MockOracle(config)
 
+    # Create oracle1
+    oracle1 = MockOracle(config)
     s1 = StructureMetadata(tags=["test"])
+    # Need atoms for validation pass inside compute_batch logic for MockOracle too?
+    # MockOracle creates dummy atoms if missing.
     res1_iter = oracle1.compute_batch([s1])
     res1 = next(res1_iter)
 
-    # Reset oracle with same seed
+    # Create oracle2
     oracle2 = MockOracle(config)
     s2 = StructureMetadata(tags=["test"])
     res2_iter = oracle2.compute_batch([s2])
@@ -146,6 +156,7 @@ def test_mock_oracle_randomness(config: PYACEMAKERConfig) -> None:
         del config.oracle.dft.parameters["seed"]
 
     oracle = MockOracle(config)
+    # Accessing private attribute strictly for test verification
     assert isinstance(oracle.rng, secrets.SystemRandom)
 
 
@@ -157,6 +168,8 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
 
     # Create a generator that yields structures
     def structure_generator() -> Iterator[StructureMetadata]:
+        # We yield 3 structures. Chunk size 2.
+        # Chunk 1: s_0, s_1. Chunk 2: s_2.
         for i in range(3):
             yield StructureMetadata(tags=[f"test_{i}"], features={"atoms": Atoms("H")})
 
@@ -175,9 +188,7 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
 
         # Consume 1st (Should process 1st chunk of 2)
         r1 = next(results_iter)
-        # Because we parallelize chunks, processing 1st chunk (size 2) might call compute 2 times immediately
-        # But yield one by one.
-        # r1 and r2 are in first chunk.
+        # Because we parallelize chunks, processing 1st chunk (size 2) calls compute 2 times immediately (submitted)
 
         # Consume 2nd
         r2 = next(results_iter)

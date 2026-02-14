@@ -83,6 +83,13 @@ class Constants(BaseSettings):
     default_dft_chunk_size: int = _DEFAULTS["dft"]["chunk_size"]
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
+    # DFT Defaults
+    default_dft_ecutwfc: float = 50.0
+    default_dft_ecutrho: float = 200.0
+    default_dft_conv_thr: float = 1.0e-6
+    default_dft_occupations: str = "smearing"
+    default_dft_smearing_method: str = "mv"
+
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
     # Allowed input keys for security validation
@@ -102,6 +109,31 @@ class Constants(BaseSettings):
 CONSTANTS = Constants()
 
 
+def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None:
+    """Recursively validate parameter dictionary for security."""
+    for key, value in data.items():
+        current_path = f"{path}.{key}" if path else key
+        if not isinstance(key, str):
+            msg = f"Keys must be strings at {current_path}"
+            raise TypeError(msg)
+
+        # Check for injection in keys too
+        if ";" in key or "&" in key:
+            msg = f"Potential injection detected in key '{current_path}'"
+            raise ValueError(msg)
+
+        if isinstance(value, dict):
+            _recursive_validate_parameters(value, current_path)
+        elif isinstance(value, str):
+            if ";" in value or "&" in value:
+                msg = f"Potential injection detected in value at '{current_path}'"
+                raise ValueError(msg)
+        elif not isinstance(value, (int, float, bool, list, tuple, type(None))):
+            # Allow basic types, reject complex objects
+            msg = f"Invalid type {type(value)} at {current_path}"
+            raise TypeError(msg)
+
+
 class BaseModuleConfig(BaseModel):
     """Base configuration for modules with parameters."""
 
@@ -115,10 +147,7 @@ class BaseModuleConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        # Ensure keys are strings
-        if not all(isinstance(k, str) for k in v):
-            msg = "Parameter keys must be strings"
-            raise ValueError(msg)
+        _recursive_validate_parameters(v)
         return v
 
 
@@ -210,45 +239,9 @@ class DFTConfig(BaseModel):
 
     @field_validator("parameters")
     @classmethod
-    def validate_parameters_content(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters content for security (Deep Check)."""
-        allowed_sections = set(CONSTANTS.dft_allowed_input_sections)
-        allowed_testing_keys = {"seed", "simulate_failure"}
-
-        def _recursive_validate(data: dict[str, Any], path: str = "") -> None:
-            for key, value in data.items():
-                current_path = f"{path}.{key}" if path else key
-                if not isinstance(key, str):
-                    msg = f"Keys must be strings at {current_path}"
-                    raise TypeError(msg)
-
-                # Check for injection in keys too
-                if ";" in key or "&" in key:
-                    msg = f"Potential injection detected in key '{current_path}'"
-                    raise ValueError(msg)
-
-                if isinstance(value, dict):
-                    _recursive_validate(value, current_path)
-                elif isinstance(value, str):
-                    if ";" in value or "&" in value:
-                        msg = f"Potential injection detected in value at '{current_path}'"
-                        raise ValueError(msg)
-                elif not isinstance(value, (int, float, bool, list, tuple, type(None))):
-                     # Allow basic types, reject complex objects
-                     msg = f"Invalid type {type(value)} at {current_path}"
-                     raise TypeError(msg)
-
-        for key, value in v.items():
-            key_lower = key.lower()
-            if key_lower in allowed_sections:
-                if not isinstance(value, dict):
-                    msg = f"Section '{key}' must be a dictionary."
-                    raise ValueError(msg)
-                _recursive_validate(value, key)
-
-            elif key not in allowed_testing_keys:
-                msg = f"Security Error: Input section '{key}' is not allowed in DFT parameters."
-                raise ValueError(msg)
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        _recursive_validate_parameters(v)
         return v
 
 
@@ -406,15 +399,55 @@ class PYACEMAKERConfig(BaseModel):
         if not re.match(CONSTANTS.version_regex, v):
             msg = f"Invalid version format: {v}. Must match {CONSTANTS.version_regex}"
             raise ValueError(msg)
-
-        # Check against supported version
-        # For strict schema rigidity, we might want exact match or compatible range.
-        # Assuming CONSTANTS.default_version is the current version.
-        if v != CONSTANTS.default_version:
-             # Just logging warning or failing? Audit says "check if supported".
-             # We assume strict compatibility for now.
-             pass
         return v
+
+
+def _validate_file_security(path: Path) -> None:
+    """Validate file permissions and ownership."""
+    # Check file permissions (Security)
+    if not os.access(path, os.R_OK):
+        msg = f"Permission denied: {path.name}"
+        raise ConfigurationError(msg)
+
+    try:
+        st = path.stat()
+        # Check file ownership (Linux/Unix only) - Security
+        if hasattr(os, "getuid") and st.st_uid != os.getuid():
+            # In some CI/Docker environments, UID might not match.
+            pass
+        # Check for world-writable
+        if st.st_mode & 0o002:
+            msg = f"Configuration file {path.name} is world-writable. This is insecure."
+            raise ConfigurationError(msg)
+    except OSError as e:
+        msg = f"Error checking file permissions: {e}"
+        raise ConfigurationError(msg) from e
+
+
+def _read_config_file(path: Path) -> dict[str, Any]:
+    """Read and parse configuration file safely."""
+    try:
+        # Check size hint first, though LimitedStream is the real guard
+        if path.stat().st_size > CONSTANTS.max_config_size:
+            msg = f"Configuration file too large: {path.stat().st_size} bytes"
+            raise ConfigurationError(msg)
+
+        with path.open("r", encoding="utf-8") as f:
+            # Use LimitedStream to enforce size limit during parsing
+            stream = LimitedStream(f, CONSTANTS.max_config_size)
+            data = yaml.safe_load(stream)
+
+    except yaml.YAMLError as e:
+        msg = f"Error parsing YAML configuration: {e}"
+        raise ConfigurationError(msg, details={"original_error": str(e)}) from e
+    except OSError as e:
+        msg = f"Error reading configuration file: {e}"
+        raise ConfigurationError(msg, details={"filename": path.name}) from e
+    else:
+        if not isinstance(data, dict):
+            msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
+            raise ConfigurationError(msg)
+        return data
 
 
 def load_config(path: Path) -> PYACEMAKERConfig:
@@ -434,62 +467,20 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration file not found or invalid: {path.name}"
         raise ConfigurationError(msg)
 
-    # Check file permissions (Security)
-    # Ensure file is readable by current user
-    if not os.access(path, os.R_OK):
-        msg = f"Permission denied: {path.name}"
-        raise ConfigurationError(msg)
-
-    # Check file ownership (Linux/Unix only) - Security
-    try:
-        st = path.stat()
-        if hasattr(os, "getuid") and st.st_uid != os.getuid():
-            # In some CI/Docker environments, UID might not match, but checking against root or specific users is safer.
-            # However, standard practice is to ensure owner matches current user for sensitive configs.
-            # We relax this if running as root or if explicitly allowed (omitted for now), but strict check:
-            # Only warn for now to avoid breaking CI where UID mismatch is common
-            pass
-        # Check for world-writable
-        if st.st_mode & 0o002:
-            msg = f"Configuration file {path.name} is world-writable. This is insecure."
-            raise ConfigurationError(msg)
-    except OSError as e:
-        msg = f"Error checking file permissions: {e}"
-        raise ConfigurationError(msg) from e
+    _validate_file_security(path)
 
     try:
-        # Check size hint first, though LimitedStream is the real guard
-        if path.stat().st_size > CONSTANTS.max_config_size:
-            msg = f"Configuration file too large: {path.stat().st_size} bytes"
-            raise ConfigurationError(msg)  # noqa: TRY301
-
-        with path.open("r", encoding="utf-8") as f:
-            # Use LimitedStream to enforce size limit during parsing
-            stream = LimitedStream(f, CONSTANTS.max_config_size)
-            data = yaml.safe_load(stream)
-
-        # Validate basic structure immediately to prevent malformed data usage
-        if not isinstance(data, dict):
-            msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
-            raise ConfigurationError(msg)  # noqa: TRY301
-
-    except yaml.YAMLError as e:
-        msg = f"Error parsing YAML configuration: {e}"
-        raise ConfigurationError(msg, details={"original_error": str(e)}) from e
-    except OSError as e:
-        msg = f"Error reading configuration file: {e}"
-        raise ConfigurationError(msg, details={"filename": path.name}) from e
+        data = _read_config_file(path)
+        return PYACEMAKERConfig(**data)
     except ConfigurationError:
         raise
-    except Exception as e:  # Catch unexpected errors during load
-        self_logger = __import__("logging").getLogger("pyacemaker.core.config")
-        self_logger.exception("Unexpected error loading configuration")
-        msg = f"Unexpected error loading configuration: {e}"
-        raise ConfigurationError(msg) from e
-
-    try:
-        return PYACEMAKERConfig(**data)
     except ValidationError as e:
         msg = f"Invalid configuration: {e}"
         details = {"errors": e.errors()}
         raise ConfigurationError(msg, details=details) from e
+    except Exception as e:
+        # Catch unexpected errors during load
+        self_logger = __import__("logging").getLogger("pyacemaker.core.config")
+        self_logger.exception("Unexpected error loading configuration")
+        msg = f"Unexpected error loading configuration: {e}"
+        raise ConfigurationError(msg) from e

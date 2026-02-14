@@ -8,6 +8,49 @@ from typing import Any
 class PacemakerWrapper:
     """Wrapper for Pacemaker CLI commands."""
 
+    def _validate_paths(self, dataset_path: Path, output_dir: Path) -> None:
+        """Validate input and output paths."""
+        if not dataset_path.exists():
+            msg = f"Dataset path does not exist: {dataset_path}"
+            raise FileNotFoundError(msg)
+
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _sanitize_arg(self, key: str, value: Any) -> list[str]:
+        """Sanitize and format a single argument."""
+        # Basic sanitization: keys should be simple strings
+        if not key.replace("_", "").isalnum():
+            msg = f"Invalid parameter key: {key}"
+            raise ValueError(msg)
+
+        cli_arg = f"--{key.replace('_', '-')}"
+
+        if isinstance(value, bool):
+            return [cli_arg] if value else []
+
+        if isinstance(value, tuple | list):
+            args = [cli_arg]
+            for item in value:
+                item_str = str(item)
+                # Strict check for list items (mostly numeric expected)
+                if not item_str.replace(".", "").isdigit() and not item_str.replace(
+                    "-", ""
+                ).isalnum():
+                    msg = f"Invalid list item value: {item}"
+                    raise ValueError(msg)
+                args.append(item_str)
+            return args
+
+        # Sanitize scalar value
+        val_str = str(value)
+        # Check for dangerous shell characters
+        dangerous_chars = [";", "&", "|", "$", "`", "\n", "\r"]
+        if any(char in val_str for char in dangerous_chars):
+            msg = f"Potential command injection in parameter value: {val_str}"
+            raise ValueError(msg)
+        return [cli_arg, val_str]
+
     def train(
         self,
         dataset_path: Path,
@@ -27,14 +70,7 @@ class PacemakerWrapper:
             Path to the trained potential file.
 
         """
-        # Validate paths
-        if not dataset_path.exists():
-            msg = f"Dataset path does not exist: {dataset_path}"
-            raise FileNotFoundError(msg)
-
-        # Ensure output directory exists or can be created
-        if not output_dir.exists():
-            output_dir.mkdir(parents=True, exist_ok=True)
+        self._validate_paths(dataset_path, output_dir)
 
         cmd = ["pace_train"]
         cmd.extend(["--dataset", str(dataset_path)])
@@ -42,36 +78,7 @@ class PacemakerWrapper:
 
         # Map params to CLI arguments
         for key, value in params.items():
-            # Basic sanitization: keys should be simple strings
-            if not key.replace("_", "").isalnum():
-                msg = f"Invalid parameter key: {key}"
-                raise ValueError(msg)
-
-            # Convert snake_case to kebab-case
-            cli_arg = f"--{key.replace('_', '-')}"
-
-            if isinstance(value, bool):
-                if value:
-                    cmd.append(cli_arg)
-            elif isinstance(value, tuple | list):
-                # Handle tuple/list arguments
-                # E.g. basis_size=(15, 5) -> --basis-size 15 5
-                cmd.append(cli_arg)
-                for item in value:
-                    item_str = str(item)
-                    if not item_str.replace(".", "").isdigit() and not item_str.replace(
-                        "-", ""
-                    ).isalnum():
-                        msg = f"Invalid list item value: {item}"
-                        raise ValueError(msg)
-                    cmd.append(item_str)
-            else:
-                # Sanitize value
-                val_str = str(value)
-                if ";" in val_str or "&" in val_str or "|" in val_str:
-                    msg = f"Potential command injection in parameter value: {val_str}"
-                    raise ValueError(msg)
-                cmd.extend([cli_arg, val_str])
+            cmd.extend(self._sanitize_arg(key, value))
 
         if initial_potential:
             if not initial_potential.exists():
@@ -85,11 +92,11 @@ class PacemakerWrapper:
         subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
 
         # Return the path to the generated potential
-        # Assuming standard naming convention or user knows where to look in output_dir
-        # For now, return a generic path that Trainer can verify
         return output_dir / "output_potential.yace"
 
-    def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:
+    def select_active_set(
+        self, candidates_path: Path, num_select: int, output_path: Path
+    ) -> Path:
         """Run pace_activeset command.
 
         Args:

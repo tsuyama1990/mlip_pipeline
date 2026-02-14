@@ -54,6 +54,13 @@ class TestTrainerModule:
         # Configure mock return values
         trainer.mock_wrapper.train.return_value = Path("output.yace")  # type: ignore[attr-defined]
 
+        # Ensure save_iter consumes the iterator to trigger counting
+        def consume_iterator(data, path):
+            for _ in data:
+                pass
+
+        trainer.mock_dataset_manager.save_iter.side_effect = consume_iterator  # type: ignore[attr-defined]
+
         result = trainer.train(dataset)
 
         assert isinstance(result, Potential)

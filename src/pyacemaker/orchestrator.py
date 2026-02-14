@@ -160,43 +160,20 @@ class Orchestrator(IOrchestrator):
             high_uncertainty_stream_with_stats, n_candidates_per_seed=n_local
         )
 
-        # For selection (FPS/CUR), we typically need the full pool.
-        # So we materialize the *candidates* (not the full dataset).
-        # Candidates are derived from high_uncertainty seeds * n_local.
-        # This list should fit in memory (e.g. 100 seeds * 10 candidates = 1000 structures).
-        # However, to be safe, we consume in batches or limit size.
-        # For now, we enforce a hard limit on candidate pool size if needed,
-        # but let's assume candidates_iter yields a reasonable number or we'd need reservoir sampling.
-        # Given the requirements, we consume it into a list but acknowledge memory constraint.
-        # A better approach would be streaming active set selection, but pace_activeset requires a dataset file.
-        # So we MUST materialize to file eventually.
+        # Pass iterator directly to Trainer to avoid materializing large lists in memory.
+        # The Trainer streams candidates to a temporary file for `pace_activeset`.
+        n_select = self.config.orchestrator.n_active_set_select
+        active_set = self.trainer.select_active_set(candidates_iter, n_select=n_select)
 
-        # NOTE: Audit feedback requires us to avoid "materializing entire candidate list into memory".
-        # But pace_activeset works on files. We could stream-write to a temp file here.
-        # However, we need to pass a list to select_active_set which expects a list (for now).
-        # To satisfy "NO loading entire datasets", we should ideally change select_active_set to accept an iterator
-        # or handle file paths directly if possible. But given the current interface requires a list,
-        # let's assume the pool is manageable OR enforce a limit.
-        # For this cycle, let's stick with list but acknowledge the limitation.
-        # Actually, let's limit it to avoid OOM if generator goes wild.
-        MAX_CANDIDATES = 10000
-        candidates_list = []
-        for i, c in enumerate(candidates_iter):
-            if i >= MAX_CANDIDATES:
-                self.logger.warning(f"Candidate pool exceeded {MAX_CANDIDATES}, truncating.")
-                break
-            candidates_list.append(c)
-
-        # Log stats after consumption
+        # Log stats after consumption (candidates_iter is consumed by select_active_set)
         self.logger.info(f"Exploration max gamma: {max_gamma:.2f}")
 
-        n_select = self.config.orchestrator.n_active_set_select
-        active_set = self.trainer.select_active_set(candidates_list, n_select=n_select)
-
-        # Filter candidates by ID
-        active_ids = set(active_set.structure_ids)
-        # Re-iterate list is fine since it's already in memory
-        selected_structures = [c for c in candidates_list if c.id in active_ids]
+        # Retrieve selected structures directly from ActiveSet metadata
+        if active_set.structures:
+            selected_structures = active_set.structures
+        else:
+            self.logger.warning("ActiveSet returned no structure objects. Calculation skipped.")
+            selected_structures = []
 
         # 5. Calculation (Oracle)
         self.logger.info(f"Phase: Calculation ({len(selected_structures)} structures)")

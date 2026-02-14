@@ -145,6 +145,15 @@ class StructureMetadata(BaseModel):
 
         return v
 
+    @field_validator("features")
+    @classmethod
+    def validate_features(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate features dictionary."""
+        if not all(isinstance(k, str) for k in v):
+            msg = "Feature keys must be strings"
+            raise ValueError(msg)
+        return v
+
     @model_validator(mode="after")
     def validate_calculated_fields(self) -> "StructureMetadata":
         """Ensure energy and forces are present if status is CALCULATED."""
@@ -253,6 +262,10 @@ class ActiveSet(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the active set")
     structure_ids: list[UUID] = Field(..., description="List of structure IDs in this set")
+    # Optional field to carry the actual objects in memory if needed by the Orchestrator
+    structures: list["StructureMetadata"] | None = Field(
+        default=None, description="Selected structure objects"
+    )
     selection_criteria: str = Field(
         ..., description="Description of selection criteria (e.g., 'max_uncertainty')"
     )
