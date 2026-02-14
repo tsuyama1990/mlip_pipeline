@@ -1,5 +1,7 @@
 """Utility functions for pyacemaker."""
 
+import io
+import random
 from collections.abc import Iterator
 from typing import IO, Any
 
@@ -23,14 +25,13 @@ class LimitedStream:
         if size < 0:
             # Read all, but in chunks to enforce limit
             chunk_size = 4096
-            chunks = []
+            buffer = io.StringIO()
             while True:
                 chunk = self.read(chunk_size)
                 if not chunk:
                     break
-                chunks.append(chunk)
-            # Use join for efficient string concatenation
-            return "".join(chunks)
+                buffer.write(chunk)
+            return buffer.getvalue()
 
         chunk = self.stream.read(size)
         self.total_read += len(chunk)
@@ -52,18 +53,24 @@ def generate_dummy_structures(
     Returns an iterator to avoid loading all structures into memory at once.
     """
     tags = tags or ["dummy"]
-    # Provide minimal MaterialDNA for testing
-    dna = MaterialDNA(composition={"Fe": 1.0}, crystal_system="cubic")
 
-    # Create dummy atoms
-    # We create a simple BCC iron unit cell or similar dummy
-    atoms = Atoms("Fe", positions=[[0, 0, 0]], cell=[2.87, 2.87, 2.87], pbc=True)
+    # Create dummy atoms template
+    base_atoms = Atoms("Fe", positions=[[0, 0, 0]], cell=[2.87, 2.87, 2.87], pbc=True)
 
-    for _ in range(count):
+    for i in range(count):
+        # Generate diverse MaterialDNA
+        # Vary composition slightly to simulate diversity
+        comp_fe = 0.9 + (0.1 * random.random())  # noqa: S311
+        dna = MaterialDNA(
+            composition={"Fe": comp_fe, "C": 1.0 - comp_fe},
+            crystal_system="cubic",
+            space_group="Im-3m" if i % 2 == 0 else "Fm-3m",
+        )
+
         yield StructureMetadata(
             tags=tags,
             material_dna=dna,
             # Features can be used for extra data, but core properties are explicit now
             # Include 'atoms' feature for Trainer compatibility
-            features={"mock_feature": "test", "atoms": atoms.copy()},  # type: ignore[no-untyped-call]
+            features={"mock_feature": "test", "atoms": base_atoms.copy()},  # type: ignore[no-untyped-call]
         )

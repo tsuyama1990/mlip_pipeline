@@ -1,5 +1,6 @@
 """DFT Manager module."""
 
+import tempfile
 from collections.abc import Iterator
 
 from ase import Atoms
@@ -34,37 +35,39 @@ class DFTManager:
             The calculated structure with results attached, or None if failed.
 
         """
-        for attempt in range(self.config.max_retries):
-            try:
-                calc = create_calculator(self.config, attempt)
-                structure.calc = calc
+        # Create a unique temporary directory for this calculation to ensure thread safety
+        with tempfile.TemporaryDirectory(prefix="dft_run_") as tmp_dir:
+            for attempt in range(self.config.max_retries):
+                try:
+                    calc = create_calculator(self.config, attempt, directory=tmp_dir)
+                    structure.calc = calc
 
-                # Log attempt details for debugging
-                mixing_beta = calc.parameters["input_data"]["electrons"].get("mixing_beta")
-                self.logger.debug(f"DFT Attempt {attempt + 1}: mixing_beta={mixing_beta}")
+                    # Log attempt details for debugging
+                    mixing_beta = calc.parameters["input_data"]["electrons"].get("mixing_beta")
+                    self.logger.debug(f"DFT Attempt {attempt + 1}: mixing_beta={mixing_beta}")
 
-                # Trigger calculation
-                structure.get_potential_energy()  # type: ignore[no-untyped-call]
+                    # Trigger calculation
+                    structure.get_potential_energy()  # type: ignore[no-untyped-call]
 
-            except Exception as e:
-                # If it's the last attempt, fail
-                if attempt == self.config.max_retries - 1:
-                    self.logger.warning(f"DFT failed permanently on attempt {attempt + 1}: {e}")
+                except Exception as e:
+                    # If it's the last attempt, fail
+                    if attempt == self.config.max_retries - 1:
+                        self.logger.warning(f"DFT failed permanently on attempt {attempt + 1}: {e}")
+                        break
+
+                    # Check if recoverable
+                    if self._is_recoverable_error(e):
+                        self.logger.warning(
+                            f"Recoverable DFT error (Attempt {attempt + 1}/{self.config.max_retries}): {e}. Retrying..."
+                        )
+                        continue
+
+                    # If not recoverable, stop immediately
+                    self.logger.exception("Fatal DFT error")
                     break
-
-                # Check if recoverable
-                if self._is_recoverable_error(e):
-                    self.logger.warning(
-                        f"Recoverable DFT error (Attempt {attempt + 1}/{self.config.max_retries}): {e}. Retrying..."
-                    )
-                    continue
-
-                # If not recoverable, stop immediately
-                self.logger.exception("Fatal DFT error")
-                break
-
-            self.logger.info("DFT calculation successful")
-            return structure
+                else:
+                    self.logger.info("DFT calculation successful")
+                    return structure
 
         self.logger.error("DFT calculation failed")
         return None

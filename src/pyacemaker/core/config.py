@@ -52,6 +52,12 @@ class Constants(BaseSettings):
     default_log_level: str = _DEFAULTS["log_level"]
     default_structure_strategy: str = _DEFAULTS["structure_strategy"]
     default_trainer_potential: str = _DEFAULTS["trainer_potential"]
+    default_trainer_cutoff: float = _DEFAULTS["trainer_cutoff"]
+    default_trainer_order: int = _DEFAULTS["trainer_order"]
+    default_trainer_basis_size: tuple[int, int] = tuple(_DEFAULTS["trainer_basis_size"])
+    default_trainer_delta_learning: str = _DEFAULTS["trainer_delta_learning"]
+    default_trainer_max_epochs: int = _DEFAULTS["trainer_max_epochs"]
+    default_trainer_batch_size: int = _DEFAULTS["trainer_batch_size"]
     default_engine: str = _DEFAULTS["engine"]
 
     # Orchestrator Defaults
@@ -233,12 +239,28 @@ class TrainerConfig(BaseModuleConfig):
         default=CONSTANTS.default_trainer_potential, description="Type of potential to train"
     )
     mock: bool = Field(default=False, description="Use mock trainer for testing")
-    cutoff: float = Field(default=5.0, description="Cutoff radius for the potential (Angstrom)")
-    order: int = Field(default=3, description="Maximum correlation order")
-    basis_size: tuple[int, int] = Field(default=(15, 5), description="Basis size (radial, angular)")
-    delta_learning: str = Field(default="zbl", description="Delta learning method (zbl, lj, none)")
-    max_epochs: int = Field(default=500, description="Maximum number of training epochs")
-    batch_size: int = Field(default=100, description="Batch size for training")
+    cutoff: float = Field(
+        default=CONSTANTS.default_trainer_cutoff,
+        description="Cutoff radius for the potential (Angstrom)",
+    )
+    order: int = Field(
+        default=CONSTANTS.default_trainer_order, description="Maximum correlation order"
+    )
+    basis_size: tuple[int, int] = Field(
+        default=CONSTANTS.default_trainer_basis_size,
+        description="Basis size (radial, angular)",
+    )
+    delta_learning: str = Field(
+        default=CONSTANTS.default_trainer_delta_learning,
+        description="Delta learning method (zbl, lj, none)",
+    )
+    max_epochs: int = Field(
+        default=CONSTANTS.default_trainer_max_epochs,
+        description="Maximum number of training epochs",
+    )
+    batch_size: int = Field(
+        default=CONSTANTS.default_trainer_batch_size, description="Batch size for training"
+    )
 
     @field_validator("delta_learning")
     @classmethod
@@ -302,7 +324,7 @@ class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     level: str = Field(
-        CONSTANTS.default_log_level,
+        default=CONSTANTS.default_log_level,
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
     format: str = Field(default=CONSTANTS.default_log_format, description="Log message format")
@@ -329,7 +351,7 @@ class PYACEMAKERConfig(BaseModel):
         pattern=CONSTANTS.version_regex,
     )
     project: ProjectConfig
-    logging: LoggingConfig = Field(default_factory=LoggingConfig)  # type: ignore[arg-type]
+    logging: LoggingConfig = Field(default_factory=lambda: LoggingConfig())
 
     # Module configurations
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
@@ -392,6 +414,8 @@ def load_config(path: Path) -> PYACEMAKERConfig:
     except ConfigurationError:
         raise
     except Exception as e:  # Catch unexpected errors during load
+        self_logger = __import__("logging").getLogger("pyacemaker.core.config")
+        self_logger.exception("Unexpected error loading configuration")
         msg = f"Unexpected error loading configuration: {e}"
         raise ConfigurationError(msg) from e
 

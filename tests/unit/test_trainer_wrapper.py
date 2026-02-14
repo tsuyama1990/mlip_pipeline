@@ -50,6 +50,20 @@ class TestPacemakerWrapper:
         assert "32" in cmd
 
     @patch("subprocess.run")
+    def test_train_command_boolean_params(
+        self, mock_run: MagicMock, wrapper: PacemakerWrapper
+    ) -> None:
+        """Test boolean parameters in command construction."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        params = {"verbose": True, "debug": False}
+        wrapper.train(Path("d"), Path("o"), params)
+
+        cmd = mock_run.call_args[0][0]
+        assert "--verbose" in cmd
+        assert "--debug" not in cmd
+
+    @patch("subprocess.run")
     def test_train_with_initial_potential(
         self, mock_run: MagicMock, wrapper: PacemakerWrapper
     ) -> None:

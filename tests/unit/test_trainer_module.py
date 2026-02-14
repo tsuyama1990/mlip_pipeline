@@ -63,3 +63,7 @@ class TestTrainerModule:
     def test_initialization(self, trainer: Trainer) -> None:
         """Test initialization of Trainer module."""
         assert isinstance(trainer.trainer_config, TrainerConfig)
+        # Verify sub-modules are initialized
+        assert trainer.wrapper is not None
+        assert trainer.active_set_selector is not None
+        assert trainer.dataset_manager is not None

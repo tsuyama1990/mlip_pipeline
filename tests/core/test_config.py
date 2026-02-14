@@ -141,31 +141,65 @@ def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.Monke
         load_config(config_file)
 
 
-def test_load_config_chunked_read(tmp_path: Path) -> None:
-    """Test reading a valid file in chunks (implicit test of logic)."""
+def test_load_config_limited_stream(tmp_path: Path) -> None:
+    """Test reading a valid file via LimitedStream."""
     original_skip = CONSTANTS.skip_file_checks
     CONSTANTS.skip_file_checks = True
     try:
         config_data = {
             "version": "0.1.0",
-            "project": {"name": "ChunkTest", "root_dir": str(tmp_path)},
+            "project": {"name": "StreamTest", "root_dir": str(tmp_path)},
             "oracle": {
                 "dft": {
-                    "code": "vasp",
+                    "code": "quantum_espresso",
                     "pseudopotentials": {"Fe": "Fe.pbe.UPF"},
                     "parameters": {},
                 },
                 "mock": True,
             },
         }
-        config_file = tmp_path / "chunk_config.yaml"
+        config_file = tmp_path / "stream_config.yaml"
         with config_file.open("w") as f:
             yaml.dump(config_data, f)
 
+        # Ensure file is large enough to be non-trivial but within limit
+        # Add a comment to pad size
+        with config_file.open("a") as f:
+            f.write("\n# " + "x" * 1024)
+
         config = load_config(config_file)
-        assert config.project.name == "ChunkTest"
+        assert config.project.name == "StreamTest"
     finally:
         CONSTANTS.skip_file_checks = original_skip
+
+
+def test_limited_stream_chunking() -> None:
+    """Test LimitedStream chunks properly."""
+    from io import StringIO
+
+    from pyacemaker.core.utils import LimitedStream
+
+    content = "abcdefghij" * 10  # 100 chars
+    stream = StringIO(content)
+
+    # Use small chunk size in LimitedStream by mocking/subclassing or just calling read loop
+    limited = LimitedStream(stream, limit=200)
+    assert limited.read() == content
+
+    # Monkeypatch read to verify it aggregates
+    # Actually, LimitedStream.read(size=-1) calls self.read(4096).
+    # If we pass a small stream, it reads it all.
+    # To verify loop, we need content > chunk_size (4096).
+
+    large_content = "a" * 5000
+    large_stream = StringIO(large_content)
+    limited_large = LimitedStream(large_stream, limit=6000)
+
+    # This should trigger the loop in read(-1)
+    result = limited_large.read()
+    assert len(result) == 5000
+    assert result == large_content
+    assert limited_large.total_read == 5000
 
 
 def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

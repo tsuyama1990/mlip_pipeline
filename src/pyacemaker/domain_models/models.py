@@ -1,12 +1,13 @@
 """Domain models for PYACEMAKER."""
 
+import math
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def utc_now() -> datetime:
@@ -100,6 +101,38 @@ class StructureMetadata(BaseModel):
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=utc_now, description="Last update timestamp")
 
+    @field_validator("energy")
+    @classmethod
+    def validate_energy(cls, v: float | None) -> float | None:
+        """Validate energy is finite."""
+        if v is not None and not math.isfinite(v):
+            msg = "Energy must be a finite number"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("forces", "stress")
+    @classmethod
+    def validate_tensor_values(
+        cls, v: list[list[float]] | list[float] | None
+    ) -> list[list[float]] | list[float] | None:
+        """Validate tensor values are finite."""
+        if v is None:
+            return v
+
+        # Flatten logic to handle both nested lists (forces) and flat lists (stress)
+        flattened: list[float] = []
+        if isinstance(v, list):
+            for item in v:
+                if isinstance(item, list):
+                    flattened.extend(item)
+                else:
+                    flattened.append(item)
+
+        if not all(math.isfinite(x) for x in flattened):
+            msg = "Forces and stress must contain finite numbers"
+            raise ValueError(msg)
+        return v
+
     @model_validator(mode="after")
     def validate_calculated_fields(self) -> "StructureMetadata":
         """Ensure energy and forces are present if status is CALCULATED."""
@@ -138,6 +171,15 @@ class Potential(BaseModel):
     )
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
 
+    @field_validator("path")
+    @classmethod
+    def validate_path_format(cls, v: Path) -> Path:
+        """Validate path format."""
+        if str(v).strip() == "":
+            msg = "Path cannot be empty"
+            raise ValueError(msg)
+        return v
+
 
 class TaskType(str, Enum):
     """Type of computational task."""
@@ -171,6 +213,14 @@ class Task(BaseModel):
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
     started_at: datetime | None = Field(default=None, description="Start timestamp")
     completed_at: datetime | None = Field(default=None, description="Completion timestamp")
+
+    @model_validator(mode="after")
+    def validate_timestamps(self) -> "Task":
+        """Validate temporal consistency."""
+        if self.started_at and self.completed_at and self.completed_at < self.started_at:
+            msg = "Completion time cannot be before start time"
+            raise ValueError(msg)
+        return self
 
 
 class CycleStatus(str, Enum):

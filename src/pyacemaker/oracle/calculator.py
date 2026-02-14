@@ -1,8 +1,8 @@
 """Calculator factory for DFT simulations."""
 
-from typing import Any, cast
+from typing import Any
 
-from ase.calculators.calculator import Calculator
+from ase.calculators.calculator import BaseCalculator
 from ase.calculators.espresso import Espresso, EspressoProfile
 
 from pyacemaker.core.config import CONSTANTS, DFTConfig
@@ -18,12 +18,15 @@ def _deep_update(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]
     return base
 
 
-def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
+def create_calculator(
+    config: DFTConfig, attempt: int = 0, directory: str | None = None
+) -> BaseCalculator:
     """Create an ASE calculator based on configuration and attempt number.
 
     Args:
         config: The DFT configuration.
         attempt: The retry attempt number (0-based).
+        directory: Working directory for the calculator.
 
     Returns:
         Configured ASE Calculator.
@@ -107,5 +110,11 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         tprnfor=True,
         kspacing=config.kspacing,
         input_data=input_data,
+        directory=directory or ".",
     )
-    return cast(Calculator, calc)
+
+    if not isinstance(calc, BaseCalculator):
+        msg = f"Created object is not an ASE Calculator: {type(calc)}"
+        raise TypeError(msg)
+
+    return calc
