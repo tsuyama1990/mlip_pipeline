@@ -5,6 +5,7 @@ import contextlib
 import random
 import secrets
 from collections.abc import Iterable, Iterator
+from itertools import islice
 
 from ase import Atoms
 
@@ -92,9 +93,6 @@ class MockOracle(BaseOracle):
 
     def _get_random_uniform(self, a: float, b: float) -> float:
         """Get random float using configured RNG."""
-        if isinstance(self.rng, random.Random):
-            return self.rng.uniform(a, b)
-        # SystemRandom logic
         return self.rng.uniform(a, b)
 
     def compute_batch(
@@ -152,23 +150,11 @@ class DFTOracle(BaseOracle):
         iterator = iter(structures)
 
         while True:
-            chunk = self._read_chunk(iterator, chunk_size)
+            chunk = list(islice(iterator, chunk_size))
             if not chunk:
                 break
 
             yield from self._process_parallel_chunk(chunk)
-
-    def _read_chunk(
-        self, iterator: Iterator[StructureMetadata], size: int
-    ) -> list[StructureMetadata]:
-        """Read a chunk of items from an iterator."""
-        chunk: list[StructureMetadata] = []
-        try:
-            for _ in range(size):
-                chunk.append(next(iterator))
-        except StopIteration:
-            pass
-        return chunk
 
     def _process_parallel_chunk(
         self, chunk: list[StructureMetadata]
@@ -185,12 +171,13 @@ class DFTOracle(BaseOracle):
                 else:
                     s.status = StructureStatus.FAILED
 
-        # If nothing to process in this chunk (all calculated or failed), yield immediately
+        # If nothing to process in this chunk (all calculated or failed), return immediately
         if not to_process:
             return chunk
 
         # Process in parallel
-        max_workers = min(len(to_process), 4)  # Conservative limit
+        # Use configured max_workers, bounded by chunk size
+        max_workers = min(len(to_process), self.config.oracle.dft.max_workers)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Map futures to structures

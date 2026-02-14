@@ -46,6 +46,7 @@ class Constants(BaseSettings):
     default_dft_max_retries: int = 3
     default_dft_mixing_beta: float = 0.7
     default_dft_chunk_size: int = 100
+    default_dft_max_workers: int = 4
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = [
         "scf not converged",
@@ -140,6 +141,10 @@ class DFTConfig(BaseModel):
     chunk_size: int = Field(
         default=CONSTANTS.default_dft_chunk_size,
         description="Number of structures to process in a single batch (DFT)",
+    )
+    max_workers: int = Field(
+        default=CONSTANTS.default_dft_max_workers,
+        description="Maximum number of parallel workers for DFT calculations",
     )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters (e.g. for mocking)"
