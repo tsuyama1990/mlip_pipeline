@@ -40,9 +40,12 @@ def test_compute_failure_retry_recoverable(config: DFTConfig) -> None:
 
     # Fail once with recoverable error, then succeed
     error_msg = "Error: SCF not converged after 100 iterations"
-    with patch(
-        "ase.Atoms.get_potential_energy", side_effect=[Exception(error_msg), -10.0]
-    ) as mock_get_pe, patch("pyacemaker.oracle.manager.create_calculator") as mock_create_calc:
+    with (
+        patch(
+            "ase.Atoms.get_potential_energy", side_effect=[Exception(error_msg), -10.0]
+        ) as mock_get_pe,
+        patch("pyacemaker.oracle.manager.create_calculator") as mock_create_calc,
+    ):
         result = manager.compute(atoms)
         assert result is not None
         assert mock_get_pe.call_count == 2

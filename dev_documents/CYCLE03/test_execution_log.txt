@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0
+collected 83 items
+
+tests/core/test_base.py .                                                [  1%]
+tests/core/test_config.py ...............                                [ 19%]
+tests/core/test_config_failures.py ........                              [ 28%]
+tests/core/test_logging.py ....                                          [ 33%]
+tests/integration/test_pipeline.py .                                     [ 34%]
+tests/oracle/test_calculator.py .....                                    [ 40%]
+tests/oracle/test_dataset.py .....                                       [ 46%]
+tests/oracle/test_manager.py .....                                       [ 53%]
+tests/test_main.py ....                                                  [ 57%]
+tests/uat/test_cycle01.py ...                                            [ 61%]
+tests/uat/test_cycle03.py ...                                            [ 65%]
+tests/unit/test_config_full.py ...                                       [ 68%]
+tests/unit/test_domain_models.py .......                                 [ 77%]
+tests/unit/test_oracle_module.py .......                                 [ 85%]
+tests/unit/test_structure_generator.py ...                               [ 89%]
+tests/unit/test_trainer_active_set.py .                                  [ 90%]
+tests/unit/test_trainer_config.py ...                                    [ 93%]
+tests/unit/test_trainer_module.py ..                                     [ 96%]
+tests/unit/test_trainer_wrapper.py ...                                   [100%]
+
+============================= 83 passed in 14.75s ==============================

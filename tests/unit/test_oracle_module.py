@@ -31,9 +31,7 @@ def config(tmp_path: Path) -> PYACEMAKERConfig:
         version="0.1.0",
         project=ProjectConfig(name="Test", root_dir=tmp_path),
         oracle=OracleConfig(
-            dft=DFTConfig(
-                code="qe", pseudopotentials={"Fe": str(pp_file)}, parameters={}
-            ),
+            dft=DFTConfig(code="qe", pseudopotentials={"Fe": str(pp_file)}, parameters={}),
             mock=False,
         ),
     )

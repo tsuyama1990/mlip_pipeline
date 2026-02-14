@@ -54,13 +54,12 @@ class Orchestrator(IOrchestrator):
 
         # Dependency Injection with fallbacks using factory pattern
         self.structure_generator: StructureGenerator = (
-            structure_generator
-            or _create_default_module(RandomStructureGenerator, config)
+            structure_generator or _create_default_module(RandomStructureGenerator, config)
         )
         self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
-        self.dynamics_engine: DynamicsEngine = (
-            dynamics_engine or _create_default_module(LAMMPSEngine, config)
+        self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(
+            LAMMPSEngine, config
         )
         self.validator: Validator = validator or _create_default_module(MockValidator, config)
 

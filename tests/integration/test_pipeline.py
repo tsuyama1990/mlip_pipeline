@@ -24,6 +24,9 @@ def test_pipeline_integration(tmp_path: Path) -> None:
             },
             "mock": True,
         },
+        "trainer": {
+            "mock": True,
+        },
         "orchestrator": {
             "max_cycles": 2,
             "uncertainty_threshold": 0.1,

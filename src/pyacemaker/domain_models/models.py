@@ -54,7 +54,9 @@ class UncertaintyState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     gamma_mean: float | None = Field(default=None, description="Mean extrapolation grade")
-    gamma_variance: float | None = Field(default=None, description="Variance of extrapolation grade")
+    gamma_variance: float | None = Field(
+        default=None, description="Variance of extrapolation grade"
+    )
     gamma_max: float | None = Field(default=None, description="Maximum extrapolation grade")
 
 
@@ -66,9 +68,7 @@ class StructureMetadata(BaseModel):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the structure")
 
     # Core features
-    material_dna: MaterialDNA | None = Field(
-        default=None, description="Material DNA features"
-    )
+    material_dna: MaterialDNA | None = Field(default=None, description="Material DNA features")
     predicted_properties: PredictedProperties | None = Field(
         default=None, description="Predicted physical properties"
     )
@@ -87,7 +87,8 @@ class StructureMetadata(BaseModel):
 
     # Legacy/Flexible storage (e.g., for ASE Atoms object which is not Pydantic-serializable)
     features: dict[str, Any] = Field(
-        default_factory=dict, description="Additional extracted features or raw objects (e.g. atoms)"
+        default_factory=dict,
+        description="Additional extracted features or raw objects (e.g. atoms)",
     )
 
     tags: list[str] = Field(

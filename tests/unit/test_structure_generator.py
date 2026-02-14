@@ -80,5 +80,5 @@ def test_random_generator_batch(config: PYACEMAKERConfig) -> None:
     candidates_iter = generator.generate_batch_candidates(seeds, n_candidates_per_seed=2)
     candidates = list(candidates_iter)
 
-    assert len(candidates) == 4 # 2 * 2
+    assert len(candidates) == 4  # 2 * 2
     assert candidates[0].tags == ["candidate", "batch"]

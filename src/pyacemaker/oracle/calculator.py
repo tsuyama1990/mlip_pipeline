@@ -84,13 +84,11 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         if "electrons" not in input_data:
             input_data["electrons"] = {}
 
-        current_beta = input_data["electrons"].get(
-            "mixing_beta", CONSTANTS.default_dft_mixing_beta
-        )
+        current_beta = input_data["electrons"].get("mixing_beta", CONSTANTS.default_dft_mixing_beta)
         # Ensure current_beta is a float/number
         if not isinstance(current_beta, (int, float)):
-             # Fallback if user provided weird type
-             current_beta = CONSTANTS.default_dft_mixing_beta
+            # Fallback if user provided weird type
+            current_beta = CONSTANTS.default_dft_mixing_beta
 
         new_beta = max(0.1, current_beta - (0.1 * attempt))
         input_data["electrons"]["mixing_beta"] = new_beta

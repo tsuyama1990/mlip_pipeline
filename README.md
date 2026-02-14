@@ -12,9 +12,10 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 
 -   **Zero-Config Automation**: Define your material system in `config.yaml` and let the system handle structure generation, DFT, training, and validation.
 -   **Automated DFT (Oracle)**: Integrated wrapper around Quantum Espresso (via ASE) with self-healing retry logic for SCF convergence failures.
+-   **Pacemaker Integration (Trainer)**: Seamlessly trains ACE potentials using `pace_train`. Supports active set selection (`pace_activeset`) to filter redundant structures (D-optimality).
+-   **Delta Learning**: Automatically configures physics-based baselines (ZBL/LJ) to ensure core repulsion, allowing the ACE potential to learn only the difference ($E_{ACE} = E_{DFT} - E_{Baseline}$).
 -   **Dataset Management**: Efficient handling of large atomic structure datasets (`.pckl.gzip`), fully compatible with Pacemaker. Includes streaming support for large files.
 -   **Active Learning Loop**: Uses "Halt & Diagnose" logic to monitor MD simulations. If uncertainty ($\gamma$) spikes, the simulation halts, and the problematic structure is automatically sent for labeling and retraining.
--   **Physics-Informed Robustness**: Enforces Hybrid Potentials (ACE + ZBL/LJ) to prevent unphysical behavior (e.g., core collapse) in unknown regions.
 
 ## Requirements
 
@@ -44,7 +45,7 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 ## Usage
 
 ### 1. Configuration
-Create a `config.yaml` file. Here is an example with DFT settings:
+Create a `config.yaml` file. Here is an example with DFT and Trainer settings:
 
 ```yaml
 version: "0.1.0"
@@ -62,7 +63,6 @@ oracle:
     kspacing: 0.05
     smearing: 0.02
     max_retries: 3
-    # Optional: Override default QE parameters
     parameters:
       system:
         ecutwfc: 80.0
@@ -76,6 +76,13 @@ structure_generator:
 
 trainer:
   potential_type: "pace"
+  cutoff: 6.0
+  order: 3
+  basis_size: [15, 5]
+  delta_learning: "zbl"
+  max_epochs: 500
+  batch_size: 100
+  mock: false
 
 orchestrator:
   max_cycles: 10
@@ -126,11 +133,15 @@ pyacemaker/
 │       ├── core/           # Configuration, Logging, Base Classes
 │       ├── domain_models/  # Pydantic Data Models
 │       ├── modules/        # High-level Modules (Oracle, Trainer, etc.)
-│       │   └── oracle.py   # DFTOracle Implementation
+│       │   ├── oracle.py   # DFTOracle Implementation
+│       │   └── trainer.py  # PacemakerTrainer Implementation
 │       ├── oracle/         # DFT Logic Package
 │       │   ├── calculator.py # ASE Calculator Factory
 │       │   ├── dataset.py    # Dataset I/O
 │       │   └── manager.py    # DFT Execution & Retry Logic
+│       ├── trainer/        # Trainer Logic Package
+│       │   ├── wrapper.py    # Pacemaker CLI Wrapper
+│       │   └── active_set.py # Active Set Logic
 │       ├── orchestrator.py # Main Loop
 │       └── main.py         # CLI Entry Point
 ├── tests/                  # Unit & Integration Tests
@@ -141,7 +152,7 @@ pyacemaker/
 
 -   [x] Cycle 01: Core Infrastructure & Orchestrator
 -   [x] Cycle 02: Oracle (DFT) & Data Management
--   [ ] Cycle 03: Trainer (Pacemaker Integration)
+-   [x] Cycle 03: Trainer (Pacemaker Integration)
 -   [ ] Cycle 04: Structure Generation
 -   [ ] Cycle 05: Dynamics Engine (MD/kMC)
 -   [ ] Cycle 06: Validator & Final Polish

@@ -3,6 +3,8 @@
 from collections.abc import Iterator
 from typing import IO, Any
 
+from ase import Atoms
+
 from pyacemaker.core.exceptions import ConfigurationError
 from pyacemaker.domain_models.models import MaterialDNA, StructureMetadata
 
@@ -42,7 +44,9 @@ class LimitedStream:
         return getattr(self.stream, name)
 
 
-def generate_dummy_structures(count: int, tags: list[str] | None = None) -> Iterator[StructureMetadata]:
+def generate_dummy_structures(
+    count: int, tags: list[str] | None = None
+) -> Iterator[StructureMetadata]:
     """Generate a sequence of dummy structures for testing/mocking.
 
     Returns an iterator to avoid loading all structures into memory at once.
@@ -50,10 +54,16 @@ def generate_dummy_structures(count: int, tags: list[str] | None = None) -> Iter
     tags = tags or ["dummy"]
     # Provide minimal MaterialDNA for testing
     dna = MaterialDNA(composition={"Fe": 1.0}, crystal_system="cubic")
+
+    # Create dummy atoms
+    # We create a simple BCC iron unit cell or similar dummy
+    atoms = Atoms("Fe", positions=[[0, 0, 0]], cell=[2.87, 2.87, 2.87], pbc=True)
+
     for _ in range(count):
         yield StructureMetadata(
             tags=tags,
             material_dna=dna,
             # Features can be used for extra data, but core properties are explicit now
-            features={"mock_feature": "test"},
+            # Include 'atoms' feature for Trainer compatibility
+            features={"mock_feature": "test", "atoms": atoms.copy()},  # type: ignore[no-untyped-call]
         )

@@ -95,9 +95,7 @@ class MockOracle(BaseOracle):
         """Get random float using configured RNG."""
         return self.rng.uniform(a, b)
 
-    def compute_batch(
-        self, structures: Iterable[StructureMetadata]
-    ) -> Iterator[StructureMetadata]:
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch.
 
         Args:
@@ -120,6 +118,13 @@ class MockOracle(BaseOracle):
             energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
             forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)]]
 
+            # Ensure atoms object exists for Trainer
+            if "atoms" not in s.features or not isinstance(s.features.get("atoms"), Atoms):
+                # Create dummy atoms
+                s.features["atoms"] = Atoms(
+                    "Fe", positions=[[0, 0, 0]], cell=[2.5, 2.5, 2.5], pbc=True
+                )
+
             # Update structure
             s.energy = energy
             s.forces = forces
@@ -140,9 +145,7 @@ class DFTOracle(BaseOracle):
         self.logger.info("Running DFTOracle")
         return ModuleResult(status="success")
 
-    def compute_batch(
-        self, structures: Iterable[StructureMetadata]
-    ) -> Iterator[StructureMetadata]:
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch of structures."""
         self.logger.info("Computing batch of structures (DFT Parallel Streaming)")
 
@@ -156,9 +159,7 @@ class DFTOracle(BaseOracle):
 
             yield from self._process_parallel_chunk(chunk)
 
-    def _process_parallel_chunk(
-        self, chunk: list[StructureMetadata]
-    ) -> list[StructureMetadata]:
+    def _process_parallel_chunk(self, chunk: list[StructureMetadata]) -> list[StructureMetadata]:
         """Process a chunk of structures in parallel."""
         # Validate and filter
         to_process = []
@@ -182,8 +183,7 @@ class DFTOracle(BaseOracle):
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Map futures to structures
             future_to_struct = {
-                executor.submit(self.dft_manager.compute, atoms): s
-                for s, atoms in to_process
+                executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
             }
 
             for future in concurrent.futures.as_completed(future_to_struct):

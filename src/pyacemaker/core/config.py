@@ -198,10 +198,13 @@ class DFTConfig(BaseModel):
         """Validate parameters content for security."""
         # Check that keys are allowed sections
         for key in v:
-            if key.lower() not in CONSTANTS.dft_allowed_input_sections and key not in {"seed", "simulate_failure"}:
-                 # Allow specific testing keys, block others
-                 msg = f"Security Error: Input section '{key}' is not allowed in DFT parameters."
-                 raise ValueError(msg)
+            if key.lower() not in CONSTANTS.dft_allowed_input_sections and key not in {
+                "seed",
+                "simulate_failure",
+            }:
+                # Allow specific testing keys, block others
+                msg = f"Security Error: Input section '{key}' is not allowed in DFT parameters."
+                raise ValueError(msg)
         return v
 
 
@@ -229,6 +232,23 @@ class TrainerConfig(BaseModuleConfig):
     potential_type: str = Field(
         default=CONSTANTS.default_trainer_potential, description="Type of potential to train"
     )
+    mock: bool = Field(default=False, description="Use mock trainer for testing")
+    cutoff: float = Field(default=5.0, description="Cutoff radius for the potential (Angstrom)")
+    order: int = Field(default=3, description="Maximum correlation order")
+    basis_size: tuple[int, int] = Field(default=(15, 5), description="Basis size (radial, angular)")
+    delta_learning: str = Field(default="zbl", description="Delta learning method (zbl, lj, none)")
+    max_epochs: int = Field(default=500, description="Maximum number of training epochs")
+    batch_size: int = Field(default=100, description="Batch size for training")
+
+    @field_validator("delta_learning")
+    @classmethod
+    def validate_delta_learning(cls, v: str) -> str:
+        """Validate delta learning method."""
+        valid = {"zbl", "lj", "none"}
+        if v.lower() not in valid:
+            msg = f"Invalid delta_learning: {v}. Must be one of {valid}"
+            raise ValueError(msg)
+        return v.lower()
 
 
 class DynamicsEngineConfig(BaseModuleConfig):

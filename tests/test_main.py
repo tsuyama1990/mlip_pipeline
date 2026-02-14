@@ -21,7 +21,7 @@ def test_run_command_valid(tmp_path: Path) -> None:
     """Test running the pipeline with a valid configuration."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
-        "project:\n  name: Test\n  root_dir: .\noracle:\n  dft:\n    code: qe\n    pseudopotentials:\n      Fe: Fe.pbe.UPF",
+        "project:\n  name: Test\n  root_dir: .\noracle:\n  dft:\n    code: qe\n    pseudopotentials:\n      Fe: Fe.pbe.UPF\n  mock: true\ntrainer:\n  mock: true",
         encoding="utf-8",
     )
 

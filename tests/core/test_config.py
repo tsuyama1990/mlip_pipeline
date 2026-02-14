@@ -101,9 +101,7 @@ def test_version_validation() -> None:
         CONSTANTS.skip_file_checks = original_skip
 
 
-def test_load_config_file_too_large(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test loading a file that exceeds the size limit."""
     config_file = tmp_path / "large.yaml"
     config_file.touch()
@@ -121,9 +119,7 @@ def test_load_config_file_too_large(
         load_config(config_file)
 
 
-def test_load_config_content_too_large(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that reading stops if content exceeds limit (race condition simulation)."""
     config_file = tmp_path / "race_large.yaml"
 
@@ -230,6 +226,7 @@ def test_extra_fields_forbidden(tmp_path: Path) -> None:
             load_config(config_file)
     finally:
         CONSTANTS.skip_file_checks = original_skip
+
 
 def test_load_config_permission_denied(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling of permission error."""

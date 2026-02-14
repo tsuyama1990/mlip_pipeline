@@ -31,6 +31,8 @@ oracle:
     pseudopotentials:
       Fe: Fe.pbe.UPF
   mock: true
+trainer:
+  mock: true
 """
     config_file = tmp_path / "valid_config.yaml"
     config_file.write_text(config_content)

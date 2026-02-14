@@ -45,9 +45,7 @@ class Oracle(BaseModule):
     """Interface for Oracle (DFT) module."""
 
     @abstractmethod
-    def compute_batch(
-        self, structures: Iterable[StructureMetadata]
-    ) -> Iterator[StructureMetadata]:
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy, forces, and stress for a batch of structures.
 
         Streaming interface: Takes an iterable and yields processed structures.

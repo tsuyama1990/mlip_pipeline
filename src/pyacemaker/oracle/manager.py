@@ -17,9 +17,7 @@ class DFTManager:
         self.config = config
         self.logger = logger.bind(name="DFTManager")
         # Pre-compile or store lowercased patterns for efficiency
-        self._recoverable_patterns = [
-            p.lower() for p in CONSTANTS.dft_recoverable_errors
-        ]
+        self._recoverable_patterns = [p.lower() for p in CONSTANTS.dft_recoverable_errors]
 
     def _is_recoverable_error(self, error: Exception) -> bool:
         """Check if the error is potentially recoverable via retry (e.g., SCF convergence)."""
@@ -43,9 +41,7 @@ class DFTManager:
 
                 # Log attempt details for debugging
                 mixing_beta = calc.parameters["input_data"]["electrons"].get("mixing_beta")
-                self.logger.debug(
-                    f"DFT Attempt {attempt + 1}: mixing_beta={mixing_beta}"
-                )
+                self.logger.debug(f"DFT Attempt {attempt + 1}: mixing_beta={mixing_beta}")
 
                 # Trigger calculation
                 structure.get_potential_energy()  # type: ignore[no-untyped-call]
