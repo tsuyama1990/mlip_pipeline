@@ -1,5 +1,6 @@
 """Dynamics Engine (MD/kMC) module implementation."""
 
+from collections.abc import Iterator
 from typing import Any
 
 from pyacemaker.core.base import ModuleResult
@@ -22,21 +23,19 @@ class LAMMPSEngine(DynamicsEngine):
         self.logger.info("Running LAMMPSEngine")
         return ModuleResult(status="success")
 
-    def run_exploration(self, potential: Potential) -> list[StructureMetadata]:
+    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
         """Run exploration and return structures."""
         self.logger.info(f"Running exploration with {potential.path} (mock)")
 
         # Return dummy high-uncertainty structures
-        # Note: generate_dummy_structures returns an iterator, we convert to list here
-        # because the interface currently expects a list.
-        structures = list(generate_dummy_structures(5, tags=["high_uncertainty", "exploration"]))
-        for s in structures:
+        structures_iter = generate_dummy_structures(5, tags=["high_uncertainty", "exploration"])
+
+        for s in structures_iter:
             # Use configured threshold logic (mocked)
             s.uncertainty_state = UncertaintyState(
                 gamma_max=self.gamma_threshold, gamma_mean=2.0, gamma_variance=0.5
             )
-
-        return structures
+            yield s
 
     def run_production(self, potential: Potential) -> Any:
         """Run production simulation."""

@@ -1,0 +1,59 @@
+# Default Configuration Values
+version: "0.1.0"
+log_level: "INFO"
+log_format: "[{time}] [{level}] [{extra[name]}] {message}"
+
+# File Check Skip (can be true/false)
+skip_file_checks: false
+
+# Max Config Size
+max_config_size: 1048576
+
+# Orchestrator
+orchestrator:
+  max_cycles: 10
+  uncertainty_threshold: 0.1
+  n_local_candidates: 10
+  n_active_set_select: 5
+
+# Structure Generator
+structure_strategy: "random"
+
+# Trainer
+trainer_potential: "pace"
+
+# Dynamics Engine
+engine: "lammps"
+dynamics_gamma_threshold: 10.0
+
+# Validator
+validator_metrics:
+  - "rmse_energy"
+  - "rmse_forces"
+
+# DFT / Oracle
+dft:
+  code: "quantum_espresso"
+  command: "mpirun -np 4 pw.x"
+  kspacing: 0.04
+  smearing: 0.02
+  max_retries: 3
+  mixing_beta: 0.7
+  chunk_size: 100
+  max_workers: 4
+  recoverable_errors:
+    - "scf not converged"
+    - "convergence not achieved"
+    - "electronic convergence failed"
+  allowed_input_sections:
+    - "control"
+    - "system"
+    - "electrons"
+    - "ions"
+    - "cell"
+
+# Security Warnings
+pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources."
+
+# Regex
+version_regex: "^\\d+\\.\\d+\\.\\d+$"

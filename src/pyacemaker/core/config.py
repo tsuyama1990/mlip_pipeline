@@ -12,57 +12,81 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pyacemaker.core.exceptions import ConfigurationError
 from pyacemaker.core.utils import LimitedStream
 
+# Load defaults from external YAML file
+_DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
+
+
+def _load_defaults() -> dict[str, Any]:
+    """Load default configuration values from YAML file."""
+    if not _DEFAULTS_PATH.exists():
+        # In case we are running from a context where the file is not found (e.g. tests without install)
+        # We might need a fallback, but for now let's raise to ensure integrity.
+        msg = f"Defaults file not found at {_DEFAULTS_PATH}"
+        raise FileNotFoundError(msg)
+    with _DEFAULTS_PATH.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        msg = f"Defaults file must contain a YAML dictionary, got {type(data)}"
+        raise TypeError(msg)
+
+    return data
+
+
+_DEFAULTS = _load_defaults()
+
 
 class Constants(BaseSettings):
     """System-wide constants configuration.
 
-    Values can be overridden by environment variables (e.g., PYACEMAKER_MAX_CONFIG_SIZE).
+    Values are loaded from defaults.yaml but can be overridden by environment variables
+    (e.g., PYACEMAKER_MAX_CONFIG_SIZE).
     """
 
     model_config = SettingsConfigDict(extra="forbid", env_prefix="PYACEMAKER_")
 
-    default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
+    default_log_format: str = _DEFAULTS["log_format"]
     # 1 MB limit for configuration files to prevent OOM/DOS
-    max_config_size: int = 1 * 1024 * 1024
-    default_version: str = "0.1.0"
-    default_log_level: str = "INFO"
-    default_structure_strategy: str = "random"
-    default_trainer_potential: str = "pace"
-    default_engine: str = "lammps"
-    default_orchestrator_max_cycles: int = 10
-    default_orchestrator_uncertainty: float = 0.1
-    default_orchestrator_n_local_candidates: int = 10
-    default_orchestrator_n_active_set_select: int = 5
-    default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
-    version_regex: str = r"^\d+\.\d+\.\d+$"
+    max_config_size: int = _DEFAULTS["max_config_size"]
+    default_version: str = _DEFAULTS["version"]
+    default_log_level: str = _DEFAULTS["log_level"]
+    default_structure_strategy: str = _DEFAULTS["structure_strategy"]
+    default_trainer_potential: str = _DEFAULTS["trainer_potential"]
+    default_engine: str = _DEFAULTS["engine"]
+
+    # Orchestrator Defaults
+    default_orchestrator_max_cycles: int = _DEFAULTS["orchestrator"]["max_cycles"]
+    default_orchestrator_uncertainty: float = _DEFAULTS["orchestrator"]["uncertainty_threshold"]
+    default_orchestrator_n_local_candidates: int = _DEFAULTS["orchestrator"]["n_local_candidates"]
+    default_orchestrator_n_active_set_select: int = _DEFAULTS["orchestrator"]["n_active_set_select"]
+
+    # Validator Defaults
+    default_validator_metrics: list[str] = _DEFAULTS["validator_metrics"]
+
+    version_regex: str = _DEFAULTS["version_regex"]
     # Allow skipping file checks for tests
-    skip_file_checks: bool = False
+    skip_file_checks: bool = _DEFAULTS["skip_file_checks"]
 
     # Oracle / DFT defaults
-    default_dft_code: str = "quantum_espresso"
-    default_dft_command: str = "mpirun -np 4 pw.x"
-    default_dft_kspacing: float = 0.04
-    default_dft_smearing: float = 0.02
-    default_dft_max_retries: int = 3
-    default_dft_mixing_beta: float = 0.7
-    default_dft_chunk_size: int = 100
-    default_dft_max_workers: int = 4
+    default_dft_code: str = _DEFAULTS["dft"]["code"]
+    default_dft_command: str = _DEFAULTS["dft"]["command"]
+    default_dft_kspacing: float = _DEFAULTS["dft"]["kspacing"]
+    default_dft_smearing: float = _DEFAULTS["dft"]["smearing"]
+    default_dft_max_retries: int = _DEFAULTS["dft"]["max_retries"]
+    default_dft_mixing_beta: float = _DEFAULTS["dft"]["mixing_beta"]
+    default_dft_chunk_size: int = _DEFAULTS["dft"]["chunk_size"]
+    default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
+
     # Error patterns for DFT retry logic
-    dft_recoverable_errors: list[str] = [
-        "scf not converged",
-        "convergence not achieved",
-        "electronic convergence failed",
-    ]
+    dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
     # Allowed input keys for security validation
-    dft_allowed_input_sections: list[str] = ["control", "system", "electrons", "ions", "cell"]
+    dft_allowed_input_sections: list[str] = _DEFAULTS["dft"]["allowed_input_sections"]
+
     # Dynamics Engine Defaults
-    default_dynamics_gamma_threshold: float = 10.0
+    default_dynamics_gamma_threshold: float = _DEFAULTS["dynamics_gamma_threshold"]
 
     # Security Warnings
-    PICKLE_SECURITY_WARNING: str = (
-        "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. "
-        "Ensure datasets are from trusted sources."
-    )
+    PICKLE_SECURITY_WARNING: str = _DEFAULTS["pickle_security_warning"]
 
 
 CONSTANTS = Constants()

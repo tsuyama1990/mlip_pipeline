@@ -1,5 +1,6 @@
 """Structure Generator module implementation."""
 
+from collections.abc import Iterable, Iterator
 from typing import Any
 
 from pyacemaker.core.base import Metrics, ModuleResult
@@ -20,21 +21,24 @@ class RandomStructureGenerator(StructureGenerator):
         """Run the main structure generation workflow."""
         self.logger.info("Running StructureGenerator")
         # In a real scenario, this might explore and return a result summary
-        structures = self.generate_initial_structures()
+        # For 'run', we might still count them, but be careful with large streams
+        # Here we just iterate and count to simulate work without keeping all in memory
+        count = sum(1 for _ in self.generate_initial_structures())
+
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate({"generated_count": len(structures)}),
+            metrics=Metrics.model_validate({"generated_count": count}),
         )
 
-    def generate_initial_structures(self) -> list[StructureMetadata]:
+    def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures."""
         self.logger.info("Generating initial structures (mock)")
-        # Convert iterator to list to satisfy interface
-        return list(generate_dummy_structures(5, tags=["initial", "random"]))
+        # Return iterator directly
+        yield from generate_dummy_structures(5, tags=["initial", "random"])
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int
-    ) -> list[StructureMetadata]:
+    ) -> Iterator[StructureMetadata]:
         """Generate local candidates."""
         if seed_structure is None:
             msg = "Seed structure cannot be None"
@@ -44,23 +48,25 @@ class RandomStructureGenerator(StructureGenerator):
             raise ValueError(msg)
 
         self.logger.info(f"Generating {n_candidates} local candidates around {seed_structure.id}")
-        return list(generate_dummy_structures(n_candidates, tags=["candidate", "local"]))
+        yield from generate_dummy_structures(n_candidates, tags=["candidate", "local"])
 
     def generate_batch_candidates(
-        self, seed_structures: list[StructureMetadata], n_candidates_per_seed: int
-    ) -> list[StructureMetadata]:
+        self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
+    ) -> Iterator[StructureMetadata]:
         """Generate candidate structures for a batch of seeds."""
-        if not seed_structures:
-            return []
         if n_candidates_per_seed <= 0:
             msg = "Number of candidates per seed must be positive"
             raise ValueError(msg)
 
-        self.logger.info(f"Generating batch candidates for {len(seed_structures)} seeds")
+        # We can't know total count upfront for logs if it's an iterator
+        self.logger.info("Generating batch candidates from seed structures")
 
-        # Batch generation logic (mock)
-        total_candidates = len(seed_structures) * n_candidates_per_seed
-        return list(generate_dummy_structures(total_candidates, tags=["candidate", "batch"]))
+        # Use generator to yield candidates one by one or in small batches
+        # We process seeds one by one to keep memory low
+        for _ in seed_structures:
+            yield from generate_dummy_structures(
+                n_candidates_per_seed, tags=["candidate", "batch"]
+            )
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""
