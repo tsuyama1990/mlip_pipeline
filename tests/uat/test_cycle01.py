@@ -22,8 +22,9 @@ def test_uat_valid_config(tmp_path: Path) -> None:
 project:
   name: "TestProject"
   root_dir: "./"
-dft:
-  code: "quantum_espresso"
+oracle:
+  dft:
+    code: "quantum_espresso"
 """
     config_file = tmp_path / "valid_config.yaml"
     config_file.write_text(config_content)
@@ -85,8 +86,9 @@ def test_uat_logging(tmp_path: Path) -> None:
 project:
   name: "TestProject"
   root_dir: "./"
-dft:
-  code: "quantum_espresso"
+oracle:
+  dft:
+    code: "quantum_espresso"
 """
     config_file = tmp_path / "valid_config.yaml"
     config_file.write_text(config_content)

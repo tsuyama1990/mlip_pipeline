@@ -21,7 +21,7 @@ def test_run_command_valid(tmp_path: Path) -> None:
     """Test running the pipeline with a valid configuration."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
-        "project:\n  name: Test\n  root_dir: .\ndft:\n  code: qe", encoding="utf-8"
+        "project:\n  name: Test\n  root_dir: .\noracle:\n  dft:\n    code: qe", encoding="utf-8"
     )
 
     result = runner.invoke(app, ["run", str(config_file)])

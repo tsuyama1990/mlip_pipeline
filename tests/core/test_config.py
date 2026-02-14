@@ -53,11 +53,11 @@ def test_full_config_valid() -> None:
     """Test valid full configuration."""
     data = {
         "project": {"name": "Test", "root_dir": "test_dir"},
-        "dft": {"code": "vasp"},
+        "oracle": {"dft": {"code": "vasp"}},
     }
     config = PYACEMAKERConfig(**data)  # type: ignore[arg-type]
     assert config.project.name == "Test"
-    assert config.dft.code == "vasp"
+    assert config.oracle.dft.code == "vasp"
     # Test default logging
     assert config.logging.level == "INFO"
 
@@ -66,7 +66,7 @@ def test_load_config_valid(tmp_path: Path) -> None:
     """Test loading a valid YAML configuration file."""
     config_data = {
         "project": {"name": "TestProject", "root_dir": str(tmp_path)},
-        "dft": {"code": "quantum_espresso"},
+        "oracle": {"dft": {"code": "quantum_espresso"}},
     }
     config_file = tmp_path / "config.yaml"
     with config_file.open("w") as f:
@@ -75,7 +75,7 @@ def test_load_config_valid(tmp_path: Path) -> None:
     config = load_config(config_file)
     assert config.project.name == "TestProject"
     assert config.project.root_dir == tmp_path.resolve()
-    assert config.dft.code == "quantum_espresso"
+    assert config.oracle.dft.code == "quantum_espresso"
     assert config.logging.level == "INFO"
 
 
@@ -95,7 +95,7 @@ def test_load_config_invalid_yaml(tmp_path: Path) -> None:
 
 
 def test_load_config_invalid_structure(tmp_path: Path) -> None:
-    """Test loading a YAML that is not a dictionary."""
+    """Test loading a YAML that is a list, not a dictionary."""
     config_file = tmp_path / "list.yaml"
     config_file.write_text("- item1\n- item2", encoding="utf-8")
 

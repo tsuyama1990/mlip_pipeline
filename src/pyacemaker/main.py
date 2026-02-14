@@ -1,13 +1,15 @@
 """CLI entry point for PYACEMAKER."""
 
 from pathlib import Path
+from typing import NoReturn
 
 import typer
 from loguru import logger
 
-from pyacemaker.core.config import LoggingConfig, load_config
+from pyacemaker.core.config import LoggingConfig, PYACEMAKERConfig, load_config
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.logging import setup_logging
+from pyacemaker.orchestrator import Orchestrator
 
 app = typer.Typer(help="PYACEMAKER: Automated MLIP Construction System")
 
@@ -15,6 +17,29 @@ app = typer.Typer(help="PYACEMAKER: Automated MLIP Construction System")
 @app.callback()
 def callback() -> None:
     """PYACEMAKER CLI."""
+
+
+def _handle_error(e: Exception) -> NoReturn:
+    """Handle exceptions and exit."""
+    if isinstance(e, PYACEMAKERError):
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    logger.exception("An unexpected error occurred")
+    typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1) from e
+
+
+def _run_pipeline(config: PYACEMAKERConfig) -> None:
+    """Run the pipeline logic."""
+    orchestrator = Orchestrator(config)
+    result = orchestrator.run()
+
+    if result.status == "success":
+        typer.secho("Pipeline completed successfully!", fg=typer.colors.GREEN)
+    else:
+        typer.secho(f"Pipeline failed: {result.metrics}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -35,16 +60,11 @@ def run(
     try:
         config = load_config(config_path)
         # Re-configure logging with file settings if needed, but CLI verbose overrides
-        # We only re-configure if not in verbose mode to respect CLI flag as primary debug control
         if not verbose:
             setup_logging(config.logging)
         typer.echo(f"Configuration loaded successfully. Project: {config.project.name}")
-        # Phase 2 logic ends here (placeholder)
-    except PYACEMAKERError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from e
+
+        _run_pipeline(config)
+
     except Exception as e:
-        # Catch-all for unexpected errors to ensure they are logged and CLI exits with error code
-        logger.exception("An unexpected error occurred")
-        typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from e
+        _handle_error(e)
