@@ -141,7 +141,9 @@ def _recursive_validate_parameters(data: dict[str, Any], path: str = "", depth: 
 
         # Strict whitelist validation for keys
         if not _VALID_KEY_REGEX.match(key):
-            msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
+            msg = (
+                f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
+            )
             raise ValueError(msg)
 
         if isinstance(value, dict):
@@ -289,6 +291,18 @@ class StructureGeneratorConfig(BaseModuleConfig):
     strategy: str = Field(
         default=CONSTANTS.default_structure_strategy,
         description="Generation strategy (e.g., 'random', 'adaptive')",
+    )
+    initial_exploration: str = Field(
+        default="m3gnet", description="Initial exploration strategy (m3gnet or random)"
+    )
+    strain_range: float = Field(
+        default=0.15, ge=0.0, description="Maximum strain range for random perturbation"
+    )
+    rattle_amplitude: float = Field(
+        default=0.1, ge=0.0, description="Standard deviation for atomic rattling (Angstrom)"
+    )
+    defect_density: float = Field(
+        default=0.01, ge=0.0, description="Target defect density for defect strategy"
     )
 
 
@@ -465,7 +479,9 @@ def _read_config_file(path: Path) -> dict[str, Any]:
         # Check size hint first to prevent reading large files
         file_size = path.stat().st_size
         if file_size > CONSTANTS.max_config_size:
-            msg = f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
+            msg = (
+                f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
+            )
             raise ConfigurationError(msg)
 
         with path.open("r", encoding="utf-8") as f:
@@ -479,8 +495,8 @@ def _read_config_file(path: Path) -> dict[str, Any]:
     except ValueError as e:
         # LimitedStream raises ValueError if limit exceeded
         if "exceeds limit" in str(e):
-             raise ConfigurationError(str(e)) from e
-        raise # Reraise other ValueErrors (if any) to generic handler or crash
+            raise ConfigurationError(str(e)) from e
+        raise  # Reraise other ValueErrors (if any) to generic handler or crash
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
@@ -491,14 +507,20 @@ def _read_config_file(path: Path) -> dict[str, Any]:
 
         # Security: Validate high-level structure to ensure no unexpected root keys
         allowed_root_keys = {
-            "version", "project", "logging",
-            "orchestrator", "structure_generator", "oracle",
-            "trainer", "dynamics_engine", "validator"
+            "version",
+            "project",
+            "logging",
+            "orchestrator",
+            "structure_generator",
+            "oracle",
+            "trainer",
+            "dynamics_engine",
+            "validator",
         }
         unknown_keys = set(data.keys()) - allowed_root_keys
         if unknown_keys:
-             msg = f"Unknown configuration sections: {unknown_keys}"
-             raise ConfigurationError(msg)
+            msg = f"Unknown configuration sections: {unknown_keys}"
+            raise ConfigurationError(msg)
 
         return data
 

@@ -114,9 +114,7 @@ class StructureMetadata(BaseModel):
             # Rough bound check (e.g. per atom energy shouldn't be insanely low/high)
             # Assuming total energy, this is harder, but let's prevent abs(E) > 1e6 eV which implies singularity
             if abs(v) > CONSTANTS.max_energy_ev:
-                msg = (
-                    f"Energy value {v} is physically implausible (> {CONSTANTS.max_energy_ev} eV)"
-                )
+                msg = f"Energy value {v} is physically implausible (> {CONSTANTS.max_energy_ev} eV)"
                 raise ValueError(msg)
         return v
 

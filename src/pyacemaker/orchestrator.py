@@ -193,8 +193,8 @@ class Orchestrator(IOrchestrator):
         """
         self.logger.info("Phase: Exploration")
         if not self.current_potential:
-             # Should not happen if training succeeded, but for safety
-             return None
+            # Should not happen if training succeeded, but for safety
+            return None
 
         high_uncertainty_iter = self.dynamics_engine.run_exploration(self.current_potential)
 

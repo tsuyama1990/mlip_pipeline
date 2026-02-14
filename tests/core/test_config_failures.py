@@ -45,6 +45,7 @@ def test_load_config_too_large_stat() -> None:
     mock_stat.st_size = CONSTANTS.max_config_size + 1
     # Mock file ownership check
     import os
+
     mock_stat.st_uid = os.getuid()
     # Ensure st_mode is an integer compatible with bitwise operations
     # Ensure st_mode is an integer compatible with bitwise operations
@@ -75,6 +76,7 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
     # Patch stat size to be small so it passes the initial check
     # But reading it will fail
     import os
+
     with patch.object(Path, "stat") as mock_stat:
         mock_stat.return_value.st_size = 100
         # Must also mock st_mode for is_file check if it calls stat

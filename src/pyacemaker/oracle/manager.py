@@ -24,9 +24,13 @@ class DFTManager:
     def _is_recoverable_error(self, error: Exception) -> bool:
         """Check if the error is potentially recoverable via retry (e.g., SCF convergence)."""
         import re
+
         error_msg = str(error)
         # Use regex search with proper escaping if patterns are literal strings
-        return any(re.search(re.escape(pattern), error_msg, re.IGNORECASE) for pattern in self._recoverable_patterns)
+        return any(
+            re.search(re.escape(pattern), error_msg, re.IGNORECASE)
+            for pattern in self._recoverable_patterns
+        )
 
     def _apply_periodic_embedding(self, atoms: Atoms) -> None:
         """Apply periodic embedding to non-periodic structures (in-place).
@@ -81,9 +85,9 @@ class DFTManager:
         # Validate structure content (species)
         # Whitelist of allowed elements can be in config, but for now we check for emptiness
         if not calc_structure.get_chemical_symbols():  # type: ignore[no-untyped-call]
-             msg = "Structure contains no atoms"
-             self.logger.error(msg)
-             raise StructureError(msg)
+            msg = "Structure contains no atoms"
+            self.logger.error(msg)
+            raise StructureError(msg)
 
         # Apply embedding if needed (modifies structure in-place)
         self._apply_periodic_embedding(calc_structure)

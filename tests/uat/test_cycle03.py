@@ -75,6 +75,7 @@ class TestCycle03UAT:
                 pass
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()
+
         trainer.dataset_manager.save_iter.side_effect = consume_iterator
 
         active_set = trainer.select_active_set(candidates, n_select=2)

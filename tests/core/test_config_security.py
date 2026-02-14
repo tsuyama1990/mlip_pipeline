@@ -41,6 +41,7 @@ def test_validate_parameters_depth_limit() -> None:
     # Construct a deep dictionary programmatically to be sure
     # Use Any to bypass mypy strict checking for this dynamic construction test
     from typing import Any
+
     deep_data: dict[str, Any] = {"level": 0}
     current = deep_data
     for i in range(15):

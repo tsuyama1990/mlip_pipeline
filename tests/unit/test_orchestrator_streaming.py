@@ -42,10 +42,12 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
     mock_gen.generate_initial_structures.return_value = structure_gen()
 
     mock_oracle = MagicMock()
+
     # oracle.compute_batch should return an iterator (or pass through)
     def compute_passthrough(structures: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]:
         # Emulate lazy consumption
         yield from structures
+
     mock_oracle.compute_batch.side_effect = compute_passthrough
 
     orchestrator = Orchestrator(

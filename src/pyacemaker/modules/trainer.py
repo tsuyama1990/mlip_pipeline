@@ -44,9 +44,7 @@ class PacemakerTrainer(Trainer):
         """Train a potential (Streaming)."""
         # 1. Prepare Dataset
         # Generator for valid structures
-        valid_structures = (
-            s for s in dataset if s.energy is not None and s.forces is not None
-        )
+        valid_structures = (s for s in dataset if s.energy is not None and s.forces is not None)
 
         # Create work directory
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
@@ -157,11 +155,7 @@ class PacemakerTrainer(Trainer):
                 meta.forces = atoms.arrays["forces"].tolist()
             if "stress" in atoms.info:
                 stress_val = atoms.info["stress"]
-                meta.stress = (
-                    stress_val.tolist()
-                    if hasattr(stress_val, "tolist")
-                    else stress_val
-                )
+                meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
 
             selected_structures_list.append(meta)
 

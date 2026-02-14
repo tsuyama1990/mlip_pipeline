@@ -19,12 +19,12 @@ class MockValidator(Validator):
         valid_set = [s for s in test_set if s.energy is not None]
 
         if not valid_set:
-            self.logger.warning("No valid structures in test set (with energy). Skipping validation.")
+            self.logger.warning(
+                "No valid structures in test set (with energy). Skipping validation."
+            )
             # Return failure or skip status
             return ModuleResult(
-                status="skipped",
-                metrics=Metrics.model_validate({"count": 0}),
-                artifacts={}
+                status="skipped", metrics=Metrics.model_validate({"count": 0}), artifacts={}
             )
 
         self.logger.info(f"Validating {potential.path} on {len(valid_set)} valid structures (mock)")

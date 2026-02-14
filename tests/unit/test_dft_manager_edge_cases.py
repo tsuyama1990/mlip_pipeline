@@ -15,6 +15,7 @@ from pyacemaker.oracle.manager import DFTManager
 def config(tmp_path: object) -> DFTConfig:
     """Return a default DFT configuration."""
     from pathlib import Path
+
     assert isinstance(tmp_path, Path)
     pp_file = tmp_path / "H.pbe.UPF"
     pp_file.touch()
@@ -35,6 +36,7 @@ def test_compute_batch_large_generator(config: DFTConfig) -> None:
 
     # Create a generator that tracks consumption
     consumed_count = 0
+
     def large_structures() -> Iterator[Atoms]:
         nonlocal consumed_count
         # Yield 100 items
@@ -84,7 +86,10 @@ def test_compute_retry_parameter_change(config: DFTConfig) -> None:
         # "SCF" is not in the default list ("scf not converged" is), so "Exception: SCF" might be treated as fatal.
         # We need to match the error message to something recoverable.
         error_msg = "error: scf not converged"
-        with patch("ase.Atoms.get_potential_energy", side_effect=[Exception(error_msg), Exception(error_msg), -10.0]):
+        with patch(
+            "ase.Atoms.get_potential_energy",
+            side_effect=[Exception(error_msg), Exception(error_msg), -10.0],
+        ):
             manager.compute(atoms)
 
             assert mock_create.call_count == 3
