@@ -82,7 +82,7 @@ def test_load_config_valid(tmp_path: Path) -> None:
 def test_load_config_missing_file() -> None:
     """Test loading a non-existent file."""
     with pytest.raises(ConfigurationError):
-        load_config("non_existent.yaml")
+        load_config(Path("non_existent.yaml"))
 
 
 def test_load_config_invalid_yaml(tmp_path: Path) -> None:
@@ -148,4 +148,22 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr("pathlib.Path.stat", mock_stat)
 
     with pytest.raises(ConfigurationError, match="Configuration file too large"):
+        load_config(config_file)
+
+
+def test_load_config_empty_file(tmp_path: Path) -> None:
+    """Test loading an empty configuration file."""
+    config_file = tmp_path / "empty.yaml"
+    config_file.write_text("", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="must contain a YAML dictionary"):
+        load_config(config_file)
+
+
+def test_load_config_whitespace_file(tmp_path: Path) -> None:
+    """Test loading a configuration file with only whitespace."""
+    config_file = tmp_path / "whitespace.yaml"
+    config_file.write_text("   \n  ", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="must contain a YAML dictionary"):
         load_config(config_file)

@@ -10,7 +10,14 @@ from pyacemaker.core.logging import get_logger
 
 
 class ModuleResult(BaseModel):
-    """Standardized result from a module execution."""
+    """Standardized result from a module execution.
+
+    Attributes:
+        status: The final status of the execution (e.g., 'success', 'failed').
+        metrics: A dictionary of key performance indicators or results (e.g., 'energy', 'forces').
+        artifacts: A dictionary mapping artifact names to their file paths on disk.
+
+    """
 
     model_config = ConfigDict(extra="forbid")
     status: str = Field(..., description="Execution status (success, failed)")

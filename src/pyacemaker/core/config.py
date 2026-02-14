@@ -35,8 +35,14 @@ class DFTConfig(BaseModel):
     code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
-DEFAULT_LOG_FORMAT = "[{time}] [{level}] [{extra[name]}] {message}"
-MAX_CONFIG_SIZE = 10 * 1024 * 1024  # 10 MB
+class Constants(BaseModel):
+    """System-wide constants configuration."""
+
+    default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
+    max_config_size: int = 10 * 1024 * 1024  # 10 MB
+
+
+CONSTANTS = Constants()
 
 
 class LoggingConfig(BaseModel):
@@ -45,7 +51,7 @@ class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
-    format: str = Field(default=DEFAULT_LOG_FORMAT, description="Log message format")
+    format: str = Field(default=CONSTANTS.default_log_format, description="Log message format")
 
     @field_validator("level")
     @classmethod
@@ -71,7 +77,7 @@ class PYACEMAKERConfig(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)  # type: ignore[arg-type]
 
 
-def load_config(path: str | Path) -> PYACEMAKERConfig:
+def load_config(path: Path) -> PYACEMAKERConfig:
     """Load and validate configuration from a YAML file.
 
     Args:
@@ -84,13 +90,12 @@ def load_config(path: str | Path) -> PYACEMAKERConfig:
         ConfigurationError: If the file cannot be read or validation fails.
 
     """
-    path = Path(path)
     if not path.exists():
         msg = f"Configuration file not found: {path}"
         raise ConfigurationError(msg)
 
-    if path.stat().st_size > MAX_CONFIG_SIZE:
-        msg = f"Configuration file too large: {path.stat().st_size} bytes (max {MAX_CONFIG_SIZE} bytes)"
+    if path.stat().st_size > CONSTANTS.max_config_size:
+        msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
         raise ConfigurationError(msg)
 
     try:
@@ -98,17 +103,18 @@ def load_config(path: str | Path) -> PYACEMAKERConfig:
             data = yaml.safe_load(f)
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
-        raise ConfigurationError(msg) from e
+        raise ConfigurationError(msg, details={"original_error": str(e)}) from e
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
-        raise ConfigurationError(msg) from e
+        raise ConfigurationError(msg, details={"filename": str(path)}) from e
 
     if not isinstance(data, dict):
         msg = "Configuration file must contain a YAML dictionary."
-        raise ConfigurationError(msg)
+        raise ConfigurationError(msg, details={"actual_type": type(data).__name__})
 
     try:
         return PYACEMAKERConfig(**data)
     except ValidationError as e:
         msg = f"Invalid configuration: {e}"
-        raise ConfigurationError(msg) from e
+        details = {"errors": e.errors()}
+        raise ConfigurationError(msg, details=details) from e
