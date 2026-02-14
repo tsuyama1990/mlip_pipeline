@@ -1,6 +1,6 @@
 """Orchestrator module implementation."""
 
-import random
+import secrets
 from collections.abc import Iterable, Iterator
 from itertools import chain
 from typing import TypeVar
@@ -15,6 +15,7 @@ from pyacemaker.core.interfaces import (
     Trainer,
     Validator,
 )
+from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
 from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
@@ -28,6 +29,7 @@ from pyacemaker.modules.structure_generator import (
 )
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
+from pyacemaker.oracle.dataset import DatasetManager
 
 T = TypeVar("T", bound=BaseModule)
 
@@ -75,18 +77,23 @@ class Orchestrator(IOrchestrator):
             LAMMPSEngine, config
         )
         self.validator: Validator = validator or _create_default_module(MockValidator, config)
+        self.dataset_manager = DatasetManager()
 
         # State
         self.current_potential: Potential | None = None
-        self.dataset: list[StructureMetadata] = []
+        # Dataset is now file-based to prevent OOM
+        self.dataset_path = self.config.project.root_dir / "data" / "dataset.pckl.gzip"
         self.cycle_count = 0
 
     def run(self) -> ModuleResult:
         """Run the full active learning pipeline."""
         self.logger.info("Starting Active Learning Pipeline")
 
+        # Ensure data directory exists
+        self.dataset_path.parent.mkdir(parents=True, exist_ok=True)
+
         # 0. Cold Start (Initial Dataset)
-        if not self.dataset:
+        if not self.dataset_path.exists():
             self.logger.info("Cold Start: Generating initial structures")
             self._run_cold_start()
 
@@ -112,17 +119,19 @@ class Orchestrator(IOrchestrator):
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate(
-                {"cycles": self.cycle_count, "dataset_size": len(self.dataset)}
+                {"cycles": self.cycle_count}
             ),
         )
 
     def _run_cold_start(self) -> None:
         """Execute cold start to generate initial dataset."""
         initial_structures = self.structure_generator.generate_initial_structures()
-        # Stream: initial_structures (iter) -> compute_batch (iter) -> extend (consumes)
-        # This avoids holding intermediate lists in memory before extending dataset.
+        # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
         computed_stream = self.oracle.compute_batch(initial_structures)
-        self.dataset.extend(computed_stream)
+
+        # Convert to Atoms and append to file
+        atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
+        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
 
     def run_cycle(self) -> CycleStatus:
         """Execute one active learning cycle."""
@@ -148,26 +157,36 @@ class Orchestrator(IOrchestrator):
         return CycleStatus.TRAINING
 
     def _run_training_phase(self) -> None:
-        """Execute training phase."""
+        """Execute training phase with file-based streaming."""
         self.logger.info("Phase: Training")
 
-        # Split dataset into training and validation
-        # We use a simple random split for now (90/10)
-        dataset_size = len(self.dataset)
-        val_size = int(dataset_size * 0.1)
+        # Config parameters
+        split_ratio = self.config.orchestrator.validation_split
+        max_val = self.config.orchestrator.max_validation_size
 
-        # Ensure at least some data for both if possible
-        if dataset_size > 10:
-            val_indices = set(random.sample(range(dataset_size), val_size))
-            train_set = [s for i, s in enumerate(self.dataset) if i not in val_indices]
-            # Store validation set for the validation phase
-            self._validation_set = [self.dataset[i] for i in val_indices]
-        else:
-            train_set = self.dataset
-            self._validation_set = self.dataset  # Validate on train if tiny
+        val_list: list[StructureMetadata] = []
 
-        potential = self.trainer.train(train_set, self.current_potential)
+        # Generator that yields training items and populates val_list as side effect
+        # This avoids two passes or intermediate files, but requires careful iteration order.
+        # We stream from dataset_path.
+
+        def train_stream() -> Iterator[StructureMetadata]:
+            if not self.dataset_path.exists():
+                return
+
+            for atoms in self.dataset_manager.load_iter(self.dataset_path):
+                # Probabilistic split
+                if (
+                    len(val_list) < max_val
+                    and secrets.SystemRandom().random() < split_ratio
+                ):
+                    val_list.append(atoms_to_metadata(atoms))
+                else:
+                    yield atoms_to_metadata(atoms)
+
+        potential = self.trainer.train(train_stream(), self.current_potential)
         self.current_potential = potential
+        self._validation_set = val_list
 
     def _run_validation_phase(self) -> bool:
         """Execute validation phase.
@@ -180,11 +199,11 @@ class Orchestrator(IOrchestrator):
             self.logger.warning("No potential to validate.")
             return False
 
-        # Use the validation set created during training phase
         test_set = getattr(self, "_validation_set", [])
         if not test_set:
-            # Fallback if training phase didn't run or dataset small
-            test_set = self.dataset[: min(len(self.dataset), 100)]
+            self.logger.warning("Empty validation set.")
+            # We could try to load from file if empty, but we rely on training phase populate
+            return True
 
         val_result = self.validator.validate(self.current_potential, test_set)
 
@@ -255,6 +274,8 @@ class Orchestrator(IOrchestrator):
     def _run_calculation_phase(self, structures: list[StructureMetadata]) -> None:
         """Execute calculation phase."""
         self.logger.info(f"Phase: Calculation ({len(structures)} structures)")
-        # Stream processing: list -> compute_batch(iter) -> extend
+        # Stream processing: list -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
-        self.dataset.extend(new_data)
+
+        atoms_stream = (metadata_to_atoms(s) for s in new_data)
+        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")

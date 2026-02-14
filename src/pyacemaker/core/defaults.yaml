@@ -15,6 +15,9 @@ orchestrator:
   uncertainty_threshold: 0.1
   n_local_candidates: 10
   n_active_set_select: 5
+  validation_split: 0.1
+  min_validation_size: 10
+  max_validation_size: 1000
 
 # Structure Generator
 structure_strategy: "random"

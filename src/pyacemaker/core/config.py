@@ -65,6 +65,9 @@ class Constants(BaseSettings):
     default_orchestrator_uncertainty: float = _DEFAULTS["orchestrator"]["uncertainty_threshold"]
     default_orchestrator_n_local_candidates: int = _DEFAULTS["orchestrator"]["n_local_candidates"]
     default_orchestrator_n_active_set_select: int = _DEFAULTS["orchestrator"]["n_active_set_select"]
+    default_orchestrator_validation_split: float = _DEFAULTS["orchestrator"]["validation_split"]
+    default_orchestrator_min_validation_size: int = _DEFAULTS["orchestrator"]["min_validation_size"]
+    default_orchestrator_max_validation_size: int = _DEFAULTS["orchestrator"]["max_validation_size"]
 
     # Validator Defaults
     default_validator_metrics: list[str] = _DEFAULTS["validator_metrics"]
@@ -390,6 +393,27 @@ class OrchestratorConfig(BaseModel):
         default=CONSTANTS.default_orchestrator_n_active_set_select,
         description="Number of structures to select for active set",
     )
+    validation_split: float = Field(
+        default=CONSTANTS.default_orchestrator_validation_split,
+        description="Fraction of dataset to use for validation (0.0-1.0)",
+    )
+    min_validation_size: int = Field(
+        default=CONSTANTS.default_orchestrator_min_validation_size,
+        description="Minimum number of structures in validation set",
+    )
+    max_validation_size: int = Field(
+        default=CONSTANTS.default_orchestrator_max_validation_size,
+        description="Maximum number of structures in validation set (to prevent OOM)",
+    )
+
+    @field_validator("validation_split")
+    @classmethod
+    def validate_split(cls, v: float) -> float:
+        """Validate validation split."""
+        if not (0.0 <= v <= 1.0):
+            msg = f"Validation split must be between 0.0 and 1.0, got {v}"
+            raise ValueError(msg)
+        return v
 
 
 class LoggingConfig(BaseModel):

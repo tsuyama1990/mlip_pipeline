@@ -94,7 +94,8 @@ class TestFullCycleIntegration:
 
             assert result.status == "success"
             assert orchestrator.cycle_count == 2
-            assert len(orchestrator.dataset) > 0
+            assert orchestrator.dataset_path.exists()
+            assert orchestrator.dataset_path.stat().st_size > 0
 
             # Verify interactions
             assert mock_train.call_count >= 2

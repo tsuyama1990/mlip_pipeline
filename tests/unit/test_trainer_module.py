@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, NonCallableMagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

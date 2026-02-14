@@ -97,15 +97,22 @@ class AdaptiveStructureGenerator(StructureGenerator):
         context = ExplorationContext(cycle=0)
         strategy = self.policy.decide_strategy(context)
 
-        # We need seeds to apply strategy.
-        # Generating dummy prototypes (simple bulk structures) to act as base
-        prototypes = generate_dummy_structures(5, tags=["initial", "prototype"])
+        # Create base prototypes directly using ASE to avoid overhead
+        try:
+            from ase.build import bulk
+        except ImportError:
+            self.logger.warning("ASE not found. Using dummy generation.")
+            yield from generate_dummy_structures(5, tags=["initial", "fallback"])
+            return
 
-        for proto in prototypes:
-            atoms = proto.features.get("atoms")
-            if atoms:
-                # Apply strategy to prototypes (e.g. M3GNet relaxation or Random perturbation)
-                # Generating 1 candidate per prototype to optimize/diversify it
+        # Simple set of prototypes for cold start
+        # In a real app, this would come from a config or database
+        elements = ["Fe", "Al", "Cu", "Si", "C"]
+
+        for el in elements:
+            try:
+                atoms = bulk(el, cubic=True)
+                # Apply strategy to diversify
                 candidates = strategy.generate(atoms, n_candidates=1)
                 for cand_atoms in candidates:
                     yield StructureMetadata(
@@ -113,9 +120,9 @@ class AdaptiveStructureGenerator(StructureGenerator):
                         tags=["initial", "adaptive", f"strategy:{type(strategy).__name__}"],
                         status=StructureStatus.NEW,
                     )
-            else:
-                # Fallback if no atoms object
-                yield proto
+            except Exception:
+                self.logger.warning(f"Failed to generate prototype for {el}")
+                continue
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 0

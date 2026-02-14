@@ -4,11 +4,10 @@ import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
 
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
-from pyacemaker.core.utils import validate_structure_integrity
+from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
 from pyacemaker.domain_models.models import (
     ActiveSet,
     Potential,
@@ -59,7 +58,7 @@ class PacemakerTrainer(Trainer):
             nonlocal count
             for s in gen:
                 count += 1
-                yield self._metadata_to_atoms(s)
+                yield metadata_to_atoms(s)
 
         self.dataset_manager.save_iter(counting_wrapper(valid_structures), dataset_path)
 
@@ -114,7 +113,7 @@ class PacemakerTrainer(Trainer):
         candidates_path = work_dir / "candidates.pckl.gzip"
 
         # Save candidates (Streaming)
-        atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
+        atoms_gen = (metadata_to_atoms(s) for s in candidates)
         self.dataset_manager.save_iter(atoms_gen, candidates_path)
 
         selected_structures_list: list[StructureMetadata] = []
@@ -141,18 +140,7 @@ class PacemakerTrainer(Trainer):
 
         # Load selected structures from file to reconstruct metadata
         for atoms in self.dataset_manager.load_iter(selected_path):
-            # Try to reconstruct full metadata from JSON if available
-            if "_metadata_json" in atoms.info:
-                try:
-                    meta = StructureMetadata.model_validate_json(atoms.info["_metadata_json"])
-                    # Re-attach the atoms object (which might have been modified/selected)
-                    meta.features["atoms"] = atoms
-                except Exception:
-                    self.logger.warning("Failed to deserialize metadata from atoms.info")
-                    meta = self._reconstruct_minimal_metadata(atoms)
-            else:
-                meta = self._reconstruct_minimal_metadata(atoms)
-
+            meta = atoms_to_metadata(atoms)
             selected_structures_list.append(meta)
 
         selected_ids = [s.id for s in selected_structures_list]
@@ -162,55 +150,6 @@ class PacemakerTrainer(Trainer):
             structures=selected_structures_list,
             selection_criteria="max_vol",
         )
-
-    def _reconstruct_minimal_metadata(self, atoms: Any) -> StructureMetadata:
-        """Reconstruct minimal metadata from atoms object."""
-        uid_str = atoms.info.get("uuid")
-        uid = UUID(uid_str) if uid_str else uuid4()
-
-        meta = StructureMetadata(
-            id=uid,
-            features={"atoms": atoms},
-            energy=atoms.info.get("energy"),
-        )
-        if "forces" in atoms.arrays:
-            meta.forces = atoms.arrays["forces"].tolist()
-        if "stress" in atoms.info:
-            stress_val = atoms.info["stress"]
-            meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
-        return meta
-
-    def _metadata_to_atoms(self, metadata: StructureMetadata) -> Any:
-        """Convert StructureMetadata to ASE Atoms."""
-        validate_structure_integrity(metadata)
-        atoms = metadata.features.get("atoms")
-        if atoms is None:
-            msg = f"Structure {metadata.id} does not contain 'atoms' feature."
-            raise ValueError(msg)
-
-        # Create a copy to avoid modifying original
-        atoms = atoms.copy()
-
-        # Inject UUID
-        atoms.info["uuid"] = str(metadata.id)
-
-        # Inject Energy/Forces/Stress if available (overwrite calc results)
-        if metadata.energy is not None:
-            atoms.info["energy"] = metadata.energy
-        if metadata.forces is not None:
-            # arrays expects numpy array or list
-            atoms.arrays["forces"] = metadata.forces
-        if metadata.stress is not None:
-            atoms.info["stress"] = metadata.stress
-
-        # Inject full metadata for round-trip fidelity
-        # We exclude 'features' because it contains the atoms object itself (recursion)
-        try:
-            atoms.info["_metadata_json"] = metadata.model_dump_json(exclude={"features"})
-        except Exception:
-            self.logger.warning(f"Failed to serialize metadata for structure {metadata.id}")
-
-        return atoms
 
     def _generate_baseline(self, path: Path, type_: str) -> None:
         """Generate baseline potential file."""

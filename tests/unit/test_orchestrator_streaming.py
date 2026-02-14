@@ -35,9 +35,10 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
     """Verify that cold start streams data and extends dataset correctly."""
 
     # Create an iterator that yields structures
+    from ase import Atoms
     def structure_gen() -> Iterator[StructureMetadata]:
         for _ in range(5):
-            yield StructureMetadata()
+            yield StructureMetadata(features={"atoms": Atoms("H")})
 
     mock_gen = MagicMock()
     mock_gen.generate_initial_structures.return_value = structure_gen()
@@ -63,8 +64,12 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
     # Run cold start
     orchestrator._run_cold_start()
 
-    # Verify dataset has 5 items
-    assert len(orchestrator.dataset) == 5
+    # Verify dataset file was written
+    assert orchestrator.dataset_path.exists()
+    # Verify size (lazy check via loading)
+    loaded = list(orchestrator.dataset_manager.load_iter(orchestrator.dataset_path))
+    assert len(loaded) == 5
+
     # Verify generator was called
     mock_gen.generate_initial_structures.assert_called_once()
     # Verify compute_batch was called with the generator (not a list)
@@ -77,8 +82,17 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 def test_validation_split_and_gating(streaming_config: PYACEMAKERConfig) -> None:
     """Verify validation split logic and failure gating."""
     orchestrator = Orchestrator(config=streaming_config)
-    # Fill dataset with 100 items with unique IDs
-    orchestrator.dataset = [StructureMetadata(id=uuid4()) for _ in range(100)]
+    # Prepare dataset file
+    from pyacemaker.core.utils import metadata_to_atoms
+    from ase import Atoms
+
+    # Use real Atoms to satisfy validation
+    data = [StructureMetadata(id=uuid4(), features={"atoms": Atoms("H")}) for _ in range(100)]
+
+    orchestrator.dataset_manager.save_iter(
+        (metadata_to_atoms(s) for s in data), orchestrator.dataset_path
+    )
+
     orchestrator.current_potential = MagicMock()
 
     # Mock components
@@ -89,9 +103,19 @@ def test_validation_split_and_gating(streaming_config: PYACEMAKERConfig) -> None
     orchestrator._run_training_phase()
 
     # Check split
-    train_args = orchestrator.trainer.train.call_args[0][0]
-    assert len(train_args) == 90  # 90%
-    assert len(orchestrator._validation_set) == 10  # 10%
+    train_args_iter = orchestrator.trainer.train.call_args[0][0]
+    train_args = list(train_args_iter) # consume
+
+    # We used random split, so exact 90/10 isn't guaranteed but should be close
+    # The config has default split 0.1? No, defaults.yaml has 0.1.
+    # config object passed `streaming_config` uses `CONSTANTS` which load defaults.
+
+    val_len = len(orchestrator._validation_set)
+    train_len = len(train_args)
+    total = val_len + train_len
+
+    assert total == 100
+    assert 0 < val_len < 30  # Should be around 10
 
     # Check that they are disjoint
     train_ids = {s.id for s in train_args}

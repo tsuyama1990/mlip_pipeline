@@ -220,6 +220,12 @@ class Potential(BaseModel):
         if str(v).strip() == "":
             msg = "Path cannot be empty"
             raise ValueError(msg)
+
+        # Security: Prevent path traversal
+        if ".." in v.parts:
+            msg = f"Path traversal not allowed in potential path: {v}"
+            raise ValueError(msg)
+
         return v
 
 

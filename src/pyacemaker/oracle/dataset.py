@@ -90,7 +90,7 @@ class DatasetManager:
         )
         self.save_iter(data, path)
 
-    def save_iter(self, data: Iterator[Atoms] | list[Atoms], path: Path) -> None:
+    def save_iter(self, data: Iterator[Atoms] | list[Atoms], path: Path, mode: str = "wb") -> None:
         """Save a dataset by dumping objects sequentially (Stream-friendly).
 
         This format allows `load_iter` to read one object at a time without
@@ -99,11 +99,17 @@ class DatasetManager:
         Args:
             data: Iterable of ase.Atoms objects.
             path: Target path.
+            mode: File mode ('wb' for write/overwrite, 'ab' for append).
 
         """
+        # Validate mode
+        if mode not in ("wb", "ab"):
+            msg = f"Invalid mode: {mode}. Must be 'wb' or 'ab'."
+            raise ValueError(msg)
+
         # Ensure parent directory exists
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with gzip.open(path, "wb") as f:
+        with gzip.open(path, mode) as f:
             for atoms in data:
-                pickle.dump(atoms, f)
+                pickle.dump(atoms, f)  # type: ignore[arg-type]

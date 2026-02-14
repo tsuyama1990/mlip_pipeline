@@ -7,6 +7,7 @@ import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.utils import metadata_to_atoms
 from pyacemaker.domain_models.models import MaterialDNA, StructureMetadata, UncertaintyState
 from pyacemaker.modules.trainer import PacemakerTrainer
 
@@ -50,7 +51,7 @@ class TestTrainerMetadataPreservation:
         )
 
         # 1. Convert to Atoms
-        atoms_converted = trainer._metadata_to_atoms(original)
+        atoms_converted = metadata_to_atoms(original)
 
         # Verify JSON injection
         assert "_metadata_json" in atoms_converted.info
