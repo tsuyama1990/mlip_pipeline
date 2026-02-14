@@ -68,14 +68,18 @@ def create_calculator(
             msg = "Parameters must be a dictionary"
             raise ValueError(msg)
 
-        # Validate allowed sections
-        for key in config.parameters:
-            if key.lower() not in CONSTANTS.dft_allowed_input_sections:
+        # Validate allowed sections and keys against whitelist
+        # We assume CONSTANTS.dft_allowed_input_sections are root keys like 'control', 'system'
+        for section, _content in config.parameters.items():
+            if section.lower() not in CONSTANTS.dft_allowed_input_sections:
                 msg = (
-                    f"Security Error: Input section '{key}' is not allowed. "
+                    f"Security Error: Input section '{section}' is not allowed. "
                     f"Allowed sections: {CONSTANTS.dft_allowed_input_sections}"
                 )
                 raise ValueError(msg)
+
+            # Deeper validation could be added here if we had a schema for every parameter.
+            # Currently relying on _recursive_validate_parameters in config.py for injection check.
 
         _deep_update(input_data, config.parameters)
 

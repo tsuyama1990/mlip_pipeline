@@ -56,12 +56,17 @@ class Orchestrator(IOrchestrator):
         self.config = config
 
         # Dependency Injection with fallbacks using factory pattern
+        # Logic for selecting structure generator strategy
         if structure_generator:
             self.structure_generator = structure_generator
-        elif config.structure_generator.strategy == "adaptive":
-            self.structure_generator = AdaptiveStructureGenerator(config)
         else:
-            self.structure_generator = RandomStructureGenerator(config)
+            # Factory logic for structure generator based on config
+            sg_cls = (
+                AdaptiveStructureGenerator
+                if config.structure_generator.strategy == "adaptive"
+                else RandomStructureGenerator
+            )
+            self.structure_generator = _create_default_module(sg_cls, config)
 
         self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
@@ -158,7 +163,7 @@ class Orchestrator(IOrchestrator):
         # Use islice to get an iterator over the first test_size elements
         # Note: validate method takes a list, so we must materialize this small subset.
         # But we avoid creating the full slice copy if list implementation is smart (CPython copies anyway for slice)
-        # However, passing iterator to list() is explicit.
+        # We explicitly bounded test_size to 1000 to prevent OOM when materializing this list.
         test_set = list(islice(self.dataset, test_size))
         val_result = self.validator.validate(self.current_potential, test_set)
 

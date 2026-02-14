@@ -33,28 +33,37 @@ def test_compute_batch_large_generator(config: DFTConfig) -> None:
     """Test compute_batch handles large generators without consuming all at once."""
     manager = DFTManager(config)
 
-    # Create an infinite generator (or very large)
-    def infinite_structures() -> Iterator[Atoms]:
-        while True:
+    # Create a generator that tracks consumption
+    consumed_count = 0
+    def large_structures() -> Iterator[Atoms]:
+        nonlocal consumed_count
+        # Yield 100 items
+        for _ in range(100):
+            consumed_count += 1
             yield Atoms("H")
 
     # Mock compute to return immediately
     with patch.object(manager, "compute") as mock_compute:
         mock_compute.side_effect = lambda s: s
 
-        # Process only first 5 items from infinite stream
-        batch_gen = manager.compute_batch(infinite_structures())
+        # Start generator
+        batch_gen = manager.compute_batch(large_structures())
 
+        # Consume only 5 items
         results = []
         for i, res in enumerate(batch_gen):
             results.append(res)
             if i >= 4:
                 break
 
+        # Verify results
         assert len(results) == 5
         assert mock_compute.call_count == 5
-        # If it consumed more, this test would hang or call_count would be higher (if we could check async)
-        # Being able to break the loop proves it yields lazily.
+
+        # Critical: Verify that we haven't consumed significantly more than we requested.
+        # compute_batch processes 1-by-1, so consumed_count should be exactly 5.
+        # If it materialized a list, consumed_count would be 100.
+        assert consumed_count == 5
 
 
 def test_compute_retry_parameter_change(config: DFTConfig) -> None:

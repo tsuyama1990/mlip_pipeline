@@ -125,8 +125,13 @@ _VALID_KEY_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
 _DANGEROUS_CHARS_REGEX = re.compile(r'[;&|`$()<>]')
 
 
-def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None:
+def _recursive_validate_parameters(data: dict[str, Any], path: str = "", depth: int = 0) -> None:
     """Recursively validate parameter dictionary for security."""
+    # Prevent stack overflow attacks via deep nesting
+    if depth > 10:
+        msg = "Configuration nesting too deep (max 10)"
+        raise ValueError(msg)
+
     for key, value in data.items():
         current_path = f"{path}.{key}" if path else key
         if not isinstance(key, str):
@@ -139,7 +144,7 @@ def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None
             raise ValueError(msg)
 
         if isinstance(value, dict):
-            _recursive_validate_parameters(value, current_path)
+            _recursive_validate_parameters(value, current_path, depth + 1)
         elif isinstance(value, str):
             # Strict blacklist check for values
             if _DANGEROUS_CHARS_REGEX.search(value):
@@ -450,9 +455,10 @@ def _validate_file_security(path: Path) -> None:
 def _read_config_file(path: Path) -> dict[str, Any]:
     """Read and parse configuration file safely."""
     try:
-        # Check size hint first, though LimitedStream is the real guard
-        if path.stat().st_size > CONSTANTS.max_config_size:
-            msg = f"Configuration file too large: {path.stat().st_size} bytes"
+        # Check size hint first to prevent reading large files
+        file_size = path.stat().st_size
+        if file_size > CONSTANTS.max_config_size:
+            msg = f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
             raise ConfigurationError(msg)
 
         with path.open("r", encoding="utf-8") as f:

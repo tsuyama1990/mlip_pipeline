@@ -136,7 +136,9 @@ class DFTManager:
             Calculated structure. Skips failed calculations.
 
         """
-        for s in structures:
+        # Ensure we process as an iterator to avoid checking list length or materializing
+        iterator = iter(structures)
+        for s in iterator:
             try:
                 result = self.compute(s)
                 yield result
