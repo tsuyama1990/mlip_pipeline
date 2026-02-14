@@ -97,7 +97,9 @@ class TestCycle03UAT:
 
         mock_run.return_value = MagicMock(returncode=0)
 
-        trainer.train(dataset)
+        # Mock file existence checks in wrapper
+        with patch("pathlib.Path.exists", return_value=True):
+            trainer.train(dataset)
 
         # Verify baseline file generated and passed
         mock_run.assert_called()

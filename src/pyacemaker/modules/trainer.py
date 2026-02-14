@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
 from pyacemaker.domain_models.models import (
     ActiveSet,
@@ -44,7 +44,7 @@ class PacemakerTrainer(Trainer):
             raise ValueError(msg)
 
         # Create work directory
-        work_dir = Path(tempfile.mkdtemp(prefix="pace_train_"))
+        work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
         dataset_path = work_dir / "training_set.pckl.gzip"
 
         # Convert to Atoms and save
@@ -88,7 +88,7 @@ class PacemakerTrainer(Trainer):
 
     def select_active_set(self, candidates: list[StructureMetadata], n_select: int) -> ActiveSet:
         """Select active set."""
-        work_dir = Path(tempfile.mkdtemp(prefix="pace_active_"))
+        work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_ACTIVE))
         candidates_path = work_dir / "candidates.pckl.gzip"
 
         # Save candidates

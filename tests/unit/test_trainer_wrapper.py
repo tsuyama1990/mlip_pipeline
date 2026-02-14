@@ -31,7 +31,9 @@ class TestPacemakerWrapper:
             "batch_size": 32,
         }
 
-        wrapper.train(dataset_path, output_dir, params)
+        # Mock existence checks
+        with patch.object(Path, "exists", return_value=True):
+            wrapper.train(dataset_path, output_dir, params)
 
         mock_run.assert_called_once()
         # args[0] is the command list
@@ -57,7 +59,9 @@ class TestPacemakerWrapper:
         mock_run.return_value = MagicMock(returncode=0)
 
         params = {"verbose": True, "debug": False}
-        wrapper.train(Path("d"), Path("o"), params)
+
+        with patch.object(Path, "exists", return_value=True):
+            wrapper.train(Path("d"), Path("o"), params)
 
         cmd = mock_run.call_args[0][0]
         assert "--verbose" in cmd
@@ -71,7 +75,8 @@ class TestPacemakerWrapper:
         mock_run.return_value = MagicMock(returncode=0)
         initial_pot = Path("initial.yace")
 
-        wrapper.train(Path("data.pckl.gzip"), Path("output"), {}, initial_potential=initial_pot)
+        with patch.object(Path, "exists", return_value=True):
+            wrapper.train(Path("data.pckl.gzip"), Path("output"), {}, initial_potential=initial_pot)
 
         cmd = mock_run.call_args[0][0]
         assert "--initial-potential" in cmd

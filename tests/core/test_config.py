@@ -111,6 +111,7 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     class MockStat:
         st_size = CONSTANTS.max_config_size + 1
         st_mode = 33188  # Regular file mode
+        st_uid = os.getuid()
 
     # Fix: Accept **kwargs to handle follow_symlinks argument passed by pathlib/pytest
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
@@ -131,6 +132,7 @@ def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.Monke
     class MockStat:
         st_size = 100  # Small size reported
         st_mode = 33188
+        st_uid = os.getuid()
 
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
 
