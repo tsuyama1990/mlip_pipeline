@@ -1,7 +1,7 @@
 """Oracle (DFT) module implementation."""
 
+import contextlib
 import random
-from collections.abc import Iterator
 
 from ase import Atoms
 
@@ -13,7 +13,42 @@ from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
 from pyacemaker.oracle.manager import DFTManager
 
 
-class MockOracle(Oracle):
+class BaseOracle(Oracle):
+    """Base implementation for Oracle modules with common utilities."""
+
+    def _extract_atoms(self, structure: StructureMetadata) -> Atoms | None:
+        """Extract ASE Atoms object from structure metadata."""
+        atoms = structure.features.get("atoms")
+        if isinstance(atoms, Atoms):
+            return atoms
+        self.logger.warning(f"Structure {structure.id} has no valid 'atoms' feature.")
+        return None
+
+    def _update_structure_common(
+        self, structure: StructureMetadata, result_atoms: Atoms | None
+    ) -> None:
+        """Update structure metadata with results (Energy, Forces, Stress)."""
+        if result_atoms is None:
+            structure.status = StructureStatus.FAILED
+            return
+
+        structure.status = StructureStatus.CALCULATED
+        try:
+            # We use type: ignore because ASE types are often missing
+            structure.features["energy"] = result_atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+            structure.features["forces"] = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
+
+            # Stress might not always be calculated
+            with contextlib.suppress(Exception):
+                structure.features["stress"] = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+
+            structure.features["atoms"] = result_atoms
+        except Exception:
+            self.logger.exception(f"Failed to extract properties for {structure.id}")
+            structure.status = StructureStatus.FAILED
+
+
+class MockOracle(BaseOracle):
     """Mock Oracle implementation for testing."""
 
     def __init__(self, config: PYACEMAKERConfig) -> None:
@@ -28,7 +63,6 @@ class MockOracle(Oracle):
         self.logger.info("Running MockOracle")
 
         # Simulate failure based on config if needed
-        # Since oracle.dft.parameters is a dict, we can check it
         if self.config.oracle.dft.parameters.get("simulate_failure", False):
             msg = "Simulated Oracle failure"
             raise PYACEMAKERError(msg)
@@ -39,7 +73,6 @@ class MockOracle(Oracle):
         """Compute energy/forces for a batch."""
         self.logger.info(f"Computing batch of {len(structures)} structures (mock)")
 
-        computed = []
         for s in structures:
             # Update structure status
             s.status = StructureStatus.CALCULATED
@@ -49,12 +82,12 @@ class MockOracle(Oracle):
 
             s.features["energy"] = energy
             s.features["forces"] = forces
-            computed.append(s)
+            # No atoms update needed for mock simple
 
-        return computed
+        return structures
 
 
-class DFTOracle(Oracle):
+class DFTOracle(BaseOracle):
     """Real DFT Oracle implementation using DFTManager."""
 
     def __init__(self, config: PYACEMAKERConfig) -> None:
@@ -68,33 +101,6 @@ class DFTOracle(Oracle):
         self.logger.info("Running DFTOracle")
         return ModuleResult(status="success")
 
-    def _extract_atoms(self, structure: StructureMetadata) -> Atoms | None:
-        """Extract ASE Atoms object from structure metadata."""
-        atoms = structure.features.get("atoms")
-        if isinstance(atoms, Atoms):
-            return atoms
-        self.logger.warning(f"Structure {structure.id} has no valid 'atoms' feature.")
-        return None
-
-    def _update_structure(self, structure: StructureMetadata, result_atoms: Atoms | None) -> None:
-        """Update structure metadata with DFT results."""
-        if result_atoms is None:
-            structure.status = StructureStatus.FAILED
-            return
-
-        structure.status = StructureStatus.CALCULATED
-        try:
-            # We use type: ignore because ASE types are often missing
-            structure.features["energy"] = result_atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            structure.features["forces"] = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
-            structure.features["stress"] = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
-            # Update atoms object in features (e.g. relaxed structure)
-            structure.features["atoms"] = result_atoms
-        except Exception:
-            # Catch all exceptions during extraction (e.g., property missing)
-            self.logger.exception(f"Failed to extract properties for {structure.id}")
-            structure.status = StructureStatus.FAILED
-
     def compute_batch(self, structures: list[StructureMetadata]) -> list[StructureMetadata]:
         """Compute energy/forces for a batch of structures.
 
@@ -107,42 +113,28 @@ class DFTOracle(Oracle):
         """
         self.logger.info(f"Computing batch of {len(structures)} structures (DFT)")
 
-        # Prepare generator for atoms
-        def atoms_generator() -> Iterator[Atoms]:
-            for s in structures:
+        chunk_size = 100
+        total = len(structures)
+
+        for i in range(0, total, chunk_size):
+            chunk_structures = structures[i : i + chunk_size]
+            chunk_atoms = []
+            chunk_indices = []
+
+            # Prepare chunk
+            for j, s in enumerate(chunk_structures):
                 atoms = self._extract_atoms(s)
                 if atoms:
-                    yield atoms
-                else:
-                    # Yield a dummy atom to maintain sequence or handle missing
-                    # Actually DFTManager expects valid atoms.
-                    # If we skip, the mapping breaks.
-                    # We must handle this carefully.
-                    # Strategy: Filter valid indices first.
-                    pass
+                    chunk_atoms.append(atoms)
+                    chunk_indices.append(j) # Relative index in chunk
 
-        # To handle mapping correctly with a generator pipeline, we might need a different approach.
-        # But compute_batch in interface expects returning the full list.
-        # So we process linearly but efficiently.
+            if not chunk_atoms:
+                continue
 
-        valid_indices = []
-        valid_atoms = []
+            # Process chunk (returns iterator, we consume it immediately to update)
+            results_iter = self.dft_manager.compute_batch(chunk_atoms)
 
-        for i, s in enumerate(structures):
-            atoms = self._extract_atoms(s)
-            if atoms:
-                valid_indices.append(i)
-                valid_atoms.append(atoms)
-
-        if not valid_atoms:
-            self.logger.warning("No valid atoms found in batch.")
-            return structures
-
-        # Run DFT via manager (streaming)
-        results_iter = self.dft_manager.compute_batch(valid_atoms)
-
-        # Update metadata
-        for idx, result_atoms in zip(valid_indices, results_iter, strict=True):
-            self._update_structure(structures[idx], result_atoms)
+            for idx, result_atoms in zip(chunk_indices, results_iter, strict=True):
+                self._update_structure_common(chunk_structures[idx], result_atoms)
 
         return structures

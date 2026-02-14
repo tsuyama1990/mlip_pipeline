@@ -1,5 +1,6 @@
 """Tests for Oracle module."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -22,7 +23,7 @@ def config() -> PYACEMAKERConfig:
     """Return a valid configuration for DFTOracle."""
     return PYACEMAKERConfig(
         version="0.1.0",
-        project=ProjectConfig(name="Test", root_dir="."),
+        project=ProjectConfig(name="Test", root_dir=Path()),
         oracle=OracleConfig(
             dft=DFTConfig(
                 code="qe", pseudopotentials={"Fe": "Fe.pbe.UPF"}, parameters={}

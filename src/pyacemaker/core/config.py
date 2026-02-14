@@ -41,6 +41,7 @@ class Constants(BaseSettings):
     default_dft_kspacing: float = 0.04
     default_dft_smearing: float = 0.02
     default_dft_max_retries: int = 3
+    default_dft_mixing_beta: float = 0.7
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = [
         "scf not converged",

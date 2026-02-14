@@ -2,6 +2,7 @@
 
 import gzip
 import pickle
+import warnings
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -37,6 +38,12 @@ class DatasetManager:
             TypeError: If the file content is not a list.
 
         """
+        warnings.warn(
+            "DatasetManager.load() is deprecated and not memory-safe for large datasets. "
+            "Use DatasetManager.load_iter() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not path.exists():
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
@@ -77,7 +84,8 @@ class DatasetManager:
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
 
-        # SECURITY WARNING: pickle is unsafe. Do not load untrusted data.
+        self.logger.warning("SECURITY WARNING: pickle is unsafe. Do not load untrusted data.")
+
         with gzip.open(path, "rb") as f:
             try:
                 # Try to load as a single object first
@@ -88,8 +96,12 @@ class DatasetManager:
                 # If it's a single atom, yield it and continue to next check
                 if isinstance(data, Atoms):
                     yield data
-            except EOFError:
-                return
+            except (EOFError, pickle.UnpicklingError):
+                # If loading fail immediately, it might be empty or corrupted differently,
+                # but EOFError usually means end of file or empty.
+                # UnpicklingError might happen if it's not a valid pickle stream start.
+                # We catch and proceed to loop or return if empty.
+                pass
 
             # Continue reading sequentially
             while True:
@@ -100,6 +112,10 @@ class DatasetManager:
                     elif isinstance(obj, Atoms):
                         yield obj
                 except EOFError:
+                    break
+                except pickle.UnpicklingError:
+                    # If we encounter corruption in stream
+                    self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
                     break
 
     def save(self, data: list[Atoms], path: Path) -> None:
