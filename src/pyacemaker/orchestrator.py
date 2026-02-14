@@ -22,13 +22,14 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
 )
 from pyacemaker.modules.dynamics_engine import LAMMPSEngine
-from pyacemaker.modules.oracle import MockOracle
+from pyacemaker.modules.oracle import DFTOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
 )
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
+from pyacemaker.oracle.dataset import DatasetManager
 
 T = TypeVar("T", bound=BaseModule)
 
@@ -70,7 +71,10 @@ class Orchestrator(IOrchestrator):
             )
             self.structure_generator = _create_default_module(sg_cls, config)
 
-        self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
+        # Select Oracle implementation based on config
+        oracle_cls = MockOracle if config.oracle.mock else DFTOracle
+        self.oracle: Oracle = oracle or _create_default_module(oracle_cls, config)
+
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
         self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(
             LAMMPSEngine, config
@@ -79,7 +83,9 @@ class Orchestrator(IOrchestrator):
 
         # State
         self.current_potential: Potential | None = None
-        self.dataset: list[StructureMetadata] = []
+        # Dataset is now file-based to prevent OOM
+        self.dataset_path = self.config.project.root_dir / "data" / "dataset.pckl.gzip"
+        self.dataset_manager = DatasetManager()
         self.cycle_count = 0
 
     def run(self) -> ModuleResult:
@@ -113,7 +119,7 @@ class Orchestrator(IOrchestrator):
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate(
-                {"cycles": self.cycle_count, "dataset_size": len(self.dataset)}
+                {"cycles": self.cycle_count}
             ),
         )
 

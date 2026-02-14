@@ -54,4 +54,3 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     # We use model_dump to access them safely.
     metrics = result.metrics.model_dump()
     assert metrics["cycles"] > 0
-    assert metrics["dataset_size"] > 0

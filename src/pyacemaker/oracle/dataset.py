@@ -10,6 +10,7 @@ from ase import Atoms
 from loguru import logger
 
 from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.utils import calculate_checksum, verify_checksum
 
 
 class DatasetManager:
@@ -43,11 +44,24 @@ class DatasetManager:
         Raises:
             FileNotFoundError: If the file does not exist.
             TypeError: If a list object is encountered (Legacy format rejected).
+            ValueError: If checksum verification fails.
 
         """
         if not path.exists():
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
+
+        # Verify checksum if present
+        checksum_path = path.with_suffix(path.suffix + ".sha256")
+        if checksum_path.exists():
+            expected = checksum_path.read_text().strip()
+            if not verify_checksum(path, expected):
+                msg = f"Checksum verification failed for {path}"
+                self.logger.error(msg)
+                raise ValueError(msg)
+            self.logger.info(f"Checksum verified for {path}")
+        else:
+            self.logger.warning(f"No checksum file found for {path}")
 
         self.logger.warning(CONSTANTS.PICKLE_SECURITY_WARNING)
 
@@ -90,7 +104,12 @@ class DatasetManager:
         )
         self.save_iter(data, path)
 
-    def save_iter(self, data: Iterator[Atoms] | list[Atoms], path: Path) -> None:
+    def save_iter(
+        self,
+        data: Iterator[Atoms] | list[Atoms],
+        path: Path,
+        mode: str = "wb",
+    ) -> None:
         """Save a dataset by dumping objects sequentially (Stream-friendly).
 
         This format allows `load_iter` to read one object at a time without
@@ -99,11 +118,23 @@ class DatasetManager:
         Args:
             data: Iterable of ase.Atoms objects.
             path: Target path.
+            mode: File mode ('wb' for write/overwrite, 'ab' for append).
 
         """
         # Ensure parent directory exists
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with gzip.open(path, "wb") as f:
+        # Validate mode
+        if mode not in ("wb", "ab"):
+            msg = f"Invalid mode '{mode}'. Must be 'wb' or 'ab'."
+            raise ValueError(msg)
+
+        with gzip.open(path, mode) as f:
             for atoms in data:
                 pickle.dump(atoms, f)
+
+        # Calculate and save checksum
+        # Note: Re-calculating checksum for large files on every append is expensive
+        # but necessary for security integrity.
+        checksum = calculate_checksum(path)
+        path.with_suffix(path.suffix + ".sha256").write_text(checksum)
