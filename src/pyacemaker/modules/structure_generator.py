@@ -1,5 +1,7 @@
 """Structure Generator module implementation."""
 
+from typing import Any
+
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import StructureGenerator
 from pyacemaker.core.utils import generate_dummy_structures
@@ -53,3 +55,7 @@ class RandomStructureGenerator(StructureGenerator):
         # Batch generation logic (mock)
         total_candidates = len(seed_structures) * n_candidates_per_seed
         return generate_dummy_structures(total_candidates, tags=["candidate", "batch"])
+
+    def get_strategy_info(self) -> dict[str, Any]:
+        """Return information about the current exploration strategy."""
+        return {"strategy": "random", "parameters": {}}

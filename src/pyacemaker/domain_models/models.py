@@ -23,15 +23,73 @@ class StructureStatus(str, Enum):
     ARCHIVED = "ARCHIVED"
 
 
+class MaterialDNA(BaseModel):
+    """Material DNA features (composition, symmetry, etc.)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    composition: dict[str, float] = Field(
+        default_factory=dict, description="Elemental composition (e.g., {'Fe': 0.8, 'C': 0.2})"
+    )
+    average_valence_electrons: float | None = Field(
+        default=None, description="Average number of valence electrons"
+    )
+    crystal_system: str | None = Field(default=None, description="Crystal system (e.g., cubic)")
+    space_group: str | None = Field(default=None, description="Space group symbol (e.g., Fm-3m)")
+
+
+class PredictedProperties(BaseModel):
+    """Predicted properties from universal potentials or simple models."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    band_gap: float | None = Field(default=None, description="Predicted band gap (eV)")
+    melting_point: float | None = Field(default=None, description="Predicted melting point (K)")
+    bulk_modulus: float | None = Field(default=None, description="Predicted bulk modulus (GPa)")
+
+
+class UncertaintyState(BaseModel):
+    """Uncertainty metrics (extrapolation grade)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gamma_mean: float | None = Field(default=None, description="Mean extrapolation grade")
+    gamma_variance: float | None = Field(default=None, description="Variance of extrapolation grade")
+    gamma_max: float | None = Field(default=None, description="Maximum extrapolation grade")
+
+
 class StructureMetadata(BaseModel):
     """Metadata for a structure."""
 
     model_config = ConfigDict(extra="forbid")
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the structure")
-    features: dict[str, Any] = Field(
-        default_factory=dict, description="Extracted features (e.g., composition)"
+
+    # Core features
+    material_dna: MaterialDNA | None = Field(
+        default=None, description="Material DNA features"
     )
+    predicted_properties: PredictedProperties | None = Field(
+        default=None, description="Predicted physical properties"
+    )
+    uncertainty_state: UncertaintyState | None = Field(
+        default=None, description="Uncertainty metrics"
+    )
+
+    # Calculation results (Oracle/DFT output)
+    energy: float | None = Field(default=None, description="Total potential energy (eV)")
+    forces: list[list[float]] | None = Field(
+        default=None, description="Atomic forces (eV/A) as Nx3 list"
+    )
+    stress: list[float] | None = Field(
+        default=None, description="Stress tensor (Voigt notation, eV/A^3) as 6-element list"
+    )
+
+    # Legacy/Flexible storage (e.g., for ASE Atoms object which is not Pydantic-serializable)
+    features: dict[str, Any] = Field(
+        default_factory=dict, description="Additional extracted features or raw objects (e.g. atoms)"
+    )
+
     tags: list[str] = Field(
         default_factory=list, description="Tags (e.g., 'initial', 'high_uncertainty')"
     )
@@ -59,6 +117,9 @@ class Potential(BaseModel):
     path: Path = Field(..., description="Path to the potential file")
     type: PotentialType = Field(..., description="Type of the potential")
     version: str = Field(..., description="Version identifier")
+    parameters: dict[str, Any] = Field(
+        default_factory=dict, description="Parameters used to generate this potential"
+    )
     metrics: dict[str, float] = Field(
         default_factory=dict, description="Validation metrics (RMSE, etc.)"
     )

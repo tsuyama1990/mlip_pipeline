@@ -36,12 +36,13 @@ class BaseOracle(Oracle):
         structure.status = StructureStatus.CALCULATED
         try:
             # We use type: ignore because ASE types are often missing
-            structure.features["energy"] = result_atoms.get_potential_energy()  # type: ignore[no-untyped-call]
-            structure.features["forces"] = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
+            # Update explicit fields
+            structure.energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
+            structure.forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
 
             # Stress might not always be calculated
             with contextlib.suppress(Exception):
-                structure.features["stress"] = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+                structure.stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
 
             structure.features["atoms"] = result_atoms
         except Exception:
@@ -93,11 +94,9 @@ class MockOracle(BaseOracle):
             # Update structure status
             s.status = StructureStatus.CALCULATED
             # Mock results with slight randomness using seeded RNG
-            energy = -100.0 + self.rng.uniform(-1.0, 1.0)
-            forces = [[self.rng.uniform(-0.1, 0.1) for _ in range(3)]]
+            s.energy = -100.0 + self.rng.uniform(-1.0, 1.0)
+            s.forces = [[self.rng.uniform(-0.1, 0.1) for _ in range(3)]]
 
-            s.features["energy"] = energy
-            s.features["forces"] = forces
             # No atoms update needed for mock simple
             yield s
 

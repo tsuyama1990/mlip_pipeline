@@ -5,7 +5,7 @@ from typing import Any
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.interfaces import DynamicsEngine
 from pyacemaker.core.utils import generate_dummy_structures
-from pyacemaker.domain_models.models import Potential, StructureMetadata
+from pyacemaker.domain_models.models import Potential, StructureMetadata, UncertaintyState
 
 
 class LAMMPSEngine(DynamicsEngine):
@@ -21,7 +21,13 @@ class LAMMPSEngine(DynamicsEngine):
         self.logger.info(f"Running exploration with {potential.path} (mock)")
 
         # Return dummy high-uncertainty structures
-        return generate_dummy_structures(5, tags=["high_uncertainty", "exploration"])
+        structures = generate_dummy_structures(5, tags=["high_uncertainty", "exploration"])
+        for s in structures:
+            s.uncertainty_state = UncertaintyState(
+                gamma_max=10.0, gamma_mean=2.0, gamma_variance=0.5
+            )
+
+        return structures
 
     def run_production(self, potential: Potential) -> Any:
         """Run production simulation."""

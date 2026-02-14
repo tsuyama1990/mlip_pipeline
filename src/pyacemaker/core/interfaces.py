@@ -35,6 +35,11 @@ class StructureGenerator(BaseModule):
         """Generate candidate structures for a batch of seeds."""
         ...
 
+    @abstractmethod
+    def get_strategy_info(self) -> dict[str, Any]:
+        """Return information about the current exploration strategy."""
+        ...
+
 
 class Oracle(BaseModule):
     """Interface for Oracle (DFT) module."""
@@ -71,7 +76,10 @@ class DynamicsEngine(BaseModule):
 
     @abstractmethod
     def run_exploration(self, potential: Potential) -> list[StructureMetadata]:
-        """Run MD exploration and return high-uncertainty structures."""
+        """Run MD exploration and return high-uncertainty structures.
+
+        The returned structures should have `uncertainty_state` populated.
+        """
         ...
 
     @abstractmethod

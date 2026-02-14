@@ -3,7 +3,7 @@
 from typing import IO, Any
 
 from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.domain_models.models import StructureMetadata
+from pyacemaker.domain_models.models import MaterialDNA, StructureMetadata
 
 
 class LimitedStream:
@@ -43,7 +43,14 @@ class LimitedStream:
 def generate_dummy_structures(count: int, tags: list[str] | None = None) -> list[StructureMetadata]:
     """Generate a list of dummy structures for testing/mocking."""
     tags = tags or ["dummy"]
+    # Provide minimal MaterialDNA for testing
+    dna = MaterialDNA(composition={"Fe": 1.0}, crystal_system="cubic")
     return [
-        StructureMetadata(tags=tags, features={"energy": -100.0, "forces": [[0.0, 0.0, 0.0]]})
+        StructureMetadata(
+            tags=tags,
+            material_dna=dna,
+            # Features can be used for extra data, but core properties are explicit now
+            features={"mock_feature": "test"},
+        )
         for _ in range(count)
     ]

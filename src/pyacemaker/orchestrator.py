@@ -118,6 +118,19 @@ class Orchestrator(IOrchestrator):
             self.logger.info("No high uncertainty structures found. Converged?")
             return CycleStatus.CONVERGED
 
+        # Log max uncertainty found
+        max_gamma = max(
+            (
+                s.uncertainty_state.gamma_max
+                for s in high_uncertainty_structures
+                if s.uncertainty_state and s.uncertainty_state.gamma_max
+            ),
+            default=0.0,
+        )
+        self.logger.info(
+            f"Exploration found {len(high_uncertainty_structures)} structures. Max gamma: {max_gamma:.2f}"
+        )
+
         # 4. Selection (Local Candidates & Active Set)
         self.logger.info("Phase: Selection")
         n_local = self.config.orchestrator.n_local_candidates
