@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from pyacemaker.core.config import load_config
+from pyacemaker.core.exceptions import ConfigurationError
 
 
 def test_full_config_loading(tmp_path: Path) -> None:
@@ -13,7 +14,7 @@ def test_full_config_loading(tmp_path: Path) -> None:
     config_dict = {
         "version": "0.1.0",
         "project": {"name": "TestProject", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "quantum_espresso"}},
+        "oracle": {"dft": {"code": "quantum_espresso", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
         "structure_generator": {"strategy": "adaptive"},
         "trainer": {"potential_type": "pace"},
         "dynamics_engine": {"engine": "lammps"},
@@ -36,7 +37,7 @@ def test_minimal_config_defaults(tmp_path: Path) -> None:
     """Test loading a minimal configuration using defaults."""
     config_dict = {
         "project": {"name": "Minimal", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "vasp"}},
+        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
     }
 
     config_file = tmp_path / "minimal.yaml"
@@ -60,7 +61,6 @@ def test_invalid_config_structure(tmp_path: Path) -> None:
         yaml.dump(config_dict, f)
 
     # load_config raises ConfigurationError wrapping ValidationError
-    from pyacemaker.core.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError):
         load_config(config_file)

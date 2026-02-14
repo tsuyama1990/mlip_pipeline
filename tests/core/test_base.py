@@ -17,7 +17,7 @@ def test_base_module_initialization() -> None:
     """Test BaseModule initialization and logger setup."""
     config_data = {
         "project": {"name": "Test", "root_dir": "."},
-        "oracle": {"dft": {"code": "qe"}},
+        "oracle": {"dft": {"code": "qe", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
     }
     config = PYACEMAKERConfig(**config_data)  # type: ignore[arg-type]
 

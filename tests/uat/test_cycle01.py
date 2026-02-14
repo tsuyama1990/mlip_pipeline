@@ -25,6 +25,8 @@ project:
 oracle:
   dft:
     code: "quantum_espresso"
+    pseudopotentials:
+      Fe: Fe.pbe.UPF
 """
     config_file = tmp_path / "valid_config.yaml"
     config_file.write_text(config_content)

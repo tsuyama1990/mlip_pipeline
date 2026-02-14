@@ -14,7 +14,13 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     config_data = {
         "version": "0.1.0",
         "project": {"name": "IntegrationTest", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "quantum_espresso"}, "mock": True},
+        "oracle": {
+            "dft": {
+                "code": "quantum_espresso",
+                "pseudopotentials": {"Fe": "Fe.pbe.UPF"},
+            },
+            "mock": True,
+        },
         "orchestrator": {
             "max_cycles": 2,
             "uncertainty_threshold": 0.1,

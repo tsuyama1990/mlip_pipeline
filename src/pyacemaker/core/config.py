@@ -34,6 +34,8 @@ class Constants(BaseSettings):
     default_orchestrator_n_active_set_select: int = 5
     default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
     version_regex: str = r"^\d+\.\d+\.\d+$"
+    # Allow skipping file checks for tests
+    skip_file_checks: bool = False
 
 
 CONSTANTS = Constants()
@@ -82,10 +84,44 @@ class ProjectConfig(BaseModel):
             return v.absolute()
 
 
-class DFTConfig(BaseModuleConfig):
+class DFTConfig(BaseModel):
     """DFT calculation configuration."""
 
-    code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(
+        default="quantum_espresso", description="DFT code to use (e.g., 'quantum_espresso')"
+    )
+    command: str = Field(default="mpirun -np 4 pw.x", description="Command to run the DFT code")
+    pseudopotentials: dict[str, str] = Field(
+        ..., description="Map of element symbol to pseudopotential filename"
+    )
+    kspacing: float = Field(default=0.04, description="K-point spacing in inverse Angstroms")
+    smearing: float = Field(default=0.02, description="Smearing width in eV")
+    max_retries: int = Field(
+        default=3, description="Maximum number of retries for failed calculations"
+    )
+    parameters: dict[str, Any] = Field(
+        default_factory=dict, description="Additional parameters (e.g. for mocking)"
+    )
+
+    @field_validator("pseudopotentials")
+    @classmethod
+    def validate_pseudopotentials(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate existence of pseudopotential files."""
+        if CONSTANTS.skip_file_checks:
+            return v
+
+        missing = []
+        for element, path_str in v.items():
+            path = Path(path_str)
+            if not path.exists():
+                missing.append(f"{element}: {path_str}")
+
+        if missing:
+            msg = f"Missing pseudopotential files: {', '.join(missing)}"
+            raise ValueError(msg)
+        return v
 
 
 class OracleConfig(BaseModel):
