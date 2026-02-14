@@ -1,10 +1,15 @@
-"""Dataset Manager for handling atomic structure datasets."""
+"""Dataset Manager for handling atomic structure datasets.
+
+Implements a Framed Pickle format for safe streaming and size validation.
+"""
 
 import gzip
 import pickle
+import struct
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
+from typing import IO, Any
 
 from ase import Atoms
 from loguru import logger
@@ -12,28 +17,52 @@ from loguru import logger
 from pyacemaker.core.config import CONSTANTS
 from pyacemaker.core.utils import calculate_checksum, verify_checksum
 
+# Size limits for objects to prevent OOM
+MAX_OBJECT_SIZE_BYTES = 128 * 1024 * 1024  # 128 MB
+
 
 class DatasetManager:
     """Manages reading and writing of datasets (lists of Atoms).
 
-    WARNING: This module uses `pickle` for serialization, which is not secure
-    against untrusted data. Only load datasets from trusted sources.
+    Uses a Framed Pickle format:
+    [8-byte size][pickled_bytes][8-byte size][pickled_bytes]...
     """
 
     def __init__(self) -> None:
         """Initialize the Dataset Manager."""
         self.logger = logger.bind(name="DatasetManager")
 
+    def _read_frame(self, f: IO[bytes] | Any, path: Path) -> bytes | None:
+        """Read a single frame from the stream."""
+        # Read 8-byte size header
+        size_bytes = f.read(8)
+        if not size_bytes:
+            return None  # EOF
+
+        try:
+            size = struct.unpack(">Q", size_bytes)[0]
+        except struct.error:
+            self.logger.exception(f"Corrupted size header in {path}")
+            return None
+
+        if size > MAX_OBJECT_SIZE_BYTES:
+            msg = (
+                f"Object size {size} bytes exceeds limit of "
+                f"{MAX_OBJECT_SIZE_BYTES} bytes. Potential OOM risk."
+            )
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        # Read object bytes
+        obj_bytes = f.read(size)
+        if len(obj_bytes) != size:
+            self.logger.error(f"Incomplete read: expected {size}, got {len(obj_bytes)}")
+            return None
+
+        return obj_bytes
+
     def load_iter(self, path: Path) -> Iterator[Atoms]:
-        """Iterate over a dataset from a gzipped pickle file (Streaming).
-
-        This method reads objects sequentially from the file. It expects the file
-        to be created using `save_iter` (sequentially dumped objects).
-
-        CRITICAL SCALABILITY NOTE:
-        This method STRICTLY supports sequential streams. If a file contains
-        a single pickled list object (legacy format), this method will raise
-        a TypeError to prevent implicit loading of massive datasets into memory.
+        """Iterate over a dataset from a gzipped framed pickle file (Streaming).
 
         Args:
             path: Path to the .pckl.gzip file.
@@ -43,8 +72,8 @@ class DatasetManager:
 
         Raises:
             FileNotFoundError: If the file does not exist.
-            TypeError: If a list object is encountered (Legacy format rejected).
-            ValueError: If checksum verification fails.
+            ValueError: If checksum verification fails or object size exceeds limit.
+            EOFError: If stream ends abruptly (handled internally).
 
         """
         if not path.exists():
@@ -67,30 +96,30 @@ class DatasetManager:
 
         with gzip.open(path, "rb") as f:
             while True:
+                obj_bytes = self._read_frame(f, path)
+                if obj_bytes is None:
+                    break
+
                 try:
-                    obj = pickle.load(f)  # noqa: S301
+                    obj = pickle.loads(obj_bytes)  # noqa: S301
                     if isinstance(obj, list):
                         msg = (
                             "Encountered a list object in stream. "
-                            "Legacy single-list dumps are not supported in load_iter "
-                            "to prevent Out-Of-Memory errors. "
-                            "Please convert dataset to sequential format using safe tools."
+                            "This likely indicates legacy format usage. "
+                            "Please convert dataset to framed format."
                         )
                         self.logger.error(msg)
                         raise TypeError(msg)
                     elif isinstance(obj, Atoms):
                         yield obj
-                except EOFError:
-                    break
                 except pickle.UnpicklingError:
                     self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
                     break
 
     def save(self, data: list[Atoms], path: Path) -> None:
-        """Save a dataset to a gzipped pickle file using streaming format.
+        """Save a dataset to a gzipped framed pickle file.
 
-        This method now delegates to `save_iter` to ensure files are always
-        saved in a stream-friendly format.
+        Delegates to save_iter.
 
         Args:
             data: List of ase.Atoms objects.
@@ -110,10 +139,7 @@ class DatasetManager:
         path: Path,
         mode: str = "wb",
     ) -> None:
-        """Save a dataset by dumping objects sequentially (Stream-friendly).
-
-        This format allows `load_iter` to read one object at a time without
-        loading the whole file into RAM.
+        """Save a dataset by dumping objects sequentially using Framed Pickle format.
 
         Args:
             data: Iterable of ase.Atoms objects.
@@ -131,7 +157,22 @@ class DatasetManager:
 
         with gzip.open(path, mode) as f:
             for atoms in data:
-                pickle.dump(atoms, f)
+                # Pickle to bytes first
+                obj_bytes = pickle.dumps(atoms)
+                size = len(obj_bytes)
+
+                if size > MAX_OBJECT_SIZE_BYTES:
+                    msg = (
+                        f"Object size {size} bytes exceeds limit of "
+                        f"{MAX_OBJECT_SIZE_BYTES} bytes. Skipping save."
+                    )
+                    self.logger.error(msg)
+                    continue
+
+                # Write header (8 bytes, big-endian unsigned long long)
+                f.write(struct.pack(">Q", size))  # type: ignore[arg-type]
+                # Write payload
+                f.write(obj_bytes)  # type: ignore[arg-type]
 
         # Calculate and save checksum
         # Note: Re-calculating checksum for large files on every append is expensive

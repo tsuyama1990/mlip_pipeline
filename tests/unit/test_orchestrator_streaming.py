@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from ase import Atoms
@@ -11,10 +11,10 @@ from pyacemaker.core.config import (
     CONSTANTS,
     DFTConfig,
     OracleConfig,
+    OrchestratorConfig,
     ProjectConfig,
     PYACEMAKERConfig,
     StructureGeneratorConfig,
-    OrchestratorConfig,
 )
 from pyacemaker.domain_models.models import StructureMetadata
 from pyacemaker.orchestrator import Orchestrator
@@ -40,7 +40,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
     # Create an iterator that yields structures
     def structure_gen() -> Iterator[StructureMetadata]:
-        for i in range(5):
+        for _ in range(5):
             # Must provide atoms for metadata_to_atoms
             yield StructureMetadata(
                 features={"atoms": Atoms("H", positions=[[0, 0, 0]])}
@@ -112,14 +112,6 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     train_stream, val_list = orchestrator._split_dataset_streams()
 
     # Consume train_stream to trigger splitting (it's a generator)
-    # The validation list populates as we iterate the stream?
-    # Wait, looking at implementation:
-    # def train_stream():
-    #    for atoms in load_iter():
-    #       if is_validation: append(val_list)
-    #       else: yield metadata
-    # So we must consume train_stream for val_list to populate.
-
     consumed_train = list(train_stream)
 
     # Validation list should be capped at 10
@@ -137,4 +129,7 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     assert mock_validator.validate.called
     call_args = mock_validator.validate.call_args
     test_set = call_args[0][1]
+
+    # Explicitly check identity or content
+    assert test_set is val_list
     assert len(test_set) == 10

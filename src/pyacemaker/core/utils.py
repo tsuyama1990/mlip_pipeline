@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+from loguru import logger
+
 from pyacemaker.domain_models.models import (
     MaterialDNA,
     StructureMetadata,
@@ -79,7 +81,7 @@ def calculate_checksum(file_path: Path) -> str:
 
     """
     sha256_hash = hashlib.sha256()
-    with open(file_path, "rb") as f:
+    with file_path.open("rb") as f:
         # Read and update hash string value in blocks of 4K
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
@@ -114,47 +116,14 @@ def atoms_to_metadata(atoms: "Atoms", **kwargs: Any) -> StructureMetadata:
 
     """
     # Create basic metadata
-    # We store the atoms object in features for now, as allowed by schema
     features = kwargs.pop("features", {})
     features["atoms"] = atoms
 
-    # Extract some DNA if possible (basic composition)
-    composition = {}
-    try:
-        symbols = atoms.get_chemical_symbols()
-        total = len(symbols)
-        if total > 0:
-            for s in set(symbols):
-                composition[s] = symbols.count(s) / total
-    except Exception:
-        pass  # If atoms object is dummy or weird
+    # Extract DNA
+    composition = _extract_composition(atoms)
 
-    # Try to extract energy/forces from atoms object calculator/info
-    energy = kwargs.pop("energy", None)
-    forces = kwargs.pop("forces", None)
-    stress = kwargs.pop("stress", None)
-    status = kwargs.pop("status", StructureStatus.NEW)
-
-    try:
-        # Check explicit calc results
-        # We use getattr/call to be safe if calculator is missing or weird
-        calc = getattr(atoms, "calc", None)
-        if calc:
-            if energy is None and "energy" in calc.results:
-                energy = float(calc.results["energy"])
-            if forces is None and "forces" in calc.results:
-                forces = calc.results["forces"].tolist()
-            if stress is None and "stress" in calc.results:
-                stress = calc.results["stress"].tolist()
-
-        # Also check info/arrays as fallback (common in ASE IO)
-        if energy is None and "energy" in atoms.info:
-            energy = float(atoms.info["energy"])
-        if forces is None and "forces" in atoms.arrays:
-            forces = atoms.arrays["forces"].tolist()
-
-    except Exception:
-        pass # Best effort extraction
+    # Extract Properties
+    energy, forces, stress, status = _extract_properties(atoms, kwargs)
 
     if energy is not None and forces is not None:
         status = StructureStatus.CALCULATED
@@ -168,6 +137,52 @@ def atoms_to_metadata(atoms: "Atoms", **kwargs: Any) -> StructureMetadata:
         status=status,
         **kwargs,
     )
+
+
+def _extract_composition(atoms: "Atoms") -> dict[str, float]:
+    """Helper to extract composition from atoms."""
+    composition = {}
+    try:
+        symbols = atoms.get_chemical_symbols()  # type: ignore[no-untyped-call]
+        total = len(symbols)
+        if total > 0:
+            for s in set(symbols):
+                composition[s] = symbols.count(s) / total
+    except Exception as e:
+        logger.debug(f"Failed to extract composition: {e}")
+    return composition
+
+
+def _extract_properties(
+    atoms: "Atoms", kwargs: dict[str, Any]
+) -> tuple[float | None, list[list[float]] | None, list[float] | None, StructureStatus]:
+    """Helper to extract energy, forces, stress from atoms."""
+    energy = kwargs.pop("energy", None)
+    forces = kwargs.pop("forces", None)
+    stress = kwargs.pop("stress", None)
+    status = kwargs.pop("status", StructureStatus.NEW)
+
+    try:
+        # Check explicit calc results
+        calc = getattr(atoms, "calc", None)
+        if calc:
+            if energy is None and "energy" in calc.results:
+                energy = float(calc.results["energy"])
+            if forces is None and "forces" in calc.results:
+                forces = calc.results["forces"].tolist()
+            if stress is None and "stress" in calc.results:
+                stress = calc.results["stress"].tolist()
+
+        # Also check info/arrays as fallback
+        if energy is None and "energy" in atoms.info:
+            energy = float(atoms.info["energy"])
+        if forces is None and "forces" in atoms.arrays:
+            forces = atoms.arrays["forces"].tolist()
+
+    except Exception as e:
+        logger.debug(f"Failed to extract properties: {e}")
+
+    return energy, forces, stress, status
 
 
 def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
@@ -205,17 +220,14 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
             if metadata.stress is not None:
                 results["stress"] = metadata.stress
 
-            atoms.calc = SinglePointCalculator(atoms, **results)
+            atoms.calc = SinglePointCalculator(atoms, **results)  # type: ignore[no-untyped-call]
 
-            # Also store in info/arrays for redundancy/compatibility
+            # Also store in info for redundancy
             atoms.info["energy"] = metadata.energy
-            # For forces (per atom), we rely on calc or arrays if we want strict array
-            # But forces array size must match atoms count.
-            # Assuming metadata.forces matches atoms.
 
         except ImportError:
-            pass # ASE not available or partial install (shouldn't happen in prod)
-        except Exception:
-            pass # Best effort
+            logger.warning("ASE SinglePointCalculator not available.")
+        except Exception as e:
+            logger.warning(f"Failed to attach results to atoms: {e}")
 
-    return atoms
+    return atoms  # type: ignore[no-any-return]

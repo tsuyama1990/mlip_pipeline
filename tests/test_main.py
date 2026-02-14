@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from pyacemaker.main import app
@@ -17,7 +18,7 @@ def test_app_help() -> None:
     assert "Options" in result.stdout
 
 
-def test_run_command_valid(tmp_path: Path, monkeypatch) -> None:
+def test_run_command_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test running the pipeline with a valid configuration."""
     monkeypatch.setenv("PYACEMAKER_SKIP_FILE_CHECKS", "true")
 

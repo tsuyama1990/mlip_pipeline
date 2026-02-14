@@ -1,6 +1,7 @@
 """Integration tests for the full active learning cycle."""
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from ase import Atoms
@@ -14,7 +15,7 @@ from pyacemaker.core.config import (
     StructureGeneratorConfig,
     TrainerConfig,
 )
-from pyacemaker.domain_models.models import StructureMetadata
+from pyacemaker.domain_models.models import Potential, StructureMetadata
 from pyacemaker.modules.oracle import MockOracle
 from pyacemaker.orchestrator import Orchestrator
 
@@ -44,16 +45,6 @@ class TestFullCycleIntegration:
             trainer=TrainerConfig(mock=True),
         )
 
-        # Mock dependencies to avoid actual external calls
-        # Mock Oracle is already a class we can use, but we need to ensure it works in this context
-        # Mock Trainer needs to simulate returning a Potential and ActiveSet
-
-        # We instantiate Orchestrator with real classes where possible (MockOracle, RandomStructureGenerator)
-        # but patch Trainer since it calls subprocess.
-
-        # We also need to patch DynamicsEngine because the default implementation
-        # might not trigger 'halt' events deterministically with `secrets`.
-        # We force `_simulate_halt_condition` to return True so we get candidate structures.
         with (
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.select_active_set") as mock_select,
@@ -72,15 +63,6 @@ class TestFullCycleIntegration:
                 StructureMetadata(features={"atoms": Atoms("Fe")}),
                 StructureMetadata(features={"atoms": Atoms("Fe")}),
             ]
-            # Ensure IDs match candidates to simulate selection
-            # But Orchestrator generates new candidates.
-            # In mock mode, we just need select_active_set to return *something* that Orchestrator accepts.
-            # Wait, Orchestrator filters by ID: `selected_structures = [c for c in candidates_list if c.id in active_ids]`
-            # If we use streaming in Orchestrator, `select_active_set` in Trainer handles consumption.
-            # Our updated Orchestrator logic:
-            # `active_set = self.trainer.select_active_set(candidates_iter, ...)`
-            # `if active_set.structures: selected_structures = active_set.structures`
-            # So if we mock `select_active_set` to return an ActiveSet with `.structures`, we are good.
 
             mock_select.return_value = mock_active_set
 
@@ -99,3 +81,48 @@ class TestFullCycleIntegration:
             # Verify interactions
             assert mock_train.call_count >= 2
             assert mock_select.call_count >= 2
+
+    def test_cycle_failure_validation(self, tmp_path: Path) -> None:
+        """Test that validation failure halts the cycle."""
+        pp_path = tmp_path / "Fe.upf"
+        pp_path.touch()
+
+        config = PYACEMAKERConfig(
+            version="0.1.0",
+            project=ProjectConfig(name="FailureTest", root_dir=tmp_path),
+            orchestrator=OrchestratorConfig(max_cycles=1, validation_split=1.0),
+            structure_generator=StructureGeneratorConfig(strategy="random"),
+            oracle=OracleConfig(
+                dft=DFTConfig(code="qe", pseudopotentials={"Fe": str(pp_path)}), mock=True
+            ),
+            trainer=TrainerConfig(mock=True),
+        )
+
+        with (
+            patch("pyacemaker.modules.validator.MockValidator.validate") as mock_validate,
+            patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
+        ):
+            # Simulate validation failure
+            mock_validate.return_value = MagicMock(status="failed", metrics={})
+
+            # Mock train must consume stream to populate validation set
+            def consume_stream(dataset: Any, potential: Potential | None = None) -> Any:
+                for _ in dataset:
+                    pass
+                return MagicMock()
+
+            mock_train.side_effect = consume_stream
+
+            orchestrator = Orchestrator(config)
+            # Pre-populate dataset so training runs
+            dataset_path = orchestrator.dataset_path
+            orchestrator.dataset_manager.save_iter(
+                iter([Atoms("Fe")]), dataset_path
+            )
+
+            result = orchestrator.run()
+
+            # Should fail
+            assert result.status == "failed"
+            # Cycle count should be 1 (failed at cycle 1)
+            assert orchestrator.cycle_count == 1

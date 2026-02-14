@@ -8,6 +8,7 @@ from typing import TypeVar
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
+    CycleResult,
     DynamicsEngine,
     IOrchestrator,
     Oracle,
@@ -84,7 +85,10 @@ class Orchestrator(IOrchestrator):
         # State
         self.current_potential: Potential | None = None
         # Dataset is now file-based to prevent OOM
-        self.dataset_path = self.config.project.root_dir / "data" / "dataset.pckl.gzip"
+        # Use config option instead of hardcoded
+        self.dataset_path = (
+            self.config.project.root_dir / "data" / self.config.orchestrator.dataset_file
+        )
         self.dataset_manager = DatasetManager()
         self.cycle_count = 0
 
@@ -103,13 +107,13 @@ class Orchestrator(IOrchestrator):
             self.cycle_count += 1
             self.logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
 
-            status = self.run_cycle()
+            result = self.run_cycle()
 
-            if status == CycleStatus.CONVERGED:
+            if result.status == CycleStatus.CONVERGED:
                 self.logger.info("Convergence reached!")
                 break
-            if status == CycleStatus.FAILED:
-                self.logger.error("Cycle failed!")
+            if result.status == CycleStatus.FAILED:
+                self.logger.error(f"Cycle failed! Reason: {result.error}")
                 return ModuleResult(
                     status="failed",
                     metrics=Metrics.model_validate({"cycles": self.cycle_count}),
@@ -118,9 +122,7 @@ class Orchestrator(IOrchestrator):
         self.logger.info("Pipeline completed")
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate(
-                {"cycles": self.cycle_count}
-            ),
+            metrics=Metrics.model_validate({"cycles": self.cycle_count}),
         )
 
     def _run_cold_start(self) -> None:
@@ -129,32 +131,49 @@ class Orchestrator(IOrchestrator):
         # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
         computed_stream = self.oracle.compute_batch(initial_structures)
 
-        # Convert to Atoms and append to file
+        # Optimization: Don't convert back and forth if not needed,
+        # but DatasetManager expects Atoms. And compute_batch returns StructureMetadata.
+        # So conversion IS needed unless we change interfaces.
+        # But we can do it lazily.
         atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
         self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
 
-    def run_cycle(self) -> CycleStatus:
+    def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle."""
         # 1. Training (Refinement)
-        self._run_training_phase()
+        try:
+            self._run_training_phase()
+        except Exception as e:
+            self.logger.exception("Training phase failed")
+            return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
 
         # 2. Validation
         if not self._run_validation_phase():
             self.logger.error("Cycle halted due to validation failure.")
-            return CycleStatus.FAILED
+            return CycleResult(
+                status=CycleStatus.FAILED, metrics=Metrics(), error="Validation failed"
+            )
 
         # 3. Exploration (MD) & Selection
         # Exploration returns high uncertainty structures
         # Selection filters them and generates candidates
-        selected_structures = self._run_exploration_and_selection_phase()
+        try:
+            selected_structures = self._run_exploration_and_selection_phase()
+        except Exception as e:
+            self.logger.exception("Exploration/Selection phase failed")
+            return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
 
         if selected_structures is None:
-            return CycleStatus.CONVERGED
+            return CycleResult(status=CycleStatus.CONVERGED, metrics=Metrics())
 
         # 5. Calculation (Oracle)
-        self._run_calculation_phase(selected_structures)
+        try:
+            self._run_calculation_phase(selected_structures)
+        except Exception as e:
+            self.logger.exception("Calculation phase failed")
+            return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
 
-        return CycleStatus.TRAINING
+        return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
 
     def _run_training_phase(self) -> None:
         """Execute training phase with file-based streaming."""
@@ -170,7 +189,7 @@ class Orchestrator(IOrchestrator):
         self._validation_set = val_list
 
     def _split_dataset_streams(self) -> tuple[Iterator[StructureMetadata], list[StructureMetadata]]:
-        """Split dataset into training stream and validation list (using Reservoir Sampling or Probabilistic)."""
+        """Split dataset into training stream and validation list (Probabilistic)."""
         split_ratio = self.config.orchestrator.validation_split
         max_val = self.config.orchestrator.max_validation_size
         val_list: list[StructureMetadata] = []
@@ -181,13 +200,15 @@ class Orchestrator(IOrchestrator):
 
             # Use DatasetManager to load items
             for atoms in self.dataset_manager.load_iter(self.dataset_path):
-                # Probabilistic split: if random < split_ratio, try to add to validation
-                # We prioritize filling validation set up to max_val
-                is_validation = (
-                    len(val_list) < max_val and secrets.SystemRandom().random() < split_ratio
-                )
+                # Probabilistic split: if random < split_ratio AND we are under cap
+                # If split_ratio is 1.0, we want everything in validation, UP TO max_val.
+                # But train_stream must yield training data. If everything goes to val, train is empty?
+                # That would break training.
+                # Assuming standard split logic:
+                is_full = len(val_list) >= max_val
+                should_validate = (not is_full) and (secrets.SystemRandom().random() < split_ratio)
 
-                if is_validation:
+                if should_validate:
                     val_list.append(atoms_to_metadata(atoms))
                 else:
                     yield atoms_to_metadata(atoms)
@@ -208,7 +229,7 @@ class Orchestrator(IOrchestrator):
         test_set = getattr(self, "_validation_set", [])
         if not test_set:
             self.logger.warning("Empty validation set.")
-            # We could try to load from file if empty, but we rely on training phase populate
+            # We rely on training phase populate
             return True
 
         val_result = self.validator.validate(self.current_potential, test_set)
@@ -227,7 +248,6 @@ class Orchestrator(IOrchestrator):
         """
         self.logger.info("Phase: Exploration")
         if not self.current_potential:
-            # Should not happen if training succeeded, but for safety
             return None
 
         high_uncertainty_iter = self.dynamics_engine.run_exploration(self.current_potential)
