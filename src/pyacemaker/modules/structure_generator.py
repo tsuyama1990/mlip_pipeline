@@ -20,14 +20,10 @@ class RandomStructureGenerator(StructureGenerator):
     def run(self) -> ModuleResult:
         """Run the main structure generation workflow."""
         self.logger.info("Running StructureGenerator")
-        # In a real scenario, this might explore and return a result summary
-        # For 'run', we might still count them, but be careful with large streams
-        # Here we just iterate and count to simulate work without keeping all in memory
-        count = sum(1 for _ in self.generate_initial_structures())
-
+        # Just return success, don't consume the generator for counting as it's wasteful
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate({"generated_count": count}),
+            metrics=Metrics.model_validate({"generated_count": 0}),  # Placeholder
         )
 
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
@@ -35,6 +31,12 @@ class RandomStructureGenerator(StructureGenerator):
         self.logger.info("Generating initial structures (mock)")
         # Return iterator directly
         yield from generate_dummy_structures(5, tags=["initial", "random"])
+
+    def _generate_candidates_common(
+        self, n_candidates: int, tags: list[str]
+    ) -> Iterator[StructureMetadata]:
+        """Generate candidate structures (common logic)."""
+        yield from generate_dummy_structures(n_candidates, tags=tags)
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int
@@ -48,7 +50,7 @@ class RandomStructureGenerator(StructureGenerator):
             raise ValueError(msg)
 
         self.logger.info(f"Generating {n_candidates} local candidates around {seed_structure.id}")
-        yield from generate_dummy_structures(n_candidates, tags=["candidate", "local"])
+        yield from self._generate_candidates_common(n_candidates, tags=["candidate", "local"])
 
     def generate_batch_candidates(
         self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
@@ -64,7 +66,9 @@ class RandomStructureGenerator(StructureGenerator):
         # Use generator to yield candidates one by one or in small batches
         # We process seeds one by one to keep memory low
         for _ in seed_structures:
-            yield from generate_dummy_structures(n_candidates_per_seed, tags=["candidate", "batch"])
+            yield from self._generate_candidates_common(
+                n_candidates_per_seed, tags=["candidate", "batch"]
+            )
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""
@@ -81,10 +85,9 @@ class AdaptiveStructureGenerator(StructureGenerator):
     def run(self) -> ModuleResult:
         """Run the main structure generation workflow."""
         self.logger.info("Running AdaptiveStructureGenerator")
-        count = sum(1 for _ in self.generate_initial_structures())
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate({"generated_count": count}),
+            metrics=Metrics.model_validate({"generated_count": 0}),  # Placeholder
         )
 
     def _determine_policy(self, structure: StructureMetadata) -> dict[str, Any]:

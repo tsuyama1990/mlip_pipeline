@@ -56,8 +56,17 @@ class DFTManager:
             The calculated structure with results attached, or None if failed.
 
         """
+        # Security: Validate structure size
+        if len(structure) > 1000:  # Arbitrary limit for example
+            self.logger.error(f"Structure too large: {len(structure)} atoms")
+            return None
+
         # Create a deep copy to avoid modifying the input structure
         calc_structure = structure.copy()  # type: ignore[no-untyped-call]
+        if not isinstance(calc_structure, Atoms):
+            # Should not happen with ASE, but satisfies mypy if copy() returns Any
+            self.logger.error("Failed to copy structure")
+            return None
 
         # Apply embedding if needed (modifies structure in-place)
         self._apply_periodic_embedding(calc_structure)
@@ -110,4 +119,5 @@ class DFTManager:
 
         """
         for s in structures:
-            yield self.compute(s)
+            result = self.compute(s)
+            yield result

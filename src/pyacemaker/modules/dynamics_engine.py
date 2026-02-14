@@ -32,14 +32,13 @@ class LAMMPSEngine(DynamicsEngine):
         """
         self.logger.debug(f"Setting up LAMMPS with potential {potential.path}")
         # In a real implementation, we would write files here.
-        pass
 
     def _simulate_halt_condition(self) -> bool:
         """Simulate whether a halt condition (high gamma) is met (Mock)."""
-        # Simple random mock for simulation
-        import random
+        # Simple random mock for simulation using secrets for safety
+        import secrets
 
-        return random.random() < 0.3  # 30% chance of halt per check
+        return secrets.SystemRandom().random() < 0.3  # 30% chance of halt per check
 
     def _extract_halt_structure(self) -> StructureMetadata:
         """Extract the structure that triggered the halt event.

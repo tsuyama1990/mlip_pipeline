@@ -57,6 +57,11 @@ dft:
     - "electrons"
     - "ions"
     - "cell"
+  ecutwfc: 50.0
+  ecutrho: 200.0
+  conv_thr: 1.0e-6
+  occupations: "smearing"
+  smearing_method: "mv"
 
 # Security Warnings
 pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources."

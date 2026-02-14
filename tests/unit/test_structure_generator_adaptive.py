@@ -21,11 +21,12 @@ from pyacemaker.modules.structure_generator import AdaptiveStructureGenerator
 
 
 @pytest.fixture
-def mock_config(monkeypatch: pytest.MonkeyPatch) -> PYACEMAKERConfig:
+def mock_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> PYACEMAKERConfig:
     """Create a minimal mock configuration."""
     monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
     return PYACEMAKERConfig(
-        project=ProjectConfig(name="test", root_dir=Path("/tmp")),
+        version="0.1.0",
+        project=ProjectConfig(name="test", root_dir=tmp_path),
         oracle=OracleConfig(dft=DFTConfig(pseudopotentials={"H": "H.upf"})),
         structure_generator=StructureGeneratorConfig(strategy="adaptive"),
     )

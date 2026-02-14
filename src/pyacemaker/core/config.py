@@ -84,11 +84,11 @@ class Constants(BaseSettings):
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
     # DFT Defaults
-    default_dft_ecutwfc: float = 50.0
-    default_dft_ecutrho: float = 200.0
-    default_dft_conv_thr: float = 1.0e-6
-    default_dft_occupations: str = "smearing"
-    default_dft_smearing_method: str = "mv"
+    default_dft_ecutwfc: float = _DEFAULTS["dft"]["ecutwfc"]
+    default_dft_ecutrho: float = _DEFAULTS["dft"]["ecutrho"]
+    default_dft_conv_thr: float = _DEFAULTS["dft"]["conv_thr"]
+    default_dft_occupations: str = _DEFAULTS["dft"]["occupations"]
+    default_dft_smearing_method: str = _DEFAULTS["dft"]["smearing_method"]
 
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
