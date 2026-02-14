@@ -222,6 +222,12 @@ class DFTConfig(BaseModel):
         default=CONSTANTS.default_dft_max_workers,
         description="Maximum number of parallel workers for DFT calculations",
     )
+    embedding_enabled: bool = Field(
+        default=True, description="Enable periodic embedding for non-periodic structures"
+    )
+    embedding_buffer: float = Field(
+        default=2.0, description="Buffer size for periodic embedding (Angstrom)"
+    )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters (e.g. for mocking)"
     )

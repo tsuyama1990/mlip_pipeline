@@ -23,19 +23,65 @@ class LAMMPSEngine(DynamicsEngine):
         self.logger.info("Running LAMMPSEngine")
         return ModuleResult(status="success")
 
+    def _setup_lammps(self, potential: Potential) -> None:
+        """Setup LAMMPS input files including pair_style hybrid/overlay.
+
+        This method would generate the `in.lammps` file configured to:
+        1. Use pair_style hybrid/overlay pace zbl to ensure core repulsion.
+        2. Set up `fix halt` to stop simulation if gamma > threshold.
+        """
+        self.logger.debug(f"Setting up LAMMPS with potential {potential.path}")
+        # In a real implementation, we would write files here.
+        pass
+
+    def _simulate_halt_condition(self) -> bool:
+        """Simulate whether a halt condition (high gamma) is met (Mock)."""
+        # Simple random mock for simulation
+        import random
+
+        return random.random() < 0.3  # 30% chance of halt per check
+
+    def _extract_halt_structure(self) -> StructureMetadata:
+        """Extract the structure that triggered the halt event.
+
+        In a real implementation, this would parse the LAMMPS dump file corresponding
+        to the halt timestep.
+        """
+        # Mock: generate a structure with gamma > threshold
+        s = next(generate_dummy_structures(1, tags=["halt_event", "high_uncertainty"]))
+        s.uncertainty_state = UncertaintyState(
+            gamma_max=self.gamma_threshold * 1.5,  # Significantly above threshold
+            gamma_mean=self.gamma_threshold * 0.5,
+            gamma_variance=1.0,
+        )
+        return s
+
     def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
-        """Run exploration and return structures."""
+        """Run MD exploration and return high-uncertainty structures.
+
+        This method orchestrates the 'Exploration' phase:
+        1. Sets up LAMMPS with the current potential and uncertainty monitoring.
+        2. Runs the simulation.
+        3. If 'fix halt' triggers (high uncertainty), extracts the structure.
+        4. Yields the structure to the Orchestrator for labeling.
+        5. Resumes simulation (mocked loop).
+        """
         self.logger.info(f"Running exploration with {potential.path} (mock)")
+        self._setup_lammps(potential)
 
-        # Return dummy high-uncertainty structures
-        structures_iter = generate_dummy_structures(5, tags=["high_uncertainty", "exploration"])
+        # Simulate a timeline of simulation checks (e.g., every 1000 steps)
+        # We simulate 5 checks for this mock run
+        for step in range(1, 6):
+            self.logger.debug(f"Simulation check at step {step}")
 
-        for s in structures_iter:
-            # Use configured threshold logic (mocked)
-            s.uncertainty_state = UncertaintyState(
-                gamma_max=self.gamma_threshold, gamma_mean=2.0, gamma_variance=0.5
-            )
-            yield s
+            if self._simulate_halt_condition():
+                self.logger.warning(
+                    f"Halt triggered at check {step} (Gamma > {self.gamma_threshold})"
+                )
+                halt_structure = self._extract_halt_structure()
+                yield halt_structure
+            else:
+                self.logger.debug("Simulation continuing (Gamma stable)")
 
     def run_production(self, potential: Potential) -> Any:
         """Run production simulation."""

@@ -25,6 +25,27 @@ class DFTManager:
         error_msg = str(error).lower()
         return any(pattern in error_msg for pattern in self._recoverable_patterns)
 
+    def _apply_periodic_embedding(self, atoms: Atoms) -> None:
+        """Apply periodic embedding to non-periodic structures (in-place).
+
+        If the structure is non-periodic (all pbc are False), this method sets a cell
+        with the configured buffer and enables PBC.
+        """
+        if not self.config.embedding_enabled:
+            return
+
+        # Check if structure is already periodic
+        if any(atoms.pbc):
+            return
+
+        # Apply periodic embedding: center atoms with buffer and enable PBC
+        # vacuum parameter adds space on each side of the bounding box
+        atoms.center(vacuum=self.config.embedding_buffer)  # type: ignore[no-untyped-call]
+        atoms.pbc = True
+        self.logger.debug(
+            f"Applied periodic embedding with buffer {self.config.embedding_buffer} A"
+        )
+
     def compute(self, structure: Atoms) -> Atoms | None:
         """Run a DFT calculation for a single structure with retries.
 
@@ -35,19 +56,25 @@ class DFTManager:
             The calculated structure with results attached, or None if failed.
 
         """
+        # Create a deep copy to avoid modifying the input structure
+        calc_structure = structure.copy()  # type: ignore[no-untyped-call]
+
+        # Apply embedding if needed (modifies structure in-place)
+        self._apply_periodic_embedding(calc_structure)
+
         # Create a unique temporary directory for this calculation to ensure thread safety
         with tempfile.TemporaryDirectory(prefix=CONSTANTS.DFT_TEMP_PREFIX) as tmp_dir:
             for attempt in range(self.config.max_retries):
                 try:
                     calc = create_calculator(self.config, attempt, directory=tmp_dir)
-                    structure.calc = calc
+                    calc_structure.calc = calc
 
                     # Log attempt details for debugging
                     mixing_beta = calc.parameters["input_data"]["electrons"].get("mixing_beta")
                     self.logger.debug(f"DFT Attempt {attempt + 1}: mixing_beta={mixing_beta}")
 
                     # Trigger calculation
-                    structure.get_potential_energy()  # type: ignore[no-untyped-call]
+                    calc_structure.get_potential_energy()  # type: ignore[no-untyped-call]
 
                 except Exception as e:
                     # If it's the last attempt, fail
@@ -67,7 +94,7 @@ class DFTManager:
                     break
                 else:
                     self.logger.info("DFT calculation successful")
-                    return structure
+                    return calc_structure
 
         self.logger.error("DFT calculation failed")
         return None

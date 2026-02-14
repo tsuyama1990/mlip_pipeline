@@ -21,7 +21,10 @@ from pyacemaker.domain_models.models import (
 )
 from pyacemaker.modules.dynamics_engine import LAMMPSEngine
 from pyacemaker.modules.oracle import MockOracle
-from pyacemaker.modules.structure_generator import RandomStructureGenerator
+from pyacemaker.modules.structure_generator import (
+    AdaptiveStructureGenerator,
+    RandomStructureGenerator,
+)
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
 
@@ -53,9 +56,13 @@ class Orchestrator(IOrchestrator):
         self.config = config
 
         # Dependency Injection with fallbacks using factory pattern
-        self.structure_generator: StructureGenerator = (
-            structure_generator or _create_default_module(RandomStructureGenerator, config)
-        )
+        if structure_generator:
+            self.structure_generator = structure_generator
+        elif config.structure_generator.strategy == "adaptive":
+            self.structure_generator = AdaptiveStructureGenerator(config)
+        else:
+            self.structure_generator = RandomStructureGenerator(config)
+
         self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
         self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(

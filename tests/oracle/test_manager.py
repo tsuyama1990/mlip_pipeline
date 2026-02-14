@@ -29,8 +29,9 @@ def test_compute_success(config: DFTConfig) -> None:
         assert result is not None
         assert result.calc is not None
         mock_get_pe.assert_called_once()
-        # Ensure result is the same atoms object
-        assert result == atoms
+        # Ensure result is a new object (copy) to avoid side effects
+        assert result is not atoms
+        assert atoms.calc is None
 
 
 def test_compute_failure_retry_recoverable(config: DFTConfig) -> None:
