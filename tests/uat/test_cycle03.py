@@ -71,13 +71,11 @@ class TestCycle03UAT:
         trainer.dataset_manager.load_iter.return_value = mock_atoms_iter
 
         # Ensure save_iter creates file
-        def consume_iterator(data, path, mode="wb"):  # type: ignore[no-untyped-def]
+        def consume_iterator(data, path):  # type: ignore[no-untyped-def]
             for _ in data:
                 pass
             path.parent.mkdir(parents=True, exist_ok=True)
-            # Write dummy data so st_size > 0
-            with path.open("wb") as f:
-                f.write(b"dummy")
+            path.touch()
 
         trainer.dataset_manager.save_iter.side_effect = consume_iterator
 
@@ -103,13 +101,11 @@ class TestCycle03UAT:
         trainer.dataset_manager = MagicMock()  # Mock to avoid file IO issues
 
         # Ensure save_iter consumes the iterator AND creates file (so exists checks pass)
-        def consume_iterator(data, path, mode="wb"):  # type: ignore[no-untyped-def]
+        def consume_iterator(data, path):  # type: ignore[no-untyped-def]
             for _ in data:
                 pass
             path.parent.mkdir(parents=True, exist_ok=True)
-            # Write dummy data so st_size > 0
-            with path.open("wb") as f:
-                f.write(b"dummy")
+            path.touch()
 
         trainer.dataset_manager.save_iter.side_effect = consume_iterator
 

@@ -155,24 +155,20 @@ class StructureMetadata(BaseModel):
             msg = "Feature keys must be strings"
             raise ValueError(msg)
 
+        # Validate values (whitelist approach)
+        # Allow basic types, numpy arrays (as lists), and ASE Atoms (opaque check)
+        # We can't easily check for ASE Atoms without importing ASE, which might be optional dependency.
+        # But we can check for general serializable types or explicit allowed objects.
+        # For now, let's just ensure no obviously dangerous types if possible, or just basic types.
+        # Given "Arbitrary objects" warning, strict typing is hard for 'features'.
+        # We rely on "extra='forbid'" in the model config for the model itself,
+        # but features is dict[str, Any].
+        # We can enforce that values are not callables or modules.
         for key, value in v.items():
             if callable(value):
                 msg = f"Feature '{key}' cannot be a callable"
                 raise TypeError(msg)
-
-        # Check if 'atoms' is present and valid if possible
-        if "atoms" in v:
-            atoms = v["atoms"]
-            # Check for ASE Atoms duck-typing or strict type if importable
-            try:
-                from ase import Atoms
-
-                if atoms is not None and not isinstance(atoms, Atoms):
-                    msg = f"Feature 'atoms' must be an ASE Atoms object, got {type(atoms)}"
-                    raise TypeError(msg)
-            except ImportError:
-                pass  # ASE not installed, skip check
-
+            # Add more checks as needed.
         return v
 
     @model_validator(mode="after")
@@ -221,10 +217,14 @@ class Potential(BaseModel):
             msg = "Path cannot be empty"
             raise ValueError(msg)
 
-        # Security: Prevent path traversal
+        # Check against basic path traversal patterns
         if ".." in v.parts:
             msg = f"Path traversal not allowed in potential path: {v}"
             raise ValueError(msg)
+
+        # We can't strictly enforce existence or absolute paths here because this model
+        # might be used for paths that will be created, or relative paths within a project.
+        # But we can resolve it to check if it's safe if it exists.
 
         return v
 

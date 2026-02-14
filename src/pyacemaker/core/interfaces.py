@@ -23,17 +23,14 @@ class StructureGenerator(BaseModule):
 
     @abstractmethod
     def generate_local_candidates(
-        self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 0
+        self, seed_structure: StructureMetadata, n_candidates: int
     ) -> Iterator[StructureMetadata]:
         """Generate candidate structures around a seed structure (e.g., high uncertainty)."""
         ...
 
     @abstractmethod
     def generate_batch_candidates(
-        self,
-        seed_structures: Iterable[StructureMetadata],
-        n_candidates_per_seed: int,
-        cycle: int = 0,
+        self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
     ) -> Iterator[StructureMetadata]:
         """Generate candidate structures for a batch of seeds."""
         ...

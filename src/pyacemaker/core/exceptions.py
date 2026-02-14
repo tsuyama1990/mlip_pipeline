@@ -28,19 +28,3 @@ class DFTError(PYACEMAKERError):
 
 class StructureError(PYACEMAKERError):
     """Raised when an atomic structure is invalid."""
-
-
-class TrainerError(PYACEMAKERError):
-    """Raised when potential training fails."""
-
-
-class ValidatorError(PYACEMAKERError):
-    """Raised when validation fails."""
-
-
-class DynamicsError(PYACEMAKERError):
-    """Raised when dynamics simulation fails."""
-
-
-class ModuleError(PYACEMAKERError):
-    """Raised when a module encounters an internal error."""

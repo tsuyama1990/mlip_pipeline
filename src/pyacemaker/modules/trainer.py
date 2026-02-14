@@ -1,13 +1,14 @@
 """Trainer (Pacemaker) module implementation."""
 
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
-from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
+from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import (
     ActiveSet,
     Potential,
@@ -50,20 +51,21 @@ class PacemakerTrainer(Trainer):
         dataset_path = work_dir / "training_set.pckl.gzip"
 
         # Convert to Atoms and save (Streaming)
-        # We delegate counting to the DatasetManager or verify file exists/is non-empty after write.
-        atoms_stream = (metadata_to_atoms(s) for s in valid_structures)
-        self.dataset_manager.save_iter(atoms_stream, dataset_path)
+        # We need to count to ensure we have data, but save_iter consumes.
+        # We can wrap the generator to count.
+        count = 0
 
-        # Basic check: If file is empty or missing, raise error
-        if not dataset_path.exists() or dataset_path.stat().st_size == 0:
-            msg = "No valid structures with energy and forces found for training (dataset empty)."
+        def counting_wrapper(gen: Iterable[StructureMetadata]) -> Iterator[Any]:
+            nonlocal count
+            for s in gen:
+                count += 1
+                yield self._metadata_to_atoms(s)
+
+        self.dataset_manager.save_iter(counting_wrapper(valid_structures), dataset_path)
+
+        if count == 0:
+            msg = "No valid structures with energy and forces found for training."
             raise ValueError(msg)
-
-        # NOTE: st_size > 0 for gzip doesn't guarantee content (header exists),
-        # but counting during stream requires consuming which we just did.
-        # In a strict stream, we can't count before. We can wrap and spy, but 'save_iter' consumes.
-        # We trust that if the input stream was empty, the file will be essentially empty (just gzip header).
-        # Pacemaker will fail if dataset is empty, which is acceptable error handling.
 
         # 2. Configure Delta Learning (Baseline)
         baseline_file = None
@@ -112,7 +114,7 @@ class PacemakerTrainer(Trainer):
         candidates_path = work_dir / "candidates.pckl.gzip"
 
         # Save candidates (Streaming)
-        atoms_gen = (metadata_to_atoms(s) for s in candidates)
+        atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
         self.dataset_manager.save_iter(atoms_gen, candidates_path)
 
         selected_structures_list: list[StructureMetadata] = []
@@ -127,15 +129,34 @@ class PacemakerTrainer(Trainer):
             # Limit generator
             reloaded_gen = self.dataset_manager.load_iter(candidates_path)
 
-            # Use islice to limit without manual loop, ensuring C-speed and safety
-            from itertools import islice
-            self.dataset_manager.save_iter(islice(reloaded_gen, n_select), selected_path)
+            def limited_gen() -> Iterator[Any]:
+                for i, atoms in enumerate(reloaded_gen):
+                    if i >= n_select:
+                        break
+                    yield atoms
+
+            self.dataset_manager.save_iter(limited_gen(), selected_path)
         else:
             selected_path = self.active_set_selector.select(candidates_path, n_select)
 
         # Load selected structures from file to reconstruct metadata
         for atoms in self.dataset_manager.load_iter(selected_path):
-            meta = atoms_to_metadata(atoms)
+            uid_str = atoms.info.get("uuid")
+            uid = UUID(uid_str) if uid_str else uuid4()
+
+            # Reconstruct minimal metadata
+            meta = StructureMetadata(
+                id=uid,
+                features={"atoms": atoms},
+                energy=atoms.info.get("energy"),
+                # Forces/Stress reconstruction if available
+            )
+            if "forces" in atoms.arrays:
+                meta.forces = atoms.arrays["forces"].tolist()
+            if "stress" in atoms.info:
+                stress_val = atoms.info["stress"]
+                meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
+
             selected_structures_list.append(meta)
 
         selected_ids = [s.id for s in selected_structures_list]
@@ -145,6 +166,31 @@ class PacemakerTrainer(Trainer):
             structures=selected_structures_list,
             selection_criteria="max_vol",
         )
+
+    def _metadata_to_atoms(self, metadata: StructureMetadata) -> Any:
+        """Convert StructureMetadata to ASE Atoms."""
+        validate_structure_integrity(metadata)
+        atoms = metadata.features.get("atoms")
+        if atoms is None:
+            msg = f"Structure {metadata.id} does not contain 'atoms' feature."
+            raise ValueError(msg)
+
+        # Create a copy to avoid modifying original
+        atoms = atoms.copy()
+
+        # Inject UUID
+        atoms.info["uuid"] = str(metadata.id)
+
+        # Inject Energy/Forces/Stress if available (overwrite calc results)
+        if metadata.energy is not None:
+            atoms.info["energy"] = metadata.energy
+        if metadata.forces is not None:
+            # arrays expects numpy array or list
+            atoms.arrays["forces"] = metadata.forces
+        if metadata.stress is not None:
+            atoms.info["stress"] = metadata.stress
+
+        return atoms
 
     def _generate_baseline(self, path: Path, type_: str) -> None:
         """Generate baseline potential file."""

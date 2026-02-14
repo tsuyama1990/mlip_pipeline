@@ -29,7 +29,6 @@ from pyacemaker.modules.structure_generator import (
 )
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
-from pyacemaker.oracle.dataset import DatasetManager
 
 T = TypeVar("T", bound=BaseModule)
 
@@ -77,20 +76,15 @@ class Orchestrator(IOrchestrator):
             LAMMPSEngine, config
         )
         self.validator: Validator = validator or _create_default_module(MockValidator, config)
-        self.dataset_manager = DatasetManager()
 
         # State
         self.current_potential: Potential | None = None
-        # Dataset is now file-based to prevent OOM
-        self.dataset_path = self.config.project.root_dir / "data" / "dataset.pckl.gzip"
+        self.dataset: list[StructureMetadata] = []
         self.cycle_count = 0
 
     def run(self) -> ModuleResult:
         """Run the full active learning pipeline."""
         self.logger.info("Starting Active Learning Pipeline")
-
-        # Ensure data directory exists
-        self.dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
         # 0. Cold Start (Initial Dataset)
         if not self.dataset_path.exists():
@@ -119,7 +113,7 @@ class Orchestrator(IOrchestrator):
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate(
-                {"cycles": self.cycle_count}
+                {"cycles": self.cycle_count, "dataset_size": len(self.dataset)}
             ),
         )
 
@@ -156,6 +150,19 @@ class Orchestrator(IOrchestrator):
 
         return CycleStatus.TRAINING
 
+    def _run_training_phase(self) -> None:
+        """Execute training phase with file-based streaming."""
+        self.logger.info("Phase: Training")
+
+        # Get stream and list reference (list populated during iteration of stream)
+        stream, val_list = self._split_dataset_streams()
+
+        # Training consumes the stream, side-effect populates val_list
+        potential = self.trainer.train(stream, self.current_potential)
+
+        self.current_potential = potential
+        self._validation_set = val_list
+
     def _split_dataset_streams(self) -> tuple[Iterator[StructureMetadata], list[StructureMetadata]]:
         """Split dataset into training stream and validation list (using Reservoir Sampling or Probabilistic)."""
         split_ratio = self.config.orchestrator.validation_split
@@ -180,19 +187,6 @@ class Orchestrator(IOrchestrator):
                     yield atoms_to_metadata(atoms)
 
         return train_stream(), val_list
-
-    def _run_training_phase(self) -> None:
-        """Execute training phase with file-based streaming."""
-        self.logger.info("Phase: Training")
-
-        # Get stream and list reference (list populated during iteration of stream)
-        stream, val_list = self._split_dataset_streams()
-
-        # Training consumes the stream, side-effect populates val_list
-        potential = self.trainer.train(stream, self.current_potential)
-
-        self.current_potential = potential
-        self._validation_set = val_list
 
     def _run_validation_phase(self) -> bool:
         """Execute validation phase.
