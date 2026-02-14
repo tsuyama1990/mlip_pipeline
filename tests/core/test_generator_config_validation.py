@@ -45,7 +45,16 @@ def test_invalid_defect_density() -> None:
 
 def test_invalid_initial_exploration_type() -> None:
     """Test invalid initial exploration type (Pydantic type checking)."""
-    # Just checking generic string behavior, we didn't add specific enum validation yet
-    # but let's verify it accepts strings.
+    # Verify valid string
     config = StructureGeneratorConfig(initial_exploration="random")
     assert config.initial_exploration == "random"
+
+    # Verify invalid type (int instead of str)
+    # Pydantic attempts coercion for basic types, but let's check for obviously wrong types
+    # or ensure we are testing the type constraint
+    # Note: Pydantic V2 often coerces int to str "123", so checking None or list is better
+    with pytest.raises(ValidationError):
+        StructureGeneratorConfig(initial_exploration=None)  # type: ignore[arg-type]
+
+    with pytest.raises(ValidationError):
+        StructureGeneratorConfig(initial_exploration=[])  # type: ignore[arg-type]

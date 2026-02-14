@@ -65,6 +65,7 @@ def test_compute_batch_large_generator(config: DFTConfig) -> None:
         # Critical: Verify that we haven't consumed significantly more than we requested.
         # compute_batch processes 1-by-1, so consumed_count should be exactly 5.
         # If it materialized a list, consumed_count would be 100.
+        # This confirms lazy evaluation (memory safety).
         assert consumed_count == 5
 
 

@@ -102,3 +102,31 @@ def test_m3gnet_strategy_success(mocker: Any) -> None:
     # Check result is the mocked relaxed structure
     # Use index 0 for cell access [0,0]
     assert np.isclose(candidates[0].get_cell()[0, 0], 3.7)  # type: ignore[no-untyped-call]
+
+
+def test_m3gnet_strategy_failure_fallback(mocker: Any) -> None:
+    """Test M3GNet strategy falls back when relaxation raises exception."""
+    # Mock Relaxer that raises Exception
+    mock_relaxer_instance = mocker.Mock()
+    mock_relaxer_instance.relax.side_effect = Exception("Relaxation failed")
+
+    mock_relaxer_cls = mocker.Mock(return_value=mock_relaxer_instance)
+
+    # Patch sys.modules
+    mock_m3gnet_models = mocker.Mock()
+    mock_m3gnet_models.Relaxer = mock_relaxer_cls
+    mocker.patch.dict("sys.modules", {"m3gnet": mocker.Mock(), "m3gnet.models": mock_m3gnet_models})
+
+    atoms = bulk("Cu", "fcc", a=3.6)
+    strategy = M3GNetStrategy()
+
+    # Generate 1 candidate
+    candidates = strategy.generate(atoms, n_candidates=1)
+
+    # Should handle exception and return unrelaxed (perturbed) candidate
+    assert len(candidates) == 1
+    # Check that relax was attempted
+    mock_relaxer_instance.relax.assert_called()
+    # Candidate should be close to seed but perturbed (RandomStrategy default)
+    # Just check it exists and is an Atoms object
+    assert len(candidates[0]) == len(atoms)

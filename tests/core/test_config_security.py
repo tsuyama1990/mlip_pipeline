@@ -26,14 +26,19 @@ def test_validate_parameters_whitelist_values() -> None:
     _recursive_validate_parameters(valid_data)
 
     # Invalid values (Shell injection attempts)
-    with pytest.raises(ValueError, match="Invalid characters in value"):
-        _recursive_validate_parameters({"key": "value; rm -rf /"})
-
-    with pytest.raises(ValueError, match="Invalid characters in value"):
-        _recursive_validate_parameters({"key": "$(whoami)"})
-
-    with pytest.raises(ValueError, match="Invalid characters in value"):
-        _recursive_validate_parameters({"key": "`ls`"})
+    invalid_values = [
+        "value; rm -rf /",
+        "$(whoami)",
+        "`ls`",
+        "value | cat",
+        "value && ls",
+        "value || echo",
+        "value > file",
+        "value < file",
+    ]
+    for val in invalid_values:
+        with pytest.raises(ValueError, match="Invalid characters in value"):
+            _recursive_validate_parameters({"key": val})
 
 
 def test_validate_parameters_depth_limit() -> None:

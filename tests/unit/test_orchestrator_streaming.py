@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -84,12 +84,17 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     mock_validator.validate.return_value = MagicMock(status="success")
     orchestrator.validator = mock_validator
 
-    with patch("pyacemaker.orchestrator.islice", wraps=lambda it, n: iter(it[:n])):
-        orchestrator._run_validation_phase()
-        # Should create a list of size 10 (10% of 100)
-        assert mock_validator.validate.called
-        call_args = mock_validator.validate.call_args
-        test_set = call_args[0][1]
-        assert len(test_set) == 10
-        # Check if islice was used (though we mocked it to verify call, real code uses it)
-        # Since we patched pyacemaker.orchestrator.islice, we can verify it was imported and used
+    # Instead of wrapping islice incorrectly, we spy on it or trust implementation
+    # But to satisfy the requirement "Remove the mock and test actual streaming",
+    # we just run it and check result size.
+    # Note: islice in itertools is a C function, can't easily spy unless imported as name.
+    # The implementation imports islice from itertools.
+    # We can rely on the fact that if islice is used, we get the subset.
+
+    orchestrator._run_validation_phase()
+
+    # Should create a list of size 10 (10% of 100) passed to validator
+    assert mock_validator.validate.called
+    call_args = mock_validator.validate.call_args
+    test_set = call_args[0][1]
+    assert len(test_set) == 10

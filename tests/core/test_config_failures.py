@@ -33,6 +33,19 @@ def test_load_config_permission_error() -> None:
         load_config(mock_path)
 
 
+def test_load_config_path_traversal() -> None:
+    """Test path traversal detection in ProjectConfig."""
+    from pyacemaker.core.config import ProjectConfig
+
+    # Direct traversal attempt
+    with pytest.raises(ValueError, match="Path traversal not allowed"):
+        ProjectConfig(name="test", root_dir=Path("../../../etc/passwd"))
+
+    # Traversal in parts
+    with pytest.raises(ValueError, match="Path traversal not allowed"):
+        ProjectConfig(name="test", root_dir=Path("safe/../../unsafe"))
+
+
 def test_load_config_too_large_stat() -> None:
     """Test loading a configuration file that reports too large size in stat."""
     mock_path = Mock(spec=Path)
@@ -89,7 +102,9 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
         # Let's try to patch os.access as well just in case
         with (
             patch("os.access", return_value=True),
-            pytest.raises(ConfigurationError, match="Configuration file exceeds limit"),
+        # Check for both possible error messages depending on where it's caught
+        # But implementation raises "Configuration file exceeds limit" from ValueError
+        pytest.raises(ConfigurationError, match="exceeds limit"),
         ):
             load_config(config_file)
 

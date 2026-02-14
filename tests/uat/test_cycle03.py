@@ -48,7 +48,8 @@ class TestCycle03UAT:
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "pace_train"
         assert "--cutoff" in cmd
-        assert "5.0" in cmd
+        # Ensure cutoff matches configuration
+        assert str(trainer.config.trainer.cutoff) in cmd
 
     @patch("subprocess.run")
     def test_scenario_02_active_set_selection(self, mock_run: MagicMock, trainer: Trainer) -> None:
@@ -93,7 +94,9 @@ class TestCycle03UAT:
     def test_scenario_03_delta_learning(self, mock_run: MagicMock) -> None:
         """Scenario 03: Delta Learning Configuration."""
         config = MagicMock(spec=PYACEMAKERConfig)
-        config.trainer = TrainerConfig(delta_learning="zbl", mock=False)
+        # Use a variable to avoid hardcoding in checks later
+        delta_method = "zbl"
+        config.trainer = TrainerConfig(delta_learning=delta_method, mock=False)
         trainer = Trainer(config)
         trainer.dataset_manager = MagicMock()  # Mock to avoid file IO issues
 
@@ -126,4 +129,4 @@ class TestCycle03UAT:
         assert "--baseline" in cmd
         # And verify baseline file name contains "zbl"
         baseline_idx = cmd.index("--baseline") + 1
-        assert "zbl" in cmd[baseline_idx]
+        assert delta_method in cmd[baseline_idx]
