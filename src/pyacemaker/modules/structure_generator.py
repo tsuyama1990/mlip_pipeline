@@ -7,7 +7,8 @@ from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import StructureGenerator
 from pyacemaker.core.utils import generate_dummy_structures
-from pyacemaker.domain_models.models import StructureMetadata
+from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
+from pyacemaker.generator.policy import AdaptivePolicy, ExplorationContext
 
 
 class RandomStructureGenerator(StructureGenerator):
@@ -20,7 +21,6 @@ class RandomStructureGenerator(StructureGenerator):
     def run(self) -> ModuleResult:
         """Run the main structure generation workflow."""
         self.logger.info("Running StructureGenerator")
-        # Just return success, don't consume the generator for counting as it's wasteful
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate({"generated_count": 0}),  # Placeholder
@@ -29,7 +29,6 @@ class RandomStructureGenerator(StructureGenerator):
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures."""
         self.logger.info("Generating initial structures (mock)")
-        # Return iterator directly
         yield from generate_dummy_structures(5, tags=["initial", "random"])
 
     def _generate_candidates_common(
@@ -60,11 +59,8 @@ class RandomStructureGenerator(StructureGenerator):
             msg = "Number of candidates per seed must be positive"
             raise ValueError(msg)
 
-        # We can't know total count upfront for logs if it's an iterator
         self.logger.info("Generating batch candidates from seed structures")
 
-        # Use generator to yield candidates one by one or in small batches
-        # We process seeds one by one to keep memory low
         for _ in seed_structures:
             yield from self._generate_candidates_common(
                 n_candidates_per_seed, tags=["candidate", "batch"]
@@ -81,6 +77,7 @@ class AdaptiveStructureGenerator(StructureGenerator):
     def __init__(self, config: PYACEMAKERConfig) -> None:
         """Initialize."""
         super().__init__(config)
+        self.policy = AdaptivePolicy(config)
 
     def run(self) -> ModuleResult:
         """Run the main structure generation workflow."""
@@ -90,43 +87,32 @@ class AdaptiveStructureGenerator(StructureGenerator):
             metrics=Metrics.model_validate({"generated_count": 0}),  # Placeholder
         )
 
-    def _determine_policy(self, structure: StructureMetadata) -> dict[str, Any]:
-        """Determine exploration policy based on structure features."""
-        # Load rules from configuration parameters, or use defaults
-        rules = self.config.structure_generator.parameters.get("policy_rules", {})
-
-        # Default policy
-        policy: dict[str, Any] = {
-            "mode": rules.get("default_mode", "default"),
-            "temperature": rules.get("default_temp", 300.0)
-        }
-
-        # Check Predicted Properties (e.g., Band Gap -> Metal/Insulator logic)
-        if structure.predicted_properties:
-            bg = structure.predicted_properties.band_gap
-            # If band gap > 0 (insulator), apply defect strategy
-            if bg is not None and bg > rules.get("insulator_band_gap_threshold", 0.0):
-                policy["mode"] = "defect_driven"
-                policy["n_defects"] = rules.get("insulator_defects", 2)
-            else:
-                policy["mode"] = "high_mc"
-                policy["mc_ratio"] = rules.get("metal_mc_ratio", 0.5)
-
-        # Check Uncertainty (High uncertainty -> Cautious exploration)
-        if structure.uncertainty_state:
-            gamma_max = structure.uncertainty_state.gamma_max
-            gamma_thresh = rules.get("high_uncertainty_threshold", 5.0)
-            if gamma_max is not None and gamma_max > gamma_thresh:
-                policy["mode"] = "cautious"
-                policy["temperature"] = rules.get("cautious_temp", 100.0)
-
-        return policy
-
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
-        """Generate initial structures based on adaptive strategy (Mock)."""
-        self.logger.info("Generating initial structures (Adaptive)")
-        # In a real scenario, this would use M3GNet/Universal Potentials for cold start
-        yield from generate_dummy_structures(5, tags=["initial", "adaptive", "cold_start"])
+        """Generate initial structures using Cold Start policy."""
+        self.logger.info("Generating initial structures (Adaptive Cold Start)")
+
+        context = ExplorationContext(cycle=0)
+        strategy = self.policy.decide_strategy(context)
+
+        # We need seeds to apply strategy.
+        # Generating dummy prototypes (simple bulk structures) to act as base
+        prototypes = generate_dummy_structures(5, tags=["initial", "prototype"])
+
+        for proto in prototypes:
+            atoms = proto.features.get("atoms")
+            if atoms:
+                # Apply strategy to prototypes (e.g. M3GNet relaxation or Random perturbation)
+                # Generating 1 candidate per prototype to optimize/diversify it
+                candidates = strategy.generate(atoms, n_candidates=1)
+                for cand_atoms in candidates:
+                    yield StructureMetadata(
+                        features={"atoms": cand_atoms},
+                        tags=["initial", "adaptive", f"strategy:{type(strategy).__name__}"],
+                        status=StructureStatus.NEW,
+                    )
+            else:
+                # Fallback if no atoms object
+                yield proto
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int
@@ -139,13 +125,33 @@ class AdaptiveStructureGenerator(StructureGenerator):
             msg = "Number of candidates must be positive"
             raise ValueError(msg)
 
-        policy = self._determine_policy(seed_structure)
+        # Assuming refinement cycle (cycle > 0)
+        context = ExplorationContext(
+            cycle=1,
+            seed_structure=seed_structure,
+            uncertainty_state=seed_structure.uncertainty_state,
+        )
+        strategy = self.policy.decide_strategy(context)
+
         self.logger.info(
-            f"Generating {n_candidates} candidates for {seed_structure.id} with policy {policy['mode']}"
+            f"Generating {n_candidates} candidates for {seed_structure.id} with {type(strategy).__name__}"
         )
 
-        tags = ["candidate", "adaptive", f"policy:{policy['mode']}"]
-        yield from generate_dummy_structures(n_candidates, tags=tags)
+        atoms = seed_structure.features.get("atoms")
+        if not atoms:
+            self.logger.warning(
+                f"Seed structure {seed_structure.id} has no 'atoms' feature. Skipping."
+            )
+            return
+
+        candidates = strategy.generate(atoms, n_candidates=n_candidates)
+
+        for cand_atoms in candidates:
+            yield StructureMetadata(
+                features={"atoms": cand_atoms},
+                tags=["candidate", "adaptive", f"strategy:{type(strategy).__name__}"],
+                status=StructureStatus.NEW,
+            )
 
     def generate_batch_candidates(
         self, seed_structures: Iterable[StructureMetadata], n_candidates_per_seed: int
@@ -162,4 +168,4 @@ class AdaptiveStructureGenerator(StructureGenerator):
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""
-        return {"strategy": "adaptive", "parameters": {"policy_logic": "mock_rules"}}
+        return {"strategy": "adaptive", "parameters": self.config.structure_generator.model_dump()}

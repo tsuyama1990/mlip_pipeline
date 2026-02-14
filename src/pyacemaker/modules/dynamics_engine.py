@@ -39,9 +39,7 @@ class LAMMPSEngine(DynamicsEngine):
         import secrets
 
         # Use configured halt probability or default
-        probability = self.config.dynamics_engine.parameters.get(
-            "dynamics_halt_probability", 0.3
-        )
+        probability = self.config.dynamics_engine.parameters.get("dynamics_halt_probability", 0.3)
         # Type hint probability as float to satisfy mypy
         prob_float = float(probability)
         return secrets.SystemRandom().random() < prob_float

@@ -11,6 +11,7 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 ## Features
 
 -   **Zero-Config Automation**: Define your material system in `config.yaml` and let the system handle structure generation, DFT, training, and validation.
+-   **Adaptive Structure Generation**: Intelligently explores the configuration space using multiple strategies (Random, Defect, M3GNet) driven by an adaptive policy engine. It automatically switches between cold start (using M3GNet or prototypes) and refinement strategies based on model uncertainty.
 -   **Automated DFT (Oracle)**: Integrated wrapper around Quantum Espresso (via ASE) with self-healing retry logic for SCF convergence failures.
 -   **Pacemaker Integration (Trainer)**: Seamlessly trains ACE potentials using `pace_train`. Supports active set selection (`pace_activeset`) to filter redundant structures (D-optimality).
 -   **Delta Learning**: Automatically configures physics-based baselines (ZBL/LJ) to ensure core repulsion, allowing the ACE potential to learn only the difference ($E_{ACE} = E_{DFT} - E_{Baseline}$).
@@ -45,7 +46,7 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 ## Usage
 
 ### 1. Configuration
-Create a `config.yaml` file. Here is an example with DFT and Trainer settings:
+Create a `config.yaml` file. Here is an example with DFT, Trainer, and Generator settings:
 
 ```yaml
 version: "0.1.0"
@@ -72,7 +73,11 @@ oracle:
   mock: false
 
 structure_generator:
-  strategy: "random"
+  strategy: "adaptive"
+  initial_exploration: "m3gnet"
+  strain_range: 0.15
+  rattle_amplitude: 0.1
+  defect_density: 0.01
 
 trainer:
   potential_type: "pace"
@@ -119,11 +124,6 @@ results = oracle.compute_batch([structure])
 print(f"Energy: {results[0].features['energy']} eV")
 ```
 
-### 4. Self-Healing DFT
-The DFT module automatically handles common failures:
--   **SCF Convergence**: If a calculation fails to converge, the system retries with adjusted parameters (e.g., reducing `mixing_beta`) up to `max_retries` times.
--   **Fatal Errors**: Syntax errors or missing files cause immediate failure to prevent wasted resources.
-
 ## Architecture/Structure
 
 ```text
@@ -132,16 +132,16 @@ pyacemaker/
 │   └── pyacemaker/
 │       ├── core/           # Configuration, Logging, Base Classes
 │       ├── domain_models/  # Pydantic Data Models
-│       ├── modules/        # High-level Modules (Oracle, Trainer, etc.)
+│       ├── modules/        # High-level Modules (Oracle, Trainer, Generator, etc.)
 │       │   ├── oracle.py   # DFTOracle Implementation
-│       │   └── trainer.py  # PacemakerTrainer Implementation
+│       │   ├── trainer.py  # PacemakerTrainer Implementation
+│       │   └── structure_generator.py # Structure Generator Implementation
 │       ├── oracle/         # DFT Logic Package
-│       │   ├── calculator.py # ASE Calculator Factory
-│       │   ├── dataset.py    # Dataset I/O
-│       │   └── manager.py    # DFT Execution & Retry Logic
 │       ├── trainer/        # Trainer Logic Package
-│       │   ├── wrapper.py    # Pacemaker CLI Wrapper
-│       │   └── active_set.py # Active Set Logic
+│       ├── generator/      # Structure Generation Package (Strategies, Policies)
+│       │   ├── strategies.py # Exploration Strategies
+│       │   ├── policy.py     # Adaptive Policy Logic
+│       │   └── mutations.py  # Atomic Mutations
 │       ├── orchestrator.py # Main Loop
 │       └── main.py         # CLI Entry Point
 ├── tests/                  # Unit & Integration Tests
@@ -153,7 +153,7 @@ pyacemaker/
 -   [x] Cycle 01: Core Infrastructure & Orchestrator
 -   [x] Cycle 02: Oracle (DFT) & Data Management
 -   [x] Cycle 03: Trainer (Pacemaker Integration)
--   [ ] Cycle 04: Structure Generation
+-   [x] Cycle 04: Structure Generation
 -   [ ] Cycle 05: Dynamics Engine (MD/kMC)
 -   [ ] Cycle 06: Validator & Final Polish
 

@@ -115,9 +115,7 @@ class PacemakerWrapper:
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
 
-    def select_active_set(
-        self, candidates_path: Path, num_select: int, output_path: Path
-    ) -> Path:
+    def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:
         """Run pace_activeset command.
 
         Args:
@@ -131,8 +129,8 @@ class PacemakerWrapper:
         """
         # Validate inputs strictly even here
         if not candidates_path.exists():
-             msg = f"Candidates path does not exist: {candidates_path}"
-             raise FileNotFoundError(msg)
+            msg = f"Candidates path does not exist: {candidates_path}"
+            raise FileNotFoundError(msg)
 
         # Ensure num_select is positive integer
         if num_select <= 0:

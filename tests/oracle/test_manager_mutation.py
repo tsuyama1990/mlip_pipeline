@@ -21,9 +21,7 @@ def dft_config_mock(monkeypatch: pytest.MonkeyPatch) -> DFTConfig:
     )
 
 
-def test_compute_no_mutation(
-    dft_config_mock: DFTConfig, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_compute_no_mutation(dft_config_mock: DFTConfig, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that compute does not mutate the input structure."""
     # Mock create_calculator to avoid running real DFT
     mock_calc = MagicMock()

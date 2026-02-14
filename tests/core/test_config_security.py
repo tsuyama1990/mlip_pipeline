@@ -26,14 +26,19 @@ def test_validate_parameters_whitelist_values() -> None:
     _recursive_validate_parameters(valid_data)
 
     # Invalid values (Shell injection attempts)
-    with pytest.raises(ValueError, match="Invalid characters in value"):
-        _recursive_validate_parameters({"key": "value; rm -rf /"})
-
-    with pytest.raises(ValueError, match="Invalid characters in value"):
-        _recursive_validate_parameters({"key": "$(whoami)"})
-
-    with pytest.raises(ValueError, match="Invalid characters in value"):
-        _recursive_validate_parameters({"key": "`ls`"})
+    invalid_values = [
+        "value; rm -rf /",
+        "$(whoami)",
+        "`ls`",
+        "value | cat",
+        "value && ls",
+        "value || echo",
+        "value > file",
+        "value < file",
+    ]
+    for val in invalid_values:
+        with pytest.raises(ValueError, match="Invalid characters in value"):
+            _recursive_validate_parameters({"key": val})
 
 
 def test_validate_parameters_depth_limit() -> None:
@@ -41,6 +46,7 @@ def test_validate_parameters_depth_limit() -> None:
     # Construct a deep dictionary programmatically to be sure
     # Use Any to bypass mypy strict checking for this dynamic construction test
     from typing import Any
+
     deep_data: dict[str, Any] = {"level": 0}
     current = deep_data
     for i in range(15):
