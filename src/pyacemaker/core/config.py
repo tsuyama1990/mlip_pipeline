@@ -130,15 +130,21 @@ class ProjectConfig(BaseModel):
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
         """Validate root directory for path traversal."""
+        # Prevent path traversal characters explicitly
+        if ".." in v.parts:
+            msg = f"Invalid root directory: {v}. Path traversal not allowed."
+            raise ValueError(msg)
+
         try:
             # Strict resolution checks existence and resolves symlinks
-            return v.resolve(strict=True)
+            resolved = v.resolve(strict=True)
         except OSError:
-            # If path doesn't exist yet (e.g., initial setup), check for traversal in parts
-            if ".." in v.parts:
-                msg = f"Invalid root directory: {v}. Path traversal not allowed."
-                raise ValueError(msg) from None
-            return v.absolute()
+            # If path doesn't exist, we resolve absolute path
+            resolved = v.absolute()
+
+        # Ensure resolved path doesn't escape expected boundaries if we had a base
+        # (For ProjectConfig, we assume root_dir is absolute or relative to CWD)
+        return resolved
 
 
 class DFTConfig(BaseModel):
@@ -201,14 +207,28 @@ class DFTConfig(BaseModel):
     @field_validator("parameters")
     @classmethod
     def validate_parameters_content(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters content for security."""
-        # Check that keys are allowed sections
-        for key in v:
-            if key.lower() not in CONSTANTS.dft_allowed_input_sections and key not in {
-                "seed",
-                "simulate_failure",
-            }:
-                # Allow specific testing keys, block others
+        """Validate parameters content for security (Deep Check)."""
+        allowed_sections = set(CONSTANTS.dft_allowed_input_sections)
+        allowed_testing_keys = {"seed", "simulate_failure"}
+
+        for key, value in v.items():
+            key_lower = key.lower()
+            if key_lower in allowed_sections:
+                if not isinstance(value, dict):
+                    msg = f"Section '{key}' must be a dictionary."
+                    raise ValueError(msg)
+                # Recursively check keys in sections?
+                # For now, ensure no deeply nested unsafe types or weird keys
+                for sub_key, sub_val in value.items():
+                    if not isinstance(sub_key, str):
+                        msg = f"Keys in section '{key}' must be strings."
+                        raise TypeError(msg)
+                    # Block common injection patterns in values if strings
+                    if isinstance(sub_val, str) and (";" in sub_val or "&" in sub_val):
+                        msg = f"Potential injection detected in '{key}.{sub_key}'"
+                        raise ValueError(msg)
+
+            elif key not in allowed_testing_keys:
                 msg = f"Security Error: Input section '{key}' is not allowed in DFT parameters."
                 raise ValueError(msg)
         return v
@@ -405,6 +425,11 @@ def load_config(path: Path) -> PYACEMAKERConfig:
             stream = LimitedStream(f, CONSTANTS.max_config_size)
             data = yaml.safe_load(stream)
 
+        # Validate basic structure immediately to prevent malformed data usage
+        if not isinstance(data, dict):
+            msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
+            raise ConfigurationError(msg)  # noqa: TRY301
+
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
@@ -418,10 +443,6 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         self_logger.exception("Unexpected error loading configuration")
         msg = f"Unexpected error loading configuration: {e}"
         raise ConfigurationError(msg) from e
-
-    if not isinstance(data, dict):
-        msg = "Configuration file must contain a YAML dictionary."
-        raise ConfigurationError(msg, details={"actual_type": type(data).__name__})
 
     try:
         return PYACEMAKERConfig(**data)

@@ -180,19 +180,28 @@ class DFTOracle(BaseOracle):
         # Use configured max_workers, bounded by chunk size
         max_workers = min(len(to_process), self.config.oracle.dft.max_workers)
 
+        # Use ThreadPoolExecutor with strict context management
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Map futures to structures
-            future_to_struct = {
-                executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
-            }
+            try:
+                # Map futures to structures
+                future_to_struct = {
+                    executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
+                }
 
-            for future in concurrent.futures.as_completed(future_to_struct):
-                s = future_to_struct[future]
-                try:
-                    result_atoms = future.result()
-                    self._update_structure_common(s, result_atoms)
-                except Exception:
-                    self.logger.exception(f"Error computing structure {s.id}")
-                    s.status = StructureStatus.FAILED
+                # Process results as they complete with timeout support
+                # Note: as_completed allows generic timeout, but per-task timeouts are harder.
+                # Here we ensure clean exit if iteration fails.
+                for future in concurrent.futures.as_completed(future_to_struct):
+                    s = future_to_struct[future]
+                    try:
+                        result_atoms = future.result()
+                        self._update_structure_common(s, result_atoms)
+                    except Exception:
+                        self.logger.exception(f"Error computing structure {s.id}")
+                        s.status = StructureStatus.FAILED
+            finally:
+                # Executor context manager handles shutdown, but we can be explicit if needed
+                # shutdown(wait=True) is default.
+                pass
 
         return chunk

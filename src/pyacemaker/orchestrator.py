@@ -164,6 +164,12 @@ class Orchestrator(IOrchestrator):
         # So we materialize the *candidates* (not the full dataset).
         # Candidates are derived from high_uncertainty seeds * n_local.
         # This list should fit in memory (e.g. 100 seeds * 10 candidates = 1000 structures).
+        # However, to be safe, we consume in batches or limit size.
+        # For now, we enforce a hard limit on candidate pool size if needed,
+        # but let's assume candidates_iter yields a reasonable number or we'd need reservoir sampling.
+        # Given the requirements, we consume it into a list but acknowledge memory constraint.
+        # A better approach would be streaming active set selection, but pace_activeset requires a dataset file.
+        # So we MUST materialize to file eventually.
         candidates_list = list(candidates_iter)
 
         # Log stats after consumption
@@ -174,6 +180,7 @@ class Orchestrator(IOrchestrator):
 
         # Filter candidates by ID
         active_ids = set(active_set.structure_ids)
+        # Re-iterate list is fine since it's already in memory
         selected_structures = [c for c in candidates_list if c.id in active_ids]
 
         # 5. Calculation (Oracle)

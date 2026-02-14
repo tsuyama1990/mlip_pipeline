@@ -104,10 +104,16 @@ class StructureMetadata(BaseModel):
     @field_validator("energy")
     @classmethod
     def validate_energy(cls, v: float | None) -> float | None:
-        """Validate energy is finite."""
-        if v is not None and not math.isfinite(v):
-            msg = "Energy must be a finite number"
-            raise ValueError(msg)
+        """Validate energy is finite and within physical bounds."""
+        if v is not None:
+            if not math.isfinite(v):
+                msg = "Energy must be a finite number"
+                raise ValueError(msg)
+            # Rough bound check (e.g. per atom energy shouldn't be insanely low/high)
+            # Assuming total energy, this is harder, but let's prevent abs(E) > 1e6 eV which implies singularity
+            if abs(v) > 1e6:
+                msg = f"Energy value {v} is physically implausible (> 1e6 eV)"
+                raise ValueError(msg)
         return v
 
     @field_validator("forces", "stress")
@@ -115,7 +121,7 @@ class StructureMetadata(BaseModel):
     def validate_tensor_values(
         cls, v: list[list[float]] | list[float] | None
     ) -> list[list[float]] | list[float] | None:
-        """Validate tensor values are finite."""
+        """Validate tensor values are finite and within physical bounds."""
         if v is None:
             return v
 
@@ -131,6 +137,12 @@ class StructureMetadata(BaseModel):
         if not all(math.isfinite(x) for x in flattened):
             msg = "Forces and stress must contain finite numbers"
             raise ValueError(msg)
+
+        # Physical plausibility check (e.g. Force < 1000 eV/A implies core overlap)
+        if any(abs(x) > 1000.0 for x in flattened):
+            msg = "Forces/Stress values contain physically implausible magnitudes (> 1000)"
+            raise ValueError(msg)
+
         return v
 
     @model_validator(mode="after")
