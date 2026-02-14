@@ -42,12 +42,18 @@ class Constants(BaseSettings):
     default_dft_smearing: float = 0.02
     default_dft_max_retries: int = 3
     default_dft_mixing_beta: float = 0.7
+    default_dft_chunk_size: int = 100
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = [
         "scf not converged",
         "convergence not achieved",
         "electronic convergence failed",
     ]
+    # Security Warnings
+    PICKLE_SECURITY_WARNING: str = (
+        "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. "
+        "Ensure datasets are from trusted sources."
+    )
 
 
 CONSTANTS = Constants()

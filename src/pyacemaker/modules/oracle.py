@@ -6,7 +6,7 @@ import random
 from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
@@ -113,7 +113,7 @@ class DFTOracle(BaseOracle):
         """
         self.logger.info(f"Computing batch of {len(structures)} structures (DFT)")
 
-        chunk_size = 100
+        chunk_size = CONSTANTS.default_dft_chunk_size
         total = len(structures)
 
         for i in range(0, total, chunk_size):
@@ -126,7 +126,7 @@ class DFTOracle(BaseOracle):
                 atoms = self._extract_atoms(s)
                 if atoms:
                     chunk_atoms.append(atoms)
-                    chunk_indices.append(j) # Relative index in chunk
+                    chunk_indices.append(j)  # Relative index in chunk
 
             if not chunk_atoms:
                 continue

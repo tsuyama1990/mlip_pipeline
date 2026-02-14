@@ -5,7 +5,7 @@ from typing import Any, cast
 from ase.calculators.calculator import Calculator
 from ase.calculators.espresso import Espresso, EspressoProfile
 
-from pyacemaker.core.config import DFTConfig
+from pyacemaker.core.config import CONSTANTS, DFTConfig
 
 
 def _deep_update(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
@@ -30,6 +30,7 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
 
     Raises:
         NotImplementedError: If the configured DFT code is not supported.
+        ValueError: If input parameters are invalid.
 
     """
     if config.code != "quantum_espresso":
@@ -53,13 +54,16 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
             "degauss": config.smearing,
         },
         "electrons": {
-            "mixing_beta": 0.7,
+            "mixing_beta": CONSTANTS.default_dft_mixing_beta,
             "conv_thr": 1.0e-6,
         },
     }
 
     # Override with user parameters
     if config.parameters:
+        if not isinstance(config.parameters, dict):
+            msg = "Parameters must be a dictionary"
+            raise ValueError(msg)
         _deep_update(input_data, config.parameters)
 
     # Adjust parameters based on attempt (Self-Healing)
@@ -70,7 +74,14 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         if "electrons" not in input_data:
             input_data["electrons"] = {}
 
-        current_beta = input_data["electrons"].get("mixing_beta", 0.7)
+        current_beta = input_data["electrons"].get(
+            "mixing_beta", CONSTANTS.default_dft_mixing_beta
+        )
+        # Ensure current_beta is a float/number
+        if not isinstance(current_beta, (int, float)):
+             # Fallback if user provided weird type
+             current_beta = CONSTANTS.default_dft_mixing_beta
+
         new_beta = max(0.1, current_beta - (0.1 * attempt))
         input_data["electrons"]["mixing_beta"] = new_beta
 
