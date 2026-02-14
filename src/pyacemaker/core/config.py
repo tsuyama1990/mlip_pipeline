@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.core.utils import LimitedStream
+from pyacemaker.core.io_utils import LimitedStream
 
 # Load defaults from external YAML file
 _DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
@@ -107,6 +107,10 @@ class Constants(BaseSettings):
 
     # DFT Manager Defaults
     DFT_TEMP_PREFIX: str = "dft_run_"
+
+    # Physical Bounds
+    max_energy_ev: float = _DEFAULTS["max_energy_ev"]
+    max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
 
 
 CONSTANTS = Constants()

@@ -3,7 +3,7 @@ platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
 rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
-collected 3 items / 18 errors
+collected 3 items / 19 errors
 
 ==================================== ERRORS ====================================
 ___________________ ERROR collecting tests/core/test_base.py ___________________
@@ -46,6 +46,16 @@ Traceback:
 tests/core/test_logging.py:6: in <module>
     from loguru import logger
 E   ModuleNotFoundError: No module named 'loguru'
+____________ ERROR collecting tests/integration/test_full_cycle.py _____________
+ImportError while importing test module '/app/tests/integration/test_full_cycle.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_full_cycle.py:6: in <module>
+    from ase import Atoms
+E   ModuleNotFoundError: No module named 'ase'
 _____________ ERROR collecting tests/integration/test_pipeline.py ______________
 ImportError while importing test module '/app/tests/integration/test_pipeline.py'.
 Hint: make sure your test modules/packages have valid Python names.
@@ -191,6 +201,7 @@ ERROR tests/core/test_base.py
 ERROR tests/core/test_config.py
 ERROR tests/core/test_config_failures.py
 ERROR tests/core/test_logging.py
+ERROR tests/integration/test_full_cycle.py
 ERROR tests/integration/test_pipeline.py
 ERROR tests/oracle/test_calculator.py
 ERROR tests/oracle/test_dataset.py
@@ -205,5 +216,5 @@ ERROR tests/unit/test_trainer_active_set.py
 ERROR tests/unit/test_trainer_config.py
 ERROR tests/unit/test_trainer_module.py
 ERROR tests/unit/test_trainer_wrapper.py
-!!!!!!!!!!!!!!!!!!! Interrupted: 18 errors during collection !!!!!!!!!!!!!!!!!!!
-============================== 18 errors in 0.31s ==============================
+!!!!!!!!!!!!!!!!!!! Interrupted: 19 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 19 errors in 0.32s ==============================

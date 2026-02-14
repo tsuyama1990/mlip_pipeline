@@ -179,7 +179,7 @@ def test_limited_stream_chunking() -> None:
     """Test LimitedStream chunks properly."""
     from io import StringIO
 
-    from pyacemaker.core.utils import LimitedStream
+    from pyacemaker.core.io_utils import LimitedStream
 
     content = "abcdefghij" * 10  # 100 chars
     stream = StringIO(content)

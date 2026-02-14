@@ -63,3 +63,7 @@ pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrus
 
 # Regex
 version_regex: "^\\d+\\.\\d+\\.\\d+$"
+
+# Physical Bounds
+max_energy_ev: 1000000.0  # 1e6
+max_force_ev_a: 1000.0

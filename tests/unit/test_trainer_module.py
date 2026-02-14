@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, NonCallableMagicMock, patch
 
 import pytest
 
@@ -44,7 +44,7 @@ class TestTrainerModule:
     def test_train_method(self, trainer: Trainer) -> None:
         """Test trainer.train method."""
         # Create a valid structure with atoms, energy, and forces
-        mock_atoms = MagicMock()
+        mock_atoms = NonCallableMagicMock()
         mock_atoms.copy.return_value = mock_atoms
 
         structure = StructureMetadata(

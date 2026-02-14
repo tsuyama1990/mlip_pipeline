@@ -21,7 +21,7 @@ class PacemakerWrapper:
     def _is_safe_string(self, value: str) -> bool:
         """Check if string contains only safe characters (alphanumeric, -, _, ., /, :, =, @)."""
         # Strict whitelist pattern: only allow characters commonly used in file paths and options
-        # A-Z, a-z, 0-9, dash, underscore, dot, forward slash, colon (for drives/urls?), equals, at
+        # A-Z, a-z, 0-9, dash, underscore, dot, forward slash, colon, equals, at
         pattern = r"^[a-zA-Z0-9\-\_\.\/\:\=\@]+$"
         return bool(re.match(pattern, value))
 
@@ -41,17 +41,33 @@ class PacemakerWrapper:
             args = [cli_arg]
             for item in value:
                 item_str = str(item)
-                # Strict check for list items using whitelist
+                # Whitelist validation first
                 if not self._is_safe_string(item_str):
-                    msg = f"Invalid list item value: {item}"
+                    # If strictly safe check fails, we could potentially rely on shlex.quote
+                    # But for strict security per audit, we should REJECT unless it's known safe.
+                    # Or we can allow broader chars but FORCE quote.
+                    # However, pace_train might not parse quoted args if passed via subprocess list.
+                    # Subprocess list arguments are NOT shell expanded, so injection is harder.
+                    # But if the called program (pacemaker) invokes a shell internally, it matters.
+                    # Given the audit requirement "whitelist approach", we stick to rejection.
+                    msg = f"Invalid list item value: {item}. Must match whitelist pattern."
                     raise ValueError(msg)
+
+                # Double safety: quote it just in case, though subprocess handles args safely usually.
+                # Actually, adding quotes manually in a subprocess list argument results in the
+                # quotes being passed literally to the program, which is usually WRONG.
+                # Example: ['ls', "'file'"] looks for a file named "'file'" (with quotes).
+                # shlex.quote is useful if we were constructing a shell string.
+                # Since we use shell=False (default) in subprocess.run([args]), injection is mostly mitigated.
+                # The "command injection" concern usually implies shell=True usage or insecure inner calls.
+                # We will enforce whitelist strictly.
                 args.append(item_str)
             return args
 
         # Sanitize scalar value
         val_str = str(value)
         if not self._is_safe_string(val_str):
-            msg = f"Potential unsafe value or command injection detected in: {val_str}"
+            msg = f"Potential unsafe value or command injection detected in: {val_str}. Must match whitelist pattern."
             raise ValueError(msg)
 
         return [cli_arg, val_str]

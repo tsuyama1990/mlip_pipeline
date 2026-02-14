@@ -1,8 +1,6 @@
 """Utility functions for PYACEMAKER."""
 
-import io
 from collections.abc import Iterator
-from typing import Any
 from uuid import uuid4
 
 from pyacemaker.domain_models.models import (
@@ -10,28 +8,6 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     StructureStatus,
 )
-
-
-class LimitedStream(io.StringIO):
-    """Stream wrapper that enforces a maximum size limit."""
-
-    def __init__(self, stream: Any, limit: int) -> None:
-        """Initialize LimitedStream.
-
-        Args:
-            stream: The underlying stream object.
-            limit: The maximum number of bytes to read.
-
-        Raises:
-            ValueError: If the stream content exceeds the limit.
-
-        """
-        content = stream.read(limit + 1)
-        if len(content) > limit:
-            msg = f"Configuration file exceeds limit of {limit} bytes"
-            raise ValueError(msg)
-        self.total_read = len(content)  # Track bytes read for testing
-        super().__init__(content)
 
 
 def validate_structure_integrity(structure: StructureMetadata) -> None:
@@ -72,14 +48,14 @@ def generate_dummy_structures(
 
     tags_list = tags or ["dummy"]
 
-    for _ in range(count):
+    for i in range(count):
         features = {}
         if Atoms_cls:
             features["atoms"] = Atoms_cls("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         yield StructureMetadata(
             id=uuid4(),
-            tags=list(tags_list),  # Copy tags
+            tags=[f"{t}_{i}" for t in tags_list],
             status=StructureStatus.NEW,
             features=features,
             material_dna=MaterialDNA(composition={"H": 1.0}),  # Dummy DNA

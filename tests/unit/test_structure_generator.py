@@ -69,7 +69,9 @@ def test_random_generator_local(config: PYACEMAKERConfig) -> None:
     candidates = list(candidates_iter)
 
     assert len(candidates) == 3
-    assert candidates[0].tags == ["candidate", "local"]
+    # Check updated tags format (indexed)
+    assert "candidate_0" in candidates[0].tags
+    assert "local_0" in candidates[0].tags
 
 
 def test_random_generator_batch(config: PYACEMAKERConfig) -> None:
@@ -81,4 +83,6 @@ def test_random_generator_batch(config: PYACEMAKERConfig) -> None:
     candidates = list(candidates_iter)
 
     assert len(candidates) == 4  # 2 * 2
-    assert candidates[0].tags == ["candidate", "batch"]
+    # Check updated tags format (indexed)
+    assert "candidate_0" in candidates[0].tags
+    assert "batch_0" in candidates[0].tags

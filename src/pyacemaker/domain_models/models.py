@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from pyacemaker.core.config import CONSTANTS
+
 
 def utc_now() -> datetime:
     """Return current UTC datetime."""
@@ -111,8 +113,10 @@ class StructureMetadata(BaseModel):
                 raise ValueError(msg)
             # Rough bound check (e.g. per atom energy shouldn't be insanely low/high)
             # Assuming total energy, this is harder, but let's prevent abs(E) > 1e6 eV which implies singularity
-            if abs(v) > 1e6:
-                msg = f"Energy value {v} is physically implausible (> 1e6 eV)"
+            if abs(v) > CONSTANTS.max_energy_ev:
+                msg = (
+                    f"Energy value {v} is physically implausible (> {CONSTANTS.max_energy_ev} eV)"
+                )
                 raise ValueError(msg)
         return v
 
@@ -139,8 +143,8 @@ class StructureMetadata(BaseModel):
             raise ValueError(msg)
 
         # Physical plausibility check (e.g. Force < 1000 eV/A implies core overlap)
-        if any(abs(x) > 1000.0 for x in flattened):
-            msg = "Forces/Stress values contain physically implausible magnitudes (> 1000)"
+        if any(abs(x) > CONSTANTS.max_force_ev_a for x in flattened):
+            msg = f"Forces/Stress values contain physically implausible magnitudes (> {CONSTANTS.max_force_ev_a})"
             raise ValueError(msg)
 
         return v
@@ -152,6 +156,21 @@ class StructureMetadata(BaseModel):
         if not all(isinstance(k, str) for k in v):
             msg = "Feature keys must be strings"
             raise ValueError(msg)
+
+        # Validate values (whitelist approach)
+        # Allow basic types, numpy arrays (as lists), and ASE Atoms (opaque check)
+        # We can't easily check for ASE Atoms without importing ASE, which might be optional dependency.
+        # But we can check for general serializable types or explicit allowed objects.
+        # For now, let's just ensure no obviously dangerous types if possible, or just basic types.
+        # Given "Arbitrary objects" warning, strict typing is hard for 'features'.
+        # We rely on "extra='forbid'" in the model config for the model itself,
+        # but features is dict[str, Any].
+        # We can enforce that values are not callables or modules.
+        for key, value in v.items():
+            if callable(value):
+                msg = f"Feature '{key}' cannot be a callable"
+                raise TypeError(msg)
+            # Add more checks as needed.
         return v
 
     @model_validator(mode="after")
