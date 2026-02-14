@@ -498,7 +498,7 @@ class PYACEMAKERConfig(BaseModel):
         pattern=CONSTANTS.version_regex,
     )
     project: ProjectConfig
-    logging: LoggingConfig = Field(default_factory=lambda: LoggingConfig())
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
     # Module configurations
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
@@ -559,36 +559,35 @@ def _check_file_size(file_size: int) -> None:
         raise ConfigurationError(msg)
 
 
+def _read_file_content(path: Path) -> str:
+    """Read file content with safety checks."""
+    try:
+        file_size = path.stat().st_size
+        _check_file_size(file_size)
+        with path.open("r", encoding="utf-8") as f:
+            return f.read(CONSTANTS.max_config_size + 1)
+    except OSError as e:
+        msg = f"Error reading configuration file: {e}"
+        raise ConfigurationError(msg, details={"filename": path.name}) from e
+
+
 def _read_config_file(path: Path) -> dict[str, Any]:
     """Read and parse configuration file safely.
 
     This function reads the file into memory with a strict size limit,
     preventing Out-Of-Memory (OOM) attacks from large files.
     """
+    content = _read_file_content(path)
+
+    if len(content) > CONSTANTS.max_config_size:
+        msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
+        raise ConfigurationError(msg)
+
     try:
-        # Check size hint first to prevent reading large files
-        file_size = path.stat().st_size
-        _check_file_size(file_size)
-
-        # Explicitly read content with limit to guarantee memory safety
-        with path.open("r", encoding="utf-8") as f:
-            # Read max_config_size + 1 to detect if file is larger than expected
-            content = f.read(CONSTANTS.max_config_size + 1)
-
-        if len(content) > CONSTANTS.max_config_size:
-             msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
-             raise ConfigurationError(msg)
-
         data = yaml.safe_load(content)
-
-    except ConfigurationError:
-        raise
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
-    except OSError as e:
-        msg = f"Error reading configuration file: {e}"
-        raise ConfigurationError(msg, details={"filename": path.name}) from e
     except Exception as e:
         # Catch generic errors to ensure consistent exception wrapping
         msg = f"Unexpected error reading configuration: {e}"

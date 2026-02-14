@@ -125,18 +125,17 @@ class Orchestrator(IOrchestrator):
             metrics=Metrics.model_validate({"cycles": self.cycle_count}),
         )
 
+    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
+        """Convert metadata stream to atoms and save to dataset."""
+        atoms_stream = (metadata_to_atoms(s) for s in stream)
+        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
+
     def _run_cold_start(self) -> None:
         """Execute cold start to generate initial dataset."""
         initial_structures = self.structure_generator.generate_initial_structures()
         # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
         computed_stream = self.oracle.compute_batch(initial_structures)
-
-        # Optimization: Don't convert back and forth if not needed,
-        # but DatasetManager expects Atoms. And compute_batch returns StructureMetadata.
-        # So conversion IS needed unless we change interfaces.
-        # But we can do it lazily.
-        atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
+        self._save_dataset_stream(computed_stream)
 
     def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle."""
@@ -302,6 +301,4 @@ class Orchestrator(IOrchestrator):
         self.logger.info(f"Phase: Calculation ({len(structures)} structures)")
         # Stream processing: list -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
-
-        atoms_stream = (metadata_to_atoms(s) for s in new_data)
-        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
+        self._save_dataset_stream(new_data)
