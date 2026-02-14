@@ -69,7 +69,7 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     class MockStat:
         st_size = CONSTANTS.max_config_size + 1
-        st_mode = 33188 # Regular file mode
+        st_mode = 33188  # Regular file mode
 
     # Fix: Accept **kwargs to handle follow_symlinks argument passed by pathlib/pytest
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
@@ -88,7 +88,7 @@ def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.Monke
 
     # We skip the stat check to simulate race condition where file grew
     class MockStat:
-        st_size = 100 # Small size reported
+        st_size = 100  # Small size reported
         st_mode = 33188
 
     monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
@@ -102,7 +102,7 @@ def test_load_config_chunked_read(tmp_path: Path) -> None:
     config_data = {
         "version": "0.1.0",
         "project": {"name": "ChunkTest", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "vasp"}}
+        "oracle": {"dft": {"code": "vasp"}},
     }
     config_file = tmp_path / "chunk_config.yaml"
     with config_file.open("w") as f:

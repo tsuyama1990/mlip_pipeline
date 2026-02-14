@@ -1,5 +1,7 @@
 """Oracle (DFT) module implementation."""
 
+import random
+
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
@@ -28,9 +30,12 @@ class MockOracle(Oracle):
         for s in structures:
             # Update structure status
             s.status = StructureStatus.CALCULATED
-            # Mock results
-            s.features["energy"] = -100.0  # Dummy value
-            s.features["forces"] = [[0.0, 0.0, 0.0]]  # Dummy value
+            # Mock results with slight randomness
+            energy = -100.0 + random.uniform(-1.0, 1.0)  # noqa: S311
+            forces = [[random.uniform(-0.1, 0.1) for _ in range(3)]]  # noqa: S311
+
+            s.features["energy"] = energy
+            s.features["forces"] = forces
             computed.append(s)
 
         return computed

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
+from pyacemaker.core.utils import LimitedStream
 
 
 class Constants(BaseSettings):
@@ -70,17 +71,15 @@ class ProjectConfig(BaseModel):
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
         """Validate root directory for path traversal."""
-        # Check components before resolve to catch explicit ".."
-        if ".." in v.parts:
-            msg = f"Invalid root directory: {v}. Path traversal not allowed."
-            raise ValueError(msg)
-
         try:
-            # Return absolute path
-            return v.resolve()
+            # Strict resolution checks existence and resolves symlinks
+            return v.resolve(strict=True)
         except OSError:
-            # If resolution fails (rare), return original but we've checked for ..
-            return v
+            # If path doesn't exist yet (e.g., initial setup), check for traversal in parts
+            if ".." in v.parts:
+                msg = f"Invalid root directory: {v}. Path traversal not allowed."
+                raise ValueError(msg) from None
+            return v.absolute()
 
 
 class DFTConfig(BaseModuleConfig):
@@ -103,7 +102,7 @@ class StructureGeneratorConfig(BaseModuleConfig):
 
     strategy: str = Field(
         default=CONSTANTS.default_structure_strategy,
-        description="Generation strategy (e.g., 'random', 'adaptive')"
+        description="Generation strategy (e.g., 'random', 'adaptive')",
     )
 
 
@@ -111,18 +110,14 @@ class TrainerConfig(BaseModuleConfig):
     """Trainer module configuration."""
 
     potential_type: str = Field(
-        default=CONSTANTS.default_trainer_potential,
-        description="Type of potential to train"
+        default=CONSTANTS.default_trainer_potential, description="Type of potential to train"
     )
 
 
 class DynamicsEngineConfig(BaseModuleConfig):
     """Dynamics Engine module configuration."""
 
-    engine: str = Field(
-        default=CONSTANTS.default_engine,
-        description="MD/kMC engine"
-    )
+    engine: str = Field(default=CONSTANTS.default_engine, description="MD/kMC engine")
 
 
 class ValidatorConfig(BaseModel):
@@ -134,9 +129,7 @@ class ValidatorConfig(BaseModel):
         default_factory=lambda: CONSTANTS.default_validator_metrics,
         description="Metrics to validate",
     )
-    thresholds: dict[str, float] = Field(
-        default_factory=dict, description="Validation thresholds"
-    )
+    thresholds: dict[str, float] = Field(default_factory=dict, description="Validation thresholds")
 
 
 class OrchestratorConfig(BaseModel):
@@ -146,19 +139,19 @@ class OrchestratorConfig(BaseModel):
 
     max_cycles: int = Field(
         default=CONSTANTS.default_orchestrator_max_cycles,
-        description="Maximum number of active learning cycles"
+        description="Maximum number of active learning cycles",
     )
     uncertainty_threshold: float = Field(
         default=CONSTANTS.default_orchestrator_uncertainty,
-        description="Threshold for uncertainty sampling"
+        description="Threshold for uncertainty sampling",
     )
     n_local_candidates: int = Field(
         default=CONSTANTS.default_orchestrator_n_local_candidates,
-        description="Number of local candidates to generate per seed"
+        description="Number of local candidates to generate per seed",
     )
     n_active_set_select: int = Field(
         default=CONSTANTS.default_orchestrator_n_active_set_select,
-        description="Number of structures to select for active set"
+        description="Number of structures to select for active set",
     )
 
 
@@ -228,42 +221,21 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         ConfigurationError: If the file cannot be read or validation fails.
 
     """
-    if not path.exists():
-        msg = f"Configuration file not found: {path.name}"
+    if not path.exists() or not path.is_file():
+        msg = f"Configuration file not found or invalid: {path.name}"
         raise ConfigurationError(msg)
 
-    if not path.is_file():
-        msg = f"Configuration path is not a file: {path.name}"
-        raise ConfigurationError(msg)
-
-    # Check file size to prevent DOS (OOM)
     try:
+        # Check size hint first, though LimitedStream is the real guard
         if path.stat().st_size > CONSTANTS.max_config_size:
-            msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
-            raise ConfigurationError(msg)
-    except OSError as e:
-        msg = f"Error checking configuration file size: {e}"
-        raise ConfigurationError(msg, details={"filename": path.name}) from e
+            msg = f"Configuration file too large: {path.stat().st_size} bytes"
+            raise ConfigurationError(msg)  # noqa: TRY301
 
-    try:
         with path.open("r", encoding="utf-8") as f:
-            # Chunked reading to enforce memory limit
-            content_chunks = []
-            total_size = 0
-            chunk_size = 4096
-
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                total_size += len(chunk)
-                if total_size > CONSTANTS.max_config_size:
-                    msg = f"Configuration file exceeds limit of {CONSTANTS.max_config_size} bytes"
-                    raise ConfigurationError(msg)
-                content_chunks.append(chunk)
-
-            content = "".join(content_chunks)
-            data = yaml.safe_load(content)
+            # Use LimitedStream to enforce size limit during parsing
+            # yaml.safe_load reads from the stream directly
+            stream = LimitedStream(f, CONSTANTS.max_config_size)
+            data = yaml.safe_load(stream)
 
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
@@ -271,6 +243,11 @@ def load_config(path: Path) -> PYACEMAKERConfig:
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
+    except ConfigurationError:
+        raise
+    except Exception as e:  # Catch unexpected errors during load
+        msg = f"Unexpected error loading configuration: {e}"
+        raise ConfigurationError(msg) from e
 
     if not isinstance(data, dict):
         msg = "Configuration file must contain a YAML dictionary."

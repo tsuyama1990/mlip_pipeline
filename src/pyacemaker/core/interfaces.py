@@ -27,6 +27,13 @@ class StructureGenerator(BaseModule):
         """Generate candidate structures around a seed structure (e.g., high uncertainty)."""
         ...
 
+    @abstractmethod
+    def generate_batch_candidates(
+        self, seed_structures: list[StructureMetadata], n_candidates_per_seed: int
+    ) -> list[StructureMetadata]:
+        """Generate candidate structures for a batch of seeds."""
+        ...
+
 
 class Oracle(BaseModule):
     """Interface for Oracle (DFT) module."""
@@ -48,9 +55,7 @@ class Trainer(BaseModule):
         ...
 
     @abstractmethod
-    def select_active_set(
-        self, candidates: list[StructureMetadata], n_select: int
-    ) -> ActiveSet:
+    def select_active_set(self, candidates: list[StructureMetadata], n_select: int) -> ActiveSet:
         """Select the most informative structures from candidates."""
         ...
 

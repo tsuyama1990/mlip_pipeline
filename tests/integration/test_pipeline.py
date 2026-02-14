@@ -14,16 +14,13 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     config_data = {
         "version": "0.1.0",
         "project": {"name": "IntegrationTest", "root_dir": str(tmp_path)},
-        "oracle": {
-            "dft": {"code": "quantum_espresso"},
-            "mock": True
-        },
+        "oracle": {"dft": {"code": "quantum_espresso"}, "mock": True},
         "orchestrator": {
             "max_cycles": 2,
             "uncertainty_threshold": 0.1,
             "n_local_candidates": 5,
-            "n_active_set_select": 2
-        }
+            "n_active_set_select": 2,
+        },
     }
 
     config_file = tmp_path / "integration_config.yaml"
@@ -42,6 +39,7 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     # Verify success
     assert result.status == "success"
     # Metrics model uses extra='allow', so attributes are dynamic.
-    # Mypy doesn't know about them, so we use getattr or type ignore.
-    assert result.metrics.cycles > 0
-    assert result.metrics.dataset_size > 0
+    # We use model_dump to access them safely.
+    metrics = result.metrics.model_dump()
+    assert metrics["cycles"] > 0
+    assert metrics["dataset_size"] > 0

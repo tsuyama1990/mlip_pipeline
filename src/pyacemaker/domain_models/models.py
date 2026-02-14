@@ -117,5 +117,7 @@ class ActiveSet(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the active set")
     structure_ids: list[UUID] = Field(..., description="List of structure IDs in this set")
-    selection_criteria: str = Field(..., description="Description of selection criteria (e.g., 'max_uncertainty')")
+    selection_criteria: str = Field(
+        ..., description="Description of selection criteria (e.g., 'max_uncertainty')"
+    )
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")

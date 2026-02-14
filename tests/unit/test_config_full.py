@@ -36,7 +36,7 @@ def test_minimal_config_defaults(tmp_path: Path) -> None:
     """Test loading a minimal configuration using defaults."""
     config_dict = {
         "project": {"name": "Minimal", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "vasp"}}
+        "oracle": {"dft": {"code": "vasp"}},
     }
 
     config_file = tmp_path / "minimal.yaml"
@@ -52,7 +52,7 @@ def test_invalid_config_structure(tmp_path: Path) -> None:
     """Test invalid configuration structure."""
     config_dict = {
         "project": {"name": "Invalid"},
-        "oracle": {}  # Missing dft
+        "oracle": {},  # Missing dft
     }
 
     config_file = tmp_path / "invalid.yaml"
@@ -61,5 +61,6 @@ def test_invalid_config_structure(tmp_path: Path) -> None:
 
     # load_config raises ConfigurationError wrapping ValidationError
     from pyacemaker.core.exceptions import ConfigurationError
+
     with pytest.raises(ConfigurationError):
         load_config(config_file)

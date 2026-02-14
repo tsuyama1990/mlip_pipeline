@@ -1,5 +1,6 @@
 """Trainer (Pacemaker) module implementation."""
 
+import tempfile
 from pathlib import Path
 
 from pyacemaker.core.base import ModuleResult
@@ -27,8 +28,10 @@ class PacemakerTrainer(Trainer):
         self.logger.info(f"Training on dataset of size {len(dataset)} (mock)")
 
         # Create a dummy potential file
-        pot_path = Path("potential.yace")
-        pot_path.touch()
+        # Use NamedTemporaryFile to avoid hardcoded paths
+        with tempfile.NamedTemporaryFile(suffix=".yace", delete=False) as f:
+            pot_path = Path(f.name)
+            f.write(b"mock_potential_data")
 
         return Potential(
             path=pot_path,
@@ -37,9 +40,7 @@ class PacemakerTrainer(Trainer):
             metrics={"rmse_energy": 0.005},
         )
 
-    def select_active_set(
-        self, candidates: list[StructureMetadata], n_select: int
-    ) -> ActiveSet:
+    def select_active_set(self, candidates: list[StructureMetadata], n_select: int) -> ActiveSet:
         """Select active set."""
         self.logger.info(f"Selecting {n_select} from {len(candidates)} candidates (mock)")
 

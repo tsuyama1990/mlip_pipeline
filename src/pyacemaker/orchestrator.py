@@ -1,6 +1,5 @@
 """Orchestrator module implementation."""
 
-
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
@@ -121,13 +120,12 @@ class Orchestrator(IOrchestrator):
 
         # 4. Selection (Local Candidates & Active Set)
         self.logger.info("Phase: Selection")
-        candidates = []
         n_local = self.config.orchestrator.n_local_candidates
-        for seed in high_uncertainty_structures:
-            local = self.structure_generator.generate_local_candidates(
-                seed, n_candidates=n_local
-            )
-            candidates.extend(local)
+
+        # Batch generation of candidates (improved I/O efficiency)
+        candidates = self.structure_generator.generate_batch_candidates(
+            high_uncertainty_structures, n_candidates_per_seed=n_local
+        )
 
         n_select = self.config.orchestrator.n_active_set_select
         active_set = self.trainer.select_active_set(candidates, n_select=n_select)
