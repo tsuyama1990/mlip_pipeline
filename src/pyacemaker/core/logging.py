@@ -1,9 +1,12 @@
 """Centralized logging configuration."""
 
 import sys
-from typing import Any
+from typing import TYPE_CHECKING
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 from pyacemaker.core.config import LoggingConfig
 
@@ -24,7 +27,7 @@ def setup_logging(config: LoggingConfig) -> None:
     )
 
 
-def get_logger(name: str) -> Any:  # Loguru type stubs are incomplete
+def get_logger(name: str) -> "Logger":
     """Get a logger instance with the specified name.
 
     Args:

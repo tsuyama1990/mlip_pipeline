@@ -19,11 +19,11 @@ Name                                Stmts   Miss  Cover   Missing
 -----------------------------------------------------------------
 src/pyacemaker/__init__.py              5      2    60%   5-6
 src/pyacemaker/core/__init__.py         0      0   100%
-src/pyacemaker/core/base.py            16      0   100%
-src/pyacemaker/core/config.py          65      0   100%
+src/pyacemaker/core/base.py            17      0   100%
+src/pyacemaker/core/config.py          67      0   100%
 src/pyacemaker/core/exceptions.py       6      0   100%
 src/pyacemaker/core/logging.py         10      0   100%
 src/pyacemaker/main.py                 26      3    88%   45-47
 -----------------------------------------------------------------
-TOTAL                                 128      5    96%
-============================== 27 passed in 4.07s ==============================
+TOTAL                                 131      5    96%
+============================== 27 passed in 5.19s ==============================

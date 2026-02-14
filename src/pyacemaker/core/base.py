@@ -1,7 +1,6 @@
 """Base module interface."""
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,19 +8,25 @@ from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.logging import get_logger
 
 
+class Metrics(BaseModel):
+    """Execution metrics model allowing arbitrary fields."""
+
+    model_config = ConfigDict(extra="allow")
+
+
 class ModuleResult(BaseModel):
     """Standardized result from a module execution.
 
     Attributes:
         status: The final status of the execution (e.g., 'success', 'failed').
-        metrics: A dictionary of key performance indicators or results (e.g., 'energy', 'forces').
+        metrics: A Pydantic model containing key performance indicators or results.
         artifacts: A dictionary mapping artifact names to their file paths on disk.
 
     """
 
     model_config = ConfigDict(extra="forbid")
     status: str = Field(..., description="Execution status (success, failed)")
-    metrics: dict[str, Any] = Field(default_factory=dict, description="Execution metrics")
+    metrics: Metrics = Field(default_factory=Metrics, description="Execution metrics")
     artifacts: dict[str, str] = Field(
         default_factory=dict, description="Paths to generated artifacts"
     )

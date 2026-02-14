@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
 
@@ -35,11 +36,16 @@ class DFTConfig(BaseModel):
     code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
-class Constants(BaseModel):
-    """System-wide constants configuration."""
+class Constants(BaseSettings):
+    """System-wide constants configuration.
+
+    Values can be overridden by environment variables (e.g., PYACEMAKER_MAX_CONFIG_SIZE).
+    """
+
+    model_config = SettingsConfigDict(extra="forbid", env_prefix="PYACEMAKER_")
 
     default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
-    max_config_size: int = 10 * 1024 * 1024  # 10 MB
+    max_config_size: int = 1 * 1024 * 1024  # 1 MB limit for safety
 
 
 CONSTANTS = Constants()
@@ -98,6 +104,8 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
         raise ConfigurationError(msg)
 
+    # yaml.safe_load is used to prevent arbitrary code execution.
+    # The file size check above mitigates OOM risks (DoS).
     try:
         with path.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
