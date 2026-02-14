@@ -41,5 +41,7 @@ def test_pipeline_integration(tmp_path: Path) -> None:
 
     # Verify success
     assert result.status == "success"
+    # Metrics model uses extra='allow', so attributes are dynamic.
+    # Mypy doesn't know about them, so we use getattr or type ignore.
     assert result.metrics.cycles > 0
     assert result.metrics.dataset_size > 0

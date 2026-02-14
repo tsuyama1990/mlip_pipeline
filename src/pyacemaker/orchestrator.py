@@ -132,8 +132,9 @@ class Orchestrator(IOrchestrator):
         n_select = self.config.orchestrator.n_active_set_select
         active_set = self.trainer.select_active_set(candidates, n_select=n_select)
 
-        # Filter candidates by ID
-        selected_structures = [c for c in candidates if c.id in active_set.structure_ids]
+        # Filter candidates by ID (Optimized with Set)
+        active_ids = set(active_set.structure_ids)
+        selected_structures = [c for c in candidates if c.id in active_ids]
 
         # 5. Calculation (Oracle)
         self.logger.info(f"Phase: Calculation ({len(selected_structures)} structures)")

@@ -43,8 +43,7 @@ def test_dft_config_parameters_validation() -> None:
     """Test DFTConfig parameters validation."""
     with pytest.raises(ValidationError) as excinfo:
         DFTConfig(code="vasp", parameters={1: "invalid"})  # type: ignore[dict-item]
-    # Pydantic's default validation happens before our validator if types mismatch.
-    # The message should relate to string type expectation.
+    # Pydantic's default validation message for incorrect dict key type
     assert "Input should be a valid string" in str(excinfo.value)
 
 
@@ -57,7 +56,7 @@ def test_version_validation() -> None:
     }
     with pytest.raises(ValidationError) as excinfo:
         PYACEMAKERConfig(**data)  # type: ignore[arg-type]
-    # Check for Pydantic's pattern mismatch message
+    # Pydantic's regex mismatch message
     assert "String should match pattern" in str(excinfo.value)
 
 
@@ -96,6 +95,21 @@ def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.Monke
 
     with pytest.raises(ConfigurationError, match="exceeds limit"):
         load_config(config_file)
+
+
+def test_load_config_chunked_read(tmp_path: Path) -> None:
+    """Test reading a valid file in chunks (implicit test of logic)."""
+    config_data = {
+        "version": "0.1.0",
+        "project": {"name": "ChunkTest", "root_dir": str(tmp_path)},
+        "oracle": {"dft": {"code": "vasp"}}
+    }
+    config_file = tmp_path / "chunk_config.yaml"
+    with config_file.open("w") as f:
+        yaml.dump(config_data, f)
+
+    config = load_config(config_file)
+    assert config.project.name == "ChunkTest"
 
 
 def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

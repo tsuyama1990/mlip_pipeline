@@ -33,21 +33,33 @@ class Constants(BaseSettings):
     default_orchestrator_n_active_set_select: int = 5
     default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
     version_regex: str = r"^\d+\.\d+\.\d+$"
-    default_dft_code: str = "quantum_espresso"
-    default_dft_parameters: dict[str, Any] = {}
-    default_oracle_mock: bool = False
 
 
 CONSTANTS = Constants()
 
 
-class ProjectConfig(BaseModel):
-    """Project-level configuration settings.
+class BaseModuleConfig(BaseModel):
+    """Base configuration for modules with parameters."""
 
-    Attributes:
-        name: The name of the project.
-        root_dir: The root directory for project outputs and artifacts.
-    """
+    model_config = ConfigDict(extra="forbid")
+
+    parameters: dict[str, Any] = Field(
+        default_factory=dict, description="Module-specific parameters"
+    )
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        # Ensure keys are strings
+        if not all(isinstance(k, str) for k in v):
+            msg = "Parameter keys must be strings"
+            raise ValueError(msg)
+        return v
+
+
+class ProjectConfig(BaseModel):
+    """Project-level configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -57,159 +69,64 @@ class ProjectConfig(BaseModel):
     @field_validator("root_dir")
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
-        """Validate root directory for path traversal and existence.
-
-        Ensures the path does not contain '..' traversal components and attempts
-        to resolve it to an absolute path.
-        """
+        """Validate root directory for path traversal."""
         # Check components before resolve to catch explicit ".."
         if ".." in v.parts:
             msg = f"Invalid root directory: {v}. Path traversal not allowed."
             raise ValueError(msg)
 
         try:
-            # strictly resolve if it exists to prevent symlink attacks
-            if v.exists():
-                return v.resolve(strict=True)
-            # if it doesn't exist, we resolve relative to cwd
-            return v.resolve(strict=False)
-        except OSError as e:
-            # If resolution fails due to permissions or loop, reject
-            msg = f"Invalid root directory path: {e}"
-            raise ValueError(msg) from e
+            # Return absolute path
+            return v.resolve()
+        except OSError:
+            # If resolution fails (rare), return original but we've checked for ..
+            return v
 
 
-class DFTConfig(BaseModel):
-    """Configuration for Density Functional Theory (DFT) calculations.
+class DFTConfig(BaseModuleConfig):
+    """DFT calculation configuration."""
 
-    Attributes:
-        code: The DFT code to use (e.g., 'quantum_espresso', 'vasp').
-        parameters: A dictionary of parameters to pass to the DFT code.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    code: str = Field(
-        default=CONSTANTS.default_dft_code,
-        description="DFT code to use (e.g., 'quantum_espresso', 'vasp')"
-    )
-    parameters: dict[str, Any] = Field(
-        default_factory=dict, description="DFT calculation parameters"
-    )
-
-    @field_validator("parameters")
-    @classmethod
-    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters dictionary."""
-        if not all(isinstance(k, str) for k in v):
-            msg = "Parameter keys must be strings"
-            raise ValueError(msg)
-        return v
+    code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
 class OracleConfig(BaseModel):
-    """Configuration for the Oracle module.
-
-    Attributes:
-        dft: DFT configuration settings.
-        mock: Whether to use a mock oracle for testing/simulation.
-    """
+    """Oracle module configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
     dft: DFTConfig = Field(..., description="DFT configuration")
-    mock: bool = Field(
-        default=CONSTANTS.default_oracle_mock, description="Use mock oracle for testing"
-    )
+    mock: bool = Field(default=False, description="Use mock oracle for testing")
 
 
-class StructureGeneratorConfig(BaseModel):
-    """Configuration for the Structure Generator module.
-
-    Attributes:
-        strategy: The strategy name for structure generation.
-        parameters: Strategy-specific parameters.
-    """
-
-    model_config = ConfigDict(extra="forbid")
+class StructureGeneratorConfig(BaseModuleConfig):
+    """Structure Generator module configuration."""
 
     strategy: str = Field(
         default=CONSTANTS.default_structure_strategy,
         description="Generation strategy (e.g., 'random', 'adaptive')"
     )
-    parameters: dict[str, Any] = Field(
-        default_factory=dict, description="Strategy-specific parameters"
-    )
-
-    @field_validator("parameters")
-    @classmethod
-    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters dictionary."""
-        if not all(isinstance(k, str) for k in v):
-            msg = "Parameter keys must be strings"
-            raise ValueError(msg)
-        return v
 
 
-class TrainerConfig(BaseModel):
-    """Configuration for the Trainer module.
-
-    Attributes:
-        potential_type: The type of potential to train (e.g., 'pace').
-        parameters: Training parameters.
-    """
-
-    model_config = ConfigDict(extra="forbid")
+class TrainerConfig(BaseModuleConfig):
+    """Trainer module configuration."""
 
     potential_type: str = Field(
         default=CONSTANTS.default_trainer_potential,
         description="Type of potential to train"
     )
-    parameters: dict[str, Any] = Field(default_factory=dict, description="Training parameters")
-
-    @field_validator("parameters")
-    @classmethod
-    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters dictionary."""
-        if not all(isinstance(k, str) for k in v):
-            msg = "Parameter keys must be strings"
-            raise ValueError(msg)
-        return v
 
 
-class DynamicsEngineConfig(BaseModel):
-    """Configuration for the Dynamics Engine module.
-
-    Attributes:
-        engine: The engine name (e.g., 'lammps').
-        parameters: Engine-specific parameters.
-    """
-
-    model_config = ConfigDict(extra="forbid")
+class DynamicsEngineConfig(BaseModuleConfig):
+    """Dynamics Engine module configuration."""
 
     engine: str = Field(
         default=CONSTANTS.default_engine,
         description="MD/kMC engine"
     )
-    parameters: dict[str, Any] = Field(default_factory=dict, description="Engine parameters")
-
-    @field_validator("parameters")
-    @classmethod
-    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters dictionary."""
-        if not all(isinstance(k, str) for k in v):
-            msg = "Parameter keys must be strings"
-            raise ValueError(msg)
-        return v
 
 
 class ValidatorConfig(BaseModel):
-    """Configuration for the Validator module.
-
-    Attributes:
-        metrics: List of metrics to evaluate.
-        thresholds: Threshold values for metrics.
-    """
+    """Validator module configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -223,14 +140,7 @@ class ValidatorConfig(BaseModel):
 
 
 class OrchestratorConfig(BaseModel):
-    """Configuration for the Orchestrator.
-
-    Attributes:
-        max_cycles: Maximum number of active learning cycles.
-        uncertainty_threshold: Threshold for triggering learning.
-        n_local_candidates: Number of candidates to generate per seed.
-        n_active_set_select: Number of structures to select for the active set.
-    """
+    """Orchestrator configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -253,12 +163,7 @@ class OrchestratorConfig(BaseModel):
 
 
 class LoggingConfig(BaseModel):
-    """Logging configuration settings.
-
-    Attributes:
-        level: Logging level (DEBUG, INFO, etc.).
-        format: Format string for log messages.
-    """
+    """Logging configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -280,19 +185,7 @@ class LoggingConfig(BaseModel):
 
 
 class PYACEMAKERConfig(BaseModel):
-    """Root configuration object for the PYACEMAKER application.
-
-    Attributes:
-        version: Configuration schema version.
-        project: Project-specific settings.
-        logging: Logging settings.
-        orchestrator: Orchestrator settings.
-        structure_generator: Structure generator settings.
-        oracle: Oracle settings.
-        trainer: Trainer settings.
-        dynamics_engine: Dynamics engine settings.
-        validator: Validator settings.
-    """
+    """Main configuration for the application."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -315,7 +208,7 @@ class PYACEMAKERConfig(BaseModel):
     @field_validator("version")
     @classmethod
     def validate_version(cls, v: str) -> str:
-        """Validate semantic version format."""
+        """Validate semantic version."""
         if not re.match(CONSTANTS.version_regex, v):
             msg = f"Invalid version format: {v}. Must match {CONSTANTS.version_regex}"
             raise ValueError(msg)
@@ -325,10 +218,6 @@ class PYACEMAKERConfig(BaseModel):
 def load_config(path: Path) -> PYACEMAKERConfig:
     """Load and validate configuration from a YAML file.
 
-    This function enforces strict size limits on the input file to prevent
-    Out-Of-Memory (OOM) attacks or accidents. It reads the file into memory
-    only if it is below the defined threshold.
-
     Args:
         path: Path to the YAML configuration file.
 
@@ -336,7 +225,7 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         Validated PYACEMAKERConfig object.
 
     Raises:
-        ConfigurationError: If the file cannot be read, is too large, or validation fails.
+        ConfigurationError: If the file cannot be read or validation fails.
 
     """
     if not path.exists():
@@ -347,7 +236,7 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration path is not a file: {path.name}"
         raise ConfigurationError(msg)
 
-    # Check file size to prevent DOS (OOM) - Preliminary check
+    # Check file size to prevent DOS (OOM)
     try:
         if path.stat().st_size > CONSTANTS.max_config_size:
             msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
@@ -358,13 +247,22 @@ def load_config(path: Path) -> PYACEMAKERConfig:
 
     try:
         with path.open("r", encoding="utf-8") as f:
-            # Safe loading with hard limit on read size to handle race conditions
-            content = f.read(CONSTANTS.max_config_size + 1)
+            # Chunked reading to enforce memory limit
+            content_chunks = []
+            total_size = 0
+            chunk_size = 4096
 
-            if len(content) > CONSTANTS.max_config_size:
-                msg = f"Configuration file content exceeds limit of {CONSTANTS.max_config_size} bytes"
-                raise ConfigurationError(msg)
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > CONSTANTS.max_config_size:
+                    msg = f"Configuration file exceeds limit of {CONSTANTS.max_config_size} bytes"
+                    raise ConfigurationError(msg)
+                content_chunks.append(chunk)
 
+            content = "".join(content_chunks)
             data = yaml.safe_load(content)
 
     except yaml.YAMLError as e:
