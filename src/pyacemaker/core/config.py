@@ -37,6 +37,11 @@ class Constants(BaseSettings):
     # Allow skipping file checks for tests
     skip_file_checks: bool = False
 
+    # Oracle / DFT defaults
+    default_dft_kspacing: float = 0.04
+    default_dft_smearing: float = 0.02
+    default_dft_max_retries: int = 3
+
 
 CONSTANTS = Constants()
 
@@ -96,10 +101,13 @@ class DFTConfig(BaseModel):
     pseudopotentials: dict[str, str] = Field(
         ..., description="Map of element symbol to pseudopotential filename"
     )
-    kspacing: float = Field(default=0.04, description="K-point spacing in inverse Angstroms")
-    smearing: float = Field(default=0.02, description="Smearing width in eV")
+    kspacing: float = Field(
+        default=CONSTANTS.default_dft_kspacing, description="K-point spacing in inverse Angstroms"
+    )
+    smearing: float = Field(default=CONSTANTS.default_dft_smearing, description="Smearing width in eV")
     max_retries: int = Field(
-        default=3, description="Maximum number of retries for failed calculations"
+        default=CONSTANTS.default_dft_max_retries,
+        description="Maximum number of retries for failed calculations",
     )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters (e.g. for mocking)"
@@ -269,7 +277,12 @@ def load_config(path: Path) -> PYACEMAKERConfig:
 
         with path.open("r", encoding="utf-8") as f:
             # Use LimitedStream to enforce size limit during parsing
-            # yaml.safe_load reads from the stream directly
+            # yaml.safe_load reads from the stream directly.
+            # While yaml.safe_load loads the whole structure into memory,
+            # the LimitedStream ensures that we don't read more bytes than allowed.
+            # This protects against DoS/OOM for massive files.
+            # For configuration (YAML), random access/chunking is complex
+            # and usually unnecessary for <1MB files.
             stream = LimitedStream(f, CONSTANTS.max_config_size)
             data = yaml.safe_load(stream)
 

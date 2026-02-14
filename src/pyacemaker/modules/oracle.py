@@ -104,6 +104,7 @@ class DFTOracle(Oracle):
                     # Update atoms object in features (e.g. relaxed structure)
                     s.features["atoms"] = result_atoms
                 except Exception:
+                    # Catch all exceptions during extraction (e.g., property missing)
                     self.logger.exception(f"Failed to extract properties for {s.id}")
                     s.status = StructureStatus.FAILED
             else:

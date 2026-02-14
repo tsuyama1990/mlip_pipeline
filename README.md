@@ -12,7 +12,7 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 
 -   **Zero-Config Automation**: Define your material system in `config.yaml` and let the system handle structure generation, DFT, training, and validation.
 -   **Automated DFT (Oracle)**: Integrated wrapper around Quantum Espresso (via ASE) with self-healing retry logic for SCF convergence failures.
--   **Dataset Management**: Efficient handling of large atomic structure datasets (`.pckl.gzip`), fully compatible with Pacemaker.
+-   **Dataset Management**: Efficient handling of large atomic structure datasets (`.pckl.gzip`), fully compatible with Pacemaker. Includes streaming support for large files.
 -   **Active Learning Loop**: Uses "Halt & Diagnose" logic to monitor MD simulations. If uncertainty ($\gamma$) spikes, the simulation halts, and the problematic structure is automatically sent for labeling and retraining.
 -   **Physics-Informed Robustness**: Enforces Hybrid Potentials (ACE + ZBL/LJ) to prevent unphysical behavior (e.g., core collapse) in unknown regions.
 

@@ -13,8 +13,9 @@ from pyacemaker.core.config import (
     ProjectConfig,
     PYACEMAKERConfig,
 )
+from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
-from pyacemaker.modules.oracle import DFTOracle
+from pyacemaker.modules.oracle import DFTOracle, MockOracle
 
 
 @pytest.fixture
@@ -74,3 +75,14 @@ def test_dft_oracle_compute_batch(config: PYACEMAKERConfig) -> None:
         args = mock_compute.call_args[0][0]
         assert len(args) == 1
         assert args[0] == atoms1
+
+
+def test_mock_oracle_simulation_failure(config: PYACEMAKERConfig) -> None:
+    """Test MockOracle simulating a failure."""
+    # Configure simulate_failure
+    config.oracle.dft.parameters["simulate_failure"] = True
+
+    oracle = MockOracle(config)
+
+    with pytest.raises(PYACEMAKERError, match="Simulated Oracle failure"):
+        oracle.run()
