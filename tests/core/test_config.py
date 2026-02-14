@@ -42,9 +42,44 @@ def test_project_config_path_traversal() -> None:
 def test_dft_config_parameters_validation() -> None:
     """Test DFTConfig parameters validation."""
     with pytest.raises(ValidationError) as excinfo:
-        DFTConfig(code="vasp", parameters={1: "invalid"})  # type: ignore[dict-item]
+        DFTConfig(
+            code="vasp",
+            parameters={1: "invalid"},  # type: ignore[dict-item]
+            pseudopotentials={"Fe": "Fe.pbe.UPF"},
+        )
     # Pydantic's default validation message for incorrect dict key type
     assert "Input should be a valid string" in str(excinfo.value)
+
+
+def test_dft_config_pseudopotentials_missing(tmp_path: Path) -> None:
+    """Test DFTConfig pseudopotentials validation."""
+    # Temporarily disable skip_file_checks if it was enabled globally
+    original_skip = CONSTANTS.skip_file_checks
+    CONSTANTS.skip_file_checks = False
+    try:
+        with pytest.raises(ValidationError, match="Missing pseudopotential"):
+            DFTConfig(
+                code="quantum_espresso",
+                pseudopotentials={"Fe": "non_existent.UPF"},
+            )
+    finally:
+        CONSTANTS.skip_file_checks = original_skip
+
+
+def test_dft_config_pseudopotentials_valid(tmp_path: Path) -> None:
+    """Test DFTConfig pseudopotentials validation with valid files."""
+    original_skip = CONSTANTS.skip_file_checks
+    CONSTANTS.skip_file_checks = False
+    try:
+        pp_file = tmp_path / "Fe.pbe.UPF"
+        pp_file.touch()
+        config = DFTConfig(
+            code="quantum_espresso",
+            pseudopotentials={"Fe": str(pp_file)},
+        )
+        assert config.pseudopotentials["Fe"] == str(pp_file)
+    finally:
+        CONSTANTS.skip_file_checks = original_skip
 
 
 def test_version_validation() -> None:
@@ -52,7 +87,7 @@ def test_version_validation() -> None:
     data = {
         "version": "invalid",
         "project": {"name": "Test", "root_dir": "."},
-        "oracle": {"dft": {"code": "vasp"}},
+        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
     }
     with pytest.raises(ValidationError) as excinfo:
         PYACEMAKERConfig(**data)  # type: ignore[arg-type]
@@ -102,7 +137,7 @@ def test_load_config_chunked_read(tmp_path: Path) -> None:
     config_data = {
         "version": "0.1.0",
         "project": {"name": "ChunkTest", "root_dir": str(tmp_path)},
-        "oracle": {"dft": {"code": "vasp"}},
+        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
     }
     config_file = tmp_path / "chunk_config.yaml"
     with config_file.open("w") as f:
@@ -152,7 +187,7 @@ def test_extra_fields_forbidden(tmp_path: Path) -> None:
     config_data = {
         "version": "0.1.0",
         "project": {"name": "Test", "root_dir": ".", "extra_field": "forbidden"},
-        "oracle": {"dft": {"code": "vasp"}},
+        "oracle": {"dft": {"code": "vasp", "pseudopotentials": {"Fe": "Fe.pbe.UPF"}}},
     }
     config_file = tmp_path / "extra.yaml"
     with config_file.open("w") as f:

@@ -34,6 +34,28 @@ class Constants(BaseSettings):
     default_orchestrator_n_active_set_select: int = 5
     default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
     version_regex: str = r"^\d+\.\d+\.\d+$"
+    # Allow skipping file checks for tests
+    skip_file_checks: bool = False
+
+    # Oracle / DFT defaults
+    default_dft_kspacing: float = 0.04
+    default_dft_smearing: float = 0.02
+    default_dft_max_retries: int = 3
+    default_dft_mixing_beta: float = 0.7
+    default_dft_chunk_size: int = 100
+    # Error patterns for DFT retry logic
+    dft_recoverable_errors: list[str] = [
+        "scf not converged",
+        "convergence not achieved",
+        "electronic convergence failed",
+    ]
+    # Allowed input keys for security validation
+    dft_allowed_input_sections: list[str] = ["control", "system", "electrons", "ions", "cell"]
+    # Security Warnings
+    PICKLE_SECURITY_WARNING: str = (
+        "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. "
+        "Ensure datasets are from trusted sources."
+    )
 
 
 CONSTANTS = Constants()
@@ -82,10 +104,50 @@ class ProjectConfig(BaseModel):
             return v.absolute()
 
 
-class DFTConfig(BaseModuleConfig):
+class DFTConfig(BaseModel):
     """DFT calculation configuration."""
 
-    code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(
+        default="quantum_espresso", description="DFT code to use (e.g., 'quantum_espresso')"
+    )
+    command: str = Field(default="mpirun -np 4 pw.x", description="Command to run the DFT code")
+    pseudo_dir: Path = Field(
+        default=Path(), description="Directory containing pseudopotential files"
+    )
+    pseudopotentials: dict[str, str] = Field(
+        ..., description="Map of element symbol to pseudopotential filename"
+    )
+    kspacing: float = Field(
+        default=CONSTANTS.default_dft_kspacing, description="K-point spacing in inverse Angstroms"
+    )
+    smearing: float = Field(default=CONSTANTS.default_dft_smearing, description="Smearing width in eV")
+    max_retries: int = Field(
+        default=CONSTANTS.default_dft_max_retries,
+        description="Maximum number of retries for failed calculations",
+    )
+    parameters: dict[str, Any] = Field(
+        default_factory=dict, description="Additional parameters (e.g. for mocking)"
+    )
+
+    @field_validator("pseudopotentials")
+    @classmethod
+    def validate_pseudopotentials(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate existence of pseudopotential files."""
+        if CONSTANTS.skip_file_checks:
+            return v
+
+        missing = []
+        for element, path_str in v.items():
+            path = Path(path_str)
+            if not path.exists():
+                missing.append(f"{element}: {path_str}")
+
+        if missing:
+            msg = f"Missing pseudopotential files: {', '.join(missing)}"
+            raise ValueError(msg)
+        return v
 
 
 class OracleConfig(BaseModel):
@@ -233,7 +295,12 @@ def load_config(path: Path) -> PYACEMAKERConfig:
 
         with path.open("r", encoding="utf-8") as f:
             # Use LimitedStream to enforce size limit during parsing
-            # yaml.safe_load reads from the stream directly
+            # yaml.safe_load reads from the stream directly.
+            # While yaml.safe_load loads the whole structure into memory,
+            # the LimitedStream ensures that we don't read more bytes than allowed.
+            # This protects against DoS/OOM for massive files.
+            # For configuration (YAML), random access/chunking is complex
+            # and usually unnecessary for <1MB files.
             stream = LimitedStream(f, CONSTANTS.max_config_size)
             data = yaml.safe_load(stream)
 

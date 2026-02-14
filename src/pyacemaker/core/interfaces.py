@@ -1,6 +1,7 @@
 """Core interfaces for PYACEMAKER modules."""
 
 from abc import abstractmethod
+from collections.abc import Iterable, Iterator
 from typing import Any
 
 from pyacemaker.core.base import BaseModule, ModuleResult
@@ -39,8 +40,13 @@ class Oracle(BaseModule):
     """Interface for Oracle (DFT) module."""
 
     @abstractmethod
-    def compute_batch(self, structures: list[StructureMetadata]) -> list[StructureMetadata]:
-        """Compute energy, forces, and stress for a batch of structures."""
+    def compute_batch(
+        self, structures: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Compute energy, forces, and stress for a batch of structures.
+
+        Streaming interface: Takes an iterable and yields processed structures.
+        """
         ...
 
 
