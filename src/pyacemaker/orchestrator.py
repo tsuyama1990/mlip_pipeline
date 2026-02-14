@@ -1,7 +1,8 @@
 """Orchestrator module implementation."""
 
+import random
 from collections.abc import Iterable, Iterator
-from itertools import chain, islice
+from itertools import chain
 from typing import TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
@@ -129,7 +130,9 @@ class Orchestrator(IOrchestrator):
         self._run_training_phase()
 
         # 2. Validation
-        self._run_validation_phase()
+        if not self._run_validation_phase():
+            self.logger.error("Cycle halted due to validation failure.")
+            return CycleStatus.FAILED
 
         # 3. Exploration (MD) & Selection
         # Exploration returns high uncertainty structures
@@ -147,43 +150,49 @@ class Orchestrator(IOrchestrator):
     def _run_training_phase(self) -> None:
         """Execute training phase."""
         self.logger.info("Phase: Training")
-        potential = self.trainer.train(self.dataset, self.current_potential)
+
+        # Split dataset into training and validation
+        # We use a simple random split for now (90/10)
+        dataset_size = len(self.dataset)
+        val_size = int(dataset_size * 0.1)
+
+        # Ensure at least some data for both if possible
+        if dataset_size > 10:
+            val_indices = set(random.sample(range(dataset_size), val_size))
+            train_set = [s for i, s in enumerate(self.dataset) if i not in val_indices]
+            # Store validation set for the validation phase
+            self._validation_set = [self.dataset[i] for i in val_indices]
+        else:
+            train_set = self.dataset
+            self._validation_set = self.dataset  # Validate on train if tiny
+
+        potential = self.trainer.train(train_set, self.current_potential)
         self.current_potential = potential
 
-    def _run_validation_phase(self) -> None:
-        """Execute validation phase with memory-safe chunking."""
+    def _run_validation_phase(self) -> bool:
+        """Execute validation phase.
+
+        Returns:
+            bool: True if validation passed, False otherwise.
+        """
         self.logger.info("Phase: Validation")
         if not self.current_potential:
             self.logger.warning("No potential to validate.")
-            return
+            return False
 
-        # Limit total validation set size to prevent processing huge amounts of data
-        test_size = min(max(1, int(len(self.dataset) * 0.1)), 1000)
-
-        # Generator for test set
-        test_set_gen = islice(self.dataset, test_size)
-
-        # Batch processing: Materialize small chunks to satisfy Validator list interface
-        # while keeping peak memory usage low.
-        # Simple implementation: consume generator in chunks
-        # Since the Validator currently validates a set and returns aggregate metrics,
-        # splitting it into batches means we get multiple results.
-        # Ideally Validator should support streaming.
-        # For this refactor, we materialize the bounded list (1000 items is small)
-        # as it is the most pragmatic fix given interface constraints.
-        # However, to be strictly "batch processing", we would do:
-
-        # Materialize bounded list (max 1000 items ~ few MBs)
-        # This is safe and adheres to constraints as we bounded it.
-        # We clarify this in comments as requested by audit.
-        test_set = list(test_set_gen)
+        # Use the validation set created during training phase
+        test_set = getattr(self, "_validation_set", [])
+        if not test_set:
+            # Fallback if training phase didn't run or dataset small
+            test_set = self.dataset[: min(len(self.dataset), 100)]
 
         val_result = self.validator.validate(self.current_potential, test_set)
 
         if val_result.status == "failed":
-            # For strict mode, we should raise an error here.
-            # Currently we log a warning as per original design, but this is a critical gate.
-            self.logger.warning("Validation failed, but continuing for exploration...")
+            self.logger.error(f"Validation failed: {val_result.metrics}")
+            return False
+
+        return True
 
     def _run_exploration_and_selection_phase(self) -> list[StructureMetadata] | None:
         """Execute exploration and selection phases.
@@ -226,7 +235,9 @@ class Orchestrator(IOrchestrator):
 
         # Stream candidates generation
         candidates_iter = self.structure_generator.generate_batch_candidates(
-            high_uncertainty_stream_with_stats, n_candidates_per_seed=n_local
+            high_uncertainty_stream_with_stats,
+            n_candidates_per_seed=n_local,
+            cycle=self.cycle_count,
         )
 
         n_select = self.config.orchestrator.n_active_set_select

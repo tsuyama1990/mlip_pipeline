@@ -141,21 +141,17 @@ class PacemakerTrainer(Trainer):
 
         # Load selected structures from file to reconstruct metadata
         for atoms in self.dataset_manager.load_iter(selected_path):
-            uid_str = atoms.info.get("uuid")
-            uid = UUID(uid_str) if uid_str else uuid4()
-
-            # Reconstruct minimal metadata
-            meta = StructureMetadata(
-                id=uid,
-                features={"atoms": atoms},
-                energy=atoms.info.get("energy"),
-                # Forces/Stress reconstruction if available
-            )
-            if "forces" in atoms.arrays:
-                meta.forces = atoms.arrays["forces"].tolist()
-            if "stress" in atoms.info:
-                stress_val = atoms.info["stress"]
-                meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
+            # Try to reconstruct full metadata from JSON if available
+            if "_metadata_json" in atoms.info:
+                try:
+                    meta = StructureMetadata.model_validate_json(atoms.info["_metadata_json"])
+                    # Re-attach the atoms object (which might have been modified/selected)
+                    meta.features["atoms"] = atoms
+                except Exception:
+                    self.logger.warning("Failed to deserialize metadata from atoms.info")
+                    meta = self._reconstruct_minimal_metadata(atoms)
+            else:
+                meta = self._reconstruct_minimal_metadata(atoms)
 
             selected_structures_list.append(meta)
 
@@ -166,6 +162,23 @@ class PacemakerTrainer(Trainer):
             structures=selected_structures_list,
             selection_criteria="max_vol",
         )
+
+    def _reconstruct_minimal_metadata(self, atoms: Any) -> StructureMetadata:
+        """Reconstruct minimal metadata from atoms object."""
+        uid_str = atoms.info.get("uuid")
+        uid = UUID(uid_str) if uid_str else uuid4()
+
+        meta = StructureMetadata(
+            id=uid,
+            features={"atoms": atoms},
+            energy=atoms.info.get("energy"),
+        )
+        if "forces" in atoms.arrays:
+            meta.forces = atoms.arrays["forces"].tolist()
+        if "stress" in atoms.info:
+            stress_val = atoms.info["stress"]
+            meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
+        return meta
 
     def _metadata_to_atoms(self, metadata: StructureMetadata) -> Any:
         """Convert StructureMetadata to ASE Atoms."""
@@ -189,6 +202,13 @@ class PacemakerTrainer(Trainer):
             atoms.arrays["forces"] = metadata.forces
         if metadata.stress is not None:
             atoms.info["stress"] = metadata.stress
+
+        # Inject full metadata for round-trip fidelity
+        # We exclude 'features' because it contains the atoms object itself (recursion)
+        try:
+            atoms.info["_metadata_json"] = metadata.model_dump_json(exclude={"features"})
+        except Exception:
+            self.logger.warning(f"Failed to serialize metadata for structure {metadata.id}")
 
         return atoms
 

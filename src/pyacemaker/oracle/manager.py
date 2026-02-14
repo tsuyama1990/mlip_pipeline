@@ -50,6 +50,14 @@ class DFTManager:
         # We refer to 'vacuum' as 'buffer' in our config for clarity
         atoms.center(vacuum=self.config.embedding_buffer)  # type: ignore[no-untyped-call]
         atoms.pbc = True
+
+        # Initialize force mask if not present (default to all core/trusted)
+        # 1.0 = Core (train on this), 0.0 = Buffer (ignore forces)
+        import numpy as np
+
+        if "force_mask" not in atoms.arrays:
+            atoms.new_array("force_mask", np.ones(len(atoms), dtype=float))  # type: ignore[no-untyped-call]
+
         self.logger.debug(
             f"Applied periodic embedding with buffer {self.config.embedding_buffer} A"
         )

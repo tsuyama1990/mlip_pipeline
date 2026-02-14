@@ -1,8 +1,9 @@
-"""Tests for Orchestrator streaming and memory efficiency."""
+"""Tests for Orchestrator logic and streaming."""
 
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -73,28 +74,40 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
     assert isinstance(args, Iterator)
 
 
-def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
-    """Verify validation phase uses slicing (islice) without copying full list."""
+def test_validation_split_and_gating(streaming_config: PYACEMAKERConfig) -> None:
+    """Verify validation split logic and failure gating."""
     orchestrator = Orchestrator(config=streaming_config)
-    # Fill dataset with 100 items
-    orchestrator.dataset = [StructureMetadata() for _ in range(100)]
+    # Fill dataset with 100 items with unique IDs
+    orchestrator.dataset = [StructureMetadata(id=uuid4()) for _ in range(100)]
     orchestrator.current_potential = MagicMock()
 
-    mock_validator = MagicMock()
-    mock_validator.validate.return_value = MagicMock(status="success")
-    orchestrator.validator = mock_validator
+    # Mock components
+    orchestrator.trainer = MagicMock()
+    orchestrator.validator = MagicMock()
 
-    # Instead of wrapping islice incorrectly, we spy on it or trust implementation
-    # But to satisfy the requirement "Remove the mock and test actual streaming",
-    # we just run it and check result size.
-    # Note: islice in itertools is a C function, can't easily spy unless imported as name.
-    # The implementation imports islice from itertools.
-    # We can rely on the fact that if islice is used, we get the subset.
+    # 1. Run Training Phase -> Should create split
+    orchestrator._run_training_phase()
 
-    orchestrator._run_validation_phase()
+    # Check split
+    train_args = orchestrator.trainer.train.call_args[0][0]
+    assert len(train_args) == 90  # 90%
+    assert len(orchestrator._validation_set) == 10  # 10%
 
-    # Should create a list of size 10 (10% of 100) passed to validator
-    assert mock_validator.validate.called
-    call_args = mock_validator.validate.call_args
-    test_set = call_args[0][1]
-    assert len(test_set) == 10
+    # Check that they are disjoint
+    train_ids = {s.id for s in train_args}
+    val_ids = {s.id for s in orchestrator._validation_set}
+    assert train_ids.isdisjoint(val_ids)
+
+    # 2. Run Validation Phase (Success)
+    orchestrator.validator.validate.return_value = MagicMock(status="success")
+    result = orchestrator._run_validation_phase()
+    assert result is True
+
+    # Verify validator received the validation set
+    val_args = orchestrator.validator.validate.call_args[0][1]
+    assert val_args == orchestrator._validation_set
+
+    # 3. Run Validation Phase (Failure)
+    orchestrator.validator.validate.return_value = MagicMock(status="failed")
+    result = orchestrator._run_validation_phase()
+    assert result is False
