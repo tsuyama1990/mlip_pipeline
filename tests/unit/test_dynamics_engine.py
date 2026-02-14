@@ -1,7 +1,7 @@
 """Unit tests for Dynamics Engine."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -91,13 +91,13 @@ def test_md_interface_missing_work_dir(mock_config: MagicMock) -> None:
     """Test MDInterface raises error when work_dir is None."""
     md = MDInterface(mock_config)
     with pytest.raises(ValueError, match="work_dir must be provided"):
-        md.run_md(StructureMetadata(), Potential(path=Path("p"), type=PotentialType.PACE, version="1"))
+        md.run_md(
+            StructureMetadata(), Potential(path=Path("p"), type=PotentialType.PACE, version="1")
+        )
 
 
 @patch("subprocess.run")
-def test_md_interface_run_halt(
-    mock_run: MagicMock, mock_config: MagicMock, tmp_path: Path
-) -> None:
+def test_md_interface_run_halt(mock_run: MagicMock, mock_config: MagicMock, tmp_path: Path) -> None:
     """Test MDInterface run detecting halt."""
     md = MDInterface(mock_config)
 
@@ -137,7 +137,9 @@ def test_lammps_engine_integration(mock_config: MagicMock) -> None:
     assert res.status == "success"
 
     # Test run_production
-    res_prod = engine.run_production(Potential(path=Path("p"), type=PotentialType.PACE, version="1"))
+    res_prod = engine.run_production(
+        Potential(path=Path("p"), type=PotentialType.PACE, version="1")
+    )
     assert res_prod == "mock_production_result"
 
 

@@ -60,9 +60,7 @@ class TestFullCycleIntegration:
             # or just force run_exploration to yield something if we mocked run_exploration.
             # But we are testing integration, so let's mock run_md.
             # However, LAMMPSEngine.run_exploration has a random check.
-            patch(
-                "pyacemaker.modules.dynamics_engine.secrets.SystemRandom"
-            ) as mock_random,
+            patch("pyacemaker.modules.dynamics_engine.secrets.SystemRandom") as mock_random,
         ):
             # Force random check to trigger halt logic in run_exploration loop
             # The loop: if secrets.SystemRandom().random() < float(probability):
@@ -74,9 +72,7 @@ class TestFullCycleIntegration:
             # Setup MDInterface Mock
             s = StructureMetadata(features={"atoms": Atoms("Fe")})
             s.uncertainty_state = UncertaintyState(gamma_max=10.0)
-            mock_run_md.return_value = HaltInfo(
-                halted=True, step=10, max_gamma=10.0, structure=s
-            )
+            mock_run_md.return_value = HaltInfo(halted=True, step=10, max_gamma=10.0, structure=s)
 
             # Setup Trainer Mocks
             mock_potential = MagicMock()

@@ -250,9 +250,17 @@ class Potential(BaseModel):
             msg = f"Path traversal not allowed in potential path: {v}"
             raise ValueError(msg)
 
-        # We can't strictly enforce existence or absolute paths here because this model
-        # might be used for paths that will be created, or relative paths within a project.
-        # But we can resolve it to check if it's safe if it exists.
+        # Use resolve to sanitize and check for potential traversal issues
+        # strict=False allows non-existent paths (since potentials might be created)
+        try:
+            resolved = v.resolve(strict=False)
+            if not resolved.is_absolute():
+                # If relative, resolve against CWD (default behavior of resolve)
+                # Just ensuring it doesn't fail basic checks
+                pass
+        except Exception as e:
+            msg = f"Invalid potential path: {v}. Error: {e}"
+            raise ValueError(msg) from e
 
         return v
 

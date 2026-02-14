@@ -1,6 +1,7 @@
 """Dynamics Engine (MD/kMC) module implementation."""
 
 import secrets
+import subprocess
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -65,9 +66,18 @@ class MDInterface:
         """Write in.lammps file."""
         input_file = work_dir / "in.lammps"
 
-        elements = ["Fe", "Pt"]  # Mock elements default
-        if structure.material_dna and structure.material_dna.composition:
-            elements = list(structure.material_dna.composition.keys())
+        # Get elements from structure features (e.g. atoms object) or metadata
+        elements = []
+        if "atoms" in structure.features:
+            atoms = structure.features["atoms"]
+            if hasattr(atoms, "get_chemical_symbols"):
+                elements = sorted(set(atoms.get_chemical_symbols()))
+        elif structure.material_dna and structure.material_dna.composition:
+            elements = sorted(structure.material_dna.composition.keys())
+
+        if not elements:
+            # Fallback or error? For now log warning and use empty
+            self.logger.warning("No elements found in structure for LAMMPS input generation.")
 
         helper = PotentialHelper()
         cmds = helper.get_lammps_commands(potential.path, self.params.hybrid_baseline, elements)
@@ -85,7 +95,7 @@ class MDInterface:
                 f"timestep {self.params.timestep}",
                 f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1",
                 "compute pace all pace",  # Assuming compute pace is available
-            "variable pace_gamma equal c_pace",
+                "variable pace_gamma equal c_pace",
                 f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue",
                 f"run {self.params.n_steps}",
             ]
@@ -123,16 +133,16 @@ class MDInterface:
         if not self.params.mock:
             try:
                 with log_file.open("w") as f:
-                    subprocess.run(
+                    subprocess.run(  # noqa: S603
                         [self.params.engine, "-in", "in.lammps"],
                         cwd=work_dir,
                         stdout=f,
                         check=False,
                     )
             except FileNotFoundError:
-                self.logger.error(f"LAMMPS executable '{self.params.engine}' not found.")
-            except Exception as e:
-                self.logger.error(f"Failed to run LAMMPS: {e}")
+                self.logger.exception(f"LAMMPS executable '{self.params.engine}' not found.")
+            except Exception:
+                self.logger.exception("Failed to run LAMMPS")
 
         # Simulate check
         halted = False
