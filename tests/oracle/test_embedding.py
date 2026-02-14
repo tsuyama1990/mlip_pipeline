@@ -33,20 +33,24 @@ def test_embedding_non_periodic(dft_config_embedding: DFTConfig) -> None:
     assert all(atoms.pbc)
 
     # Check cell dimensions
-    # Range X: 1.0. Buffer: 2.0 -> Total: 1.0 + 2*2.0 = 5.0
-    # Range Y, Z: 0.0. Buffer: 2.0 -> Total: 0.0 + 2*2.0 = 4.0
+    # Range X: 1.0. Buffer: 2.0 -> Total: 1.0 + 2*buffer = 5.0
+    # Range Y, Z: 0.0. Buffer: 2.0 -> Total: 0.0 + 2*buffer = 4.0
+    buffer = dft_config_embedding.embedding_buffer
+    expected_x = 1.0 + 2 * buffer
+    expected_yz = 0.0 + 2 * buffer
+
     cell = atoms.get_cell()  # type: ignore[no-untyped-call]
-    assert np.isclose(cell[0, 0], 5.0)
-    assert np.isclose(cell[1, 1], 4.0)
-    assert np.isclose(cell[2, 2], 4.0)
+    assert np.isclose(cell[0, 0], expected_x)
+    assert np.isclose(cell[1, 1], expected_yz)
+    assert np.isclose(cell[2, 2], expected_yz)
 
     # Check centering: (0,0,0) -> should be shifted by buffer
     # Center of original: (0.5, 0, 0)
-    # Center of new cell: (2.5, 2.0, 2.0)
-    # Expected Shift: (2.0, 2.0, 2.0)
+    # Center of new cell: (expected_x/2, expected_yz/2, expected_yz/2)
+    # Expected Shift: buffer in all directions
     pos = atoms.get_positions()  # type: ignore[no-untyped-call]
-    assert np.allclose(pos[0], [2.0, 2.0, 2.0])  # Was 0,0,0
-    assert np.allclose(pos[1], [3.0, 2.0, 2.0])  # Was 1,0,0
+    assert np.allclose(pos[0], [buffer, buffer, buffer])  # Was 0,0,0
+    assert np.allclose(pos[1], [1.0 + buffer, buffer, buffer])  # Was 1,0,0
 
 
 def test_embedding_already_periodic(dft_config_embedding: DFTConfig) -> None:

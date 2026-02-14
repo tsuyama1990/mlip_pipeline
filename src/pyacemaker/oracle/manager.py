@@ -23,8 +23,10 @@ class DFTManager:
 
     def _is_recoverable_error(self, error: Exception) -> bool:
         """Check if the error is potentially recoverable via retry (e.g., SCF convergence)."""
-        error_msg = str(error).lower()
-        return any(pattern in error_msg for pattern in self._recoverable_patterns)
+        import re
+        error_msg = str(error)
+        # Use regex search with proper escaping if patterns are literal strings
+        return any(re.search(re.escape(pattern), error_msg, re.IGNORECASE) for pattern in self._recoverable_patterns)
 
     def _apply_periodic_embedding(self, atoms: Atoms) -> None:
         """Apply periodic embedding to non-periodic structures (in-place).
@@ -41,6 +43,7 @@ class DFTManager:
 
         # Apply periodic embedding: center atoms with buffer and enable PBC
         # vacuum parameter adds space on each side of the bounding box
+        # We refer to 'vacuum' as 'buffer' in our config for clarity
         atoms.center(vacuum=self.config.embedding_buffer)  # type: ignore[no-untyped-call]
         atoms.pbc = True
         self.logger.debug(
@@ -74,6 +77,13 @@ class DFTManager:
             msg = "Failed to copy structure (invalid type)"
             self.logger.error(msg)
             raise StructureError(msg)
+
+        # Validate structure content (species)
+        # Whitelist of allowed elements can be in config, but for now we check for emptiness
+        if not calc_structure.get_chemical_symbols():  # type: ignore[no-untyped-call]
+             msg = "Structure contains no atoms"
+             self.logger.error(msg)
+             raise StructureError(msg)
 
         # Apply embedding if needed (modifies structure in-place)
         self._apply_periodic_embedding(calc_structure)

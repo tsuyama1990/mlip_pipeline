@@ -91,25 +91,34 @@ class AdaptiveStructureGenerator(StructureGenerator):
         )
 
     def _determine_policy(self, structure: StructureMetadata) -> dict[str, Any]:
-        """Determine exploration policy based on structure features (Mock logic)."""
-        policy: dict[str, Any] = {"mode": "default", "temperature": 300.0}
+        """Determine exploration policy based on structure features."""
+        # Load rules from configuration parameters, or use defaults
+        rules = self.config.structure_generator.parameters.get("policy_rules", {})
+
+        # Default policy
+        policy: dict[str, Any] = {
+            "mode": rules.get("default_mode", "default"),
+            "temperature": rules.get("default_temp", 300.0)
+        }
 
         # Check Predicted Properties (e.g., Band Gap -> Metal/Insulator logic)
         if structure.predicted_properties:
             bg = structure.predicted_properties.band_gap
-            if bg is not None and bg > 0.0:
+            # If band gap > 0 (insulator), apply defect strategy
+            if bg is not None and bg > rules.get("insulator_band_gap_threshold", 0.0):
                 policy["mode"] = "defect_driven"
-                policy["n_defects"] = 2
+                policy["n_defects"] = rules.get("insulator_defects", 2)
             else:
                 policy["mode"] = "high_mc"
-                policy["mc_ratio"] = 0.5
+                policy["mc_ratio"] = rules.get("metal_mc_ratio", 0.5)
 
         # Check Uncertainty (High uncertainty -> Cautious exploration)
         if structure.uncertainty_state:
             gamma_max = structure.uncertainty_state.gamma_max
-            if gamma_max is not None and gamma_max > 5.0:
+            gamma_thresh = rules.get("high_uncertainty_threshold", 5.0)
+            if gamma_max is not None and gamma_max > gamma_thresh:
                 policy["mode"] = "cautious"
-                policy["temperature"] = 100.0
+                policy["temperature"] = rules.get("cautious_temp", 100.0)
 
         return policy
 

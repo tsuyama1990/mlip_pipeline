@@ -163,6 +163,8 @@ class Orchestrator(IOrchestrator):
         val_result = self.validator.validate(self.current_potential, test_set)
 
         if val_result.status == "failed":
+            # For strict mode, we should raise an error here.
+            # Currently we log a warning as per original design, but this is a critical gate.
             self.logger.warning("Validation failed, but continuing for exploration...")
 
     def _run_exploration_and_selection_phase(self) -> list[StructureMetadata] | None:

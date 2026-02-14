@@ -475,6 +475,18 @@ def _read_config_file(path: Path) -> dict[str, Any]:
         if not isinstance(data, dict):
             msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
             raise ConfigurationError(msg)
+
+        # Security: Validate high-level structure to ensure no unexpected root keys
+        allowed_root_keys = {
+            "version", "project", "logging",
+            "orchestrator", "structure_generator", "oracle",
+            "trainer", "dynamics_engine", "validator"
+        }
+        unknown_keys = set(data.keys()) - allowed_root_keys
+        if unknown_keys:
+             msg = f"Unknown configuration sections: {unknown_keys}"
+             raise ConfigurationError(msg)
+
         return data
 
 
