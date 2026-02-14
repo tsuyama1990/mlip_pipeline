@@ -21,6 +21,12 @@ structure_strategy: "random"
 
 # Trainer
 trainer_potential: "pace"
+trainer_cutoff: 5.0
+trainer_order: 3
+trainer_basis_size: [15, 5]
+trainer_delta_learning: "zbl"
+trainer_max_epochs: 500
+trainer_batch_size: 100
 
 # Dynamics Engine
 engine: "lammps"
@@ -57,3 +63,7 @@ pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrus
 
 # Regex
 version_regex: "^\\d+\\.\\d+\\.\\d+$"
+
+# Physical Bounds
+max_energy_ev: 1000000.0  # 1e6
+max_force_ev_a: 1000.0

@@ -43,6 +43,10 @@ def test_load_config_too_large_stat() -> None:
     # Configure stat size
     mock_stat = MagicMock()
     mock_stat.st_size = CONSTANTS.max_config_size + 1
+    # Mock file ownership check
+    import os
+    mock_stat.st_uid = os.getuid()
+    mock_stat.st_mode = 33188
     mock_path.stat.return_value = mock_stat
 
     # Patch os.access to allow read
@@ -65,10 +69,12 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
 
     # Patch stat size to be small so it passes the initial check
     # But reading it will fail
+    import os
     with patch.object(Path, "stat") as mock_stat:
         mock_stat.return_value.st_size = 100
         # Must also mock st_mode for is_file check if it calls stat
         mock_stat.return_value.st_mode = stat.S_IFREG
+        mock_stat.return_value.st_uid = os.getuid()
 
         # We need to ensure is_file returns True, which might depend on stat
         # Or we can patch is_file on the specific path object? No, Path methods are on class.

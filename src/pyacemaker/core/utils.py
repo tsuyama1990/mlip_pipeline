@@ -1,59 +1,62 @@
-"""Utility functions for pyacemaker."""
+"""Utility functions for PYACEMAKER."""
 
 from collections.abc import Iterator
-from typing import IO, Any
+from uuid import uuid4
 
-from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.domain_models.models import MaterialDNA, StructureMetadata
-
-
-class LimitedStream:
-    """Wrapper around a file object to limit the number of bytes read."""
-
-    def __init__(self, stream: IO[str], limit: int) -> None:
-        """Initialize the limited stream."""
-        self.stream = stream
-        self.limit = limit
-        self.total_read = 0
-
-    def read(self, size: int = -1) -> str:
-        """Read from the stream, tracking total bytes read."""
-        if size < 0:
-            # Read all, but in chunks to enforce limit
-            chunk_size = 4096
-            chunks = []
-            while True:
-                chunk = self.read(chunk_size)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-            # Use join for efficient string concatenation
-            return "".join(chunks)
-
-        chunk = self.stream.read(size)
-        self.total_read += len(chunk)
-        if self.total_read > self.limit:
-            msg = f"Configuration file exceeds limit of {self.limit} bytes"
-            raise ConfigurationError(msg)
-        return chunk
-
-    def __getattr__(self, name: str) -> Any:
-        """Delegate other attributes to the underlying stream."""
-        return getattr(self.stream, name)
+from pyacemaker.domain_models.models import (
+    MaterialDNA,
+    StructureMetadata,
+    StructureStatus,
+)
 
 
-def generate_dummy_structures(count: int, tags: list[str] | None = None) -> Iterator[StructureMetadata]:
-    """Generate a sequence of dummy structures for testing/mocking.
+def validate_structure_integrity(structure: StructureMetadata) -> None:
+    """Validate the integrity of a structure metadata object.
 
-    Returns an iterator to avoid loading all structures into memory at once.
+    Args:
+        structure: The structure metadata to validate.
+
+    Raises:
+        ValueError: If validation fails.
+
     """
-    tags = tags or ["dummy"]
-    # Provide minimal MaterialDNA for testing
-    dna = MaterialDNA(composition={"Fe": 1.0}, crystal_system="cubic")
-    for _ in range(count):
+    # Check for features dictionary keys
+    if not all(isinstance(k, str) for k in structure.features):
+        msg = "Structure features keys must be strings."
+        raise ValueError(msg)
+
+
+def generate_dummy_structures(
+    count: int = 10, tags: list[str] | None = None
+) -> Iterator[StructureMetadata]:
+    """Generate dummy structures for testing (Lazily).
+
+    Args:
+        count: Number of structures to generate.
+        tags: Optional tags to add.
+
+    Yields:
+        Dummy StructureMetadata objects.
+
+    """
+    try:
+        from ase import Atoms
+    except ImportError:
+        Atoms_cls = None
+    else:
+        Atoms_cls = Atoms
+
+    tags_list = tags or ["dummy"]
+
+    for i in range(count):
+        features = {}
+        if Atoms_cls:
+            features["atoms"] = Atoms_cls("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+
         yield StructureMetadata(
-            tags=tags,
-            material_dna=dna,
-            # Features can be used for extra data, but core properties are explicit now
-            features={"mock_feature": "test"},
+            id=uuid4(),
+            tags=[f"{t}_{i}" for t in tags_list],
+            status=StructureStatus.NEW,
+            features=features,
+            material_dna=MaterialDNA(composition={"H": 1.0}),  # Dummy DNA
         )

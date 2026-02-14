@@ -54,13 +54,12 @@ class Orchestrator(IOrchestrator):
 
         # Dependency Injection with fallbacks using factory pattern
         self.structure_generator: StructureGenerator = (
-            structure_generator
-            or _create_default_module(RandomStructureGenerator, config)
+            structure_generator or _create_default_module(RandomStructureGenerator, config)
         )
         self.oracle: Oracle = oracle or _create_default_module(MockOracle, config)
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
-        self.dynamics_engine: DynamicsEngine = (
-            dynamics_engine or _create_default_module(LAMMPSEngine, config)
+        self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(
+            LAMMPSEngine, config
         )
         self.validator: Validator = validator or _create_default_module(MockValidator, config)
 
@@ -161,21 +160,20 @@ class Orchestrator(IOrchestrator):
             high_uncertainty_stream_with_stats, n_candidates_per_seed=n_local
         )
 
-        # For selection (FPS/CUR), we typically need the full pool.
-        # So we materialize the *candidates* (not the full dataset).
-        # Candidates are derived from high_uncertainty seeds * n_local.
-        # This list should fit in memory (e.g. 100 seeds * 10 candidates = 1000 structures).
-        candidates_list = list(candidates_iter)
+        # Pass iterator directly to Trainer to avoid materializing large lists in memory.
+        # The Trainer streams candidates to a temporary file for `pace_activeset`.
+        n_select = self.config.orchestrator.n_active_set_select
+        active_set = self.trainer.select_active_set(candidates_iter, n_select=n_select)
 
-        # Log stats after consumption
+        # Log stats after consumption (candidates_iter is consumed by select_active_set)
         self.logger.info(f"Exploration max gamma: {max_gamma:.2f}")
 
-        n_select = self.config.orchestrator.n_active_set_select
-        active_set = self.trainer.select_active_set(candidates_list, n_select=n_select)
-
-        # Filter candidates by ID
-        active_ids = set(active_set.structure_ids)
-        selected_structures = [c for c in candidates_list if c.id in active_ids]
+        # Retrieve selected structures directly from ActiveSet metadata
+        if active_set.structures:
+            selected_structures = active_set.structures
+        else:
+            self.logger.warning("ActiveSet returned no structure objects. Calculation skipped.")
+            selected_structures = []
 
         # 5. Calculation (Oracle)
         self.logger.info(f"Phase: Calculation ({len(selected_structures)} structures)")

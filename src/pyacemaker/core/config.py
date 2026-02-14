@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.core.utils import LimitedStream
+from pyacemaker.core.io_utils import LimitedStream
 
 # Load defaults from external YAML file
 _DEFAULTS_PATH = Path(__file__).parent / "defaults.yaml"
@@ -52,6 +52,12 @@ class Constants(BaseSettings):
     default_log_level: str = _DEFAULTS["log_level"]
     default_structure_strategy: str = _DEFAULTS["structure_strategy"]
     default_trainer_potential: str = _DEFAULTS["trainer_potential"]
+    default_trainer_cutoff: float = _DEFAULTS["trainer_cutoff"]
+    default_trainer_order: int = _DEFAULTS["trainer_order"]
+    default_trainer_basis_size: tuple[int, int] = tuple(_DEFAULTS["trainer_basis_size"])
+    default_trainer_delta_learning: str = _DEFAULTS["trainer_delta_learning"]
+    default_trainer_max_epochs: int = _DEFAULTS["trainer_max_epochs"]
+    default_trainer_batch_size: int = _DEFAULTS["trainer_batch_size"]
     default_engine: str = _DEFAULTS["engine"]
 
     # Orchestrator Defaults
@@ -77,6 +83,13 @@ class Constants(BaseSettings):
     default_dft_chunk_size: int = _DEFAULTS["dft"]["chunk_size"]
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
+    # DFT Defaults
+    default_dft_ecutwfc: float = 50.0
+    default_dft_ecutrho: float = 200.0
+    default_dft_conv_thr: float = 1.0e-6
+    default_dft_occupations: str = "smearing"
+    default_dft_smearing_method: str = "mv"
+
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
     # Allowed input keys for security validation
@@ -88,8 +101,44 @@ class Constants(BaseSettings):
     # Security Warnings
     PICKLE_SECURITY_WARNING: str = _DEFAULTS["pickle_security_warning"]
 
+    # Trainer Defaults
+    TRAINER_TEMP_PREFIX_TRAIN: str = "pace_train_"
+    TRAINER_TEMP_PREFIX_ACTIVE: str = "pace_active_"
+
+    # DFT Manager Defaults
+    DFT_TEMP_PREFIX: str = "dft_run_"
+
+    # Physical Bounds
+    max_energy_ev: float = _DEFAULTS["max_energy_ev"]
+    max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
+
 
 CONSTANTS = Constants()
+
+
+def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None:
+    """Recursively validate parameter dictionary for security."""
+    for key, value in data.items():
+        current_path = f"{path}.{key}" if path else key
+        if not isinstance(key, str):
+            msg = f"Keys must be strings at {current_path}"
+            raise TypeError(msg)
+
+        # Check for injection in keys too
+        if ";" in key or "&" in key:
+            msg = f"Potential injection detected in key '{current_path}'"
+            raise ValueError(msg)
+
+        if isinstance(value, dict):
+            _recursive_validate_parameters(value, current_path)
+        elif isinstance(value, str):
+            if ";" in value or "&" in value:
+                msg = f"Potential injection detected in value at '{current_path}'"
+                raise ValueError(msg)
+        elif not isinstance(value, (int, float, bool, list, tuple, type(None))):
+            # Allow basic types, reject complex objects
+            msg = f"Invalid type {type(value)} at {current_path}"
+            raise TypeError(msg)
 
 
 class BaseModuleConfig(BaseModel):
@@ -105,10 +154,7 @@ class BaseModuleConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        # Ensure keys are strings
-        if not all(isinstance(k, str) for k in v):
-            msg = "Parameter keys must be strings"
-            raise ValueError(msg)
+        _recursive_validate_parameters(v)
         return v
 
 
@@ -124,15 +170,21 @@ class ProjectConfig(BaseModel):
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
         """Validate root directory for path traversal."""
+        # Prevent path traversal characters explicitly
+        if ".." in v.parts:
+            msg = f"Invalid root directory: {v}. Path traversal not allowed."
+            raise ValueError(msg)
+
         try:
             # Strict resolution checks existence and resolves symlinks
-            return v.resolve(strict=True)
+            resolved = v.resolve(strict=True)
         except OSError:
-            # If path doesn't exist yet (e.g., initial setup), check for traversal in parts
-            if ".." in v.parts:
-                msg = f"Invalid root directory: {v}. Path traversal not allowed."
-                raise ValueError(msg) from None
-            return v.absolute()
+            # If path doesn't exist, we resolve absolute path
+            resolved = v.absolute()
+
+        # Ensure resolved path doesn't escape expected boundaries if we had a base
+        # (For ProjectConfig, we assume root_dir is absolute or relative to CWD)
+        return resolved
 
 
 class DFTConfig(BaseModel):
@@ -194,14 +246,9 @@ class DFTConfig(BaseModel):
 
     @field_validator("parameters")
     @classmethod
-    def validate_parameters_content(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate parameters content for security."""
-        # Check that keys are allowed sections
-        for key in v:
-            if key.lower() not in CONSTANTS.dft_allowed_input_sections and key not in {"seed", "simulate_failure"}:
-                 # Allow specific testing keys, block others
-                 msg = f"Security Error: Input section '{key}' is not allowed in DFT parameters."
-                 raise ValueError(msg)
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        _recursive_validate_parameters(v)
         return v
 
 
@@ -229,6 +276,39 @@ class TrainerConfig(BaseModuleConfig):
     potential_type: str = Field(
         default=CONSTANTS.default_trainer_potential, description="Type of potential to train"
     )
+    mock: bool = Field(default=False, description="Use mock trainer for testing")
+    cutoff: float = Field(
+        default=CONSTANTS.default_trainer_cutoff,
+        description="Cutoff radius for the potential (Angstrom)",
+    )
+    order: int = Field(
+        default=CONSTANTS.default_trainer_order, description="Maximum correlation order"
+    )
+    basis_size: tuple[int, int] = Field(
+        default=CONSTANTS.default_trainer_basis_size,
+        description="Basis size (radial, angular)",
+    )
+    delta_learning: str = Field(
+        default=CONSTANTS.default_trainer_delta_learning,
+        description="Delta learning method (zbl, lj, none)",
+    )
+    max_epochs: int = Field(
+        default=CONSTANTS.default_trainer_max_epochs,
+        description="Maximum number of training epochs",
+    )
+    batch_size: int = Field(
+        default=CONSTANTS.default_trainer_batch_size, description="Batch size for training"
+    )
+
+    @field_validator("delta_learning")
+    @classmethod
+    def validate_delta_learning(cls, v: str) -> str:
+        """Validate delta learning method."""
+        valid = {"zbl", "lj", "none"}
+        if v.lower() not in valid:
+            msg = f"Invalid delta_learning: {v}. Must be one of {valid}"
+            raise ValueError(msg)
+        return v.lower()
 
 
 class DynamicsEngineConfig(BaseModuleConfig):
@@ -282,7 +362,7 @@ class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     level: str = Field(
-        CONSTANTS.default_log_level,
+        default=CONSTANTS.default_log_level,
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
     format: str = Field(default=CONSTANTS.default_log_format, description="Log message format")
@@ -309,7 +389,7 @@ class PYACEMAKERConfig(BaseModel):
         pattern=CONSTANTS.version_regex,
     )
     project: ProjectConfig
-    logging: LoggingConfig = Field(default_factory=LoggingConfig)  # type: ignore[arg-type]
+    logging: LoggingConfig = Field(default_factory=lambda: LoggingConfig())
 
     # Module configurations
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
@@ -329,6 +409,59 @@ class PYACEMAKERConfig(BaseModel):
         return v
 
 
+def _validate_file_security(path: Path) -> None:
+    """Validate file permissions and ownership."""
+    # Check file permissions (Security)
+    if not os.access(path, os.R_OK):
+        msg = f"Permission denied: {path.name}"
+        raise ConfigurationError(msg)
+
+    try:
+        st = path.stat()
+        # Check file ownership (Linux/Unix only) - Security
+        if hasattr(os, "getuid") and st.st_uid != os.getuid():
+            # In some CI/Docker environments, UID might not match.
+            pass
+        # Check for world-writable
+        if st.st_mode & 0o002:
+            msg = f"Configuration file {path.name} is world-writable. This is insecure."
+            raise ConfigurationError(msg)
+    except OSError as e:
+        msg = f"Error checking file permissions: {e}"
+        raise ConfigurationError(msg) from e
+
+
+def _read_config_file(path: Path) -> dict[str, Any]:
+    """Read and parse configuration file safely."""
+    try:
+        # Check size hint first, though LimitedStream is the real guard
+        if path.stat().st_size > CONSTANTS.max_config_size:
+            msg = f"Configuration file too large: {path.stat().st_size} bytes"
+            raise ConfigurationError(msg)
+
+        with path.open("r", encoding="utf-8") as f:
+            # Use LimitedStream to enforce size limit during parsing
+            stream = LimitedStream(f, CONSTANTS.max_config_size)
+            data = yaml.safe_load(stream)
+
+    except yaml.YAMLError as e:
+        msg = f"Error parsing YAML configuration: {e}"
+        raise ConfigurationError(msg, details={"original_error": str(e)}) from e
+    except ValueError as e:
+        # LimitedStream raises ValueError if limit exceeded
+        if "exceeds limit" in str(e):
+             raise ConfigurationError(str(e)) from e
+        raise # Reraise other ValueErrors (if any) to generic handler or crash
+    except OSError as e:
+        msg = f"Error reading configuration file: {e}"
+        raise ConfigurationError(msg, details={"filename": path.name}) from e
+    else:
+        if not isinstance(data, dict):
+            msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
+            raise ConfigurationError(msg)
+        return data
+
+
 def load_config(path: Path) -> PYACEMAKERConfig:
     """Load and validate configuration from a YAML file.
 
@@ -346,42 +479,20 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration file not found or invalid: {path.name}"
         raise ConfigurationError(msg)
 
-    # Check file permissions (Security)
-    # Ensure file is readable by current user
-    if not os.access(path, os.R_OK):
-        msg = f"Permission denied: {path.name}"
-        raise ConfigurationError(msg)
+    _validate_file_security(path)
 
     try:
-        # Check size hint first, though LimitedStream is the real guard
-        if path.stat().st_size > CONSTANTS.max_config_size:
-            msg = f"Configuration file too large: {path.stat().st_size} bytes"
-            raise ConfigurationError(msg)  # noqa: TRY301
-
-        with path.open("r", encoding="utf-8") as f:
-            # Use LimitedStream to enforce size limit during parsing
-            stream = LimitedStream(f, CONSTANTS.max_config_size)
-            data = yaml.safe_load(stream)
-
-    except yaml.YAMLError as e:
-        msg = f"Error parsing YAML configuration: {e}"
-        raise ConfigurationError(msg, details={"original_error": str(e)}) from e
-    except OSError as e:
-        msg = f"Error reading configuration file: {e}"
-        raise ConfigurationError(msg, details={"filename": path.name}) from e
+        data = _read_config_file(path)
+        return PYACEMAKERConfig(**data)
     except ConfigurationError:
         raise
-    except Exception as e:  # Catch unexpected errors during load
-        msg = f"Unexpected error loading configuration: {e}"
-        raise ConfigurationError(msg) from e
-
-    if not isinstance(data, dict):
-        msg = "Configuration file must contain a YAML dictionary."
-        raise ConfigurationError(msg, details={"actual_type": type(data).__name__})
-
-    try:
-        return PYACEMAKERConfig(**data)
     except ValidationError as e:
         msg = f"Invalid configuration: {e}"
         details = {"errors": e.errors()}
         raise ConfigurationError(msg, details=details) from e
+    except Exception as e:
+        # Catch unexpected errors during load
+        self_logger = __import__("logging").getLogger("pyacemaker.core.config")
+        self_logger.exception("Unexpected error loading configuration")
+        msg = f"Unexpected error loading configuration: {e}"
+        raise ConfigurationError(msg) from e

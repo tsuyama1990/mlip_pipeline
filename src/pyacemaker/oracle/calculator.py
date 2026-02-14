@@ -1,8 +1,8 @@
 """Calculator factory for DFT simulations."""
 
-from typing import Any, cast
+from typing import Any
 
-from ase.calculators.calculator import Calculator
+from ase.calculators.calculator import BaseCalculator
 from ase.calculators.espresso import Espresso, EspressoProfile
 
 from pyacemaker.core.config import CONSTANTS, DFTConfig
@@ -18,12 +18,15 @@ def _deep_update(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]
     return base
 
 
-def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
+def create_calculator(
+    config: DFTConfig, attempt: int = 0, directory: str | None = None
+) -> BaseCalculator:
     """Create an ASE calculator based on configuration and attempt number.
 
     Args:
         config: The DFT configuration.
         attempt: The retry attempt number (0-based).
+        directory: Working directory for the calculator.
 
     Returns:
         Configured ASE Calculator.
@@ -47,15 +50,15 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
             "tstress": True,
         },
         "system": {
-            "ecutwfc": 50.0,  # Default cutoff
-            "ecutrho": 200.0,
-            "occupations": "smearing",
-            "smearing": "mv",
+            "ecutwfc": CONSTANTS.default_dft_ecutwfc,
+            "ecutrho": CONSTANTS.default_dft_ecutrho,
+            "occupations": CONSTANTS.default_dft_occupations,
+            "smearing": CONSTANTS.default_dft_smearing_method,
             "degauss": config.smearing,
         },
         "electrons": {
             "mixing_beta": CONSTANTS.default_dft_mixing_beta,
-            "conv_thr": 1.0e-6,
+            "conv_thr": CONSTANTS.default_dft_conv_thr,
         },
     }
 
@@ -84,13 +87,11 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         if "electrons" not in input_data:
             input_data["electrons"] = {}
 
-        current_beta = input_data["electrons"].get(
-            "mixing_beta", CONSTANTS.default_dft_mixing_beta
-        )
+        current_beta = input_data["electrons"].get("mixing_beta", CONSTANTS.default_dft_mixing_beta)
         # Ensure current_beta is a float/number
         if not isinstance(current_beta, (int, float)):
-             # Fallback if user provided weird type
-             current_beta = CONSTANTS.default_dft_mixing_beta
+            # Fallback if user provided weird type
+            current_beta = CONSTANTS.default_dft_mixing_beta
 
         new_beta = max(0.1, current_beta - (0.1 * attempt))
         input_data["electrons"]["mixing_beta"] = new_beta
@@ -109,5 +110,11 @@ def create_calculator(config: DFTConfig, attempt: int = 0) -> Calculator:
         tprnfor=True,
         kspacing=config.kspacing,
         input_data=input_data,
+        directory=directory or ".",
     )
-    return cast(Calculator, calc)
+
+    if not isinstance(calc, BaseCalculator):
+        msg = f"Created object is not an ASE Calculator: {type(calc)}"
+        raise TypeError(msg)
+
+    return calc

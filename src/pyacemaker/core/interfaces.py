@@ -45,9 +45,7 @@ class Oracle(BaseModule):
     """Interface for Oracle (DFT) module."""
 
     @abstractmethod
-    def compute_batch(
-        self, structures: Iterable[StructureMetadata]
-    ) -> Iterator[StructureMetadata]:
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy, forces, and stress for a batch of structures.
 
         Streaming interface: Takes an iterable and yields processed structures.
@@ -60,14 +58,18 @@ class Trainer(BaseModule):
 
     @abstractmethod
     def train(
-        self, dataset: list[StructureMetadata], initial_potential: Potential | None = None
+        self,
+        dataset: Iterable[StructureMetadata],
+        initial_potential: Potential | None = None,
     ) -> Potential:
-        """Train a potential using the provided dataset."""
+        """Train a potential using the provided dataset (Streaming)."""
         ...
 
     @abstractmethod
-    def select_active_set(self, candidates: list[StructureMetadata], n_select: int) -> ActiveSet:
-        """Select the most informative structures from candidates."""
+    def select_active_set(
+        self, candidates: Iterable[StructureMetadata], n_select: int
+    ) -> ActiveSet:
+        """Select the most informative structures from candidates (Streaming)."""
         ...
 
 

@@ -64,9 +64,7 @@ class RandomStructureGenerator(StructureGenerator):
         # Use generator to yield candidates one by one or in small batches
         # We process seeds one by one to keep memory low
         for _ in seed_structures:
-            yield from generate_dummy_structures(
-                n_candidates_per_seed, tags=["candidate", "batch"]
-            )
+            yield from generate_dummy_structures(n_candidates_per_seed, tags=["candidate", "batch"])
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""

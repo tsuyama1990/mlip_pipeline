@@ -1,12 +1,15 @@
 """Domain models for PYACEMAKER."""
 
+import math
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from pyacemaker.core.config import CONSTANTS
 
 
 def utc_now() -> datetime:
@@ -54,7 +57,9 @@ class UncertaintyState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     gamma_mean: float | None = Field(default=None, description="Mean extrapolation grade")
-    gamma_variance: float | None = Field(default=None, description="Variance of extrapolation grade")
+    gamma_variance: float | None = Field(
+        default=None, description="Variance of extrapolation grade"
+    )
     gamma_max: float | None = Field(default=None, description="Maximum extrapolation grade")
 
 
@@ -66,9 +71,7 @@ class StructureMetadata(BaseModel):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the structure")
 
     # Core features
-    material_dna: MaterialDNA | None = Field(
-        default=None, description="Material DNA features"
-    )
+    material_dna: MaterialDNA | None = Field(default=None, description="Material DNA features")
     predicted_properties: PredictedProperties | None = Field(
         default=None, description="Predicted physical properties"
     )
@@ -87,7 +90,8 @@ class StructureMetadata(BaseModel):
 
     # Legacy/Flexible storage (e.g., for ASE Atoms object which is not Pydantic-serializable)
     features: dict[str, Any] = Field(
-        default_factory=dict, description="Additional extracted features or raw objects (e.g. atoms)"
+        default_factory=dict,
+        description="Additional extracted features or raw objects (e.g. atoms)",
     )
 
     tags: list[str] = Field(
@@ -98,6 +102,76 @@ class StructureMetadata(BaseModel):
     )
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=utc_now, description="Last update timestamp")
+
+    @field_validator("energy")
+    @classmethod
+    def validate_energy(cls, v: float | None) -> float | None:
+        """Validate energy is finite and within physical bounds."""
+        if v is not None:
+            if not math.isfinite(v):
+                msg = "Energy must be a finite number"
+                raise ValueError(msg)
+            # Rough bound check (e.g. per atom energy shouldn't be insanely low/high)
+            # Assuming total energy, this is harder, but let's prevent abs(E) > 1e6 eV which implies singularity
+            if abs(v) > CONSTANTS.max_energy_ev:
+                msg = (
+                    f"Energy value {v} is physically implausible (> {CONSTANTS.max_energy_ev} eV)"
+                )
+                raise ValueError(msg)
+        return v
+
+    @field_validator("forces", "stress")
+    @classmethod
+    def validate_tensor_values(
+        cls, v: list[list[float]] | list[float] | None
+    ) -> list[list[float]] | list[float] | None:
+        """Validate tensor values are finite and within physical bounds."""
+        if v is None:
+            return v
+
+        # Flatten logic to handle both nested lists (forces) and flat lists (stress)
+        flattened: list[float] = []
+        if isinstance(v, list):
+            for item in v:
+                if isinstance(item, list):
+                    flattened.extend(item)
+                else:
+                    flattened.append(item)
+
+        if not all(math.isfinite(x) for x in flattened):
+            msg = "Forces and stress must contain finite numbers"
+            raise ValueError(msg)
+
+        # Physical plausibility check (e.g. Force < 1000 eV/A implies core overlap)
+        if any(abs(x) > CONSTANTS.max_force_ev_a for x in flattened):
+            msg = f"Forces/Stress values contain physically implausible magnitudes (> {CONSTANTS.max_force_ev_a})"
+            raise ValueError(msg)
+
+        return v
+
+    @field_validator("features")
+    @classmethod
+    def validate_features(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate features dictionary."""
+        if not all(isinstance(k, str) for k in v):
+            msg = "Feature keys must be strings"
+            raise ValueError(msg)
+
+        # Validate values (whitelist approach)
+        # Allow basic types, numpy arrays (as lists), and ASE Atoms (opaque check)
+        # We can't easily check for ASE Atoms without importing ASE, which might be optional dependency.
+        # But we can check for general serializable types or explicit allowed objects.
+        # For now, let's just ensure no obviously dangerous types if possible, or just basic types.
+        # Given "Arbitrary objects" warning, strict typing is hard for 'features'.
+        # We rely on "extra='forbid'" in the model config for the model itself,
+        # but features is dict[str, Any].
+        # We can enforce that values are not callables or modules.
+        for key, value in v.items():
+            if callable(value):
+                msg = f"Feature '{key}' cannot be a callable"
+                raise TypeError(msg)
+            # Add more checks as needed.
+        return v
 
     @model_validator(mode="after")
     def validate_calculated_fields(self) -> "StructureMetadata":
@@ -137,6 +211,15 @@ class Potential(BaseModel):
     )
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
 
+    @field_validator("path")
+    @classmethod
+    def validate_path_format(cls, v: Path) -> Path:
+        """Validate path format."""
+        if str(v).strip() == "":
+            msg = "Path cannot be empty"
+            raise ValueError(msg)
+        return v
+
 
 class TaskType(str, Enum):
     """Type of computational task."""
@@ -171,6 +254,14 @@ class Task(BaseModel):
     started_at: datetime | None = Field(default=None, description="Start timestamp")
     completed_at: datetime | None = Field(default=None, description="Completion timestamp")
 
+    @model_validator(mode="after")
+    def validate_timestamps(self) -> "Task":
+        """Validate temporal consistency."""
+        if self.started_at and self.completed_at and self.completed_at < self.started_at:
+            msg = "Completion time cannot be before start time"
+            raise ValueError(msg)
+        return self
+
 
 class CycleStatus(str, Enum):
     """Status of the active learning cycle."""
@@ -190,6 +281,10 @@ class ActiveSet(BaseModel):
 
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the active set")
     structure_ids: list[UUID] = Field(..., description="List of structure IDs in this set")
+    # Optional field to carry the actual objects in memory if needed by the Orchestrator
+    structures: list["StructureMetadata"] | None = Field(
+        default=None, description="Selected structure objects"
+    )
     selection_criteria: str = Field(
         ..., description="Description of selection criteria (e.g., 'max_uncertainty')"
     )

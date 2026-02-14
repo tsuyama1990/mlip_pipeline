@@ -67,11 +67,7 @@ def test_structure_metadata_validation() -> None:
         StructureMetadata(status=StructureStatus.CALCULATED)
 
     # Should succeed if CALCULATED and has fields
-    s = StructureMetadata(
-        status=StructureStatus.CALCULATED,
-        energy=-10.0,
-        forces=[[0.0, 0.0, 0.0]]
-    )
+    s = StructureMetadata(status=StructureStatus.CALCULATED, energy=-10.0, forces=[[0.0, 0.0, 0.0]])
     assert s.status == StructureStatus.CALCULATED
 
 
