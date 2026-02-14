@@ -77,8 +77,8 @@ def test_dft_oracle_compute_batch_flow(config: PYACEMAKERConfig) -> None:
 
     structures = [s1, s2, s3]
     result_atoms = Atoms("H")  # Placeholder result
-    result_atoms.get_potential_energy = MagicMock(return_value=-10.0)  # type: ignore[assignment]
-    result_atoms.get_forces = MagicMock(return_value=np.array([[0.0, 0.0, 0.0]]))  # type: ignore[assignment]
+    result_atoms.get_potential_energy = MagicMock(return_value=-10.0)  # type: ignore[method-assign]
+    result_atoms.get_forces = MagicMock(return_value=np.array([[0.0, 0.0, 0.0]]))  # type: ignore[method-assign]
 
     # Mock DFTManager to return iterator
     # Mock _update_structure_common to verify it is called

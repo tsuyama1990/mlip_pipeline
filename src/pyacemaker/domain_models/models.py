@@ -104,9 +104,11 @@ class StructureMetadata(BaseModel):
         """Ensure energy and forces are present if status is CALCULATED."""
         if self.status == StructureStatus.CALCULATED:
             if self.energy is None:
-                raise ValueError("Energy must be present when status is CALCULATED")
+                msg = "Energy must be present when status is CALCULATED"
+                raise ValueError(msg)
             if self.forces is None:
-                raise ValueError("Forces must be present when status is CALCULATED")
+                msg = "Forces must be present when status is CALCULATED"
+                raise ValueError(msg)
         return self
 
 
