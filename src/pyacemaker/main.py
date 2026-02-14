@@ -35,6 +35,7 @@ def run(
     try:
         config = load_config(config_path)
         # Re-configure logging with file settings if needed, but CLI verbose overrides
+        # We only re-configure if not in verbose mode to respect CLI flag as primary debug control
         if not verbose:
             setup_logging(config.logging)
         typer.echo(f"Configuration loaded successfully. Project: {config.project.name}")
@@ -43,5 +44,7 @@ def run(
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from e
     except Exception as e:
+        # Catch-all for unexpected errors to ensure they are logged and CLI exits with error code
+        logger.exception("An unexpected error occurred")
         typer.secho(f"Unexpected error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from e

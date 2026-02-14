@@ -46,6 +46,8 @@ class Constants(BaseSettings):
 
     default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
     max_config_size: int = 1 * 1024 * 1024  # 1 MB limit for safety
+    default_version: str = "0.1.0"
+    default_log_level: str = "INFO"
 
 
 CONSTANTS = Constants()
@@ -56,7 +58,10 @@ class LoggingConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+    level: str = Field(
+        CONSTANTS.default_log_level,
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
     format: str = Field(default=CONSTANTS.default_log_format, description="Log message format")
 
     @field_validator("level")
@@ -76,7 +81,9 @@ class PYACEMAKERConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: str = Field(
-        "0.1.0", description="Configuration schema version", pattern=r"^\d+\.\d+\.\d+$"
+        CONSTANTS.default_version,
+        description="Configuration schema version",
+        pattern=r"^\d+\.\d+\.\d+$",
     )
     project: ProjectConfig
     dft: DFTConfig
@@ -97,7 +104,11 @@ def load_config(path: Path) -> PYACEMAKERConfig:
 
     """
     if not path.exists():
-        msg = f"Configuration file not found: {path}"
+        msg = f"Configuration file not found: {path.name}"
+        raise ConfigurationError(msg)
+
+    if not path.is_file():
+        msg = f"Configuration path is not a file: {path.name}"
         raise ConfigurationError(msg)
 
     if path.stat().st_size > CONSTANTS.max_config_size:
@@ -114,7 +125,9 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
-        raise ConfigurationError(msg, details={"filename": str(path)}) from e
+        # Avoid exposing full path in details if possible, or assume logs are secure.
+        # Audit requested sanitization.
+        raise ConfigurationError(msg, details={"filename": path.name}) from e
 
     if not isinstance(data, dict):
         msg = "Configuration file must contain a YAML dictionary."

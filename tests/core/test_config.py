@@ -138,9 +138,11 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     def mock_stat(self: Path, *, follow_symlinks: bool = True) -> Any:
         # If it's our file, return large size
         if self == config_file:
+            real_stat = original_stat(self, follow_symlinks=follow_symlinks)
 
             class MockStat:
                 st_size = 20 * 1024 * 1024  # 20 MB
+                st_mode = real_stat.st_mode
 
             return MockStat()
         return original_stat(self, follow_symlinks=follow_symlinks)
@@ -167,3 +169,27 @@ def test_load_config_whitespace_file(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigurationError, match="must contain a YAML dictionary"):
         load_config(config_file)
+
+
+def test_load_config_permission_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test handling of PermissionError during file read."""
+    config_file = tmp_path / "protected.yaml"
+    config_file.touch()
+
+    def mock_open(*args: Any, **kwargs: Any) -> Any:
+        msg = "Permission denied"
+        raise PermissionError(msg)
+
+    monkeypatch.setattr("pathlib.Path.open", mock_open)
+
+    with pytest.raises(ConfigurationError, match="Error reading configuration file"):
+        load_config(config_file)
+
+
+def test_load_config_is_directory(tmp_path: Path) -> None:
+    """Test loading a path that is a directory, not a file."""
+    config_dir = tmp_path / "config_dir"
+    config_dir.mkdir()
+
+    with pytest.raises(ConfigurationError, match="Configuration path is not a file"):
+        load_config(config_dir)
