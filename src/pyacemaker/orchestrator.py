@@ -40,6 +40,39 @@ def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T
     return module_class(config)
 
 
+class DatasetSplitter:
+    """Helper to split dataset into training stream and validation list."""
+
+    def __init__(
+        self,
+        dataset_path,
+        dataset_manager,
+        validation_split: float,
+        max_validation_size: int,
+    ) -> None:
+        self.dataset_path = dataset_path
+        self.dataset_manager = dataset_manager
+        self.validation_split = validation_split
+        self.max_validation_size = max_validation_size
+        self.validation_set: list[StructureMetadata] = []
+        self._rng = secrets.SystemRandom()
+
+    def train_stream(self) -> Iterator[StructureMetadata]:
+        """Yield training items and populate validation set as side effect."""
+        if not self.dataset_path.exists():
+            return
+
+        for atoms in self.dataset_manager.load_iter(self.dataset_path):
+            is_full = len(self.validation_set) >= self.max_validation_size
+            # Use pre-instantiated RNG for efficiency
+            should_validate = (not is_full) and (self._rng.random() < self.validation_split)
+
+            if should_validate:
+                self.validation_set.append(atoms_to_metadata(atoms))
+            else:
+                yield atoms_to_metadata(atoms)
+
+
 class Orchestrator(IOrchestrator):
     """Main Orchestrator for the active learning cycle."""
 
@@ -115,7 +148,7 @@ class Orchestrator(IOrchestrator):
             if result.status == CycleStatus.FAILED:
                 self.logger.error(f"Cycle failed! Reason: {result.error}")
                 return ModuleResult(
-                    status="failed",
+                    status=CycleStatus.FAILED,
                     metrics=Metrics.model_validate({"cycles": self.cycle_count}),
                 )
 
@@ -178,41 +211,19 @@ class Orchestrator(IOrchestrator):
         """Execute training phase with file-based streaming."""
         self.logger.info("Phase: Training")
 
-        # Get stream and list reference (list populated during iteration of stream)
-        stream, val_list = self._split_dataset_streams()
+        # Use DatasetSplitter to handle stateful splitting
+        splitter = DatasetSplitter(
+            self.dataset_path,
+            self.dataset_manager,
+            self.config.orchestrator.validation_split,
+            self.config.orchestrator.max_validation_size,
+        )
 
-        # Training consumes the stream, side-effect populates val_list
-        potential = self.trainer.train(stream, self.current_potential)
+        # Training consumes the stream, which populates validation_set inside splitter
+        potential = self.trainer.train(splitter.train_stream(), self.current_potential)
 
         self.current_potential = potential
-        self._validation_set = val_list
-
-    def _split_dataset_streams(self) -> tuple[Iterator[StructureMetadata], list[StructureMetadata]]:
-        """Split dataset into training stream and validation list (Probabilistic)."""
-        split_ratio = self.config.orchestrator.validation_split
-        max_val = self.config.orchestrator.max_validation_size
-        val_list: list[StructureMetadata] = []
-
-        def train_stream() -> Iterator[StructureMetadata]:
-            if not self.dataset_path.exists():
-                return
-
-            # Use DatasetManager to load items
-            for atoms in self.dataset_manager.load_iter(self.dataset_path):
-                # Probabilistic split: if random < split_ratio AND we are under cap
-                # If split_ratio is 1.0, we want everything in validation, UP TO max_val.
-                # But train_stream must yield training data. If everything goes to val, train is empty?
-                # That would break training.
-                # Assuming standard split logic:
-                is_full = len(val_list) >= max_val
-                should_validate = (not is_full) and (secrets.SystemRandom().random() < split_ratio)
-
-                if should_validate:
-                    val_list.append(atoms_to_metadata(atoms))
-                else:
-                    yield atoms_to_metadata(atoms)
-
-        return train_stream(), val_list
+        self._validation_set = splitter.validation_set
 
     def _run_validation_phase(self) -> bool:
         """Execute validation phase.

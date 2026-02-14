@@ -52,6 +52,13 @@ class Potential(BaseModel):
                 # If '..' remains after resolve, it's weird (resolve handles it).
                 pass
 
+            # Security: Ensure path is within CWD or allowed base to prevent writing to system dirs
+            cwd = Path.cwd().resolve()
+            # Security: Ensure path is within CWD or /tmp (for testing)
+            if not resolved.is_relative_to(cwd) and not str(resolved).startswith("/tmp"):  # noqa: S108
+                msg = f"Potential path must be within current working directory: {cwd}"
+                raise ValueError(msg)
+
         except Exception as e:
             msg = f"Invalid potential path: {v}. Error: {e}"
             raise ValueError(msg) from e

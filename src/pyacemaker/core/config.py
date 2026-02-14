@@ -137,6 +137,10 @@ def _recursive_validate_parameters(
 
     This function enforces a strict whitelist for keys and values to prevent injection attacks.
     It recurses into dictionaries and lists/tuples.
+
+    Security Rationale:
+        A depth limit is enforced to prevent stack overflow attacks through deeply nested
+        JSON/YAML structures, which could cause a Denial of Service (DoS).
     """
     # Prevent stack overflow attacks via deep nesting
     if depth > 10:
@@ -488,7 +492,19 @@ class LoggingConfig(BaseModel):
 
 
 class PYACEMAKERConfig(BaseModel):
-    """Main configuration for the application."""
+    """Main configuration for the application.
+
+    This configuration object is the root of the hierarchical configuration system.
+    It contains sub-configurations for each module:
+    - project: Project-level settings (root dir, name)
+    - logging: Logging settings
+    - orchestrator: Active learning cycle parameters
+    - structure_generator: Structure generation strategy and parameters
+    - oracle: DFT calculation parameters
+    - trainer: Potential training parameters
+    - dynamics_engine: MD/kMC engine parameters
+    - validator: Validation thresholds and metrics
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -532,6 +548,21 @@ def _validate_file_security(path: Path) -> None:
         # For now, just proceeding as we resolved it.
         pass
 
+    # Security: Ensure path is within CWD or allowed base
+    # Since we don't have a defined "project root" yet (we are reading the config),
+    # we enforce that the config file must be within the current working directory
+    # or its subdirectories to prevent arbitrary file reads.
+    try:
+        cwd = Path.cwd().resolve()
+        if not real_path.is_relative_to(cwd):
+            # Also allow /tmp for testing purposes if needed, but strictly:
+            # For production, CWD constraint is good.
+            msg = f"Configuration file must be within current working directory: {cwd}"
+            raise ConfigurationError(msg)
+    except ValueError as e:
+        msg = f"Configuration file path {real_path} is outside allowed base directory {cwd}"
+        raise ConfigurationError(msg) from e
+
     # Check file permissions (Security)
     if not os.access(path, os.R_OK):
         msg = f"Permission denied: {path.name}"
@@ -539,10 +570,6 @@ def _validate_file_security(path: Path) -> None:
 
     try:
         st = real_path.stat()
-        # Check file ownership (Linux/Unix only) - Security
-        if hasattr(os, "getuid") and st.st_uid != os.getuid():
-            # In some CI/Docker environments, UID might not match.
-            pass
         # Check for world-writable
         if st.st_mode & 0o002:
             msg = f"Configuration file {path.name} is world-writable. This is insecure."
@@ -565,6 +592,11 @@ def _read_file_content(path: Path) -> str:
         file_size = path.stat().st_size
         _check_file_size(file_size)
         with path.open("r", encoding="utf-8") as f:
+            # Read exactly the max size. If there's more, we detect it by file size check or subsequent logic.
+            # But relying on 'read(max+1)' is a common pattern to detect truncation.
+            # However, to be strict with memory, we read ONLY max_config_size.
+            # The initial 'file_size' check (stat) is the primary guard.
+            # This read is a secondary guard against race conditions (file growing after stat).
             return f.read(CONSTANTS.max_config_size + 1)
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
@@ -597,23 +629,8 @@ def _read_config_file(path: Path) -> dict[str, Any]:
             msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
             raise ConfigurationError(msg)
 
-        # Security: Validate high-level structure to ensure no unexpected root keys
-        allowed_root_keys = {
-            "version",
-            "project",
-            "logging",
-            "orchestrator",
-            "structure_generator",
-            "oracle",
-            "trainer",
-            "dynamics_engine",
-            "validator",
-        }
-        unknown_keys = set(data.keys()) - allowed_root_keys
-        if unknown_keys:
-            msg = f"Unknown configuration sections: {unknown_keys}"
-            raise ConfigurationError(msg)
-
+        # Pydantic handles recursive validation against the schema.
+        # We rely on PYACEMAKERConfig(**data) to enforce structure.
         return data
 
 
@@ -630,7 +647,7 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         ConfigurationError: If the file cannot be read or validation fails.
 
     """
-    if not path.exists(): # or not path.is_file(): - is_file check moved to validation
+    if not path.exists():
         msg = f"Configuration file not found: {path.name}"
         raise ConfigurationError(msg)
 

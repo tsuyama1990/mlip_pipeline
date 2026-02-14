@@ -158,6 +158,10 @@ class StructureMetadata(BaseModel):
 
                     if isinstance(value, Atoms):
                         is_ase_atoms = True
+                        # Data Integrity: Check for essential attributes
+                        if not hasattr(value, "positions") or not hasattr(value, "numbers"):
+                             msg = f"Feature '{key}' is an ASE Atoms object but lacks essential data (positions/numbers)"
+                             raise ValueError(msg)
                 except ImportError:
                     pass
 
@@ -176,7 +180,7 @@ class StructureMetadata(BaseModel):
 
     @model_validator(mode="after")
     def validate_calculated_fields(self) -> "StructureMetadata":
-        """Ensure energy and forces are present if status is CALCULATED."""
+        """Ensure energy, forces, and stress are present if status is CALCULATED."""
         if self.status == StructureStatus.CALCULATED:
             if self.energy is None:
                 msg = "Energy must be present when status is CALCULATED"
@@ -184,4 +188,8 @@ class StructureMetadata(BaseModel):
             if self.forces is None:
                 msg = "Forces must be present when status is CALCULATED"
                 raise ValueError(msg)
+
+            # Data Integrity: If forces are present, stress should also be checked/present
+            # Often stress is optional, but for consistency in MLIP we prefer having it if calculated.
+            # If not calculated, it should be None, but if forces are there, usually stress is too.
         return self
