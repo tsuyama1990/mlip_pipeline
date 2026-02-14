@@ -125,8 +125,9 @@ def test_load_config_corrupted_stream(tmp_path: Path) -> None:
     with config_file.open("wb") as f:
         f.write(b"\x80\x81\xff")
 
-    # This should raise UnicodeDecodeError during read, caught as Unexpected error
-    with pytest.raises(ConfigurationError, match="Unexpected error"):
+    # This should raise UnicodeDecodeError which inherits from ValueError
+    # It is caught by the ValueError block in _read_config_file
+    with pytest.raises(ConfigurationError, match="codec can't decode"):
         load_config(config_file)
 
 

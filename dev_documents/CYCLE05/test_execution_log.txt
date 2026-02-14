@@ -38,4 +38,4 @@ tests/unit/test_trainer_config.py ...                                    [ 95%]
 tests/unit/test_trainer_module.py ..                                     [ 97%]
 tests/unit/test_trainer_wrapper.py ....                                  [100%]
 
-============================= 137 passed in 5.82s ==============================
+============================= 137 passed in 5.76s ==============================
