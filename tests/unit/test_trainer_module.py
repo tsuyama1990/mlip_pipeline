@@ -45,11 +45,18 @@ class TestTrainerModule:
         """Test trainer.train method."""
         # Create a valid structure with atoms, energy, and forces
         # Use real Atoms object to pass strict validation and callable checks
+        import numpy as np
         from ase import Atoms
 
         atoms = Atoms("H")
         atoms.info = {}
-        atoms.arrays = {}
+        # Ensure arrays dict has necessary keys to prevent attribute errors if accessed
+        # Although ASE manages this internally, explicit init helps in tests if mocking deeper
+        atoms.arrays = {
+            "numbers": np.array([1]),
+            "positions": np.array([[0., 0., 0.]]),
+            "forces": np.array([[0., 0., 0.]])
+        }
 
         structure = StructureMetadata(
             features={"atoms": atoms}, energy=-10.0, forces=[[0.0, 0.0, 0.0]]
@@ -64,7 +71,9 @@ class TestTrainerModule:
             for _ in data:
                 pass
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch()
+            # Touch isn't enough for st_size check if we want > 0
+            with path.open("wb") as f:
+                f.write(b"dummy")
 
         trainer.mock_dataset_manager.save_iter.side_effect = consume_iterator  # type: ignore[attr-defined]
 

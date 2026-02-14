@@ -66,9 +66,9 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
     # Verify dataset file was written
     assert orchestrator.dataset_path.exists()
-    # Verify size (lazy check via loading)
-    loaded = list(orchestrator.dataset_manager.load_iter(orchestrator.dataset_path))
-    assert len(loaded) == 5
+    # Verify size (lazy check via loading, without materializing list)
+    count = sum(1 for _ in orchestrator.dataset_manager.load_iter(orchestrator.dataset_path))
+    assert count == 5
 
     # Verify generator was called
     mock_gen.generate_initial_structures.assert_called_once()

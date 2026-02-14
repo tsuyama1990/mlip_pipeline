@@ -35,6 +35,7 @@ def test_force_mask_initialization(config: DFTConfig) -> None:
         result = manager.compute(atoms)
 
         assert "force_mask" in result.arrays
+        # Core atoms should be 1.0
         assert np.all(result.arrays["force_mask"] == 1.0)
         assert result.pbc.all()
 

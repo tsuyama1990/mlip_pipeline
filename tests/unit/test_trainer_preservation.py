@@ -53,13 +53,9 @@ class TestTrainerMetadataPreservation:
         # 1. Convert to Atoms
         atoms_converted = metadata_to_atoms(original)
 
-        # Verify JSON injection
-        assert "_metadata_json" in atoms_converted.info
-
-        # 2. Simulate reconstruction
-        json_str = atoms_converted.info["_metadata_json"]
-        reconstructed = StructureMetadata.model_validate_json(json_str)
-        reconstructed.features["atoms"] = atoms_converted  # re-attach atoms
+        # 2. Simulate reconstruction using public API
+        from pyacemaker.core.utils import atoms_to_metadata
+        reconstructed = atoms_to_metadata(atoms_converted)
 
         # Verify fidelity
         assert reconstructed.id == original.id

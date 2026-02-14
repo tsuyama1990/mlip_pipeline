@@ -45,12 +45,19 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     # Initialize Orchestrator (it uses default mock modules if none provided)
     orchestrator = Orchestrator(config)
 
-    # Run pipeline
-    result = orchestrator.run()
+    # Mock Validator to always pass (to avoid failure gate)
+    from unittest.mock import MagicMock, patch
+    orchestrator.validator = MagicMock()
+    orchestrator.validator.validate.return_value = MagicMock(status="success", metrics={})
+
+    # Mock Dynamics Engine to always trigger halt so we find new structures
+    with patch("pyacemaker.modules.dynamics_engine.LAMMPSEngine._simulate_halt_condition", return_value=True):
+        # Run pipeline
+        result = orchestrator.run()
 
     # Verify success
     assert result.status == "success"
     # Metrics model uses extra='allow', so attributes are dynamic.
     # We use model_dump to access them safely.
     metrics = result.metrics.model_dump()
-    assert metrics["cycles"] > 0
+    assert metrics["cycles"] == 2

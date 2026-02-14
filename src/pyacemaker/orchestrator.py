@@ -170,10 +170,9 @@ class Orchestrator(IOrchestrator):
             for atoms in self.dataset_manager.load_iter(self.dataset_path):
                 # Probabilistic split: if random < split_ratio, try to add to validation
                 # We prioritize filling validation set up to max_val
-                is_validation = False
-                if len(val_list) < max_val:
-                    if secrets.SystemRandom().random() < split_ratio:
-                        is_validation = True
+                is_validation = (
+                    len(val_list) < max_val and secrets.SystemRandom().random() < split_ratio
+                )
 
                 if is_validation:
                     val_list.append(atoms_to_metadata(atoms))

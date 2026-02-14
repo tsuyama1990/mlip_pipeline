@@ -36,25 +36,31 @@ def test_train_streaming_behavior(trainer: PacemakerTrainer) -> None:
                 forces=[[0.0, 0.0, 0.0]]
             )
 
-    # Mock dataset_manager.save_iter to verify iterator type and consume it
+    # Mock dataset_manager.save_iter to verify iterator type without full consumption
+    # We rely on the fact that for tests, we can consume it, but in production code we stream.
+    # The requirement is that *PacemakerTrainer* logic doesn't consume it before calling save_iter.
     def side_effect(data: Iterator[StructureMetadata], path: Path, mode: str = "wb") -> None:
         assert isinstance(data, Iterator)
         assert not isinstance(data, list)
-        # Consume to trigger counting
-        list(data)
+        # Consume here to simulate file writing (which consumes iterator)
+        for _ in data:
+            pass
+        # Simulate creating a non-empty file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as f:
+            f.write(b"dummy")
 
-    save_iter_mock = MagicMock(side_effect=side_effect)
-    # We can't assign directly to a method in strict mode, so we use patch or direct attribute assignment on the instance dict if possible
-    # But here trainer.dataset_manager is an instance attribute, so we can replace the method on the instance.
-    trainer.dataset_manager.save_iter = save_iter_mock  # type: ignore[method-assign]
+    # Use patch.object to mock the method properly
+    from unittest.mock import patch
+    with patch.object(trainer.dataset_manager, "save_iter", side_effect=side_effect) as save_iter_mock:
+        # Mock wrapper
+        trainer.wrapper = MagicMock()
 
-    # Mock wrapper
-    trainer.wrapper = MagicMock()
+        trainer.train(data_gen())
 
-    trainer.train(data_gen())
-
-    # Verify consumed
-    assert consumed_count == 10
+        assert save_iter_mock.called
+        # Verify that generator was iterated (consumed_count reflects iteration by save_iter)
+        assert consumed_count == 10
 
 
 def test_select_active_set_streaming(trainer: PacemakerTrainer) -> None:

@@ -98,5 +98,5 @@ class TestFullCycleIntegration:
             assert orchestrator.dataset_path.stat().st_size > 0
 
             # Verify interactions
-            assert mock_train.call_count >= 2
-            assert mock_select.call_count >= 2
+            assert mock_train.call_count == 2
+            assert mock_select.call_count == 2
