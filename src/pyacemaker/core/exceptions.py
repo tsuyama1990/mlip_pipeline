@@ -20,3 +20,11 @@ class ConfigurationError(PYACEMAKERError):
         """Initialize ConfigurationError."""
         super().__init__(message)
         self.details = details or {}
+
+
+class DFTError(PYACEMAKERError):
+    """Raised when a DFT calculation fails."""
+
+
+class StructureError(PYACEMAKERError):
+    """Raised when an atomic structure is invalid."""

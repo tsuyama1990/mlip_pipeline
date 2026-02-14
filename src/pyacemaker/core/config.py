@@ -84,11 +84,11 @@ class Constants(BaseSettings):
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
     # DFT Defaults
-    default_dft_ecutwfc: float = 50.0
-    default_dft_ecutrho: float = 200.0
-    default_dft_conv_thr: float = 1.0e-6
-    default_dft_occupations: str = "smearing"
-    default_dft_smearing_method: str = "mv"
+    default_dft_ecutwfc: float = _DEFAULTS["dft"]["ecutwfc"]
+    default_dft_ecutrho: float = _DEFAULTS["dft"]["ecutrho"]
+    default_dft_conv_thr: float = _DEFAULTS["dft"]["conv_thr"]
+    default_dft_occupations: str = _DEFAULTS["dft"]["occupations"]
+    default_dft_smearing_method: str = _DEFAULTS["dft"]["smearing_method"]
 
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
@@ -112,28 +112,44 @@ class Constants(BaseSettings):
     max_energy_ev: float = _DEFAULTS["max_energy_ev"]
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
 
+    # Security & Limits
+    max_atoms_dft: int = Field(default=1000, description="Max atoms for DFT")
+    dynamics_halt_probability: float = Field(default=0.3, description="Mock halt probability")
+
 
 CONSTANTS = Constants()
 
+# Compiled regex for strict validation: alphanumeric, underscore, hyphen, dot
+_VALID_KEY_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
+# Compiled regex for strict value validation: allow alphanumeric, basic punctuation/paths
+# Allows: a-z, A-Z, 0-9, space, _, -, ., /, :, ,, [, ], {, }, =, +
+_VALID_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9_\-\./:,=\+ \[\]\{\}]+$")
 
-def _recursive_validate_parameters(data: dict[str, Any], path: str = "") -> None:
+
+def _recursive_validate_parameters(data: dict[str, Any], path: str = "", depth: int = 0) -> None:
     """Recursively validate parameter dictionary for security."""
+    # Prevent stack overflow attacks via deep nesting
+    if depth > 10:
+        msg = "Configuration nesting too deep (max 10)"
+        raise ValueError(msg)
+
     for key, value in data.items():
         current_path = f"{path}.{key}" if path else key
         if not isinstance(key, str):
             msg = f"Keys must be strings at {current_path}"
             raise TypeError(msg)
 
-        # Check for injection in keys too
-        if ";" in key or "&" in key:
-            msg = f"Potential injection detected in key '{current_path}'"
+        # Strict whitelist validation for keys
+        if not _VALID_KEY_REGEX.match(key):
+            msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
             raise ValueError(msg)
 
         if isinstance(value, dict):
-            _recursive_validate_parameters(value, current_path)
+            _recursive_validate_parameters(value, current_path, depth + 1)
         elif isinstance(value, str):
-            if ";" in value or "&" in value:
-                msg = f"Potential injection detected in value at '{current_path}'"
+            # Strict whitelist check for values (Security hardening)
+            if not _VALID_VALUE_REGEX.match(value):
+                msg = f"Invalid characters in value at '{current_path}'. Found potentially unsafe characters."
                 raise ValueError(msg)
         elif not isinstance(value, (int, float, bool, list, tuple, type(None))):
             # Allow basic types, reject complex objects
@@ -221,6 +237,12 @@ class DFTConfig(BaseModel):
     max_workers: int = Field(
         default=CONSTANTS.default_dft_max_workers,
         description="Maximum number of parallel workers for DFT calculations",
+    )
+    embedding_enabled: bool = Field(
+        default=True, description="Enable periodic embedding for non-periodic structures"
+    )
+    embedding_buffer: float = Field(
+        default=2.0, description="Buffer size for periodic embedding (Angstrom)"
     )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters (e.g. for mocking)"
@@ -416,8 +438,14 @@ def _validate_file_security(path: Path) -> None:
         msg = f"Permission denied: {path.name}"
         raise ConfigurationError(msg)
 
+    # Resolve symlinks to check actual file
+    real_path = path.resolve()
+    if not real_path.is_file():
+        msg = f"Path is not a regular file: {path.name}"
+        raise ConfigurationError(msg)
+
     try:
-        st = path.stat()
+        st = real_path.stat()
         # Check file ownership (Linux/Unix only) - Security
         if hasattr(os, "getuid") and st.st_uid != os.getuid():
             # In some CI/Docker environments, UID might not match.
@@ -434,9 +462,10 @@ def _validate_file_security(path: Path) -> None:
 def _read_config_file(path: Path) -> dict[str, Any]:
     """Read and parse configuration file safely."""
     try:
-        # Check size hint first, though LimitedStream is the real guard
-        if path.stat().st_size > CONSTANTS.max_config_size:
-            msg = f"Configuration file too large: {path.stat().st_size} bytes"
+        # Check size hint first to prevent reading large files
+        file_size = path.stat().st_size
+        if file_size > CONSTANTS.max_config_size:
+            msg = f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
             raise ConfigurationError(msg)
 
         with path.open("r", encoding="utf-8") as f:
@@ -459,6 +488,18 @@ def _read_config_file(path: Path) -> dict[str, Any]:
         if not isinstance(data, dict):
             msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
             raise ConfigurationError(msg)
+
+        # Security: Validate high-level structure to ensure no unexpected root keys
+        allowed_root_keys = {
+            "version", "project", "logging",
+            "orchestrator", "structure_generator", "oracle",
+            "trainer", "dynamics_engine", "validator"
+        }
+        unknown_keys = set(data.keys()) - allowed_root_keys
+        if unknown_keys:
+             msg = f"Unknown configuration sections: {unknown_keys}"
+             raise ConfigurationError(msg)
+
         return data
 
 
