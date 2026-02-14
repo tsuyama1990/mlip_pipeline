@@ -17,6 +17,16 @@ dependencies = [
     "loguru>=0.7.2",
 ]
 
+[project.scripts]
+pyacemaker = "pyacemaker.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyacemaker"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.1.0",
@@ -93,6 +103,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]  # Allow assert in tests
+"tests/uat/*.py" = ["S603", "S607"]  # Allow subprocess usage in UAT
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10  # Exceeding this prompts function splitting (prevent AI long functions)
