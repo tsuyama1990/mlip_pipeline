@@ -82,13 +82,15 @@ def test_compute_failure_permanent(config: DFTConfig) -> None:
 
 
 def test_compute_batch(config: DFTConfig) -> None:
-    """Test batch computation."""
+    """Test batch computation (generator)."""
     manager = DFTManager(config)
     atoms_list = [Atoms("H"), Atoms("He")]
 
     # Mock get_potential_energy for both atoms
     with patch("ase.Atoms.get_potential_energy", side_effect=[-1.0, -2.0]):
-        results = manager.compute_batch(atoms_list)
+        # Now returns an iterator
+        results_iter = manager.compute_batch(atoms_list)
+        results = list(results_iter)
         assert len(results) == 2
         assert results[0] is not None
         assert results[1] is not None

@@ -4,21 +4,21 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 59 items
+collected 60 items
 
 tests/core/test_base.py .                                                [  1%]
 tests/core/test_config.py ..............                                 [ 25%]
 tests/core/test_config_failures.py ........                              [ 38%]
 tests/core/test_logging.py ....                                          [ 45%]
-tests/integration/test_pipeline.py .                                     [ 47%]
-tests/oracle/test_calculator.py ....                                     [ 54%]
-tests/oracle/test_dataset.py .....                                       [ 62%]
-tests/oracle/test_manager.py .....                                       [ 71%]
-tests/test_main.py ....                                                  [ 77%]
-tests/uat/test_cycle01.py ...                                            [ 83%]
-tests/unit/test_config_full.py ...                                       [ 88%]
-tests/unit/test_domain_models.py .....                                   [ 96%]
-tests/unit/test_oracle_module.py ..                                      [100%]
+tests/integration/test_pipeline.py .                                     [ 46%]
+tests/oracle/test_calculator.py ....                                     [ 53%]
+tests/oracle/test_dataset.py .....                                       [ 61%]
+tests/oracle/test_manager.py .....                                       [ 70%]
+tests/test_main.py ....                                                  [ 76%]
+tests/uat/test_cycle01.py ...                                            [ 81%]
+tests/unit/test_config_full.py ...                                       [ 86%]
+tests/unit/test_domain_models.py .....                                   [ 95%]
+tests/unit/test_oracle_module.py ...                                     [100%]
 
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
@@ -28,7 +28,7 @@ Name                                            Stmts   Miss  Cover   Missing
 src/pyacemaker/__init__.py                          5      2    60%   5-6
 src/pyacemaker/core/__init__.py                     0      0   100%
 src/pyacemaker/core/base.py                        17      0   100%
-src/pyacemaker/core/config.py                     156      9    94%   63-66, 250-251, 297-299
+src/pyacemaker/core/config.py                     157      9    94%   69-72, 256-257, 303-305
 src/pyacemaker/core/exceptions.py                   6      0   100%
 src/pyacemaker/core/interfaces.py                  30      0   100%
 src/pyacemaker/core/logging.py                     10      0   100%
@@ -38,15 +38,15 @@ src/pyacemaker/domain_models/models.py             65      0   100%
 src/pyacemaker/main.py                             39      5    87%   28-30, 41-42
 src/pyacemaker/modules/__init__.py                  6      0   100%
 src/pyacemaker/modules/dynamics_engine.py          15      4    73%   16-17, 28-29
-src/pyacemaker/modules/oracle.py                   63      9    86%   32, 64-65, 87-88, 106-111
+src/pyacemaker/modules/oracle.py                   79     15    81%   36, 68-69, 82-83, 93-96, 112-122, 138-139
 src/pyacemaker/modules/structure_generator.py      30     14    53%   14-17, 31-39, 46, 48-49
 src/pyacemaker/modules/trainer.py                  19      2    89%   21-22
 src/pyacemaker/modules/validator.py                14      3    79%   13-14, 25
 src/pyacemaker/oracle/__init__.py                   4      0   100%
 src/pyacemaker/oracle/calculator.py                26      1    96%   71
-src/pyacemaker/oracle/dataset.py                   46      3    93%   80-81, 88
-src/pyacemaker/oracle/manager.py                   39      0   100%
+src/pyacemaker/oracle/dataset.py                   53      7    87%   91-92, 99, 133-137
+src/pyacemaker/oracle/manager.py                   37      0   100%
 src/pyacemaker/orchestrator.py                     66      7    89%   77-78, 80-81, 110, 118-119
 -----------------------------------------------------------------------------
-TOTAL                                             685     67    90%
-============================= 59 passed in 30.35s ==============================
+TOTAL                                             707     77    89%
+============================= 60 passed in 33.88s ==============================

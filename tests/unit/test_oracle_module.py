@@ -1,6 +1,5 @@
 """Tests for Oracle module."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -23,7 +22,7 @@ def config() -> PYACEMAKERConfig:
     """Return a valid configuration for DFTOracle."""
     return PYACEMAKERConfig(
         version="0.1.0",
-        project=ProjectConfig(name="Test", root_dir=Path()),
+        project=ProjectConfig(name="Test", root_dir="."),
         oracle=OracleConfig(
             dft=DFTConfig(
                 code="qe", pseudopotentials={"Fe": "Fe.pbe.UPF"}, parameters={}
@@ -48,7 +47,7 @@ def test_dft_oracle_compute_batch(config: PYACEMAKERConfig) -> None:
 
     # Mock DFTManager.compute_batch
     # It receives list of atoms. Should receive [atoms1].
-    # Returns [result_atoms].
+    # Returns an iterator of [result_atoms].
     # Use MagicMock for result atoms to avoid method assignment issues
     result_atoms = MagicMock(spec=Atoms)
     result_atoms.get_potential_energy.return_value = -13.6
@@ -56,8 +55,9 @@ def test_dft_oracle_compute_batch(config: PYACEMAKERConfig) -> None:
     result_atoms.get_forces.return_value = np.array([[0.0, 0.0, 0.0]])
     result_atoms.get_stress.return_value = np.array([0.0] * 6)
 
+    # Mock return value as iterator
     with patch(
-        "pyacemaker.oracle.manager.DFTManager.compute_batch", return_value=[result_atoms]
+        "pyacemaker.oracle.manager.DFTManager.compute_batch", return_value=iter([result_atoms])
     ) as mock_compute:
         results = oracle.compute_batch(structures)
 
@@ -73,6 +73,7 @@ def test_dft_oracle_compute_batch(config: PYACEMAKERConfig) -> None:
 
         mock_compute.assert_called_once()
         args = mock_compute.call_args[0][0]
+        # In the new implementation, we pass a list of valid atoms
         assert len(args) == 1
         assert args[0] == atoms1
 
@@ -86,3 +87,20 @@ def test_mock_oracle_simulation_failure(config: PYACEMAKERConfig) -> None:
 
     with pytest.raises(PYACEMAKERError, match="Simulated Oracle failure"):
         oracle.run()
+
+
+def test_mock_oracle_determinism(config: PYACEMAKERConfig) -> None:
+    """Test that MockOracle produces deterministic results with seed."""
+    config.oracle.dft.parameters["seed"] = 123
+    oracle1 = MockOracle(config)
+
+    s1 = StructureMetadata(tags=["test"])
+    res1 = oracle1.compute_batch([s1])[0]
+
+    # Reset oracle with same seed
+    oracle2 = MockOracle(config)
+    s2 = StructureMetadata(tags=["test"])
+    res2 = oracle2.compute_batch([s2])[0]
+
+    assert res1.features["energy"] == res2.features["energy"]
+    assert res1.features["forces"] == res2.features["forces"]
