@@ -53,8 +53,12 @@ class TestFullCycleIntegration:
         # We instantiate Orchestrator with real classes where possible (MockOracle, RandomStructureGenerator)
         # but patch Trainer since it calls subprocess.
 
+    # We also need to patch DynamicsEngine because the default implementation
+    # might not trigger 'halt' events deterministically with `secrets`.
+    # We force `_simulate_halt_condition` to return True so we get candidate structures.
         with patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train, \
-             patch("pyacemaker.modules.trainer.PacemakerTrainer.select_active_set") as mock_select:
+         patch("pyacemaker.modules.trainer.PacemakerTrainer.select_active_set") as mock_select, \
+         patch("pyacemaker.modules.dynamics_engine.LAMMPSEngine._simulate_halt_condition", return_value=True):
 
             # Setup Trainer Mocks
             mock_potential = MagicMock()

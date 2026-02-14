@@ -46,7 +46,12 @@ def test_load_config_too_large_stat() -> None:
     # Mock file ownership check
     import os
     mock_stat.st_uid = os.getuid()
+    # Ensure st_mode is an integer compatible with bitwise operations
+    # Ensure st_mode is an integer compatible with bitwise operations
     mock_stat.st_mode = 33188
+
+    # Mock return value of resolve()
+    mock_path.resolve.return_value = mock_path
     mock_path.stat.return_value = mock_stat
 
     # Patch os.access to allow read

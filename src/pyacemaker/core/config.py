@@ -113,16 +113,17 @@ class Constants(BaseSettings):
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
 
     # Security & Limits
-    max_atoms_dft: int = 1000  # Hard limit for DFT calculations
-    dynamics_halt_probability: float = 0.3  # Default mock probability
+    max_atoms_dft: int = Field(default=1000, description="Max atoms for DFT")
+    dynamics_halt_probability: float = Field(default=0.3, description="Mock halt probability")
 
 
 CONSTANTS = Constants()
 
 # Compiled regex for strict validation: alphanumeric, underscore, hyphen, dot
 _VALID_KEY_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
-# Compiled regex for value validation: prevent shell metacharacters
-_DANGEROUS_CHARS_REGEX = re.compile(r'[;&|`$()<>]')
+# Compiled regex for strict value validation: allow alphanumeric, basic punctuation/paths
+# Allows: a-z, A-Z, 0-9, space, _, -, ., /, :, ,, [, ], {, }, =, +
+_VALID_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9_\-\./:,=\+ \[\]\{\}]+$")
 
 
 def _recursive_validate_parameters(data: dict[str, Any], path: str = "", depth: int = 0) -> None:
@@ -146,9 +147,9 @@ def _recursive_validate_parameters(data: dict[str, Any], path: str = "", depth: 
         if isinstance(value, dict):
             _recursive_validate_parameters(value, current_path, depth + 1)
         elif isinstance(value, str):
-            # Strict blacklist check for values
-            if _DANGEROUS_CHARS_REGEX.search(value):
-                msg = f"Potential injection detected in value at '{current_path}'"
+            # Strict whitelist check for values (Security hardening)
+            if not _VALID_VALUE_REGEX.match(value):
+                msg = f"Invalid characters in value at '{current_path}'. Found potentially unsafe characters."
                 raise ValueError(msg)
         elif not isinstance(value, (int, float, bool, list, tuple, type(None))):
             # Allow basic types, reject complex objects
@@ -437,8 +438,14 @@ def _validate_file_security(path: Path) -> None:
         msg = f"Permission denied: {path.name}"
         raise ConfigurationError(msg)
 
+    # Resolve symlinks to check actual file
+    real_path = path.resolve()
+    if not real_path.is_file():
+        msg = f"Path is not a regular file: {path.name}"
+        raise ConfigurationError(msg)
+
     try:
-        st = path.stat()
+        st = real_path.stat()
         # Check file ownership (Linux/Unix only) - Security
         if hasattr(os, "getuid") and st.st_uid != os.getuid():
             # In some CI/Docker environments, UID might not match.
