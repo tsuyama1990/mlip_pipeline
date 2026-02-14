@@ -22,6 +22,13 @@ class Constants(BaseSettings):
     max_config_size: int = 1 * 1024 * 1024  # 1 MB limit for safety
     default_version: str = "0.1.0"
     default_log_level: str = "INFO"
+    default_structure_strategy: str = "random"
+    default_trainer_potential: str = "pace"
+    default_engine: str = "lammps"
+    default_orchestrator_max_cycles: int = 10
+    default_orchestrator_uncertainty: float = 0.1
+    default_validator_metrics: list[str] = ["rmse_energy", "rmse_forces"]
+    version_regex: str = r"^\d+\.\d+\.\d+$"
 
 
 CONSTANTS = Constants()
@@ -43,7 +50,13 @@ class ProjectConfig(BaseModel):
         if ".." in v.parts:
             msg = f"Invalid root directory: {v}. Path traversal not allowed."
             raise ValueError(msg)
-        return v.resolve()
+
+        try:
+            # Return absolute path
+            return v.resolve()
+        except OSError:
+            # If resolution fails (rare), return original but we've checked for ..
+            return v
 
 
 class DFTConfig(BaseModel):
@@ -55,6 +68,15 @@ class DFTConfig(BaseModel):
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="DFT calculation parameters"
     )
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        # Pydantic handles basic type checking (dict[str, Any]), but we can add extra logic if needed.
+        # If Pydantic already checks keys are strings, this validator runs after that check passes
+        # or if Pydantic converts them.
+        return v
 
 
 class OracleConfig(BaseModel):
@@ -72,11 +94,17 @@ class StructureGeneratorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     strategy: str = Field(
-        default="random", description="Generation strategy (e.g., 'random', 'adaptive')"
+        default=CONSTANTS.default_structure_strategy,
+        description="Generation strategy (e.g., 'random', 'adaptive')"
     )
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Strategy-specific parameters"
     )
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return v
 
 
 class TrainerConfig(BaseModel):
@@ -84,8 +112,16 @@ class TrainerConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    potential_type: str = Field(default="pace", description="Type of potential to train")
+    potential_type: str = Field(
+        default=CONSTANTS.default_trainer_potential,
+        description="Type of potential to train"
+    )
     parameters: dict[str, Any] = Field(default_factory=dict, description="Training parameters")
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return v
 
 
 class DynamicsEngineConfig(BaseModel):
@@ -93,8 +129,16 @@ class DynamicsEngineConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    engine: str = Field(default="lammps", description="MD/kMC engine")
+    engine: str = Field(
+        default=CONSTANTS.default_engine,
+        description="MD/kMC engine"
+    )
     parameters: dict[str, Any] = Field(default_factory=dict, description="Engine parameters")
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return v
 
 
 class ValidatorConfig(BaseModel):
@@ -103,7 +147,7 @@ class ValidatorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     metrics: list[str] = Field(
-        default_factory=lambda: ["rmse_energy", "rmse_forces"],
+        default_factory=lambda: CONSTANTS.default_validator_metrics,
         description="Metrics to validate",
     )
     thresholds: dict[str, float] = Field(
@@ -116,9 +160,13 @@ class OrchestratorConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    max_cycles: int = Field(default=10, description="Maximum number of active learning cycles")
+    max_cycles: int = Field(
+        default=CONSTANTS.default_orchestrator_max_cycles,
+        description="Maximum number of active learning cycles"
+    )
     uncertainty_threshold: float = Field(
-        default=0.1, description="Threshold for uncertainty sampling"
+        default=CONSTANTS.default_orchestrator_uncertainty,
+        description="Threshold for uncertainty sampling"
     )
 
 
@@ -152,7 +200,7 @@ class PYACEMAKERConfig(BaseModel):
     version: str = Field(
         CONSTANTS.default_version,
         description="Configuration schema version",
-        pattern=r"^\d+\.\d+\.\d+$",
+        pattern=CONSTANTS.version_regex,
     )
     project: ProjectConfig
     logging: LoggingConfig = Field(default_factory=LoggingConfig)  # type: ignore[arg-type]
@@ -187,9 +235,14 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Configuration path is not a file: {path.name}"
         raise ConfigurationError(msg)
 
-    if path.stat().st_size > CONSTANTS.max_config_size:
-        msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
-        raise ConfigurationError(msg)
+    # Check file size to prevent DOS (OOM)
+    try:
+        if path.stat().st_size > CONSTANTS.max_config_size:
+            msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
+            raise ConfigurationError(msg)
+    except OSError as e:
+        msg = f"Error checking configuration file size: {e}"
+        raise ConfigurationError(msg, details={"filename": path.name}) from e
 
     # yaml.safe_load is used to prevent arbitrary code execution.
     # The file size check above mitigates OOM risks (DoS).

@@ -22,6 +22,7 @@ def test_project_config_valid() -> None:
     safe_path = Path("test_dir")
     config = ProjectConfig(name="Test", root_dir=safe_path)
     assert config.name == "Test"
+    # Expect absolute path
     assert config.root_dir == safe_path.resolve()
 
 
@@ -49,9 +50,20 @@ def test_dft_config_default() -> None:
     assert config.code == "vasp"
 
 
+def test_dft_config_parameters_validation() -> None:
+    """Test DFTConfig parameters validation."""
+    # Pydantic validation error expected for incorrect key type
+    with pytest.raises(ValidationError) as excinfo:
+        DFTConfig(code="vasp", parameters={1: "invalid"})  # type: ignore[dict-item]
+
+    # Check that error relates to key type
+    assert "Input should be a valid string" in str(excinfo.value)
+
+
 def test_full_config_valid() -> None:
     """Test valid full configuration."""
     data = {
+        "version": "0.1.0",
         "project": {"name": "Test", "root_dir": "test_dir"},
         "oracle": {"dft": {"code": "vasp"}},
     }
@@ -62,9 +74,24 @@ def test_full_config_valid() -> None:
     assert config.logging.level == "INFO"
 
 
+def test_version_validation() -> None:
+    """Test semantic version validation."""
+    data = {
+        "version": "invalid",
+        "project": {"name": "Test", "root_dir": "."},
+        "oracle": {"dft": {"code": "vasp"}},
+    }
+    # Pydantic regex pattern validation error
+    with pytest.raises(ValidationError) as excinfo:
+        PYACEMAKERConfig(**data)  # type: ignore[arg-type]
+
+    assert "String should match pattern" in str(excinfo.value)
+
+
 def test_load_config_valid(tmp_path: Path) -> None:
     """Test loading a valid YAML configuration file."""
     config_data = {
+        "version": "0.1.0",
         "project": {"name": "TestProject", "root_dir": str(tmp_path)},
         "oracle": {"dft": {"code": "quantum_espresso"}},
     }
@@ -122,6 +149,12 @@ def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         raise OSError(msg)
 
     monkeypatch.setattr("pathlib.Path.open", mock_open)
+
+    # Need to bypass size check because we are not mocking stat properly for strict typing environments
+    # but monkeypatching Path.stat is risky as seen before.
+    # Instead, we rely on the fact that the touched file is empty (size 0), so size check passes naturally.
+    # The real issue in previous fail was the mock lambda missing st_mode.
+    # Since we don't mock stat here, it uses real stat which is fine.
 
     with pytest.raises(ConfigurationError, match="Error reading configuration"):
         load_config(config_file)

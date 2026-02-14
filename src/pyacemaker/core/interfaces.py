@@ -1,7 +1,7 @@
 """Core interfaces for PYACEMAKER modules."""
 
 from abc import abstractmethod
-from typing import Any, Protocol
+from typing import Any
 
 from pyacemaker.core.base import BaseModule, ModuleResult
 from pyacemaker.domain_models.models import (
@@ -78,9 +78,10 @@ class Validator(BaseModule):
         ...
 
 
-class IOrchestrator(Protocol):
+class IOrchestrator(BaseModule):
     """Interface for the main Orchestrator."""
 
+    @abstractmethod
     def run_cycle(self) -> CycleStatus:
         """Execute one active learning cycle."""
         ...

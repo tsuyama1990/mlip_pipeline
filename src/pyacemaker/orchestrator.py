@@ -1,7 +1,7 @@
 """Orchestrator module implementation."""
 
 
-from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
+from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -23,7 +23,7 @@ from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import MockValidator
 
 
-class Orchestrator(BaseModule, IOrchestrator):
+class Orchestrator(IOrchestrator):
     """Main Orchestrator for the active learning cycle."""
 
     def __init__(self, config: PYACEMAKERConfig) -> None:
