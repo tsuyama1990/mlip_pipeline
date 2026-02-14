@@ -90,6 +90,8 @@ class MDInterface:
             "read_data data.lammps",  # We assume data file exists
         ]
         content.extend(cmds)
+
+        # Use efficient list extension for string building
         content.extend(
             [
                 f"timestep {self.params.timestep}",
@@ -101,6 +103,7 @@ class MDInterface:
             ]
         )
 
+        # Efficient write using join
         input_file.write_text("\n".join(content))
         return input_file
 

@@ -109,8 +109,8 @@ def test_load_config_too_large_stream(tmp_path: Path) -> None:
         with (
             patch("os.access", return_value=True),
             # Check for both possible error messages depending on where it's caught
-            # But implementation raises "Configuration file exceeds limit" from ValueError
-            pytest.raises(ConfigurationError, match="exceeds limit"),
+            # But implementation raises "Configuration file exceeds size limit"
+            pytest.raises(ConfigurationError, match="exceeds size limit"),
         ):
             load_config(config_file)
 

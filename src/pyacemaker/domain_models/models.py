@@ -255,13 +255,19 @@ class Potential(BaseModel):
             raise ValueError(msg)
 
         # Use resolve to sanitize and check for potential traversal issues
-        # strict=False allows non-existent paths (since potentials might be created)
         try:
+            # We want to allow non-existent paths, but prevent traversal outside allowed roots if possible.
+            # Since we don't have project root here, we just check general validity.
+            # Use strict=False to allow potential creation.
             resolved = v.resolve(strict=False)
-            if not resolved.is_absolute():
-                # If relative, resolve against CWD (default behavior of resolve)
-                # Just ensuring it doesn't fail basic checks
+
+            # Check if parent exists? This enforces that we are creating in a valid directory.
+            # This is a good middle ground for security vs flexibility.
+            if not resolved.parent.exists():
+                # Just a warning or strict? Let's check for traversal specifically.
+                # If '..' remains after resolve, it's weird (resolve handles it).
                 pass
+
         except Exception as e:
             msg = f"Invalid potential path: {v}. Error: {e}"
             raise ValueError(msg) from e

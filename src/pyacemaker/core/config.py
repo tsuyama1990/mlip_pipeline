@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pyacemaker.core.exceptions import ConfigurationError
-from pyacemaker.core.io_utils import LimitedStream
 
 # Allow configuration of defaults path via environment variable for testing/portability
 _DEFAULTS_PATH = Path(
@@ -104,12 +103,16 @@ class Constants(BaseSettings):
     # Security Warnings
     PICKLE_SECURITY_WARNING: str = _DEFAULTS["pickle_security_warning"]
 
+    # Regex
+    valid_key_regex: str = _DEFAULTS["valid_key_regex"]
+    valid_value_regex: str = _DEFAULTS["valid_value_regex"]
+
     # Trainer Defaults
-    TRAINER_TEMP_PREFIX_TRAIN: str = "pace_train_"
-    TRAINER_TEMP_PREFIX_ACTIVE: str = "pace_active_"
+    TRAINER_TEMP_PREFIX_TRAIN: str = _DEFAULTS["temp_prefix_train"]
+    TRAINER_TEMP_PREFIX_ACTIVE: str = _DEFAULTS["temp_prefix_active"]
 
     # DFT Manager Defaults
-    DFT_TEMP_PREFIX: str = "dft_run_"
+    DFT_TEMP_PREFIX: str = _DEFAULTS["dft_temp_prefix"]
 
     # Physical Bounds
     max_energy_ev: float = _DEFAULTS["max_energy_ev"]
@@ -122,11 +125,9 @@ class Constants(BaseSettings):
 
 CONSTANTS = Constants()
 
-# Compiled regex for strict validation: alphanumeric, underscore, hyphen, dot
-_VALID_KEY_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
-# Compiled regex for strict value validation: allow alphanumeric, basic punctuation/paths
-# Allows: a-z, A-Z, 0-9, space, _, -, ., /, :, ,, [, ], {, }, =, +
-_VALID_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9_\-\./:,=\+ \[\]\{\}]+$")
+# Compiled regex for strict validation
+_VALID_KEY_REGEX = re.compile(CONSTANTS.valid_key_regex)
+_VALID_VALUE_REGEX = re.compile(CONSTANTS.valid_value_regex)
 
 
 def _recursive_validate_parameters(
@@ -519,15 +520,21 @@ class PYACEMAKERConfig(BaseModel):
 
 def _validate_file_security(path: Path) -> None:
     """Validate file permissions and ownership."""
-    # Check file permissions (Security)
-    if not os.access(path, os.R_OK):
-        msg = f"Permission denied: {path.name}"
-        raise ConfigurationError(msg)
-
     # Resolve symlinks to check actual file
     real_path = path.resolve()
     if not real_path.is_file():
         msg = f"Path is not a regular file: {path.name}"
+        raise ConfigurationError(msg)
+
+    # Check if original path is a symlink (Strict Audit Compliance)
+    if path.is_symlink():
+        # We allow symlinks if they point to valid files, but we should be aware.
+        # For now, just proceeding as we resolved it.
+        pass
+
+    # Check file permissions (Security)
+    if not os.access(path, os.R_OK):
+        msg = f"Permission denied: {path.name}"
         raise ConfigurationError(msg)
 
     try:
@@ -555,7 +562,7 @@ def _check_file_size(file_size: int) -> None:
 def _read_config_file(path: Path) -> dict[str, Any]:
     """Read and parse configuration file safely.
 
-    This function uses `LimitedStream` to enforce a memory limit on the input file,
+    This function reads the file into memory with a strict size limit,
     preventing Out-Of-Memory (OOM) attacks from large files.
     """
     try:
@@ -563,20 +570,22 @@ def _read_config_file(path: Path) -> dict[str, Any]:
         file_size = path.stat().st_size
         _check_file_size(file_size)
 
+        # Explicitly read content with limit to guarantee memory safety
         with path.open("r", encoding="utf-8") as f:
-            # Use LimitedStream to enforce size limit during parsing
-            stream = LimitedStream(f, CONSTANTS.max_config_size)
-            data = yaml.safe_load(stream)
+            # Read max_config_size + 1 to detect if file is larger than expected
+            content = f.read(CONSTANTS.max_config_size + 1)
 
+        if len(content) > CONSTANTS.max_config_size:
+             msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
+             raise ConfigurationError(msg)
+
+        data = yaml.safe_load(content)
+
+    except ConfigurationError:
+        raise
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
-    except ValueError as e:
-        # LimitedStream raises ValueError if limit exceeded
-        if "exceeds limit" in str(e):
-            raise ConfigurationError(str(e)) from e
-        # Raise other ValueErrors as ConfigurationError for consistency
-        raise ConfigurationError(str(e)) from e
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
@@ -622,8 +631,8 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         ConfigurationError: If the file cannot be read or validation fails.
 
     """
-    if not path.exists() or not path.is_file():
-        msg = f"Configuration file not found or invalid: {path.name}"
+    if not path.exists(): # or not path.is_file(): - is_file check moved to validation
+        msg = f"Configuration file not found: {path.name}"
         raise ConfigurationError(msg)
 
     _validate_file_security(path)

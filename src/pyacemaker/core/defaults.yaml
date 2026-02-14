@@ -72,6 +72,15 @@ pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrus
 
 # Regex
 version_regex: "^\\d+\\.\\d+\\.\\d+$"
+# Strict Validation Regex (Alphanumeric, underscore, hyphen, dot)
+valid_key_regex: '^[a-zA-Z0-9_\-\.]+$'
+# Strict Value Regex (Alphanumeric, path chars, basic punctuation, no shell metachars like ; | &)
+valid_value_regex: '^[a-zA-Z0-9_\-\./:, \(\)\[\]\{\}]+$'
+
+# Temporary File Prefixes
+temp_prefix_train: "pace_train_"
+temp_prefix_active: "pace_active_"
+dft_temp_prefix: "dft_run_"
 
 # Physical Bounds
 max_energy_ev: 1000000.0  # 1e6

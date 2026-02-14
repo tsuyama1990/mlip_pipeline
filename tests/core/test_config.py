@@ -139,7 +139,7 @@ def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.Monke
     # Mock os.access
     monkeypatch.setattr(os, "access", lambda path, mode: True)
 
-    with pytest.raises(ConfigurationError, match="exceeds limit"):
+    with pytest.raises(ConfigurationError, match="exceeds size limit"):
         load_config(config_file)
 
 
