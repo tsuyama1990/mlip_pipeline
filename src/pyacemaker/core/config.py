@@ -116,8 +116,8 @@ class Constants(BaseSettings):
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
 
     # Security & Limits
-    max_atoms_dft: int = Field(default=1000, description="Max atoms for DFT")
-    dynamics_halt_probability: float = Field(default=0.3, description="Mock halt probability")
+    max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]
+    dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
 
 
 CONSTANTS = Constants()

@@ -34,6 +34,9 @@ class DatasetManager:
         a single pickled list object (legacy format), this method will raise
         a TypeError to prevent implicit loading of massive datasets into memory.
 
+        SECURITY NOTE:
+        This uses pickle. Only load datasets from trusted paths.
+
         Args:
             path: Path to the .pckl.gzip file.
 
@@ -48,6 +51,9 @@ class DatasetManager:
         if not path.exists():
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
+
+        # Basic security check: Checksum verification if hash file exists
+        self._verify_checksum(path)
 
         self.logger.warning(CONSTANTS.PICKLE_SECURITY_WARNING)
 
@@ -90,6 +96,27 @@ class DatasetManager:
         )
         self.save_iter(data, path)
 
+    def _calculate_checksum(self, path: Path) -> str:
+        """Calculate SHA256 checksum of a file."""
+        import hashlib
+        sha256 = hashlib.sha256()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+
+    def _verify_checksum(self, path: Path) -> None:
+        """Verify checksum if corresponding .sha256 file exists."""
+        checksum_path = path.with_suffix(path.suffix + ".sha256")
+        if checksum_path.exists():
+            expected = checksum_path.read_text().strip()
+            actual = self._calculate_checksum(path)
+            if actual != expected:
+                msg = f"Checksum mismatch for {path}. Expected {expected}, got {actual}."
+                self.logger.critical(msg)
+                raise ValueError(msg)
+            self.logger.info(f"Checksum verified for {path}")
+
     def save_iter(self, data: Iterator[Atoms] | list[Atoms], path: Path, mode: str = "wb") -> None:
         """Save a dataset by dumping objects sequentially (Stream-friendly).
 
@@ -113,3 +140,11 @@ class DatasetManager:
         with gzip.open(path, mode) as f:
             for atoms in data:
                 pickle.dump(atoms, f)  # type: ignore[arg-type]
+
+        # Calculate and save checksum
+        try:
+            checksum = self._calculate_checksum(path)
+            checksum_path = path.with_suffix(path.suffix + ".sha256")
+            checksum_path.write_text(checksum)
+        except Exception:
+            self.logger.warning(f"Failed to write checksum for {path}")

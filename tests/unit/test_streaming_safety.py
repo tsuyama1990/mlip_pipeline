@@ -37,14 +37,16 @@ def test_train_streaming_behavior(trainer: PacemakerTrainer) -> None:
             )
 
     # Mock dataset_manager.save_iter to verify iterator type and consume it
-    def side_effect(data, path, mode="wb"):
+    def side_effect(data: Iterator[StructureMetadata], path: Path, mode: str = "wb") -> None:
         assert isinstance(data, Iterator)
         assert not isinstance(data, list)
         # Consume to trigger counting
         list(data)
 
     save_iter_mock = MagicMock(side_effect=side_effect)
-    trainer.dataset_manager.save_iter = save_iter_mock
+    # We can't assign directly to a method in strict mode, so we use patch or direct attribute assignment on the instance dict if possible
+    # But here trainer.dataset_manager is an instance attribute, so we can replace the method on the instance.
+    trainer.dataset_manager.save_iter = save_iter_mock  # type: ignore[method-assign]
 
     # Mock wrapper
     trainer.wrapper = MagicMock()

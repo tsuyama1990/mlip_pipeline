@@ -9,6 +9,7 @@ from pyacemaker.core.config import (
     CONSTANTS,
     DFTConfig,
     OracleConfig,
+    OrchestratorConfig,
     ProjectConfig,
     PYACEMAKERConfig,
     StructureGeneratorConfig,
@@ -29,14 +30,13 @@ def integration_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> PYACE
     return PYACEMAKERConfig(
         version="0.1.0",
         project=ProjectConfig(name="IntegrationTest", root_dir=tmp_path),
-        orchestrator={
-            "max_cycles": 2,
-            "n_local_candidates": 2,
-            "n_active_set_select": 2,
-            # Validation split ensures some data goes to validation
-            "validation_split": 0.2,
-            "min_validation_size": 1
-        },
+        orchestrator=OrchestratorConfig(
+            max_cycles=2,
+            n_local_candidates=2,
+            n_active_set_select=2,
+            validation_split=0.2,
+            min_validation_size=1,
+        ),
         oracle=OracleConfig(
             dft=DFTConfig(pseudopotentials={"H": str(pp_path)}),
             mock=True  # Use MockOracle

@@ -11,20 +11,36 @@ from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
 from pyacemaker.generator.policy import AdaptivePolicy, ExplorationContext
 
 
-class RandomStructureGenerator(StructureGenerator):
-    """Generates random structures for testing."""
-
-    def __init__(self, config: PYACEMAKERConfig) -> None:
-        """Initialize."""
-        super().__init__(config)
+class BaseStructureGenerator(StructureGenerator):
+    """Base class for structure generators with shared logic."""
 
     def run(self) -> ModuleResult:
         """Run the main structure generation workflow."""
-        self.logger.info("Running StructureGenerator")
+        self.logger.info(f"Running {self.__class__.__name__}")
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate({"generated_count": 0}),  # Placeholder
+            metrics=Metrics.model_validate({"generated_count": 0}),
         )
+
+    def generate_batch_candidates(
+        self,
+        seed_structures: Iterable[StructureMetadata],
+        n_candidates_per_seed: int,
+        cycle: int = 0,
+    ) -> Iterator[StructureMetadata]:
+        """Generate candidate structures for a batch of seeds."""
+        if n_candidates_per_seed <= 0:
+            msg = "Number of candidates per seed must be positive"
+            raise ValueError(msg)
+
+        self.logger.info(f"Generating batch candidates ({self.__class__.__name__})")
+
+        for seed in seed_structures:
+            yield from self.generate_local_candidates(seed, n_candidates_per_seed, cycle=cycle)
+
+
+class RandomStructureGenerator(BaseStructureGenerator):
+    """Generates random structures for testing."""
 
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures."""
@@ -51,44 +67,18 @@ class RandomStructureGenerator(StructureGenerator):
         self.logger.info(f"Generating {n_candidates} local candidates around {seed_structure.id}")
         yield from self._generate_candidates_common(n_candidates, tags=["candidate", "local"])
 
-    def generate_batch_candidates(
-        self,
-        seed_structures: Iterable[StructureMetadata],
-        n_candidates_per_seed: int,
-        cycle: int = 0,
-    ) -> Iterator[StructureMetadata]:
-        """Generate candidate structures for a batch of seeds."""
-        if n_candidates_per_seed <= 0:
-            msg = "Number of candidates per seed must be positive"
-            raise ValueError(msg)
-
-        self.logger.info("Generating batch candidates from seed structures")
-
-        for _ in seed_structures:
-            yield from self._generate_candidates_common(
-                n_candidates_per_seed, tags=["candidate", "batch"]
-            )
-
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""
         return {"strategy": "random", "parameters": {}}
 
 
-class AdaptiveStructureGenerator(StructureGenerator):
+class AdaptiveStructureGenerator(BaseStructureGenerator):
     """Generates structures using an adaptive exploration policy based on material features."""
 
     def __init__(self, config: PYACEMAKERConfig) -> None:
         """Initialize."""
         super().__init__(config)
         self.policy = AdaptivePolicy(config)
-
-    def run(self) -> ModuleResult:
-        """Run the main structure generation workflow."""
-        self.logger.info("Running AdaptiveStructureGenerator")
-        return ModuleResult(
-            status="success",
-            metrics=Metrics.model_validate({"generated_count": 0}),  # Placeholder
-        )
 
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures using Cold Start policy."""
@@ -161,22 +151,6 @@ class AdaptiveStructureGenerator(StructureGenerator):
                 tags=["candidate", "adaptive", f"strategy:{type(strategy).__name__}"],
                 status=StructureStatus.NEW,
             )
-
-    def generate_batch_candidates(
-        self,
-        seed_structures: Iterable[StructureMetadata],
-        n_candidates_per_seed: int,
-        cycle: int = 0,
-    ) -> Iterator[StructureMetadata]:
-        """Generate candidate structures for a batch of seeds."""
-        if n_candidates_per_seed <= 0:
-            msg = "Number of candidates per seed must be positive"
-            raise ValueError(msg)
-
-        self.logger.info("Generating batch candidates (Adaptive)")
-
-        for seed in seed_structures:
-            yield from self.generate_local_candidates(seed, n_candidates_per_seed, cycle=cycle)
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Return information about the current exploration strategy."""

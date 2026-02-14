@@ -83,8 +83,9 @@ def test_validation_split_and_gating(streaming_config: PYACEMAKERConfig) -> None
     """Verify validation split logic and failure gating."""
     orchestrator = Orchestrator(config=streaming_config)
     # Prepare dataset file
-    from pyacemaker.core.utils import metadata_to_atoms
     from ase import Atoms
+
+    from pyacemaker.core.utils import metadata_to_atoms
 
     # Use real Atoms to satisfy validation
     data = [StructureMetadata(id=uuid4(), features={"atoms": Atoms("H")}) for _ in range(100)]

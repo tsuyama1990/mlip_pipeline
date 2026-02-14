@@ -156,35 +156,42 @@ class Orchestrator(IOrchestrator):
 
         return CycleStatus.TRAINING
 
-    def _run_training_phase(self) -> None:
-        """Execute training phase with file-based streaming."""
-        self.logger.info("Phase: Training")
-
-        # Config parameters
+    def _split_dataset_streams(self) -> tuple[Iterator[StructureMetadata], list[StructureMetadata]]:
+        """Split dataset into training stream and validation list (using Reservoir Sampling or Probabilistic)."""
         split_ratio = self.config.orchestrator.validation_split
         max_val = self.config.orchestrator.max_validation_size
-
         val_list: list[StructureMetadata] = []
-
-        # Generator that yields training items and populates val_list as side effect
-        # This avoids two passes or intermediate files, but requires careful iteration order.
-        # We stream from dataset_path.
 
         def train_stream() -> Iterator[StructureMetadata]:
             if not self.dataset_path.exists():
                 return
 
+            # Use DatasetManager to load items
             for atoms in self.dataset_manager.load_iter(self.dataset_path):
-                # Probabilistic split
-                if (
-                    len(val_list) < max_val
-                    and secrets.SystemRandom().random() < split_ratio
-                ):
+                # Probabilistic split: if random < split_ratio, try to add to validation
+                # We prioritize filling validation set up to max_val
+                is_validation = False
+                if len(val_list) < max_val:
+                    if secrets.SystemRandom().random() < split_ratio:
+                        is_validation = True
+
+                if is_validation:
                     val_list.append(atoms_to_metadata(atoms))
                 else:
                     yield atoms_to_metadata(atoms)
 
-        potential = self.trainer.train(train_stream(), self.current_potential)
+        return train_stream(), val_list
+
+    def _run_training_phase(self) -> None:
+        """Execute training phase with file-based streaming."""
+        self.logger.info("Phase: Training")
+
+        # Get stream and list reference (list populated during iteration of stream)
+        stream, val_list = self._split_dataset_streams()
+
+        # Training consumes the stream, side-effect populates val_list
+        potential = self.trainer.train(stream, self.current_potential)
+
         self.current_potential = potential
         self._validation_set = val_list
 
