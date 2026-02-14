@@ -4,12 +4,12 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0
-collected 23 items
+collected 25 items
 
 tests/core/test_base.py .                                                [  4%]
-tests/core/test_config.py ..........                                     [ 47%]
-tests/core/test_logging.py ....                                          [ 65%]
-tests/test_main.py ....                                                  [ 82%]
+tests/core/test_config.py ............                                   [ 52%]
+tests/core/test_logging.py ....                                          [ 68%]
+tests/test_main.py ....                                                  [ 84%]
 tests/uat/test_cycle01.py ....                                           [100%]
 
 ================================ tests coverage ================================
@@ -19,11 +19,11 @@ Name                                Stmts   Miss  Cover   Missing
 -----------------------------------------------------------------
 src/pyacemaker/__init__.py              5      2    60%   5-6
 src/pyacemaker/core/__init__.py         0      0   100%
-src/pyacemaker/core/base.py            10      0   100%
-src/pyacemaker/core/config.py          55      0   100%
+src/pyacemaker/core/base.py            16      0   100%
+src/pyacemaker/core/config.py          63      0   100%
 src/pyacemaker/core/exceptions.py       2      0   100%
 src/pyacemaker/core/logging.py         10      0   100%
 src/pyacemaker/main.py                 26      3    88%   45-47
 -----------------------------------------------------------------
-TOTAL                                 108      5    95%
-============================== 23 passed in 4.24s ==============================
+TOTAL                                 122      5    96%
+============================== 25 passed in 4.18s ==============================

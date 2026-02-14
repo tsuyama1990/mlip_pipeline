@@ -1,18 +1,16 @@
 """Tests for BaseModule."""
 
-from typing import Any
-
-from pyacemaker.core.base import BaseModule
+from pyacemaker.core.base import BaseModule, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 
 
 class ConcreteModule(BaseModule):
     """Concrete implementation of BaseModule for testing."""
 
-    def run(self) -> dict[str, Any]:
+    def run(self) -> ModuleResult:
         """Run method."""
         self.logger.info("Running module")
-        return {"status": "success"}
+        return ModuleResult(status="success")
 
 
 def test_base_module_initialization() -> None:
@@ -30,4 +28,4 @@ def test_base_module_initialization() -> None:
 
     # Verify run execution
     result = module.run()
-    assert result == {"status": "success"}
+    assert result.status == "success"

@@ -3,8 +3,21 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.logging import get_logger
+
+
+class ModuleResult(BaseModel):
+    """Standardized result from a module execution."""
+
+    model_config = ConfigDict(extra="forbid")
+    status: str = Field(..., description="Execution status (success, failed)")
+    metrics: dict[str, Any] = Field(default_factory=dict, description="Execution metrics")
+    artifacts: dict[str, str] = Field(
+        default_factory=dict, description="Paths to generated artifacts"
+    )
 
 
 class BaseModule(ABC):
@@ -26,7 +39,7 @@ class BaseModule(ABC):
         self.logger = get_logger(self.__class__.__name__)
 
     @abstractmethod
-    def run(self) -> dict[str, Any]:
+    def run(self) -> ModuleResult:
         """Execute the module's main logic.
 
         This method should encapsulate the module's primary workflow.
@@ -35,7 +48,7 @@ class BaseModule(ABC):
         if the failure is unrecoverable.
 
         Returns:
-            A dictionary containing the execution results (metrics, status, paths).
+            ModuleResult containing status, metrics, and artifact paths.
 
         Raises:
             PYACEMAKERError: If a critical error occurs during execution.

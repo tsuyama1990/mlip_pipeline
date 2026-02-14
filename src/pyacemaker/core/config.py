@@ -18,8 +18,12 @@ class ProjectConfig(BaseModel):
 
     @field_validator("root_dir")
     @classmethod
-    def make_absolute(cls, v: Path) -> Path:
-        """Ensure path is absolute."""
+    def validate_root_dir(cls, v: Path) -> Path:
+        """Validate root directory for path traversal."""
+        # Check components before resolve to catch explicit ".."
+        if ".." in v.parts:
+            msg = f"Invalid root directory: {v}. Path traversal not allowed."
+            raise ValueError(msg)
         return v.resolve()
 
 
@@ -31,15 +35,17 @@ class DFTConfig(BaseModel):
     code: str = Field(..., description="DFT code to use (e.g., 'quantum_espresso', 'vasp')")
 
 
+DEFAULT_LOG_FORMAT = "[{time}] [{level}] [{extra[name]}] {message}"
+MAX_CONFIG_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
 class LoggingConfig(BaseModel):
     """Logging configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
     level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
-    format: str = Field(
-        default="[{time}] [{level}] [{extra[name]}] {message}", description="Log message format"
-    )
+    format: str = Field(default=DEFAULT_LOG_FORMAT, description="Log message format")
 
     @field_validator("level")
     @classmethod
@@ -81,6 +87,10 @@ def load_config(path: str | Path) -> PYACEMAKERConfig:
     path = Path(path)
     if not path.exists():
         msg = f"Configuration file not found: {path}"
+        raise ConfigurationError(msg)
+
+    if path.stat().st_size > MAX_CONFIG_SIZE:
+        msg = f"Configuration file too large: {path.stat().st_size} bytes (max {MAX_CONFIG_SIZE} bytes)"
         raise ConfigurationError(msg)
 
     try:
