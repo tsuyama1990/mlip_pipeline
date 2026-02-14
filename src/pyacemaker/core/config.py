@@ -1,5 +1,6 @@
 """Configuration models for PYACEMAKER."""
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,8 @@ class Constants(BaseSettings):
     model_config = SettingsConfigDict(extra="forbid", env_prefix="PYACEMAKER_")
 
     default_log_format: str = "[{time}] [{level}] [{extra[name]}] {message}"
-    max_config_size: int = 1 * 1024 * 1024  # 1 MB limit for safety
+    # 1 MB limit for configuration files to prevent OOM/DOS
+    max_config_size: int = 1 * 1024 * 1024
     default_version: str = "0.1.0"
     default_log_level: str = "INFO"
     default_structure_strategy: str = "random"
@@ -73,9 +75,10 @@ class DFTConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        # Pydantic handles basic type checking (dict[str, Any]), but we can add extra logic if needed.
-        # If Pydantic already checks keys are strings, this validator runs after that check passes
-        # or if Pydantic converts them.
+        # Ensure keys are strings
+        if not all(isinstance(k, str) for k in v):
+            msg = "Parameter keys must be strings"
+            raise ValueError(msg)
         return v
 
 
@@ -104,6 +107,10 @@ class StructureGeneratorConfig(BaseModel):
     @field_validator("parameters")
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        if not all(isinstance(k, str) for k in v):
+            msg = "Parameter keys must be strings"
+            raise ValueError(msg)
         return v
 
 
@@ -121,6 +128,10 @@ class TrainerConfig(BaseModel):
     @field_validator("parameters")
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        if not all(isinstance(k, str) for k in v):
+            msg = "Parameter keys must be strings"
+            raise ValueError(msg)
         return v
 
 
@@ -138,6 +149,10 @@ class DynamicsEngineConfig(BaseModel):
     @field_validator("parameters")
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        if not all(isinstance(k, str) for k in v):
+            msg = "Parameter keys must be strings"
+            raise ValueError(msg)
         return v
 
 
@@ -213,6 +228,15 @@ class PYACEMAKERConfig(BaseModel):
     dynamics_engine: DynamicsEngineConfig = Field(default_factory=DynamicsEngineConfig)
     validator: ValidatorConfig = Field(default_factory=ValidatorConfig)
 
+    @field_validator("version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        """Validate semantic version."""
+        if not re.match(CONSTANTS.version_regex, v):
+            msg = f"Invalid version format: {v}. Must match {CONSTANTS.version_regex}"
+            raise ValueError(msg)
+        return v
+
 
 def load_config(path: Path) -> PYACEMAKERConfig:
     """Load and validate configuration from a YAML file.
@@ -236,6 +260,7 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         raise ConfigurationError(msg)
 
     # Check file size to prevent DOS (OOM)
+    # This is critical: we check size BEFORE opening or parsing.
     try:
         if path.stat().st_size > CONSTANTS.max_config_size:
             msg = f"Configuration file too large: {path.stat().st_size} bytes (max {CONSTANTS.max_config_size} bytes)"
@@ -244,10 +269,10 @@ def load_config(path: Path) -> PYACEMAKERConfig:
         msg = f"Error checking configuration file size: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
 
-    # yaml.safe_load is used to prevent arbitrary code execution.
-    # The file size check above mitigates OOM risks (DoS).
     try:
         with path.open("r", encoding="utf-8") as f:
+            # safe_load is sufficient here because we have already enforced a small file size limit (1MB).
+            # This prevents loading massive files into memory.
             data = yaml.safe_load(f)
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"

@@ -26,17 +26,30 @@ from pyacemaker.modules.validator import MockValidator
 class Orchestrator(IOrchestrator):
     """Main Orchestrator for the active learning cycle."""
 
-    def __init__(self, config: PYACEMAKERConfig) -> None:
-        """Initialize the orchestrator and sub-modules."""
+    def __init__(
+        self,
+        config: PYACEMAKERConfig,
+        structure_generator: StructureGenerator | None = None,
+        oracle: Oracle | None = None,
+        trainer: Trainer | None = None,
+        dynamics_engine: DynamicsEngine | None = None,
+        validator: Validator | None = None,
+    ) -> None:
+        """Initialize the orchestrator and sub-modules.
+
+        Dependencies can be injected; otherwise, default implementations are instantiated.
+        """
         super().__init__(config)
         self.config = config
 
-        # Initialize modules (DI could be used here, but for now we instantiate directly)
-        self.structure_generator: StructureGenerator = RandomStructureGenerator(config)
-        self.oracle: Oracle = MockOracle(config)
-        self.trainer: Trainer = PacemakerTrainer(config)
-        self.dynamics_engine: DynamicsEngine = LAMMPSEngine(config)
-        self.validator: Validator = MockValidator(config)
+        # Dependency Injection with fallbacks
+        self.structure_generator: StructureGenerator = (
+            structure_generator or RandomStructureGenerator(config)
+        )
+        self.oracle: Oracle = oracle or MockOracle(config)
+        self.trainer: Trainer = trainer or PacemakerTrainer(config)
+        self.dynamics_engine: DynamicsEngine = dynamics_engine or LAMMPSEngine(config)
+        self.validator: Validator = validator or MockValidator(config)
 
         # State
         self.current_potential: Potential | None = None
@@ -89,7 +102,9 @@ class Orchestrator(IOrchestrator):
         # 2. Validation
         self.logger.info("Phase: Validation")
         # Split dataset for validation (simple holdout for now)
-        test_set = self.dataset[:len(self.dataset)//10 + 1]
+        # TODO: Implement better splitting strategy (e.g., config based)
+        test_size = max(1, int(len(self.dataset) * 0.1))
+        test_set = self.dataset[:test_size]
         val_result = self.validator.validate(potential, test_set)
 
         if val_result.status == "failed":
