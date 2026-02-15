@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pyacemaker.core.config import CONSTANTS, DFTConfig, _validate_structure
+from pyacemaker.core.config import CONSTANTS, DFTConfig
+from pyacemaker.core.validation import _validate_structure
 
 
 def test_validate_parameters_whitelist_keys() -> None:

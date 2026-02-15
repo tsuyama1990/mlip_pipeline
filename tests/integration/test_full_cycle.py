@@ -119,22 +119,21 @@ class TestFullCycleIntegration:
             trainer=TrainerConfig(mock=True),
         )
 
-        with (
-            patch("pyacemaker.modules.validator.Validator.validate") as mock_validate,
-            patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
-        ):
-            # Simulate validation failure
-            mock_validate.return_value = MagicMock(status="failed", metrics={})
+        # Mock train must consume stream to populate validation set
+        def consume_stream(dataset: Any, potential: Potential | None = None) -> Any:
+            for _ in dataset:
+                pass
+            return MagicMock()
 
-            # Mock train must consume stream to populate validation set
-            def consume_stream(dataset: Any, potential: Potential | None = None) -> Any:
-                for _ in dataset:
-                    pass
-                return MagicMock()
-
+        with patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train:
             mock_train.side_effect = consume_stream
 
-            orchestrator = Orchestrator(config)
+            # Inject Mock Validator that fails
+            mock_validator = MagicMock()
+            mock_validator.validate.return_value = MagicMock(status="failed", metrics={})
+
+            orchestrator = Orchestrator(config, validator=mock_validator)
+
             # Pre-populate dataset so training runs
             dataset_path = orchestrator.dataset_path
             orchestrator.dataset_manager.save_iter(iter([Atoms("Fe")]), dataset_path)
@@ -142,6 +141,6 @@ class TestFullCycleIntegration:
             result = orchestrator.run()
 
             # Should fail
-        assert result.status == "FAILED"
-        # Cycle count should be 1 (failed at cycle 1)
-        assert orchestrator.cycle_count == 1
+            assert result.status == "FAILED"
+            # Cycle count should be 1 (failed at cycle 1)
+            assert orchestrator.cycle_count == 1

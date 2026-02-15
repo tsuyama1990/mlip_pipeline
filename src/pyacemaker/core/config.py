@@ -297,6 +297,11 @@ class DFTConfig(BaseModel):
         for element, path_str in v.items():
             path = Path(path_str)
 
+            # Explicitly disallow traversal characters regardless of other checks
+            if ".." in path.parts:
+                msg = f"Path traversal not allowed: {path}"
+                raise ValueError(msg)
+
             # Security check for traversal - ALWAYS RUN
             try:
                 validate_safe_path(path)
