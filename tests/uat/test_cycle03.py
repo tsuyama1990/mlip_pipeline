@@ -1,5 +1,6 @@
 """UAT for Cycle 03: Trainer & Potential Generation."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +17,9 @@ class TestCycle03UAT:
     @pytest.fixture
     def trainer(self) -> Trainer:
         config = MagicMock(spec=PYACEMAKERConfig)
+        # Manually attach project mock because spec prevents auto-creation if not seen
+        config.project = MagicMock()
+        config.project.root_dir = Path("mock_project")
         config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,
@@ -24,8 +28,11 @@ class TestCycle03UAT:
         # We use mock=False in config, but patch subprocess in tests.
         return Trainer(config)
 
+    @patch("shutil.copy")
     @patch("subprocess.run")
-    def test_scenario_01_training_execution(self, mock_run: MagicMock, trainer: Trainer) -> None:
+    def test_scenario_01_training_execution(
+        self, mock_subprocess: MagicMock, mock_shutil: MagicMock, trainer: Trainer
+    ) -> None:
         """Scenario 01: Training Execution."""
         # Create dataset
         # Need to mock save_iter to avoid file creation errors?
@@ -38,14 +45,17 @@ class TestCycle03UAT:
         )
         dataset = [structure]
 
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_subprocess.return_value = MagicMock(returncode=0)
 
         potential = trainer.train(dataset)
 
+        # Verify copy was called
+        mock_shutil.assert_called()
+
         assert potential.type == "PACE"
         # Verify pace_train was called with correct args
-        mock_run.assert_called()
-        cmd = mock_run.call_args[0][0]
+        mock_subprocess.assert_called()
+        cmd = mock_subprocess.call_args[0][0]
         assert cmd[0] == "pace_train"
         assert "--cutoff" in cmd
         # Ensure cutoff matches configuration
@@ -90,10 +100,15 @@ class TestCycle03UAT:
         assert len(active_set.structure_ids) == 2
         assert active_set.structure_ids[0] == candidates[0].id
 
+    @patch("shutil.copy")
     @patch("subprocess.run")
-    def test_scenario_03_delta_learning(self, mock_run: MagicMock) -> None:
+    def test_scenario_03_delta_learning(
+        self, mock_subprocess: MagicMock, mock_shutil: MagicMock
+    ) -> None:
         """Scenario 03: Delta Learning Configuration."""
         config = MagicMock(spec=PYACEMAKERConfig)
+        config.project = MagicMock()
+        config.project.root_dir = Path("mock_project")
         # Use a variable to avoid hardcoding in checks later
         delta_method = "zbl"
         config.trainer = TrainerConfig(delta_learning=delta_method, mock=False)
@@ -116,15 +131,18 @@ class TestCycle03UAT:
         )
         dataset = [structure]
 
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_subprocess.return_value = MagicMock(returncode=0)
 
         # Mock file existence checks in wrapper
         with patch("pathlib.Path.exists", return_value=True):
             trainer.train(dataset)
 
+        # Verify copy was called
+        mock_shutil.assert_called()
+
         # Verify baseline file generated and passed
-        mock_run.assert_called()
-        cmd = mock_run.call_args[0][0]
+        mock_subprocess.assert_called()
+        cmd = mock_subprocess.call_args[0][0]
         # Check if --baseline argument is present
         assert "--baseline" in cmd
         # And verify baseline file name contains "zbl"

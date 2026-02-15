@@ -1,5 +1,6 @@
 """Trainer (Pacemaker) module implementation."""
 
+import shutil
 import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -97,9 +98,23 @@ class PacemakerTrainer(Trainer):
             initial_pot_path = initial_potential.path if initial_potential else None
             output_pot_path = self.wrapper.train(dataset_path, work_dir, params, initial_pot_path)
 
-        # 5. Return Potential
+        # 5. Save Artifact (Move to project/potentials)
+        # Create directory for potentials
+        potentials_dir = self.config.project.root_dir / "potentials"
+        potentials_dir.mkdir(parents=True, exist_ok=True)
+
+        # Unique filename
+        # Using simple timestamp for now, or could use cycle count if available via params
+        # But we don't have cycle count here easily. Use UUID.
+        pot_filename = f"potential_{uuid4()}.yace"
+        final_pot_path = potentials_dir / pot_filename
+
+        shutil.copy(output_pot_path, final_pot_path)
+        self.logger.info(f"Potential saved to {final_pot_path}")
+
+        # 6. Return Potential
         return Potential(
-            path=output_pot_path,
+            path=final_pot_path,
             type=PotentialType.PACE,
             version="1.0",  # TODO: Implement proper versioning
             metrics={},  # TODO: Parse metrics from logs
