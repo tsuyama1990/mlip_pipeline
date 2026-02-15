@@ -37,12 +37,12 @@ def test_structure_metadata_features_validation() -> None:
     with pytest.raises(ValidationError, match="unsafe type"):
         StructureMetadata(features={"obj": RandomObj()})
 
-    # Object with todict (should pass)
+    # Object with todict (should FAIL now)
     class DictObj:
         def todict(self) -> dict[str, object]: return {}
 
-    s = StructureMetadata(features={"dict_obj": DictObj()})
-    assert isinstance(s.features["dict_obj"], DictObj)
+    with pytest.raises(ValidationError, match="unsafe type"):
+        StructureMetadata(features={"dict_obj": DictObj()})
 
 def test_structure_metadata_atoms_validation() -> None:
     """Test strict validation of ASE Atoms objects."""
@@ -105,7 +105,7 @@ def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert p.path == Path("potentials/test.yace")
 
     # Path traversal attempt
-    with pytest.raises(ValidationError, match="Path traversal not allowed"):
+    with pytest.raises(ValidationError, match="strictly within current working directory"):
         Potential(
             path=Path("../../../etc/passwd"),
             type=PotentialType.PACE,

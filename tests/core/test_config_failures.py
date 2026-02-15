@@ -2,7 +2,7 @@
 
 import stat
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, mock_open
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
@@ -35,13 +35,12 @@ def test_load_config_permission_error() -> None:
     # But we need CONSTANTS.skip_file_checks to be False (default in this test if not monkeypatched)
     # However, conftest sets it to True!
     # We must set it to False.
-    with patch.object(CONSTANTS, "skip_file_checks", False):
-        # Patch os.access to simulate permission denied
-        with (
-            patch("os.access", return_value=False),
-            pytest.raises(ConfigurationError, match="Permission denied"),
-        ):
-            load_config(mock_path)
+    with (
+        patch.object(CONSTANTS, "skip_file_checks", False),
+        patch("os.access", return_value=False),
+        pytest.raises(ConfigurationError, match="Permission denied"),
+    ):
+        load_config(mock_path)
 
 
 def test_load_config_path_traversal() -> None:

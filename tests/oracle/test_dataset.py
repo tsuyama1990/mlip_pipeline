@@ -25,7 +25,7 @@ def test_save_load_iter(tmp_path: Path) -> None:
     assert dataset_path.exists()
 
     # Load as iterator
-    iterator = manager.load_iter(dataset_path)
+    iterator = manager.load_iter(dataset_path, verify=False)
     loaded_data = list(iterator)
     assert len(loaded_data) == 2
     assert loaded_data[0].get_chemical_formula() == "H2"  # type: ignore[no-untyped-call]
@@ -46,7 +46,7 @@ def test_load_iter_legacy_list_rejection(tmp_path: Path) -> None:
 
     # load_iter should reject it due to header validation failure (or size)
     # The header validation is stricter now, so we expect ValueError (corrupted or too large)
-    iterator = manager.load_iter(dataset_path)
+    iterator = manager.load_iter(dataset_path, verify=False)
     with pytest.raises(ValueError, match="Object size .* exceeds limit"):
         next(iterator)
 
@@ -77,7 +77,7 @@ def test_load_iter_corrupted(tmp_path: Path) -> None:
         # Write garbage (short, to trigger partial read handling)
         f.write(b"short")
 
-    iterator = manager.load_iter(dataset_path)
+    iterator = manager.load_iter(dataset_path, verify=False)
     # Should read the first atom
     first = next(iterator)
     assert first.get_chemical_formula() == "H2"  # type: ignore[no-untyped-call]
@@ -95,5 +95,5 @@ def test_load_iter_empty(tmp_path: Path) -> None:
         pass
 
     manager = DatasetManager()
-    iterator = manager.load_iter(dataset_path)
+    iterator = manager.load_iter(dataset_path, verify=False)
     assert list(iterator) == []

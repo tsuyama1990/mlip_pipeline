@@ -127,6 +127,7 @@ class Constants(BaseSettings):
     # Physical Bounds
     max_energy_ev: float = _DEFAULTS["max_energy_ev"]
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
+    composition_tolerance: float = _DEFAULTS["composition_tolerance"]
 
     # Security & Limits
     max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]

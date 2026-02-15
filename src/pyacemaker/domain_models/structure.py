@@ -35,7 +35,7 @@ class MaterialDNA(BaseModel):
             msg = "Composition values must be non-negative"
             raise ValueError(msg)
         total = sum(v.values())
-        if not math.isclose(total, 1.0, rel_tol=1e-3):
+        if not math.isclose(total, 1.0, rel_tol=CONSTANTS.composition_tolerance):
              # Just warn or fail? Requirement says "proper normalization". Let's enforce it or normalize it.
              # Strict validation:
              msg = f"Composition must sum to 1.0 (got {total})"
@@ -202,28 +202,10 @@ class StructureMetadata(BaseModel):
             msg = "Feature keys must be strings"
             raise ValueError(msg)
 
-        allowed_keys = set(CONSTANTS.allowed_feature_keys)
-
         for key, value in v.items():
-            # Check against whitelist if it's restrictive, or at least warn/check common patterns
-            # Since user might add custom features, we rely on regex for general safety,
-            # but we can enforce stricter check if needed.
-            # For Audit Compliance: We enforce that keys must be either in the allowed list OR match the strict regex.
-            # Actually, the requirement is "Implement a whitelist".
-            # If we enforce strictly, we break flexibility.
-            # Compromise: Check if key matches regex AND (is in allowed list OR starts with user_ prefix?)
-            # Let's stick to Regex + Value Safety for now, as strict whitelist breaks ASE usage (e.g. "info" dict)
-            # Wait, ASE Atoms has .info which might contain anything.
-            # Let's enforce the regex strictly.
-
             if not key_pattern.match(key):
                 msg = f"Feature key '{key}' contains invalid characters"
                 raise ValueError(msg)
-
-            # Check if key is in allowed list?
-            # If we want to be strict:
-            # if key not in allowed_keys and not key.startswith("user_"):
-            #    warnings.warn(f"Unknown feature key: {key}")
 
             if callable(value):
                 msg = f"Feature '{key}' cannot be a callable"
@@ -235,29 +217,28 @@ class StructureMetadata(BaseModel):
             allowed_types = (str, int, float, bool, list, tuple, dict, type(None))
 
             if not isinstance(value, allowed_types):
-                # Check for ASE Atoms or known safe types
-                is_ase_atoms = False
+                # Strict Whitelist: Only allow ASE Atoms objects
+                # Removed generic todict/as_dict allowance to prevent injection
+                is_valid_object = False
                 try:
                     from ase import Atoms
 
                     if isinstance(value, Atoms):
-                        is_ase_atoms = True
+                        is_valid_object = True
                         # Data Integrity: Check for essential attributes
                         if not hasattr(value, "positions") or not hasattr(value, "numbers"):
                              msg = f"Feature '{key}' is an ASE Atoms object but lacks essential data (positions/numbers)"
                              raise ValueError(msg)
                 except ImportError:
+                    # If ASE not installed or value is not Atoms, check purely by name is risky but maybe necessary for mocks?
+                    # No, let's be strict. If it's not a primitive and not an Atoms instance, reject it.
                     pass
 
-                if (
-                    is_ase_atoms
-                    or type_name == "Atoms"
-                    or hasattr(value, "todict")
-                    or hasattr(value, "as_dict")
-                ):
+                if is_valid_object:
                     continue
+
                 # Reject unknown complex types to prevent injection of arbitrary objects
-                msg = f"Feature '{key}' has unsafe type: {type_name}"
+                msg = f"Feature '{key}' has unsafe type: {type_name}. Only primitives and ase.Atoms are allowed."
                 raise ValueError(msg)
 
         return v

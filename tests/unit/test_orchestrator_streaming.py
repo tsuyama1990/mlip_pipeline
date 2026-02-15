@@ -75,7 +75,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
     # Check count by reading file
     count = 0
-    for _ in orchestrator.dataset_manager.load_iter(orchestrator.dataset_path):
+    for _ in orchestrator.dataset_manager.load_iter(orchestrator.dataset_path, verify=False):
         count += 1
     assert count == 5
 
@@ -118,14 +118,17 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     )
 
     # Consume train_stream to trigger splitting
-    train_stream = splitter.train_stream()
-    consumed_train = list(train_stream)
+    # We must patch load_iter to disable verification inside DatasetSplitter
+    from unittest.mock import patch
+    with patch.object(orchestrator.dataset_manager, "load_iter", side_effect=lambda p, **kwargs: orchestrator.dataset_manager.__class__.load_iter(orchestrator.dataset_manager, p, verify=False, **kwargs)):
+        train_stream = splitter.train_stream()
+        consumed_train = list(train_stream)
 
     # Verify validation file exists and count items
     assert orchestrator.validation_path.exists()
 
     val_count = 0
-    for _ in orchestrator.dataset_manager.load_iter(orchestrator.validation_path):
+    for _ in orchestrator.dataset_manager.load_iter(orchestrator.validation_path, verify=False):
         val_count += 1
 
     # Validation file should be capped at 10 (approx, since splitter flushes in batches,

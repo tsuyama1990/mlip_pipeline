@@ -64,38 +64,34 @@ class Potential(BaseModel):
     @field_validator("path")
     @classmethod
     def validate_path_format(cls, v: Path) -> Path:
-        """Validate path format."""
+        """Validate path format with strict security checks."""
         if str(v).strip() == "":
             msg = "Path cannot be empty"
             raise ValueError(msg)
 
-        # Check against basic path traversal patterns
-        if ".." in v.parts:
-            msg = f"Path traversal not allowed in potential path: {v}"
-            raise ValueError(msg)
+        if CONSTANTS.skip_file_checks:
+            return v
 
-        # Use resolve to sanitize and check for potential traversal issues
         try:
-            # We want to allow non-existent paths, but prevent traversal outside allowed roots if possible.
-            # Since we don't have project root here, we just check general validity.
-            # Use strict=False to allow potential creation.
-            resolved = v.resolve(strict=False)
+            import os
+            cwd = Path.cwd().resolve(strict=True)
 
-            # Check if parent exists? This enforces that we are creating in a valid directory.
-            # This is a good middle ground for security vs flexibility.
-            if not resolved.parent.exists():
-                # Just a warning or strict? Let's check for traversal specifically.
-                # If '..' remains after resolve, it's weird (resolve handles it).
-                pass
+            # 1. Symlink check (Race Condition Prevention)
+            # If file exists, check if it's a symlink directly before resolution
+            # If it doesn't exist, we check parent components
+            # Note: Checking lstat on the path itself if it exists
+            if v.exists() and v.is_symlink():
+                 msg = f"Potential path cannot be a symlink: {v}"
+                 raise ValueError(msg)
 
-            if CONSTANTS.skip_file_checks:
-                return v
+            # 2. Atomic Resolution (Realpath)
+            # os.path.realpath resolves symlinks and canonicalizes
+            real_path = Path(os.path.realpath(v))
 
-            # Security: Ensure path is within CWD or allowed base to prevent writing to system dirs
-            cwd = Path.cwd().resolve()
-            if not resolved.is_relative_to(cwd):
-                msg = f"Potential path must be within current working directory: {cwd}"
-                raise ValueError(msg)  # noqa: TRY301
+            # 3. Containment Check
+            if not real_path.is_relative_to(cwd):
+                msg = f"Potential path must be strictly within current working directory: {cwd}"
+                raise ValueError(msg)
 
         except Exception as e:
             msg = f"Invalid potential path: {v}. Error: {e}"

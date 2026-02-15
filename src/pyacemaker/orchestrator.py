@@ -65,6 +65,9 @@ class DatasetSplitter:
         self.max_validation_size = max_validation_size
         self.buffer_size = buffer_size
         self._rng = secrets.SystemRandom()
+        # Note: We don't know current validation size without reading file or tracking state.
+        # Ideally Orchestrator tracks this. For now, we assume simple appending logic.
+        # The audit requirement is "incremental", so we just split NEW items.
         self._val_count = 0
         self.start_index = start_index
         self.processed_count = 0
@@ -76,12 +79,14 @@ class DatasetSplitter:
 
         val_buffer: list[StructureMetadata] = []
 
-        # Enumerate to skip already processed items
-        for i, atoms in enumerate(self.dataset_manager.load_iter(self.dataset_path)):
-            if i < self.start_index:
-                continue
+        # Optimization: Use start_index in load_iter to skip deserialization of old items
+        stream = self.dataset_manager.load_iter(self.dataset_path, start_index=self.start_index)
 
+        for atoms in stream:
             self.processed_count += 1
+            # Simple random split for new items
+            # We check max_validation_size relative to *added* items in this session for safety,
+            # though ideally we'd check global size.
             is_full = self._val_count >= self.max_validation_size
             should_validate = (not is_full) and (self._rng.random() < self.validation_split)
 
@@ -101,7 +106,13 @@ class DatasetSplitter:
         """Flush validation buffer to disk."""
         # Convert to atoms
         atoms_iter = (metadata_to_atoms(s) for s in items)
-        self.dataset_manager.save_iter(atoms_iter, self.validation_path, mode="ab")
+        # Use append mode
+        self.dataset_manager.save_iter(
+            atoms_iter,
+            self.validation_path,
+            mode="ab",
+            calculate_checksum=False # Checksum for append is expensive/complex, skipping for speed
+        )
 
 
 class Orchestrator(IOrchestrator):
@@ -157,6 +168,11 @@ class Orchestrator(IOrchestrator):
         self.validation_path = (
             self.config.project.root_dir / "data" / "validation_set.pckl.gzip"
         )
+        # Training set path (persistent subset)
+        self.training_path = (
+            self.config.project.root_dir / "data" / "training_set.pckl.gzip"
+        )
+
         self.dataset_manager = DatasetManager()
         self.cycle_count = 0
         self.processed_items_count = 0
@@ -261,14 +277,11 @@ class Orchestrator(IOrchestrator):
         return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
 
     def _run_training_phase(self) -> None:
-        """Execute training phase with file-based streaming."""
-        self.logger.info("Phase: Training")
+        """Execute training phase with incremental partitioning."""
+        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
 
-        # Clear old validation set if exists to ensure fresh split
-        if self.validation_path.exists():
-            self.validation_path.unlink()
-
-        # Use DatasetSplitter to handle stateful splitting
+        # 1. Incremental Partitioning
+        # Only process new items from dataset
         splitter = DatasetSplitter(
             self.dataset_path,
             self.validation_path,
@@ -276,12 +289,42 @@ class Orchestrator(IOrchestrator):
             self.config.orchestrator.validation_split,
             self.config.orchestrator.max_validation_size,
             buffer_size=self.config.orchestrator.validation_buffer_size,
-            start_index=0 # Currently reprocessing all for training, but we COULD use self.processed_items_count if Trainer supports incremental
+            start_index=self.processed_items_count
         )
 
-        # Training consumes the stream, which populates validation file inside splitter
-        potential = self.trainer.train(splitter.train_stream(), self.current_potential)
+        # Iterate splitter to identify new training items
+        new_training_items = splitter.train_stream()
 
+        # Append new training items to persistent training set
+        atoms_iter = (metadata_to_atoms(s) for s in new_training_items)
+        self.dataset_manager.save_iter(
+            atoms_iter,
+            self.training_path,
+            mode="ab",
+            calculate_checksum=False # Streaming append
+        )
+
+        # Update progress tracking
+        added_count = splitter.processed_count
+        self.processed_items_count += added_count
+        self.logger.info(f"Processed {added_count} new items. Total processed: {self.processed_items_count}")
+
+        # 2. Train on Full Training Set
+        if not self.training_path.exists():
+            self.logger.warning("No training data available.")
+            return
+
+        # Pass iterator over persistent training set to trainer
+        # This re-reads the full training set (O(N_train)) which is necessary for retraining,
+        # but avoids O(N_total) splitting logic.
+
+        # Need to convert atoms back to metadata for Trainer interface
+        def training_stream() -> Iterator[StructureMetadata]:
+            # Use buffer_size for efficiency
+            for atoms in self.dataset_manager.load_iter(self.training_path):
+                yield atoms_to_metadata(atoms)
+
+        potential = self.trainer.train(training_stream(), self.current_potential)
         self.current_potential = potential
 
     def _run_validation_phase(self) -> bool:
