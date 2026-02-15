@@ -133,13 +133,14 @@ By default, the tutorial runs in **Mock Mode** (simulated data) for quick verifi
 You can also use the Oracle module independently in your Python scripts:
 
 ```python
+from pathlib import Path
 from pyacemaker.core.config_loader import load_config
 from pyacemaker.modules.oracle import DFTOracle
 from pyacemaker.domain_models.models import StructureMetadata
 from ase.build import bulk
 
 # Load config
-config = load_config("config.yaml")
+config = load_config(Path("config.yaml"))
 
 # Initialize Oracle
 oracle = DFTOracle(config)
