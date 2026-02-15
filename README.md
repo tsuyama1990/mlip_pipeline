@@ -149,7 +149,7 @@ atoms = bulk("Fe", cubic=True)
 structure = StructureMetadata(features={"atoms": atoms})
 
 # Compute properties (Energy, Forces, Stress)
-results = oracle.compute_batch([structure])
+results = list(oracle.compute_batch([structure]))
 
 print(f"Energy: {results[0].features['energy']} eV")
 ```
