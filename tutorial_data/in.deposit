@@ -1,0 +1,7 @@
+
+units metal
+atom_style atomic
+boundary p p f
+# ... (Actual commands would go here)
+# pair_style hybrid/overlay pace /app/tutorial_data/potentials/potential_15d7da1f-b1ef-41f1-8195-1f19f931e3e7.yace Mg O Fe Pt
+# fix 1 all deposit 5 ...
