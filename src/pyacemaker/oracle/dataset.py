@@ -286,9 +286,6 @@ class DatasetManager:
             msg = f"Invalid mode '{mode}'. Must be 'wb' or 'ab'."
             raise ValueError(msg)
 
-        # Setup streaming checksum
-        hasher = hashlib.sha256() if calculate_checksum and mode == "wb" else None
-
         with (
             gzip.open(path, mode) as gz_file,
             io.BufferedWriter(gz_file, buffer_size=buffer_size) as f,  # type: ignore[arg-type]
@@ -308,22 +305,15 @@ class DatasetManager:
 
                 header = struct.pack(">Q", size)
 
-                # Update hash if active
-                if hasher:
-                    hasher.update(header)
-                    hasher.update(obj_bytes)
-
                 # Write header and payload
                 f.write(header)
                 f.write(obj_bytes)
 
         if calculate_checksum:
-            if mode == "wb" and hasher:
-                checksum = hasher.hexdigest()
-                path.with_suffix(path.suffix + ".sha256").write_text(checksum)
-            elif mode == "ab":
-                # Fallback to full read for append if requested (expensive)
-                # Ideally caller avoids this for large files in append mode.
-                from pyacemaker.core.utils import calculate_checksum as calc_checksum
-                checksum = calc_checksum(path)
-                path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+            # Always calculate checksum from the file on disk to ensure consistency
+            # with verify_checksum which reads the compressed file.
+            # The streaming hasher previously hashed uncompressed data, causing mismatch.
+            from pyacemaker.core.utils import calculate_checksum as calc_checksum
+
+            checksum = calc_checksum(path)
+            path.with_suffix(path.suffix + ".sha256").write_text(checksum)

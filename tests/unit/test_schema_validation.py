@@ -96,16 +96,18 @@ def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
     monkeypatch.chdir(tmp_path)
 
-    # Valid relative path
+    # Valid relative path (Must exist or parent must exist for secure validation)
+    (tmp_path / "potentials").mkdir()
+
     p = Potential(
         path=Path("potentials/test.yace"),
         type=PotentialType.PACE,
         version="1.0"
     )
-    assert p.path == Path("potentials/test.yace")
+    assert p.path == (tmp_path / "potentials/test.yace").resolve()
 
     # Path traversal attempt
-    with pytest.raises(ValidationError, match="strictly within current working directory"):
+    with pytest.raises(ValidationError, match="unsafe or outside allowed base directory"):
         Potential(
             path=Path("../../../etc/passwd"),
             type=PotentialType.PACE,
@@ -113,7 +115,7 @@ def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         )
 
     # Absolute path outside CWD (e.g. /etc/passwd)
-    with pytest.raises(ValidationError, match="within current working directory"):
+    with pytest.raises(ValidationError, match="unsafe or outside allowed base directory"):
         Potential(
             path=Path("/etc/passwd"),
             type=PotentialType.PACE,

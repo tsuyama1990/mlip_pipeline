@@ -116,11 +116,18 @@ Execute the full active learning loop:
 uv run pyacemaker run config.yaml
 ```
 
-### 3. Oracle (DFT) Usage
+### 3. Tutorial
+For a complete interactive walkthrough of the Fe/Pt deposition on MgO scenario, check out the tutorial notebook:
+
+```bash
+uv run marimo edit tutorials/UAT_AND_TUTORIAL.py
+```
+
+### 4. Oracle (DFT) Usage
 You can also use the Oracle module independently in your Python scripts:
 
 ```python
-from pyacemaker.core.config import load_config
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.modules.oracle import DFTOracle
 from pyacemaker.domain_models.models import StructureMetadata
 from ase.build import bulk
