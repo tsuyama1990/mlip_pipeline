@@ -4,7 +4,8 @@ from pathlib import Path
 
 import yaml
 
-from pyacemaker.core.config import CONSTANTS, load_config
+from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.orchestrator import Orchestrator
 
 
@@ -44,6 +45,24 @@ def test_pipeline_integration(tmp_path: Path) -> None:
 
     # Initialize Orchestrator (it uses default mock modules if none provided)
     orchestrator = Orchestrator(config)
+
+    # We need to mock the validator because real validator runs checks on mock data which might fail
+    # or just use MockValidator if we want pure pipeline test.
+    # But Orchestrator uses Validator by default now.
+    # Validator will try to run check_phonons on empty/mock atoms and likely fail or return false.
+    # The default Validator implementation tries to validate.
+    # If the validation fails, the cycle fails.
+    # So we should inject a MockValidator that always passes for this integration test.
+
+    from unittest.mock import MagicMock
+
+    from pyacemaker.core.base import Metrics, ModuleResult
+
+    mock_validator = MagicMock()
+    mock_validator.validate.return_value = ModuleResult(
+        status="success", metrics=Metrics(), artifacts={}
+    )
+    orchestrator.validator = mock_validator
 
     # Run pipeline
     result = orchestrator.run()

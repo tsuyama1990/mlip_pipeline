@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pyacemaker.core.config import _validate_structure, DFTConfig, CONSTANTS
+from pyacemaker.core.config import CONSTANTS, DFTConfig, _validate_structure
 
 
 def test_validate_parameters_whitelist_keys() -> None:
@@ -81,7 +81,25 @@ def test_dft_pseudopotentials_path_traversal(tmp_path: Path, monkeypatch: pytest
     # Path traversal to unsafe dir
     rel_path = "../unsafe/evil.upf"
 
-    with pytest.raises(ValidationError, match="outside allowed base directory"):
+    with pytest.raises(ValidationError, match="Path traversal not allowed"):
+        DFTConfig(
+            code="qe",
+            pseudopotentials={"Fe": rel_path}
+        )
+
+def test_dft_pseudopotentials_path_traversal_skip_checks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test path traversal check even when file checks are skipped."""
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
+
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+    monkeypatch.chdir(safe_dir)
+
+    # Path traversal attempt
+    # Even with skip_file_checks=True, '..' should be rejected
+    rel_path = "../unsafe/evil.upf"
+
+    with pytest.raises(ValidationError, match="Path traversal not allowed"):
         DFTConfig(
             code="qe",
             pseudopotentials={"Fe": rel_path}

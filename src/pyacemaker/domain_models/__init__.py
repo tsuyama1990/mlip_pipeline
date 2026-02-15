@@ -14,6 +14,7 @@ from pyacemaker.domain_models.models import (
     TaskStatus,
     TaskType,
     UncertaintyState,
+    ValidationResult,
     utc_now,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "TaskStatus",
     "TaskType",
     "UncertaintyState",
+    "ValidationResult",
     "utc_now",
 ]

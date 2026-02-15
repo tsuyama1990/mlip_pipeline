@@ -17,6 +17,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     UncertaintyState,
 )
+from pyacemaker.dynamics.kmc import EONWrapper
 
 
 class PotentialHelper:
@@ -89,19 +90,16 @@ class MDInterface:
             "boundary p p p",
             "read_data data.lammps",  # We assume data file exists
         ]
-        content.extend(cmds)
+        # Append commands individually to avoid intermediate list creation
+        for cmd in cmds:
+            content.append(cmd)
 
-        # Use efficient list extension for string building
-        content.extend(
-            [
-                f"timestep {self.params.timestep}",
-                f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1",
-                "compute pace all pace",  # Assuming compute pace is available
-                "variable pace_gamma equal c_pace",
-                f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue",
-                f"run {self.params.n_steps}",
-            ]
-        )
+        content.append(f"timestep {self.params.timestep}")
+        content.append(f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1")
+        content.append("compute pace all pace")  # Assuming compute pace is available
+        content.append("variable pace_gamma equal c_pace")
+        content.append(f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue")
+        content.append(f"run {self.params.n_steps}")
 
         # Efficient write using join
         input_file.write_text("\n".join(content))
@@ -134,16 +132,22 @@ class MDInterface:
         log_file = work_dir / "log.lammps"
 
         if not self.params.mock:
+            import shutil
+
+            exe = shutil.which(self.params.engine)
+            if not exe:
+                self.logger.error(f"LAMMPS executable '{self.params.engine}' not found.")
+                # We cannot proceed without executable
+                return HaltInfo(halted=False, step=None, max_gamma=None, structure=None)
+
             try:
                 with log_file.open("w") as f:
                     subprocess.run(  # noqa: S603
-                        [self.params.engine, "-in", "in.lammps"],
+                        [exe, "-in", "in.lammps"],
                         cwd=work_dir,
                         stdout=f,
                         check=False,
                     )
-            except FileNotFoundError:
-                self.logger.exception(f"LAMMPS executable '{self.params.engine}' not found.")
             except Exception:
                 self.logger.exception("Failed to run LAMMPS")
 
@@ -225,3 +229,33 @@ class LAMMPSEngine(DynamicsEngine):
         """Run production simulation."""
         self.logger.info(f"Running production with {potential.path} (mock)")
         return "mock_production_result"
+
+
+class EONEngine(DynamicsEngine):
+    """EON Dynamics Engine implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize EON Engine."""
+        super().__init__(config)
+        self.wrapper = EONWrapper(config.dynamics_engine.eon)
+
+    def run(self) -> ModuleResult:
+        """Run the engine."""
+        self.logger.info("Running EONEngine")
+        return ModuleResult(status="success")
+
+    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
+        """Run EON exploration."""
+        self.logger.info(f"Running EON exploration with {potential.path}")
+
+        # Placeholder: In real implementation, we would need initial states.
+        # EON usually explores from a known minimum.
+        # We assume we get structures from dataset or generator external to this method?
+        # Or we yield nothing for now as mock.
+
+        yield from []
+
+    def run_production(self, potential: Potential) -> Any:
+        """Run production."""
+        self.logger.info(f"Running EON production with {potential.path}")
+        return "eon_production_result"

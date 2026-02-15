@@ -6,10 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from pyacemaker.core.exceptions import ConfigurationError
 
 # Allow configuration of defaults path via environment variable for testing/portability
 _DEFAULTS_PATH = Path(
@@ -47,6 +45,10 @@ class Constants(BaseSettings):
     default_log_format: str = _DEFAULTS["log_format"]
     # 1 MB limit for configuration files to prevent OOM/DOS
     max_config_size: int = _DEFAULTS["max_config_size"]
+    # Dataset limits
+    max_object_size: int = _DEFAULTS["max_object_size"]
+    default_buffer_size: int = _DEFAULTS["default_buffer_size"]
+
     default_version: str = _DEFAULTS["version"]
     default_log_level: str = _DEFAULTS["log_level"]
     default_structure_strategy: str = _DEFAULTS["structure_strategy"]
@@ -129,9 +131,20 @@ class Constants(BaseSettings):
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
     composition_tolerance: float = _DEFAULTS["composition_tolerance"]
 
+    # Physics Validation Defaults
+    physics_phonon_supercell: list[int] = _DEFAULTS["physics_phonon_supercell"]
+    physics_phonon_tolerance: float = _DEFAULTS["physics_phonon_tolerance"]
+    physics_eos_strain: float = _DEFAULTS["physics_eos_strain"]
+    physics_eos_points: int = _DEFAULTS["physics_eos_points"]
+    physics_elastic_strain: float = _DEFAULTS["physics_elastic_strain"]
+
     # Security & Limits
     max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]
     dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
+
+    # File Names
+    default_validation_file: str = "validation_set.pckl.gzip"
+    default_training_file: str = "training_set.pckl.gzip"
 
     @field_validator("max_config_size")
     @classmethod
@@ -172,6 +185,16 @@ _VALID_VALUE_REGEX = re.compile(CONSTANTS.valid_value_regex)
 
 def _check_path_containment(path: Path) -> None:
     """Check that path is within the current working directory."""
+    # Explicitly disallow '..' in path parts to prevent traversal attempts
+    if ".." in path.parts:
+        msg = f"Path traversal not allowed: {path}"
+        raise ValueError(msg)
+
+    # If skipping checks (testing), we allow outside CWD (e.g. /tmp)
+    # but we still enforced the '..' check above.
+    if CONSTANTS.skip_file_checks:
+        return
+
     try:
         cwd = Path.cwd().resolve()
         resolved = path.resolve()
@@ -336,21 +359,26 @@ class DFTConfig(BaseModel):
     @classmethod
     def validate_pseudopotentials(cls, v: dict[str, str]) -> dict[str, str]:
         """Validate existence of pseudopotential files."""
-        if CONSTANTS.skip_file_checks:
-            return v
-
         missing = []
         for element, path_str in v.items():
             path = Path(path_str)
-            if not path.exists():
+
+            # Security check for traversal - ALWAYS RUN
+            try:
+                _check_path_containment(path)
+            except ValueError as e:
+                # If skipping checks, we might ignore non-existence, but traversal is suspicious.
+                # However, audit says "Always validate path containment".
+                # But _check_path_containment checks if relative to CWD.
+                # In tests, dummy paths might not be in CWD?
+                # If skip_file_checks is True, we assume mocking.
+                # But path traversal (..) should still be forbidden.
+                # _check_path_containment enforces `..` check first.
+                msg = f"Invalid path for {element}: {e}"
+                raise ValueError(msg) from e
+
+            if not CONSTANTS.skip_file_checks and not path.exists():
                 missing.append(f"{element}: {path_str}")
-            else:
-                # Security check for traversal
-                try:
-                    _check_path_containment(path)
-                except ValueError as e:
-                    msg = f"Invalid path for {element}: {e}"
-                    raise ValueError(msg) from e
 
         if missing:
             msg = f"Missing pseudopotential files: {', '.join(missing)}"
@@ -436,6 +464,22 @@ class TrainerConfig(BaseModuleConfig):
         return v.lower()
 
 
+class EONConfig(BaseModel):
+    """Configuration for EON kMC simulations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    executable: str = Field(default="eonclient", description="Path to EON executable")
+    parameters: dict[str, Any] = Field(default_factory=dict, description="EON parameters")
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        _validate_structure(v)
+        return v
+
+
 class DynamicsEngineConfig(BaseModuleConfig):
     """Dynamics Engine module configuration."""
 
@@ -450,6 +494,7 @@ class DynamicsEngineConfig(BaseModuleConfig):
     n_steps: int = Field(default=100000, description="Number of MD steps")
     hybrid_baseline: str = Field(default="zbl", description="Hybrid potential baseline (zbl or lj)")
     mock: bool = Field(default=False, description="Use mock engine for testing")
+    eon: EONConfig = Field(default_factory=EONConfig, description="EON configuration")
 
     @field_validator("hybrid_baseline")
     @classmethod
@@ -472,6 +517,18 @@ class ValidatorConfig(BaseModel):
         description="Metrics to validate",
     )
     thresholds: dict[str, float] = Field(default_factory=dict, description="Validation thresholds")
+    test_set_ratio: float = Field(default=0.1, description="Ratio of dataset to use for testing")
+    phonon_supercell: list[int] = Field(
+        default_factory=lambda: CONSTANTS.physics_phonon_supercell,
+        description="Supercell for phonon calculation",
+    )
+    eos_strain: float = Field(
+        default=CONSTANTS.physics_eos_strain, description="Strain range for EOS calculation"
+    )
+    elastic_strain: float = Field(
+        default=CONSTANTS.physics_elastic_strain,
+        description="Strain for elastic constants calculation",
+    )
 
 
 class OrchestratorConfig(BaseModel):
@@ -591,158 +648,4 @@ class PYACEMAKERConfig(BaseModel):
         return v
 
 
-def _validate_file_security(path: Path) -> None:
-    """Validate file permissions and ownership."""
-    if CONSTANTS.skip_file_checks:
-        return
-
-    # Resolve symlinks to check actual file
-    real_path = path.resolve()
-    if not real_path.is_file():
-        msg = f"Path is not a regular file: {path.name}"
-        raise ConfigurationError(msg)
-
-    # Check if original path is a symlink (Strict Audit Compliance)
-    if path.is_symlink():
-        # We allow symlinks if they point to valid files, but we should be aware.
-        pass
-
-    # Security: Ensure path is within CWD or allowed base
-    # REMOVED /tmp bypass for stricter security compliance.
-    try:
-        cwd = Path.cwd().resolve()
-        if not real_path.is_relative_to(cwd):
-            msg = f"Configuration file must be within current working directory: {cwd}"
-            raise ConfigurationError(msg)
-    except ValueError as e:
-        msg = f"Configuration file path {real_path} is outside allowed base directory {cwd}"
-        raise ConfigurationError(msg) from e
-
-    # Check file permissions (Security)
-    if not os.access(path, os.R_OK):
-        msg = f"Permission denied: {path.name}"
-        raise ConfigurationError(msg)
-
-    try:
-        st = real_path.stat()
-        # Check for world-writable
-        if st.st_mode & 0o002:
-            msg = f"Configuration file {path.name} is world-writable. This is insecure."
-            raise ConfigurationError(msg)
-    except OSError as e:
-        msg = f"Error checking file permissions: {e}"
-        raise ConfigurationError(msg) from e
-
-
-def _check_file_size(file_size: int) -> None:
-    """Check if file size exceeds limit."""
-    if file_size > CONSTANTS.max_config_size:
-        msg = f"Configuration file too large: {file_size} bytes (max {CONSTANTS.max_config_size})"
-        raise ConfigurationError(msg)
-
-
-def _read_file_content(path: Path) -> str:
-    """Read file content with safety checks.
-
-    Reads in chunks to ensure strict memory limit enforcement.
-    """
-    try:
-        file_size = path.stat().st_size
-        _check_file_size(file_size)
-
-        limit = CONSTANTS.max_config_size
-        content_parts = []
-        total_read = 0
-        chunk_size = 4096 # Read in 4KB chunks
-
-        with path.open("r", encoding="utf-8") as f:
-            while True:
-                # Calculate remaining allowance
-                remaining = limit - total_read
-                if remaining < 0:
-                     msg = f"Configuration file exceeds size limit of {limit} bytes."
-                     raise ConfigurationError(msg)
-
-                # Read exactly what we need or chunk, plus 1 to detect overflow
-                to_read = min(chunk_size, remaining + 1)
-
-                chunk = f.read(to_read)
-                if not chunk:
-                    break
-
-                total_read += len(chunk)
-
-                if total_read > limit:
-                    msg = f"Configuration file exceeds size limit of {limit} bytes."
-                    raise ConfigurationError(msg)
-
-                content_parts.append(chunk)
-
-        return "".join(content_parts)
-
-    except OSError as e:
-        msg = f"Error reading configuration file: {e}"
-        raise ConfigurationError(msg, details={"filename": path.name}) from e
-
-
-def _read_config_file(path: Path) -> dict[str, Any]:
-    """Read and parse configuration file safely.
-
-    This function reads the file into memory with a strict size limit,
-    preventing Out-Of-Memory (OOM) attacks from large files.
-    """
-    content = _read_file_content(path)
-
-    try:
-        data = yaml.safe_load(content)
-    except yaml.YAMLError as e:
-        msg = f"Error parsing YAML configuration: {e}"
-        raise ConfigurationError(msg, details={"original_error": str(e)}) from e
-    except Exception as e:
-        # Catch generic errors to ensure consistent exception wrapping
-        msg = f"Unexpected error reading configuration: {e}"
-        raise ConfigurationError(msg) from e
-    else:
-        if not isinstance(data, dict):
-            msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
-            raise ConfigurationError(msg)
-
-        # Pydantic handles recursive validation against the schema.
-        # We rely on PYACEMAKERConfig(**data) to enforce structure.
-        return data
-
-
-def load_config(path: Path) -> PYACEMAKERConfig:
-    """Load and validate configuration from a YAML file.
-
-    Args:
-        path: Path to the YAML configuration file.
-
-    Returns:
-        Validated PYACEMAKERConfig object.
-
-    Raises:
-        ConfigurationError: If the file cannot be read or validation fails.
-
-    """
-    if not path.exists():
-        msg = f"Configuration file not found: {path.name}"
-        raise ConfigurationError(msg)
-
-    _validate_file_security(path)
-
-    try:
-        data = _read_config_file(path)
-        return PYACEMAKERConfig(**data)
-    except ConfigurationError:
-        raise
-    except ValidationError as e:
-        msg = f"Invalid configuration: {e}"
-        details = {"errors": e.errors()}
-        raise ConfigurationError(msg, details=details) from e
-    except Exception as e:
-        # Catch unexpected errors during load
-        self_logger = __import__("logging").getLogger("pyacemaker.core.config")
-        self_logger.exception("Unexpected error loading configuration")
-        msg = f"Unexpected error loading configuration: {e}"
-        raise ConfigurationError(msg) from e
+# Configuration loading logic moved to pyacemaker.core.config_loader
