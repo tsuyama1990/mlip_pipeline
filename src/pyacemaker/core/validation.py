@@ -17,24 +17,27 @@ def validate_safe_path(path: Path) -> Path:
         return path
 
     try:
-        cwd = Path.cwd().resolve()
-        # Strict resolution (resolve symlinks)
-        resolved = path.resolve(strict=True) if path.exists() else path.absolute()
+        cwd = Path.cwd().resolve(strict=True)
+        # 1. Strict Resolution
+        if path.exists():
+            resolved = path.resolve(strict=True)
+        else:
+            # If path doesn't exist, we must still check traversal via parent
+            parent = path.parent.resolve(strict=True)
+            resolved = parent / path.name
 
-        # 1. Containment Check
+        # 2. Containment Check (Canonical Paths)
+        # Ensure we compare absolute paths
+        resolved = resolved.absolute()
+
         if resolved.is_relative_to(cwd):
             return resolved
 
-        # 2. Whitelist Check
-        if (
-            resolved.is_absolute()
-            and resolved.exists()
-            and any(
-                str(resolved).startswith(str(Path(p).resolve()))
-                for p in CONSTANTS.allowed_potential_paths
-            )
-        ):
-            return resolved
+        # 3. Whitelist Check (Strict Prefix)
+        for allowed in CONSTANTS.allowed_potential_paths:
+            allowed_path = Path(allowed).resolve(strict=True)
+            if resolved.is_relative_to(allowed_path):
+                return resolved
 
         msg = f"Path is outside CWD and not in allowed whitelist: {resolved}"
         raise ValueError(msg)  # noqa: TRY301
@@ -66,7 +69,7 @@ def _validate_structure(data: Any, path: str = "", depth: int = 0) -> None:
         _validate_list(data, path, depth)
     elif isinstance(data, str):
         if not valid_value_regex.match(data):
-            msg = f"Invalid characters in value at '{path}'. Found potentially unsafe characters."
+            msg = f"Invalid characters in value at '{path}': {data}. Must match pattern: {valid_value_regex.pattern}"
             raise ValueError(msg)
     elif not isinstance(data, (int, float, bool, type(None))):
         msg = f"Invalid type {type(data)} at {path}"
