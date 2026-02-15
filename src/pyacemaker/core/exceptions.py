@@ -28,3 +28,7 @@ class DFTError(PYACEMAKERError):
 
 class StructureError(PYACEMAKERError):
     """Raised when an atomic structure is invalid."""
+
+
+class DynamicsError(PYACEMAKERError):
+    """Raised when a dynamics simulation fails."""

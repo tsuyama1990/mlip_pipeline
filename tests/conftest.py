@@ -1,9 +1,10 @@
 """Global pytest configuration."""
 
+
 import pytest
-from pathlib import Path
 
 from pyacemaker.core.config import CONSTANTS
+
 
 @pytest.fixture(autouse=True)
 def skip_file_security_checks(monkeypatch: pytest.MonkeyPatch) -> None:

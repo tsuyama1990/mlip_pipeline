@@ -120,7 +120,7 @@ class TestFullCycleIntegration:
         )
 
         with (
-            patch("pyacemaker.modules.validator.MockValidator.validate") as mock_validate,
+            patch("pyacemaker.modules.validator.Validator.validate") as mock_validate,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
         ):
             # Simulate validation failure

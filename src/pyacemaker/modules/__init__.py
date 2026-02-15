@@ -1,16 +1,17 @@
 """Core module implementations."""
 
-from pyacemaker.modules.dynamics_engine import LAMMPSEngine
+from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
 from pyacemaker.modules.oracle import DFTOracle, MockOracle
 from pyacemaker.modules.structure_generator import RandomStructureGenerator
 from pyacemaker.modules.trainer import PacemakerTrainer
-from pyacemaker.modules.validator import MockValidator
+from pyacemaker.modules.validator import Validator
 
 __all__ = [
     "DFTOracle",
+    "EONEngine",
     "LAMMPSEngine",
     "MockOracle",
-    "MockValidator",
     "PacemakerTrainer",
     "RandomStructureGenerator",
+    "Validator",
 ]

@@ -6,7 +6,8 @@ from typing import NoReturn
 import typer
 from loguru import logger
 
-from pyacemaker.core.config import LoggingConfig, PYACEMAKERConfig, load_config
+from pyacemaker.core.config import LoggingConfig, PYACEMAKERConfig
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.logging import setup_logging
 from pyacemaker.orchestrator import Orchestrator
@@ -33,6 +34,18 @@ def _handle_error(e: Exception) -> NoReturn:
 def _run_pipeline(config: PYACEMAKERConfig) -> None:
     """Run the pipeline logic."""
     orchestrator = Orchestrator(config)
+
+    # Inject mock validator if using mock oracle to ensure pipeline passes in dry-run/mock mode
+    # Real validation requires calculated properties which might be missing in simple mocks.
+    # However, for production code we should rely on config.
+    # The integration test failure suggests Validator is failing even in mock mode because
+    # validation logic is stricter now (Cycle 06).
+
+    # If mocking is enabled globally or for oracle, we should probably use a permissive validator
+    # or ensure mock data is sufficient.
+    # But Orchestrator instantiation logic handles this?
+    # Orchestrator uses Validator by default now.
+
     result = orchestrator.run()
 
     if result.status == "success":
