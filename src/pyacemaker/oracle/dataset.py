@@ -19,10 +19,6 @@ from loguru import logger
 from pyacemaker.core.config import CONSTANTS
 from pyacemaker.core.utils import verify_checksum
 
-# Size limits for objects to prevent OOM
-MAX_OBJECT_SIZE_BYTES = 128 * 1024 * 1024  # 128 MB
-DEFAULT_BUFFER_SIZE = 10 * 1024 * 1024  # 10 MB
-
 
 class RestrictedUnpickler(pickle.Unpickler):
     """Restricted unpickler for security."""
@@ -58,7 +54,6 @@ class LimitedStream(io.BytesIO):
         if self._remaining <= 0:
             return b""
 
-        # Handle None as -1
         req_size = -1 if size is None else size
 
         if req_size < 0 or req_size > self._remaining:
@@ -103,31 +98,13 @@ class DatasetManager:
     ) -> Atoms | None:
         """Deserialize and validate a single object from stream."""
         try:
-            # Wrap stream to enforce size limit and prevent reading past object boundary
-            # Note: Unpickler might need seek/tell support which LimitedStream (BytesIO based) has,
-            # but here we wrap a raw file stream which might be buffered.
-            # We can't easily inherit BytesIO for a pipe.
-            # We need a custom reader.
-            # However, pickle usually just reads sequentially.
             limited_stream = LimitedStream(f, size)
 
             unpickler = RestrictedUnpickler(limited_stream)
             obj = unpickler.load()
 
-            # Ensure we consumed exactly 'size' bytes or skip remaining
-            # Unpickler stops when object is done.
-            # We must skip any padding if exists (though our format has none)
-            # or verify we didn't read too little?
-            # Actually, we rely on _process_frames loop to manage position?
-            # No, LimitedStream consumes from `f`.
-            # If unpickler reads less than `size`, `f` pointer is at `size - remaining`.
-            # We MUST advance `f` to the end of the frame.
-
             remaining = limited_stream._remaining
             if remaining > 0:
-                # Unpickler didn't consume all bytes allocated for this frame?
-                # This could happen if pickle ends early.
-                # We must skip the rest to align for next frame.
                 try:
                     f.seek(remaining, 1)
                 except (OSError, AttributeError, io.UnsupportedOperation):
@@ -145,7 +122,6 @@ class DatasetManager:
                 return obj
         except pickle.UnpicklingError:
             self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
-            # If corrupted, we might be out of sync. Stop.
             return None
         return None
 
@@ -161,13 +137,12 @@ class DatasetManager:
             self.logger.exception(f"Corrupted size header in {path}")
             return None
 
-        # mypy needs explicit int check though unpack returns tuple of ints/floats/etc
         size = int(size_val)
 
-        if size > MAX_OBJECT_SIZE_BYTES:
+        if size > CONSTANTS.max_object_size:
             msg = (
                 f"Object size {size} bytes exceeds limit of "
-                f"{MAX_OBJECT_SIZE_BYTES} bytes. Potential OOM risk."
+                f"{CONSTANTS.max_object_size} bytes. Potential OOM risk."
             )
             self.logger.error(msg)
             raise ValueError(msg)
@@ -195,7 +170,7 @@ class DatasetManager:
         self,
         path: Path,
         verify: bool = True,
-        buffer_size: int = DEFAULT_BUFFER_SIZE,
+        buffer_size: int = CONSTANTS.default_buffer_size,
         start_index: int = 0,
     ) -> Iterator[Atoms]:
         """Iterate over a dataset from a gzipped framed pickle file (Streaming).
@@ -291,7 +266,7 @@ class DatasetManager:
         path: Path,
         mode: str = "wb",
         calculate_checksum: bool = True,
-        buffer_size: int = DEFAULT_BUFFER_SIZE,
+        buffer_size: int = CONSTANTS.default_buffer_size,
     ) -> None:
         """Save a dataset by dumping objects sequentially using Framed Pickle format.
 
@@ -323,10 +298,10 @@ class DatasetManager:
                 obj_bytes = pickle.dumps(atoms)
                 size = len(obj_bytes)
 
-                if size > MAX_OBJECT_SIZE_BYTES:
+                if size > CONSTANTS.max_object_size:
                     msg = (
                         f"Object size {size} bytes exceeds limit of "
-                        f"{MAX_OBJECT_SIZE_BYTES} bytes. Skipping save."
+                        f"{CONSTANTS.max_object_size} bytes. Skipping save."
                     )
                     self.logger.error(msg)
                     continue

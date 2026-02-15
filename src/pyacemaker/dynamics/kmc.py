@@ -9,6 +9,7 @@ from ase.io import write
 from loguru import logger
 
 from pyacemaker.core.config import EONConfig
+from pyacemaker.core.exceptions import DynamicsError
 
 
 class EONWrapper:
@@ -152,9 +153,8 @@ if __name__ == "__main__":
         except subprocess.CalledProcessError as e:
             self.logger.exception("EON execution failed")
             msg = "EON execution failed"
-            raise RuntimeError(msg) from e
+            raise DynamicsError(msg) from e
         except FileNotFoundError as e:
             self.logger.exception("EON executable not found")
             msg = f"EON executable not found: {self.config.executable}"
-            # Raise RuntimeError to match test expectation
-            raise RuntimeError(msg) from e
+            raise DynamicsError(msg) from e

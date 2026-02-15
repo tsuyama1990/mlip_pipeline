@@ -60,5 +60,14 @@ def test_eon_failure(mock_atoms: Atoms, eon_config: EONConfig, tmp_path: Path) -
         mock_run.side_effect = subprocess.CalledProcessError(1, ["mock_eon"])
         mock_which.return_value = "/usr/bin/mock_eon"
 
-        with pytest.raises(RuntimeError, match="EON execution failed"):
+    from pyacemaker.core.exceptions import DynamicsError
+
+    with (
+        patch("pyacemaker.dynamics.kmc.subprocess.run") as mock_run,
+        patch("pyacemaker.dynamics.kmc.shutil.which") as mock_which,
+    ):
+        mock_run.side_effect = subprocess.CalledProcessError(1, ["mock_eon"])
+        mock_which.return_value = "/usr/bin/mock_eon"
+
+        with pytest.raises(DynamicsError, match="EON execution failed"):
             wrapper.run_search(mock_atoms, potential_path, work_dir=tmp_path)

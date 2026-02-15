@@ -45,6 +45,10 @@ class Constants(BaseSettings):
     default_log_format: str = _DEFAULTS["log_format"]
     # 1 MB limit for configuration files to prevent OOM/DOS
     max_config_size: int = _DEFAULTS["max_config_size"]
+    # Dataset limits
+    max_object_size: int = _DEFAULTS["max_object_size"]
+    default_buffer_size: int = _DEFAULTS["default_buffer_size"]
+
     default_version: str = _DEFAULTS["version"]
     default_log_level: str = _DEFAULTS["log_level"]
     default_structure_strategy: str = _DEFAULTS["structure_strategy"]
