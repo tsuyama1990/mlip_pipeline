@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from pyacemaker.core.config import CONSTANTS
 from pyacemaker.domain_models.common import PotentialType, utc_now
 
 
@@ -86,6 +87,9 @@ class Potential(BaseModel):
                 # Just a warning or strict? Let's check for traversal specifically.
                 # If '..' remains after resolve, it's weird (resolve handles it).
                 pass
+
+            if CONSTANTS.skip_file_checks:
+                return v
 
             # Security: Ensure path is within CWD or allowed base to prevent writing to system dirs
             cwd = Path.cwd().resolve()

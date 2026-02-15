@@ -61,11 +61,12 @@ class DatasetManager:
 
         return obj_bytes
 
-    def load_iter(self, path: Path) -> Iterator[Atoms]:
+    def load_iter(self, path: Path, verify: bool = True) -> Iterator[Atoms]:
         """Iterate over a dataset from a gzipped framed pickle file (Streaming).
 
         Args:
             path: Path to the .pckl.gzip file.
+            verify: Whether to verify checksum (default: True).
 
         Yields:
             ase.Atoms objects.
@@ -80,17 +81,18 @@ class DatasetManager:
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
 
-        # Verify checksum if present
-        checksum_path = path.with_suffix(path.suffix + ".sha256")
-        if checksum_path.exists():
-            expected = checksum_path.read_text().strip()
-            if not verify_checksum(path, expected):
-                msg = f"Checksum verification failed for {path}"
-                self.logger.error(msg)
-                raise ValueError(msg)
-            self.logger.info(f"Checksum verified for {path}")
-        else:
-            self.logger.warning(f"No checksum file found for {path}")
+        # Verify checksum if present and requested
+        if verify:
+            checksum_path = path.with_suffix(path.suffix + ".sha256")
+            if checksum_path.exists():
+                expected = checksum_path.read_text().strip()
+                if not verify_checksum(path, expected):
+                    msg = f"Checksum verification failed for {path}"
+                    self.logger.error(msg)
+                    raise ValueError(msg)
+                self.logger.info(f"Checksum verified for {path}")
+            else:
+                self.logger.warning(f"No checksum file found for {path}")
 
         self.logger.warning(CONSTANTS.PICKLE_SECURITY_WARNING)
 
@@ -138,6 +140,7 @@ class DatasetManager:
         data: Iterator[Atoms] | list[Atoms],
         path: Path,
         mode: str = "wb",
+        calculate_checksum: bool = True,
     ) -> None:
         """Save a dataset by dumping objects sequentially using Framed Pickle format.
 
@@ -145,6 +148,7 @@ class DatasetManager:
             data: Iterable of ase.Atoms objects.
             path: Target path.
             mode: File mode ('wb' for write/overwrite, 'ab' for append).
+            calculate_checksum: Whether to calculate and save SHA256 checksum (expensive for large files).
 
         """
         # Ensure parent directory exists
@@ -174,8 +178,11 @@ class DatasetManager:
                 # Write payload
                 f.write(obj_bytes)  # type: ignore[arg-type]
 
-        # Calculate and save checksum
-        # Note: Re-calculating checksum for large files on every append is expensive
-        # but necessary for security integrity.
-        checksum = calculate_checksum(path)
-        path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+        if calculate_checksum:
+            # Calculate and save checksum
+            # Note: Re-calculating checksum for large files on every append is expensive
+            # but necessary for security integrity.
+            from pyacemaker.core.utils import calculate_checksum as calc_checksum
+
+            checksum = calc_checksum(path)
+            path.with_suffix(path.suffix + ".sha256").write_text(checksum)

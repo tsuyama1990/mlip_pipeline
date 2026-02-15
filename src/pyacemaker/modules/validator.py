@@ -40,10 +40,11 @@ class MockValidator(Validator):
         thresholds = getattr(self.config.validator, "thresholds", {})
 
         status = "success"
+        default_threshold = 1.0
         if thresholds:
-            if metrics["rmse_energy"] > thresholds.get("rmse_energy", 1.0):
+            if metrics["rmse_energy"] > thresholds.get("rmse_energy", default_threshold):
                 status = "failed"
-            if metrics["rmse_forces"] > thresholds.get("rmse_forces", 1.0):
+            if metrics["rmse_forces"] > thresholds.get("rmse_forces", default_threshold):
                 status = "failed"
 
         return ModuleResult(

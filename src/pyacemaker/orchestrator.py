@@ -51,8 +51,13 @@ class DatasetSplitter:
         dataset_manager: "DatasetManager",
         validation_split: float,
         max_validation_size: int,
-        buffer_size: int = 100,
+        buffer_size: int = 100,  # Fallback, usually overridden by config
+        start_index: int = 0,
     ) -> None:
+        from pyacemaker.core.config import CONSTANTS
+
+        if buffer_size == 100:  # If default
+             buffer_size = CONSTANTS.default_validation_buffer_size
         self.dataset_path = dataset_path
         self.validation_path = validation_path
         self.dataset_manager = dataset_manager
@@ -61,26 +66,22 @@ class DatasetSplitter:
         self.buffer_size = buffer_size
         self._rng = secrets.SystemRandom()
         self._val_count = 0
+        self.start_index = start_index
+        self.processed_count = 0
 
     def train_stream(self) -> Iterator[StructureMetadata]:
         """Yield training items and save validation items to file as side effect."""
         if not self.dataset_path.exists():
             return
 
-        # Clear previous validation set? Or append? Assuming per-cycle, we might want fresh split or accumulated.
-        # Typically active learning accumulates. But validation set should likely be representative.
-        # Ideally we append to validation set if we are appending to training set.
-        # But here we are iterating the WHOLE dataset.
-        # If we iterate the whole dataset every time, we re-split every time.
-        # For efficiency, we should probably only split NEW items.
-        # But the current design iterates the full dataset for training.
-        # We will implement a simple split logic: valid items go to a buffer, then flushed to file.
-        # To avoid opening/closing file for every item, we can buffer.
-        # DatasetManager.save_iter handles iterators. We can't easily interleave saving to two files with one iterator unless we use a generator that writes side effects.
-
         val_buffer: list[StructureMetadata] = []
 
-        for atoms in self.dataset_manager.load_iter(self.dataset_path):
+        # Enumerate to skip already processed items
+        for i, atoms in enumerate(self.dataset_manager.load_iter(self.dataset_path)):
+            if i < self.start_index:
+                continue
+
+            self.processed_count += 1
             is_full = self._val_count >= self.max_validation_size
             should_validate = (not is_full) and (self._rng.random() < self.validation_split)
 
@@ -158,6 +159,7 @@ class Orchestrator(IOrchestrator):
         )
         self.dataset_manager = DatasetManager()
         self.cycle_count = 0
+        self.processed_items_count = 0
 
     def run(self) -> ModuleResult:
         """Run the full active learning pipeline."""
@@ -193,9 +195,26 @@ class Orchestrator(IOrchestrator):
         )
 
     def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
-        """Convert metadata stream to atoms and save to dataset."""
+        """Convert metadata stream to atoms and save to dataset.
+
+        Optimized to skip expensive checksum calculation during active learning loop.
+        Removes stale checksum file to prevent validation failures.
+        """
         atoms_stream = (metadata_to_atoms(s) for s in stream)
-        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
+        # Skip checksum calculation for O(1) append
+        self.dataset_manager.save_iter(
+            atoms_stream,
+            self.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )
+        # Remove stale checksum file if it exists, as it no longer matches the dataset
+        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
+        if checksum_path.exists():
+            try:
+                checksum_path.unlink()
+            except OSError:
+                self.logger.warning("Failed to remove stale checksum file.")
 
     def _run_cold_start(self) -> None:
         """Execute cold start to generate initial dataset."""
@@ -245,9 +264,6 @@ class Orchestrator(IOrchestrator):
         """Execute training phase with file-based streaming."""
         self.logger.info("Phase: Training")
 
-        # TODO: Implement incremental dataset updates (track processed items) for scalability
-        # Currently we iterate the full dataset every cycle.
-
         # Clear old validation set if exists to ensure fresh split
         if self.validation_path.exists():
             self.validation_path.unlink()
@@ -260,6 +276,7 @@ class Orchestrator(IOrchestrator):
             self.config.orchestrator.validation_split,
             self.config.orchestrator.max_validation_size,
             buffer_size=self.config.orchestrator.validation_buffer_size,
+            start_index=0 # Currently reprocessing all for training, but we COULD use self.processed_items_count if Trainer supports incremental
         )
 
         # Training consumes the stream, which populates validation file inside splitter

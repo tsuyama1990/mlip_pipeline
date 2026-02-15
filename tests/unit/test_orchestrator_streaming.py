@@ -144,7 +144,7 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     test_set = call_args[0][1]
 
     # Explicitly check content
-    assert len(test_set) == 10
+    assert len(list(test_set)) == 10
 
 
 def test_exploration_integration(streaming_config: PYACEMAKERConfig) -> None:

@@ -6,6 +6,7 @@ import pytest
 from ase import Atoms
 from pydantic import ValidationError
 
+from pyacemaker.core.config import CONSTANTS
 from pyacemaker.domain_models.common import CycleStatus, PotentialType, StructureStatus
 from pyacemaker.domain_models.potential import Potential
 from pyacemaker.domain_models.structure import StructureMetadata
@@ -92,6 +93,7 @@ def test_structure_metadata_calculated_fields() -> None:
 
 def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test potential path security validation."""
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
     monkeypatch.chdir(tmp_path)
 
     # Valid relative path

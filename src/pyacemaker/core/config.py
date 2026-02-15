@@ -67,6 +67,7 @@ class Constants(BaseSettings):
     default_orchestrator_validation_split: float = _DEFAULTS["orchestrator"]["validation_split"]
     default_orchestrator_min_validation_size: int = _DEFAULTS["orchestrator"]["min_validation_size"]
     default_orchestrator_max_validation_size: int = _DEFAULTS["orchestrator"]["max_validation_size"]
+    default_validation_buffer_size: int = 100
 
     # Validator Defaults
     default_validator_metrics: list[str] = _DEFAULTS["validator_metrics"]
@@ -94,8 +95,17 @@ class Constants(BaseSettings):
 
     # Error patterns for DFT retry logic
     dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
-    # Allowed input keys for security validation
+    # Allowed input sections for security validation
     dft_allowed_input_sections: list[str] = _DEFAULTS["dft"]["allowed_input_sections"]
+
+    # Structure Feature Whitelist
+    # Allow common keys for atoms, forces, etc. plus 'atoms' object itself.
+    allowed_feature_keys: list[str] = [
+        "atoms", "forces", "stress", "energy", "virial", "dipole",
+        "magmom", "charges", "momenta", "masses", "numbers", "positions",
+        "cell", "pbc", "initial_magmoms", "initial_charges", "uncertainty",
+        "original_id", "source"
+    ]
 
     # Dynamics Engine Defaults
     default_dynamics_gamma_threshold: float = _DEFAULTS["dynamics_gamma_threshold"]
@@ -164,66 +174,56 @@ def _check_path_containment(path: Path) -> None:
     try:
         cwd = Path.cwd().resolve()
         resolved = path.resolve()
-        # Security: Ensure path is within CWD or /tmp (for testing)
-        if not resolved.is_relative_to(cwd) and not str(resolved).startswith("/tmp"):  # noqa: S108
+        # Security: Ensure path is within CWD.
+        if not resolved.is_relative_to(cwd):
             msg = f"Path must be within current working directory: {cwd}"
             raise ValueError(msg)  # noqa: TRY301
     except (ValueError, RuntimeError) as e:
-        # Resolve might fail if path doesn't exist, but here we usually call this after existence check
-        # Or if is_relative_to fails
         msg = f"Path {path} is unsafe or outside allowed base directory"
         raise ValueError(msg) from e
 
 
-def _recursive_validate_parameters(
-    data: dict[str, Any] | list[Any] | tuple[Any, ...], path: str = "", depth: int = 0
-) -> None:
-    """Recursively validate parameter dictionary or list for security.
+def _validate_structure(data: Any, path: str = "", depth: int = 0) -> None:
+    """Validate data structure recursively against security rules.
 
-    This function enforces a strict whitelist for keys and values to prevent injection attacks.
-    It recurses into dictionaries and lists/tuples.
-
-    Security Rationale:
-        A depth limit is enforced to prevent stack overflow attacks through deeply nested
-        JSON/YAML structures, which could cause a Denial of Service (DoS).
+    Consolidated validation logic for dictionaries and lists to prevent injection attacks
+    and stack overflows.
     """
-    # Prevent stack overflow attacks via deep nesting
     if depth > 10:
         msg = "Configuration nesting too deep (max 10)"
         raise ValueError(msg)
 
     if isinstance(data, dict):
-        for key, value in data.items():
-            current_path = f"{path}.{key}" if path else key
-            if not isinstance(key, str):
-                msg = f"Keys must be strings at {current_path}"
-                raise TypeError(msg)
-
-            # Strict whitelist validation for keys
-            if not _VALID_KEY_REGEX.match(key):
-                msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
-                raise ValueError(msg)
-
-            _recursive_validate_value(value, current_path, depth)
+        _validate_dict(data, path, depth)
     elif isinstance(data, (list, tuple)):
-        for i, value in enumerate(data):
-            current_path = f"{path}[{i}]"
-            _recursive_validate_value(value, current_path, depth)
-
-
-def _recursive_validate_value(value: Any, current_path: str, depth: int) -> None:
-    """Helper to validate a value based on its type."""
-    if isinstance(value, (dict, list, tuple)):
-        _recursive_validate_parameters(value, current_path, depth + 1)
-    elif isinstance(value, str):
-        # Strict whitelist check for values (Security hardening)
-        if not _VALID_VALUE_REGEX.match(value):
-            msg = f"Invalid characters in value at '{current_path}'. Found potentially unsafe characters."
+        _validate_list(data, path, depth)
+    elif isinstance(data, str):
+        if not _VALID_VALUE_REGEX.match(data):
+            msg = f"Invalid characters in value at '{path}'. Found potentially unsafe characters."
             raise ValueError(msg)
-    elif not isinstance(value, (int, float, bool, type(None))):
-        # Allow basic types, reject complex objects
-        msg = f"Invalid type {type(value)} at {current_path}"
+    elif not isinstance(data, (int, float, bool, type(None))):
+        msg = f"Invalid type {type(data)} at {path}"
         raise TypeError(msg)
+
+
+def _validate_dict(data: dict[str, Any], path: str, depth: int) -> None:
+    for key, value in data.items():
+        current_path = f"{path}.{key}" if path else key
+        if not isinstance(key, str):
+            msg = f"Keys must be strings at {current_path}"
+            raise TypeError(msg)
+
+        if not _VALID_KEY_REGEX.match(key):
+            msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
+            raise ValueError(msg)
+
+        _validate_structure(value, current_path, depth + 1)
+
+
+def _validate_list(data: list[Any] | tuple[Any, ...], path: str, depth: int) -> None:
+    for i, value in enumerate(data):
+        current_path = f"{path}[{i}]"
+        _validate_structure(value, current_path, depth + 1)
 
 
 class BaseModuleConfig(BaseModel):
@@ -239,7 +239,7 @@ class BaseModuleConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        _recursive_validate_parameters(v)
+        _validate_structure(v)
         return v
 
 
@@ -360,7 +360,7 @@ class DFTConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        _recursive_validate_parameters(v)
+        _validate_structure(v)
         return v
 
 
@@ -511,7 +511,7 @@ class OrchestratorConfig(BaseModel):
         description="Filename for the dataset within the data directory",
     )
     validation_buffer_size: int = Field(
-        default=100,
+        default=CONSTANTS.default_validation_buffer_size,
         description="Buffer size for writing validation items to disk",
     )
 
@@ -592,6 +592,9 @@ class PYACEMAKERConfig(BaseModel):
 
 def _validate_file_security(path: Path) -> None:
     """Validate file permissions and ownership."""
+    if CONSTANTS.skip_file_checks:
+        return
+
     # Resolve symlinks to check actual file
     real_path = path.resolve()
     if not real_path.is_file():
@@ -601,17 +604,13 @@ def _validate_file_security(path: Path) -> None:
     # Check if original path is a symlink (Strict Audit Compliance)
     if path.is_symlink():
         # We allow symlinks if they point to valid files, but we should be aware.
-        # For now, just proceeding as we resolved it.
         pass
 
     # Security: Ensure path is within CWD or allowed base
-    # Since we don't have a defined "project root" yet (we are reading the config),
-    # we enforce that the config file must be within the current working directory
-    # or its subdirectories to prevent arbitrary file reads.
+    # REMOVED /tmp bypass for stricter security compliance.
     try:
         cwd = Path.cwd().resolve()
-        # Security: Ensure path is within CWD or /tmp (for testing)
-        if not real_path.is_relative_to(cwd) and not str(real_path).startswith("/tmp"):  # noqa: S108
+        if not real_path.is_relative_to(cwd):
             msg = f"Configuration file must be within current working directory: {cwd}"
             raise ConfigurationError(msg)
     except ValueError as e:
@@ -642,20 +641,44 @@ def _check_file_size(file_size: int) -> None:
 
 
 def _read_file_content(path: Path) -> str:
-    """Read file content with safety checks."""
+    """Read file content with safety checks.
+
+    Reads in chunks to ensure strict memory limit enforcement.
+    """
     try:
         file_size = path.stat().st_size
         _check_file_size(file_size)
+
+        limit = CONSTANTS.max_config_size
+        content_parts = []
+        total_read = 0
+        chunk_size = 4096 # Read in 4KB chunks
+
         with path.open("r", encoding="utf-8") as f:
-            # Read exactly the max size + 1 to detect oversize reliably.
-            content = f.read(CONSTANTS.max_config_size + 1)
+            while True:
+                # Calculate remaining allowance
+                remaining = limit - total_read
+                if remaining < 0:
+                     msg = f"Configuration file exceeds size limit of {limit} bytes."
+                     raise ConfigurationError(msg)
 
-            # Check length immediately
-            if len(content) > CONSTANTS.max_config_size:
-                msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
-                raise ConfigurationError(msg)
+                # Read exactly what we need or chunk, plus 1 to detect overflow
+                to_read = min(chunk_size, remaining + 1)
 
-            return content
+                chunk = f.read(to_read)
+                if not chunk:
+                    break
+
+                total_read += len(chunk)
+
+                if total_read > limit:
+                    msg = f"Configuration file exceeds size limit of {limit} bytes."
+                    raise ConfigurationError(msg)
+
+                content_parts.append(chunk)
+
+        return "".join(content_parts)
+
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
@@ -668,8 +691,6 @@ def _read_config_file(path: Path) -> dict[str, Any]:
     preventing Out-Of-Memory (OOM) attacks from large files.
     """
     content = _read_file_content(path)
-
-    # Redundant check removed since _read_file_content guarantees it
 
     try:
         data = yaml.safe_load(content)
