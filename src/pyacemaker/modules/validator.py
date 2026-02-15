@@ -46,11 +46,28 @@ class Validator(ValidatorInterface):
         # Stream processing to avoid OOM
         self.logger.info(f"Validating {potential.path}")
 
+
         reference_structure = None
         min_e_pa = float("inf")
         count = 0
 
-        for s in test_set:
+        # We need to process the stream but maybe limit how many we scan for reference structure
+        # to avoid reading 1M items just to pick one.
+        # However, for RMSE we need all.
+        # For this specific method, let's assume we scan all but efficiently (O(1) memory).
+        # We can use islice to batch if we were doing batch calc, but here we do single pass.
+
+        # Ensure we don't accidentally materialize
+        iterator = iter(test_set)
+
+        # Optimization: Process in chunks if needed, but simple loop is memory-safe for Python iterators
+        # provided the objects are released.
+        # But we hold reference_structure.
+        # Let's limit the scan for reference structure to the first N items to be safe/fast?
+        # Requirement says "Validator... processes... as a stream".
+        # We'll stick to full scan for now as it is strictly O(1) memory (1 structure held).
+
+        for s in iterator:
             count += 1
             if s.features.get("atoms"):
                 atoms = s.features["atoms"]

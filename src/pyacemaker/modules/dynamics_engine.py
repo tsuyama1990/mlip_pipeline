@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
@@ -23,22 +23,35 @@ from pyacemaker.dynamics.kmc import EONWrapper
 class PotentialHelper:
     """Helper for generating hybrid potential LAMMPS commands."""
 
-    _TEMPLATES: ClassVar[dict[str, list[str]]] = {
-        "zbl": [
-            "pair_style hybrid/overlay pace zbl 4.0 5.0",
-            "pair_coeff * * pace {path} {elements}",
-            "pair_coeff * * zbl 0.0 0.0",
-        ],
-        "lj": [
-            "pair_style hybrid/overlay pace lj/cut 10.0",
-            "pair_coeff * * pace {path} {elements}",
-            "pair_coeff * * lj/cut 1.0 1.0",
-        ],
-        "default": [
-            "pair_style pace",
-            "pair_coeff * * pace {path} {elements}",
-        ],
-    }
+    def __init__(self, templates: dict[str, list[str]] | None = None) -> None:
+        """Initialize PotentialHelper with command templates."""
+
+        # Load default templates from configuration if not provided
+        if templates is None:
+            # We assume CONSTANTS might have it, or fallback
+            # Since DynamicsEngineConfig has it via parameters (not typed in base config),
+            # we rely on passing it in. But defaults.yaml has it.
+            # However, CONSTANTS is flat settings.
+            # Ideally, this comes from config object passed to Engine.
+            # For backward compat/testing without full config:
+            self.templates = {
+                "zbl": [
+                    "pair_style hybrid/overlay pace zbl 4.0 5.0",
+                    "pair_coeff * * pace {path} {elements}",
+                    "pair_coeff * * zbl 0.0 0.0",
+                ],
+                "lj": [
+                    "pair_style hybrid/overlay pace lj/cut 10.0",
+                    "pair_coeff * * pace {path} {elements}",
+                    "pair_coeff * * lj/cut 1.0 1.0",
+                ],
+                "default": [
+                    "pair_style pace",
+                    "pair_coeff * * pace {path} {elements}",
+                ],
+            }
+        else:
+            self.templates = templates
 
     def get_lammps_commands(
         self, potential_path: Path, baseline_type: str, elements: list[str]
@@ -48,7 +61,7 @@ class PotentialHelper:
         element_str = " ".join(elements)
         context = {"path": path_str, "elements": element_str}
 
-        template = self._TEMPLATES.get(baseline_type, self._TEMPLATES["default"])
+        template = self.templates.get(baseline_type, self.templates.get("default", []))
         return [cmd.format(**context) for cmd in template]
 
 
@@ -81,7 +94,9 @@ class MDInterface:
             # Fallback or error? For now log warning and use empty
             self.logger.warning("No elements found in structure for LAMMPS input generation.")
 
-        helper = PotentialHelper()
+        # Helper uses templates from params if available
+        templates = self.params.parameters.get("dynamics_templates")
+        helper = PotentialHelper(templates)
         cmds = helper.get_lammps_commands(potential.path, self.params.hybrid_baseline, elements)
 
         content = [
@@ -95,8 +110,13 @@ class MDInterface:
         for cmd in cmds:
             content.append(cmd)
 
+        # Get magic numbers from config/parameters with defaults
+        temp_damping = self.params.parameters.get("dynamics_temp_damping", 0.1)
+
         content.append(f"timestep {self.params.timestep}")
-        content.append(f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1")
+        content.append(
+            f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} {temp_damping}"
+        )
         content.append("compute pace all pace")  # Assuming compute pace is available
         content.append("variable pace_gamma equal c_pace")
         content.append(

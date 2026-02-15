@@ -38,10 +38,12 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     # Should be constant relative to n_items
     peak_mb = measure_memory_peak(manager.save_iter, data_gen(), dataset_path)
 
-    # 10k items * 1KB ~ 10MB total data.
-    # Streaming should use buffer size (10MB default) + overhead.
-    # Ideally < 20MB.
-    assert peak_mb < 50.0 # Generous buffer for python overhead
+    # Calculate expected memory usage
+    # Buffer size (10MB) + Python overhead (generous 2x) + Fixed overhead
+    expected_max_mb = (10 * 2) + 20
+
+    # 100k items would be >100MB if loaded fully. We assert < 40MB.
+    assert peak_mb < expected_max_mb
 
     # Measure Load Memory
     def consume_load() -> None:
@@ -51,7 +53,7 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
         deque(manager.load_iter(dataset_path, verify=False), maxlen=0)
 
     peak_mb_load = measure_memory_peak(consume_load)
-    assert peak_mb_load < 50.0
+    assert peak_mb_load < expected_max_mb
 
 
 def test_dataset_splitter_memory(tmp_path: Path) -> None:
@@ -103,6 +105,6 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
 
     peak_mb = measure_memory_peak(consume_split)
 
-    # Should not load all 5000 items
-    # Python overhead is high, but shouldn't be 100MB
-    assert peak_mb < 50.0
+    # Should not load all 100k items
+    expected_max_mb = 50.0
+    assert peak_mb < expected_max_mb

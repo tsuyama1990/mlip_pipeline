@@ -4,9 +4,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-# Defer import to avoid circular dependency
-# from pyacemaker.core.config import CONSTANTS
-
 
 def validate_safe_path(path: Path) -> Path:
     """Validate that path is safe (within CWD or whitelisted)."""

@@ -40,6 +40,20 @@ trainer_batch_size: 100
 engine: "lammps"
 dynamics_gamma_threshold: 10.0
 dynamics_halt_probability: 0.3
+dynamics_timestep: 0.001
+dynamics_temp_damping: 0.1
+dynamics_templates:
+  zbl:
+    - "pair_style hybrid/overlay pace zbl 4.0 5.0"
+    - "pair_coeff * * pace {path} {elements}"
+    - "pair_coeff * * zbl 0.0 0.0"
+  lj:
+    - "pair_style hybrid/overlay pace lj/cut 10.0"
+    - "pair_coeff * * pace {path} {elements}"
+    - "pair_coeff * * lj/cut 1.0 1.0"
+  default:
+    - "pair_style pace"
+    - "pair_coeff * * pace {path} {elements}"
 
 # Validator
 validator_metrics:
