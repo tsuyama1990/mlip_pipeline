@@ -112,7 +112,7 @@ class AdaptiveStructureGenerator(StructureGenerator):
                 for cand_atoms in candidates:
                     yield StructureMetadata(
                         features={"atoms": cand_atoms},
-                        tags=["initial", "adaptive", f"strategy:{type(strategy).__name__}"],
+                        tags=["initial", "adaptive", f"strategy_{type(strategy).__name__}"],
                         status=StructureStatus.NEW,
                     )
             else:
@@ -154,7 +154,7 @@ class AdaptiveStructureGenerator(StructureGenerator):
         for cand_atoms in candidates:
             yield StructureMetadata(
                 features={"atoms": cand_atoms},
-                tags=["candidate", "adaptive", f"strategy:{type(strategy).__name__}"],
+                tags=["candidate", "adaptive", f"strategy_{type(strategy).__name__}"],
                 status=StructureStatus.NEW,
             )
 

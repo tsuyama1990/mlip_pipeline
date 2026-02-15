@@ -17,6 +17,8 @@ class TestTrainerModule:
     def config(self) -> MagicMock:
         # Mock PYACEMAKERConfig
         mock_config = MagicMock(spec=PYACEMAKERConfig)
+        mock_config.project = MagicMock()
+        mock_config.project.root_dir = Path("mock_project")
         mock_config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,
@@ -41,7 +43,8 @@ class TestTrainerModule:
             trainer.mock_dataset_manager = MockDatasetManager.return_value  # type: ignore[attr-defined]
             yield trainer
 
-    def test_train_method(self, trainer: Trainer) -> None:
+    @patch("shutil.copy")
+    def test_train_method(self, mock_copy: MagicMock, trainer: Trainer) -> None:
         """Test trainer.train method."""
         # Create a valid structure with atoms, energy, and forces
         from ase import Atoms
@@ -65,6 +68,9 @@ class TestTrainerModule:
         trainer.mock_dataset_manager.save_iter.side_effect = consume_iterator  # type: ignore[attr-defined]
 
         result = trainer.train(dataset)
+
+        # Verify copy
+        mock_copy.assert_called()
 
         assert isinstance(result, Potential)
         trainer.mock_wrapper.train.assert_called_once()  # type: ignore[attr-defined]
