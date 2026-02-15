@@ -1,19 +1,18 @@
 """Memory usage profiling for streaming operations."""
 
 import tracemalloc
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Iterator
+from typing import Any
 
-import pytest
 from ase import Atoms
 
-from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.domain_models.models import StructureMetadata
 from pyacemaker.oracle.dataset import DatasetManager
 from pyacemaker.orchestrator import DatasetSplitter
 
+
 # Utility to measure memory
-def measure_memory_peak(func, *args, **kwargs) -> float:
+def measure_memory_peak(func: Callable[..., Any], *args: Any, **kwargs: Any) -> float:
     """Run function and return peak memory usage in MB."""
     tracemalloc.start()
     func(*args, **kwargs)
@@ -31,7 +30,7 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     n_items = 10000
 
     def data_gen() -> Iterator[Atoms]:
-        for i in range(n_items):
+        for _ in range(n_items):
             yield Atoms("H2O", positions=[[0, 0, 0], [0, 0, 1], [0, 1, 0]])
 
     manager = DatasetManager()
@@ -43,16 +42,14 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     # 10k items * 1KB ~ 10MB total data.
     # Streaming should use buffer size (10MB default) + overhead.
     # Ideally < 20MB.
-    print(f"Save Peak Memory: {peak_mb:.2f} MB")
     assert peak_mb < 50.0 # Generous buffer for python overhead
 
     # Measure Load Memory
-    def consume_load():
+    def consume_load() -> None:
         for _ in manager.load_iter(dataset_path, verify=False):
             pass
 
     peak_mb_load = measure_memory_peak(consume_load)
-    print(f"Load Peak Memory: {peak_mb_load:.2f} MB")
     assert peak_mb_load < 50.0
 
 def test_dataset_splitter_memory(tmp_path: Path) -> None:
@@ -93,13 +90,12 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
     # We can patch DatasetManager.load_iter to force verify=False
     from unittest.mock import patch
 
-    def consume_split():
+    def consume_split() -> None:
         with patch.object(manager, "load_iter", side_effect=lambda p, **kwargs: DatasetManager.load_iter(manager, p, verify=False, **kwargs)):
              for _ in splitter.train_stream():
                 pass
 
     peak_mb = measure_memory_peak(consume_split)
-    print(f"Splitter Peak Memory: {peak_mb:.2f} MB")
 
     # Should not load all 5000 items
     # Python overhead is high, but shouldn't be 100MB

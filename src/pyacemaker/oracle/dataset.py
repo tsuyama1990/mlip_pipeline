@@ -11,7 +11,7 @@ import struct
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
-from typing import IO, Any
+from typing import IO
 
 from ase import Atoms
 from loguru import logger
@@ -35,9 +35,26 @@ class DatasetManager:
         """Initialize the Dataset Manager."""
         self.logger = logger.bind(name="DatasetManager")
 
-    def _read_frame(self, f: IO[bytes], path: Path) -> bytes | None:
-        """Read a single frame from the stream."""
-        # Read 8-byte size header
+    def _read_and_process_object(self, obj_bytes: bytes, path: Path) -> Atoms | None:
+        """Deserialize and validate a single object."""
+        try:
+            obj = pickle.loads(obj_bytes)  # noqa: S301
+            if isinstance(obj, list):
+                msg = (
+                    "Encountered a list object in stream. "
+                    "This likely indicates legacy format usage. "
+                    "Please convert dataset to framed format."
+                )
+                self.logger.error(msg)
+                raise TypeError(msg)
+            if isinstance(obj, Atoms):
+                return obj
+        except pickle.UnpicklingError:
+            self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
+        return None
+
+    def _read_next_frame_bytes(self, f: IO[bytes], path: Path) -> bytes | None:
+        """Read the next frame bytes from the stream, handling size header."""
         size_bytes = f.read(8)
         if not size_bytes:
             return None  # EOF
@@ -56,13 +73,34 @@ class DatasetManager:
             self.logger.error(msg)
             raise ValueError(msg)
 
-        # Read object bytes
-        obj_bytes = f.read(size)
-        if len(obj_bytes) != size:
-            self.logger.error(f"Incomplete read: expected {size}, got {len(obj_bytes)}")
-            return None
+        return f.read(size)
 
-        return obj_bytes
+    def _skip_frame(self, f: IO[bytes], path: Path) -> bool:
+        """Skip the next frame in the stream. Returns True if successful, False on EOF/Error."""
+        size_bytes = f.read(8)
+        if not size_bytes:
+            return False  # EOF
+
+        try:
+            size = struct.unpack(">Q", size_bytes)[0]
+        except struct.error:
+            self.logger.exception(f"Corrupted size header in {path}")
+            return False
+
+        if size > MAX_OBJECT_SIZE_BYTES:
+            msg = (
+                f"Object size {size} bytes exceeds limit of "
+                f"{MAX_OBJECT_SIZE_BYTES} bytes. Potential OOM risk."
+            )
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        try:
+            f.seek(size, 1)
+        except (OSError, AttributeError, io.UnsupportedOperation):
+            # Fallback to read
+            f.read(size)
+        return True
 
     def load_iter(
         self,
@@ -108,70 +146,36 @@ class DatasetManager:
         self.logger.warning(CONSTANTS.PICKLE_SECURITY_WARNING)
 
         # Buffered reading optimization
-        with gzip.open(path, "rb") as gz_file:
-            # Wrap in BufferedReader for performance if not already buffered enough
-            with io.BufferedReader(gz_file, buffer_size=buffer_size) as f:  # type: ignore[arg-type]
-                current_idx = 0
-                while True:
-                    # Peek or read frame header to determine size
-                    # We can't easily peek size without reading logic in _read_frame
-                    # But _read_frame reads size then data.
-                    # To skip, we read size, then skip data.
+        with (
+            gzip.open(path, "rb") as gz_file,
+            io.BufferedReader(gz_file, buffer_size=buffer_size) as f,  # type: ignore[arg-type]
+        ):
+            yield from self._process_frames(f, path, start_index)
 
-                    # Manual frame reading to support skipping
-                    size_bytes = f.read(8)
-                    if not size_bytes:
-                        break  # EOF
+    def _process_frames(
+        self, f: IO[bytes], path: Path, start_index: int
+    ) -> Iterator[Atoms]:
+        """Process frames from the buffered stream."""
+        current_idx = 0
+        while True:
+            # Optimization: Skip frames if before start_index
+            if current_idx < start_index:
+                if not self._skip_frame(f, path):
+                    break
+                current_idx += 1
+                continue
 
-                    try:
-                        size = struct.unpack(">Q", size_bytes)[0]
-                    except struct.error:
-                        self.logger.exception(f"Corrupted size header in {path}")
-                        break
+            obj_bytes = self._read_next_frame_bytes(f, path)
+            if obj_bytes is None:
+                break
 
-                    if size > MAX_OBJECT_SIZE_BYTES:
-                        msg = (
-                            f"Object size {size} bytes exceeds limit of "
-                            f"{MAX_OBJECT_SIZE_BYTES} bytes. Potential OOM risk."
-                        )
-                        self.logger.error(msg)
-                        raise ValueError(msg)
+            obj = self._read_and_process_object(obj_bytes, path)
+            if obj:
+                yield obj
+            elif obj is None and isinstance(obj, type(None)):
+                break
 
-                    # Optimization: Skip bytes if before start_index
-                    if current_idx < start_index:
-                        # Seek forward if possible, or read and discard
-                        # gzip stream supports forward seek via read
-                        try:
-                            f.seek(size, 1)
-                        except (OSError, AttributeError, io.UnsupportedOperation):
-                            # Fallback to read
-                            f.read(size)
-                        current_idx += 1
-                        continue
-
-                    # Read object bytes
-                    obj_bytes = f.read(size)
-                    if len(obj_bytes) != size:
-                        self.logger.error(f"Incomplete read: expected {size}, got {len(obj_bytes)}")
-                        break
-
-                    try:
-                        obj = pickle.loads(obj_bytes)  # noqa: S301
-                        if isinstance(obj, list):
-                            msg = (
-                                "Encountered a list object in stream. "
-                                "This likely indicates legacy format usage. "
-                                "Please convert dataset to framed format."
-                            )
-                            self.logger.error(msg)
-                            raise TypeError(msg)
-                        elif isinstance(obj, Atoms):
-                            yield obj
-                    except pickle.UnpicklingError:
-                        self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
-                        break
-
-                    current_idx += 1
+            current_idx += 1
 
     def save(self, data: list[Atoms], path: Path) -> None:
         """Save a dataset to a gzipped framed pickle file.
@@ -219,40 +223,33 @@ class DatasetManager:
         # Setup streaming checksum
         hasher = hashlib.sha256() if calculate_checksum and mode == "wb" else None
 
-        # Note: If mode is 'ab', we cannot easily calculate the *full* new checksum
-        # without reading the existing file.
-        # For now, we only support efficient streaming checksum for 'wb'.
-        # If 'ab' and calculate_checksum is True, we warn or perform the expensive check later?
-        # The audit asked for streaming checksum. We implement it for 'wb'.
-        # For 'ab', we skip it here and do it at the end if strictly required (which is O(N)),
-        # or we just don't do it to save time (since we disabled it in orchestrator anyway).
+        with (
+            gzip.open(path, mode) as gz_file,
+            io.BufferedWriter(gz_file, buffer_size=buffer_size) as f,  # type: ignore[arg-type]
+        ):
+            for atoms in data:
+                # Pickle to bytes first
+                obj_bytes = pickle.dumps(atoms)
+                size = len(obj_bytes)
 
-        with gzip.open(path, mode) as gz_file:
-            # Buffer the gzip stream
-            with io.BufferedWriter(gz_file, buffer_size=buffer_size) as f:  # type: ignore[arg-type]
-                for atoms in data:
-                    # Pickle to bytes first
-                    obj_bytes = pickle.dumps(atoms)
-                    size = len(obj_bytes)
+                if size > MAX_OBJECT_SIZE_BYTES:
+                    msg = (
+                        f"Object size {size} bytes exceeds limit of "
+                        f"{MAX_OBJECT_SIZE_BYTES} bytes. Skipping save."
+                    )
+                    self.logger.error(msg)
+                    continue
 
-                    if size > MAX_OBJECT_SIZE_BYTES:
-                        msg = (
-                            f"Object size {size} bytes exceeds limit of "
-                            f"{MAX_OBJECT_SIZE_BYTES} bytes. Skipping save."
-                        )
-                        self.logger.error(msg)
-                        continue
+                header = struct.pack(">Q", size)
 
-                    header = struct.pack(">Q", size)
+                # Update hash if active
+                if hasher:
+                    hasher.update(header)
+                    hasher.update(obj_bytes)
 
-                    # Update hash if active
-                    if hasher:
-                        hasher.update(header)
-                        hasher.update(obj_bytes)
-
-                    # Write header and payload
-                    f.write(header)
-                    f.write(obj_bytes)
+                # Write header and payload
+                f.write(header)
+                f.write(obj_bytes)
 
         if calculate_checksum:
             if mode == "wb" and hasher:
