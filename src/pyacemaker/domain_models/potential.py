@@ -89,8 +89,7 @@ class Potential(BaseModel):
 
             # Security: Ensure path is within CWD or allowed base to prevent writing to system dirs
             cwd = Path.cwd().resolve()
-            # Security: Ensure path is within CWD or /tmp (for testing)
-            if not resolved.is_relative_to(cwd) and not str(resolved).startswith("/tmp"):  # noqa: S108
+            if not resolved.is_relative_to(cwd):
                 msg = f"Potential path must be within current working directory: {cwd}"
                 raise ValueError(msg)  # noqa: TRY301
 

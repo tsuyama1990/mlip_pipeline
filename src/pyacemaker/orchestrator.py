@@ -51,12 +51,14 @@ class DatasetSplitter:
         dataset_manager: "DatasetManager",
         validation_split: float,
         max_validation_size: int,
+        buffer_size: int = 100,
     ) -> None:
         self.dataset_path = dataset_path
         self.validation_path = validation_path
         self.dataset_manager = dataset_manager
         self.validation_split = validation_split
         self.max_validation_size = max_validation_size
+        self.buffer_size = buffer_size
         self._rng = secrets.SystemRandom()
         self._val_count = 0
 
@@ -85,7 +87,7 @@ class DatasetSplitter:
             if should_validate:
                 val_buffer.append(atoms_to_metadata(atoms))
                 self._val_count += 1
-                if len(val_buffer) >= 100: # Buffer size
+                if len(val_buffer) >= self.buffer_size:
                      self._flush_validation(val_buffer)
                      val_buffer = []
             else:
@@ -243,6 +245,9 @@ class Orchestrator(IOrchestrator):
         """Execute training phase with file-based streaming."""
         self.logger.info("Phase: Training")
 
+        # TODO: Implement incremental dataset updates (track processed items) for scalability
+        # Currently we iterate the full dataset every cycle.
+
         # Clear old validation set if exists to ensure fresh split
         if self.validation_path.exists():
             self.validation_path.unlink()
@@ -254,6 +259,7 @@ class Orchestrator(IOrchestrator):
             self.dataset_manager,
             self.config.orchestrator.validation_split,
             self.config.orchestrator.max_validation_size,
+            buffer_size=self.config.orchestrator.validation_buffer_size,
         )
 
         # Training consumes the stream, which populates validation file inside splitter
@@ -277,18 +283,18 @@ class Orchestrator(IOrchestrator):
             return True
 
         # Load validation set from file
-        # Validator expects list[StructureMetadata] in current interface
-        # We should load it. Since validation set is capped by max_validation_size, it fits in memory.
-        try:
-            val_list = [
+        # Streaming to Validator to avoid OOM
+        def validation_stream() -> Iterator[StructureMetadata]:
+            yield from (
                 atoms_to_metadata(atoms)
                 for atoms in self.dataset_manager.load_iter(self.validation_path)
-            ]
-        except Exception:
-            self.logger.exception("Failed to load validation set")
-            return False
+            )
 
-        val_result = self.validator.validate(self.current_potential, val_list)
+        try:
+            val_result = self.validator.validate(self.current_potential, validation_stream())
+        except Exception:
+            self.logger.exception("Validation failed during processing")
+            return False
 
         if val_result.status == "failed":
             self.logger.error(f"Validation failed: {val_result.metrics}")

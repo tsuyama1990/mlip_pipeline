@@ -90,8 +90,10 @@ def test_structure_metadata_calculated_fields() -> None:
     )
     assert s.status == StructureStatus.CALCULATED
 
-def test_potential_path_validation() -> None:
+def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test potential path security validation."""
+    monkeypatch.chdir(tmp_path)
+
     # Valid relative path
     p = Potential(
         path=Path("potentials/test.yace"),
@@ -108,7 +110,7 @@ def test_potential_path_validation() -> None:
             version="1.0"
         )
 
-    # Absolute path outside CWD
+    # Absolute path outside CWD (e.g. /etc/passwd)
     with pytest.raises(ValidationError, match="within current working directory"):
         Potential(
             path=Path("/etc/passwd"),
@@ -116,10 +118,11 @@ def test_potential_path_validation() -> None:
             version="1.0"
         )
 
-    # Tmp path should be allowed (for testing)
-    p_tmp = Potential(
-        path=Path("/tmp/test.yace"),  # noqa: S108
+    # Absolute path INSIDE CWD should be allowed
+    safe_abs_path = (tmp_path / "test.yace").resolve()
+    p_safe = Potential(
+        path=safe_abs_path,
         type=PotentialType.PACE,
         version="1.0"
     )
-    assert str(p_tmp.path) == "/tmp/test.yace"  # noqa: S108
+    assert p_safe.path == safe_abs_path

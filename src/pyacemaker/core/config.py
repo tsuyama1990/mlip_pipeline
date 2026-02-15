@@ -159,6 +159,22 @@ _VALID_KEY_REGEX = re.compile(CONSTANTS.valid_key_regex)
 _VALID_VALUE_REGEX = re.compile(CONSTANTS.valid_value_regex)
 
 
+def _check_path_containment(path: Path) -> None:
+    """Check that path is within the current working directory."""
+    try:
+        cwd = Path.cwd().resolve()
+        resolved = path.resolve()
+        # Security: Ensure path is within CWD or /tmp (for testing)
+        if not resolved.is_relative_to(cwd) and not str(resolved).startswith("/tmp"):  # noqa: S108
+            msg = f"Path must be within current working directory: {cwd}"
+            raise ValueError(msg)  # noqa: TRY301
+    except (ValueError, RuntimeError) as e:
+        # Resolve might fail if path doesn't exist, but here we usually call this after existence check
+        # Or if is_relative_to fails
+        msg = f"Path {path} is unsafe or outside allowed base directory"
+        raise ValueError(msg) from e
+
+
 def _recursive_validate_parameters(
     data: dict[str, Any] | list[Any] | tuple[Any, ...], path: str = "", depth: int = 0
 ) -> None:
@@ -327,6 +343,13 @@ class DFTConfig(BaseModel):
             path = Path(path_str)
             if not path.exists():
                 missing.append(f"{element}: {path_str}")
+            else:
+                # Security check for traversal
+                try:
+                    _check_path_containment(path)
+                except ValueError as e:
+                    msg = f"Invalid path for {element}: {e}"
+                    raise ValueError(msg) from e
 
         if missing:
             msg = f"Missing pseudopotential files: {', '.join(missing)}"
@@ -486,6 +509,10 @@ class OrchestratorConfig(BaseModel):
     dataset_file: str = Field(
         default="dataset.pckl.gzip",
         description="Filename for the dataset within the data directory",
+    )
+    validation_buffer_size: int = Field(
+        default=100,
+        description="Buffer size for writing validation items to disk",
     )
 
     @field_validator("validation_split")

@@ -107,7 +107,7 @@ class Validator(BaseModule):
     """Interface for Validator module."""
 
     @abstractmethod
-    def validate(self, potential: Potential, test_set: list[StructureMetadata]) -> ModuleResult:
+    def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate the potential against a test set and physical constraints."""
         ...
 
