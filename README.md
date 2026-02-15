@@ -120,8 +120,14 @@ uv run pyacemaker run config.yaml
 For a complete interactive walkthrough of the Fe/Pt deposition on MgO scenario, check out the tutorial notebook:
 
 ```bash
+# Run in interactive mode
 uv run marimo edit tutorials/UAT_AND_TUTORIAL.py
+
+# Run as a web app
+uv run marimo run tutorials/UAT_AND_TUTORIAL.py
 ```
+
+By default, the tutorial runs in **Mock Mode** (simulated data) for quick verification. To run in **Production Mode** (real DFT/MD), set `CI=false` environment variable (requires Quantum Espresso and LAMMPS installed).
 
 ### 4. Oracle (DFT) Usage
 You can also use the Oracle module independently in your Python scripts:
