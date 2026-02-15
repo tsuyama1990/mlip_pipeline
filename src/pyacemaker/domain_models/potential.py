@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.domain_models.common import PotentialType, utc_now
 
 
@@ -65,37 +65,4 @@ class Potential(BaseModel):
     @classmethod
     def validate_path_format(cls, v: Path) -> Path:
         """Validate path format with strict security checks."""
-        if str(v).strip() == "":
-            msg = "Path cannot be empty"
-            raise ValueError(msg)
-
-        if CONSTANTS.skip_file_checks:
-            return v
-
-        import os
-        try:
-            cwd = Path.cwd().resolve(strict=True)
-        except Exception as e:
-            msg = f"Failed to resolve current working directory: {e}"
-            raise ValueError(msg) from e
-
-        # 1. Symlink check (Race Condition Prevention)
-        # If file exists, check if it's a symlink directly before resolution
-        if v.exists() and v.is_symlink():
-                msg = f"Potential path cannot be a symlink: {v}"
-                raise ValueError(msg)
-
-        try:
-            # 2. Atomic Resolution (Realpath)
-            # os.path.realpath resolves symlinks and canonicalizes
-            real_path = Path(os.path.realpath(v))
-        except Exception as e:
-            msg = f"Failed to resolve potential path: {v}. Error: {e}"
-            raise ValueError(msg) from e
-
-        # 3. Containment Check
-        if not real_path.is_relative_to(cwd):
-            msg = f"Potential path must be strictly within current working directory: {cwd}"
-            raise ValueError(msg)
-
-        return v
+        return validate_safe_path(v)

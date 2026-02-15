@@ -9,6 +9,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pyacemaker.core.validation import validate_parameters, validate_safe_path
+
 # Allow configuration of defaults path via environment variable for testing/portability
 _DEFAULTS_PATH = Path(
     os.environ.get("PYACEMAKER_DEFAULTS_PATH", Path(__file__).parent / "defaults.yaml")
@@ -69,7 +71,7 @@ class Constants(BaseSettings):
     default_orchestrator_validation_split: float = _DEFAULTS["orchestrator"]["validation_split"]
     default_orchestrator_min_validation_size: int = _DEFAULTS["orchestrator"]["min_validation_size"]
     default_orchestrator_max_validation_size: int = _DEFAULTS["orchestrator"]["max_validation_size"]
-    default_validation_buffer_size: int = 100
+    default_validation_buffer_size: int = _DEFAULTS["default_validation_buffer_size"]
 
     # Validator Defaults
     default_validator_metrics: list[str] = _DEFAULTS["validator_metrics"]
@@ -99,6 +101,10 @@ class Constants(BaseSettings):
     dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
     # Allowed input sections for security validation
     dft_allowed_input_sections: list[str] = _DEFAULTS["dft"]["allowed_input_sections"]
+
+    # Security: Allowed Potential Paths (Whitelist for external potentials)
+    # List of absolute path prefixes allowed.
+    allowed_potential_paths: list[str] = []
 
     # Structure Feature Whitelist
     # Allow common keys for atoms, forces, etc. plus 'atoms' object itself.
@@ -178,77 +184,6 @@ class Constants(BaseSettings):
 
 CONSTANTS = Constants()
 
-# Compiled regex for strict validation
-_VALID_KEY_REGEX = re.compile(CONSTANTS.valid_key_regex)
-_VALID_VALUE_REGEX = re.compile(CONSTANTS.valid_value_regex)
-
-
-def _check_path_containment(path: Path) -> None:
-    """Check that path is within the current working directory."""
-    # Explicitly disallow '..' in path parts to prevent traversal attempts
-    if ".." in path.parts:
-        msg = f"Path traversal not allowed: {path}"
-        raise ValueError(msg)
-
-    # If skipping checks (testing), we allow outside CWD (e.g. /tmp)
-    # but we still enforced the '..' check above.
-    if CONSTANTS.skip_file_checks:
-        return
-
-    try:
-        cwd = Path.cwd().resolve()
-        resolved = path.resolve()
-        # Security: Ensure path is within CWD.
-        if not resolved.is_relative_to(cwd):
-            msg = f"Path must be within current working directory: {cwd}"
-            raise ValueError(msg)  # noqa: TRY301
-    except (ValueError, RuntimeError) as e:
-        msg = f"Path {path} is unsafe or outside allowed base directory"
-        raise ValueError(msg) from e
-
-
-def _validate_structure(data: Any, path: str = "", depth: int = 0) -> None:
-    """Validate data structure recursively against security rules.
-
-    Consolidated validation logic for dictionaries and lists to prevent injection attacks
-    and stack overflows.
-    """
-    if depth > 10:
-        msg = "Configuration nesting too deep (max 10)"
-        raise ValueError(msg)
-
-    if isinstance(data, dict):
-        _validate_dict(data, path, depth)
-    elif isinstance(data, (list, tuple)):
-        _validate_list(data, path, depth)
-    elif isinstance(data, str):
-        if not _VALID_VALUE_REGEX.match(data):
-            msg = f"Invalid characters in value at '{path}'. Found potentially unsafe characters."
-            raise ValueError(msg)
-    elif not isinstance(data, (int, float, bool, type(None))):
-        msg = f"Invalid type {type(data)} at {path}"
-        raise TypeError(msg)
-
-
-def _validate_dict(data: dict[str, Any], path: str, depth: int) -> None:
-    for key, value in data.items():
-        current_path = f"{path}.{key}" if path else key
-        if not isinstance(key, str):
-            msg = f"Keys must be strings at {current_path}"
-            raise TypeError(msg)
-
-        if not _VALID_KEY_REGEX.match(key):
-            msg = f"Invalid characters in key '{current_path}'. Must match {_VALID_KEY_REGEX.pattern}"
-            raise ValueError(msg)
-
-        _validate_structure(value, current_path, depth + 1)
-
-
-def _validate_list(data: list[Any] | tuple[Any, ...], path: str, depth: int) -> None:
-    for i, value in enumerate(data):
-        current_path = f"{path}[{i}]"
-        _validate_structure(value, current_path, depth + 1)
-
 
 class BaseModuleConfig(BaseModel):
     """Base configuration for modules with parameters."""
@@ -263,8 +198,7 @@ class BaseModuleConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        _validate_structure(v)
-        return v
+        return validate_parameters(v)
 
 
 class ProjectConfig(BaseModel):
@@ -365,15 +299,8 @@ class DFTConfig(BaseModel):
 
             # Security check for traversal - ALWAYS RUN
             try:
-                _check_path_containment(path)
+                validate_safe_path(path)
             except ValueError as e:
-                # If skipping checks, we might ignore non-existence, but traversal is suspicious.
-                # However, audit says "Always validate path containment".
-                # But _check_path_containment checks if relative to CWD.
-                # In tests, dummy paths might not be in CWD?
-                # If skip_file_checks is True, we assume mocking.
-                # But path traversal (..) should still be forbidden.
-                # _check_path_containment enforces `..` check first.
                 msg = f"Invalid path for {element}: {e}"
                 raise ValueError(msg) from e
 
@@ -389,8 +316,7 @@ class DFTConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        _validate_structure(v)
-        return v
+        return validate_parameters(v)
 
 
 class OracleConfig(BaseModel):
@@ -476,8 +402,7 @@ class EONConfig(BaseModel):
     @classmethod
     def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters dictionary."""
-        _validate_structure(v)
-        return v
+        return validate_parameters(v)
 
 
 class DynamicsEngineConfig(BaseModuleConfig):

@@ -7,8 +7,8 @@ from typing import Any
 
 from ase import Atoms
 
+from pyacemaker.core.dataset import DatasetSplitter
 from pyacemaker.oracle.dataset import DatasetManager
-from pyacemaker.orchestrator import DatasetSplitter
 
 
 # Utility to measure memory
@@ -24,10 +24,9 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     """Test that DatasetManager.save_iter and load_iter are memory efficient."""
     dataset_path = tmp_path / "large_dataset.pckl.gzip"
 
-    # Generate a large dataset (1000 items)
-    # Each item ~1KB? 1000 items is small (1MB), but enough to test linear growth if we did lists
-    # Let's do 10,000 items to be sure.
-    n_items = 10000
+    # Generate a large dataset
+    # 100,000 items to verify streaming
+    n_items = 100000
 
     def data_gen() -> Iterator[Atoms]:
         for _ in range(n_items):
@@ -39,18 +38,23 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     # Should be constant relative to n_items
     peak_mb = measure_memory_peak(manager.save_iter, data_gen(), dataset_path)
 
-    # 10k items * 1KB ~ 10MB total data.
-    # Streaming should use buffer size (10MB default) + overhead.
-    # Ideally < 20MB.
-    assert peak_mb < 50.0 # Generous buffer for python overhead
+    # Calculate expected memory usage
+    # Buffer size (10MB) + Python overhead (generous 2x) + Fixed overhead
+    expected_max_mb = (10 * 2) + 20
+
+    # 100k items would be >100MB if loaded fully. We assert < 40MB.
+    assert peak_mb < expected_max_mb
 
     # Measure Load Memory
     def consume_load() -> None:
-        for _ in manager.load_iter(dataset_path, verify=False):
-            pass
+        from collections import deque
+
+        # Consume without storing
+        deque(manager.load_iter(dataset_path, verify=False), maxlen=0)
 
     peak_mb_load = measure_memory_peak(consume_load)
-    assert peak_mb_load < 50.0
+    assert peak_mb_load < expected_max_mb
+
 
 def test_dataset_splitter_memory(tmp_path: Path) -> None:
     """Test that DatasetSplitter streams efficiently."""
@@ -59,10 +63,14 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
 
     manager = DatasetManager()
 
-    # create dataset
-    n_items = 5000
-    atoms_list = [Atoms("Fe") for _ in range(n_items)]
-    manager.save_iter(iter(atoms_list), dataset_path)
+    # create dataset using generator
+    n_items = 100000
+
+    def data_gen() -> Iterator[Atoms]:
+        for _ in range(n_items):
+            yield Atoms("Fe")
+
+    manager.save_iter(data_gen(), dataset_path)
 
     splitter = DatasetSplitter(
         dataset_path,
@@ -70,7 +78,7 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
         manager,
         validation_split=0.2,
         max_validation_size=1000,
-        buffer_size=100 # Flush every 100 items
+        buffer_size=100  # Flush every 100 items
     )
 
     # We must patch load_iter to skip verify inside DatasetSplitter, or just ensure checksum exists.
@@ -97,6 +105,6 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
 
     peak_mb = measure_memory_peak(consume_split)
 
-    # Should not load all 5000 items
-    # Python overhead is high, but shouldn't be 100MB
-    assert peak_mb < 50.0
+    # Should not load all 100k items
+    expected_max_mb = 50.0
+    assert peak_mb < expected_max_mb

@@ -90,8 +90,10 @@ class DynamicsEngine(BaseModule):
     """Interface for Dynamics Engine (MD/kMC) module."""
 
     @abstractmethod
-    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
-        """Run MD exploration and return high-uncertainty structures.
+    def run_exploration(
+        self, potential: Potential, seeds: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Run MD exploration starting from seeds and return high-uncertainty structures.
 
         The returned structures should have `uncertainty_state` populated.
         """
