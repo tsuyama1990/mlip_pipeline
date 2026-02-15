@@ -14,10 +14,11 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 -   **Adaptive Structure Generation**: Intelligently explores the configuration space using multiple strategies (Random, Defect, M3GNet) driven by an adaptive policy engine. It automatically switches between cold start (using M3GNet or prototypes) and refinement strategies based on model uncertainty.
 -   **Automated DFT (Oracle)**: Integrated wrapper around Quantum Espresso (via ASE) with self-healing retry logic for SCF convergence failures.
 -   **Pacemaker Integration (Trainer)**: Seamlessly trains ACE potentials using `pace_train`. Supports active set selection (`pace_activeset`) to filter redundant structures (D-optimality).
+-   **Physics Validation (Validator)**: Automatically runs comprehensive physics checks on trained potentials, including Phonon stability (no imaginary frequencies), Equation of State (EOS) bulk modulus, and Elastic constants ($C_{ij}$) stability criteria. Generates HTML reports with plots.
+-   **Dynamics Engine Integration**:  Support for running MD simulations via LAMMPS with automated input generation (including hybrid potentials like ACE+ZBL/LJ). Also integrates with **EON** for long-timescale Adaptive Kinetic Monte Carlo (akMC) simulations.
 -   **Delta Learning**: Automatically configures physics-based baselines (ZBL/LJ) to ensure core repulsion, allowing the ACE potential to learn only the difference ($E_{ACE} = E_{DFT} - E_{Baseline}$).
 -   **Dataset Management**: Efficient handling of large atomic structure datasets (`.pckl.gzip`), fully compatible with Pacemaker. Includes streaming support for large files.
 -   **Active Learning Loop**: Uses "Halt & Diagnose" logic to monitor MD simulations. If uncertainty ($\gamma$) spikes, the simulation halts, and the problematic structure is automatically sent for labeling and retraining.
--   **Dynamics Engine Integration**:  Support for running MD simulations via LAMMPS with automated input generation (including hybrid potentials like ACE+ZBL/LJ).
 
 ## Requirements
 
@@ -25,6 +26,7 @@ From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: 
 -   **Quantum Espresso** (pw.x) installed and accessible in PATH (or specified in config).
 -   **Pacemaker** (ACE training engine)
 -   **LAMMPS** (with USER-PACE package installed)
+-   **EON** (Optional, for kMC simulations)
 -   **uv** (Recommended for dependency management)
 
 ## Installation
@@ -90,6 +92,20 @@ trainer:
   batch_size: 100
   mock: false
 
+validator:
+  test_set_ratio: 0.1
+  phonon_supercell: [3, 3, 3]
+  eos_strain: 0.1
+  elastic_strain: 0.01
+
+dynamics_engine:
+  engine: "lammps" # or "eon"
+  timestep: 0.001
+  temperature: 300.0
+  gamma_threshold: 2.0
+  eon:
+    executable: "eonclient"
+
 orchestrator:
   max_cycles: 10
 ```
@@ -136,13 +152,21 @@ pyacemaker/
 │       ├── modules/        # High-level Modules (Oracle, Trainer, Generator, etc.)
 │       │   ├── oracle.py   # DFTOracle Implementation
 │       │   ├── trainer.py  # PacemakerTrainer Implementation
-│       │   └── structure_generator.py # Structure Generator Implementation
+│       │   ├── structure_generator.py # Structure Generator Implementation
+│       │   ├── validator.py           # Validator Implementation
+│       │   └── dynamics_engine.py     # MD/kMC Engine Implementation
 │       ├── oracle/         # DFT Logic Package
 │       ├── trainer/        # Trainer Logic Package
 │       ├── generator/      # Structure Generation Package (Strategies, Policies)
 │       │   ├── strategies.py # Exploration Strategies
 │       │   ├── policy.py     # Adaptive Policy Logic
 │       │   └── mutations.py  # Atomic Mutations
+│       ├── validator/      # Validation Logic Package
+│       │   ├── manager.py    # Validator Orchestrator
+│       │   ├── physics.py    # Phonon, EOS, Elastic Checks
+│       │   └── report.py     # HTML Report Generation
+│       ├── dynamics/       # Dynamics Logic Package
+│       │   └── kmc.py        # EON Wrapper
 │       ├── orchestrator.py # Main Loop
 │       └── main.py         # CLI Entry Point
 ├── tests/                  # Unit & Integration Tests
@@ -156,7 +180,7 @@ pyacemaker/
 -   [x] Cycle 03: Trainer (Pacemaker Integration)
 -   [x] Cycle 04: Structure Generation
 -   [x] Cycle 05: Dynamics Engine (MD/kMC) & On-the-Fly Learning
--   [ ] Cycle 06: Validator & Final Polish
+-   [x] Cycle 06: Validator & Final Polish
 
 ## License
 

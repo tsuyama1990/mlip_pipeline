@@ -436,6 +436,22 @@ class TrainerConfig(BaseModuleConfig):
         return v.lower()
 
 
+class EONConfig(BaseModel):
+    """Configuration for EON kMC simulations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    executable: str = Field(default="eonclient", description="Path to EON executable")
+    parameters: dict[str, Any] = Field(default_factory=dict, description="EON parameters")
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters dictionary."""
+        _validate_structure(v)
+        return v
+
+
 class DynamicsEngineConfig(BaseModuleConfig):
     """Dynamics Engine module configuration."""
 
@@ -450,6 +466,7 @@ class DynamicsEngineConfig(BaseModuleConfig):
     n_steps: int = Field(default=100000, description="Number of MD steps")
     hybrid_baseline: str = Field(default="zbl", description="Hybrid potential baseline (zbl or lj)")
     mock: bool = Field(default=False, description="Use mock engine for testing")
+    eon: EONConfig = Field(default_factory=EONConfig, description="EON configuration")
 
     @field_validator("hybrid_baseline")
     @classmethod
@@ -472,6 +489,14 @@ class ValidatorConfig(BaseModel):
         description="Metrics to validate",
     )
     thresholds: dict[str, float] = Field(default_factory=dict, description="Validation thresholds")
+    test_set_ratio: float = Field(default=0.1, description="Ratio of dataset to use for testing")
+    phonon_supercell: list[int] = Field(
+        default_factory=lambda: [2, 2, 2], description="Supercell for phonon calculation"
+    )
+    eos_strain: float = Field(default=0.1, description="Strain range for EOS calculation")
+    elastic_strain: float = Field(
+        default=0.01, description="Strain for elastic constants calculation"
+    )
 
 
 class OrchestratorConfig(BaseModel):

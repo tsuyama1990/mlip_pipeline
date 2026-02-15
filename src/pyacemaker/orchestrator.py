@@ -15,7 +15,7 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
-    Validator,
+    Validator as ValidatorInterface,
 )
 from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
 from pyacemaker.domain_models.models import (
@@ -23,14 +23,14 @@ from pyacemaker.domain_models.models import (
     Potential,
     StructureMetadata,
 )
-from pyacemaker.modules.dynamics_engine import LAMMPSEngine
+from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
 from pyacemaker.modules.oracle import DFTOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
 )
 from pyacemaker.modules.trainer import PacemakerTrainer
-from pyacemaker.modules.validator import MockValidator
+from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
 
 T = TypeVar("T", bound=BaseModule)
@@ -152,10 +152,26 @@ class Orchestrator(IOrchestrator):
         self.oracle: Oracle = oracle or _create_default_module(oracle_cls, config)
 
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
+
+        engine_cls = LAMMPSEngine
+        if config.dynamics_engine.engine == "eon":
+            engine_cls = EONEngine
+
         self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(
-            LAMMPSEngine, config
+            engine_cls, config
         )
-        self.validator: Validator = validator or _create_default_module(MockValidator, config)
+
+        # If running in full mock mode (e.g. Oracle is mock), use MockValidator?
+        # Or let Validator handle it. Validator now calls check_phonons which needs a real calculator.
+        # If we are in mock mode, we don't have a real potential file usually.
+        # So we should use MockValidator if oracle.mock is True?
+
+        val_cls = Validator
+        if config.oracle.mock:
+             from pyacemaker.modules.validator import MockValidator
+             val_cls = MockValidator
+
+        self.validator: ValidatorInterface = validator or _create_default_module(val_cls, config)
 
         # State
         self.current_potential: Potential | None = None

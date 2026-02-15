@@ -1,0 +1,48 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0, mock-3.15.1
+collected 161 items
+
+tests/core/test_base.py .                                                [  0%]
+tests/core/test_config.py ................                               [ 10%]
+tests/core/test_config_failures.py .........                             [ 16%]
+tests/core/test_config_security.py ....                                  [ 18%]
+tests/core/test_generator_config_validation.py .....                     [ 21%]
+tests/core/test_logging.py ....                                          [ 24%]
+tests/dynamics/test_kmc.py ..                                            [ 25%]
+tests/generator/test_mutations.py ....                                   [ 27%]
+tests/generator/test_policy.py ....                                      [ 30%]
+tests/generator/test_strategies.py ......                                [ 34%]
+tests/integration/test_full_cycle.py ..                                  [ 35%]
+tests/integration/test_memory_usage.py ..                                [ 36%]
+tests/integration/test_pipeline.py .                                     [ 37%]
+tests/oracle/test_calculator.py .....                                    [ 40%]
+tests/oracle/test_dataset.py .....                                       [ 43%]
+tests/oracle/test_embedding.py ...                                       [ 45%]
+tests/oracle/test_manager.py .....                                       [ 48%]
+tests/oracle/test_manager_mutation.py .                                  [ 49%]
+tests/test_main.py ....                                                  [ 51%]
+tests/uat/test_cycle01.py ...                                            [ 53%]
+tests/uat/test_cycle03.py ...                                            [ 55%]
+tests/uat/test_cycle04.py ....                                           [ 57%]
+tests/uat/test_cycle06.py ....                                           [ 60%]
+tests/unit/test_config_full.py ......                                    [ 63%]
+tests/unit/test_dft_manager_edge_cases.py ...                            [ 65%]
+tests/unit/test_domain_models.py .........                               [ 71%]
+tests/unit/test_dynamics_engine.py ........                              [ 76%]
+tests/unit/test_oracle_module.py .......                                 [ 80%]
+tests/unit/test_orchestrator_streaming.py ...                            [ 82%]
+tests/unit/test_schema_validation.py .......                             [ 86%]
+tests/unit/test_structure_generator.py ...                               [ 88%]
+tests/unit/test_trainer_active_set.py .                                  [ 89%]
+tests/unit/test_trainer_config.py ...                                    [ 91%]
+tests/unit/test_trainer_module.py ..                                     [ 92%]
+tests/unit/test_trainer_wrapper.py ....                                  [ 95%]
+tests/validator/test_physics.py .....                                    [ 98%]
+tests/validator/test_report.py .                                         [ 98%]
+tests/validator/test_validator_manager.py ..                             [100%]
+
+============================= 161 passed in 20.27s =============================

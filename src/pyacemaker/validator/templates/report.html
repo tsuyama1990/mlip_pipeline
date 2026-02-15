@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validation Report</title>
+    <style>
+        body { font-family: sans-serif; }
+        .passed { color: green; }
+        .failed { color: red; }
+        .metric { margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Validation Report</h1>
+
+    <h2>Status: <span class="{{ 'passed' if result.passed else 'failed' }}">{{ 'PASSED' if result.passed else 'FAILED' }}</span></h2>
+
+    <h3>Metrics</h3>
+    <ul>
+    {% for key, value in result.metrics.items() %}
+        <li class="metric">{{ key }}: {{ value }}</li>
+    {% endfor %}
+    </ul>
+
+    <h3>Physics Checks</h3>
+    <ul>
+        <li>Phonon Stability: <span class="{{ 'passed' if result.phonon_stable else 'failed' }}">{{ result.phonon_stable }}</span></li>
+        <li>Elastic Stability: <span class="{{ 'passed' if result.elastic_stable else 'failed' }}">{{ result.elastic_stable }}</span></li>
+    </ul>
+
+    <h3>Artifacts</h3>
+    {% for name, path in result.artifacts.items() %}
+        <div>
+            <h4>{{ name }}</h4>
+            <img src="{{ path }}" alt="{{ name }}" style="max-width: 600px;">
+        </div>
+    {% endfor %}
+</body>
+</html>

@@ -16,6 +16,7 @@ from pyacemaker.domain_models.structure import (
     UncertaintyState,
 )
 from pyacemaker.domain_models.task import ActiveSet, HaltInfo, Task
+from pyacemaker.domain_models.validator import ValidationResult
 
 __all__ = [
     "ActiveSet",
@@ -31,5 +32,6 @@ __all__ = [
     "TaskStatus",
     "TaskType",
     "UncertaintyState",
+    "ValidationResult",
     "utc_now",
 ]

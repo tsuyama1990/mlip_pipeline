@@ -148,7 +148,7 @@ class DatasetManager:
         # Buffered reading optimization
         with (
             gzip.open(path, "rb") as gz_file,
-            io.BufferedReader(gz_file, buffer_size=buffer_size) as f,  # type: ignore[arg-type]
+            io.BufferedReader(gz_file, buffer_size=buffer_size) as f,
         ):
             yield from self._process_frames(f, path, start_index)
 

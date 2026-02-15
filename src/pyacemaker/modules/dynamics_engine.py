@@ -17,6 +17,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     UncertaintyState,
 )
+from pyacemaker.dynamics.kmc import EONWrapper
 
 
 class PotentialHelper:
@@ -225,3 +226,33 @@ class LAMMPSEngine(DynamicsEngine):
         """Run production simulation."""
         self.logger.info(f"Running production with {potential.path} (mock)")
         return "mock_production_result"
+
+
+class EONEngine(DynamicsEngine):
+    """EON Dynamics Engine implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize EON Engine."""
+        super().__init__(config)
+        self.wrapper = EONWrapper(config.dynamics_engine.eon)
+
+    def run(self) -> ModuleResult:
+        """Run the engine."""
+        self.logger.info("Running EONEngine")
+        return ModuleResult(status="success")
+
+    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
+        """Run EON exploration."""
+        self.logger.info(f"Running EON exploration with {potential.path}")
+
+        # Placeholder: In real implementation, we would need initial states.
+        # EON usually explores from a known minimum.
+        # We assume we get structures from dataset or generator external to this method?
+        # Or we yield nothing for now as mock.
+
+        yield from []
+
+    def run_production(self, potential: Potential) -> Any:
+        """Run production."""
+        self.logger.info(f"Running EON production with {potential.path}")
+        return "eon_production_result"
