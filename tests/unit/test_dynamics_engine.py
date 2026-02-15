@@ -148,6 +148,11 @@ def test_lammps_engine_exploration(mock_config: MagicMock) -> None:
     engine = LAMMPSEngine(mock_config)
     potential = Potential(path=Path("p.yace"), type=PotentialType.PACE, version="1.0.0")
 
+    # Mock seeds
+    from pyacemaker.core.utils import generate_dummy_structures
+
+    seeds = list(generate_dummy_structures(3))
+
     # Mock MDInterface.run_md to return Halted info sometimes
     # We want to yield at least one structure
 
@@ -172,7 +177,7 @@ def test_lammps_engine_exploration(mock_config: MagicMock) -> None:
         engine.md.run_md.side_effect = [h_true, h_false, h_false]
 
         # Run exploration
-        iterator = engine.run_exploration(potential)
+        iterator = engine.run_exploration(potential, seeds)
         results = list(iterator)
 
         assert len(results) == 1

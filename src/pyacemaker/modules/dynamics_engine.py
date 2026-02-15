@@ -3,7 +3,7 @@
 import secrets
 import subprocess
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -98,7 +98,9 @@ class MDInterface:
         content.append(f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1")
         content.append("compute pace all pace")  # Assuming compute pace is available
         content.append("variable pace_gamma equal c_pace")
-        content.append(f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue")
+        content.append(
+            f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue"
+        )
         content.append(f"run {self.params.n_steps}")
 
         # Efficient write using join
@@ -187,42 +189,38 @@ class LAMMPSEngine(DynamicsEngine):
         self.logger.info("Running LAMMPSEngine")
         return ModuleResult(status="success")
 
-    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
+    def run_exploration(
+        self, potential: Potential, seeds: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
         """Run MD exploration and return high-uncertainty structures."""
         self.logger.info(f"Running exploration with {potential.path}")
 
-        if not self.config.dynamics_engine.mock:
-            # Real implementation would need a starting structure source.
-            # Since interface doesn't provide it, we assume it picks from dataset or uses generator.
-            # For now, warn and fallback to dummy or return empty if strictly real.
-            self.logger.warning("Real exploration logic requires starting structure source.")
-            return
-
-        # For mock simulation of the loop:
         # In production, this might loop until user interrupt or convergence
         with tempfile.TemporaryDirectory() as tmpdir:
             work_dir = Path(tmpdir)
 
-            # Simulate a few checks or "runs"
-            for _ in range(3):
-                # Create a dummy structure to start with
-                initial_structure = next(generate_dummy_structures(1, tags=["initial"]))
+            for i, seed in enumerate(seeds):
+                # Create a specific subdirectory for each run to avoid collision
+                run_dir = work_dir / f"run_{i}"
+                run_dir.mkdir(exist_ok=True)
 
-                # Mock the log file creation for test purpose if needed
-                # In this "mock" exploration, we decide randomly to halt
-                probability = self.config.dynamics_engine.parameters.get(
-                    "dynamics_halt_probability", 0.3
-                )
-                if secrets.SystemRandom().random() < float(probability):
-                    # Create log file to trigger halt in MDInterface
-                    (work_dir / "log.lammps").write_text("Fix halt condition met")
-                elif (work_dir / "log.lammps").exists():
-                    (work_dir / "log.lammps").unlink()
+                if self.config.dynamics_engine.mock:
+                    # Mock logic: Decide randomly to halt based on config
+                    probability = self.config.dynamics_engine.parameters.get(
+                        "dynamics_halt_probability", 0.3
+                    )
+                    if secrets.SystemRandom().random() < float(probability):
+                        # Create log file to trigger halt in MDInterface
+                        (run_dir / "log.lammps").write_text("Fix halt condition met")
+                    elif (run_dir / "log.lammps").exists():
+                        (run_dir / "log.lammps").unlink()
 
-                halt_info = self.md.run_md(initial_structure, potential, work_dir)
+                halt_info = self.md.run_md(seed, potential, run_dir)
 
                 if halt_info.halted and halt_info.structure:
-                    self.logger.warning(f"Halt triggered (Gamma > {halt_info.max_gamma})")
+                    self.logger.warning(
+                        f"Halt triggered (Gamma > {halt_info.max_gamma}) for seed {i}"
+                    )
                     yield halt_info.structure
 
     def run_production(self, potential: Potential) -> Any:
@@ -244,15 +242,18 @@ class EONEngine(DynamicsEngine):
         self.logger.info("Running EONEngine")
         return ModuleResult(status="success")
 
-    def run_exploration(self, potential: Potential) -> Iterator[StructureMetadata]:
+    def run_exploration(
+        self, potential: Potential, seeds: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
         """Run EON exploration."""
         self.logger.info(f"Running EON exploration with {potential.path}")
 
-        # Placeholder: In real implementation, we would need initial states.
         # EON usually explores from a known minimum.
-        # We assume we get structures from dataset or generator external to this method?
-        # Or we yield nothing for now as mock.
-
+        # We iterate over seeds and try to run EON on them.
+        for _ in seeds:
+            # Placeholder: In real implementation, wrap EON execution
+            # For now, yield nothing
+            pass
         yield from []
 
     def run_production(self, potential: Potential) -> Any:

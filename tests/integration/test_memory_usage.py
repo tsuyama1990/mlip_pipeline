@@ -7,8 +7,8 @@ from typing import Any
 
 from ase import Atoms
 
+from pyacemaker.core.dataset import DatasetSplitter
 from pyacemaker.oracle.dataset import DatasetManager
-from pyacemaker.orchestrator import DatasetSplitter
 
 
 # Utility to measure memory

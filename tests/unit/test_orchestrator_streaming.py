@@ -16,12 +16,13 @@ from pyacemaker.core.config import (
     PYACEMAKERConfig,
     StructureGeneratorConfig,
 )
+from pyacemaker.core.dataset import DatasetSplitter
 from pyacemaker.domain_models.models import (
     ActiveSet,
     StructureMetadata,
     UncertaintyState,
 )
-from pyacemaker.orchestrator import DatasetSplitter, Orchestrator
+from pyacemaker.orchestrator import Orchestrator
 
 
 @pytest.fixture
@@ -164,6 +165,7 @@ def test_exploration_integration(streaming_config: PYACEMAKERConfig) -> None:
 
     # Mock Generator
     mock_gen = MagicMock()
+    mock_gen.generate_initial_structures.return_value = [s]  # seeds
     mock_gen.generate_batch_candidates.return_value = iter([s])  # Just return same structure
     orchestrator.structure_generator = mock_gen
 
@@ -180,3 +182,8 @@ def test_exploration_integration(streaming_config: PYACEMAKERConfig) -> None:
     assert selected is not None
     assert len(selected) == 1
     assert selected[0] == s
+    # Verify seeds were passed
+    mock_dynamics.run_exploration.assert_called_once()
+    args = mock_dynamics.run_exploration.call_args
+    assert args[0][0] == orchestrator.current_potential
+    assert list(args[0][1]) == [s]

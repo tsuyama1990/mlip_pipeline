@@ -1,6 +1,5 @@
 """Orchestrator module implementation."""
 
-import secrets
 from collections.abc import Iterable, Iterator
 from itertools import chain
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
+from pyacemaker.core.dataset import DatasetSplitter
 from pyacemaker.core.interfaces import (
     CycleResult,
     DynamicsEngine,
@@ -41,80 +41,6 @@ T = TypeVar("T", bound=BaseModule)
 def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T:
     """Factory to create a default module instance."""
     return module_class(config)
-
-
-class DatasetSplitter:
-    """Helper to split dataset into training stream and validation file."""
-
-    def __init__(
-        self,
-        dataset_path: "Path",
-        validation_path: "Path",
-        dataset_manager: "DatasetManager",
-        validation_split: float,
-        max_validation_size: int,
-        buffer_size: int = 100,  # Fallback, usually overridden by config
-        start_index: int = 0,
-    ) -> None:
-        from pyacemaker.core.config import CONSTANTS
-
-        if buffer_size == 100:  # If default
-             buffer_size = CONSTANTS.default_validation_buffer_size
-        self.dataset_path = dataset_path
-        self.validation_path = validation_path
-        self.dataset_manager = dataset_manager
-        self.validation_split = validation_split
-        self.max_validation_size = max_validation_size
-        self.buffer_size = buffer_size
-        self._rng = secrets.SystemRandom()
-        # Note: We don't know current validation size without reading file or tracking state.
-        # Ideally Orchestrator tracks this. For now, we assume simple appending logic.
-        # The audit requirement is "incremental", so we just split NEW items.
-        self._val_count = 0
-        self.start_index = start_index
-        self.processed_count = 0
-
-    def train_stream(self) -> Iterator[StructureMetadata]:
-        """Yield training items and save validation items to file as side effect."""
-        if not self.dataset_path.exists():
-            return
-
-        val_buffer: list[StructureMetadata] = []
-
-        # Optimization: Use start_index in load_iter to skip deserialization of old items
-        stream = self.dataset_manager.load_iter(self.dataset_path, start_index=self.start_index)
-
-        for atoms in stream:
-            self.processed_count += 1
-            # Simple random split for new items
-            # We check max_validation_size relative to *added* items in this session for safety,
-            # though ideally we'd check global size.
-            is_full = self._val_count >= self.max_validation_size
-            should_validate = (not is_full) and (self._rng.random() < self.validation_split)
-
-            if should_validate:
-                val_buffer.append(atoms_to_metadata(atoms))
-                self._val_count += 1
-                if len(val_buffer) >= self.buffer_size:
-                     self._flush_validation(val_buffer)
-                     val_buffer = []
-            else:
-                yield atoms_to_metadata(atoms)
-
-        if val_buffer:
-            self._flush_validation(val_buffer)
-
-    def _flush_validation(self, items: list[StructureMetadata]) -> None:
-        """Flush validation buffer to disk."""
-        # Convert to atoms
-        atoms_iter = (metadata_to_atoms(s) for s in items)
-        # Use append mode
-        self.dataset_manager.save_iter(
-            atoms_iter,
-            self.validation_path,
-            mode="ab",
-            calculate_checksum=False # Checksum for append is expensive/complex, skipping for speed
-        )
 
 
 class Orchestrator(IOrchestrator):
@@ -170,8 +96,9 @@ class Orchestrator(IOrchestrator):
 
         val_cls: type[ValidatorInterface] = Validator
         if config.oracle.mock:
-             from pyacemaker.modules.validator import MockValidator
-             val_cls = MockValidator
+            from pyacemaker.modules.validator import MockValidator
+
+            val_cls = MockValidator
 
         self.validator: ValidatorInterface = validator or _create_default_module(val_cls, config)
 
@@ -237,10 +164,7 @@ class Orchestrator(IOrchestrator):
         atoms_stream = (metadata_to_atoms(s) for s in stream)
         # Skip checksum calculation for O(1) append
         self.dataset_manager.save_iter(
-            atoms_stream,
-            self.dataset_path,
-            mode="ab",
-            calculate_checksum=False
+            atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
         )
         # Remove stale checksum file if it exists, as it no longer matches the dataset
         checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
@@ -307,7 +231,7 @@ class Orchestrator(IOrchestrator):
             self.config.orchestrator.validation_split,
             self.config.orchestrator.max_validation_size,
             buffer_size=self.config.orchestrator.validation_buffer_size,
-            start_index=self.processed_items_count
+            start_index=self.processed_items_count,
         )
 
         # Iterate splitter to identify new training items
@@ -319,13 +243,15 @@ class Orchestrator(IOrchestrator):
             atoms_iter,
             self.training_path,
             mode="ab",
-            calculate_checksum=False # Streaming append
+            calculate_checksum=False,  # Streaming append
         )
 
         # Update progress tracking
         added_count = splitter.processed_count
         self.processed_items_count += added_count
-        self.logger.info(f"Processed {added_count} new items. Total processed: {self.processed_items_count}")
+        self.logger.info(
+            f"Processed {added_count} new items. Total processed: {self.processed_items_count}"
+        )
 
         # 2. Train on Full Training Set
         if not self.training_path.exists():
@@ -380,6 +306,45 @@ class Orchestrator(IOrchestrator):
 
         return True
 
+    def _load_seeds_from_dataset(self, path: Path, limit: int) -> list[StructureMetadata]:
+        """Load seeds from a dataset file up to a limit."""
+        seeds = []
+        try:
+            for i, atoms in enumerate(self.dataset_manager.load_iter(path)):
+                if i >= limit:
+                    break
+                seeds.append(atoms_to_metadata(atoms))
+        except Exception:
+            self.logger.warning(f"Failed to load seeds from {path}.")
+        return seeds
+
+    def _get_exploration_seeds(self, n_seeds: int = 20) -> list[StructureMetadata]:
+        """Get seed structures for exploration."""
+        seeds: list[StructureMetadata] = []
+
+        # Priority 1: Use validation set (unseen data) if available
+        if self.validation_path.exists():
+            seeds.extend(self._load_seeds_from_dataset(self.validation_path, n_seeds))
+
+        # Priority 2: Fill remaining from training set
+        if len(seeds) < n_seeds and self.training_path.exists():
+            remaining = n_seeds - len(seeds)
+            seeds.extend(self._load_seeds_from_dataset(self.training_path, remaining))
+
+        # Priority 3: If still empty, use generator
+        if not seeds:
+            self.logger.warning("No seeds found in datasets. Using generator.")
+            seeds = list(self.structure_generator.generate_initial_structures())
+            if len(seeds) > n_seeds:
+                seeds = seeds[:n_seeds]
+
+        # Shuffle if we want randomness?
+        if len(seeds) > n_seeds:
+            # We already capped reading, but just in case
+            seeds = seeds[:n_seeds]
+
+        return seeds
+
     def _run_exploration_and_selection_phase(self) -> list[StructureMetadata] | None:
         """Execute exploration and selection phases.
 
@@ -390,7 +355,14 @@ class Orchestrator(IOrchestrator):
         if not self.current_potential:
             return None
 
-        high_uncertainty_iter = self.dynamics_engine.run_exploration(self.current_potential)
+        # Select seeds for exploration
+        seeds = self._get_exploration_seeds()
+        if not seeds:
+            self.logger.warning("No seeds available for exploration.")
+            return None
+
+        self.logger.info(f"Exploration starting with {len(seeds)} seeds.")
+        high_uncertainty_iter = self.dynamics_engine.run_exploration(self.current_potential, seeds)
 
         # Check if we found anything without consuming the whole stream
         try:

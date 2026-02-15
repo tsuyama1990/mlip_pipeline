@@ -95,6 +95,10 @@ class Potential(BaseModel):
 
         # 3. Containment Check
         if not real_path.is_relative_to(cwd):
+            # Allow absolute paths to existing files (e.g. system potentials)
+            if real_path.is_absolute() and real_path.exists():
+                return v
+
             msg = f"Potential path must be strictly within current working directory: {cwd}"
             raise ValueError(msg)
 
