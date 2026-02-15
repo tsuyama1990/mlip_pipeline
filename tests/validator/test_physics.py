@@ -12,12 +12,10 @@ from ase.units import GPa
 # However, to write the test file without ImportErrors blocking pytest collection of *other* tests (if I were running them),
 # I usually would need the module to exist.
 # But here I am creating the test first. I will mock the imports or just expect failure.
-
 # To satisfy the linter/mypy, I need to ignore the import error or ensure the module exists (at least empty).
 # I will create empty physics.py in the next step (Logic Implementation), but for now I can just define the test.
 # Mypy will complain about missing module. I will ignore it.
-
-from pyacemaker.validator.physics import (  # type: ignore[import-not-found]
+from pyacemaker.validator.physics import (
     check_elastic,
     check_eos,
     check_phonons,
@@ -25,14 +23,14 @@ from pyacemaker.validator.physics import (  # type: ignore[import-not-found]
 
 
 @pytest.fixture
-def mock_atoms():
+def mock_atoms() -> Atoms:
     """Create a mock Atoms object."""
     atoms = Atoms("Si2", positions=[[0, 0, 0], [1.5, 1.5, 1.5]], cell=[3, 3, 3], pbc=True)
     atoms.calc = MagicMock(spec=Calculator)
     return atoms
 
 
-def test_check_phonons_stable(mock_atoms):
+def test_check_phonons_stable(mock_atoms: Atoms) -> None:
     """Test phonon stability check with stable frequencies."""
     with patch("pyacemaker.validator.physics.Phonopy") as MockPhonopy:
         instance = MockPhonopy.return_value
@@ -47,7 +45,7 @@ def test_check_phonons_stable(mock_atoms):
         assert is_stable is True
 
 
-def test_check_phonons_unstable(mock_atoms):
+def test_check_phonons_unstable(mock_atoms: Atoms) -> None:
     """Test phonon stability check with imaginary frequencies."""
     with patch("pyacemaker.validator.physics.Phonopy") as MockPhonopy:
         instance = MockPhonopy.return_value
@@ -61,7 +59,7 @@ def test_check_phonons_unstable(mock_atoms):
         assert is_stable is False
 
 
-def test_check_eos_valid(mock_atoms):
+def test_check_eos_valid(mock_atoms: Atoms) -> None:
     """Test EOS check returns valid bulk modulus."""
     # Mock EquationOfState
     with patch("pyacemaker.validator.physics.EquationOfState") as MockEOS:
@@ -80,7 +78,7 @@ def test_check_eos_valid(mock_atoms):
         assert plot_path == "eos.png"
 
 
-def test_check_elastic_stable(mock_atoms):
+def test_check_elastic_stable(mock_atoms: Atoms) -> None:
     """Test elastic stability check."""
     # Mock elastic constants calculation
     with patch("pyacemaker.validator.physics.calculate_elastic_constants") as mock_calc:
@@ -96,10 +94,10 @@ def test_check_elastic_stable(mock_atoms):
         assert Cij["C11"] == 160.0
 
 
-def test_check_elastic_unstable(mock_atoms):
+def test_check_elastic_unstable(mock_atoms: Atoms) -> None:
     """Test elastic stability check for unstable system."""
     with patch("pyacemaker.validator.physics.calculate_elastic_constants") as mock_calc:
-        # Unstable: C11 < C12
+        # Unstable case: C11 < C12
         mock_calc.return_value = {
             "C11": 50.0, "C12": 60.0, "C44": 80.0
         }

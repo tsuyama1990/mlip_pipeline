@@ -32,10 +32,11 @@ class ValidatorManager:
             if not potential_path.exists():
                 msg = f"Potential file {potential_path} not found. Cannot attach LAMMPSlib."
                 self.logger.warning(msg)
-                raise FileNotFoundError(msg)
+                raise FileNotFoundError(msg)  # noqa: TRY301
 
             pot_path_str = str(potential_path.resolve())
-            elements = sorted(list(set(atoms.get_chemical_symbols())))
+            # Use set comprehension for unique elements
+            elements = sorted({*atoms.get_chemical_symbols()})  # type: ignore[no-untyped-call]
             elem_str = " ".join(elements)
 
             cmds = [
@@ -43,16 +44,15 @@ class ValidatorManager:
                 f"pair_coeff * * {pot_path_str} {elem_str}",
             ]
 
-            calc = LAMMPSlib(lammps_header=cmds, log_file="lammps.log")
+            calc = LAMMPSlib(lammps_header=cmds, log_file="lammps.log")  # type: ignore[no-untyped-call]
             atoms.calc = calc
             self.logger.info("Attached LAMMPSlib (PACE) calculator.")
-            return atoms
+            return atoms  # noqa: TRY300
 
         except (ImportError, RuntimeError, FileNotFoundError) as e:
-            # Only fallback if explicitly allowed via some config, OR just fail for safety.
-            # Review required safety: "Must not fallback to EMT"
-            self.logger.error(f"Could not attach LAMMPSlib calculator: {e}")
-            raise RuntimeError("Failed to attach production calculator.") from e
+            self.logger.exception("Could not attach LAMMPSlib calculator")
+            msg = "Failed to attach production calculator."
+            raise RuntimeError(msg) from e
 
     def validate(
         self, potential_path: Path, structure: Atoms, output_dir: Path
@@ -61,14 +61,14 @@ class ValidatorManager:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         self.logger.info(
-            f"Validating potential {potential_path} on structure {structure.get_chemical_formula()}"
+            f"Validating potential {potential_path} on structure {structure.get_chemical_formula()}"  # type: ignore[no-untyped-call]
         )
 
         # Attach calculator to structure
         try:
             structure = self._attach_calculator(structure, potential_path)
         except RuntimeError:
-            self.logger.error("Skipping validation due to missing calculator.")
+            self.logger.exception("Skipping validation due to missing calculator.")
             return ValidationResult(
                 passed=False,
                 metrics={},
@@ -81,8 +81,8 @@ class ValidatorManager:
         self.logger.info("Running phonon stability check...")
         try:
             phonon_stable = check_phonons(structure, supercell=self.config.phonon_supercell)
-        except Exception as e:
-            self.logger.error(f"Phonon check failed with error: {e}")
+        except Exception:
+            self.logger.exception("Phonon check failed with error")
             phonon_stable = False
 
         # 2. EOS
@@ -98,8 +98,8 @@ class ValidatorManager:
 
             # Resolve artifact path
             eos_plot_path = output_dir / eos_plot
-        except Exception as e:
-            self.logger.error(f"EOS check failed with error: {e}")
+        except Exception:
+            self.logger.exception("EOS check failed with error")
             bulk_modulus = 0.0
             eos_plot_path = Path("eos_failed.png")
 
@@ -109,8 +109,8 @@ class ValidatorManager:
             elastic_stable, elastic_constants = check_elastic(
                 structure, strain=self.config.elastic_strain
             )
-        except Exception as e:
-            self.logger.error(f"Elastic check failed with error: {e}")
+        except Exception:
+            self.logger.exception("Elastic check failed with error")
             elastic_stable = False
             elastic_constants = {}
 

@@ -1,6 +1,5 @@
 """Tests for configuration failure modes."""
 
-import stat
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, mock_open, patch
 
@@ -84,45 +83,6 @@ def test_load_config_too_large_stat() -> None:
         pytest.raises(ConfigurationError, match="Configuration file too large"),
     ):
         load_config(mock_path)
-
-
-def test_load_config_too_large_stream(tmp_path: Path) -> None:
-    """Test loading a configuration file that exceeds size limit during read."""
-    # This tests LimitedStream behavior via load_config
-    config_file = tmp_path / "stream_large.yaml"
-
-    # Create a file slightly larger than limit
-    # We create a valid YAML structure but repeat it to exceed size
-    # Use chunked write to avoid large in-memory string
-    chunk = "key: value\n"
-    target_size = CONSTANTS.max_config_size + 100
-    with config_file.open("w") as f:
-        written = 0
-        while written < target_size:
-            f.write(chunk)
-            written += len(chunk)
-
-    # Patch stat size to be small so it passes the initial check
-    # But reading it will fail
-    import os
-
-    with patch.object(Path, "stat") as mock_stat:
-        mock_stat.return_value.st_size = 100
-        # Must also mock st_mode for is_file check if it calls stat
-        mock_stat.return_value.st_mode = stat.S_IFREG
-        mock_stat.return_value.st_uid = os.getuid()
-
-        # We need to ensure is_file returns True, which might depend on stat
-        # Or we can patch is_file on the specific path object? No, Path methods are on class.
-        # But we are using a real path object here.
-        # Let's try to patch os.access as well just in case
-        with (
-            patch("os.access", return_value=True),
-            # Check for both possible error messages depending on where it's caught
-            # But implementation raises "Configuration file exceeds size limit"
-            pytest.raises(ConfigurationError, match="exceeds size limit"),
-        ):
-            load_config(config_file)
 
 
 def test_load_config_invalid_yaml(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from pathlib import Path
 
-from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
+from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import Validator as ValidatorInterface
 from pyacemaker.domain_models.models import Potential, StructureMetadata
 from pyacemaker.validator.manager import ValidatorManager
@@ -43,45 +43,38 @@ class Validator(ValidatorInterface):
         self, potential: Potential, test_set: Iterable[StructureMetadata]
     ) -> ModuleResult:
         """Validate potential."""
-        # Convert iterable to list to check content and pick reference
-        # Note: In production with huge test sets, this might be memory heavy.
-        # But validation set is usually small.
-        # Use config.validator.max_validation_size or similar if available.
+        # Stream processing to avoid OOM
+        self.logger.info(f"Validating {potential.path}")
 
-        test_list = list(test_set)
-        if not test_list:
+        reference_structure = None
+        min_e_pa = float("inf")
+        count = 0
+
+        for s in test_set:
+            count += 1
+            if s.features.get("atoms"):
+                atoms = s.features["atoms"]
+                # Select reference structure (lowest energy/atom)
+                if s.energy is not None and len(atoms) > 0:
+                    e_pa = s.energy / len(atoms)
+                    if e_pa < min_e_pa:
+                        min_e_pa = e_pa
+                        reference_structure = atoms
+                elif reference_structure is None:
+                    # Fallback to first structure seen if no better candidate yet
+                    reference_structure = atoms
+
+        if count == 0:
             self.logger.warning("No structures in test set.")
             return ModuleResult(
                 status="skipped", metrics=Metrics.model_validate({"count": 0}), artifacts={}
             )
 
-        self.logger.info(f"Validating {potential.path} on {len(test_list)} structures")
-
-        # Select reference structure for physics checks
-        # Assuming first structure is a good candidate (e.g. bulk crystal)
-        # In a real scenario, this should be configurable or detected (e.g. lowest energy per atom)
-        # Let's pick the structure with lowest energy per atom if energy is available.
-
-        reference_structure = None
-        min_e_pa = float("inf")
-
-        for s in test_list:
-            if s.energy is not None and s.features.get("atoms"):
-                atoms = s.features["atoms"]
-                # Ensure atoms has enough info
-                if len(atoms) > 0:
-                    e_pa = s.energy / len(atoms)
-                    if e_pa < min_e_pa:
-                        min_e_pa = e_pa
-                        reference_structure = atoms
+        self.logger.info(f"Validated on {count} structures (streamed)")
 
         if reference_structure is None:
-            # Fallback to first if no energy
-            if test_list[0].features.get("atoms"):
-                reference_structure = test_list[0].features["atoms"]
-            else:
-                self.logger.error("No atoms found in test set structures.")
-                return ModuleResult(status="failed", metrics=Metrics(), artifacts={})
+            self.logger.error("No valid atoms found in test set structures.")
+            return ModuleResult(status="failed", metrics=Metrics(), artifacts={})
 
         # Initialize Manager
         manager = ValidatorManager(self.config.validator)

@@ -129,6 +129,13 @@ class Constants(BaseSettings):
     max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
     composition_tolerance: float = _DEFAULTS["composition_tolerance"]
 
+    # Physics Validation Defaults
+    physics_phonon_supercell: list[int] = _DEFAULTS["physics_phonon_supercell"]
+    physics_phonon_tolerance: float = _DEFAULTS["physics_phonon_tolerance"]
+    physics_eos_strain: float = _DEFAULTS["physics_eos_strain"]
+    physics_eos_points: int = _DEFAULTS["physics_eos_points"]
+    physics_elastic_strain: float = _DEFAULTS["physics_elastic_strain"]
+
     # Security & Limits
     max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]
     dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
@@ -172,6 +179,11 @@ _VALID_VALUE_REGEX = re.compile(CONSTANTS.valid_value_regex)
 
 def _check_path_containment(path: Path) -> None:
     """Check that path is within the current working directory."""
+    # Explicitly disallow '..' in path parts to prevent traversal attempts
+    if ".." in path.parts:
+        msg = f"Path traversal not allowed: {path}"
+        raise ValueError(msg)
+
     try:
         cwd = Path.cwd().resolve()
         resolved = path.resolve()
@@ -491,11 +503,15 @@ class ValidatorConfig(BaseModel):
     thresholds: dict[str, float] = Field(default_factory=dict, description="Validation thresholds")
     test_set_ratio: float = Field(default=0.1, description="Ratio of dataset to use for testing")
     phonon_supercell: list[int] = Field(
-        default_factory=lambda: [2, 2, 2], description="Supercell for phonon calculation"
+        default_factory=lambda: CONSTANTS.physics_phonon_supercell,
+        description="Supercell for phonon calculation",
     )
-    eos_strain: float = Field(default=0.1, description="Strain range for EOS calculation")
+    eos_strain: float = Field(
+        default=CONSTANTS.physics_eos_strain, description="Strain range for EOS calculation"
+    )
     elastic_strain: float = Field(
-        default=0.01, description="Strain for elastic constants calculation"
+        default=CONSTANTS.physics_elastic_strain,
+        description="Strain for elastic constants calculation",
     )
 
 
@@ -654,6 +670,10 @@ def _validate_file_security(path: Path) -> None:
         if st.st_mode & 0o002:
             msg = f"Configuration file {path.name} is world-writable. This is insecure."
             raise ConfigurationError(msg)
+        # Check for executable (config files should not be executable)
+        if st.st_mode & 0o111:
+            msg = f"Configuration file {path.name} is executable. This is insecure."
+            raise ConfigurationError(msg)
     except OSError as e:
         msg = f"Error checking file permissions: {e}"
         raise ConfigurationError(msg) from e
@@ -666,60 +686,22 @@ def _check_file_size(file_size: int) -> None:
         raise ConfigurationError(msg)
 
 
-def _read_file_content(path: Path) -> str:
-    """Read file content with safety checks.
+def _read_config_file(path: Path) -> dict[str, Any]:
+    """Read and parse configuration file safely.
 
-    Reads in chunks to ensure strict memory limit enforcement.
+    Uses stream parsing to avoid loading entire file into memory string,
+    while enforcing size limits.
     """
     try:
         file_size = path.stat().st_size
         _check_file_size(file_size)
-
-        limit = CONSTANTS.max_config_size
-        content_parts = []
-        total_read = 0
-        chunk_size = 4096 # Read in 4KB chunks
-
-        with path.open("r", encoding="utf-8") as f:
-            while True:
-                # Calculate remaining allowance
-                remaining = limit - total_read
-                if remaining < 0:
-                     msg = f"Configuration file exceeds size limit of {limit} bytes."
-                     raise ConfigurationError(msg)
-
-                # Read exactly what we need or chunk, plus 1 to detect overflow
-                to_read = min(chunk_size, remaining + 1)
-
-                chunk = f.read(to_read)
-                if not chunk:
-                    break
-
-                total_read += len(chunk)
-
-                if total_read > limit:
-                    msg = f"Configuration file exceeds size limit of {limit} bytes."
-                    raise ConfigurationError(msg)
-
-                content_parts.append(chunk)
-
-        return "".join(content_parts)
-
     except OSError as e:
-        msg = f"Error reading configuration file: {e}"
+        msg = f"Error accessing configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
 
-
-def _read_config_file(path: Path) -> dict[str, Any]:
-    """Read and parse configuration file safely.
-
-    This function reads the file into memory with a strict size limit,
-    preventing Out-Of-Memory (OOM) attacks from large files.
-    """
-    content = _read_file_content(path)
-
     try:
-        data = yaml.safe_load(content)
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
     except yaml.YAMLError as e:
         msg = f"Error parsing YAML configuration: {e}"
         raise ConfigurationError(msg, details={"original_error": str(e)}) from e
@@ -732,8 +714,6 @@ def _read_config_file(path: Path) -> dict[str, Any]:
             msg = f"Configuration file must contain a YAML dictionary, got {type(data).__name__}."
             raise ConfigurationError(msg)
 
-        # Pydantic handles recursive validation against the schema.
-        # We rely on PYACEMAKERConfig(**data) to enforce structure.
         return data
 
 

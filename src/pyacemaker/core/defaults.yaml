@@ -87,3 +87,10 @@ max_energy_ev: 1000000.0  # 1e6
 max_force_ev_a: 1000.0
 max_atoms_dft: 1000
 composition_tolerance: 0.001
+
+# Physics Validation Defaults
+physics_phonon_supercell: [2, 2, 2]
+physics_phonon_tolerance: -0.05
+physics_eos_strain: 0.05
+physics_eos_points: 5
+physics_elastic_strain: 0.01

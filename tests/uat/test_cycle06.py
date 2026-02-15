@@ -12,24 +12,26 @@ from pyacemaker.validator.manager import ValidatorManager
 
 
 @pytest.fixture
-def mock_atoms():
+def mock_atoms() -> Atoms:
     """Create a mock Atoms object."""
     return Atoms("Si2", positions=[[0, 0, 0], [1.5, 1.5, 1.5]], cell=[3, 3, 3], pbc=True)
 
 
 @pytest.fixture
-def validator_config():
+def validator_config() -> ValidatorConfig:
     """Create a validator configuration."""
     return ValidatorConfig()
 
 
 @pytest.fixture
-def eon_config():
+def eon_config() -> EONConfig:
     """Create an EON configuration."""
     return EONConfig(executable="mock_eon")
 
 
-def test_scenario_01_phonon_stability(mock_atoms, validator_config, tmp_path):
+def test_scenario_01_phonon_stability(
+    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
+) -> None:
     """Scenario 01: Verify phonon stability check."""
     manager = ValidatorManager(validator_config)
     potential_path = tmp_path / "potential.yace"
@@ -52,7 +54,9 @@ def test_scenario_01_phonon_stability(mock_atoms, validator_config, tmp_path):
         assert result.passed is False
 
 
-def test_scenario_02_eos_check(mock_atoms, validator_config, tmp_path):
+def test_scenario_02_eos_check(
+    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
+) -> None:
     """Scenario 02: Verify EOS check."""
     manager = ValidatorManager(validator_config)
     potential_path = tmp_path / "potential.yace"
@@ -74,7 +78,9 @@ def test_scenario_02_eos_check(mock_atoms, validator_config, tmp_path):
         assert any(str(v).endswith("eos.png") for v in result.artifacts.values())
 
 
-def test_scenario_03_report_generation(mock_atoms, validator_config, tmp_path):
+def test_scenario_03_report_generation(
+    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
+) -> None:
     """Scenario 03: Verify HTML report generation."""
     manager = ValidatorManager(validator_config)
     potential_path = tmp_path / "potential.yace"
@@ -92,7 +98,7 @@ def test_scenario_03_report_generation(mock_atoms, validator_config, tmp_path):
             mock_e.return_value = (100.0, "eos.png")
             mock_el.return_value = (True, {})
 
-            result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+            manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
 
             mock_instance.generate.assert_called_once()
             # Verify generated path
@@ -100,13 +106,19 @@ def test_scenario_03_report_generation(mock_atoms, validator_config, tmp_path):
             assert args[0][1] == tmp_path / "validation_report.html"
 
 
-def test_scenario_04_eon_execution(mock_atoms, eon_config, tmp_path):
+def test_scenario_04_eon_execution(
+    mock_atoms: Atoms, eon_config: EONConfig, tmp_path: Path
+) -> None:
     """Scenario 04: Verify EON execution."""
     wrapper = EONWrapper(eon_config)
     potential_path = Path("potential.yace")
 
-    with patch("pyacemaker.dynamics.kmc.subprocess.run") as mock_run:
+    with (
+        patch("pyacemaker.dynamics.kmc.subprocess.run") as mock_run,
+        patch("pyacemaker.dynamics.kmc.shutil.which") as mock_which,
+    ):
         mock_run.return_value.returncode = 0
+        mock_which.return_value = "/usr/bin/mock_eon"
 
         wrapper.run_search(mock_atoms, potential_path, work_dir=tmp_path)
 

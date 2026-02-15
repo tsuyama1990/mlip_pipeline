@@ -81,7 +81,7 @@ def test_dft_pseudopotentials_path_traversal(tmp_path: Path, monkeypatch: pytest
     # Path traversal to unsafe dir
     rel_path = "../unsafe/evil.upf"
 
-    with pytest.raises(ValidationError, match="outside allowed base directory"):
+    with pytest.raises(ValidationError, match="Path traversal not allowed"):
         DFTConfig(
             code="qe",
             pseudopotentials={"Fe": rel_path}

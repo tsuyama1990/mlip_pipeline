@@ -2,10 +2,9 @@
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
-
-import sys
 
 def test_uat_cli_help() -> None:
     """Scenario 01: CLI Health Check."""

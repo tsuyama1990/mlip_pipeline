@@ -15,6 +15,8 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
+)
+from pyacemaker.core.interfaces import (
     Validator as ValidatorInterface,
 )
 from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
@@ -153,7 +155,7 @@ class Orchestrator(IOrchestrator):
 
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
 
-        engine_cls = LAMMPSEngine
+        engine_cls: type[DynamicsEngine] = LAMMPSEngine
         if config.dynamics_engine.engine == "eon":
             engine_cls = EONEngine
 
@@ -166,7 +168,7 @@ class Orchestrator(IOrchestrator):
         # If we are in mock mode, we don't have a real potential file usually.
         # So we should use MockValidator if oracle.mock is True?
 
-        val_cls = Validator
+        val_cls: type[ValidatorInterface] = Validator
         if config.oracle.mock:
              from pyacemaker.modules.validator import MockValidator
              val_cls = MockValidator

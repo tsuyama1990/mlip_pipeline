@@ -1,5 +1,6 @@
 """EON kMC wrapper."""
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -18,10 +19,21 @@ class EONWrapper:
         self.config = config
         self.logger = logger.bind(name="EONWrapper")
 
+    def _validate_executable(self) -> Path:
+        """Validate EON executable."""
+        exe = shutil.which(self.config.executable)
+        if not exe:
+            msg = f"EON executable not found: {self.config.executable}"
+            raise FileNotFoundError(msg)
+        return Path(exe)
+
     def run_search(self, atoms: Atoms, potential_path: Path, work_dir: Path) -> None:
         """Run EON search."""
         work_dir.mkdir(parents=True, exist_ok=True)
         self.logger.info(f"Setting up EON calculation in {work_dir}")
+
+        # Validate executable first
+        exe_path = self._validate_executable()
 
         # 1. Write structure (pos.con is standard for EON)
         try:
@@ -31,21 +43,29 @@ class EONWrapper:
             self.logger.warning("Could not write 'eon' format, trying generic write.")
             write(work_dir / "pos.con", atoms)
 
-        # 2. Generate config.ini
-        config_content = """[Main]
-job = process_search
-temperature = 300.0
-random_seed = 12345
+        # 2. Generate config.ini with parameters injection
+        # Use defaults if not provided in config
+        params = self.config.parameters
+        main_job = params.get("job", "process_search")
+        temperature = params.get("temperature", 300.0)
+        seed = params.get("random_seed", 12345)
+        converged_force = params.get("converged_force", 0.01)
+        saddle_method = params.get("saddle_method", "min_mode")
+
+        config_content = f"""[Main]
+job = {main_job}
+temperature = {temperature}
+random_seed = {seed}
 
 [Potential]
 potential = script
 script_path = ./pace_driver.py
 
 [Optimizer]
-converged_force = 0.01
+converged_force = {converged_force}
 
 [Saddle Search]
-method = min_mode
+method = {saddle_method}
 """
         (work_dir / "config.ini").write_text(config_content)
 
@@ -124,15 +144,17 @@ if __name__ == "__main__":
         driver_path.chmod(0o755)
 
         # 4. Run eonclient
-        cmd = [self.config.executable]
+        cmd = [str(exe_path)]
         self.logger.info(f"Executing: {' '.join(cmd)}")
 
         try:
-            subprocess.run(cmd, cwd=work_dir, check=True)
+            subprocess.run(cmd, cwd=work_dir, check=True)  # noqa: S603
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"EON execution failed: {e}")
-            raise RuntimeError("EON execution failed") from e
+            self.logger.exception("EON execution failed")
+            msg = "EON execution failed"
+            raise RuntimeError(msg) from e
         except FileNotFoundError as e:
-            self.logger.error(f"EON executable not found: {self.config.executable}")
+            self.logger.exception("EON executable not found")
+            msg = f"EON executable not found: {self.config.executable}"
             # Raise RuntimeError to match test expectation
-            raise RuntimeError("EON execution failed") from e
+            raise RuntimeError(msg) from e

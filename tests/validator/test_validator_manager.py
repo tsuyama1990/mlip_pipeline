@@ -12,18 +12,20 @@ from pyacemaker.validator.manager import ValidatorManager
 
 
 @pytest.fixture
-def mock_atoms():
+def mock_atoms() -> Atoms:
     """Create a mock Atoms object."""
     return Atoms("Si2", positions=[[0, 0, 0], [1.5, 1.5, 1.5]], cell=[3, 3, 3], pbc=True)
 
 
 @pytest.fixture
-def validator_config():
+def validator_config() -> ValidatorConfig:
     """Create a validator configuration."""
     return ValidatorConfig()
 
 
-def test_validator_run(mock_atoms, validator_config, tmp_path):
+def test_validator_run(
+    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
+) -> None:
     """Test validator execution."""
     manager = ValidatorManager(validator_config)
     potential_path = tmp_path / "potential.yace"
@@ -50,7 +52,9 @@ def test_validator_run(mock_atoms, validator_config, tmp_path):
         mock_report.return_value.generate.assert_called_once()
 
 
-def test_validator_failure(mock_atoms, validator_config, tmp_path):
+def test_validator_failure(
+    mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
+) -> None:
     """Test validator failure."""
     manager = ValidatorManager(validator_config)
     potential_path = tmp_path / "potential.yace"

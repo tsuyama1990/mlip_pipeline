@@ -1,5 +1,6 @@
 """Tests for report generator."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -9,7 +10,7 @@ from pyacemaker.validator.report import ReportGenerator
 
 
 @pytest.fixture
-def validation_result():
+def validation_result() -> ValidationResult:
     """Create a mock validation result."""
     return ValidationResult(
         passed=True,
@@ -20,7 +21,7 @@ def validation_result():
     )
 
 
-def test_generate_report(validation_result, tmp_path):
+def test_generate_report(validation_result: ValidationResult, tmp_path: Path) -> None:
     """Test report generation."""
     output_path = tmp_path / "report.html"
 

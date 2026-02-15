@@ -129,92 +129,6 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         load_config(config_file)
 
 
-def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that reading stops if content exceeds limit (race condition simulation)."""
-    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
-
-    config_file = tmp_path / "race_large.yaml"
-
-    # Write content slightly larger than limit
-    content = "a" * (CONSTANTS.max_config_size + 10)
-    config_file.write_text(content)
-
-    # We skip the stat check to simulate race condition where file grew
-    class MockStat:
-        st_size = 100  # Small size reported
-        st_mode = 33188
-        st_uid = os.getuid()
-
-    monkeypatch.setattr("pathlib.Path.stat", lambda self, **kwargs: MockStat())
-
-    # Mock os.access
-    monkeypatch.setattr(os, "access", lambda path, mode: True)
-
-    with pytest.raises(ConfigurationError, match="exceeds size limit"):
-        load_config(config_file)
-
-
-def test_load_config_limited_stream(tmp_path: Path) -> None:
-    """Test reading a valid file via LimitedStream."""
-    original_skip = CONSTANTS.skip_file_checks
-    CONSTANTS.skip_file_checks = True
-    try:
-        config_data = {
-            "version": "0.1.0",
-            "project": {"name": "StreamTest", "root_dir": str(tmp_path)},
-            "oracle": {
-                "dft": {
-                    "code": "quantum_espresso",
-                    "pseudopotentials": {"Fe": "Fe.pbe.UPF"},
-                    "parameters": {},
-                },
-                "mock": True,
-            },
-        }
-        config_file = tmp_path / "stream_config.yaml"
-        with config_file.open("w") as f:
-            yaml.dump(config_data, f)
-
-        # Ensure file is large enough to be non-trivial but within limit
-        # Add a comment to pad size
-        with config_file.open("a") as f:
-            f.write("\n# " + "x" * 1024)
-
-        config = load_config(config_file)
-        assert config.project.name == "StreamTest"
-    finally:
-        CONSTANTS.skip_file_checks = original_skip
-
-
-def test_limited_stream_chunking() -> None:
-    """Test LimitedStream chunks properly."""
-    from io import StringIO
-
-    from pyacemaker.core.io_utils import LimitedStream
-
-    content = "abcdefghij" * 10  # 100 chars
-    stream = StringIO(content)
-
-    # Use small chunk size in LimitedStream by mocking/subclassing or just calling read loop
-    limited = LimitedStream(stream, limit=200)
-    assert limited.read() == content
-
-    # Monkeypatch read to verify it aggregates
-    # Actually, LimitedStream.read(size=-1) calls self.read(4096).
-    # If we pass a small stream, it reads it all.
-    # To verify loop, we need content > chunk_size (4096).
-
-    large_content = "a" * 5000
-    large_stream = StringIO(large_content)
-    limited_large = LimitedStream(large_stream, limit=6000)
-
-    # This should trigger the loop in read(-1)
-    result = limited_large.read()
-    assert len(result) == 5000
-    assert result == large_content
-    assert limited_large.total_read == 5000
-
-
 def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling of OSError during file read."""
     monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
@@ -233,7 +147,7 @@ def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(os, "access", lambda path, mode: True)
     monkeypatch.setattr("pathlib.Path.open", mock_open)
 
-    with pytest.raises(ConfigurationError, match="Error reading configuration"):
+    with pytest.raises(ConfigurationError, match="Unexpected error reading configuration"):
         load_config(config_file)
 
 

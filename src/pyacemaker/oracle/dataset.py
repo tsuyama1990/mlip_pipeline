@@ -24,6 +24,23 @@ MAX_OBJECT_SIZE_BYTES = 128 * 1024 * 1024  # 128 MB
 DEFAULT_BUFFER_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+class RestrictedUnpickler(pickle.Unpickler):
+    """Restricted unpickler for security."""
+
+    def find_class(self, module: str, name: str) -> object:
+        """Whitelist allowed modules for unpickling."""
+        # Allow standard builtins and numpy/ase modules
+        if module in {"builtins", "copy_reg"}:
+            return super().find_class(module, name)
+
+        if module.startswith(("ase", "numpy", "collections")):
+            return super().find_class(module, name)
+
+        # Forbid everything else
+        msg = f"Global '{module}.{name}' is forbidden during unpickling."
+        raise pickle.UnpicklingError(msg)
+
+
 class DatasetManager:
     """Manages reading and writing of datasets (lists of Atoms).
 
@@ -38,7 +55,11 @@ class DatasetManager:
     def _read_and_process_object(self, obj_bytes: bytes, path: Path) -> Atoms | None:
         """Deserialize and validate a single object."""
         try:
-            obj = pickle.loads(obj_bytes)  # noqa: S301
+            # Use RestrictedUnpickler instead of pickle.loads
+            with io.BytesIO(obj_bytes) as bio:
+                unpickler = RestrictedUnpickler(bio)
+                obj = unpickler.load()
+
             if isinstance(obj, list):
                 msg = (
                     "Encountered a list object in stream. "

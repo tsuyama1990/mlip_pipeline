@@ -90,19 +90,16 @@ class MDInterface:
             "boundary p p p",
             "read_data data.lammps",  # We assume data file exists
         ]
-        content.extend(cmds)
+        # Append commands individually to avoid intermediate list creation
+        for cmd in cmds:
+            content.append(cmd)
 
-        # Use efficient list extension for string building
-        content.extend(
-            [
-                f"timestep {self.params.timestep}",
-                f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1",
-                "compute pace all pace",  # Assuming compute pace is available
-                "variable pace_gamma equal c_pace",
-                f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue",
-                f"run {self.params.n_steps}",
-            ]
-        )
+        content.append(f"timestep {self.params.timestep}")
+        content.append(f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} 0.1")
+        content.append("compute pace all pace")  # Assuming compute pace is available
+        content.append("variable pace_gamma equal c_pace")
+        content.append(f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue")
+        content.append(f"run {self.params.n_steps}")
 
         # Efficient write using join
         input_file.write_text("\n".join(content))
@@ -135,16 +132,22 @@ class MDInterface:
         log_file = work_dir / "log.lammps"
 
         if not self.params.mock:
+            import shutil
+
+            exe = shutil.which(self.params.engine)
+            if not exe:
+                self.logger.error(f"LAMMPS executable '{self.params.engine}' not found.")
+                # We cannot proceed without executable
+                return HaltInfo(halted=False, step=None, max_gamma=None, structure=None)
+
             try:
                 with log_file.open("w") as f:
                     subprocess.run(  # noqa: S603
-                        [self.params.engine, "-in", "in.lammps"],
+                        [exe, "-in", "in.lammps"],
                         cwd=work_dir,
                         stdout=f,
                         check=False,
                     )
-            except FileNotFoundError:
-                self.logger.exception(f"LAMMPS executable '{self.params.engine}' not found.")
             except Exception:
                 self.logger.exception("Failed to run LAMMPS")
 

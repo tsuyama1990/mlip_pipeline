@@ -54,7 +54,8 @@ def test_pipeline_integration(tmp_path: Path) -> None:
     # So we should inject a MockValidator that always passes for this integration test.
 
     from unittest.mock import MagicMock
-    from pyacemaker.core.base import ModuleResult, Metrics
+
+    from pyacemaker.core.base import Metrics, ModuleResult
 
     mock_validator = MagicMock()
     mock_validator.validate.return_value = ModuleResult(
