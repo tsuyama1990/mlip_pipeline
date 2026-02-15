@@ -6,7 +6,8 @@ from typing import NoReturn
 import typer
 from loguru import logger
 
-from pyacemaker.core.config import LoggingConfig, PYACEMAKERConfig, load_config
+from pyacemaker.core.config import LoggingConfig, PYACEMAKERConfig
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.core.exceptions import PYACEMAKERError
 from pyacemaker.core.logging import setup_logging
 from pyacemaker.orchestrator import Orchestrator

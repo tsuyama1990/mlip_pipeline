@@ -13,8 +13,8 @@ from pyacemaker.core.config import (
     DFTConfig,
     ProjectConfig,
     PYACEMAKERConfig,
-    load_config,
 )
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.core.exceptions import ConfigurationError
 
 

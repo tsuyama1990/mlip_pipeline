@@ -4,7 +4,8 @@ from pathlib import Path
 
 import yaml
 
-from pyacemaker.core.config import CONSTANTS, load_config
+from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.orchestrator import Orchestrator
 
 

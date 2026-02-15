@@ -41,6 +41,52 @@ class RestrictedUnpickler(pickle.Unpickler):
         raise pickle.UnpicklingError(msg)
 
 
+class LimitedStream(io.BytesIO):
+    """A limited stream wrapper to restrict reading to a specific size.
+
+    This avoids loading the entire object into memory before unpickling.
+    """
+
+    def __init__(self, stream: IO[bytes], size: int) -> None:
+        """Initialize the limited stream."""
+        self._stream = stream
+        self._remaining = size
+        self._total_read = 0
+
+    def read(self, size: int | None = -1) -> bytes:
+        """Read bytes from the stream, up to the remaining limit."""
+        if self._remaining <= 0:
+            return b""
+
+        # Handle None as -1
+        req_size = -1 if size is None else size
+
+        if req_size < 0 or req_size > self._remaining:
+            req_size = self._remaining
+
+        chunk = self._stream.read(req_size)
+        read_len = len(chunk)
+        self._remaining -= read_len
+        self._total_read += read_len
+        return chunk
+
+    def readline(self, size: int | None = -1) -> bytes:
+        """Read a line from the stream."""
+        if self._remaining <= 0:
+            return b""
+
+        req_size = -1 if size is None else size
+
+        if req_size < 0 or req_size > self._remaining:
+            req_size = self._remaining
+
+        chunk = self._stream.readline(req_size)
+        read_len = len(chunk)
+        self._remaining -= read_len
+        self._total_read += read_len
+        return chunk
+
+
 class DatasetManager:
     """Manages reading and writing of datasets (lists of Atoms).
 
@@ -52,13 +98,40 @@ class DatasetManager:
         """Initialize the Dataset Manager."""
         self.logger = logger.bind(name="DatasetManager")
 
-    def _read_and_process_object(self, obj_bytes: bytes, path: Path) -> Atoms | None:
-        """Deserialize and validate a single object."""
+    def _read_and_process_object_stream(
+        self, f: IO[bytes], size: int, path: Path
+    ) -> Atoms | None:
+        """Deserialize and validate a single object from stream."""
         try:
-            # Use RestrictedUnpickler instead of pickle.loads
-            with io.BytesIO(obj_bytes) as bio:
-                unpickler = RestrictedUnpickler(bio)
-                obj = unpickler.load()
+            # Wrap stream to enforce size limit and prevent reading past object boundary
+            # Note: Unpickler might need seek/tell support which LimitedStream (BytesIO based) has,
+            # but here we wrap a raw file stream which might be buffered.
+            # We can't easily inherit BytesIO for a pipe.
+            # We need a custom reader.
+            # However, pickle usually just reads sequentially.
+            limited_stream = LimitedStream(f, size)
+
+            unpickler = RestrictedUnpickler(limited_stream)
+            obj = unpickler.load()
+
+            # Ensure we consumed exactly 'size' bytes or skip remaining
+            # Unpickler stops when object is done.
+            # We must skip any padding if exists (though our format has none)
+            # or verify we didn't read too little?
+            # Actually, we rely on _process_frames loop to manage position?
+            # No, LimitedStream consumes from `f`.
+            # If unpickler reads less than `size`, `f` pointer is at `size - remaining`.
+            # We MUST advance `f` to the end of the frame.
+
+            remaining = limited_stream._remaining
+            if remaining > 0:
+                # Unpickler didn't consume all bytes allocated for this frame?
+                # This could happen if pickle ends early.
+                # We must skip the rest to align for next frame.
+                try:
+                    f.seek(remaining, 1)
+                except (OSError, AttributeError, io.UnsupportedOperation):
+                    f.read(remaining)
 
             if isinstance(obj, list):
                 msg = (
@@ -72,20 +145,25 @@ class DatasetManager:
                 return obj
         except pickle.UnpicklingError:
             self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
+            # If corrupted, we might be out of sync. Stop.
+            return None
         return None
 
-    def _read_next_frame_bytes(self, f: IO[bytes], path: Path) -> bytes | None:
-        """Read the next frame bytes from the stream, handling size header."""
+    def _read_frame_size(self, f: IO[bytes], path: Path) -> int | None:
+        """Read the size of the next frame."""
         size_bytes = f.read(8)
         if not size_bytes:
             return None  # EOF
 
         try:
-            size = struct.unpack(">Q", size_bytes)[0]
+            size_val = struct.unpack(">Q", size_bytes)[0]
         except struct.error:
             self.logger.exception(f"Corrupted size header in {path}")
             return None
 
+        # mypy needs explicit int check though unpack returns tuple of ints/floats/etc
+        size = int(size_val)
+
         if size > MAX_OBJECT_SIZE_BYTES:
             msg = (
                 f"Object size {size} bytes exceeds limit of "
@@ -94,33 +172,23 @@ class DatasetManager:
             self.logger.error(msg)
             raise ValueError(msg)
 
-        return f.read(size)
+        return size
 
     def _skip_frame(self, f: IO[bytes], path: Path) -> bool:
         """Skip the next frame in the stream. Returns True if successful, False on EOF/Error."""
-        size_bytes = f.read(8)
-        if not size_bytes:
-            return False  # EOF
-
-        try:
-            size = struct.unpack(">Q", size_bytes)[0]
-        except struct.error:
-            self.logger.exception(f"Corrupted size header in {path}")
+        size = self._read_frame_size(f, path)
+        if size is None:
             return False
-
-        if size > MAX_OBJECT_SIZE_BYTES:
-            msg = (
-                f"Object size {size} bytes exceeds limit of "
-                f"{MAX_OBJECT_SIZE_BYTES} bytes. Potential OOM risk."
-            )
-            self.logger.error(msg)
-            raise ValueError(msg)
 
         try:
             f.seek(size, 1)
         except (OSError, AttributeError, io.UnsupportedOperation):
-            # Fallback to read
-            f.read(size)
+            # Fallback to read (chunked skip)
+            chunk_size = 1024 * 1024
+            while size > 0:
+                to_read = min(size, chunk_size)
+                f.read(to_read)
+                size -= to_read
         return True
 
     def load_iter(
@@ -186,14 +254,16 @@ class DatasetManager:
                 current_idx += 1
                 continue
 
-            obj_bytes = self._read_next_frame_bytes(f, path)
-            if obj_bytes is None:
+            size = self._read_frame_size(f, path)
+            if size is None:
                 break
 
-            obj = self._read_and_process_object(obj_bytes, path)
+            obj = self._read_and_process_object_stream(f, size, path)
             if obj:
                 yield obj
             elif obj is None and isinstance(obj, type(None)):
+                # If None returned but not because of EOF (which is handled by size check), it might be corruption
+                # _read_and_process_object_stream handles corruption by logging and returning None
                 break
 
             current_idx += 1

@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
-from pyacemaker.core.config import CONSTANTS, load_config
+from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.core.exceptions import ConfigurationError
 
 
@@ -29,6 +30,7 @@ def test_load_config_permission_error() -> None:
 
     # Mock open to avoid context manager error, though it shouldn't be reached if os.access fails
     mock_path.open = mock_open()
+    mock_path.is_symlink.return_value = False
 
     # We need to ensure _validate_file_security runs and checks os.access
     # But we need CONSTANTS.skip_file_checks to be False (default in this test if not monkeypatched)

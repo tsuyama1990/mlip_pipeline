@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pyacemaker.core.config import load_config
+from pyacemaker.core.config_loader import load_config
 from pyacemaker.core.exceptions import ConfigurationError
 
 

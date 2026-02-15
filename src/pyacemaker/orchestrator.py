@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     CycleResult,
     DynamicsEngine,
@@ -184,11 +184,11 @@ class Orchestrator(IOrchestrator):
         )
         # Validation set path
         self.validation_path = (
-            self.config.project.root_dir / "data" / "validation_set.pckl.gzip"
+            self.config.project.root_dir / "data" / CONSTANTS.default_validation_file
         )
         # Training set path (persistent subset)
         self.training_path = (
-            self.config.project.root_dir / "data" / "training_set.pckl.gzip"
+            self.config.project.root_dir / "data" / CONSTANTS.default_training_file
         )
 
         self.dataset_manager = DatasetManager()

@@ -20,11 +20,11 @@ class MockValidator(ValidatorInterface):
         self, potential: Potential, test_set: Iterable[StructureMetadata]
     ) -> ModuleResult:
         """Validate potential."""
-        # Validate consumes the test_set
-        list(test_set)
+        # Validate consumes the test_set stream
+        count = sum(1 for _ in test_set)
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate({"mock": 1.0}),
+            metrics=Metrics.model_validate({"mock": 1.0, "count": count}),
             artifacts={},
         )
 
