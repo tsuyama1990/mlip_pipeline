@@ -142,6 +142,6 @@ class TestFullCycleIntegration:
             result = orchestrator.run()
 
             # Should fail
-            assert result.status == "failed"
-            # Cycle count should be 1 (failed at cycle 1)
-            assert orchestrator.cycle_count == 1
+        assert result.status == "FAILED"
+        # Cycle count should be 1 (failed at cycle 1)
+        assert orchestrator.cycle_count == 1

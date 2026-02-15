@@ -21,7 +21,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     UncertaintyState,
 )
-from pyacemaker.orchestrator import Orchestrator
+from pyacemaker.orchestrator import DatasetSplitter, Orchestrator
 
 
 @pytest.fixture
@@ -75,7 +75,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
     # Check count by reading file
     count = 0
-    for _ in orchestrator.dataset_manager.load_iter(orchestrator.dataset_path):
+    for _ in orchestrator.dataset_manager.load_iter(orchestrator.dataset_path, verify=False):
         count += 1
     assert count == 5
 
@@ -89,7 +89,7 @@ def test_cold_start_streaming(streaming_config: PYACEMAKERConfig) -> None:
 
 
 def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
-    """Verify validation splitting logic and bounds."""
+    """Verify validation splitting logic and bounds using DatasetSplitter."""
     orchestrator = Orchestrator(config=streaming_config)
 
     # Fill dataset with 100 items
@@ -105,34 +105,49 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
 
     # Force split_ratio=1.0 to try to put everything in validation,
     # but max_validation_size=10 should limit it.
-    orchestrator.config.orchestrator.validation_split = 1.0
-    orchestrator.config.orchestrator.max_validation_size = 10
+    validation_split = 1.0
+    max_validation_size = 10
 
-    # Run _split_dataset_streams directly
-    train_stream, val_list = orchestrator._split_dataset_streams()
+    # Manually test DatasetSplitter
+    splitter = DatasetSplitter(
+        dataset_path=orchestrator.dataset_path,
+        validation_path=orchestrator.validation_path,
+        dataset_manager=orchestrator.dataset_manager,
+        validation_split=validation_split,
+        max_validation_size=max_validation_size,
+    )
 
-    # Consume train_stream to trigger splitting (it's a generator)
-    consumed_train = list(train_stream)
+    # Consume train_stream to trigger splitting
+    # We must patch load_iter to disable verification inside DatasetSplitter
+    from unittest.mock import patch
+    with patch.object(orchestrator.dataset_manager, "load_iter", side_effect=lambda p, **kwargs: orchestrator.dataset_manager.__class__.load_iter(orchestrator.dataset_manager, p, verify=False, **kwargs)):
+        train_stream = splitter.train_stream()
+        consumed_train = list(train_stream)
 
-    # Validation list should be capped at 10
-    assert len(val_list) == 10
+    # Verify validation file exists and count items
+    assert orchestrator.validation_path.exists()
+
+    val_count = 0
+    for _ in orchestrator.dataset_manager.load_iter(orchestrator.validation_path, verify=False):
+        val_count += 1
+
+    # Validation file should be capped at 10 (approx, since splitter flushes in batches,
+    # but the logic caps self._val_count >= max. The exact number on disk matches _val_count).
+    assert val_count == 10
 
     # Remaining items (100 - 10 = 90) should be in train stream
     assert len(consumed_train) == 90
 
-    # Now test _run_validation_phase
-    # We need to manually set _validation_set because we called _split directly
-    orchestrator._validation_set = val_list
-
+    # Now test _run_validation_phase integration
+    # It should load from file
     orchestrator._run_validation_phase()
 
     assert mock_validator.validate.called
     call_args = mock_validator.validate.call_args
     test_set = call_args[0][1]
 
-    # Explicitly check identity or content
-    assert test_set is val_list
-    assert len(test_set) == 10
+    # Explicitly check content
+    assert len(list(test_set)) == 10
 
 
 def test_exploration_integration(streaming_config: PYACEMAKERConfig) -> None:

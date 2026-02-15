@@ -1,29 +1,32 @@
 """Tests for configuration security validation."""
 
-import pytest
+from pathlib import Path
 
-from pyacemaker.core.config import _recursive_validate_parameters
+import pytest
+from pydantic import ValidationError
+
+from pyacemaker.core.config import _validate_structure, DFTConfig, CONSTANTS
 
 
 def test_validate_parameters_whitelist_keys() -> None:
     """Test that keys are validated against whitelist."""
     # Valid keys
     valid_data = {"key_1": "value", "sub-key": "value", "key.name": "value"}
-    _recursive_validate_parameters(valid_data)
+    _validate_structure(valid_data)
 
     # Invalid keys
     with pytest.raises(ValueError, match="Invalid characters in key"):
-        _recursive_validate_parameters({"key with space": "value"})
+        _validate_structure({"key with space": "value"})
 
     with pytest.raises(ValueError, match="Invalid characters in key"):
-        _recursive_validate_parameters({"key$": "value"})
+        _validate_structure({"key$": "value"})
 
 
 def test_validate_parameters_whitelist_values() -> None:
     """Test that values are validated against whitelist."""
     # Valid values
     valid_data = {"key": "value", "path": "/path/to/file.txt", "list": [1, 2]}
-    _recursive_validate_parameters(valid_data)
+    _validate_structure(valid_data)
 
     # Invalid values (Shell injection attempts)
     invalid_values = [
@@ -38,7 +41,7 @@ def test_validate_parameters_whitelist_values() -> None:
     ]
     for val in invalid_values:
         with pytest.raises(ValueError, match="Invalid characters in value"):
-            _recursive_validate_parameters({"key": val})
+            _validate_structure({"key": val})
 
 
 def test_validate_parameters_depth_limit() -> None:
@@ -54,4 +57,32 @@ def test_validate_parameters_depth_limit() -> None:
         current = current["next"]
 
     with pytest.raises(ValueError, match="Configuration nesting too deep"):
-        _recursive_validate_parameters(deep_data)
+        _validate_structure(deep_data)
+
+def test_dft_pseudopotentials_path_traversal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test path traversal check in DFT pseudopotentials."""
+    # Re-enable security checks explicitly for this test
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
+
+    # We need a file that exists outside CWD to test the security check.
+    # But for test isolation, we should use tmp_path.
+    # We can mock Path.cwd to be inside tmp_path/safe, and try to access tmp_path/unsafe.
+
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+    unsafe_dir = tmp_path / "unsafe"
+    unsafe_dir.mkdir()
+
+    pp_file = unsafe_dir / "evil.upf"
+    pp_file.touch()
+
+    monkeypatch.chdir(safe_dir)
+
+    # Path traversal to unsafe dir
+    rel_path = "../unsafe/evil.upf"
+
+    with pytest.raises(ValidationError, match="outside allowed base directory"):
+        DFTConfig(
+            code="qe",
+            pseudopotentials={"Fe": rel_path}
+        )

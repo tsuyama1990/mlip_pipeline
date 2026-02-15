@@ -1,5 +1,7 @@
 """Validator module implementation."""
 
+from collections.abc import Iterable
+
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import Validator
 from pyacemaker.domain_models.models import Potential, StructureMetadata
@@ -13,9 +15,10 @@ class MockValidator(Validator):
         self.logger.info("Running Validator")
         return ModuleResult(status="success")
 
-    def validate(self, potential: Potential, test_set: list[StructureMetadata]) -> ModuleResult:
+    def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
         # Simple implementation that checks if we have enough data and returns mock metrics
+        # For mock validation, we consume the iterable.
         valid_set = [s for s in test_set if s.energy is not None]
 
         if not valid_set:
@@ -37,10 +40,11 @@ class MockValidator(Validator):
         thresholds = getattr(self.config.validator, "thresholds", {})
 
         status = "success"
+        default_threshold = 1.0
         if thresholds:
-            if metrics["rmse_energy"] > thresholds.get("rmse_energy", 1.0):
+            if metrics["rmse_energy"] > thresholds.get("rmse_energy", default_threshold):
                 status = "failed"
-            if metrics["rmse_forces"] > thresholds.get("rmse_forces", 1.0):
+            if metrics["rmse_forces"] > thresholds.get("rmse_forces", default_threshold):
                 status = "failed"
 
         return ModuleResult(

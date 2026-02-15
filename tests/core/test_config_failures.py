@@ -2,7 +2,7 @@
 
 import stat
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import pytest
 
@@ -23,10 +23,20 @@ def test_load_config_permission_error() -> None:
     mock_path = Mock(spec=Path)
     mock_path.exists.return_value = True
     mock_path.is_file.return_value = True
+    mock_path.resolve.return_value = mock_path  # Mock resolve
+    mock_path.is_relative_to.return_value = True # Mock relative check
+    mock_path.stat.return_value.st_size = 100  # Set valid size
     mock_path.name = "protected.yaml"
 
-    # Patch os.access to simulate permission denied
+    # Mock open to avoid context manager error, though it shouldn't be reached if os.access fails
+    mock_path.open = mock_open()
+
+    # We need to ensure _validate_file_security runs and checks os.access
+    # But we need CONSTANTS.skip_file_checks to be False (default in this test if not monkeypatched)
+    # However, conftest sets it to True!
+    # We must set it to False.
     with (
+        patch.object(CONSTANTS, "skip_file_checks", False),
         patch("os.access", return_value=False),
         pytest.raises(ConfigurationError, match="Permission denied"),
     ):

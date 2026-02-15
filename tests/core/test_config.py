@@ -67,20 +67,23 @@ def test_dft_config_pseudopotentials_missing(tmp_path: Path) -> None:
         CONSTANTS.skip_file_checks = original_skip
 
 
-def test_dft_config_pseudopotentials_valid(tmp_path: Path) -> None:
+def test_dft_config_pseudopotentials_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test DFTConfig pseudopotentials validation with valid files."""
-    original_skip = CONSTANTS.skip_file_checks
-    CONSTANTS.skip_file_checks = False
-    try:
-        pp_file = tmp_path / "Fe.pbe.UPF"
-        pp_file.touch()
-        config = DFTConfig(
-            code="quantum_espresso",
-            pseudopotentials={"Fe": str(pp_file)},
-        )
-        assert config.pseudopotentials["Fe"] == str(pp_file)
-    finally:
-        CONSTANTS.skip_file_checks = original_skip
+    # Ensure checks are enabled but run in correct dir
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
+    monkeypatch.chdir(tmp_path)
+
+    pp_file = tmp_path / "Fe.pbe.UPF"
+    pp_file.touch()
+
+    # Use relative path since we changed CWD
+    rel_pp_file = "Fe.pbe.UPF"
+
+    config = DFTConfig(
+        code="quantum_espresso",
+        pseudopotentials={"Fe": rel_pp_file},
+    )
+    assert config.pseudopotentials["Fe"] == rel_pp_file
 
 
 def test_version_validation() -> None:
@@ -103,6 +106,12 @@ def test_version_validation() -> None:
 
 def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test loading a file that exceeds the size limit."""
+    # Enable file checks explicitly to test size check logic (though size check is independent of security check)
+    # Wait, size check is in _read_file_content which is called by load_config.
+    # _validate_file_security is called BEFORE _read_file_content.
+    # So we MUST skip security check to reach size check (since path is in tmp), OR chdir.
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
+
     config_file = tmp_path / "large.yaml"
     config_file.touch()
 
@@ -122,6 +131,8 @@ def test_load_config_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 def test_load_config_content_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that reading stops if content exceeds limit (race condition simulation)."""
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
+
     config_file = tmp_path / "race_large.yaml"
 
     # Write content slightly larger than limit
@@ -206,6 +217,8 @@ def test_limited_stream_chunking() -> None:
 
 def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling of OSError during file read."""
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
+
     config_file = tmp_path / "valid.yaml"
     config_file.touch()
 
@@ -224,8 +237,9 @@ def test_load_config_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         load_config(config_file)
 
 
-def test_load_config_parsing_error(tmp_path: Path) -> None:
+def test_load_config_parsing_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling of YAML parsing errors."""
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
     config_file = tmp_path / "malformed.yaml"
     config_file.write_text("key: value: error", encoding="utf-8")
 
@@ -233,8 +247,9 @@ def test_load_config_parsing_error(tmp_path: Path) -> None:
         load_config(config_file)
 
 
-def test_empty_config(tmp_path: Path) -> None:
+def test_empty_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test loading an empty configuration file."""
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
     config_file = tmp_path / "empty.yaml"
     config_file.write_text("")
     with pytest.raises(ConfigurationError, match="must contain a YAML dictionary"):
@@ -266,11 +281,18 @@ def test_extra_fields_forbidden(tmp_path: Path) -> None:
 
 def test_load_config_permission_denied(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling of permission error."""
+    # We must enable checks to test os.access check
+    monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
+    monkeypatch.chdir(tmp_path)
+
     config_file = tmp_path / "protected.yaml"
     config_file.touch()
+
+    # Use relative path
+    rel_path = Path("protected.yaml")
 
     # Mock os.access to return False
     monkeypatch.setattr(os, "access", lambda path, mode: False)
 
     with pytest.raises(ConfigurationError, match="Permission denied"):
-        load_config(config_file)
+        load_config(rel_path)

@@ -44,11 +44,11 @@ class TestTrainerModule:
     def test_train_method(self, trainer: Trainer) -> None:
         """Test trainer.train method."""
         # Create a valid structure with atoms, energy, and forces
-        mock_atoms = NonCallableMagicMock()
-        mock_atoms.copy.return_value = mock_atoms
+        from ase import Atoms
+        real_atoms = Atoms("H")
 
         structure = StructureMetadata(
-            features={"atoms": mock_atoms}, energy=-10.0, forces=[[0.0, 0.0, 0.0]]
+            features={"atoms": real_atoms}, energy=-10.0, forces=[[0.0, 0.0, 0.0]]
         )
         dataset = [structure]
 

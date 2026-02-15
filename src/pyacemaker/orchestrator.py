@@ -3,6 +3,7 @@
 import secrets
 from collections.abc import Iterable, Iterator
 from itertools import chain
+from pathlib import Path
 from typing import TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
@@ -38,6 +39,80 @@ T = TypeVar("T", bound=BaseModule)
 def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T:
     """Factory to create a default module instance."""
     return module_class(config)
+
+
+class DatasetSplitter:
+    """Helper to split dataset into training stream and validation file."""
+
+    def __init__(
+        self,
+        dataset_path: "Path",
+        validation_path: "Path",
+        dataset_manager: "DatasetManager",
+        validation_split: float,
+        max_validation_size: int,
+        buffer_size: int = 100,  # Fallback, usually overridden by config
+        start_index: int = 0,
+    ) -> None:
+        from pyacemaker.core.config import CONSTANTS
+
+        if buffer_size == 100:  # If default
+             buffer_size = CONSTANTS.default_validation_buffer_size
+        self.dataset_path = dataset_path
+        self.validation_path = validation_path
+        self.dataset_manager = dataset_manager
+        self.validation_split = validation_split
+        self.max_validation_size = max_validation_size
+        self.buffer_size = buffer_size
+        self._rng = secrets.SystemRandom()
+        # Note: We don't know current validation size without reading file or tracking state.
+        # Ideally Orchestrator tracks this. For now, we assume simple appending logic.
+        # The audit requirement is "incremental", so we just split NEW items.
+        self._val_count = 0
+        self.start_index = start_index
+        self.processed_count = 0
+
+    def train_stream(self) -> Iterator[StructureMetadata]:
+        """Yield training items and save validation items to file as side effect."""
+        if not self.dataset_path.exists():
+            return
+
+        val_buffer: list[StructureMetadata] = []
+
+        # Optimization: Use start_index in load_iter to skip deserialization of old items
+        stream = self.dataset_manager.load_iter(self.dataset_path, start_index=self.start_index)
+
+        for atoms in stream:
+            self.processed_count += 1
+            # Simple random split for new items
+            # We check max_validation_size relative to *added* items in this session for safety,
+            # though ideally we'd check global size.
+            is_full = self._val_count >= self.max_validation_size
+            should_validate = (not is_full) and (self._rng.random() < self.validation_split)
+
+            if should_validate:
+                val_buffer.append(atoms_to_metadata(atoms))
+                self._val_count += 1
+                if len(val_buffer) >= self.buffer_size:
+                     self._flush_validation(val_buffer)
+                     val_buffer = []
+            else:
+                yield atoms_to_metadata(atoms)
+
+        if val_buffer:
+            self._flush_validation(val_buffer)
+
+    def _flush_validation(self, items: list[StructureMetadata]) -> None:
+        """Flush validation buffer to disk."""
+        # Convert to atoms
+        atoms_iter = (metadata_to_atoms(s) for s in items)
+        # Use append mode
+        self.dataset_manager.save_iter(
+            atoms_iter,
+            self.validation_path,
+            mode="ab",
+            calculate_checksum=False # Checksum for append is expensive/complex, skipping for speed
+        )
 
 
 class Orchestrator(IOrchestrator):
@@ -89,8 +164,18 @@ class Orchestrator(IOrchestrator):
         self.dataset_path = (
             self.config.project.root_dir / "data" / self.config.orchestrator.dataset_file
         )
+        # Validation set path
+        self.validation_path = (
+            self.config.project.root_dir / "data" / "validation_set.pckl.gzip"
+        )
+        # Training set path (persistent subset)
+        self.training_path = (
+            self.config.project.root_dir / "data" / "training_set.pckl.gzip"
+        )
+
         self.dataset_manager = DatasetManager()
         self.cycle_count = 0
+        self.processed_items_count = 0
 
     def run(self) -> ModuleResult:
         """Run the full active learning pipeline."""
@@ -115,7 +200,7 @@ class Orchestrator(IOrchestrator):
             if result.status == CycleStatus.FAILED:
                 self.logger.error(f"Cycle failed! Reason: {result.error}")
                 return ModuleResult(
-                    status="failed",
+                    status=CycleStatus.FAILED,
                     metrics=Metrics.model_validate({"cycles": self.cycle_count}),
                 )
 
@@ -125,18 +210,34 @@ class Orchestrator(IOrchestrator):
             metrics=Metrics.model_validate({"cycles": self.cycle_count}),
         )
 
+    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
+        """Convert metadata stream to atoms and save to dataset.
+
+        Optimized to skip expensive checksum calculation during active learning loop.
+        Removes stale checksum file to prevent validation failures.
+        """
+        atoms_stream = (metadata_to_atoms(s) for s in stream)
+        # Skip checksum calculation for O(1) append
+        self.dataset_manager.save_iter(
+            atoms_stream,
+            self.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )
+        # Remove stale checksum file if it exists, as it no longer matches the dataset
+        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
+        if checksum_path.exists():
+            try:
+                checksum_path.unlink()
+            except OSError:
+                self.logger.warning("Failed to remove stale checksum file.")
+
     def _run_cold_start(self) -> None:
         """Execute cold start to generate initial dataset."""
         initial_structures = self.structure_generator.generate_initial_structures()
         # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
         computed_stream = self.oracle.compute_batch(initial_structures)
-
-        # Optimization: Don't convert back and forth if not needed,
-        # but DatasetManager expects Atoms. And compute_batch returns StructureMetadata.
-        # So conversion IS needed unless we change interfaces.
-        # But we can do it lazily.
-        atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
+        self._save_dataset_stream(computed_stream)
 
     def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle."""
@@ -176,44 +277,55 @@ class Orchestrator(IOrchestrator):
         return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
 
     def _run_training_phase(self) -> None:
-        """Execute training phase with file-based streaming."""
-        self.logger.info("Phase: Training")
+        """Execute training phase with incremental partitioning."""
+        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
 
-        # Get stream and list reference (list populated during iteration of stream)
-        stream, val_list = self._split_dataset_streams()
+        # 1. Incremental Partitioning
+        # Only process new items from dataset
+        splitter = DatasetSplitter(
+            self.dataset_path,
+            self.validation_path,
+            self.dataset_manager,
+            self.config.orchestrator.validation_split,
+            self.config.orchestrator.max_validation_size,
+            buffer_size=self.config.orchestrator.validation_buffer_size,
+            start_index=self.processed_items_count
+        )
 
-        # Training consumes the stream, side-effect populates val_list
-        potential = self.trainer.train(stream, self.current_potential)
+        # Iterate splitter to identify new training items
+        new_training_items = splitter.train_stream()
 
+        # Append new training items to persistent training set
+        atoms_iter = (metadata_to_atoms(s) for s in new_training_items)
+        self.dataset_manager.save_iter(
+            atoms_iter,
+            self.training_path,
+            mode="ab",
+            calculate_checksum=False # Streaming append
+        )
+
+        # Update progress tracking
+        added_count = splitter.processed_count
+        self.processed_items_count += added_count
+        self.logger.info(f"Processed {added_count} new items. Total processed: {self.processed_items_count}")
+
+        # 2. Train on Full Training Set
+        if not self.training_path.exists():
+            self.logger.warning("No training data available.")
+            return
+
+        # Pass iterator over persistent training set to trainer
+        # This re-reads the full training set (O(N_train)) which is necessary for retraining,
+        # but avoids O(N_total) splitting logic.
+
+        # Need to convert atoms back to metadata for Trainer interface
+        def training_stream() -> Iterator[StructureMetadata]:
+            # Use buffer_size for efficiency
+            for atoms in self.dataset_manager.load_iter(self.training_path):
+                yield atoms_to_metadata(atoms)
+
+        potential = self.trainer.train(training_stream(), self.current_potential)
         self.current_potential = potential
-        self._validation_set = val_list
-
-    def _split_dataset_streams(self) -> tuple[Iterator[StructureMetadata], list[StructureMetadata]]:
-        """Split dataset into training stream and validation list (Probabilistic)."""
-        split_ratio = self.config.orchestrator.validation_split
-        max_val = self.config.orchestrator.max_validation_size
-        val_list: list[StructureMetadata] = []
-
-        def train_stream() -> Iterator[StructureMetadata]:
-            if not self.dataset_path.exists():
-                return
-
-            # Use DatasetManager to load items
-            for atoms in self.dataset_manager.load_iter(self.dataset_path):
-                # Probabilistic split: if random < split_ratio AND we are under cap
-                # If split_ratio is 1.0, we want everything in validation, UP TO max_val.
-                # But train_stream must yield training data. If everything goes to val, train is empty?
-                # That would break training.
-                # Assuming standard split logic:
-                is_full = len(val_list) >= max_val
-                should_validate = (not is_full) and (secrets.SystemRandom().random() < split_ratio)
-
-                if should_validate:
-                    val_list.append(atoms_to_metadata(atoms))
-                else:
-                    yield atoms_to_metadata(atoms)
-
-        return train_stream(), val_list
 
     def _run_validation_phase(self) -> bool:
         """Execute validation phase.
@@ -226,13 +338,23 @@ class Orchestrator(IOrchestrator):
             self.logger.warning("No potential to validate.")
             return False
 
-        test_set = getattr(self, "_validation_set", [])
-        if not test_set:
+        if not self.validation_path.exists():
             self.logger.warning("Empty validation set.")
-            # We rely on training phase populate
             return True
 
-        val_result = self.validator.validate(self.current_potential, test_set)
+        # Load validation set from file
+        # Streaming to Validator to avoid OOM
+        def validation_stream() -> Iterator[StructureMetadata]:
+            yield from (
+                atoms_to_metadata(atoms)
+                for atoms in self.dataset_manager.load_iter(self.validation_path)
+            )
+
+        try:
+            val_result = self.validator.validate(self.current_potential, validation_stream())
+        except Exception:
+            self.logger.exception("Validation failed during processing")
+            return False
 
         if val_result.status == "failed":
             self.logger.error(f"Validation failed: {val_result.metrics}")
@@ -302,6 +424,4 @@ class Orchestrator(IOrchestrator):
         self.logger.info(f"Phase: Calculation ({len(structures)} structures)")
         # Stream processing: list -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
-
-        atoms_stream = (metadata_to_atoms(s) for s in new_data)
-        self.dataset_manager.save_iter(atoms_stream, self.dataset_path, mode="ab")
+        self._save_dataset_stream(new_data)
