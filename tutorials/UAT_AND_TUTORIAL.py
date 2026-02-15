@@ -264,7 +264,7 @@ def _(
 
     # Simulate Deposition
     # Add atoms one by one and minimize/relax
-    n_atoms = 5 if MO_MODE else 20
+    n_atoms = 5 if MO_MODE else 100
     deposited_atoms = []
 
     # Create a figure for snapshots
@@ -293,6 +293,10 @@ def _(
         from ase.optimize import BFGS
         _dyn = BFGS(substrate, logfile=None)
         _dyn.run(fmax=0.1, steps=20 if MO_MODE else 100)
+
+        # Save trajectory
+        from ase.io import write
+        write("trajectory.xyz", substrate, append=True)
 
         # Capture snapshots
         if _i == 0:
@@ -359,6 +363,9 @@ def _(config_path, os, pseudo_dir, shutil):
 
     if pseudo_dir.exists():
         shutil.rmtree(pseudo_dir)
+
+    if os.path.exists("trajectory.xyz"):
+        os.remove("trajectory.xyz")
 
     # We might want to keep the 'tutorial_project' dir for inspection,
     # or clean it up. For CI, clean up.
