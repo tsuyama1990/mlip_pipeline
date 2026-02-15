@@ -24,10 +24,9 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     """Test that DatasetManager.save_iter and load_iter are memory efficient."""
     dataset_path = tmp_path / "large_dataset.pckl.gzip"
 
-    # Generate a large dataset (1000 items)
-    # Each item ~1KB? 1000 items is small (1MB), but enough to test linear growth if we did lists
-    # Let's do 10,000 items to be sure.
-    n_items = 10000
+    # Generate a large dataset
+    # 100,000 items to verify streaming
+    n_items = 100000
 
     def data_gen() -> Iterator[Atoms]:
         for _ in range(n_items):
@@ -59,10 +58,14 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
 
     manager = DatasetManager()
 
-    # create dataset
-    n_items = 5000
-    atoms_list = [Atoms("Fe") for _ in range(n_items)]
-    manager.save_iter(iter(atoms_list), dataset_path)
+    # create dataset using generator
+    n_items = 100000
+
+    def data_gen() -> Iterator[Atoms]:
+        for _ in range(n_items):
+            yield Atoms("Fe")
+
+    manager.save_iter(data_gen(), dataset_path)
 
     splitter = DatasetSplitter(
         dataset_path,
@@ -70,7 +73,7 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
         manager,
         validation_split=0.2,
         max_validation_size=1000,
-        buffer_size=100 # Flush every 100 items
+        buffer_size=100  # Flush every 100 items
     )
 
     # We must patch load_iter to skip verify inside DatasetSplitter, or just ensure checksum exists.

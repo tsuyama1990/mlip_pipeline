@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
@@ -23,32 +23,33 @@ from pyacemaker.dynamics.kmc import EONWrapper
 class PotentialHelper:
     """Helper for generating hybrid potential LAMMPS commands."""
 
+    _TEMPLATES: ClassVar[dict[str, list[str]]] = {
+        "zbl": [
+            "pair_style hybrid/overlay pace zbl 4.0 5.0",
+            "pair_coeff * * pace {path} {elements}",
+            "pair_coeff * * zbl 0.0 0.0",
+        ],
+        "lj": [
+            "pair_style hybrid/overlay pace lj/cut 10.0",
+            "pair_coeff * * pace {path} {elements}",
+            "pair_coeff * * lj/cut 1.0 1.0",
+        ],
+        "default": [
+            "pair_style pace",
+            "pair_coeff * * pace {path} {elements}",
+        ],
+    }
+
     def get_lammps_commands(
         self, potential_path: Path, baseline_type: str, elements: list[str]
     ) -> list[str]:
         """Generate LAMMPS pair_style and pair_coeff commands."""
         path_str = str(potential_path)
         element_str = " ".join(elements)
+        context = {"path": path_str, "elements": element_str}
 
-        cmds = []
-        # Basic hybrid setup
-        if baseline_type == "zbl":
-            # Using hybrid/overlay to add ZBL repulsion on top of ACE
-            cmds.append("pair_style hybrid/overlay pace zbl 4.0 5.0")
-            cmds.append(f"pair_coeff * * pace {path_str} {element_str}")
-            # ZBL usually needs explicit Z1 Z2, but we use * * for all pairs with a generic cutoff
-            # This is a placeholder that matches the requirement "pair_style ... zbl"
-            cmds.append("pair_coeff * * zbl 0.0 0.0")
-        elif baseline_type == "lj":
-            cmds.append("pair_style hybrid/overlay pace lj/cut 10.0")
-            cmds.append(f"pair_coeff * * pace {path_str} {element_str}")
-            cmds.append("pair_coeff * * lj/cut 1.0 1.0")
-        else:
-            # Fallback to just PACE if no valid baseline or "none"
-            cmds.append("pair_style pace")
-            cmds.append(f"pair_coeff * * pace {path_str} {element_str}")
-
-        return cmds
+        template = self._TEMPLATES.get(baseline_type, self._TEMPLATES["default"])
+        return [cmd.format(**context) for cmd in template]
 
 
 class MDInterface:

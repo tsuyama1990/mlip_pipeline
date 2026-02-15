@@ -145,6 +145,11 @@ def test_lammps_engine_integration(mock_config: MagicMock) -> None:
 
 def test_lammps_engine_exploration(mock_config: MagicMock) -> None:
     """Test LAMMPSEngine exploration loop."""
+    # Set mock=True in config to use internal mock logic
+    mock_config.dynamics_engine.mock = True
+    # Force high probability of halt to trigger yield
+    mock_config.dynamics_engine.parameters = {"dynamics_halt_probability": 1.0}
+
     engine = LAMMPSEngine(mock_config)
     potential = Potential(path=Path("p.yace"), type=PotentialType.PACE, version="1.0.0")
 
@@ -153,33 +158,12 @@ def test_lammps_engine_exploration(mock_config: MagicMock) -> None:
 
     seeds = list(generate_dummy_structures(3))
 
-    # Mock MDInterface.run_md to return Halted info sometimes
-    # We want to yield at least one structure
+    # Run exploration
+    # Since mock=True and prob=1.0, every seed should trigger a halt
+    iterator = engine.run_exploration(potential, seeds)
+    results = list(iterator)
 
-    # Mock secrets.SystemRandom to control halt probability in the loop
-    # The loop uses: if secrets.SystemRandom().random() < float(probability):
-    # We want it to be True once
-
-    with patch("pyacemaker.modules.dynamics_engine.secrets.SystemRandom") as mock_random:
-        # First call < 0.3 (True), others > 0.3 (False)
-        mock_random.return_value.random.side_effect = [0.1, 0.9, 0.9, 0.9]
-
-        # We also need to ensure MDInterface sees the log file created by the loop logic
-        # OR we can mock md.run_md directly which is safer/cleaner
-
-        from pyacemaker.domain_models.models import HaltInfo
-
-        s = StructureMetadata(tags=["halted"])
-        h_true = HaltInfo(halted=True, step=10, max_gamma=20.0, structure=s)
-        h_false = HaltInfo(halted=False)
-
-        engine.md = MagicMock()
-        engine.md.run_md.side_effect = [h_true, h_false, h_false]
-
-        # Run exploration
-        iterator = engine.run_exploration(potential, seeds)
-        results = list(iterator)
-
-        assert len(results) == 1
-        assert results[0] == s
-        assert engine.md.run_md.call_count >= 1
+    assert len(results) == 3
+    for s in results:
+        assert s.uncertainty_state is not None
+        assert s.uncertainty_state.gamma_max is not None

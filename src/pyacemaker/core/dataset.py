@@ -22,20 +22,20 @@ class DatasetSplitter:
         dataset_manager: "DatasetManager",
         validation_split: float,
         max_validation_size: int,
-        buffer_size: int = 100,
+        buffer_size: int | None = None,
         start_index: int = 0,
     ) -> None:
         """Initialize the DatasetSplitter."""
         from pyacemaker.core.config import CONSTANTS
 
-        if buffer_size == 100:  # If default
-            buffer_size = CONSTANTS.default_validation_buffer_size
         self.dataset_path = dataset_path
         self.validation_path = validation_path
         self.dataset_manager = dataset_manager
         self.validation_split = validation_split
         self.max_validation_size = max_validation_size
-        self.buffer_size = buffer_size
+        self.buffer_size = (
+            buffer_size if buffer_size is not None else CONSTANTS.default_validation_buffer_size
+        )
         self._rng = secrets.SystemRandom()
         self._val_count = 0
         self.start_index = start_index

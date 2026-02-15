@@ -100,6 +100,10 @@ class Constants(BaseSettings):
     # Allowed input sections for security validation
     dft_allowed_input_sections: list[str] = _DEFAULTS["dft"]["allowed_input_sections"]
 
+    # Security: Allowed Potential Paths (Whitelist for external potentials)
+    # List of absolute path prefixes allowed.
+    allowed_potential_paths: list[str] = []
+
     # Structure Feature Whitelist
     # Allow common keys for atoms, forces, etc. plus 'atoms' object itself.
     allowed_feature_keys: list[str] = [

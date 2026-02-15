@@ -1,9 +1,9 @@
 """Orchestrator module implementation."""
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from itertools import chain
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
@@ -184,11 +184,10 @@ class Orchestrator(IOrchestrator):
     def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle."""
         # 1. Training (Refinement)
-        try:
-            self._run_training_phase()
-        except Exception as e:
-            self.logger.exception("Training phase failed")
-            return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
+        if not self._execute_phase(self._run_training_phase, "Training"):
+            return CycleResult(
+                status=CycleStatus.FAILED, metrics=Metrics(), error="Training phase failed"
+            )
 
         # 2. Validation
         if not self._run_validation_phase():
@@ -198,8 +197,6 @@ class Orchestrator(IOrchestrator):
             )
 
         # 3. Exploration (MD) & Selection
-        # Exploration returns high uncertainty structures
-        # Selection filters them and generates candidates
         try:
             selected_structures = self._run_exploration_and_selection_phase()
         except Exception as e:
@@ -210,13 +207,23 @@ class Orchestrator(IOrchestrator):
             return CycleResult(status=CycleStatus.CONVERGED, metrics=Metrics())
 
         # 5. Calculation (Oracle)
-        try:
-            self._run_calculation_phase(selected_structures)
-        except Exception as e:
-            self.logger.exception("Calculation phase failed")
-            return CycleResult(status=CycleStatus.FAILED, metrics=Metrics(), error=str(e))
+        if not self._execute_phase(
+            lambda: self._run_calculation_phase(selected_structures), "Calculation"
+        ):
+            return CycleResult(
+                status=CycleStatus.FAILED, metrics=Metrics(), error="Calculation phase failed"
+            )
 
         return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
+
+    def _execute_phase(self, phase_func: Callable[[], Any], phase_name: str) -> bool:
+        """Execute a phase with error handling."""
+        try:
+            phase_func()
+        except Exception:
+            self.logger.exception(f"{phase_name} phase failed")
+            return False
+        return True
 
     def _run_training_phase(self) -> None:
         """Execute training phase with incremental partitioning."""

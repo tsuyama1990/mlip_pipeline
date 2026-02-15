@@ -95,11 +95,19 @@ class Potential(BaseModel):
 
         # 3. Containment Check
         if not real_path.is_relative_to(cwd):
-            # Allow absolute paths to existing files (e.g. system potentials)
-            if real_path.is_absolute() and real_path.exists():
+            # Strict Whitelist Check for absolute paths
+            # If path is outside CWD, it must be in the allowed_potential_paths whitelist
+            if (
+                real_path.is_absolute()
+                and real_path.exists()
+                and any(
+                    str(real_path).startswith(str(Path(p).resolve()))
+                    for p in CONSTANTS.allowed_potential_paths
+                )
+            ):
                 return v
 
-            msg = f"Potential path must be strictly within current working directory: {cwd}"
+            msg = f"Potential path is outside CWD and not in allowed whitelist: {real_path}"
             raise ValueError(msg)
 
         return v
