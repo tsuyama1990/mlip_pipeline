@@ -3,6 +3,7 @@
 import secrets
 from collections.abc import Iterable, Iterator
 from itertools import chain
+from pathlib import Path
 from typing import TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
@@ -41,36 +42,63 @@ def _create_default_module(module_class: type[T], config: PYACEMAKERConfig) -> T
 
 
 class DatasetSplitter:
-    """Helper to split dataset into training stream and validation list."""
+    """Helper to split dataset into training stream and validation file."""
 
     def __init__(
         self,
-        dataset_path,
-        dataset_manager,
+        dataset_path: "Path",
+        validation_path: "Path",
+        dataset_manager: "DatasetManager",
         validation_split: float,
         max_validation_size: int,
     ) -> None:
         self.dataset_path = dataset_path
+        self.validation_path = validation_path
         self.dataset_manager = dataset_manager
         self.validation_split = validation_split
         self.max_validation_size = max_validation_size
-        self.validation_set: list[StructureMetadata] = []
         self._rng = secrets.SystemRandom()
+        self._val_count = 0
 
     def train_stream(self) -> Iterator[StructureMetadata]:
-        """Yield training items and populate validation set as side effect."""
+        """Yield training items and save validation items to file as side effect."""
         if not self.dataset_path.exists():
             return
 
+        # Clear previous validation set? Or append? Assuming per-cycle, we might want fresh split or accumulated.
+        # Typically active learning accumulates. But validation set should likely be representative.
+        # Ideally we append to validation set if we are appending to training set.
+        # But here we are iterating the WHOLE dataset.
+        # If we iterate the whole dataset every time, we re-split every time.
+        # For efficiency, we should probably only split NEW items.
+        # But the current design iterates the full dataset for training.
+        # We will implement a simple split logic: valid items go to a buffer, then flushed to file.
+        # To avoid opening/closing file for every item, we can buffer.
+        # DatasetManager.save_iter handles iterators. We can't easily interleave saving to two files with one iterator unless we use a generator that writes side effects.
+
+        val_buffer: list[StructureMetadata] = []
+
         for atoms in self.dataset_manager.load_iter(self.dataset_path):
-            is_full = len(self.validation_set) >= self.max_validation_size
-            # Use pre-instantiated RNG for efficiency
+            is_full = self._val_count >= self.max_validation_size
             should_validate = (not is_full) and (self._rng.random() < self.validation_split)
 
             if should_validate:
-                self.validation_set.append(atoms_to_metadata(atoms))
+                val_buffer.append(atoms_to_metadata(atoms))
+                self._val_count += 1
+                if len(val_buffer) >= 100: # Buffer size
+                     self._flush_validation(val_buffer)
+                     val_buffer = []
             else:
                 yield atoms_to_metadata(atoms)
+
+        if val_buffer:
+            self._flush_validation(val_buffer)
+
+    def _flush_validation(self, items: list[StructureMetadata]) -> None:
+        """Flush validation buffer to disk."""
+        # Convert to atoms
+        atoms_iter = (metadata_to_atoms(s) for s in items)
+        self.dataset_manager.save_iter(atoms_iter, self.validation_path, mode="ab")
 
 
 class Orchestrator(IOrchestrator):
@@ -121,6 +149,10 @@ class Orchestrator(IOrchestrator):
         # Use config option instead of hardcoded
         self.dataset_path = (
             self.config.project.root_dir / "data" / self.config.orchestrator.dataset_file
+        )
+        # Validation set path
+        self.validation_path = (
+            self.config.project.root_dir / "data" / "validation_set.pckl.gzip"
         )
         self.dataset_manager = DatasetManager()
         self.cycle_count = 0
@@ -211,19 +243,23 @@ class Orchestrator(IOrchestrator):
         """Execute training phase with file-based streaming."""
         self.logger.info("Phase: Training")
 
+        # Clear old validation set if exists to ensure fresh split
+        if self.validation_path.exists():
+            self.validation_path.unlink()
+
         # Use DatasetSplitter to handle stateful splitting
         splitter = DatasetSplitter(
             self.dataset_path,
+            self.validation_path,
             self.dataset_manager,
             self.config.orchestrator.validation_split,
             self.config.orchestrator.max_validation_size,
         )
 
-        # Training consumes the stream, which populates validation_set inside splitter
+        # Training consumes the stream, which populates validation file inside splitter
         potential = self.trainer.train(splitter.train_stream(), self.current_potential)
 
         self.current_potential = potential
-        self._validation_set = splitter.validation_set
 
     def _run_validation_phase(self) -> bool:
         """Execute validation phase.
@@ -236,13 +272,23 @@ class Orchestrator(IOrchestrator):
             self.logger.warning("No potential to validate.")
             return False
 
-        test_set = getattr(self, "_validation_set", [])
-        if not test_set:
+        if not self.validation_path.exists():
             self.logger.warning("Empty validation set.")
-            # We rely on training phase populate
             return True
 
-        val_result = self.validator.validate(self.current_potential, test_set)
+        # Load validation set from file
+        # Validator expects list[StructureMetadata] in current interface
+        # We should load it. Since validation set is capped by max_validation_size, it fits in memory.
+        try:
+            val_list = [
+                atoms_to_metadata(atoms)
+                for atoms in self.dataset_manager.load_iter(self.validation_path)
+            ]
+        except Exception:
+            self.logger.exception("Failed to load validation set")
+            return False
+
+        val_result = self.validator.validate(self.current_potential, val_list)
 
         if val_result.status == "failed":
             self.logger.error(f"Validation failed: {val_result.metrics}")

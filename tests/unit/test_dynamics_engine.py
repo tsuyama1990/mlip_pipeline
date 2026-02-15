@@ -92,7 +92,7 @@ def test_md_interface_missing_work_dir(mock_config: MagicMock) -> None:
     md = MDInterface(mock_config)
     with pytest.raises(ValueError, match="work_dir must be provided"):
         md.run_md(
-            StructureMetadata(), Potential(path=Path("p"), type=PotentialType.PACE, version="1")
+            StructureMetadata(), Potential(path=Path("p"), type=PotentialType.PACE, version="1.0.0")
         )
 
 
@@ -116,7 +116,7 @@ def test_md_interface_run_halt(mock_run: MagicMock, mock_config: MagicMock, tmp_
         log_file.write_text("Fix halt condition met\n")
 
         structure = StructureMetadata()
-        potential = Potential(path=Path("p.yace"), type=PotentialType.PACE, version="1")
+        potential = Potential(path=Path("p.yace"), type=PotentialType.PACE, version="1.0.0")
 
         halt_info = md.run_md(structure, potential, work_dir)
 
@@ -138,7 +138,7 @@ def test_lammps_engine_integration(mock_config: MagicMock) -> None:
 
     # Test run_production
     res_prod = engine.run_production(
-        Potential(path=Path("p"), type=PotentialType.PACE, version="1")
+        Potential(path=Path("p"), type=PotentialType.PACE, version="1.0.0")
     )
     assert res_prod == "mock_production_result"
 
@@ -146,7 +146,7 @@ def test_lammps_engine_integration(mock_config: MagicMock) -> None:
 def test_lammps_engine_exploration(mock_config: MagicMock) -> None:
     """Test LAMMPSEngine exploration loop."""
     engine = LAMMPSEngine(mock_config)
-    potential = Potential(path=Path("p.yace"), type=PotentialType.PACE, version="1")
+    potential = Potential(path=Path("p.yace"), type=PotentialType.PACE, version="1.0.0")
 
     # Mock MDInterface.run_md to return Halted info sometimes
     # We want to yield at least one structure

@@ -25,6 +25,42 @@ class MaterialDNA(BaseModel):
     crystal_system: str | None = Field(default=None, description="Crystal system (e.g., cubic)")
     space_group: str | None = Field(default=None, description="Space group symbol (e.g., Fm-3m)")
 
+    @field_validator("composition")
+    @classmethod
+    def validate_composition(cls, v: dict[str, float]) -> dict[str, float]:
+        if not v:
+            return v
+        if any(val < 0 for val in v.values()):
+            msg = "Composition values must be non-negative"
+            raise ValueError(msg)
+        total = sum(v.values())
+        if not math.isclose(total, 1.0, rel_tol=1e-3):
+             # Just warn or fail? Requirement says "proper normalization". Let's enforce it or normalize it.
+             # Strict validation:
+             msg = f"Composition must sum to 1.0 (got {total})"
+             raise ValueError(msg)
+        return v
+
+    @field_validator("average_valence_electrons")
+    @classmethod
+    def validate_valence(cls, v: float | None) -> float | None:
+        if v is not None and v < 0:
+            msg = "Average valence electrons must be non-negative"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("crystal_system")
+    @classmethod
+    def validate_crystal_system(cls, v: str | None) -> str | None:
+        valid_systems = {
+            "cubic", "tetragonal", "orthorhombic", "hexagonal",
+            "trigonal", "monoclinic", "triclinic"
+        }
+        if v is not None and v.lower() not in valid_systems:
+            msg = f"Invalid crystal system: {v}"
+            raise ValueError(msg)
+        return v
+
 
 class PredictedProperties(BaseModel):
     """Predicted properties from universal potentials or simple models."""
@@ -34,6 +70,30 @@ class PredictedProperties(BaseModel):
     band_gap: float | None = Field(default=None, description="Predicted band gap (eV)")
     melting_point: float | None = Field(default=None, description="Predicted melting point (K)")
     bulk_modulus: float | None = Field(default=None, description="Predicted bulk modulus (GPa)")
+
+    @field_validator("band_gap")
+    @classmethod
+    def validate_band_gap(cls, v: float | None) -> float | None:
+        if v is not None and v < 0:
+            msg = "Band gap must be non-negative"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("melting_point")
+    @classmethod
+    def validate_melting_point(cls, v: float | None) -> float | None:
+        if v is not None and v < 0:
+            msg = "Melting point must be non-negative"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("bulk_modulus")
+    @classmethod
+    def validate_bulk_modulus(cls, v: float | None) -> float | None:
+        if v is not None and v < 0:
+            msg = "Bulk modulus must be non-negative"
+            raise ValueError(msg)
+        return v
 
 
 class UncertaintyState(BaseModel):
@@ -178,6 +238,21 @@ class StructureMetadata(BaseModel):
 
         return v
 
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        # Validate against a predefined set of allowed tags or pattern
+        # For now, allow common tags but maybe restrict arbitrary strings
+        allowed_prefixes = {"initial", "high_uncertainty", "active_set", "validation", "outlier", "failed"}
+        for tag in v:
+            # Allow underscores in tags (e.g. candidate_0)
+            clean_tag = tag.replace("_", "")
+            if not any(tag.startswith(p) for p in allowed_prefixes) and not clean_tag.isalnum():
+                 # Allow alphanumeric user tags but warn/restrict weird chars
+                 msg = f"Tag '{tag}' contains invalid characters"
+                 raise ValueError(msg)
+        return v
+
     @model_validator(mode="after")
     def validate_calculated_fields(self) -> "StructureMetadata":
         """Ensure energy, forces, and stress are present if status is CALCULATED."""
@@ -192,4 +267,5 @@ class StructureMetadata(BaseModel):
             # Data Integrity: If forces are present, stress should also be checked/present
             # Often stress is optional, but for consistency in MLIP we prefer having it if calculated.
             # If not calculated, it should be None, but if forces are there, usually stress is too.
+            return self
         return self

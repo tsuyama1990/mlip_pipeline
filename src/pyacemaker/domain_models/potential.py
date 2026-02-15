@@ -1,5 +1,6 @@
 """Potential-related domain models."""
 
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,40 @@ class Potential(BaseModel):
         default_factory=dict, description="Validation metrics (RMSE, etc.)"
     )
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
+
+    @field_validator("version")
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        """Validate version format (semver-like)."""
+        if not v:
+            msg = "Version string cannot be empty"
+            raise ValueError(msg)
+        # Basic semver check or alphanumeric
+        if not re.match(r"^v?\d+\.\d+(\.\d+)?(-[\w\.]+)?$", v) and (not v.isalnum() or "." not in v):
+             # Allow simpler versions for now but warn/restrict
+             msg = f"Invalid version format: {v}"
+             raise ValueError(msg)
+        return v
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate parameters based on potential type is hard here without accessing 'type' field.
+        We can check general sanity."""
+        if not isinstance(v, dict):
+            msg = "Parameters must be a dictionary"
+            raise TypeError(msg)
+        return v
+
+    @field_validator("metrics")
+    @classmethod
+    def validate_metrics(cls, v: dict[str, float]) -> dict[str, float]:
+        """Validate metrics."""
+        for name, value in v.items():
+            if value < 0 and "rmse" in name.lower():
+                 msg = f"Metric {name} must be non-negative"
+                 raise ValueError(msg)
+        return v
 
     @field_validator("path")
     @classmethod
@@ -57,7 +92,7 @@ class Potential(BaseModel):
             # Security: Ensure path is within CWD or /tmp (for testing)
             if not resolved.is_relative_to(cwd) and not str(resolved).startswith("/tmp"):  # noqa: S108
                 msg = f"Potential path must be within current working directory: {cwd}"
-                raise ValueError(msg)
+                raise ValueError(msg)  # noqa: TRY301
 
         except Exception as e:
             msg = f"Invalid potential path: {v}. Error: {e}"

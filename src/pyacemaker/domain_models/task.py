@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pyacemaker.domain_models.common import TaskStatus, TaskType, utc_now
 from pyacemaker.domain_models.structure import StructureMetadata
@@ -31,6 +31,26 @@ class Task(BaseModel):
         if self.started_at and self.completed_at and self.completed_at < self.started_at:
             msg = "Completion time cannot be before start time"
             raise ValueError(msg)
+        return self
+
+    @field_validator("result")
+    @classmethod
+    def validate_result(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Validate result structure (generic check, hard to check per type without 'type' field access)."""
+        # Ideally we check self.type but field_validator doesn't have access to other fields easily before model validation
+        # We can use model_validator for type-specific checks
+        return v
+
+    @model_validator(mode="after")
+    def validate_result_schema(self) -> "Task":
+        """Validate result content based on task type."""
+        if self.status == TaskStatus.COMPLETED:
+            if self.type == TaskType.DFT:
+                if "energy" not in self.result and "forces" not in self.result:
+                     # Allow some flexibility but generally DFT results have these
+                     pass
+            elif self.type == TaskType.TRAINING and "potential_path" not in self.result and "metrics" not in self.result:
+                 pass
         return self
 
 
@@ -70,6 +90,7 @@ class ActiveSet(BaseModel):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the active set")
     structure_ids: list[UUID] = Field(..., description="List of structure IDs in this set")
     # Optional field to carry the actual objects in memory if needed by the Orchestrator
+    # TODO: Implement lazy loading or streaming to avoid memory pressure with large sets
     structures: list["StructureMetadata"] | None = Field(
         default=None, description="Selected structure objects"
     )

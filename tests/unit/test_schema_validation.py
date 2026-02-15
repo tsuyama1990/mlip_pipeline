@@ -1,14 +1,14 @@
 """Tests for domain model schema validation."""
 
+from pathlib import Path
+
 import pytest
 from ase import Atoms
 from pydantic import ValidationError
-from pathlib import Path
-import os
 
-from pyacemaker.domain_models.common import PotentialType, StructureStatus, CycleStatus
-from pyacemaker.domain_models.structure import StructureMetadata
+from pyacemaker.domain_models.common import CycleStatus, PotentialType, StructureStatus
 from pyacemaker.domain_models.potential import Potential
+from pyacemaker.domain_models.structure import StructureMetadata
 
 
 def test_strenum_behavior() -> None:
@@ -92,8 +92,6 @@ def test_structure_metadata_calculated_fields() -> None:
 
 def test_potential_path_validation() -> None:
     """Test potential path security validation."""
-    cwd = Path.cwd().resolve()
-
     # Valid relative path
     p = Potential(
         path=Path("potentials/test.yace"),
@@ -120,8 +118,8 @@ def test_potential_path_validation() -> None:
 
     # Tmp path should be allowed (for testing)
     p_tmp = Potential(
-        path=Path("/tmp/test.yace"),
+        path=Path("/tmp/test.yace"),  # noqa: S108
         type=PotentialType.PACE,
         version="1.0"
     )
-    assert str(p_tmp.path) == "/tmp/test.yace"
+    assert str(p_tmp.path) == "/tmp/test.yace"  # noqa: S108

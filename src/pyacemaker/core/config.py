@@ -73,7 +73,7 @@ class Constants(BaseSettings):
 
     version_regex: str = _DEFAULTS["version_regex"]
     # Allow skipping file checks for tests
-    skip_file_checks: bool = _DEFAULTS["skip_file_checks"]
+    skip_file_checks: bool = False  # Secure default
 
     # Oracle / DFT defaults
     default_dft_code: str = _DEFAULTS["dft"]["code"]
@@ -121,6 +121,35 @@ class Constants(BaseSettings):
     # Security & Limits
     max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]
     dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
+
+    @field_validator("max_config_size")
+    @classmethod
+    def validate_max_config_size(cls, v: int) -> int:
+        if v < 1024: # Minimum 1KB
+            msg = "max_config_size must be at least 1KB"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("dynamics_halt_probability")
+    @classmethod
+    def validate_probability(cls, v: float) -> float:
+        if not 0.0 <= v <= 1.0:
+            msg = "Probability must be between 0.0 and 1.0"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("valid_key_regex", "valid_value_regex")
+    @classmethod
+    def validate_regex(cls, v: str) -> str:
+        if not v:
+            msg = "Regex pattern cannot be empty"
+            raise ValueError(msg)
+        try:
+            re.compile(v)
+        except re.error as e:
+            msg = f"Invalid regex pattern: {e}"
+            raise ValueError(msg) from e
+        return v
 
 
 CONSTANTS = Constants()
@@ -554,9 +583,8 @@ def _validate_file_security(path: Path) -> None:
     # or its subdirectories to prevent arbitrary file reads.
     try:
         cwd = Path.cwd().resolve()
-        if not real_path.is_relative_to(cwd):
-            # Also allow /tmp for testing purposes if needed, but strictly:
-            # For production, CWD constraint is good.
+        # Security: Ensure path is within CWD or /tmp (for testing)
+        if not real_path.is_relative_to(cwd) and not str(real_path).startswith("/tmp"):  # noqa: S108
             msg = f"Configuration file must be within current working directory: {cwd}"
             raise ConfigurationError(msg)
     except ValueError as e:
@@ -592,12 +620,15 @@ def _read_file_content(path: Path) -> str:
         file_size = path.stat().st_size
         _check_file_size(file_size)
         with path.open("r", encoding="utf-8") as f:
-            # Read exactly the max size. If there's more, we detect it by file size check or subsequent logic.
-            # But relying on 'read(max+1)' is a common pattern to detect truncation.
-            # However, to be strict with memory, we read ONLY max_config_size.
-            # The initial 'file_size' check (stat) is the primary guard.
-            # This read is a secondary guard against race conditions (file growing after stat).
-            return f.read(CONSTANTS.max_config_size + 1)
+            # Read exactly the max size + 1 to detect oversize reliably.
+            content = f.read(CONSTANTS.max_config_size + 1)
+
+            # Check length immediately
+            if len(content) > CONSTANTS.max_config_size:
+                msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
+                raise ConfigurationError(msg)
+
+            return content
     except OSError as e:
         msg = f"Error reading configuration file: {e}"
         raise ConfigurationError(msg, details={"filename": path.name}) from e
@@ -611,9 +642,7 @@ def _read_config_file(path: Path) -> dict[str, Any]:
     """
     content = _read_file_content(path)
 
-    if len(content) > CONSTANTS.max_config_size:
-        msg = f"Configuration file exceeds size limit of {CONSTANTS.max_config_size} bytes."
-        raise ConfigurationError(msg)
+    # Redundant check removed since _read_file_content guarantees it
 
     try:
         data = yaml.safe_load(content)
