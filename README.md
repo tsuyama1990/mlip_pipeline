@@ -117,7 +117,7 @@ uv run pyacemaker run config.yaml
 ```
 
 ### 3. Tutorial
-For a complete interactive walkthrough of the Fe/Pt deposition on MgO scenario, check out the tutorial notebook:
+For a complete interactive walkthrough of the Fe/Pt deposition on MgO scenario, check out the tutorial notebook. This notebook supports both **Mock Mode** (CI) for quick verification and **Production Mode** for real scientific workflows.
 
 ```bash
 # Run in interactive mode
