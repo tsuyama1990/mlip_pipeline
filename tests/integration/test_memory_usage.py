@@ -45,11 +45,14 @@ def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
 
     # Measure Load Memory
     def consume_load() -> None:
-        for _ in manager.load_iter(dataset_path, verify=False):
-            pass
+        from collections import deque
+
+        # Consume without storing
+        deque(manager.load_iter(dataset_path, verify=False), maxlen=0)
 
     peak_mb_load = measure_memory_peak(consume_load)
     assert peak_mb_load < 50.0
+
 
 def test_dataset_splitter_memory(tmp_path: Path) -> None:
     """Test that DatasetSplitter streams efficiently."""

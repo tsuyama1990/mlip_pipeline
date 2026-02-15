@@ -49,28 +49,37 @@ class DatasetSplitter:
         val_buffer: list[StructureMetadata] = []
 
         # Optimization: Use start_index in load_iter to skip deserialization of old items
-        stream = self.dataset_manager.load_iter(self.dataset_path, start_index=self.start_index)
+        try:
+            stream = self.dataset_manager.load_iter(self.dataset_path, start_index=self.start_index)
 
-        for atoms in stream:
-            self.processed_count += 1
-            # Simple random split for new items
-            is_full = self._val_count >= self.max_validation_size
-            should_validate = (not is_full) and (self._rng.random() < self.validation_split)
+            for atoms in stream:
+                self.processed_count += 1
+                # Simple random split for new items
+                is_full = self._val_count >= self.max_validation_size
+                should_validate = (not is_full) and (self._rng.random() < self.validation_split)
 
-            if should_validate:
-                val_buffer.append(atoms_to_metadata(atoms))
-                self._val_count += 1
-                if len(val_buffer) >= self.buffer_size:
+                if should_validate:
+                    val_buffer.append(atoms_to_metadata(atoms))
+                    self._val_count += 1
+                    if len(val_buffer) >= self.buffer_size:
+                        self._flush_validation(val_buffer)
+                        val_buffer = []
+                else:
+                    yield atoms_to_metadata(atoms)
+
+        finally:
+            # Ensure remaining buffer is flushed even on error if safe
+            if val_buffer:
+                import contextlib
+
+                with contextlib.suppress(Exception):
                     self._flush_validation(val_buffer)
-                    val_buffer = []
-            else:
-                yield atoms_to_metadata(atoms)
-
-        if val_buffer:
-            self._flush_validation(val_buffer)
 
     def _flush_validation(self, items: list[StructureMetadata]) -> None:
         """Flush validation buffer to disk."""
+        if not items:
+            return
+
         # Convert to atoms
         atoms_iter = (metadata_to_atoms(s) for s in items)
         # Use append mode
