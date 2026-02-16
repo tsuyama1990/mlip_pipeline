@@ -190,10 +190,11 @@ class Orchestrator(IOrchestrator):
             )
 
         # 2. Validation
-        if not self._run_validation_phase():
+        val_passed, val_metrics = self._run_validation_phase()
+        if not val_passed:
             self.logger.error("Cycle halted due to validation failure.")
             return CycleResult(
-                status=CycleStatus.FAILED, metrics=Metrics(), error="Validation failed"
+                status=CycleStatus.FAILED, metrics=val_metrics, error="Validation failed"
             )
 
         # 3. Exploration (MD) & Selection
@@ -214,7 +215,7 @@ class Orchestrator(IOrchestrator):
                 status=CycleStatus.FAILED, metrics=Metrics(), error="Calculation phase failed"
             )
 
-        return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
+        return CycleResult(status=CycleStatus.TRAINING, metrics=val_metrics)
 
     def _execute_phase(self, phase_func: Callable[[], Any], phase_name: str) -> bool:
         """Execute a phase with error handling."""
@@ -278,20 +279,20 @@ class Orchestrator(IOrchestrator):
         potential = self.trainer.train(training_stream(), self.current_potential)
         self.current_potential = potential
 
-    def _run_validation_phase(self) -> bool:
+    def _run_validation_phase(self) -> tuple[bool, Metrics]:
         """Execute validation phase.
 
         Returns:
-            bool: True if validation passed, False otherwise.
+            tuple[bool, Metrics]: Success status and validation metrics.
         """
         self.logger.info("Phase: Validation")
         if not self.current_potential:
             self.logger.warning("No potential to validate.")
-            return False
+            return False, Metrics()
 
         if not self.validation_path.exists():
             self.logger.warning("Empty validation set.")
-            return True
+            return True, Metrics()
 
         # Load validation set from file
         # Streaming to Validator to avoid OOM
@@ -305,13 +306,13 @@ class Orchestrator(IOrchestrator):
             val_result = self.validator.validate(self.current_potential, validation_stream())
         except Exception:
             self.logger.exception("Validation failed during processing")
-            return False
+            return False, Metrics()
 
         if val_result.status == "failed":
             self.logger.error(f"Validation failed: {val_result.metrics}")
-            return False
+            return False, val_result.metrics
 
-        return True
+        return True, val_result.metrics
 
     def _load_seeds_from_dataset(self, path: Path, limit: int) -> list[StructureMetadata]:
         """Load seeds from a dataset file up to a limit."""
