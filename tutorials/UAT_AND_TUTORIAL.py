@@ -358,8 +358,11 @@ def orchestrator_init_explanation(mo):
 def initialize_orchestrator(HAS_PYACEMAKER, Orchestrator, config):
     orchestrator = None
     if HAS_PYACEMAKER:
-        orchestrator = Orchestrator(config)
-        print("Orchestrator Initialized.")
+        try:
+            orchestrator = Orchestrator(config)
+            print("Orchestrator Initialized.")
+        except Exception as e:
+            print(f"Error initializing Orchestrator: {e}")
     return orchestrator,
 
 
@@ -387,55 +390,58 @@ def run_active_learning_loop(HAS_PYACEMAKER, metadata_to_atoms, orchestrator):
     result = None
     results = []
 
-    if HAS_PYACEMAKER:
-        # Run a few cycles of the active learning loop
-        print("Starting Active Learning Cycles...")
+    if HAS_PYACEMAKER and orchestrator:
+        try:
+            # Run a few cycles of the active learning loop
+            print("Starting Active Learning Cycles...")
 
-        # --- COLD START (Demonstration of Manual Component Usage) ---
-        # The Orchestrator normally handles this internally via `run()`.
-        # Here, we demonstrate how to use the underlying components directly to show
-        # how data is generated and fed into the system.
+            # --- COLD START (Demonstration of Manual Component Usage) ---
+            # The Orchestrator normally handles this internally via `run()`.
+            # Here, we demonstrate how to use the underlying components directly to show
+            # how data is generated and fed into the system.
 
-        if not orchestrator.dataset_path.exists():
-            print("Running Cold Start (Manual Demonstration)...")
+            if not orchestrator.dataset_path.exists():
+                print("Running Cold Start (Manual Demonstration)...")
 
-            # 1. Generate Initial Structures
-            # The structure generator creates random or template-based structures
-            initial_structures = orchestrator.structure_generator.generate_initial_structures()
+                # 1. Generate Initial Structures
+                # The structure generator creates random or template-based structures
+                initial_structures = orchestrator.structure_generator.generate_initial_structures()
 
-            # 2. Compute Batch (Oracle)
-            # The Oracle computes energy/forces. In Mock mode, this returns random data.
-            computed_stream = orchestrator.oracle.compute_batch(initial_structures)
+                # 2. Compute Batch (Oracle)
+                # The Oracle computes energy/forces. In Mock mode, this returns random data.
+                computed_stream = orchestrator.oracle.compute_batch(initial_structures)
 
-            # 3. Save to Dataset
-            # We use the DatasetManager to persist the data to disk efficiently.
-            atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-            orchestrator.dataset_manager.save_iter(
-                atoms_stream,
-                orchestrator.dataset_path,
-                mode="ab",
-                calculate_checksum=False
-            )
+                # 3. Save to Dataset
+                # We use the DatasetManager to persist the data to disk efficiently.
+                atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
+                orchestrator.dataset_manager.save_iter(
+                    atoms_stream,
+                    orchestrator.dataset_path,
+                    mode="ab",
+                    calculate_checksum=False
+                )
 
-            print(f"Cold Start Complete. Dataset size: {orchestrator.dataset_path.stat().st_size} bytes")
+                print(f"Cold Start Complete. Dataset size: {orchestrator.dataset_path.stat().st_size} bytes")
 
-        # --- MAIN LOOP ---
-        # Now we use the orchestrator to run the automated cycles.
-        for i in range(orchestrator.config.orchestrator.max_cycles):
-            print(f"--- Cycle {i+1} ---")
+            # --- MAIN LOOP ---
+            # Now we use the orchestrator to run the automated cycles.
+            for i in range(orchestrator.config.orchestrator.max_cycles):
+                print(f"--- Cycle {i+1} ---")
 
-            # Execute one full cycle (Train -> Validate -> Explore -> Label)
-            result = orchestrator.run_cycle()
-            results.append(result)
+                # Execute one full cycle (Train -> Validate -> Explore -> Label)
+                result = orchestrator.run_cycle()
+                results.append(result)
 
-            print(f"Cycle {i+1} Status: {result.status}")
-            if result.error:
-                print(f"Error: {result.error}")
+                print(f"Cycle {i+1} Status: {result.status}")
+                if result.error:
+                    print(f"Error: {result.error}")
 
-            # In tutorial, we might break early if converged or failed
-            if result.status == "converged":
-                print("Converged!")
-                break
+                # In tutorial, we might break early if converged or failed
+                if result.status == "converged":
+                    print("Converged!")
+                    break
+        except Exception as e:
+            print(f"Error during active learning loop: {e}")
 
     return atoms_stream, computed_stream, i, initial_structures, result, results
 
@@ -525,11 +531,14 @@ def dynamic_deposition(
     y = None
     z = None
 
-    if HAS_PYACEMAKER:
-        # Verify current potential exists
+    if HAS_PYACEMAKER and orchestrator:
+        # Verify current potential exists and file is present
         potential = orchestrator.current_potential
         if not potential:
             print("Warning: No potential trained. Using fallback logic for demo.")
+        elif not potential.path.exists():
+             print(f"Warning: Potential object exists but file not found at {potential.path}. Using fallback.")
+             potential = None
 
         # Setup Work Directory for MD
         md_work_dir = tutorial_dir / "deposition_md"
