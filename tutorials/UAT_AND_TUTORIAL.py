@@ -39,6 +39,7 @@ def imports_and_setup():
         from pyacemaker.orchestrator import Orchestrator
         from pyacemaker.domain_models.models import Potential, StructureMetadata
         from pyacemaker.modules.dynamics_engine import PotentialHelper
+        from pyacemaker.core.utils import metadata_to_atoms
     except ImportError as e:
         print("Error: PYACEMAKER is not installed or import failed.")
         print(f"Details: {e}")
@@ -55,6 +56,7 @@ def imports_and_setup():
         PotentialHelper,
         StructureMetadata,
         bulk,
+        metadata_to_atoms,
         mo,
         np,
         os,
@@ -229,24 +231,45 @@ def initialize_orchestrator(Orchestrator, config):
 
 
 @app.cell
-def run_active_learning_loop(orchestrator):
+def run_active_learning_loop(metadata_to_atoms, orchestrator):
     # Run a few cycles of the active learning loop
     results = []
     print("Starting Active Learning Cycles...")
 
-    # Note: `_run_cold_start` is an internal method used here for demonstration purposes
-    # to explicitly show the cold start phase separate from the main loop.
-    # In a typical production run, `orchestrator.run()` handles this automatically.
+    # --- COLD START (Demonstration of Manual Component Usage) ---
+    # The Orchestrator normally handles this internally via `run()`.
+    # Here, we demonstrate how to use the underlying components directly.
+
     if not orchestrator.dataset_path.exists():
-        print("Running Cold Start...")
-        orchestrator._run_cold_start()
+        print("Running Cold Start (Manual Demonstration)...")
+
+        # 1. Generate Initial Structures
+        initial_structures = orchestrator.structure_generator.generate_initial_structures()
+
+        # 2. Compute Batch (Oracle)
+        computed_stream = orchestrator.oracle.compute_batch(initial_structures)
+
+        # 3. Save to Dataset
+        # Use orchestrator's DatasetManager
+        atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
+        orchestrator.dataset_manager.save_iter(
+            atoms_stream,
+            orchestrator.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )
+
         print(f"Cold Start Complete. Dataset size: {orchestrator.dataset_path.stat().st_size} bytes")
 
-    # Run cycles
+    # --- MAIN LOOP ---
+    # Now we use the orchestrator to run the cycles.
     for i in range(orchestrator.config.orchestrator.max_cycles):
         print(f"--- Cycle {i+1} ---")
+
+        # Execute one full cycle (Train -> Validate -> Explore -> Label)
         result = orchestrator.run_cycle()
         results.append(result)
+
         print(f"Cycle {i+1} Status: {result.status}")
         if result.error:
             print(f"Error: {result.error}")
@@ -256,7 +279,7 @@ def run_active_learning_loop(orchestrator):
             print("Converged!")
             break
 
-    return i, result, results
+    return atoms_stream, computed_stream, i, initial_structures, result, results
 
 
 @app.cell
@@ -265,13 +288,21 @@ def visualize_convergence(mo, plt, results):
 
     cycles = range(1, len(results) + 1)
 
-    # Extract metrics safely
+    # Extract metrics safely using getattr
+    # r.metrics is a Pydantic model with potentially extra fields
     rmse_values = []
     for r in results:
-        # Check if metrics has energy_rmse, else mock for display
-        # r.metrics is a Pydantic model with extra fields
-        val = r.metrics.model_dump().get("energy_rmse", 0.0)
-        # If val is None or 0.0 (mock), generate a dummy declining curve for visualization
+        # Metrics might be None if cycle failed early
+        if r.metrics:
+            # We use getattr because metrics are dynamically populated
+            val = getattr(r.metrics, "energy_rmse", 0.0)
+            if val == 0.0:
+                # Fallback to model_dump if getattr fails (though unlikely for BaseModel)
+                val = r.metrics.model_dump().get("energy_rmse", 0.0)
+        else:
+            val = 0.0
+
+        # If val is still 0.0 (mock data often empty), generate a dummy declining curve for visualization
         if val == 0.0:
             val = 1.0 / (len(rmse_values) + 1)
         rmse_values.append(val)
@@ -330,8 +361,11 @@ def dynamic_deposition(
     substrate.center(vacuum=10.0, axis=2)
 
     deposited_structure = substrate.copy()
+    cmds = None
 
-    # 2. Define Deposition Logic
+    # 2. Define Deposition Logic (Real vs Mock)
+    # We use a clear separation here.
+
     if not IS_CI and potential:
         # --- REAL MODE (Production) ---
         print("Real Mode: Generating LAMMPS input using PotentialHelper.")
@@ -351,9 +385,12 @@ def dynamic_deposition(
     else:
         # --- MOCK MODE (CI/Demo) ---
         print("Mock Mode: Simulating deposition using random ASE generation.")
+        # No commands generated in mock mode
+        cmds = None
 
     # 3. Simulate Deposition (Mock/Visual Fallback)
-    # Simulate adding 5 atoms (Fe/Pt)
+    # Regardless of mode, we generate a visual representation using ASE random generation
+    # so the user can see *something* in the notebook output.
     rng = np.random.default_rng(42)
 
     for _ in range(5):
@@ -374,6 +411,7 @@ def dynamic_deposition(
     plt.show()
 
     # Create artifact with error handling
+    output_path = None
     try:
         output_path = md_work_dir / "final_structure.xyz"
         write(output_path, deposited_structure)
@@ -430,6 +468,20 @@ def akmc_analysis(np, plt):
     plt.grid(True, alpha=0.3)
     plt.show()
     return order_param, time_steps
+
+
+@app.cell
+def cleanup(shutil, tutorial_dir):
+    # Cleanup temporary directory
+    # In a notebook, this cell is optional (user might want to inspect files),
+    # but good practice for automated runs.
+    print(f"Cleaning up workspace: {tutorial_dir}")
+    try:
+        shutil.rmtree(tutorial_dir)
+        print("Cleanup successful.")
+    except Exception as e:
+        print(f"Error cleaning up: {e}")
+    return
 
 
 if __name__ == "__main__":
