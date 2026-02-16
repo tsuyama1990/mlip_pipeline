@@ -21,14 +21,22 @@ def imports_and_setup():
 
     # Ensure src is in path if running from repo root
     project_root = Path.cwd()
-    if (project_root / "src").exists():
-        sys.path.append(str(project_root / "src"))
+    src_path = project_root / "src"
+
+    if src_path.exists():
+        if str(src_path) not in sys.path:
+            sys.path.append(str(src_path))
+            print(f"Added {src_path} to sys.path")
+    else:
+        print(f"Warning: '{src_path}' not found. Relying on installed 'pyacemaker' package.")
 
     # Set environment variables BEFORE importing pyacemaker to affect CONSTANTS
     # Bypass strict file checks for tutorial temporary directories
+    # Sanitization: Ensure value is strictly "1"
     os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
 
     # Default to CI mode (Mock) if not specified
+    # Sanitization check for CI env var done in detect_mode cell
     if "CI" not in os.environ:
         os.environ["CI"] = "true"
 
@@ -76,6 +84,7 @@ def imports_and_setup():
         project_root,
         pyacemaker,
         shutil,
+        src_path,
         surface,
         sys,
         tempfile,
@@ -124,11 +133,33 @@ def introduction_markdown(HAS_PYACEMAKER, mo):
 @app.cell
 def detect_mode(mo, os):
     # Detect Mode
-    IS_CI = os.environ.get("CI", "false").lower() == "true"
+    # Input Sanitization: Strictly parse boolean string
+    raw_ci = os.environ.get("CI", "false").lower()
+    if raw_ci not in ["true", "false", "1", "0"]:
+        print(f"Warning: Invalid CI environment variable '{raw_ci}'. Defaulting to Mock Mode.")
+        IS_CI = True
+    else:
+        IS_CI = raw_ci in ["true", "1"]
+
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
 
     mo.md(f"### Current Mode: **{mode_name}**")
-    return IS_CI, mode_name
+    return IS_CI, mode_name, raw_ci
+
+
+@app.cell
+def config_explanation(mo):
+    mo.md(
+        """
+        ### Configuration Setup
+
+        The following cell sets up the **PYACEMAKER** configuration.
+        It defines parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
+
+        It also manages a temporary workspace to ensure no files are left behind after the tutorial.
+        """
+    )
+    return
 
 
 @app.cell
@@ -243,7 +274,7 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
 @app.cell
 def phase_1_markdown(mo):
     mo.md(
-        r"""
+        """
         ## Phase 1: Active Learning Loop
 
         This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
@@ -260,12 +291,33 @@ def phase_1_markdown(mo):
 
 
 @app.cell
+def orchestrator_init_explanation(mo):
+    mo.md("Initializing the `Orchestrator` with the configuration defined above.")
+    return
+
+
+@app.cell
 def initialize_orchestrator(HAS_PYACEMAKER, Orchestrator, config):
     orchestrator = None
     if HAS_PYACEMAKER:
         orchestrator = Orchestrator(config)
         print("Orchestrator Initialized.")
     return orchestrator,
+
+
+@app.cell
+def active_learning_explanation(mo):
+    mo.md(
+        """
+        ### Running the Loop
+
+        The code below demonstrates a "Cold Start" followed by the main active learning cycles.
+
+        *   **Cold Start**: Manually generates initial structures and calculates their energies to bootstrap the dataset.
+        *   **Main Loop**: Calls `orchestrator.run_cycle()` repeatedly to improve the potential.
+        """
+    )
+    return
 
 
 @app.cell
