@@ -5,13 +5,47 @@ app = marimo.App()
 
 
 @app.cell
-def imports_and_setup():
+def introduction_markdown(mo):
+    mo.md(
+        r"""
+        # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
+
+        This interactive notebook demonstrates the **PYACEMAKER** automated MLIP construction system.
+
+        **Scenario:** We will simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate.
+
+        **Workflow:**
+        1.  **Phase 1 (Active Learning):** Train a hybrid ACE potential for Fe-Pt-Mg-O.
+        2.  **Phase 2 (MD Deposition):** Use the trained potential to simulate deposition.
+        3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
+
+        **Dual-Mode Strategy:**
+        *   **Mock Mode (CI):** Fast execution using simulated data (default).
+        *   **Real Mode (Production):** Full execution using Quantum Espresso and LAMMPS.
+        """
+    )
+    return
+
+
+@app.cell
+def setup_explanation(mo):
+    mo.md(
+        """
+        ### 1. Environment Setup
+
+        In this step, we configure the Python environment. We ensure the `pyacemaker` source code is accessible (adding `src/` to path if running from the repo root) and import necessary libraries.
+
+        We also set environment variables to configure the system for this tutorial.
+        """
+    )
+    return
+
+
+@app.cell
+def imports_and_setup(os, sys, Path):
     import marimo as mo
-    import os
-    import sys
     import shutil
     import tempfile
-    from pathlib import Path
     import matplotlib.pyplot as plt
     import numpy as np
     from ase import Atoms
@@ -27,22 +61,27 @@ def imports_and_setup():
         if str(src_path) not in sys.path:
             sys.path.append(str(src_path))
             print(f"Added {src_path} to sys.path")
-    else:
-        print(f"Warning: '{src_path}' not found. Relying on installed 'pyacemaker' package.")
+
+        # Explicit verification that path modification succeeded
+        if str(src_path) not in sys.path:
+             print("Error: Failed to add src to sys.path. Imports may fail.")
 
     # Set environment variables BEFORE importing pyacemaker to affect CONSTANTS
     # Bypass strict file checks for tutorial temporary directories
-    # Sanitization: Ensure value is strictly "1"
     os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
 
     # Default to CI mode (Mock) if not specified
-    # Sanitization check for CI env var done in detect_mode cell
+    # We check existence here, strict validation happens in detect_mode
     if "CI" not in os.environ:
         os.environ["CI"] = "true"
 
     # Pyacemaker imports with error handling
     HAS_PYACEMAKER = False
     try:
+        # Verify src path is active if we are relying on it
+        if src_path.exists() and str(src_path) not in sys.path:
+             raise ImportError("Source directory found but not in sys.path")
+
         import pyacemaker
         from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
         from pyacemaker.orchestrator import Orchestrator
@@ -53,7 +92,7 @@ def imports_and_setup():
     except ImportError as e:
         # We don't raise here, we just flag it so we can show a nice message
         # and skip execution cells.
-        print("Warning: PYACEMAKER is not installed.")
+        print("Warning: PYACEMAKER is not installed or import failed.")
         print(f"Details: {e}")
         # Define dummy classes to prevent NameErrors in type hints/returns
         class PYACEMAKERConfig: pass
@@ -70,7 +109,6 @@ def imports_and_setup():
         HAS_PYACEMAKER,
         Orchestrator,
         PYACEMAKERConfig,
-        Path,
         Potential,
         PotentialHelper,
         StructureMetadata,
@@ -78,7 +116,6 @@ def imports_and_setup():
         metadata_to_atoms,
         mo,
         np,
-        os,
         plot_atoms,
         plt,
         project_root,
@@ -86,14 +123,13 @@ def imports_and_setup():
         shutil,
         src_path,
         surface,
-        sys,
         tempfile,
         write,
     )
 
 
 @app.cell
-def introduction_markdown(HAS_PYACEMAKER, mo):
+def dependency_check(HAS_PYACEMAKER, mo):
     if not HAS_PYACEMAKER:
         mo.md(
             """
@@ -108,50 +144,53 @@ def introduction_markdown(HAS_PYACEMAKER, mo):
             ```
             """
         )
-    else:
-        mo.md(
-            r"""
-            # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
+    return
 
-            This interactive notebook demonstrates the **PYACEMAKER** automated MLIP construction system.
 
-            **Scenario:** We will simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate.
+@app.cell
+def mode_explanation(mo):
+    mo.md(
+        """
+        ### 2. Mode Detection
 
-            **Workflow:**
-            1.  **Phase 1 (Active Learning):** Train a hybrid ACE potential for Fe-Pt-Mg-O.
-            2.  **Phase 2 (MD Deposition):** Use the trained potential to simulate deposition.
-            3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
+        We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
 
-            **Dual-Mode Strategy:**
-            *   **Mock Mode (CI):** Fast execution using simulated data (default).
-            *   **Real Mode (Production):** Full execution using Quantum Espresso and LAMMPS.
-            """
-        )
+        *   **Mock Mode**: Uses simulated data and skips external binary calls (QE, LAMMPS).
+        *   **Real Mode**: Attempts to run full physics simulations.
+        """
+    )
     return
 
 
 @app.cell
 def detect_mode(mo, os):
     # Detect Mode
-    # Input Sanitization: Strictly parse boolean string
-    raw_ci = os.environ.get("CI", "false").lower()
-    if raw_ci not in ["true", "false", "1", "0"]:
-        print(f"Warning: Invalid CI environment variable '{raw_ci}'. Defaulting to Mock Mode.")
+    # Input Sanitization: Strictly parse boolean string from env var
+    raw_ci = os.environ.get("CI", "false").strip().lower()
+
+    # Whitelist valid boolean strings
+    valid_true = ["true", "1", "yes", "on"]
+    valid_false = ["false", "0", "no", "off"]
+
+    if raw_ci in valid_true:
         IS_CI = True
+    elif raw_ci in valid_false:
+        IS_CI = False
     else:
-        IS_CI = raw_ci in ["true", "1"]
+        print(f"Warning: Invalid CI environment variable '{raw_ci}'. Defaulting to Mock Mode (CI=True).")
+        IS_CI = True
 
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
 
     mo.md(f"### Current Mode: **{mode_name}**")
-    return IS_CI, mode_name, raw_ci
+    return IS_CI, mode_name, raw_ci, valid_false, valid_true
 
 
 @app.cell
 def config_explanation(mo):
     mo.md(
         """
-        ### Configuration Setup
+        ### 3. Configuration Setup
 
         The following cell sets up the **PYACEMAKER** configuration.
         It defines parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
@@ -609,6 +648,15 @@ def conclusion_markdown(mo):
         """
     )
     return
+
+
+@app.cell
+def import_common_libs():
+    # Import standard libraries for use in type hints or direct access in marimo variables
+    import os
+    import sys
+    from pathlib import Path
+    return Path, os, sys
 
 
 if __name__ == "__main__":
