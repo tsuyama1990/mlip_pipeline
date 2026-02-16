@@ -266,6 +266,12 @@ def _(config, mo, np, orchestrator, plt):
 
 @app.cell
 def _(mo):
+    mo.md("![Convergence Plot](convergence_plot.png)")
+    return
+
+
+@app.cell
+def _(mo):
     mo.md(
         r"""
         ## 3. Phase 2: Dynamic Deposition (MD)
@@ -446,6 +452,12 @@ def _(
 
 @app.cell
 def _(mo):
+    mo.md("![Deposition 3D](deposition_3d.png)")
+    return
+
+
+@app.cell
+def _(mo):
     mo.md(
         r"""
         ## 4. Phase 3: Long-Term Ordering (aKMC)
@@ -482,6 +494,12 @@ def _(plt):
     plt.savefig("ordering_kinetics.png")
     print("aKMC Analysis complete. Plot saved to ordering_kinetics.png")
     return math, order_params, sigmoid, times
+
+
+@app.cell
+def _(mo):
+    mo.md("![Ordering Kinetics](ordering_kinetics.png)")
+    return
 
 
 @app.cell
