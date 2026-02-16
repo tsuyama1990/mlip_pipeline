@@ -60,11 +60,17 @@ def __():
     from ase.visualize.plot import plot_atoms
 
     # Pyacemaker imports
-    import pyacemaker
-    from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
-    from pyacemaker.orchestrator import Orchestrator
-    from pyacemaker.domain_models.models import Potential, StructureMetadata
-    from pyacemaker.modules.dynamics_engine import PotentialHelper
+    try:
+        import pyacemaker
+        from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
+        from pyacemaker.orchestrator import Orchestrator
+        from pyacemaker.domain_models.models import Potential, StructureMetadata
+        from pyacemaker.modules.dynamics_engine import PotentialHelper
+    except ImportError as e:
+        print("Error: PYACEMAKER is not installed or import failed.")
+        print(f"Details: {e}")
+        print("Please install the package using: uv sync OR pip install -e .")
+        raise
 
     return (
         Atoms,
@@ -106,7 +112,43 @@ def __(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
 
     mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
 
+    # Check Pseudopotentials
+    # Ensure UPF files exist for the simulation.
+    pseudos = {
+        "Fe": "Fe.pbe.UPF",
+        "Pt": "Pt.pbe.UPF",
+        "Mg": "Mg.pbe.UPF",
+        "O": "O.pbe.UPF",
+    }
+
+    # In Mock Mode, create dummy files if missing
+    if IS_CI:
+        for element, filename in pseudos.items():
+            path = tutorial_dir / filename
+            if not path.exists():
+                path.touch()
+                print(f"Created dummy pseudopotential for {element}: {filename}")
+    else:
+        # In Real Mode, verify they exist
+        missing = []
+        for element, filename in pseudos.items():
+            # In a real run, these paths should be absolute or resolvable
+            # For this tutorial, we assume they are in the CWD or tutorial_dir
+            # Adjust path logic as needed for real user environments
+            path = Path(filename)
+            if not path.exists() and not (tutorial_dir / filename).exists():
+                missing.append(filename)
+
+        if missing:
+             error_msg = (
+                 f"Missing pseudopotential files: {', '.join(missing)}\n"
+                 "Please download them from a standard repository (e.g., SSSP) "
+                 "and place them in the directory or update paths."
+             )
+             raise FileNotFoundError(error_msg)
+
     # Define configuration dictionary based on mode
+    # Note: We use relative paths for pseudos assuming they are in CWD/tutorial_dir
     config_dict = {
         "version": "0.1.0",
         "project": {
@@ -129,10 +171,7 @@ def __(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
         "oracle": {
             "dft": {
                 "pseudopotentials": {
-                    "Fe": "Fe.pbe.UPF",
-                    "Pt": "Pt.pbe.UPF",
-                    "Mg": "Mg.pbe.UPF",
-                    "O": "O.pbe.UPF",
+                    k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()
                 }
             },
             "mock": IS_CI,  # Mock DFT in CI mode
@@ -162,7 +201,7 @@ def __(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
     # Create data directory manually since we are mocking file structure
     (tutorial_dir / "data").mkdir(exist_ok=True, parents=True)
 
-    return config, config_dict, tutorial_dir
+    return config, config_dict, pseudos, tutorial_dir
 
 
 @app.cell
@@ -242,6 +281,21 @@ def __(mo, orchestrator, plt, results):
 
 
 @app.cell
+def __(mo):
+    mo.md(
+        """
+        ## Phase 2: Dynamic Deposition (MD)
+
+        Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
+
+        **PotentialHelper:**
+        The `PotentialHelper` class below is a utility that bridges the gap between the Python logic and the MD engine (LAMMPS). It takes the trained potential path and elements, and generates the necessary LAMMPS `pair_style` and `pair_coeff` commands, including handling hybrid setups (e.g., ACE + ZBL baseline).
+        """
+    )
+    return
+
+
+@app.cell
 def __(
     IS_CI,
     PotentialHelper,
@@ -252,14 +306,6 @@ def __(
     plt,
     tutorial_dir,
 ):
-    mo.md(
-        """
-        ## Phase 2: Dynamic Deposition (MD)
-
-        Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
-        """
-    )
-
     potential = orchestrator.current_potential
 
     # Setup Work Directory for MD
