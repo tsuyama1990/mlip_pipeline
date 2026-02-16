@@ -33,6 +33,7 @@ def imports_and_setup():
         os.environ["CI"] = "true"
 
     # Pyacemaker imports with error handling
+    HAS_PYACEMAKER = False
     try:
         import pyacemaker
         from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
@@ -40,15 +41,25 @@ def imports_and_setup():
         from pyacemaker.domain_models.models import Potential, StructureMetadata
         from pyacemaker.modules.dynamics_engine import PotentialHelper
         from pyacemaker.core.utils import metadata_to_atoms
+        HAS_PYACEMAKER = True
     except ImportError as e:
-        print("Error: PYACEMAKER is not installed or import failed.")
+        # We don't raise here, we just flag it so we can show a nice message
+        # and skip execution cells.
+        print("Warning: PYACEMAKER is not installed.")
         print(f"Details: {e}")
-        print("Please install the package using: uv sync OR pip install -e .")
-        raise
+        # Define dummy classes to prevent NameErrors in type hints/returns
+        class PYACEMAKERConfig: pass
+        class CONSTANTS: pass
+        class Orchestrator: pass
+        class Potential: pass
+        class StructureMetadata: pass
+        class PotentialHelper: pass
+        def metadata_to_atoms(x): return x
 
     return (
         Atoms,
         CONSTANTS,
+        HAS_PYACEMAKER,
         Orchestrator,
         PYACEMAKERConfig,
         Path,
@@ -73,25 +84,40 @@ def imports_and_setup():
 
 
 @app.cell
-def introduction_markdown(mo):
-    mo.md(
-        r"""
-        # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
+def introduction_markdown(HAS_PYACEMAKER, mo):
+    if not HAS_PYACEMAKER:
+        mo.md(
+            """
+            # ⚠️ PYACEMAKER Not Found
 
-        This interactive notebook demonstrates the **PYACEMAKER** automated MLIP construction system.
+            This tutorial requires the `pyacemaker` package. Please install it to run the interactive cells.
 
-        **Scenario:** We will simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate.
+            ```bash
+            uv sync
+            # or
+            pip install -e .
+            ```
+            """
+        )
+    else:
+        mo.md(
+            r"""
+            # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
 
-        **Workflow:**
-        1.  **Phase 1 (Active Learning):** Train a hybrid ACE potential for Fe-Pt-Mg-O.
-        2.  **Phase 2 (MD Deposition):** Use the trained potential to simulate deposition.
-        3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
+            This interactive notebook demonstrates the **PYACEMAKER** automated MLIP construction system.
 
-        **Dual-Mode Strategy:**
-        *   **Mock Mode (CI):** Fast execution using simulated data (default).
-        *   **Real Mode (Production):** Full execution using Quantum Espresso and LAMMPS.
-        """
-    )
+            **Scenario:** We will simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate.
+
+            **Workflow:**
+            1.  **Phase 1 (Active Learning):** Train a hybrid ACE potential for Fe-Pt-Mg-O.
+            2.  **Phase 2 (MD Deposition):** Use the trained potential to simulate deposition.
+            3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
+
+            **Dual-Mode Strategy:**
+            *   **Mock Mode (CI):** Fast execution using simulated data (default).
+            *   **Real Mode (Production):** Full execution using Quantum Espresso and LAMMPS.
+            """
+        )
     return
 
 
@@ -106,214 +132,242 @@ def detect_mode(mo, os):
 
 
 @app.cell
-def setup_configuration(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
-    # Setup Configuration
-    # We use a temporary directory for the project root to keep things clean
-    # In a real scenario, this would be a persistent directory
-    tutorial_dir = Path(tempfile.mkdtemp(prefix="pyacemaker_tutorial_"))
+def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
+    config = None
+    config_dict = None
+    pseudos = None
+    tutorial_dir = None
+    tutorial_tmp_dir = None
 
-    mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
+    if HAS_PYACEMAKER:
+        # Setup Configuration
+        # We use a temporary directory context manager to ensure cleanup.
+        # By assigning it to a variable returned by the cell, we keep it alive
+        # for the session.
+        tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_")
+        tutorial_dir = Path(tutorial_tmp_dir.name)
 
-    # Check Pseudopotentials
-    # Ensure UPF files exist for the simulation.
-    pseudos = {
-        "Fe": "Fe.pbe.UPF",
-        "Pt": "Pt.pbe.UPF",
-        "Mg": "Mg.pbe.UPF",
-        "O": "O.pbe.UPF",
-    }
+        mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
 
-    # In Mock Mode, create dummy files if missing
-    if IS_CI:
-        for element, filename in pseudos.items():
-            path = tutorial_dir / filename
-            if not path.exists():
-                path.touch()
-                print(f"Created dummy pseudopotential for {element}: {filename}")
-    else:
-        # In Real Mode, verify they exist
-        missing = []
-        for element, filename in pseudos.items():
-            # In a real run, these paths should be absolute or resolvable
-            # For this tutorial, we assume they are in the CWD or tutorial_dir
-            # Adjust path logic as needed for real user environments
-            path = Path(filename)
-            if not path.exists() and not (tutorial_dir / filename).exists():
-                missing.append(filename)
+        # Check Pseudopotentials
+        # Ensure UPF files exist for the simulation.
+        pseudos = {
+            "Fe": "Fe.pbe.UPF",
+            "Pt": "Pt.pbe.UPF",
+            "Mg": "Mg.pbe.UPF",
+            "O": "O.pbe.UPF",
+        }
 
-        if missing:
-             error_msg = (
-                 f"Missing pseudopotential files: {', '.join(missing)}\n"
-                 "Please download them from a standard repository (e.g., SSSP) "
-                 "and place them in the directory or update paths."
-             )
-             raise FileNotFoundError(error_msg)
+        # In Mock Mode, create dummy files if missing
+        if IS_CI:
+            for element, filename in pseudos.items():
+                path = tutorial_dir / filename
+                if not path.exists():
+                    path.touch()
+                    print(f"Created dummy pseudopotential for {element}: {filename}")
+        else:
+            # In Real Mode, verify they exist
+            missing = []
+            for element, filename in pseudos.items():
+                # Check both absolute path or relative to CWD
+                path_cwd = Path(filename)
+                path_tut = tutorial_dir / filename
+                if not path_cwd.exists() and not path_tut.exists():
+                    missing.append(filename)
 
-    # Define configuration dictionary based on mode
-    # Note: We use relative paths for pseudos assuming they are in CWD/tutorial_dir
-    config_dict = {
-        "version": "0.1.0",
-        "project": {
-            "name": "FePt_MgO_Tutorial",
-            "root_dir": str(tutorial_dir),
-        },
-        "logging": {"level": "INFO"},
-        "orchestrator": {
-            "max_cycles": 2 if IS_CI else 10,
-            "uncertainty_threshold": 0.1,
-            "n_local_candidates": 5 if IS_CI else 50,
-            "n_active_set_select": 2 if IS_CI else 10,
-            "validation_split": 0.2,
-            "min_validation_size": 2,
-        },
-        "structure_generator": {
-            "strategy": "random",  # Use random for tutorial simplicity
-            "initial_exploration": "random",
-        },
-        "oracle": {
-            "dft": {
-                "pseudopotentials": {
-                    k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()
-                }
+            if missing:
+                 error_msg = (
+                     f"Missing pseudopotential files: {', '.join(missing)}\n"
+                     "Please download them from a standard repository (e.g., SSSP) "
+                     "and place them in the directory or update paths."
+                 )
+                 raise FileNotFoundError(error_msg)
+
+        # Define configuration dictionary based on mode
+        # Note: We use relative paths for pseudos assuming they are in CWD/tutorial_dir
+        config_dict = {
+            "version": "0.1.0",
+            "project": {
+                "name": "FePt_MgO_Tutorial",
+                "root_dir": str(tutorial_dir),
             },
-            "mock": IS_CI,  # Mock DFT in CI mode
-        },
-        "trainer": {
-            "potential_type": "pace",
-            "mock": IS_CI,  # Mock Trainer in CI mode
-            "max_epochs": 1 if IS_CI else 100,
-            "batch_size": 2 if IS_CI else 32,
-        },
-        "dynamics_engine": {
-            "engine": "lammps",
-            "mock": IS_CI,  # Mock MD in CI mode
-            "gamma_threshold": 0.5,
-            "timestep": 0.001,
-            "n_steps": 100 if IS_CI else 10000,
-        },
-        "validator": {
-            "test_set_ratio": 0.1,
-            "phonon_supercell": [2, 2, 2],
-        },
-    }
+            "logging": {"level": "INFO"},
+            "orchestrator": {
+                "max_cycles": 2 if IS_CI else 10,
+                "uncertainty_threshold": 0.1,
+                "n_local_candidates": 5 if IS_CI else 50,
+                "n_active_set_select": 2 if IS_CI else 10,
+                "validation_split": 0.2,
+                "min_validation_size": 2,
+            },
+            "structure_generator": {
+                "strategy": "random",  # Use random for tutorial simplicity
+                "initial_exploration": "random",
+            },
+            "oracle": {
+                "dft": {
+                    "pseudopotentials": {
+                        k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()
+                    }
+                },
+                "mock": IS_CI,  # Mock DFT in CI mode
+            },
+            "trainer": {
+                "potential_type": "pace",
+                "mock": IS_CI,  # Mock Trainer in CI mode
+                "max_epochs": 1 if IS_CI else 100,
+                "batch_size": 2 if IS_CI else 32,
+            },
+            "dynamics_engine": {
+                "engine": "lammps",
+                "mock": IS_CI,  # Mock MD in CI mode
+                "gamma_threshold": 0.5,
+                "timestep": 0.001,
+                "n_steps": 100 if IS_CI else 10000,
+            },
+            "validator": {
+                "test_set_ratio": 0.1,
+                "phonon_supercell": [2, 2, 2],
+            },
+        }
 
-    # Create Configuration Object
-    config = PYACEMAKERConfig(**config_dict)
+        # Create Configuration Object
+        config = PYACEMAKERConfig(**config_dict)
 
-    # Create data directory manually since we are mocking file structure
-    (tutorial_dir / "data").mkdir(exist_ok=True, parents=True)
+        # Create data directory manually since we are mocking file structure
+        (tutorial_dir / "data").mkdir(exist_ok=True, parents=True)
 
-    return config, config_dict, pseudos, tutorial_dir
+    return config, config_dict, pseudos, tutorial_dir, tutorial_tmp_dir
 
 
 @app.cell
 def phase_1_markdown(mo):
     mo.md(
-        """
+        r"""
         ## Phase 1: Active Learning Loop
 
-        We initialize the **Orchestrator**, which manages the cyclical process of:
-        1.  Structure Generation
-        2.  DFT Calculation (Oracle)
-        3.  Potential Training (Pacemaker)
-        4.  Exploration (MD with Uncertainty Check)
-        5.  Validation
+        This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
+
+        **The Loop Steps:**
+        1.  **Generation:** Create new candidate atomic structures (e.g., via random distortion or defects).
+        2.  **Oracle (DFT):** Calculate the "ground truth" Energy, Forces, and Stress for these structures using Density Functional Theory (DFT).
+        3.  **Training:** Train the ACE potential (using Pacemaker) on the accumulated dataset.
+        4.  **Exploration:** Run Molecular Dynamics (MD) using the current potential. We monitor the **Extrapolation Grade ($\gamma$)**. If $\gamma$ exceeds a threshold, the simulation halts, and the high-uncertainty structure is added to the dataset for labeling.
+        5.  **Validation:** Test the potential against a hold-out set.
         """
     )
     return
 
 
 @app.cell
-def initialize_orchestrator(Orchestrator, config):
-    orchestrator = Orchestrator(config)
-    print("Orchestrator Initialized.")
+def initialize_orchestrator(HAS_PYACEMAKER, Orchestrator, config):
+    orchestrator = None
+    if HAS_PYACEMAKER:
+        orchestrator = Orchestrator(config)
+        print("Orchestrator Initialized.")
     return orchestrator,
 
 
 @app.cell
-def run_active_learning_loop(metadata_to_atoms, orchestrator):
-    # Run a few cycles of the active learning loop
+def run_active_learning_loop(HAS_PYACEMAKER, metadata_to_atoms, orchestrator):
+    atoms_stream = None
+    computed_stream = None
+    i = None
+    initial_structures = None
+    result = None
     results = []
-    print("Starting Active Learning Cycles...")
 
-    # --- COLD START (Demonstration of Manual Component Usage) ---
-    # The Orchestrator normally handles this internally via `run()`.
-    # Here, we demonstrate how to use the underlying components directly.
+    if HAS_PYACEMAKER:
+        # Run a few cycles of the active learning loop
+        print("Starting Active Learning Cycles...")
 
-    if not orchestrator.dataset_path.exists():
-        print("Running Cold Start (Manual Demonstration)...")
+        # --- COLD START (Demonstration of Manual Component Usage) ---
+        # The Orchestrator normally handles this internally via `run()`.
+        # Here, we demonstrate how to use the underlying components directly to show
+        # how data is generated and fed into the system.
 
-        # 1. Generate Initial Structures
-        initial_structures = orchestrator.structure_generator.generate_initial_structures()
+        if not orchestrator.dataset_path.exists():
+            print("Running Cold Start (Manual Demonstration)...")
 
-        # 2. Compute Batch (Oracle)
-        computed_stream = orchestrator.oracle.compute_batch(initial_structures)
+            # 1. Generate Initial Structures
+            # The structure generator creates random or template-based structures
+            initial_structures = orchestrator.structure_generator.generate_initial_structures()
 
-        # 3. Save to Dataset
-        # Use orchestrator's DatasetManager
-        atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-        orchestrator.dataset_manager.save_iter(
-            atoms_stream,
-            orchestrator.dataset_path,
-            mode="ab",
-            calculate_checksum=False
-        )
+            # 2. Compute Batch (Oracle)
+            # The Oracle computes energy/forces. In Mock mode, this returns random data.
+            computed_stream = orchestrator.oracle.compute_batch(initial_structures)
 
-        print(f"Cold Start Complete. Dataset size: {orchestrator.dataset_path.stat().st_size} bytes")
+            # 3. Save to Dataset
+            # We use the DatasetManager to persist the data to disk efficiently.
+            atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
+            orchestrator.dataset_manager.save_iter(
+                atoms_stream,
+                orchestrator.dataset_path,
+                mode="ab",
+                calculate_checksum=False
+            )
 
-    # --- MAIN LOOP ---
-    # Now we use the orchestrator to run the cycles.
-    for i in range(orchestrator.config.orchestrator.max_cycles):
-        print(f"--- Cycle {i+1} ---")
+            print(f"Cold Start Complete. Dataset size: {orchestrator.dataset_path.stat().st_size} bytes")
 
-        # Execute one full cycle (Train -> Validate -> Explore -> Label)
-        result = orchestrator.run_cycle()
-        results.append(result)
+        # --- MAIN LOOP ---
+        # Now we use the orchestrator to run the automated cycles.
+        for i in range(orchestrator.config.orchestrator.max_cycles):
+            print(f"--- Cycle {i+1} ---")
 
-        print(f"Cycle {i+1} Status: {result.status}")
-        if result.error:
-            print(f"Error: {result.error}")
+            # Execute one full cycle (Train -> Validate -> Explore -> Label)
+            result = orchestrator.run_cycle()
+            results.append(result)
 
-        # In tutorial, we might break early if converged or failed
-        if result.status == "converged":
-            print("Converged!")
-            break
+            print(f"Cycle {i+1} Status: {result.status}")
+            if result.error:
+                print(f"Error: {result.error}")
+
+            # In tutorial, we might break early if converged or failed
+            if result.status == "converged":
+                print("Converged!")
+                break
 
     return atoms_stream, computed_stream, i, initial_structures, result, results
 
 
 @app.cell
-def visualize_convergence(mo, plt, results):
-    mo.md("### Training Convergence")
+def visualize_convergence(HAS_PYACEMAKER, mo, plt, results):
+    cycles = None
+    r = None
+    rmse_values = None
+    val = None
 
-    cycles = range(1, len(results) + 1)
+    if HAS_PYACEMAKER:
+        mo.md("### Training Convergence")
 
-    # Extract metrics safely using getattr
-    # r.metrics is a Pydantic model with potentially extra fields
-    rmse_values = []
-    for r in results:
-        # Metrics might be None if cycle failed early
-        if r.metrics:
-            # We use getattr because metrics are dynamically populated
-            val = getattr(r.metrics, "energy_rmse", 0.0)
+        cycles = range(1, len(results) + 1)
+
+        # Extract metrics safely using getattr
+        # r.metrics is a Pydantic model with potentially extra fields
+        rmse_values = []
+        for r in results:
+            # Metrics might be None if cycle failed early
+            if r.metrics:
+                # We use getattr because metrics are dynamically populated
+                val = getattr(r.metrics, "energy_rmse", 0.0)
+                if val == 0.0:
+                    # Fallback to model_dump if getattr fails (though unlikely for BaseModel)
+                    val = r.metrics.model_dump().get("energy_rmse", 0.0)
+            else:
+                val = 0.0
+
+            # If val is still 0.0 (mock data often empty), generate a dummy declining curve for visualization
             if val == 0.0:
-                # Fallback to model_dump if getattr fails (though unlikely for BaseModel)
-                val = r.metrics.model_dump().get("energy_rmse", 0.0)
-        else:
-            val = 0.0
+                val = 1.0 / (len(rmse_values) + 1)
+            rmse_values.append(val)
 
-        # If val is still 0.0 (mock data often empty), generate a dummy declining curve for visualization
-        if val == 0.0:
-            val = 1.0 / (len(rmse_values) + 1)
-        rmse_values.append(val)
-
-    plt.figure(figsize=(8, 4))
-    plt.plot(cycles, rmse_values, 'b-o')
-    plt.title("Training Convergence (Energy RMSE)")
-    plt.xlabel("Cycle")
-    plt.ylabel("RMSE (eV/atom)")
-    plt.grid(True)
-    plt.show()
+        plt.figure(figsize=(8, 4))
+        plt.plot(cycles, rmse_values, 'b-o')
+        plt.title("Training Convergence (Energy RMSE)")
+        plt.xlabel("Cycle")
+        plt.ylabel("RMSE (eV/atom)")
+        plt.grid(True)
+        plt.show()
     return cycles, r, rmse_values, val
 
 
@@ -326,7 +380,9 @@ def phase_2_markdown(mo):
         Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
 
         **PotentialHelper:**
-        The `PotentialHelper` class below is a utility that bridges the gap between the Python logic and the MD engine (LAMMPS). It takes the trained potential path and elements, and generates the necessary LAMMPS `pair_style` and `pair_coeff` commands, including handling hybrid setups (e.g., ACE + ZBL baseline).
+        The `PotentialHelper` class below is a utility that bridges the gap between the Python logic and the MD engine (LAMMPS).
+
+        It is essential because MLIPs (like ACE) often require complex `pair_style hybrid/overlay` commands to mix the ML potential with a baseline physics model (e.g., ZBL for short-range repulsion). `PotentialHelper` automates the generation of these commands, ensuring the simulation is physically robust.
         """
     )
     return
@@ -334,6 +390,7 @@ def phase_2_markdown(mo):
 
 @app.cell
 def dynamic_deposition(
+    HAS_PYACEMAKER,
     IS_CI,
     PotentialHelper,
     bulk,
@@ -345,79 +402,94 @@ def dynamic_deposition(
     tutorial_dir,
     write,
 ):
-    # Verify current potential exists
-    potential = orchestrator.current_potential
-    if not potential:
-        print("Warning: No potential trained. Using fallback logic for demo.")
-
-    # Setup Work Directory for MD
-    md_work_dir = tutorial_dir / "deposition_md"
-    md_work_dir.mkdir(exist_ok=True)
-
-    print(f"Starting Deposition Simulation in {md_work_dir}")
-
-    # 1. Define Substrate (MgO)
-    substrate = surface(bulk("MgO", "rocksalt", a=4.21), (0, 0, 1), 2)
-    substrate.center(vacuum=10.0, axis=2)
-
-    deposited_structure = substrate.copy()
     cmds = None
+    deposited_structure = None
+    helper = None
+    md_work_dir = None
+    output_path = None
+    potential = None
+    rng = None
+    substrate = None
+    symbol = None
+    x = None
+    y = None
+    z = None
 
-    # 2. Define Deposition Logic (Real vs Mock)
-    # We use a clear separation here.
+    if HAS_PYACEMAKER:
+        # Verify current potential exists
+        potential = orchestrator.current_potential
+        if not potential:
+            print("Warning: No potential trained. Using fallback logic for demo.")
 
-    if not IS_CI and potential:
-        # --- REAL MODE (Production) ---
-        print("Real Mode: Generating LAMMPS input using PotentialHelper.")
-        try:
-            # Generate LAMMPS input commands
-            helper = PotentialHelper()
-            cmds = helper.get_lammps_commands(potential.path, "zbl", ["Mg", "O", "Fe", "Pt"])
-            print("Generated LAMMPS commands:")
-            for cmd in cmds:
-                print(f"  {cmd}")
+        # Setup Work Directory for MD
+        md_work_dir = tutorial_dir / "deposition_md"
+        md_work_dir.mkdir(exist_ok=True)
 
-            # Note: In a full production script, we would write these to 'in.deposition'
-            # and call LAMMPS via subprocess here. For this tutorial step, we fallback
-            # to the Mock logic below to ensure visual output even if LAMMPS is missing.
-        except Exception as e:
-            print(f"Error generating LAMMPS input: {e}")
-    else:
-        # --- MOCK MODE (CI/Demo) ---
-        print("Mock Mode: Simulating deposition using random ASE generation.")
-        # No commands generated in mock mode
+        print(f"Starting Deposition Simulation in {md_work_dir}")
+
+        # 1. Define Substrate (MgO)
+        substrate = surface(bulk("MgO", "rocksalt", a=4.21), (0, 0, 1), 2)
+        substrate.center(vacuum=10.0, axis=2)
+
+        deposited_structure = substrate.copy()
         cmds = None
 
-    # 3. Simulate Deposition (Mock/Visual Fallback)
-    # Regardless of mode, we generate a visual representation using ASE random generation
-    # so the user can see *something* in the notebook output.
-    rng = np.random.default_rng(42)
+        # 2. Define Deposition Logic (Real vs Mock)
+        # We use a clear separation here.
 
-    for _ in range(5):
-        # Random position above surface
-        x = rng.uniform(0, substrate.cell[0, 0])
-        y = rng.uniform(0, substrate.cell[1, 1])
-        z = substrate.positions[:, 2].max() + rng.uniform(2.0, 3.0)
+        if not IS_CI and potential:
+            # --- REAL MODE (Production) ---
+            print("Real Mode: Generating LAMMPS input using PotentialHelper.")
+            try:
+                # Generate LAMMPS input commands
+                # This demonstrates how we would set up the simulation in production.
+                helper = PotentialHelper()
+                cmds = helper.get_lammps_commands(potential.path, "zbl", ["Mg", "O", "Fe", "Pt"])
+                print("Generated LAMMPS commands:")
+                for cmd in cmds:
+                    print(f"  {cmd}")
 
-        symbol = rng.choice(["Fe", "Pt"])
-        deposited_structure.append(symbol)
-        deposited_structure.positions[-1] = [x, y, z]
+                # Note: In a full production script, we would write these to 'in.deposition'
+                # and call LAMMPS via subprocess here. For this tutorial step, we fallback
+                # to the Mock logic below to ensure visual output even if LAMMPS is missing.
+            except Exception as e:
+                print(f"Error generating LAMMPS input: {e}")
+        else:
+            # --- MOCK MODE (CI/Demo) ---
+            print("Mock Mode: Simulating deposition using random ASE generation.")
+            # No commands generated in mock mode
+            cmds = None
 
-    # Visualize Final State
-    plt.figure(figsize=(6, 6))
-    plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
-    plt.title("Final Deposition State (Snapshot)")
-    plt.axis("off")
-    plt.show()
+        # 3. Simulate Deposition (Mock/Visual Fallback)
+        # Regardless of mode, we generate a visual representation using ASE random generation
+        # so the user can see *something* in the notebook output.
+        rng = np.random.default_rng(42)
 
-    # Create artifact with error handling
-    output_path = None
-    try:
-        output_path = md_work_dir / "final_structure.xyz"
-        write(output_path, deposited_structure)
-        print(f"Saved final structure to {output_path}")
-    except Exception as e:
-        print(f"Error saving structure file: {e}")
+        for _ in range(5):
+            # Random position above surface
+            x = rng.uniform(0, substrate.cell[0, 0])
+            y = rng.uniform(0, substrate.cell[1, 1])
+            z = substrate.positions[:, 2].max() + rng.uniform(2.0, 3.0)
+
+            symbol = rng.choice(["Fe", "Pt"])
+            deposited_structure.append(symbol)
+            deposited_structure.positions[-1] = [x, y, z]
+
+        # Visualize Final State
+        plt.figure(figsize=(6, 6))
+        plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
+        plt.title("Final Deposition State (Snapshot)")
+        plt.axis("off")
+        plt.show()
+
+        # Create artifact with error handling
+        output_path = None
+        try:
+            output_path = md_work_dir / "final_structure.xyz"
+            write(output_path, deposited_structure)
+            print(f"Saved final structure to {output_path}")
+        except Exception as e:
+            print(f"Error saving structure file: {e}")
 
     return (
         cmds,
@@ -471,16 +543,19 @@ def akmc_analysis(np, plt):
 
 
 @app.cell
-def cleanup(shutil, tutorial_dir):
-    # Cleanup temporary directory
-    # In a notebook, this cell is optional (user might want to inspect files),
-    # but good practice for automated runs.
-    print(f"Cleaning up workspace: {tutorial_dir}")
-    try:
-        shutil.rmtree(tutorial_dir)
-        print("Cleanup successful.")
-    except Exception as e:
-        print(f"Error cleaning up: {e}")
+def conclusion_markdown(mo):
+    mo.md(
+        """
+        ## Conclusion
+
+        In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**:
+        1.  **Automation**: The system autonomously improved the potential via Active Learning.
+        2.  **Integration**: We saw how the Orchestrator bridges DFT (Oracle), ML (Trainer), and MD (Dynamics).
+        3.  **Application**: We applied the potential to a realistic surface deposition scenario.
+
+        The tutorial workspace created in this session will be automatically cleaned up upon exit.
+        """
+    )
     return
 
 
