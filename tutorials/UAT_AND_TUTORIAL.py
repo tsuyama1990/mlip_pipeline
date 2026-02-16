@@ -5,13 +5,73 @@ app = marimo.App()
 
 
 @app.cell
-def __():
+def imports_and_setup():
     import marimo as mo
-    return mo,
+    import os
+    import sys
+    import shutil
+    import tempfile
+    from pathlib import Path
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from ase import Atoms
+    from ase.visualize.plot import plot_atoms
+    from ase.build import surface, bulk
+    from ase.io import write
+
+    # Ensure src is in path if running from repo root
+    project_root = Path.cwd()
+    if (project_root / "src").exists():
+        sys.path.append(str(project_root / "src"))
+
+    # Set environment variables BEFORE importing pyacemaker to affect CONSTANTS
+    # Bypass strict file checks for tutorial temporary directories
+    os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
+
+    # Default to CI mode (Mock) if not specified
+    if "CI" not in os.environ:
+        os.environ["CI"] = "true"
+
+    # Pyacemaker imports with error handling
+    try:
+        import pyacemaker
+        from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
+        from pyacemaker.orchestrator import Orchestrator
+        from pyacemaker.domain_models.models import Potential, StructureMetadata
+        from pyacemaker.modules.dynamics_engine import PotentialHelper
+    except ImportError as e:
+        print("Error: PYACEMAKER is not installed or import failed.")
+        print(f"Details: {e}")
+        print("Please install the package using: uv sync OR pip install -e .")
+        raise
+
+    return (
+        Atoms,
+        CONSTANTS,
+        Orchestrator,
+        PYACEMAKERConfig,
+        Path,
+        Potential,
+        PotentialHelper,
+        StructureMetadata,
+        bulk,
+        mo,
+        np,
+        os,
+        plot_atoms,
+        plt,
+        project_root,
+        pyacemaker,
+        shutil,
+        surface,
+        sys,
+        tempfile,
+        write,
+    )
 
 
 @app.cell
-def __(mo):
+def introduction_markdown(mo):
     mo.md(
         r"""
         # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
@@ -34,67 +94,7 @@ def __(mo):
 
 
 @app.cell
-def __():
-    import os
-    import sys
-    import shutil
-    import tempfile
-    from pathlib import Path
-
-    # Ensure src is in path if running from repo root
-    project_root = Path.cwd()
-    if (project_root / "src").exists():
-        sys.path.append(str(project_root / "src"))
-
-    # Set environment variables BEFORE importing pyacemaker to affect CONSTANTS
-    # Bypass strict file checks for tutorial temporary directories
-    os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
-
-    # Default to CI mode (Mock) if not specified
-    if "CI" not in os.environ:
-        os.environ["CI"] = "true"
-
-    import matplotlib.pyplot as plt
-    import numpy as np
-    from ase import Atoms
-    from ase.visualize.plot import plot_atoms
-
-    # Pyacemaker imports
-    try:
-        import pyacemaker
-        from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
-        from pyacemaker.orchestrator import Orchestrator
-        from pyacemaker.domain_models.models import Potential, StructureMetadata
-        from pyacemaker.modules.dynamics_engine import PotentialHelper
-    except ImportError as e:
-        print("Error: PYACEMAKER is not installed or import failed.")
-        print(f"Details: {e}")
-        print("Please install the package using: uv sync OR pip install -e .")
-        raise
-
-    return (
-        Atoms,
-        CONSTANTS,
-        Orchestrator,
-        PYACEMAKERConfig,
-        Path,
-        Potential,
-        PotentialHelper,
-        StructureMetadata,
-        np,
-        os,
-        plot_atoms,
-        plt,
-        project_root,
-        pyacemaker,
-        shutil,
-        sys,
-        tempfile,
-    )
-
-
-@app.cell
-def __(mo, os):
+def detect_mode(mo, os):
     # Detect Mode
     IS_CI = os.environ.get("CI", "false").lower() == "true"
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
@@ -104,7 +104,7 @@ def __(mo, os):
 
 
 @app.cell
-def __(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
+def setup_configuration(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
     # Setup Configuration
     # We use a temporary directory for the project root to keep things clean
     # In a real scenario, this would be a persistent directory
@@ -205,7 +205,7 @@ def __(IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
 
 
 @app.cell
-def __(Orchestrator, config, mo):
+def phase_1_markdown(mo):
     mo.md(
         """
         ## Phase 1: Active Learning Loop
@@ -218,19 +218,25 @@ def __(Orchestrator, config, mo):
         5.  Validation
         """
     )
+    return
 
+
+@app.cell
+def initialize_orchestrator(Orchestrator, config):
     orchestrator = Orchestrator(config)
     print("Orchestrator Initialized.")
     return orchestrator,
 
 
 @app.cell
-def __(orchestrator):
+def run_active_learning_loop(orchestrator):
     # Run a few cycles of the active learning loop
     results = []
     print("Starting Active Learning Cycles...")
 
-    # First, handle Cold Start if needed (internal to orchestrator, but we can trigger it)
+    # Note: `_run_cold_start` is an internal method used here for demonstration purposes
+    # to explicitly show the cold start phase separate from the main loop.
+    # In a typical production run, `orchestrator.run()` handles this automatically.
     if not orchestrator.dataset_path.exists():
         print("Running Cold Start...")
         orchestrator._run_cold_start()
@@ -254,7 +260,7 @@ def __(orchestrator):
 
 
 @app.cell
-def __(mo, orchestrator, plt, results):
+def visualize_convergence(mo, plt, results):
     mo.md("### Training Convergence")
 
     cycles = range(1, len(results) + 1)
@@ -281,7 +287,7 @@ def __(mo, orchestrator, plt, results):
 
 
 @app.cell
-def __(mo):
+def phase_2_markdown(mo):
     mo.md(
         """
         ## Phase 2: Dynamic Deposition (MD)
@@ -296,17 +302,22 @@ def __(mo):
 
 
 @app.cell
-def __(
+def dynamic_deposition(
     IS_CI,
     PotentialHelper,
-    mo,
+    bulk,
     np,
     orchestrator,
     plot_atoms,
     plt,
+    surface,
     tutorial_dir,
+    write,
 ):
+    # Verify current potential exists
     potential = orchestrator.current_potential
+    if not potential:
+        print("Warning: No potential trained. Using fallback logic for demo.")
 
     # Setup Work Directory for MD
     md_work_dir = tutorial_dir / "deposition_md"
@@ -315,21 +326,33 @@ def __(
     print(f"Starting Deposition Simulation in {md_work_dir}")
 
     # 1. Define Substrate (MgO)
-    from ase.build import surface, bulk
     substrate = surface(bulk("MgO", "rocksalt", a=4.21), (0, 0, 1), 2)
     substrate.center(vacuum=10.0, axis=2)
 
-    # 2. Define Deposition Logic
-    if not IS_CI and potential:
-        # REAL MODE (Simplified)
-        # Generate LAMMPS input
-        helper = PotentialHelper()
-        cmds = helper.get_lammps_commands(potential.path, "zbl", ["Mg", "O", "Fe", "Pt"])
-        pass
-
-    # MOCK / DEMO MODE: Generate a trajectory using ASE (Random Deposition)
     deposited_structure = substrate.copy()
 
+    # 2. Define Deposition Logic
+    if not IS_CI and potential:
+        # --- REAL MODE (Production) ---
+        print("Real Mode: Generating LAMMPS input using PotentialHelper.")
+        try:
+            # Generate LAMMPS input commands
+            helper = PotentialHelper()
+            cmds = helper.get_lammps_commands(potential.path, "zbl", ["Mg", "O", "Fe", "Pt"])
+            print("Generated LAMMPS commands:")
+            for cmd in cmds:
+                print(f"  {cmd}")
+
+            # Note: In a full production script, we would write these to 'in.deposition'
+            # and call LAMMPS via subprocess here. For this tutorial step, we fallback
+            # to the Mock logic below to ensure visual output even if LAMMPS is missing.
+        except Exception as e:
+            print(f"Error generating LAMMPS input: {e}")
+    else:
+        # --- MOCK MODE (CI/Demo) ---
+        print("Mock Mode: Simulating deposition using random ASE generation.")
+
+    # 3. Simulate Deposition (Mock/Visual Fallback)
     # Simulate adding 5 atoms (Fe/Pt)
     rng = np.random.default_rng(42)
 
@@ -350,23 +373,24 @@ def __(
     plt.axis("off")
     plt.show()
 
-    # Create artifact
-    from ase.io import write
-    write(md_work_dir / "final_structure.xyz", deposited_structure)
-    print("Saved final structure to deposition_md/final_structure.xyz")
+    # Create artifact with error handling
+    try:
+        output_path = md_work_dir / "final_structure.xyz"
+        write(output_path, deposited_structure)
+        print(f"Saved final structure to {output_path}")
+    except Exception as e:
+        print(f"Error saving structure file: {e}")
 
     return (
-        bulk,
         cmds,
         deposited_structure,
         helper,
         md_work_dir,
+        output_path,
         potential,
         rng,
         substrate,
-        surface,
         symbol,
-        write,
         x,
         y,
         z,
@@ -374,7 +398,7 @@ def __(
 
 
 @app.cell
-def __(mo, np, plt):
+def phase_3_markdown(mo):
     mo.md(
         """
         ## Phase 3: Long-Term Ordering (aKMC)
@@ -382,12 +406,18 @@ def __(mo, np, plt):
         Finally, we bridge to **EON** to simulate the long-term ordering of the L10 phase, which happens over timescales inaccessible to standard MD.
         """
     )
+    return
 
+
+@app.cell
+def akmc_analysis(np, plt):
     print("Phase 3: Analysis of Long-Term Ordering (aKMC)")
 
     # Mock Data: Order Parameter vs Time
     # Order Parameter (0 = Disordered, 1 = Perfect L10)
-    time_steps = np.linspace(0, 1e6, 50)  # Microseconds
+    # Time is in microseconds (us)
+    time_steps = np.linspace(0, 1e6, 50)
+
     # Sigmoid function to simulate ordering transition
     order_param = 1.0 / (1.0 + np.exp(-1e-5 * (time_steps - 3e5)))
 
@@ -395,8 +425,8 @@ def __(mo, np, plt):
     plt.plot(time_steps, order_param, 'r-', linewidth=2)
     plt.axhline(1.0, color='k', linestyle='--', alpha=0.3)
     plt.title("L10 Ordering Kinetic Monte Carlo (Mock)")
-    plt.xlabel("Time (steps)")
-    plt.ylabel("Order Parameter")
+    plt.xlabel("Time (microseconds)")
+    plt.ylabel("Order Parameter (0-1)")
     plt.grid(True, alpha=0.3)
     plt.show()
     return order_param, time_steps
