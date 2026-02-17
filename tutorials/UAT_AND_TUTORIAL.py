@@ -361,13 +361,8 @@ def constants_config(mo):
         """
     )
     # Constant definition for Mock Data Security
-    # Includes explicit warning to prevent confusion with real data
-    SAFE_DUMMY_UPF_CONTENT = """<MOCK_UPF_DO_NOT_USE>
-    <PP_INFO>
-        WARNING: THIS IS MOCK DATA FOR TESTING PURPOSES ONLY.
-        DO NOT USE FOR REAL PHYSICS CALCULATIONS.
-    </PP_INFO>
-</MOCK_UPF_DO_NOT_USE>"""
+    # Minimal content to satisfy file existence checks without mimicking real physics data
+    SAFE_DUMMY_UPF_CONTENT = "# MOCK UPF FILE: FOR TESTING PURPOSES ONLY. DO NOT USE FOR PHYSICS."
     return SAFE_DUMMY_UPF_CONTENT
 
 
@@ -377,20 +372,29 @@ def gamma_explanation(mo):
         r"""
         #### Understanding Active Learning & Extrapolation Grade ($\gamma$)
 
-        The core of PYACEMAKER is its **Active Learning Loop**. Traditional potentials are trained on a static dataset, often failing when encountering unseen configurations. PYACEMAKER uses an iterative approach:
+        The core innovation of PYACEMAKER is its **Active Learning Loop**, designed to train potentials efficiently by focusing only on "unknown" atomic configurations.
 
-        1.  **Train**: Build an initial potential.
-        2.  **Explore**: Run Molecular Dynamics (MD) simulations.
-        3.  **Detect Uncertainty**: At every MD step, we calculate the **Extrapolation Grade ($\gamma$)**.
-            *   $\gamma$ represents the reliability of the potential. It is calculated as the **distance of the current atomic environment from the training set in feature space** (using the ACE basis).
-            *   **Analogy**: Imagine navigating a map. The training data are the known paths. $\gamma$ is how far you stray from these paths.
-            *   **Example**: If the potential was trained only on bulk crystals, and the simulation encounters a surface, $\gamma$ will be high because "surface" environments are far from "bulk" environments in feature space.
-            *   If $\gamma < \text{threshold}$ (e.g., 0.5): The simulation continues (Safe, low uncertainty).
-            *   If $\gamma > \text{threshold}$ (e.g., 0.5): The simulation **halts**. This means the atomic environment is significantly different (more than 0.5 units away) from the training data, indicating high uncertainty.
-        4.  **Label**: The "uncertain" structure is sent to the Oracle (DFT) for accurate energy/force calculation.
-        5.  **Retrain**: The new data is added, and the potential is retrained.
+        ### What is the Extrapolation Grade ($\gamma$)?
+        $\gamma$ is a mathematical metric that quantifies the **uncertainty** of the machine learning model for a given atomic structure. It measures the distance of the current atomic environment from the training set in the high-dimensional ACE feature space.
 
-        This ensures the potential learns exactly what it needs to know, minimizing expensive DFT calculations.
+        *   **Low $\gamma$ (e.g., < 2.0)**: The model has seen similar structures before. Its predictions are reliable (Interpolation).
+        *   **High $\gamma$ (e.g., > 10.0)**: The structure is very different from anything in the training set. Predictions are likely unreliable (Extrapolation).
+
+        ### Analogy: The Explorer's Map
+        Imagine an explorer mapping a new island.
+        *   **Training Data**: The areas they have already visited and mapped.
+        *   **MD Simulation**: The explorer walking into the unknown.
+        *   **$\gamma$**: The distance from the nearest known landmark.
+
+        If the explorer wanders too far into the unknown (High $\gamma$), they stop and take detailed measurements (DFT Calculation) to update the map. This prevents them from getting lost (Unphysical Simulation).
+
+        ### The "Halt & Diagnose" Mechanism
+        1.  **Train**: Build an initial potential from available data.
+        2.  **Explore**: Run Molecular Dynamics (MD).
+        3.  **Detect**: At every step, calculate $\gamma$.
+            *   If $\gamma > \text{Threshold}$ (e.g., 2.0), the simulation **HALTS** immediately.
+        4.  **Label**: The exact structure that caused the halt is sent to the Oracle (DFT) for accurate labeling.
+        5.  **Retrain**: The potential is updated with this new "hard case", ensuring it won't fail there again.
         """
     )
     return
@@ -538,34 +542,61 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
     # This avoids exposing internal sub-modules in the tutorial.
 
     if HAS_PYACEMAKER:
+        # Step 1: Initialization
         try:
             orchestrator = Orchestrator(config)
-            print("Orchestrator Initialized.")
-
-            print("Starting Active Learning Pipeline...")
-
-            # Use the high-level run() method to execute the full pipeline
-            # This handles cold start, training, validation, exploration, and labeling automatically.
-            module_result = orchestrator.run()
-
-            print(f"Pipeline finished with status: {module_result.status}")
-
-            # Extract cycle history from metrics for visualization
-            # The 'history' field was added to metrics in orchestrator.py
-            metrics_dict = module_result.metrics.model_dump()
-            results = metrics_dict.get("history", [])
-
-            if not results:
-                 print("Warning: No cycle history found in results.")
-
+            print("Orchestrator Initialized successfully.")
         except Exception as e:
-            mo.md(f"::: error\n**Runtime Error:** {e}\n:::")
-            print(f"Critical Runtime Error: {e}") # Ensure logic sees this too if not in UI
-            orchestrator = None # Mark as failed for downstream logic
+            mo.md(
+                f"""
+                ::: error
+                **Initialization Error:**
+                Failed to initialize the Orchestrator. Please check your configuration.
+
+                Details: `{e}`
+                :::
+                """
+            )
+            # Orchestrator remains None, results remains []
+
+        # Step 2: Execution (only if initialized)
+        if orchestrator is not None:
+            try:
+                print("Starting Active Learning Pipeline...")
+
+                # Use the high-level run() method to execute the full pipeline
+                module_result = orchestrator.run()
+
+                print(f"Pipeline finished with status: {module_result.status}")
+
+                # Extract cycle history from metrics for visualization
+                if module_result.metrics:
+                    metrics_dict = module_result.metrics.model_dump()
+                    results = metrics_dict.get("history", [])
+                else:
+                    print("Warning: No metrics returned from pipeline.")
+
+                if not results:
+                     print("Warning: No cycle history found in results.")
+
+            except Exception as e:
+                mo.md(
+                    f"""
+                    ::: error
+                    **Runtime Error:**
+                    The Active Learning Pipeline failed during execution.
+
+                    Details: `{e}`
+                    :::
+                    """
+                )
+                print(f"Critical Runtime Error: {e}")
+                # Partial results might be available if we had logic to extract them,
+                # but for now results remains as is (likely empty or partial if modified in place)
 
     # Final check for initialization success
     if HAS_PYACEMAKER and orchestrator is None:
-        mo.md("::: error\n**Fatal Error**: Orchestrator failed to initialize or execute cleanly.\n:::")
+        mo.md("::: error\n**Fatal Error**: Orchestrator failed to initialize.\n:::")
 
     return orchestrator, results
 
