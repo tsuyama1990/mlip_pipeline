@@ -88,7 +88,7 @@ def step1c_md(mo):
         """
         #### Source Code Discovery
 
-        Now we locate the `pyacemaker` source code. This logic allows the tutorial to run even if the package is installed in editable mode or located in a parent directory. This is critical for development environments where the code might not be in the system path.
+        Now we locate the `pyacemaker` source code. This logic allows the tutorial to run even if the package is installed in editable mode or located in a parent directory (`src/`). This is critical for development environments where the code might not be in the system path. It searches `cwd/src` and `cwd/../src`.
         """
     )
     return
@@ -367,47 +367,50 @@ def setup_config(
     tutorial_tmp_dir = None
 
     if HAS_PYACEMAKER:
-        # Create temporary directory in CWD for security compliance (Pydantic validation requires path inside CWD)
-        tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=PathRef.cwd())
-        tutorial_dir = PathRef(tutorial_tmp_dir.name)
+        try:
+            # Create temporary directory in CWD for security compliance (Pydantic validation requires path inside CWD)
+            tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=PathRef.cwd())
+            tutorial_dir = PathRef(tutorial_tmp_dir.name)
 
-        # Register cleanup on exit to ensure directory is removed even on crash
-        def _cleanup_handler():
-            try:
-                if tutorial_tmp_dir:
-                    tutorial_tmp_dir.cleanup()
-                    print(f"Cleanup: Removed {tutorial_dir}")
-            except Exception:
-                pass
-        atexit.register(_cleanup_handler)
+            # Register cleanup on exit to ensure directory is removed even on crash
+            def _cleanup_handler():
+                try:
+                    if tutorial_tmp_dir:
+                        tutorial_tmp_dir.cleanup()
+                        print(f"Cleanup: Removed {tutorial_dir}")
+                except Exception:
+                    pass
+            atexit.register(_cleanup_handler)
 
-        mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
+            mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
 
-        pseudos = {"Fe": "Fe.pbe.UPF", "Pt": "Pt.pbe.UPF", "Mg": "Mg.pbe.UPF", "O": "O.pbe.UPF"}
+            pseudos = {"Fe": "Fe.pbe.UPF", "Pt": "Pt.pbe.UPF", "Mg": "Mg.pbe.UPF", "O": "O.pbe.UPF"}
 
-        if IS_CI:
-            mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
-            # Security: Ensure content is static and harmless
-            for element, filename in pseudos.items():
-                pseudo_path = tutorial_dir / filename
-                if not pseudo_path.exists():
-                    with open(pseudo_path, "w") as f:
-                        f.write(SAFE_DUMMY_UPF_CONTENT)
+            if IS_CI:
+                mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
+                # Security: Ensure content is static and harmless
+                for element, filename in pseudos.items():
+                    pseudo_path = tutorial_dir / filename
+                    if not pseudo_path.exists():
+                        with open(pseudo_path, "w") as f:
+                            f.write(SAFE_DUMMY_UPF_CONTENT)
 
-        # Define configuration
-        config_dict = {
-            "version": "0.1.0",
-            "project": {"name": "FePt_MgO", "root_dir": str(tutorial_dir)},
-            "logging": {"level": "INFO"},
-            "orchestrator": {"max_cycles": 2 if IS_CI else 10},
-            "oracle": {"dft": {"pseudopotentials": {k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()}}, "mock": IS_CI},
-            "trainer": {"potential_type": "pace", "mock": IS_CI, "max_epochs": 1},
-            "dynamics_engine": {"engine": "lammps", "mock": IS_CI, "gamma_threshold": 0.5, "timestep": 0.001, "n_steps": 100},
-            "structure_generator": {"strategy": "random"},
-            "validator": {"test_set_ratio": 0.1},
-        }
-        config = PYACEMAKERConfig(**config_dict)
-        (tutorial_dir / "data").mkdir(exist_ok=True, parents=True)
+            # Define configuration
+            config_dict = {
+                "version": "0.1.0",
+                "project": {"name": "FePt_MgO", "root_dir": str(tutorial_dir)},
+                "logging": {"level": "INFO"},
+                "orchestrator": {"max_cycles": 2 if IS_CI else 10},
+                "oracle": {"dft": {"pseudopotentials": {k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()}}, "mock": IS_CI},
+                "trainer": {"potential_type": "pace", "mock": IS_CI, "max_epochs": 1},
+                "dynamics_engine": {"engine": "lammps", "mock": IS_CI, "gamma_threshold": 0.5, "timestep": 0.001, "n_steps": 100},
+                "structure_generator": {"strategy": "random"},
+                "validator": {"test_set_ratio": 0.1},
+            }
+            config = PYACEMAKERConfig(**config_dict)
+            (tutorial_dir / "data").mkdir(exist_ok=True, parents=True)
+        except Exception as e:
+            mo.md(f"::: error\n**Setup Failed:** Could not create temporary directory or config. {e}\n:::")
 
     return config, config_dict, pseudos, tutorial_dir, tutorial_tmp_dir
 
@@ -420,10 +423,11 @@ def step4_md(mo):
 
         The `Orchestrator` manages the loop: Generation -> Oracle -> Training -> Exploration -> Validation.
 
-        1.  **Cold Start**: Generate initial random structures and label them.
-        2.  **Training**: Fit an ACE potential.
-        3.  **Exploration**: Run MD with `fix halt`.
-        4.  **Refinement**: If MD halts, label the bad structure and retrain.
+        1.  **Cold Start**: This is the initial bootstrap phase where we generate random atomic structures to seed the dataset, as we have no prior data to train on.
+        2.  **Cycle Loop**: This is the iterative process of:
+            *   **Training**: Fit an ACE potential to the current dataset.
+            *   **Exploration**: Run MD with `fix halt` to find uncertain structures.
+            *   **Refinement**: If MD halts, label the bad structure and retrain.
         """
     )
     return
@@ -610,6 +614,9 @@ def run_deposition(
 ):
     output_path = None
     deposited_structure = None
+
+    if orchestrator is None:
+        return None, None
 
     # Logic: Validate symbols against system configuration to ensure consistency.
     valid_symbols = ["Fe", "Pt"]
