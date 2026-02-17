@@ -94,7 +94,7 @@ def verify_packages(importlib, mo):
         )
     else:
         print("All required packages found.")
-    return missing, required_packages, pkg
+    return missing, required_packages
 
 
 @app.cell
@@ -351,12 +351,12 @@ def constants_config(mo):
     )
     # Constant definition for Mock Data Security
     # Includes explicit warning to prevent confusion with real data
-    SAFE_DUMMY_UPF_CONTENT = """<UPF version="2.0.1">
+    SAFE_DUMMY_UPF_CONTENT = """<MOCK_UPF_DO_NOT_USE>
     <PP_INFO>
         WARNING: THIS IS MOCK DATA FOR TESTING PURPOSES ONLY.
         DO NOT USE FOR REAL PHYSICS CALCULATIONS.
     </PP_INFO>
-</UPF>"""
+</MOCK_UPF_DO_NOT_USE>"""
     return SAFE_DUMMY_UPF_CONTENT
 
 
@@ -570,15 +570,21 @@ def visualize(HAS_PYACEMAKER, plt, results):
     if HAS_PYACEMAKER and results:
         rmse_values = []
         for metrics in results:
-            # results contains Metrics objects directly now
-            # Metrics allows extra fields, so we check attribute or dict dump
-            # Note: Validator sets 'rmse_energy'
-            v = getattr(metrics, "rmse_energy", 0.0)
-            if v == 0.0 and hasattr(metrics, "model_dump"):
-                v = metrics.model_dump().get("rmse_energy", 0.0)
-            # Fallback for robustness
-            if v == 0.0 and hasattr(metrics, "energy_rmse"):
+            v = 0.0
+            # Defensive programming: Handle various potential formats of metrics
+            if hasattr(metrics, "rmse_energy"):
+                v = getattr(metrics, "rmse_energy", 0.0)
+            elif hasattr(metrics, "energy_rmse"):
                 v = getattr(metrics, "energy_rmse", 0.0)
+
+            # If still 0.0 or not found, try Pydantic dump
+            if v == 0.0 and hasattr(metrics, "model_dump"):
+                try:
+                    data = metrics.model_dump()
+                    v = data.get("rmse_energy", data.get("energy_rmse", 0.0))
+                except Exception:
+                    pass
+
             rmse_values.append(v)
 
         plt.figure(figsize=(8, 4))
@@ -616,10 +622,8 @@ def deposition_explanation(mo):
 
         1.  **Environment Check**: Determines if we are in Mock Mode or Real Mode.
         2.  **Substrate Setup**: Creates an MgO (001) slab using ASE `bulk` and `surface` tools.
-        3.  **Real Mode Logic (PotentialHelper)**: If a trained potential exists, we use the `PotentialHelper` class.
-            *   **Purpose**: `PotentialHelper` abstracts the complexity of generating LAMMPS `pair_style` and `pair_coeff` commands for hybrid potentials (e.g., combining the MLIP with ZBL for close-range repulsion).
-            *   **Usage**: It takes the potential file path and element list, returning the correct LAMMPS commands to be injected into the input file.
-        4.  **Mock/Visualization Logic**: Regardless of mode, it performs a Python-based stochastic placement of Fe and Pt atoms above the surface. This allows us to visualize the *expected* geometry of the deposition process immediately in the notebook.
+        3.  **Real Mode Logic**: If running in a production environment (Real Mode) with a trained potential, it uses the `PotentialHelper` class to generate the correct LAMMPS commands (hybrid pair style) and executes the actual deposition simulation via LAMMPS.
+        4.  **Mock/Visualization Logic (CI Mode)**: In Mock Mode (CI), or for immediate visualization purposes in the notebook, it simulates the deposition result by randomly placing atoms above the surface using Python/Numpy. This provides a visual confirmation of the setup without requiring heavy MD calculations.
         5.  **Output**: Saves the structure to `deposition_md/final.xyz` for analysis.
         """
     )
@@ -780,8 +784,7 @@ def summary_md(mo):
 
 
 @app.cell
-def cleanup(mo, output_path, order_param, tutorial_tmp_dir):
-    # Dependency on output_path and order_param ensures this runs LAST
+def cleanup(mo, tutorial_tmp_dir):
     mo.md(
         """
         ### Cleanup
