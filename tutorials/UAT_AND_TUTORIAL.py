@@ -424,8 +424,12 @@ def run_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
             print("Starting Active Learning...")
 
             # Robust attribute checking
-            if not hasattr(orchestrator, 'dataset_path') or not hasattr(orchestrator, 'dataset_manager'):
-                 raise AttributeError("Orchestrator instance is missing required attributes.")
+            # Logic: Check if required attributes exist on the orchestrator instance.
+            # Fixes: Potential AttributeError if orchestrator init failed or changed.
+            if not hasattr(orchestrator, 'dataset_path'):
+                 raise AttributeError("Orchestrator is missing 'dataset_path' attribute.")
+            if not hasattr(orchestrator, 'dataset_manager'):
+                 raise AttributeError("Orchestrator is missing 'dataset_manager' attribute.")
 
             # Cold Start
             if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
@@ -507,11 +511,21 @@ def run_deposition(
     orchestrator,
     plot_atoms,
     plt,
-    results,  # Dependency injection: Ensures this runs AFTER learning
+    results,  # Dependency injection: `results` ensures this cell runs AFTER learning (topological order)
     surface,
     tutorial_dir,
     write,
 ):
+    # Clarity: This cell simulates the deposition process.
+    # Parameters injected by Marimo:
+    # - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
+    # - HAS_PYACEMAKER: Boolean flag if package is present
+    # - IS_CI: Boolean flag for Mock vs Real mode
+    # - PotentialHelper: Class to generate LAMMPS input
+    # - orchestrator: The main workflow object (contains the trained potential)
+    # - tutorial_dir: Path to the temporary workspace
+    # - results: The output of the learning phase (used here to enforce execution order)
+
     output_path = None
     deposited_structure = None
 
@@ -600,7 +614,8 @@ def run_analysis(np, plt):
 @app.cell
 def cleanup(output_path, order_param, tutorial_tmp_dir):
     # Dependency on output_path and order_param ensures this runs LAST
-    if tutorial_tmp_dir:
+    # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
+    if tutorial_tmp_dir is not None:
         try:
             tutorial_tmp_dir.cleanup()
             print("Cleanup: Done.")
