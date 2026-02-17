@@ -436,12 +436,14 @@ def metadata_explanation(mo):
 @app.cell
 def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
     results = []
-    if HAS_PYACEMAKER:
-        # Check if orchestrator was successfully initialized
-        if orchestrator is None:
-            mo.md("::: error\n**Orchestrator Not Initialized**: Cannot proceed with learning.\n:::")
-            return results,
 
+    # Guard against uninitialized orchestrator
+    if orchestrator is None:
+        if HAS_PYACEMAKER:
+            mo.md("::: error\n**Orchestrator Not Initialized**: Cannot proceed with learning.\n:::")
+        return results,
+
+    if HAS_PYACEMAKER:
         try:
             print("Starting Active Learning...")
 
@@ -551,16 +553,17 @@ def run_deposition(
     write,
 ):
     """
-    Simulates the deposition process.
+    Simulates the deposition process for visualization and generates input files.
+
+    In Real Mode, generates LAMMPS input files. In both modes, creates a
+    stochastic atomistic visualization of the deposition process.
 
     Parameters:
     - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
-    - HAS_PYACEMAKER: Boolean flag if package is present
-    - IS_CI: Boolean flag for Mock vs Real mode
-    - PotentialHelper: Class to generate LAMMPS input
-    - orchestrator: The main workflow object (contains the trained potential)
-    - tutorial_dir: Path to the temporary workspace
-    - results: The output of the learning phase (used here to enforce execution order)
+    - HAS_PYACEMAKER, IS_CI: Configuration flags
+    - PotentialHelper, orchestrator: System components
+    - tutorial_dir: Workspace path
+    - results: Previous step output
     """
 
     output_path = None
