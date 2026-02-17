@@ -44,7 +44,6 @@ def imports_md(mo):
         We import the necessary libraries.
         *   **Standard Library**: For path manipulation and system operations.
         *   **Scientific Stack**: **NumPy** for calculations, **Matplotlib** for plotting, and **ASE (Atomic Simulation Environment)** for atomistic manipulation.
-        We also set up the random seed for reproducibility.
         """
     )
     return
@@ -69,13 +68,19 @@ def std_imports():
 
 
 @app.cell
-def sci_imports():
+def sci_imports(mo):
     import matplotlib.pyplot as plt
     import numpy as np
     from ase import Atoms, Atom
     from ase.visualize.plot import plot_atoms
     from ase.build import surface, bulk
     from ase.io import write
+
+    mo.md(
+        """
+        **Reproducibility Note**: We set `np.random.seed(42)` to ensure that the "random" structures generated in this tutorial are consistent across runs. This is critical for debugging and validating the tutorial's output.
+        """
+    )
 
     # Set random seed for reproducibility
     np.random.seed(42)
@@ -286,12 +291,12 @@ def check_dependencies(os, shutil, mo):
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
 
     # Render Status Table
-    status_md = f\"""
+    status_md = f"""
     ### System Status: **{mode_name}**
 
     | Binary | Status | Path |
     | :--- | :--- | :--- |
-    \"""
+    """
     for binary in required_binaries:
         if binary in found_binaries:
             status_md += f"| `{binary}` | ✅ Found | `{found_binaries[binary]}` |\n"
@@ -320,7 +325,7 @@ def step3_md(mo):
 @app.cell
 def constants_config(mo):
     mo.md(
-        \"""
+        """
         ::: danger
         **SECURITY WARNING: MOCK DATA**
 
@@ -328,16 +333,16 @@ def constants_config(mo):
         This is **strictly for testing/CI environments** where real physics data is unavailable.
         **NEVER** use these dummy files for actual scientific calculations as they will produce meaningless results.
         :::
-        \"""
+        """
     )
     # Constant definition for Mock Data Security
     # Includes explicit warning to prevent confusion with real data
-    SAFE_DUMMY_UPF_CONTENT = \"""<UPF version="2.0.1">
+    SAFE_DUMMY_UPF_CONTENT = """<UPF version="2.0.1">
     <PP_INFO>
         WARNING: THIS IS MOCK DATA FOR TESTING PURPOSES ONLY.
         DO NOT USE FOR REAL PHYSICS CALCULATIONS.
     </PP_INFO>
-</UPF>\"""
+</UPF>"""
     return SAFE_DUMMY_UPF_CONTENT
 
 
@@ -496,10 +501,6 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
     orchestrator = None
     results = [] # Define at start to ensure it exists in cell scope
 
-    # Note: We rely on the high-level API orchestrator.run() which encapsulates
-    # structure generation, oracle computation, and dataset management.
-    # This avoids exposing internal sub-modules in the tutorial.
-
     if HAS_PYACEMAKER:
         try:
             orchestrator = Orchestrator(config)
@@ -507,8 +508,8 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
 
             print("Starting Active Learning Pipeline...")
 
-            # Use the high-level run() method to execute the full pipeline
-            # This handles cold start, training, validation, exploration, and labeling automatically.
+            # We use `orchestrator.run()` (NOT execute) as defined in the `IOrchestrator` interface.
+            # This method encapsulates the entire active learning loop.
             module_result = orchestrator.run()
 
             print(f"Pipeline finished with status: {module_result.status}")
@@ -701,7 +702,14 @@ def step8_md(mo):
 
 
 @app.cell
-def run_analysis(np, plt):
+def run_analysis(mo, np, plt):
+    mo.md(
+        """
+        ### Analysis: L10 Ordering
+
+        This cell visualizes the order parameter evolution over time. In a real scenario, this data would come from the EON client output. Here, we generate a mock sigmoid curve to demonstrate the expected phase transition from a disordered alloy (order=0) to an ordered L10 phase (order=1).
+        """
+    )
     # Mock data for visualization
     time_steps = np.linspace(0, 1e6, 50)
     # Sigmoid function to simulate ordering transition
@@ -746,4 +754,23 @@ def summary_md(mo):
         *   **Explore Config**: Modify `config` in Step 3 to change the material system (e.g., Al-Cu) or adjust training parameters.
         """
     )
+    return
+
+
+@app.cell
+def cleanup(mo, output_path, order_param, tutorial_tmp_dir):
+    # Dependency on output_path and order_param ensures this runs LAST
+    mo.md(
+        """
+        ### Cleanup
+
+        Finally, we clean up the temporary workspace to keep the environment clean.
+        """
+    )
+    if tutorial_tmp_dir:
+        try:
+            tutorial_tmp_dir.cleanup()
+            print("Cleanup: Done.")
+        except Exception as e:
+            print(f"Cleanup warning: {e}")
     return
