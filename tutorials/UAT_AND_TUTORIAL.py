@@ -86,7 +86,9 @@ def sci_imports():
 def step1c_md(mo):
     mo.md(
         """
-        Now we locate the `pyacemaker` source code. This logic allows the tutorial to run even if the package is installed in editable mode or located in a parent directory.
+        #### Source Code Discovery
+
+        Now we locate the `pyacemaker` source code. This logic allows the tutorial to run even if the package is installed in editable mode or located in a parent directory. This is critical for development environments where the code might not be in the system path.
         """
     )
     return
@@ -127,7 +129,9 @@ def path_setup(PathRef, mo, sys):
 def step1d_md(mo):
     mo.md(
         """
-        Finally, we attempt to import the **PYACEMAKER** core modules.
+        #### Package Import
+
+        Finally, we attempt to import the **PYACEMAKER** core modules. This cell ensures all necessary components are available before proceeding.
 
         If this fails, you likely need to install the package dependencies.
         Required packages include:
@@ -323,9 +327,10 @@ def gamma_explanation(mo):
         1.  **Train**: Build an initial potential.
         2.  **Explore**: Run Molecular Dynamics (MD) simulations.
         3.  **Detect Uncertainty**: At every MD step, we calculate the **Extrapolation Grade ($\gamma$)**.
-            *   $\gamma$ is calculated as the **distance of the current atomic environment from the training set in feature space** (using the ACE basis).
+            *   $\gamma$ represents the reliability of the potential. It is calculated as the **distance of the current atomic environment from the training set in feature space** (using the ACE basis).
+            *   **Example**: If the potential was trained only on bulk crystals, and the simulation encounters a surface, $\gamma$ will be high because "surface" environments are far from "bulk" environments in feature space.
             *   If $\gamma < \text{threshold}$ (e.g., 0.5): The simulation continues (Safe, low uncertainty).
-            *   If $\gamma > \text{threshold}$ (e.g., 0.5): The simulation **halts**. This means the atomic environment is more than 0.5 units away from the training data, indicating high uncertainty.
+            *   If $\gamma > \text{threshold}$ (e.g., 0.5): The simulation **halts**. This means the atomic environment is significantly different (more than 0.5 units away) from the training data, indicating high uncertainty.
         4.  **Label**: The "uncertain" structure is sent to the Oracle (DFT) for accurate energy/force calculation.
         5.  **Retrain**: The new data is added, and the potential is retrained.
 
