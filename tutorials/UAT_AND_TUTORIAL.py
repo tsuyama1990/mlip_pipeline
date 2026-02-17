@@ -128,11 +128,20 @@ def step1d_md(mo):
         """
         Finally, we attempt to import the **PYACEMAKER** core modules.
 
-        If this fails, you likely need to install the package:
+        If this fails, you likely need to install the package dependencies.
+        Required packages include:
+        *   `ase`
+        *   `numpy`
+        *   `matplotlib`
+        *   `marimo`
+        *   `pyyaml`
+        *   `pydantic`
+
+        Install them using:
         ```bash
         uv sync
         # OR
-        pip install -e .
+        pip install -e .[dev]
         ```
         """
     )
@@ -437,6 +446,8 @@ def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
             print("Starting Active Learning...")
 
             # Robust attribute checking
+            # Logic: Check if required attributes exist on the orchestrator instance.
+            # Fixes: Potential AttributeError if orchestrator init failed or changed.
             attributes_ok = True
             if not hasattr(orchestrator, 'dataset_path'):
                  print("Error: Orchestrator is missing 'dataset_path' attribute.")
@@ -559,6 +570,9 @@ def run_deposition(
     valid_symbols = ["Fe", "Pt"]
 
     if HAS_PYACEMAKER and orchestrator:
+        # Dependency Usage: Acknowledge the 'results' to maintain topological order semantics
+        print(f"Starting deposition after {len(results)} active learning cycles.")
+
         # Robust attribute check
         potential = getattr(orchestrator, 'current_potential', None)
         if potential is None:
