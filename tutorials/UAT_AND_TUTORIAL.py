@@ -358,7 +358,7 @@ def setup_config(
     tutorial_tmp_dir = None
 
     if HAS_PYACEMAKER:
-        # Create temporary directory in CWD for security compliance
+        # Create temporary directory in CWD for security compliance (Pydantic validation requires path inside CWD)
         tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=PathRef.cwd())
         tutorial_dir = PathRef(tutorial_tmp_dir.name)
 
@@ -507,6 +507,12 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, PathRef, config, metadata_to_at
                         break
         except Exception as e:
             mo.md(f"::: error\n**Runtime Error:** {e}\n:::")
+            print(f"Critical Runtime Error: {e}") # Ensure logic sees this too if not in UI
+            orchestrator = None # Mark as failed for downstream logic
+
+    # Final check for initialization success
+    if HAS_PYACEMAKER and orchestrator is None:
+        mo.md("::: error\n**Fatal Error**: Orchestrator failed to initialize or execute cleanly.\n:::")
 
     return orchestrator, results
 
@@ -603,7 +609,7 @@ def run_deposition(
         # Dependency Usage: Acknowledge the 'results' to maintain topological order semantics
         print(f"Starting deposition after {len(results)} active learning cycles.")
 
-        # Robust attribute check
+        # Robust attribute check - verified against orchestrator.py: self.current_potential
         potential = getattr(orchestrator, 'current_potential', None)
         if potential is None:
              print("Warning: No potential available from orchestrator. Deposition simulation might fail in Real Mode.")
