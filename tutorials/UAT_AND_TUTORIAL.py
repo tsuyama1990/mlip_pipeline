@@ -426,27 +426,31 @@ def run_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
             # Robust attribute checking
             # Logic: Check if required attributes exist on the orchestrator instance.
             # Fixes: Potential AttributeError if orchestrator init failed or changed.
+            attributes_ok = True
             if not hasattr(orchestrator, 'dataset_path'):
-                 raise AttributeError("Orchestrator is missing 'dataset_path' attribute.")
+                 print("Error: Orchestrator is missing 'dataset_path' attribute.")
+                 attributes_ok = False
             if not hasattr(orchestrator, 'dataset_manager'):
-                 raise AttributeError("Orchestrator is missing 'dataset_manager' attribute.")
+                 print("Error: Orchestrator is missing 'dataset_manager' attribute.")
+                 attributes_ok = False
 
-            # Cold Start
-            if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
-                print("Running Cold Start...")
-                initial = orchestrator.structure_generator.generate_initial_structures()
-                computed = orchestrator.oracle.compute_batch(initial)
-                atoms_stream = (metadata_to_atoms(s) for s in computed)
-                orchestrator.dataset_manager.save_iter(atoms_stream, orchestrator.dataset_path, mode="ab", calculate_checksum=False)
+            if attributes_ok:
+                # Cold Start
+                if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
+                    print("Running Cold Start...")
+                    initial = orchestrator.structure_generator.generate_initial_structures()
+                    computed = orchestrator.oracle.compute_batch(initial)
+                    atoms_stream = (metadata_to_atoms(s) for s in computed)
+                    orchestrator.dataset_manager.save_iter(atoms_stream, orchestrator.dataset_path, mode="ab", calculate_checksum=False)
 
-            # Cycles
-            for i in range(orchestrator.config.orchestrator.max_cycles):
-                print(f"--- Cycle {i+1} ---")
-                res = orchestrator.run_cycle()
-                results.append(res)
-                if str(res.status).upper() == "CONVERGED":
-                    print("Converged!")
-                    break
+                # Cycles
+                for i in range(orchestrator.config.orchestrator.max_cycles):
+                    print(f"--- Cycle {i+1} ---")
+                    res = orchestrator.run_cycle()
+                    results.append(res)
+                    if str(res.status).upper() == "CONVERGED":
+                        print("Converged!")
+                        break
         except Exception as e:
             mo.md(f"::: error\n**Runtime Error:** {e}\n:::")
     return results,
@@ -516,15 +520,18 @@ def run_deposition(
     tutorial_dir,
     write,
 ):
-    # Clarity: This cell simulates the deposition process.
-    # Parameters injected by Marimo:
-    # - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
-    # - HAS_PYACEMAKER: Boolean flag if package is present
-    # - IS_CI: Boolean flag for Mock vs Real mode
-    # - PotentialHelper: Class to generate LAMMPS input
-    # - orchestrator: The main workflow object (contains the trained potential)
-    # - tutorial_dir: Path to the temporary workspace
-    # - results: The output of the learning phase (used here to enforce execution order)
+    """
+    Simulates the deposition process.
+
+    Parameters:
+    - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
+    - HAS_PYACEMAKER: Boolean flag if package is present
+    - IS_CI: Boolean flag for Mock vs Real mode
+    - PotentialHelper: Class to generate LAMMPS input
+    - orchestrator: The main workflow object (contains the trained potential)
+    - tutorial_dir: Path to the temporary workspace
+    - results: The output of the learning phase (used here to enforce execution order)
+    """
 
     output_path = None
     deposited_structure = None
@@ -615,7 +622,7 @@ def run_analysis(np, plt):
 def cleanup(output_path, order_param, tutorial_tmp_dir):
     # Dependency on output_path and order_param ensures this runs LAST
     # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
-    if tutorial_tmp_dir is not None:
+    if tutorial_tmp_dir is not None and hasattr(tutorial_tmp_dir, 'cleanup'):
         try:
             tutorial_tmp_dir.cleanup()
             print("Cleanup: Done.")
