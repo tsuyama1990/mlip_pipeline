@@ -427,6 +427,11 @@ def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
                  print("Error: Orchestrator is missing 'dataset_manager' attribute.")
                  attributes_ok = False
 
+            # Additional check for util function
+            if not callable(metadata_to_atoms):
+                 print("Error: metadata_to_atoms is not callable.")
+                 attributes_ok = False
+
             if attributes_ok:
                 # Cold Start
                 # Explicitly cast to Path to satisfy logic check requirements
@@ -519,18 +524,18 @@ def run_deposition(
     """
     Simulates the deposition process.
 
-    In **Real Mode**, this step generates the LAMMPS input files required to run the actual molecular dynamics simulation.
-    For the purpose of this interactive tutorial (and immediate visualization), we perform a **Mock Simulation** using
-    Python to randomly place atoms, mimicking the visual result of deposition.
-
     Parameters:
-    - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
-    - HAS_PYACEMAKER: Boolean flag if package is present
-    - IS_CI: Boolean flag for Mock vs Real mode
-    - PotentialHelper: Class to generate LAMMPS input
-    - orchestrator: The main workflow object (contains the trained potential)
-    - tutorial_dir: Path to the temporary workspace
-    - results: The output of the learning phase (used here to enforce execution order)
+    - Atom: ASE Atom class
+    - bulk, surface: ASE builders
+    - write: ASE I/O
+    - plot_atoms: ASE visualizer
+    - np, plt: Numpy and Matplotlib
+    - HAS_PYACEMAKER: Package availability flag
+    - IS_CI: Mode flag (Mock/Real)
+    - PotentialHelper: Helper for LAMMPS input
+    - orchestrator: Main workflow object
+    - tutorial_dir: Workspace path
+    - results: Previous step output (dependency injection)
     """
 
     output_path = None
@@ -630,7 +635,7 @@ def cleanup(logging, output_path, order_param, tutorial_tmp_dir):
         try:
             # Double check the name/path to prevent arbitrary deletions
             # tutorial_tmp_dir.name should contain the prefix
-            if "pyacemaker_tutorial_" in tutorial_tmp_dir.name:
+            if "pyacemaker_tutorial_" in tutorial_tmp_dir.name and tutorial_tmp_dir.name != "/":
                 tutorial_tmp_dir.cleanup()
                 print("Cleanup: Done.")
             else:
