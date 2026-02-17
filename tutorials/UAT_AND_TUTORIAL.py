@@ -425,9 +425,12 @@ def metadata_explanation(mo):
         """
         ### Data Conversion: `metadata_to_atoms`
 
-        The `metadata_to_atoms` function is a utility that converts the system's internal `StructureMetadata` objects (which contain provenance, labels, and features) into ASE `Atoms` objects. This is crucial for:
-        1.  Writing datasets to disk in a format compatible with Pacemaker.
-        2.  Interfacing with external simulation tools.
+        The `metadata_to_atoms` function is a crucial utility that bridges the gap between PYACEMAKER's internal data model and the ASE (Atomic Simulation Environment) ecosystem.
+
+        *   **Internal Model (`StructureMetadata`)**: PYACEMAKER uses a rich Pydantic model to store structures along with their full provenance (origin, calculation status, tags) and calculated features (energy, forces, stress, uncertainty).
+        *   **External Tool (`ase.Atoms`)**: Most simulation engines (like Pacemaker, LAMMPS via ASE) operate on standard `ase.Atoms` objects.
+
+        `metadata_to_atoms` extracts the atomic positions, cell, and numbers from `StructureMetadata` and packages them into an `ase.Atoms` object, attaching energy and forces as properties if they exist. This allows seamless data exchange between the orchestrator and the training/simulation modules.
         """
     )
     return
@@ -536,6 +539,24 @@ def step7_md(mo):
 
 
 @app.cell
+def deposition_explanation(mo):
+    mo.md(
+        """
+        ### Deposition Simulation
+
+        The `run_deposition` function performs the following tasks:
+
+        1.  **Environment Check**: Determines if we are in Mock Mode or Real Mode.
+        2.  **Substrate Setup**: Creates an MgO (001) slab using ASE `bulk` and `surface` tools.
+        3.  **Real Mode Logic**: If a trained potential exists, it generates the necessary `in.lammps` input files to run a physical MD simulation using `PotentialHelper`.
+        4.  **Mock/Visualization Logic**: Regardless of mode, it performs a Python-based stochastic placement of Fe and Pt atoms above the surface. This allows us to visualize the *expected* geometry of the deposition process immediately in the notebook, without waiting for a potentially long-running MD job.
+        5.  **Output**: Saves the structure to `deposition_md/final.xyz` for analysis.
+        """
+    )
+    return
+
+
+@app.cell
 def run_deposition(
     Atom,
     HAS_PYACEMAKER,
@@ -552,20 +573,6 @@ def run_deposition(
     tutorial_dir,
     write,
 ):
-    """
-    Simulates the deposition process for visualization and generates input files.
-
-    In Real Mode, generates LAMMPS input files. In both modes, creates a
-    stochastic atomistic visualization of the deposition process.
-
-    Parameters:
-    - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
-    - HAS_PYACEMAKER, IS_CI: Configuration flags
-    - PotentialHelper, orchestrator: System components
-    - tutorial_dir: Workspace path
-    - results: Previous step output
-    """
-
     output_path = None
     deposited_structure = None
 
@@ -660,19 +667,32 @@ def run_analysis(np, plt):
 
 
 @app.cell
-def cleanup(logging, output_path, order_param, tutorial_tmp_dir):
+def cleanup(logging, os, output_path, order_param, tempfile, tutorial_tmp_dir):
     # Dependency on output_path and order_param ensures this runs LAST
     # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
     # Safety Check: Ensure the path is a safe temporary directory created by this tutorial
     if tutorial_tmp_dir is not None and hasattr(tutorial_tmp_dir, 'cleanup'):
         try:
-            # Double check the name/path to prevent arbitrary deletions
-            # tutorial_tmp_dir.name should contain the prefix
-            if "pyacemaker_tutorial_" in tutorial_tmp_dir.name and tutorial_tmp_dir.name != "/":
+            # Resolve paths using pathlib for robust checking
+            tmp_path = Path(tutorial_tmp_dir.name).resolve()
+
+            # Allow:
+            # 1. System temp directory
+            # 2. Current working directory (since setup_config creates it there with dir=Path.cwd())
+
+            allowed_bases = [
+                Path(tempfile.gettempdir()).resolve(),
+                Path.cwd().resolve()
+            ]
+
+            is_safe_location = any(tmp_path.is_relative_to(base) for base in allowed_bases)
+            has_prefix = "pyacemaker_tutorial_" in tmp_path.name
+
+            if has_prefix and is_safe_location:
                 tutorial_tmp_dir.cleanup()
                 print("Cleanup: Done.")
             else:
-                logging.warning(f"Skipping cleanup: {tutorial_tmp_dir.name} does not match expected pattern.")
+                logging.warning(f"Skipping cleanup: {tmp_path} is not a verified safe path.")
         except Exception as e:
             # Use logging to report cleanup errors without crashing
             logging.error(f"Cleanup failed: {e}")
