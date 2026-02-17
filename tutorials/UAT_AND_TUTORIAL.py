@@ -218,18 +218,30 @@ def package_import(importlib, mo):
 def step2_md(mo):
     mo.md(
         """
-        ### Step 2: Mode Detection
+        ### Step 2: Mode Detection & Dependency Check
 
         We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
-        *   **Mock Mode**: Uses simulated data/functions. Safe and fast (< 5 mins). No external binaries required.
-        *   **Real Mode**: Tries to run QE/LAMMPS. Requires external binaries (pw.x, lmp). Computationally intensive.
+
+        We also verify the presence of critical external binaries.
         """
     )
     return
 
 
 @app.cell
-def detect_mode(os, mo):
+def check_dependencies(os, shutil, mo):
+    # Dependency Check
+    required_binaries = ["pw.x", "lmp", "pace_train"]
+    found_binaries = {}
+    missing_binaries = []
+
+    for binary in required_binaries:
+        bin_path = shutil.which(binary)
+        if bin_path:
+            found_binaries[binary] = bin_path
+        else:
+            missing_binaries.append(binary)
+
     # Detect Mode
     # Default to CI/Mock mode if not explicitly set to false/0/no/off
     raw_ci = os.environ.get("CI", "true").strip().lower()
@@ -243,9 +255,36 @@ def detect_mode(os, mo):
     else:
         IS_CI = True # Default safe
 
+    # Force Mock Mode if binaries are missing
+    if not IS_CI and missing_binaries:
+        mo.md(
+            f"""
+            ::: warning
+            **Missing Binaries:** {', '.join(missing_binaries)}
+
+            Falling back to **Mock Mode** despite `CI={raw_ci}` because required tools are not in PATH.
+            :::
+            """
+        )
+        IS_CI = True
+
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
-    mo.md(f"### Current Mode: **{mode_name}**")
-    return IS_CI, mode_name, raw_ci, valid_false, valid_true
+
+    # Render Status Table
+    status_md = f"""
+    ### System Status: **{mode_name}**
+
+    | Binary | Status | Path |
+    | :--- | :--- | :--- |
+    """
+    for binary in required_binaries:
+        if binary in found_binaries:
+            status_md += f"| `{binary}` | ✅ Found | `{found_binaries[binary]}` |\n"
+        else:
+            status_md += f"| `{binary}` | ❌ Missing | - |\n"
+
+    mo.md(status_md)
+    return IS_CI, mode_name, raw_ci, valid_false, valid_true, found_binaries, missing_binaries
 
 
 @app.cell
@@ -324,10 +363,10 @@ def setup_config(
         if IS_CI:
             mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
             for element, filename in pseudos.items():
-                path = tutorial_dir / filename
-                if not path.exists():
+                pseudo_path = tutorial_dir / filename
+                if not pseudo_path.exists():
                     content = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
-                    with open(path, "w") as f:
+                    with open(pseudo_path, "w") as f:
                         f.write(content)
 
         # Define configuration
