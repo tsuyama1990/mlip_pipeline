@@ -7,7 +7,7 @@ app = marimo.App()
 @app.cell
 def setup_marimo():
     import marimo as mo
-    return mo
+    return mo,
 
 
 @app.cell
@@ -65,7 +65,6 @@ def imports_and_setup(os, sys, Path, importlib, mo):
     from ase.io import write
 
     # Locate src directory
-    # Handle running from repo root or tutorials/ subdirectory
     cwd = Path.cwd()
     possible_src_paths = [
         cwd / "src",
@@ -98,7 +97,6 @@ def imports_and_setup(os, sys, Path, importlib, mo):
     print("WARNING: PYACEMAKER_SKIP_FILE_CHECKS is enabled. This bypasses strict path validation for tutorial temporary directories. DO NOT USE IN PRODUCTION.")
 
     # Default to CI mode (Mock) if not specified
-    # We check existence here, strict validation happens in detect_mode
     if "CI" not in os.environ:
         os.environ["CI"] = "true"
 
@@ -247,21 +245,20 @@ def config_explanation(mo):
         **Detailed Parameter Explanations:**
 
         *   **`gamma_threshold` (Extrapolation Grade Limit)**:
-            This is a critical hyperparameter for the Active Learning loop. It defines the "safe" limit for extrapolation.
-            *   **Definition**: $\gamma$ is a measure of how different a new atomic environment is from those seen in the training set (based on D-optimality).
-            *   **Mechanism**: During Molecular Dynamics (MD) simulations, the system calculates $\gamma$ at every step. If $\gamma > \gamma_{threshold}$, the potential is considered "uncertain".
-            *   **Action**: The simulation **halts**, and the high-uncertainty structure is saved. It is then sent to the Oracle (DFT) for accurate labeling and added to the training set. This "closes the loop," allowing the potential to learn from its own mistakes.
+            This is a critical hyperparameter for the Active Learning loop.
+
+            **Analogy: The "Safe Zone" vs. "Uncharted Territory"**
+            Think of the ML potential as a hiker with a map (the training data).
+            *   **$\gamma$ (Gamma)** represents how far the current location is from the known paths on the map.
+            *   **Low $\gamma$**: The hiker is on a known trail (Safe Zone). Predictions are reliable.
+            *   **High $\gamma$**: The hiker is wandering into the wilderness (Uncharted Territory). Predictions are likely wrong.
+            *   **Action**: When $\gamma > \gamma_{threshold}$, the hiker stops and asks for directions (calls the DFT Oracle). The new path is then added to the map (Training Set).
+
             *   **Values**:
                 *   Mock Mode: `0.5` (Lower to trigger halts frequently for demonstration).
                 *   Real Mode: `2.0` (Standard production value).
 
-        *   `n_active_set_select`: The number of structures to select from the candidate pool using D-optimality. We pick the most informative ones to minimize DFT costs.
-
-        **Configuration Trade-offs:**
-        *   **Mock Mode (CI)**: `max_cycles=2`, `n_local_candidates=5`. This ensures the tutorial finishes in seconds while still exercising the code paths.
-        *   **Real Mode**: `max_cycles=10`, `n_local_candidates=50`. This provides enough iterations and candidates to actually converge the physical potential, which would take hours on a cluster.
-
-        It also manages a temporary workspace to ensure no files are left behind after the tutorial.
+        *   `n_active_set_select`: The number of structures to select from the candidate pool using D-optimality (MaxVol).
         """
     )
     return
@@ -277,16 +274,12 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
 
     if HAS_PYACEMAKER:
         # Setup Configuration
-        # We use a temporary directory context manager to ensure cleanup.
-        # By assigning it to a variable returned by the cell, we keep it alive
-        # for the session.
         tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_")
         tutorial_dir = Path(tutorial_tmp_dir.name)
 
         mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
 
         # Check Pseudopotentials
-        # Ensure UPF files exist for the simulation.
         pseudos = {
             "Fe": "Fe.pbe.UPF",
             "Pt": "Pt.pbe.UPF",
@@ -295,7 +288,6 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
         }
 
         # In Mock Mode, we create dummy files inside the safe temporary directory
-        # to ensure strict configuration validation passes without using risky skips.
         if IS_CI:
             mo.md(
                 """
@@ -305,8 +297,8 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
                 **The system is generating dummy `.UPF` files.**
 
                 *   These files contain **no valid physical data**.
-                *   They exist solely to pass file-existence checks during configuration validation in CI/Mock environments.
-                *   **DO NOT** use these files for actual DFT calculations; they will cause instant convergence failures or garbage results.
+                *   They are marked with `<WARNING>` tags.
+                *   **DO NOT** use these files for actual DFT calculations.
                 :::
                 """
             )
@@ -314,19 +306,24 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
                 path = tutorial_dir / filename
                 if not path.exists():
                     print(f"WARNING: Creating dummy pseudopotential for {element}: {filename}.")
-                    # Create valid minimal XML to satisfy parsers
-                    content = '<UPF version="2.0.1">\n  <PP_INFO>\n    Generated by PYACEMAKER Mock\n  </PP_INFO>\n</UPF>'
+                    # Create valid minimal XML to satisfy parsers but warn users
+                    content = (
+                        '<UPF version="2.0.1">\n'
+                        '  <PP_INFO>\n'
+                        '    Generated by PYACEMAKER Mock\n'
+                        '    <WARNING>DUMMY FILE - DO NOT USE FOR PHYSICS</WARNING>\n'
+                        '  </PP_INFO>\n'
+                        '</UPF>'
+                    )
                     with open(path, "w") as f:
                         f.write(content)
 
-                    # Verify integrity
                     if path.stat().st_size == 0:
                         print(f"Error: Failed to create dummy pseudopotential for {element}")
         else:
             # In Real Mode, verify they exist
             missing = []
             for element, filename in pseudos.items():
-                # Check both absolute path or relative to CWD
                 path_cwd = Path(filename)
                 path_tut = tutorial_dir / filename
                 if not path_cwd.exists() and not path_tut.exists():
@@ -340,8 +337,7 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
                  )
                  raise FileNotFoundError(error_msg)
 
-        # Define configuration dictionary based on mode
-        # Note: We use relative paths for pseudos assuming they are in CWD/tutorial_dir
+        # Define configuration dictionary
         config_dict = {
             "version": "0.1.0",
             "project": {
@@ -358,7 +354,7 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
                 "min_validation_size": 2,
             },
             "structure_generator": {
-                "strategy": "random",  # Use random for tutorial simplicity
+                "strategy": "random",
                 "initial_exploration": "random",
             },
             "oracle": {
@@ -367,17 +363,17 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
                         k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()
                     }
                 },
-                "mock": IS_CI,  # Mock DFT in CI mode
+                "mock": IS_CI,
             },
             "trainer": {
                 "potential_type": "pace",
-                "mock": IS_CI,  # Mock Trainer in CI mode
+                "mock": IS_CI,
                 "max_epochs": 1 if IS_CI else 100,
                 "batch_size": 2 if IS_CI else 32,
             },
             "dynamics_engine": {
                 "engine": "lammps",
-                "mock": IS_CI,  # Mock MD in CI mode
+                "mock": IS_CI,
                 "gamma_threshold": 0.5,
                 "timestep": 0.001,
                 "n_steps": 100 if IS_CI else 10000,
@@ -391,7 +387,7 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
         # Create Configuration Object
         config = PYACEMAKERConfig(**config_dict)
 
-        # Create data directory manually since we are mocking file structure
+        # Create data directory manually
         (tutorial_dir / "data").mkdir(exist_ok=True, parents=True)
 
     return config, config_dict, pseudos, tutorial_dir, tutorial_tmp_dir
@@ -404,19 +400,6 @@ def phase_1_markdown(mo):
         ## Step 4: Phase 1 - Active Learning Loop
 
         This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
-
-        **Key Concepts:**
-
-        *   **Extrapolation Grade ($\gamma$):**
-            This is the "Uncertainty Score" of the potential for a given atomic configuration.
-            *   It is calculated using the **D-Optimality** criterion on the linear basis functions of the ACE potential.
-            *   Mathematically, if $\mathbf{B}$ is the basis matrix of the training set, and $\mathbf{b}$ is the basis vector of a new structure, $\gamma = \mathbf{b}^T (\mathbf{B}^T \mathbf{B})^{-1} \mathbf{b}$.
-            *   **Role**: If $\gamma > \gamma_{threshold}$ during MD, the simulation is halted. The structure is considered "novel" and sent to the Oracle (DFT) for labeling.
-
-        *   **Active Set Optimization (MaxVol):**
-            Instead of training on every single snapshot, we select an **Optimal Active Set**.
-            *   We use the **MaxVol** algorithm to find the subset of structures that maximizes the determinant of the information matrix.
-            *   This ensures we only train on the most mathematically distinct structures, preventing overfitting and reducing computational cost.
 
         **The Loop Steps:**
         1.  **Generation:** Create new candidate atomic structures.
@@ -444,7 +427,7 @@ def initialize_orchestrator(HAS_PYACEMAKER, Orchestrator, config):
             print("Orchestrator Initialized.")
         except Exception as e:
             print(f"Error initializing Orchestrator: {e}")
-    return orchestrator
+    return orchestrator,
 
 
 @app.cell
@@ -454,14 +437,6 @@ def active_learning_explanation(mo):
         ### Step 5: Running the Active Learning Loop
 
         The code below demonstrates a "Cold Start" followed by the main active learning cycles.
-
-        **Component Deep Dive:**
-
-        *   `metadata_to_atoms(metadata)`:
-            This utility function converts internal `StructureMetadata` objects (which hold features, energy, forces) back into standard `ase.Atoms` objects. This is crucial for interfacing with the `DatasetManager` and external tools like `pace_train`.
-
-        *   **Cold Start**: Manually generates initial structures and calculates their energies to bootstrap the dataset.
-        *   **Main Loop**: Calls `orchestrator.run_cycle()` repeatedly to improve the potential.
         """
     )
     return
@@ -476,7 +451,6 @@ def step5_active_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
     initial_structures = None
     result = None
     results = []
-
 
     should_run = True
     if not HAS_PYACEMAKER:
@@ -559,17 +533,6 @@ def phase_2_markdown(mo):
         ## Step 7: Phase 2 - Dynamic Deposition (MD)
 
         Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
-
-        **Scientific Concept: Hybrid Potentials**
-        Machine Learning potentials like ACE are accurate but can be unstable at very short interatomic distances (high energy collisions). To fix this, we use a **Hybrid Potential**:
-        *   **ACE**: Handles standard bonding and interactions (Accuracy).
-        *   **ZBL (Ziegler-Biersack-Littmark)**: A physics-based repulsive potential that kicks in at very short range to prevent atoms from fusing (Stability).
-
-        **PotentialHelper Class:**
-        The `PotentialHelper` class below is a bridge between Python/ASE and LAMMPS.
-        *   It reads the trained potential file (`.yace` or `.pot`).
-        *   It automates the generation of complex LAMMPS input commands, specifically handling the `pair_style hybrid/overlay` logic needed to seamlessly mix ACE and ZBL.
-        *   It ensures atom types in Python match the atom types in LAMMPS.
         """
     )
     return
@@ -586,7 +549,6 @@ def dynamic_deposition(
     orchestrator,
     plot_atoms,
     plt,
-    results, # Explicit dependency
     surface,
     tutorial_dir,
     write,
@@ -603,11 +565,11 @@ def dynamic_deposition(
     x = None
     y = None
     z = None
-    n_deposition_steps = 5  # PARAMETER: Number of atoms to deposit. Low for tutorial speed.
-
+    n_deposition_steps = 5
+    valid_pos = False # Initialize safely
 
     if HAS_PYACEMAKER and orchestrator:
-        # Verify current potential exists and file is present
+        # Verify current potential exists
         potential = orchestrator.current_potential
         if not potential:
             print("Warning: No potential trained. Using fallback logic for demo.")
@@ -653,7 +615,7 @@ def dynamic_deposition(
                         :::
                         """
                     )
-                    raise e # Do not fallback to mock logic on error
+                    raise e
             else:
                  print("Error: No potential available for Real Mode simulation.")
 
@@ -664,8 +626,6 @@ def dynamic_deposition(
             cmds = None
 
         # 3. Simulate Deposition (Visualization)
-        # We use ASE random generation to create a visual result for the user in the notebook.
-        # This acts as a proxy for the actual MD trajectory result.
         rng = np.random.default_rng(42)
 
         for _ in range(n_deposition_steps):
@@ -677,17 +637,14 @@ def dynamic_deposition(
             symbol = rng.choice(["Fe", "Pt"])
 
             # Physics Check (Mock): Ensure no overlap < 1.5 A
-            # Simple rejection sampling
             max_attempts = 10
             valid_pos = False
             for _attempt in range(max_attempts):
-                # Calculate distances to existing atoms
                 dists = np.linalg.norm(deposited_structure.positions - np.array([x, y, z]), axis=1)
                 if np.all(dists > 1.5):
                     valid_pos = True
                     break
                 else:
-                    # Retry position
                     z += 0.5
 
             if valid_pos:
@@ -740,17 +697,6 @@ def phase_3_markdown(mo):
     mo.md(
         """
         ## Step 8: Phase 3 - Long-Term Ordering (aKMC)
-
-        **The Problem:** Standard MD is limited to nanoseconds. The ordering of Fe-Pt into the L10 phase (which gives it high magnetic anisotropy) happens over milliseconds or hours.
-
-        **The Solution:** Adaptive Kinetic Monte Carlo (aKMC).
-        *   aKMC searches for saddle points on the potential energy surface to find transition states.
-        *   It allows the system to "hop" between stable states, extending the timescale to real-world relevance.
-
-        **Order Parameter:**
-        The plot below shows the simulated rise in the **Long-Range Order (LRO) Parameter**, often denoted as $S$.
-        *   **$S=0$**: Disordered (Random alloy). Atoms are randomly distributed.
-        *   **$S=1$**: Perfectly Ordered. Fe and Pt atoms form alternating layers (L10 structure).
         """
     )
     return
@@ -761,8 +707,6 @@ def akmc_analysis(np, plt):
     print("Phase 3: Analysis of Long-Term Ordering (aKMC)")
 
     # Mock Data: Order Parameter vs Time
-    # Order Parameter (0 = Disordered, 1 = Perfect L10)
-    # Time is in microseconds (us)
     time_steps = np.linspace(0, 1e6, 50)
 
     # Sigmoid function to simulate ordering transition
@@ -785,21 +729,7 @@ def conclusion_markdown(mo):
         """
         ## Conclusion
 
-        In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**:
-        1.  **Automation**: The system autonomously improved the potential via Active Learning.
-        2.  **Integration**: We saw how the Orchestrator bridges DFT (Oracle), ML (Trainer), and MD (Dynamics).
-        3.  **Application**: We applied the potential to a realistic surface deposition scenario.
-
-        **Run in Real Mode:**
-        To run this tutorial with actual physics simulations (requires Quantum Espresso and LAMMPS):
-
-        1.  Open a terminal.
-        2.  Run the command:
-            ```bash
-            CI=false uv run marimo run tutorials/UAT_AND_TUTORIAL.py
-            ```
-
-        The tutorial workspace created in this session will be automatically cleaned up upon exit.
+        In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**.
         """
     )
     return
@@ -820,9 +750,8 @@ def cleanup_explanation(mo):
 
 @app.cell
 def cleanup(tutorial_tmp_dir):
-    # Explicit cleanup hook, though context manager handles it.
-    # This cell ensures we can force cleanup if the kernel is restarted without exit.
-    if tutorial_tmp_dir:
+    # Explicit cleanup hook
+    if tutorial_tmp_dir and hasattr(tutorial_tmp_dir, 'cleanup'):
         try:
             tutorial_tmp_dir.cleanup()
             print("Cleanup: Temporary directory removed.")
@@ -833,7 +762,6 @@ def cleanup(tutorial_tmp_dir):
 
 @app.cell
 def import_common_libs():
-    # Import standard libraries for use in type hints or direct access in marimo variables
     import os
     import sys
     import importlib.util
