@@ -195,7 +195,15 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
                 ::: error
                 **Import Error:** {e}
 
-                The package was found but failed to import. Check dependencies.
+                The `pyacemaker` package was found but failed to import. This usually means a required dependency (e.g., `ase`, `numpy`, `scipy`) is missing or incompatible.
+
+                **Solution:**
+                Please verify your environment setup:
+                ```bash
+                uv sync
+                # OR
+                pip install -e .[dev]
+                ```
                 :::
                 """
             )
