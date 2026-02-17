@@ -5,7 +5,8 @@ app = marimo.App()
 
 
 @app.cell
-def introduction_markdown(mo):
+def introduction_markdown():
+    import marimo as mo
     mo.md(
         r"""
         # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
@@ -48,8 +49,8 @@ def setup_explanation(mo):
 
 
 @app.cell
-def imports_and_setup(os, sys, Path):
-    import marimo as mo
+def imports_and_setup(os, sys, Path, mo):
+    import marimo as mo_inner
     import shutil
     import tempfile
     import matplotlib.pyplot as plt
@@ -78,7 +79,14 @@ def imports_and_setup(os, sys, Path):
             sys.path.append(str(src_path))
             print(f"Added {src_path} to sys.path")
     else:
-        print(f"Warning: 'src/pyacemaker' not found in {possible_src_paths}. Relying on installed package.")
+        mo.md(
+            f"""
+            ::: warning
+            **Warning:** 'src/pyacemaker' not found in {possible_src_paths}.
+            Relying on installed package. If not installed, subsequent cells will fail.
+            :::
+            """
+        )
 
     # Set environment variables BEFORE importing pyacemaker to affect CONSTANTS
     # Bypass strict file checks for tutorial temporary directories
@@ -116,8 +124,14 @@ def imports_and_setup(os, sys, Path):
         print(f"Successfully imported pyacemaker from {pyacemaker.__file__}")
 
     except ImportError as e:
-        print("ERROR: PYACEMAKER is not installed or import failed.")
-        print(f"Details: {e}")
+        mo.md(
+            f"""
+            ::: error
+            **ERROR: PYACEMAKER is not installed or import failed.**
+            Details: {e}
+            :::
+            """
+        )
         # We do NOT define dummy classes here to fail fast if critical dependencies are missing.
         # However, for the notebook to not crash entirely on load, we set the flag.
         HAS_PYACEMAKER = False
@@ -133,7 +147,7 @@ def imports_and_setup(os, sys, Path):
         StructureMetadata,
         bulk,
         metadata_to_atoms,
-        mo,
+        mo_inner,
         np,
         plot_atoms,
         plt,
@@ -443,7 +457,8 @@ def run_active_learning_loop(HAS_PYACEMAKER, metadata_to_atoms, orchestrator):
                 # Here, we demonstrate how to use the underlying components directly to show
                 # how data is generated and fed into the system.
 
-                if not orchestrator.dataset_path.exists():
+                # Check for None explicitly on access if orchestrator might be partially initialized
+                if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
                     print("Running Cold Start (Manual Demonstration)...")
 
                     # 1. Generate Initial Structures
@@ -468,21 +483,22 @@ def run_active_learning_loop(HAS_PYACEMAKER, metadata_to_atoms, orchestrator):
 
                 # --- MAIN LOOP ---
                 # Now we use the orchestrator to run the automated cycles.
-                for i in range(orchestrator.config.orchestrator.max_cycles):
-                    print(f"--- Cycle {i+1} ---")
+                if orchestrator.config and orchestrator.config.orchestrator:
+                    for i in range(orchestrator.config.orchestrator.max_cycles):
+                        print(f"--- Cycle {i+1} ---")
 
-                    # Execute one full cycle (Train -> Validate -> Explore -> Label)
-                    result = orchestrator.run_cycle()
-                    results.append(result)
+                        # Execute one full cycle (Train -> Validate -> Explore -> Label)
+                        result = orchestrator.run_cycle()
+                        results.append(result)
 
-                    print(f"Cycle {i+1} Status: {result.status}")
-                    if result.error:
-                        print(f"Error: {result.error}")
+                        print(f"Cycle {i+1} Status: {result.status}")
+                        if result.error:
+                            print(f"Error: {result.error}")
 
-                    # In tutorial, we might break early if converged or failed
-                    if str(result.status).upper() == "CONVERGED":
-                        print("Converged!")
-                        break
+                        # In tutorial, we might break early if converged or failed
+                        if str(result.status).upper() == "CONVERGED":
+                            print("Converged!")
+                            break
             except Exception as e:
                 print(f"Error during active learning loop: {e}")
 
