@@ -481,49 +481,35 @@ def active_learning_md(mo):
 
 
 @app.cell
-def run_simulation(HAS_PYACEMAKER, Orchestrator, PathRef, config, metadata_to_atoms, mo):
+def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
     orchestrator = None
     results = [] # Define at start to ensure it exists in cell scope
+
+    # Note: We rely on the high-level API orchestrator.run() which encapsulates
+    # structure generation, oracle computation, and dataset management.
+    # This avoids exposing internal sub-modules in the tutorial.
 
     if HAS_PYACEMAKER:
         try:
             orchestrator = Orchestrator(config)
             print("Orchestrator Initialized.")
 
-            print("Starting Active Learning...")
+            print("Starting Active Learning Pipeline...")
 
-            # Robust attribute checking
-            attributes_ok = True
-            if not hasattr(orchestrator, 'dataset_path'):
-                 print("Error: Orchestrator is missing 'dataset_path' attribute.")
-                 attributes_ok = False
-            if not hasattr(orchestrator, 'dataset_manager'):
-                 print("Error: Orchestrator is missing 'dataset_manager' attribute.")
-                 attributes_ok = False
+            # Use the high-level run() method to execute the full pipeline
+            # This handles cold start, training, validation, exploration, and labeling automatically.
+            module_result = orchestrator.run()
 
-            # Check for util function availability
-            if metadata_to_atoms is None or not callable(metadata_to_atoms):
-                 print("Error: metadata_to_atoms utility is not available.")
-                 attributes_ok = False
+            print(f"Pipeline finished with status: {module_result.status}")
 
-            if attributes_ok:
-                # Cold Start
-                dataset_path = PathRef(orchestrator.dataset_path) if orchestrator.dataset_path else None
-                if dataset_path and not dataset_path.exists():
-                    print("Running Cold Start...")
-                    initial = orchestrator.structure_generator.generate_initial_structures()
-                    computed = orchestrator.oracle.compute_batch(initial)
-                    atoms_stream = (metadata_to_atoms(s) for s in computed)
-                    orchestrator.dataset_manager.save_iter(atoms_stream, dataset_path, mode="ab", calculate_checksum=False)
+            # Extract cycle history from metrics for visualization
+            # The 'history' field was added to metrics in orchestrator.py
+            metrics_dict = module_result.metrics.model_dump()
+            results = metrics_dict.get("history", [])
 
-                # Cycles
-                for i in range(orchestrator.config.orchestrator.max_cycles):
-                    print(f"--- Cycle {i+1} ---")
-                    res = orchestrator.run_cycle()
-                    results.append(res)
-                    if str(res.status).upper() == "CONVERGED":
-                        print("Converged!")
-                        break
+            if not results:
+                 print("Warning: No cycle history found in results.")
+
         except Exception as e:
             mo.md(f"::: error\n**Runtime Error:** {e}\n:::")
             print(f"Critical Runtime Error: {e}") # Ensure logic sees this too if not in UI
@@ -553,9 +539,12 @@ def step6_md(mo):
 def visualize(HAS_PYACEMAKER, plt, results):
     if HAS_PYACEMAKER and results:
         rmse_values = []
-        for r in results:
-            v = getattr(r.metrics, "energy_rmse", 0.0)
-            if v == 0.0: v = r.metrics.model_dump().get("energy_rmse", 0.0)
+        for metrics in results:
+            # results contains Metrics objects directly now
+            # Metrics allows extra fields, so we check attribute or dict dump
+            v = getattr(metrics, "energy_rmse", 0.0)
+            if v == 0.0 and hasattr(metrics, "model_dump"):
+                v = metrics.model_dump().get("energy_rmse", 0.0)
             rmse_values.append(v)
 
         plt.figure(figsize=(8, 4))
@@ -587,14 +576,16 @@ def step7_md(mo):
 def deposition_explanation(mo):
     mo.md(
         """
-        ### Deposition Simulation
+        ### Deposition Simulation & PotentialHelper
 
         The `run_deposition` function performs the following tasks:
 
         1.  **Environment Check**: Determines if we are in Mock Mode or Real Mode.
         2.  **Substrate Setup**: Creates an MgO (001) slab using ASE `bulk` and `surface` tools.
-        3.  **Real Mode Logic**: If a trained potential exists, it generates the necessary `in.lammps` input files to run a physical MD simulation using `PotentialHelper`.
-        4.  **Mock/Visualization Logic**: Regardless of mode, it performs a Python-based stochastic placement of Fe and Pt atoms above the surface. This allows us to visualize the *expected* geometry of the deposition process immediately in the notebook, without waiting for a potentially long-running MD job.
+        3.  **Real Mode Logic (PotentialHelper)**: If a trained potential exists, we use the `PotentialHelper` class.
+            *   **Purpose**: `PotentialHelper` abstracts the complexity of generating LAMMPS `pair_style` and `pair_coeff` commands for hybrid potentials (e.g., combining the MLIP with ZBL for close-range repulsion).
+            *   **Usage**: It takes the potential file path and element list, returning the correct LAMMPS commands to be injected into the input file.
+        4.  **Mock/Visualization Logic**: Regardless of mode, it performs a Python-based stochastic placement of Fe and Pt atoms above the surface. This allows us to visualize the *expected* geometry of the deposition process immediately in the notebook.
         5.  **Output**: Saves the structure to `deposition_md/final.xyz` for analysis.
         """
     )

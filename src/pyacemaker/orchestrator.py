@@ -133,11 +133,13 @@ class Orchestrator(IOrchestrator):
 
         # Main Loop
         max_cycles = self.config.orchestrator.max_cycles
+        cycle_history = []
         while self.cycle_count < max_cycles:
             self.cycle_count += 1
             self.logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
 
             result = self.run_cycle()
+            cycle_history.append(result.metrics)
 
             if result.status == CycleStatus.CONVERGED:
                 self.logger.info("Convergence reached!")
@@ -146,13 +148,17 @@ class Orchestrator(IOrchestrator):
                 self.logger.error(f"Cycle failed! Reason: {result.error}")
                 return ModuleResult(
                     status=CycleStatus.FAILED,
-                    metrics=Metrics.model_validate({"cycles": self.cycle_count}),
+                    metrics=Metrics.model_validate(
+                        {"cycles": self.cycle_count, "history": cycle_history}
+                    ),
                 )
 
         self.logger.info("Pipeline completed")
         return ModuleResult(
             status="success",
-            metrics=Metrics.model_validate({"cycles": self.cycle_count}),
+            metrics=Metrics.model_validate(
+                {"cycles": self.cycle_count, "history": cycle_history}
+            ),
         )
 
     def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
