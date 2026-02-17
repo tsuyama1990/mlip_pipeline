@@ -750,7 +750,7 @@ def run_analysis(mo, np, plt):
 @app.cell
 def summary_md(mo):
     mo.md(
-        """
+        r"""
         ## Tutorial Summary & Next Steps
 
         Congratulations! You have successfully run the **PYACEMAKER** automated pipeline.
