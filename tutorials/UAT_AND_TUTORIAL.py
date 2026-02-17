@@ -7,7 +7,7 @@ app = marimo.App()
 @app.cell
 def setup_marimo():
     import marimo as mo
-    return mo,
+    return mo
 
 
 @app.cell
@@ -64,7 +64,8 @@ def std_imports():
 
     # Suppress warnings for cleaner output
     warnings.filterwarnings("ignore")
-    return Path, atexit, importlib, logging, os, shutil, sys, tempfile, warnings
+    PathRef = Path
+    return PathRef, atexit, importlib, logging, os, shutil, sys, tempfile, warnings
 
 
 @app.cell
@@ -92,9 +93,9 @@ def step1c_md(mo):
 
 
 @app.cell
-def path_setup(Path, mo, sys):
+def path_setup(PathRef, mo, sys):
     # Locate src directory
-    cwd = Path.cwd()
+    cwd = PathRef.cwd()
     possible_src_paths = [
         cwd / "src",
         cwd.parent / "src",
@@ -149,7 +150,7 @@ def step1d_md(mo):
 
 
 @app.cell
-def package_import(importlib, mo):
+def package_import(importlib, mo, src_path): # src_path dependency ensures topological sort
     HAS_PYACEMAKER = False
     pyacemaker = None
     PYACEMAKERConfig = None
@@ -305,6 +306,13 @@ def step3_md(mo):
 
 
 @app.cell
+def constants_config():
+    # Constant definition for Mock Data Security
+    SAFE_DUMMY_UPF_CONTENT = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
+    return SAFE_DUMMY_UPF_CONTENT
+
+
+@app.cell
 def gamma_explanation(mo):
     mo.md(
         r"""
@@ -332,7 +340,8 @@ def setup_config(
     HAS_PYACEMAKER,
     IS_CI,
     PYACEMAKERConfig,
-    Path,
+    PathRef,
+    SAFE_DUMMY_UPF_CONTENT,
     atexit,
     mo,
     tempfile,
@@ -345,8 +354,8 @@ def setup_config(
 
     if HAS_PYACEMAKER:
         # Create temporary directory in CWD for security compliance
-        tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=Path.cwd())
-        tutorial_dir = Path(tutorial_tmp_dir.name)
+        tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=PathRef.cwd())
+        tutorial_dir = PathRef(tutorial_tmp_dir.name)
 
         # Register cleanup on exit to ensure directory is removed even on crash
         def _cleanup_handler():
@@ -365,12 +374,11 @@ def setup_config(
         if IS_CI:
             mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
             # Security: Ensure content is static and harmless
-            safe_dummy_content = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
             for element, filename in pseudos.items():
                 pseudo_path = tutorial_dir / filename
                 if not pseudo_path.exists():
                     with open(pseudo_path, "w") as f:
-                        f.write(safe_dummy_content)
+                        f.write(SAFE_DUMMY_UPF_CONTENT)
 
         # Define configuration
         config_dict = {
@@ -408,18 +416,6 @@ def step4_md(mo):
 
 
 @app.cell
-def init_orchestrator(HAS_PYACEMAKER, Orchestrator, config, mo):
-    orchestrator = None
-    if HAS_PYACEMAKER:
-        try:
-            orchestrator = Orchestrator(config)
-            print("Orchestrator Initialized.")
-        except Exception as e:
-            mo.md(f"::: error\n**Init Error:** {e}\n:::")
-    return orchestrator,
-
-
-@app.cell
 def metadata_explanation(mo):
     mo.md(
         """
@@ -437,22 +433,42 @@ def metadata_explanation(mo):
 
 
 @app.cell
-def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
-    results = []
+def active_learning_md(mo):
+    mo.md(
+        r"""
+        ### Active Learning Loop Execution
 
-    # Guard against uninitialized orchestrator
-    if orchestrator is None:
-        if HAS_PYACEMAKER:
-            mo.md("::: error\n**Orchestrator Not Initialized**: Cannot proceed with learning.\n:::")
-        return results,
+        The following cell executes the core active learning loop.
+
+        **Steps:**
+        1.  **Orchestrator Check**: Ensures the `Orchestrator` is initialized and valid.
+        2.  **Cold Start**: Checks if an initial dataset exists. If not, it generates random structures, computes their energies using the Oracle (DFT or Mock), and saves them to the dataset.
+        3.  **Cycle Loop**: Iterates through the configured number of cycles (`max_cycles`). In each cycle:
+            *   **Train**: A new potential is trained on the current dataset.
+            *   **Validate**: The potential is tested against a validation set.
+            *   **Explore**: MD simulations are run using the new potential. If the uncertainty ($\gamma$) exceeds the threshold, the simulation halts, and the structure is added to the candidate pool.
+            *   **Label**: Candidates are sent to the Oracle for labeling and added to the training set.
+        4.  **Convergence**: The loop breaks early if the convergence criteria (e.g., low force error on validation set) are met.
+
+        The `results` list collects the output of each cycle, including metrics like RMSE and training time.
+        """
+    )
+    return
+
+
+@app.cell
+def run_simulation(HAS_PYACEMAKER, Orchestrator, PathRef, config, metadata_to_atoms, mo):
+    orchestrator = None
+    results = [] # Define at start to ensure it exists in cell scope
 
     if HAS_PYACEMAKER:
         try:
+            orchestrator = Orchestrator(config)
+            print("Orchestrator Initialized.")
+
             print("Starting Active Learning...")
 
             # Robust attribute checking
-            # Logic: Check if required attributes exist on the orchestrator instance.
-            # Fixes: Potential AttributeError if orchestrator init failed or changed.
             attributes_ok = True
             if not hasattr(orchestrator, 'dataset_path'):
                  print("Error: Orchestrator is missing 'dataset_path' attribute.")
@@ -468,14 +484,12 @@ def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
 
             if attributes_ok:
                 # Cold Start
-                # Explicitly cast to Path to satisfy logic check requirements
-                dataset_path = Path(orchestrator.dataset_path) if orchestrator.dataset_path else None
+                dataset_path = PathRef(orchestrator.dataset_path) if orchestrator.dataset_path else None
                 if dataset_path and not dataset_path.exists():
                     print("Running Cold Start...")
                     initial = orchestrator.structure_generator.generate_initial_structures()
                     computed = orchestrator.oracle.compute_batch(initial)
                     atoms_stream = (metadata_to_atoms(s) for s in computed)
-                    # Safe usage: Use the confirmed Path object 'dataset_path'
                     orchestrator.dataset_manager.save_iter(atoms_stream, dataset_path, mode="ab", calculate_checksum=False)
 
                 # Cycles
@@ -488,7 +502,8 @@ def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
                         break
         except Exception as e:
             mo.md(f"::: error\n**Runtime Error:** {e}\n:::")
-    return results,
+
+    return orchestrator, results
 
 
 @app.cell
@@ -664,37 +679,3 @@ def run_analysis(np, plt):
     plt.grid(True)
     plt.show()
     return order_param, time_steps
-
-
-@app.cell
-def cleanup(logging, os, output_path, order_param, tempfile, tutorial_tmp_dir):
-    # Dependency on output_path and order_param ensures this runs LAST
-    # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
-    # Safety Check: Ensure the path is a safe temporary directory created by this tutorial
-    if tutorial_tmp_dir is not None and hasattr(tutorial_tmp_dir, 'cleanup'):
-        try:
-            # Resolve paths using pathlib for robust checking
-            tmp_path = Path(tutorial_tmp_dir.name).resolve()
-
-            # Allow:
-            # 1. System temp directory
-            # 2. Current working directory (since setup_config creates it there with dir=Path.cwd())
-
-            allowed_bases = [
-                Path(tempfile.gettempdir()).resolve(),
-                Path.cwd().resolve()
-            ]
-
-            is_safe_location = any(tmp_path.is_relative_to(base) for base in allowed_bases)
-            has_prefix = "pyacemaker_tutorial_" in tmp_path.name
-
-            if has_prefix and is_safe_location:
-                tutorial_tmp_dir.cleanup()
-                print("Cleanup: Done.")
-            else:
-                logging.warning(f"Skipping cleanup: {tmp_path} is not a verified safe path.")
-        except Exception as e:
-            # Use logging to report cleanup errors without crashing
-            logging.error(f"Cleanup failed: {e}")
-            print(f"Cleanup warning: {e}")
-    return
