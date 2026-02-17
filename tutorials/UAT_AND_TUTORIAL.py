@@ -328,6 +328,7 @@ def gamma_explanation(mo):
         2.  **Explore**: Run Molecular Dynamics (MD) simulations.
         3.  **Detect Uncertainty**: At every MD step, we calculate the **Extrapolation Grade ($\gamma$)**.
             *   $\gamma$ represents the reliability of the potential. It is calculated as the **distance of the current atomic environment from the training set in feature space** (using the ACE basis).
+            *   **Analogy**: Imagine navigating a map. The training data are the known paths. $\gamma$ is how far you stray from these paths.
             *   **Example**: If the potential was trained only on bulk crystals, and the simulation encounters a surface, $\gamma$ will be high because "surface" environments are far from "bulk" environments in feature space.
             *   If $\gamma < \text{threshold}$ (e.g., 0.5): The simulation continues (Safe, low uncertainty).
             *   If $\gamma > \text{threshold}$ (e.g., 0.5): The simulation **halts**. This means the atomic environment is significantly different (more than 0.5 units away) from the training data, indicating high uncertainty.
