@@ -559,7 +559,7 @@ def run_deposition(
         output_path = md_work_dir / "final.xyz"
         write(output_path, deposited_structure)
 
-    return deposited_structure, n_atoms, output_path
+    return deposited_structure, output_path
 
 
 @app.cell
