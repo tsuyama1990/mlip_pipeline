@@ -286,12 +286,12 @@ def check_dependencies(os, shutil, mo):
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
 
     # Render Status Table
-    status_md = f"""
+    status_md = f\"""
     ### System Status: **{mode_name}**
 
     | Binary | Status | Path |
     | :--- | :--- | :--- |
-    """
+    \"""
     for binary in required_binaries:
         if binary in found_binaries:
             status_md += f"| `{binary}` | ✅ Found | `{found_binaries[binary]}` |\n"
@@ -318,15 +318,26 @@ def step3_md(mo):
 
 
 @app.cell
-def constants_config():
+def constants_config(mo):
+    mo.md(
+        \"""
+        ::: danger
+        **SECURITY WARNING: MOCK DATA**
+
+        The following constant defines dummy content for Pseudopotential (`.UPF`) files.
+        This is **strictly for testing/CI environments** where real physics data is unavailable.
+        **NEVER** use these dummy files for actual scientific calculations as they will produce meaningless results.
+        :::
+        \"""
+    )
     # Constant definition for Mock Data Security
     # Includes explicit warning to prevent confusion with real data
-    SAFE_DUMMY_UPF_CONTENT = """<UPF version="2.0.1">
+    SAFE_DUMMY_UPF_CONTENT = \"""<UPF version="2.0.1">
     <PP_INFO>
         WARNING: THIS IS MOCK DATA FOR TESTING PURPOSES ONLY.
         DO NOT USE FOR REAL PHYSICS CALCULATIONS.
     </PP_INFO>
-</UPF>"""
+</UPF>\"""
     return SAFE_DUMMY_UPF_CONTENT
 
 
@@ -542,9 +553,10 @@ def visualize(HAS_PYACEMAKER, plt, results):
         for metrics in results:
             # results contains Metrics objects directly now
             # Metrics allows extra fields, so we check attribute or dict dump
-            v = getattr(metrics, "energy_rmse", 0.0)
+            # Note: Validator sets 'rmse_energy', not 'energy_rmse'
+            v = getattr(metrics, "rmse_energy", 0.0)
             if v == 0.0 and hasattr(metrics, "model_dump"):
-                v = metrics.model_dump().get("energy_rmse", 0.0)
+                v = metrics.model_dump().get("rmse_energy", 0.0)
             rmse_values.append(v)
 
         plt.figure(figsize=(8, 4))
@@ -703,3 +715,35 @@ def run_analysis(np, plt):
     plt.grid(True)
     plt.show()
     return order_param, time_steps
+
+
+@app.cell
+def summary_md(mo):
+    mo.md(
+        """
+        ## Tutorial Summary & Next Steps
+
+        Congratulations! You have successfully run the **PYACEMAKER** automated pipeline.
+
+        ### What We Achieved:
+        1.  **Orchestration**: We set up an `Orchestrator` to manage the complex lifecycle of active learning.
+        2.  **Active Learning**: The system autonomously improved a Machine Learning Potential by:
+            *   Generating structures.
+            *   Detecting high uncertainty ($\gamma$) during exploration.
+            *   Retraining on-the-fly.
+        3.  **Application**: We used the trained potential to simulate the deposition of Fe/Pt on MgO.
+        4.  **Analysis**: We visualized the L10 ordering process.
+
+        ### Expected Outputs:
+        In the `pyacemaker_tutorial_*/` directory (created in your current working directory), you will find:
+        *   `potentials/*.yace`: The final trained ACE potentials.
+        *   `data/dataset.pckl.gzip`: The accumulated training dataset.
+        *   `deposition_md/final.xyz`: The final atomic structure from the deposition simulation.
+        *   `validation/validation_report.html`: (If in Real Mode) Detailed physics validation report.
+
+        ### Next Steps:
+        *   **Run in Production**: Install Quantum Espresso and LAMMPS, set `CI=false`, and run this notebook again to generate a real, high-quality potential.
+        *   **Explore Config**: Modify `config` in Step 3 to change the material system (e.g., Al-Cu) or adjust training parameters.
+        """
+    )
+    return
