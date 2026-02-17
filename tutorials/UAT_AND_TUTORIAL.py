@@ -355,12 +355,13 @@ def setup_config(
 
         if IS_CI:
             mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
+            # Security: Ensure content is static and harmless
+            safe_dummy_content = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
             for element, filename in pseudos.items():
                 pseudo_path = tutorial_dir / filename
                 if not pseudo_path.exists():
-                    content = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
                     with open(pseudo_path, "w") as f:
-                        f.write(content)
+                        f.write(safe_dummy_content)
 
         # Define configuration
         config_dict = {
@@ -410,15 +411,32 @@ def init_orchestrator(HAS_PYACEMAKER, Orchestrator, config, mo):
 
 
 @app.cell
+def metadata_explanation(mo):
+    mo.md(
+        """
+        ### Data Conversion: `metadata_to_atoms`
+
+        The `metadata_to_atoms` function is a utility that converts the system's internal `StructureMetadata` objects (which contain provenance, labels, and features) into ASE `Atoms` objects. This is crucial for:
+        1.  Writing datasets to disk in a format compatible with Pacemaker.
+        2.  Interfacing with external simulation tools.
+        """
+    )
+    return
+
+
+@app.cell
 def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
     results = []
-    if HAS_PYACEMAKER and orchestrator:
+    if HAS_PYACEMAKER:
+        # Check if orchestrator was successfully initialized
+        if orchestrator is None:
+            mo.md("::: error\n**Orchestrator Not Initialized**: Cannot proceed with learning.\n:::")
+            return results,
+
         try:
             print("Starting Active Learning...")
 
             # Robust attribute checking
-            # Logic: Check if required attributes exist on the orchestrator instance.
-            # Fixes: Potential AttributeError if orchestrator init failed or changed.
             attributes_ok = True
             if not hasattr(orchestrator, 'dataset_path'):
                  print("Error: Orchestrator is missing 'dataset_path' attribute.")
@@ -427,9 +445,9 @@ def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
                  print("Error: Orchestrator is missing 'dataset_manager' attribute.")
                  attributes_ok = False
 
-            # Additional check for util function
-            if not callable(metadata_to_atoms):
-                 print("Error: metadata_to_atoms is not callable.")
+            # Check for util function availability
+            if metadata_to_atoms is None or not callable(metadata_to_atoms):
+                 print("Error: metadata_to_atoms utility is not available.")
                  attributes_ok = False
 
             if attributes_ok:
@@ -525,17 +543,13 @@ def run_deposition(
     Simulates the deposition process.
 
     Parameters:
-    - Atom: ASE Atom class
-    - bulk, surface: ASE builders
-    - write: ASE I/O
-    - plot_atoms: ASE visualizer
-    - np, plt: Numpy and Matplotlib
-    - HAS_PYACEMAKER: Package availability flag
-    - IS_CI: Mode flag (Mock/Real)
-    - PotentialHelper: Helper for LAMMPS input
-    - orchestrator: Main workflow object
-    - tutorial_dir: Workspace path
-    - results: Previous step output (dependency injection)
+    - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
+    - HAS_PYACEMAKER: Boolean flag if package is present
+    - IS_CI: Boolean flag for Mock vs Real mode
+    - PotentialHelper: Class to generate LAMMPS input
+    - orchestrator: The main workflow object (contains the trained potential)
+    - tutorial_dir: Path to the temporary workspace
+    - results: The output of the learning phase (used here to enforce execution order)
     """
 
     output_path = None
@@ -547,6 +561,8 @@ def run_deposition(
     if HAS_PYACEMAKER and orchestrator:
         # Robust attribute check
         potential = getattr(orchestrator, 'current_potential', None)
+        if potential is None:
+             print("Warning: No potential available from orchestrator. Deposition simulation might fail in Real Mode.")
 
         md_work_dir = tutorial_dir / "deposition_md"
         md_work_dir.mkdir(exist_ok=True)
