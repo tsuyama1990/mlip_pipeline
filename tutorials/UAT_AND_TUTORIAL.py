@@ -30,10 +30,6 @@ def intro_md(mo):
         1.  **Phase 1 (Active Learning):** Train a hybrid ACE potential for Fe-Pt-Mg-O.
         2.  **Phase 2 (MD Deposition):** Use the trained potential to simulate deposition.
         3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
-
-        **Dual-Mode Strategy:**
-        *   **Mock Mode (CI):** Fast execution using simulated data (default).
-        *   **Real Mode (Production):** Full execution using Quantum Espresso and LAMMPS.
         """
     )
     return
@@ -45,15 +41,14 @@ def step1_md(mo):
         """
         ### Step 1: Environment Setup
 
-        In this step, we configure the Python environment. We ensure the `pyacemaker` source code is accessible and import necessary libraries.
-        We also set environment variables to configure the system for this tutorial.
+        First, we import the standard library modules required for path manipulation and system operations.
         """
     )
     return
 
 
 @app.cell
-def imports_and_setup(mo):
+def std_imports():
     import os
     import sys
     import shutil
@@ -61,14 +56,42 @@ def imports_and_setup(mo):
     import atexit
     import importlib.util
     from pathlib import Path
+    return Path, atexit, importlib, os, shutil, sys, tempfile
 
+
+@app.cell
+def step1b_md(mo):
+    mo.md(
+        """
+        Next, we import the scientific stack: **NumPy** for calculations, **Matplotlib** for plotting, and **ASE (Atomic Simulation Environment)** for atomistic manipulation.
+        """
+    )
+    return
+
+
+@app.cell
+def sci_imports():
     import matplotlib.pyplot as plt
     import numpy as np
     from ase import Atoms, Atom
     from ase.visualize.plot import plot_atoms
     from ase.build import surface, bulk
     from ase.io import write
+    return Atom, Atoms, bulk, np, plot_atoms, plt, surface, write
 
+
+@app.cell
+def step1c_md(mo):
+    mo.md(
+        """
+        Now we locate the `pyacemaker` source code. This logic allows the tutorial to run even if the package is installed in editable mode or located in a parent directory.
+        """
+    )
+    return
+
+
+@app.cell
+def path_setup(Path, mo, sys):
     # Locate src directory
     cwd = Path.cwd()
     possible_src_paths = [
@@ -95,12 +118,28 @@ def imports_and_setup(mo):
             :::
             """
         )
+    return cwd, possible_src_paths, src_path
 
-    # Default to CI mode (Mock) if not specified
-    if "CI" not in os.environ:
-        os.environ["CI"] = "true"
 
-    # Pyacemaker imports with error handling
+@app.cell
+def step1d_md(mo):
+    mo.md(
+        """
+        Finally, we attempt to import the **PYACEMAKER** core modules.
+
+        If this fails, you likely need to install the package:
+        ```bash
+        uv sync
+        # OR
+        pip install -e .
+        ```
+        """
+    )
+    return
+
+
+@app.cell
+def package_import(importlib, mo):
     HAS_PYACEMAKER = False
     pyacemaker = None
     PYACEMAKERConfig = None
@@ -112,8 +151,19 @@ def imports_and_setup(mo):
     metadata_to_atoms = None
 
     spec = importlib.util.find_spec("pyacemaker")
-    if spec is None and not src_path:
-        mo.md("::: error\n**ERROR: PYACEMAKER package not found.**\n:::")
+    if spec is None:
+        mo.md(
+            """
+            ::: error
+            **ERROR: PYACEMAKER package not found.**
+
+            Please install dependencies:
+            ```bash
+            uv sync
+            ```
+            :::
+            """
+        )
     else:
         try:
             import pyacemaker
@@ -125,34 +175,26 @@ def imports_and_setup(mo):
             HAS_PYACEMAKER = True
             print(f"Successfully imported pyacemaker from {pyacemaker.__file__}")
         except Exception as e:
-            mo.md(f"::: error\n**Import Error:** {e}\n:::")
+            mo.md(
+                f"""
+                ::: error
+                **Import Error:** {e}
+
+                The package was found but failed to import. Check dependencies.
+                :::
+                """
+            )
 
     return (
-        Atom,
-        Atoms,
         CONSTANTS,
         HAS_PYACEMAKER,
         Orchestrator,
         PYACEMAKERConfig,
-        Path,
         Potential,
         PotentialHelper,
         StructureMetadata,
-        atexit,
-        bulk,
-        importlib,
         metadata_to_atoms,
-        np,
-        os,
-        plot_atoms,
-        plt,
         pyacemaker,
-        shutil,
-        src_path,
-        surface,
-        sys,
-        tempfile,
-        write,
     )
 
 
@@ -162,7 +204,9 @@ def step2_md(mo):
         """
         ### Step 2: Mode Detection
 
-        We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production).
+        We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
+        *   **Mock Mode**: Uses simulated data/functions. Safe and fast.
+        *   **Real Mode**: Tries to run QE/LAMMPS. Requires external binaries.
         """
     )
     return
@@ -171,7 +215,8 @@ def step2_md(mo):
 @app.cell
 def detect_mode(os, mo):
     # Detect Mode
-    raw_ci = os.environ.get("CI", "false").strip().lower()
+    # Default to CI/Mock mode if not explicitly set to false/0/no/off
+    raw_ci = os.environ.get("CI", "true").strip().lower()
     valid_true = ["true", "1", "yes", "on"]
     valid_false = ["false", "0", "no", "off"]
 
@@ -193,7 +238,10 @@ def step3_md(mo):
         r"""
         ### Step 3: Configuration Setup
 
-        We configure parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
+        We configure the **PYACEMAKER** system. This involves:
+        1.  Creating a temporary workspace.
+        2.  Setting up Pseudopotentials (using dummies in Mock mode).
+        3.  Defining the `PYACEMAKERConfig` object.
         """
     )
     return
@@ -286,6 +334,11 @@ def step4_md(mo):
         ## Step 4: Phase 1 - Active Learning Loop
 
         The `Orchestrator` manages the loop: Generation -> Oracle -> Training -> Exploration -> Validation.
+
+        1.  **Cold Start**: Generate initial random structures and label them.
+        2.  **Training**: Fit an ACE potential.
+        3.  **Exploration**: Run MD with `fix halt`.
+        4.  **Refinement**: If MD halts, label the bad structure and retrain.
         """
     )
     return
@@ -336,6 +389,19 @@ def run_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
 
 
 @app.cell
+def step6_md(mo):
+    mo.md(
+        """
+        ### Visualization
+
+        We plot the Root Mean Square Error (RMSE) of the energy predictions on the validation set for each cycle.
+        A downward trend indicates the potential is improving.
+        """
+    )
+    return
+
+
+@app.cell
 def visualize(HAS_PYACEMAKER, plt, results):
     if HAS_PYACEMAKER and results:
         rmse_values = []
@@ -348,14 +414,22 @@ def visualize(HAS_PYACEMAKER, plt, results):
         plt.plot(range(1, len(results)+1), rmse_values, 'b-o')
         plt.title("Training Convergence")
         plt.xlabel("Cycle")
-        plt.ylabel("RMSE")
+        plt.ylabel("RMSE (eV/atom)")
+        plt.grid(True)
         plt.show()
     return
 
 
 @app.cell
 def step7_md(mo):
-    mo.md("## Step 7: Phase 2 - Dynamic Deposition (MD)")
+    mo.md(
+        """
+        ## Step 7: Phase 2 - Dynamic Deposition (MD)
+
+        Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
+        In Real Mode, this uses the generated LAMMPS commands.
+        """
+    )
     return
 
 
@@ -371,7 +445,7 @@ def run_deposition(
     orchestrator,
     plot_atoms,
     plt,
-    results,  # Dependency injection
+    results,  # Dependency injection: Ensures this runs AFTER learning
     surface,
     tutorial_dir,
     write,
@@ -410,6 +484,8 @@ def run_deposition(
 
         plt.figure(figsize=(6, 6))
         plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
+        plt.title("Deposition Result")
+        plt.axis("off")
         plt.show()
 
         output_path = md_work_dir / "final.xyz"
@@ -420,7 +496,14 @@ def run_deposition(
 
 @app.cell
 def step8_md(mo):
-    mo.md("## Step 8: Phase 3 - Analysis (aKMC)")
+    mo.md(
+        """
+        ## Step 8: Phase 3 - Analysis (aKMC)
+
+        We analyze the long-term ordering of the deposited film.
+        The plot shows the **Order Parameter** rising from 0 (Disordered) to 1 (Ordered L10 phase) over microseconds.
+        """
+    )
     return
 
 
@@ -431,6 +514,9 @@ def run_analysis(np, plt):
     plt.figure(figsize=(8, 4))
     plt.plot(time_steps, order_param, 'r-')
     plt.title("L10 Ordering (Mock)")
+    plt.xlabel("Time (us)")
+    plt.ylabel("Order Parameter")
+    plt.grid(True)
     plt.show()
     return order_param, time_steps
 
