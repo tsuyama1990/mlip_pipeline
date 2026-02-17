@@ -58,12 +58,13 @@ def imports_and_setup(mo):
     import sys
     import shutil
     import tempfile
+    import atexit
     import importlib.util
     from pathlib import Path
 
     import matplotlib.pyplot as plt
     import numpy as np
-    from ase import Atoms
+    from ase import Atoms, Atom
     from ase.visualize.plot import plot_atoms
     from ase.build import surface, bulk
     from ase.io import write
@@ -127,6 +128,7 @@ def imports_and_setup(mo):
             mo.md(f"::: error\n**Import Error:** {e}\n:::")
 
     return (
+        Atom,
         Atoms,
         CONSTANTS,
         HAS_PYACEMAKER,
@@ -136,6 +138,7 @@ def imports_and_setup(mo):
         Potential,
         PotentialHelper,
         StructureMetadata,
+        atexit,
         bulk,
         importlib,
         metadata_to_atoms,
@@ -191,14 +194,40 @@ def step3_md(mo):
         ### Step 3: Configuration Setup
 
         We configure parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
-        Critical parameter: **`gamma_threshold`**.
         """
     )
     return
 
 
 @app.cell
-def setup_config(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
+def gamma_explanation(mo):
+    mo.md(
+        r"""
+        #### Understanding `gamma_threshold`
+
+        The **`gamma_threshold`** (Extrapolation Grade Limit) is the most critical hyperparameter in the active learning loop.
+
+        *   **Definition**: It defines the "safe zone" of the potential's applicability domain.
+        *   **Mechanism**: During MD simulations, the uncertainty ($\gamma$) of the local atomic environment is calculated at every step.
+        *   **Action**:
+            *   If $\gamma < \text{threshold}$: The simulation continues (Safe).
+            *   If $\gamma > \text{threshold}$: The simulation **halts** (Uncertainty detected). The structure is saved and sent to the Oracle (DFT) for labeling.
+        *   **Analogy**: Think of it as a "confidence interval". If the potential encounters a structure too different from what it has seen during training (high $\gamma$), it stops guessing and asks for the ground truth.
+        """
+    )
+    return
+
+
+@app.cell
+def setup_config(
+    HAS_PYACEMAKER,
+    IS_CI,
+    PYACEMAKERConfig,
+    Path,
+    atexit,
+    mo,
+    tempfile,
+):
     config = None
     config_dict = None
     pseudos = None
@@ -209,6 +238,15 @@ def setup_config(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempfile):
         # Create temporary directory in CWD for security compliance
         tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=Path.cwd())
         tutorial_dir = Path(tutorial_tmp_dir.name)
+
+        # Register cleanup on exit to ensure directory is removed even on crash
+        def _cleanup_handler():
+            try:
+                tutorial_tmp_dir.cleanup()
+                print(f"Cleanup: Removed {tutorial_dir}")
+            except Exception:
+                pass
+        atexit.register(_cleanup_handler)
 
         mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
 
@@ -271,8 +309,13 @@ def run_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
     if HAS_PYACEMAKER and orchestrator:
         try:
             print("Starting Active Learning...")
+
+            # Robust attribute checking
+            if not hasattr(orchestrator, 'dataset_path') or not hasattr(orchestrator, 'dataset_manager'):
+                 raise AttributeError("Orchestrator instance is missing required attributes.")
+
             # Cold Start
-            if not orchestrator.dataset_path.exists():
+            if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
                 print("Running Cold Start...")
                 initial = orchestrator.structure_generator.generate_initial_structures()
                 computed = orchestrator.oracle.compute_batch(initial)
@@ -318,6 +361,7 @@ def step7_md(mo):
 
 @app.cell
 def run_deposition(
+    Atom,
     HAS_PYACEMAKER,
     IS_CI,
     PotentialHelper,
@@ -336,7 +380,9 @@ def run_deposition(
     deposited_structure = None
 
     if HAS_PYACEMAKER and orchestrator:
-        potential = orchestrator.current_potential
+        # Robust attribute check
+        potential = getattr(orchestrator, 'current_potential', None)
+
         md_work_dir = tutorial_dir / "deposition_md"
         md_work_dir.mkdir(exist_ok=True)
 
@@ -356,8 +402,11 @@ def run_deposition(
         for _ in range(5):
             x, y = rng.uniform(0, substrate.cell[0,0]), rng.uniform(0, substrate.cell[1,1])
             z = substrate.positions[:,2].max() + rng.uniform(2.0, 3.0)
-            deposited_structure.append(rng.choice(["Fe", "Pt"]))
-            deposited_structure.positions[-1] = [x, y, z]
+
+            # Use proper Atom object
+            symbol = rng.choice(["Fe", "Pt"])
+            atom = Atom(symbol=symbol, position=[x, y, z])
+            deposited_structure.append(atom)
 
         plt.figure(figsize=(6, 6))
         plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
@@ -394,5 +443,5 @@ def cleanup(output_path, order_param, tutorial_tmp_dir):
             tutorial_tmp_dir.cleanup()
             print("Cleanup: Done.")
         except Exception as e:
-            print(f"Cleanup Error: {e}")
+            print(f"Cleanup warning: {e}")
     return
