@@ -31,7 +31,7 @@ mo.md(
 # %%
 mo.md(
     """
-    ### 1. Environment Setup
+    ### Step 1: Environment Setup
 
     In this step, we configure the Python environment. We ensure the `pyacemaker` source code is accessible (checking for `src/pyacemaker/__init__.py`) and import necessary libraries.
 
@@ -42,7 +42,7 @@ mo.md(
 # %%
 mo.md(
     """
-    ### 2. Mode Detection
+    ### Step 2: Mode Detection
 
     We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
 
@@ -54,7 +54,7 @@ mo.md(
 # %%
 mo.md(
     r"""
-    ### 3. Configuration Setup
+    ### Step 3: Configuration Setup
 
     The following cell sets up the **PYACEMAKER** configuration.
     It defines parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
@@ -74,7 +74,7 @@ mo.md(
 # %%
 mo.md(
     r"""
-    ## Phase 1: Active Learning Loop
+    ## Step 4: Phase 1 - Active Learning Loop
 
     This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
 
@@ -106,7 +106,7 @@ mo.md("Initializing the `Orchestrator` with the configuration defined above.")
 # %%
 mo.md(
     """
-    ### Running the Loop
+    ### Step 5: Running the Active Learning Loop
 
     The code below demonstrates a "Cold Start" followed by the main active learning cycles.
 
@@ -118,7 +118,7 @@ mo.md(
 # %%
 mo.md(
     """
-    ## Phase 2: Dynamic Deposition (MD)
+    ## Step 7: Phase 2 - Dynamic Deposition (MD)
 
     Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
 
@@ -135,7 +135,7 @@ mo.md(
 # %%
 mo.md(
     """
-    ## Phase 3: Long-Term Ordering (aKMC)
+    ## Step 8: Phase 3 - Long-Term Ordering (aKMC)
 
     **The Problem:** Standard MD is limited to nanoseconds. The ordering of Fe-Pt into the L10 phase (which gives it high magnetic anisotropy) happens over milliseconds or hours.
 
@@ -187,6 +187,7 @@ mo.md(
 # Import standard libraries for use in type hints or direct access in marimo variables
 import os
 import sys
+import importlib.util
 from pathlib import Path
 
 # %%
@@ -233,6 +234,11 @@ else:
 os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
 print("WARNING: PYACEMAKER_SKIP_FILE_CHECKS is enabled. This bypasses strict path validation for tutorial temporary directories. DO NOT USE IN PRODUCTION.")
 
+# Explicitly mock API Keys for tutorial safety
+if "MP_API_KEY" not in os.environ:
+    os.environ["MP_API_KEY"] = "dummy_key_for_tutorial"
+    os.environ["M3GNET_KEY"] = "dummy_key_for_tutorial"
+
 # Default to CI mode (Mock) if not specified
 # We check existence here, strict validation happens in detect_mode
 if "CI" not in os.environ:
@@ -249,32 +255,43 @@ StructureMetadata = None
 PotentialHelper = None
 metadata_to_atoms = None
 
-try:
-    # Verify src path is active if we are relying on it
-    if src_path and str(src_path) not in sys.path:
-         raise ImportError(f"Source directory {src_path} found but not in sys.path")
-
-    import pyacemaker
-    from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
-    from pyacemaker.orchestrator import Orchestrator
-    from pyacemaker.domain_models.models import Potential, StructureMetadata
-    from pyacemaker.modules.dynamics_engine import PotentialHelper
-    from pyacemaker.core.utils import metadata_to_atoms
-    HAS_PYACEMAKER = True
-    print(f"Successfully imported pyacemaker from {pyacemaker.__file__}")
-
-except ImportError as e:
+# Check for pyacemaker package existence using importlib
+spec = importlib.util.find_spec("pyacemaker")
+if spec is None and not src_path:
     mo.md(
         f"""
         ::: error
-        **ERROR: PYACEMAKER is not installed or import failed.**
-        Details: {e}
+        **ERROR: PYACEMAKER package not found.**
+        Please install it using `uv sync` or `pip install -e .`.
         :::
         """
     )
-    # We do NOT define dummy classes here to fail fast if critical dependencies are missing.
-    # However, for the notebook to not crash entirely on load, we set the flag.
     HAS_PYACEMAKER = False
+else:
+    try:
+        # Verify src path is active if we are relying on it
+        if src_path and str(src_path) not in sys.path:
+             raise ImportError(f"Source directory {src_path} found but not in sys.path")
+
+        import pyacemaker
+        from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
+        from pyacemaker.orchestrator import Orchestrator
+        from pyacemaker.domain_models.models import Potential, StructureMetadata
+        from pyacemaker.modules.dynamics_engine import PotentialHelper
+        from pyacemaker.core.utils import metadata_to_atoms
+        HAS_PYACEMAKER = True
+        print(f"Successfully imported pyacemaker from {pyacemaker.__file__}")
+
+    except ImportError as e:
+        mo.md(
+            f"""
+            ::: error
+            **ERROR: Import failed despite package detection.**
+            Details: {e}
+            :::
+            """
+        )
+        HAS_PYACEMAKER = False
 
 
 # %%
@@ -526,7 +543,7 @@ if HAS_PYACEMAKER:
     if not results:
         print("No results to visualize.")
     else:
-        mo.md("### Training Convergence")
+        mo.md("### Step 6: Visualizing Training Convergence")
 
         cycles = range(1, len(results) + 1)
 
