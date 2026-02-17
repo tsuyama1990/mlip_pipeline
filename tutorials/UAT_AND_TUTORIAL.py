@@ -309,14 +309,15 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
         if IS_CI:
             mo.md(
                 """
-                ::: warning
-                # ⚠️ MOCK MODE: DUMMY PSEUDOPOTENTIALS
+                ::: danger
+                # ⚠️ SECURITY & PHYSICS WARNING: MOCK MODE ACTIVE
 
-                **The system is generating dummy `.UPF` files.**
+                **The system is generating DUMMY `.UPF` files.**
 
-                *   These files contain **no valid physical data**.
-                *   They are marked with `<WARNING>` tags.
-                *   **DO NOT** use these files for actual DFT calculations.
+                *   **CONTENT**: These files contain **NO VALID PHYSICAL DATA**.
+                *   **PURPOSE**: They exist ONLY to pass file existence checks in CI/Mock environments.
+                *   **RISK**: Using these files for actual DFT calculations will result in meaningless garbage or crashes.
+                *   **TAGS**: Files are explicitly marked with `<WARNING>` tags internally.
                 :::
                 """
             )
@@ -419,6 +420,12 @@ def phase_1_markdown(mo):
 
         This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
 
+        **Active Set Optimization (MaxVol):**
+        To minimize expensive DFT calculations, we don't label every structure.
+        1.  We generate a pool of candidate structures.
+        2.  We compute the **D-Optimality** criterion for each.
+        3.  Using the **MaxVol** algorithm, we select the subset that maximizes the information gain (determinant of the Fisher information matrix).
+
         **The Loop Steps:**
         1.  **Generation:** Create new candidate atomic structures.
         2.  **Oracle (DFT):** Calculate "ground truth" energy/forces.
@@ -455,6 +462,9 @@ def active_learning_explanation(mo):
         ### Step 5: Running the Active Learning Loop
 
         The code below demonstrates a "Cold Start" followed by the main active learning cycles.
+
+        *   **Cold Start**: Initially, we have no data. We generate random structures and label them to bootstrap the potential.
+        *   **Main Loop**: The Orchestrator iteratively improves the potential by finding high-uncertainty regions.
         """
     )
     return
@@ -470,14 +480,13 @@ def step5_active_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
     result = None
     results = []
 
-    should_run = True
     if not HAS_PYACEMAKER:
-        should_run = False
+        mo.md("::: error\n**Skipping Active Learning:** Pyacemaker package missing.\n:::")
+
     elif orchestrator is None:
         mo.md("::: error\n**Error:** Orchestrator is not initialized.\n:::")
-        should_run = False
 
-    if should_run:
+    else:
         try:
             print("Starting Active Learning Cycles...")
 
@@ -600,13 +609,20 @@ def dynamic_deposition(
     n_deposition_steps = 5
     valid_pos = False # Initialize safely
 
-    if HAS_PYACEMAKER and orchestrator:
+    if not HAS_PYACEMAKER:
+         mo.md("::: error\n**Skipping Deposition:** Pyacemaker package missing.\n:::")
+
+    elif not orchestrator:
+         mo.md("::: error\n**Skipping Deposition:** Orchestrator not initialized.\n:::")
+
+    elif HAS_PYACEMAKER and orchestrator:
         # Verify current potential exists
         potential = orchestrator.current_potential
         if not potential:
             print("Warning: No potential trained. Using fallback logic for demo.")
         elif not potential.path.exists():
              print(f"Warning: Potential object exists but file not found at {potential.path}. Using fallback.")
+             # Explicitly mark potential as unusable to prevent errors
              potential = None
 
         # Setup Work Directory for MD
@@ -627,7 +643,7 @@ def dynamic_deposition(
         if not IS_CI:
             # --- REAL MODE (Production) ---
             print("Real Mode: Generating LAMMPS input using PotentialHelper.")
-            if potential:
+            if potential and potential.path.exists():
                 try:
                     # Generate LAMMPS input commands
                     helper = PotentialHelper()
@@ -700,11 +716,6 @@ def dynamic_deposition(
             print(f"Saved final structure to {output_path}")
         except Exception as e:
             print(f"Error saving structure file: {e}")
-    else:
-        if not HAS_PYACEMAKER:
-             print("Skipping Deposition: Pyacemaker not installed.")
-        elif not orchestrator:
-             print("Skipping Deposition: Orchestrator not initialized.")
 
     return (
         cmds,
@@ -729,6 +740,17 @@ def phase_3_markdown(mo):
     mo.md(
         """
         ## Step 8: Phase 3 - Long-Term Ordering (aKMC)
+
+        **The Problem:** Standard MD is limited to nanoseconds. The ordering of Fe-Pt into the L10 phase (which gives it high magnetic anisotropy) happens over milliseconds or hours.
+
+        **The Solution:** Adaptive Kinetic Monte Carlo (aKMC).
+        *   aKMC searches for saddle points on the potential energy surface to find transition states.
+        *   It allows the system to "hop" between stable states, extending the timescale to real-world relevance.
+
+        **Order Parameter ($S$):**
+        The plot below shows the simulated rise in the **Long-Range Order (LRO) Parameter**.
+        *   **$S=0$**: Disordered (Random alloy). Atoms are randomly distributed.
+        *   **$S=1$**: Perfectly Ordered. Fe and Pt atoms form alternating layers (L10 structure).
         """
     )
     return
@@ -761,7 +783,10 @@ def conclusion_markdown(mo):
         """
         ## Conclusion
 
-        In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**.
+        In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**:
+        1.  **Automation**: The system autonomously improved the potential via Active Learning.
+        2.  **Integration**: We saw how the Orchestrator bridges DFT (Oracle), ML (Trainer), and MD (Dynamics).
+        3.  **Application**: We applied the potential to a realistic surface deposition scenario.
         """
     )
     return
