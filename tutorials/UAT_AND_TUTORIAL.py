@@ -18,15 +18,15 @@ def intro_md(mo):
 
         This interactive notebook demonstrates the **PYACEMAKER** automated MLIP construction system.
 
+        **Goal**: Simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate, observe the nucleation of clusters, and visualize the L10 ordering process.
+
         **How to Run:**
         Execute this notebook using Marimo:
         ```bash
         uv run marimo run tutorials/UAT_AND_TUTORIAL.py
         ```
 
-        **Scenario:** We will simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate.
-
-        **Workflow:**
+        **Scenario:**
         1.  **Phase 1 (Active Learning):** Train a hybrid ACE potential for Fe-Pt-Mg-O.
         2.  **Phase 2 (MD Deposition):** Use the trained potential to simulate deposition.
         3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
@@ -42,6 +42,7 @@ def step1_md(mo):
         ### Step 1: Environment Setup
 
         First, we import the standard library modules required for path manipulation and system operations.
+        We also set up the random seed for reproducibility.
         """
     )
     return
@@ -56,7 +57,11 @@ def std_imports():
     import atexit
     import importlib.util
     from pathlib import Path
-    return Path, atexit, importlib, os, shutil, sys, tempfile
+    import warnings
+
+    # Suppress warnings for cleaner output
+    warnings.filterwarnings("ignore")
+    return Path, atexit, importlib, os, shutil, sys, tempfile, warnings
 
 
 @app.cell
@@ -77,6 +82,9 @@ def sci_imports():
     from ase.visualize.plot import plot_atoms
     from ase.build import surface, bulk
     from ase.io import write
+
+    # Set random seed for reproducibility
+    np.random.seed(42)
     return Atom, Atoms, bulk, np, plot_atoms, plt, surface, write
 
 
@@ -174,13 +182,21 @@ def package_import(importlib, mo):
             from pyacemaker.core.utils import metadata_to_atoms
             HAS_PYACEMAKER = True
             print(f"Successfully imported pyacemaker from {pyacemaker.__file__}")
-        except Exception as e:
+        except ImportError as e:
             mo.md(
                 f"""
                 ::: error
                 **Import Error:** {e}
 
                 The package was found but failed to import. Check dependencies.
+                :::
+                """
+            )
+        except Exception as e:
+             mo.md(
+                f"""
+                ::: error
+                **Unexpected Error:** {e}
                 :::
                 """
             )
@@ -202,18 +218,30 @@ def package_import(importlib, mo):
 def step2_md(mo):
     mo.md(
         """
-        ### Step 2: Mode Detection
+        ### Step 2: Mode Detection & Dependency Check
 
         We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
-        *   **Mock Mode**: Uses simulated data/functions. Safe and fast.
-        *   **Real Mode**: Tries to run QE/LAMMPS. Requires external binaries.
+
+        We also verify the presence of critical external binaries.
         """
     )
     return
 
 
 @app.cell
-def detect_mode(os, mo):
+def check_dependencies(os, shutil, mo):
+    # Dependency Check
+    required_binaries = ["pw.x", "lmp", "pace_train"]
+    found_binaries = {}
+    missing_binaries = []
+
+    for binary in required_binaries:
+        bin_path = shutil.which(binary)
+        if bin_path:
+            found_binaries[binary] = bin_path
+        else:
+            missing_binaries.append(binary)
+
     # Detect Mode
     # Default to CI/Mock mode if not explicitly set to false/0/no/off
     raw_ci = os.environ.get("CI", "true").strip().lower()
@@ -227,9 +255,36 @@ def detect_mode(os, mo):
     else:
         IS_CI = True # Default safe
 
+    # Force Mock Mode if binaries are missing
+    if not IS_CI and missing_binaries:
+        mo.md(
+            f"""
+            ::: warning
+            **Missing Binaries:** {', '.join(missing_binaries)}
+
+            Falling back to **Mock Mode** despite `CI={raw_ci}` because required tools are not in PATH.
+            :::
+            """
+        )
+        IS_CI = True
+
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
-    mo.md(f"### Current Mode: **{mode_name}**")
-    return IS_CI, mode_name, raw_ci, valid_false, valid_true
+
+    # Render Status Table
+    status_md = f"""
+    ### System Status: **{mode_name}**
+
+    | Binary | Status | Path |
+    | :--- | :--- | :--- |
+    """
+    for binary in required_binaries:
+        if binary in found_binaries:
+            status_md += f"| `{binary}` | ✅ Found | `{found_binaries[binary]}` |\n"
+        else:
+            status_md += f"| `{binary}` | ❌ Missing | - |\n"
+
+    mo.md(status_md)
+    return IS_CI, mode_name, raw_ci, valid_false, valid_true, found_binaries, missing_binaries
 
 
 @app.cell
@@ -251,16 +306,20 @@ def step3_md(mo):
 def gamma_explanation(mo):
     mo.md(
         r"""
-        #### Understanding `gamma_threshold`
+        #### Understanding Active Learning & Extrapolation Grade ($\gamma$)
 
-        The **`gamma_threshold`** (Extrapolation Grade Limit) is the most critical hyperparameter in the active learning loop.
+        The core of PYACEMAKER is its **Active Learning Loop**. Traditional potentials are trained on a static dataset, often failing when encountering unseen configurations. PYACEMAKER uses an iterative approach:
 
-        *   **Definition**: It defines the "safe zone" of the potential's applicability domain.
-        *   **Mechanism**: During MD simulations, the uncertainty ($\gamma$) of the local atomic environment is calculated at every step.
-        *   **Action**:
+        1.  **Train**: Build an initial potential.
+        2.  **Explore**: Run Molecular Dynamics (MD) simulations.
+        3.  **Detect Uncertainty**: At every MD step, we calculate the **Extrapolation Grade ($\gamma$)**.
+            *   $\gamma$ measures how different the current atomic environment is from the training set.
             *   If $\gamma < \text{threshold}$: The simulation continues (Safe).
-            *   If $\gamma > \text{threshold}$: The simulation **halts** (Uncertainty detected). The structure is saved and sent to the Oracle (DFT) for labeling.
-        *   **Analogy**: Think of it as a "confidence interval". If the potential encounters a structure too different from what it has seen during training (high $\gamma$), it stops guessing and asks for the ground truth.
+            *   If $\gamma > \text{threshold}$: The simulation **halts** (Uncertainty detected).
+        4.  **Label**: The "uncertain" structure is sent to the Oracle (DFT) for accurate energy/force calculation.
+        5.  **Retrain**: The new data is added, and the potential is retrained.
+
+        This ensures the potential learns exactly what it needs to know, minimizing expensive DFT calculations.
         """
     )
     return
@@ -290,8 +349,9 @@ def setup_config(
         # Register cleanup on exit to ensure directory is removed even on crash
         def _cleanup_handler():
             try:
-                tutorial_tmp_dir.cleanup()
-                print(f"Cleanup: Removed {tutorial_dir}")
+                if tutorial_tmp_dir:
+                    tutorial_tmp_dir.cleanup()
+                    print(f"Cleanup: Removed {tutorial_dir}")
             except Exception:
                 pass
         atexit.register(_cleanup_handler)
@@ -303,10 +363,10 @@ def setup_config(
         if IS_CI:
             mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
             for element, filename in pseudos.items():
-                path = tutorial_dir / filename
-                if not path.exists():
+                pseudo_path = tutorial_dir / filename
+                if not pseudo_path.exists():
                     content = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
-                    with open(path, "w") as f:
+                    with open(pseudo_path, "w") as f:
                         f.write(content)
 
         # Define configuration
@@ -427,7 +487,9 @@ def step7_md(mo):
         ## Step 7: Phase 2 - Dynamic Deposition (MD)
 
         Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
-        In Real Mode, this uses the generated LAMMPS commands.
+
+        *   **Real Mode**: This would use LAMMPS with the `fix deposit` command to physically simulate atoms landing on the surface.
+        *   **Mock Mode**: We simulate the deposition by randomly placing atoms above the surface to visualize the initial state.
         """
     )
     return
@@ -472,13 +534,14 @@ def run_deposition(
             print("Generated LAMMPS commands.")
 
         # Simulation (Mock Logic for visual)
-        rng = np.random.default_rng(42)
+        # Using np.random for consistency
         for _ in range(5):
-            x, y = rng.uniform(0, substrate.cell[0,0]), rng.uniform(0, substrate.cell[1,1])
-            z = substrate.positions[:,2].max() + rng.uniform(2.0, 3.0)
+            x = np.random.uniform(0, substrate.cell[0,0])
+            y = np.random.uniform(0, substrate.cell[1,1])
+            z = substrate.positions[:,2].max() + np.random.uniform(2.0, 3.0)
 
             # Use proper Atom object
-            symbol = rng.choice(["Fe", "Pt"])
+            symbol = np.random.choice(["Fe", "Pt"])
             atom = Atom(symbol=symbol, position=[x, y, z])
             deposited_structure.append(atom)
 
@@ -498,10 +561,15 @@ def run_deposition(
 def step8_md(mo):
     mo.md(
         """
-        ## Step 8: Phase 3 - Analysis (aKMC)
+        ## Step 8: Phase 3 - Analysis (L10 Ordering)
 
-        We analyze the long-term ordering of the deposited film.
-        The plot shows the **Order Parameter** rising from 0 (Disordered) to 1 (Ordered L10 phase) over microseconds.
+        After deposition, we are interested in whether the Fe and Pt atoms arrange themselves into the chemically ordered L10 phase. This process happens over long timescales (microseconds to seconds), which is too slow for standard MD.
+
+        We use **Adaptive Kinetic Monte Carlo (aKMC)** (via EON) to accelerate time.
+
+        The plot below shows the **Order Parameter** vs Time.
+        *   **0**: Disordered (Random alloy)
+        *   **1**: Perfectly Ordered (L10 layers)
         """
     )
     return
@@ -509,8 +577,11 @@ def step8_md(mo):
 
 @app.cell
 def run_analysis(np, plt):
+    # Mock data for visualization
     time_steps = np.linspace(0, 1e6, 50)
+    # Sigmoid function to simulate ordering transition
     order_param = 1.0 / (1.0 + np.exp(-1e-5 * (time_steps - 3e5)))
+
     plt.figure(figsize=(8, 4))
     plt.plot(time_steps, order_param, 'r-')
     plt.title("L10 Ordering (Mock)")
