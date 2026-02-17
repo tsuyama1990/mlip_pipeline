@@ -535,7 +535,12 @@ def run_deposition(
 
         # Simulation (Mock Logic for visual)
         # Using np.random for consistency
-        for _ in range(5):
+        # Dynamic atom count based on mode
+        n_atoms = 5 if IS_CI else 50
+
+        print(f"Simulating deposition of {n_atoms} atoms (Mode: {'CI' if IS_CI else 'Real'})...")
+
+        for _ in range(n_atoms):
             x = np.random.uniform(0, substrate.cell[0,0])
             y = np.random.uniform(0, substrate.cell[1,1])
             z = substrate.positions[:,2].max() + np.random.uniform(2.0, 3.0)
@@ -547,14 +552,14 @@ def run_deposition(
 
         plt.figure(figsize=(6, 6))
         plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
-        plt.title("Deposition Result")
+        plt.title(f"Deposition Result ({n_atoms} atoms)")
         plt.axis("off")
         plt.show()
 
         output_path = md_work_dir / "final.xyz"
         write(output_path, deposited_structure)
 
-    return deposited_structure, output_path
+    return deposited_structure, n_atoms, output_path
 
 
 @app.cell
