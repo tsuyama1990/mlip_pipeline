@@ -64,7 +64,8 @@ def std_imports():
     # Suppress warnings for cleaner output
     warnings.filterwarnings("ignore")
     PathRef = Path
-    return PathRef, atexit, importlib, logging, os, shutil, sys, tempfile, warnings
+    # Return only what is used in other cells
+    return PathRef, atexit, importlib, os, shutil, sys, tempfile
 
 
 @app.cell
@@ -736,6 +737,9 @@ def run_deposition(
         if not IS_CI:
             if potential and potential.path.exists():
                 try:
+                    if PotentialHelper is None:
+                        raise ImportError("PotentialHelper not available.")
+
                     helper = PotentialHelper()
                     # Verified signature: (self, potential_path, baseline_type, elements)
                     cmds = helper.get_lammps_commands(potential.path, "zbl", ["Mg", "O", "Fe", "Pt"])
