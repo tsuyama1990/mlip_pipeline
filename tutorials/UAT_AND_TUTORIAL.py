@@ -68,6 +68,36 @@ def std_imports():
 
 
 @app.cell
+def verify_packages(importlib, mo):
+    # Explicitly check for required dependencies before proceeding
+    required_packages = ["ase", "numpy", "matplotlib", "pyyaml", "pydantic"]
+    missing = []
+    for pkg in required_packages:
+        if importlib.util.find_spec(pkg) is None:
+            missing.append(pkg)
+
+    if missing:
+        mo.md(
+            f"""
+            ::: error
+            **Missing Dependencies:**
+            The following required packages are missing: {', '.join(missing)}
+
+            Please install them:
+            ```bash
+            uv sync
+            # OR
+            pip install -e .[dev]
+            ```
+            :::
+            """
+        )
+    else:
+        print("All required packages found.")
+    return missing, required_packages, pkg
+
+
+@app.cell
 def sci_imports(mo):
     import matplotlib.pyplot as plt
     import numpy as np
@@ -137,22 +167,6 @@ def step1d_md(mo):
         #### Package Import
 
         Finally, we attempt to import the **PYACEMAKER** core modules. This cell ensures all necessary components are available before proceeding.
-
-        If this fails, you likely need to install the package dependencies.
-        Required packages include:
-        *   `ase`
-        *   `numpy`
-        *   `matplotlib`
-        *   `marimo`
-        *   `pyyaml`
-        *   `pydantic`
-
-        Install them using:
-        ```bash
-        uv sync
-        # OR
-        pip install -e .[dev]
-        ```
         """
     )
     return
@@ -501,6 +515,10 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
     orchestrator = None
     results = [] # Define at start to ensure it exists in cell scope
 
+    # Note: We rely on the high-level API orchestrator.run() which encapsulates
+    # structure generation, oracle computation, and dataset management.
+    # This avoids exposing internal sub-modules in the tutorial.
+
     if HAS_PYACEMAKER:
         try:
             orchestrator = Orchestrator(config)
@@ -508,8 +526,8 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
 
             print("Starting Active Learning Pipeline...")
 
-            # We use `orchestrator.run()` (NOT execute) as defined in the `IOrchestrator` interface.
-            # This method encapsulates the entire active learning loop.
+            # Use the high-level run() method to execute the full pipeline
+            # This handles cold start, training, validation, exploration, and labeling automatically.
             module_result = orchestrator.run()
 
             print(f"Pipeline finished with status: {module_result.status}")
@@ -554,10 +572,13 @@ def visualize(HAS_PYACEMAKER, plt, results):
         for metrics in results:
             # results contains Metrics objects directly now
             # Metrics allows extra fields, so we check attribute or dict dump
-            # Note: Validator sets 'rmse_energy', not 'energy_rmse'
+            # Note: Validator sets 'rmse_energy'
             v = getattr(metrics, "rmse_energy", 0.0)
             if v == 0.0 and hasattr(metrics, "model_dump"):
                 v = metrics.model_dump().get("rmse_energy", 0.0)
+            # Fallback for robustness
+            if v == 0.0 and hasattr(metrics, "energy_rmse"):
+                v = getattr(metrics, "energy_rmse", 0.0)
             rmse_values.append(v)
 
         plt.figure(figsize=(8, 4))
@@ -635,7 +656,7 @@ def run_deposition(
         # Dependency Usage: Acknowledge the 'results' to maintain topological order semantics
         print(f"Starting deposition after {len(results)} active learning cycles.")
 
-        # Robust attribute check - verified against orchestrator.py: self.current_potential
+        # Robust attribute check
         potential = getattr(orchestrator, 'current_potential', None)
         if potential is None:
              print("Warning: No potential available from orchestrator. Deposition simulation might fail in Real Mode.")
@@ -651,6 +672,7 @@ def run_deposition(
         # Real Mode Generation
         if not IS_CI and potential and potential.path.exists():
             helper = PotentialHelper()
+            # Verified signature: (self, potential_path, baseline_type, elements)
             cmds = helper.get_lammps_commands(potential.path, "zbl", ["Mg", "O", "Fe", "Pt"])
             print("Generated LAMMPS commands.")
 
