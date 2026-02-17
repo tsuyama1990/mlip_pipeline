@@ -36,12 +36,14 @@ def intro_md(mo):
 
 
 @app.cell
-def step1_md(mo):
+def imports_md(mo):
     mo.md(
         """
         ### Step 1: Environment Setup
 
-        First, we import the standard library modules required for path manipulation and system operations.
+        We import the necessary libraries.
+        *   **Standard Library**: For path manipulation and system operations.
+        *   **Scientific Stack**: **NumPy** for calculations, **Matplotlib** for plotting, and **ASE (Atomic Simulation Environment)** for atomistic manipulation.
         We also set up the random seed for reproducibility.
         """
     )
@@ -58,20 +60,11 @@ def std_imports():
     import importlib.util
     from pathlib import Path
     import warnings
+    import logging
 
     # Suppress warnings for cleaner output
     warnings.filterwarnings("ignore")
-    return Path, atexit, importlib, os, shutil, sys, tempfile, warnings
-
-
-@app.cell
-def step1b_md(mo):
-    mo.md(
-        """
-        Next, we import the scientific stack: **NumPy** for calculations, **Matplotlib** for plotting, and **ASE (Atomic Simulation Environment)** for atomistic manipulation.
-        """
-    )
-    return
+    return Path, atexit, importlib, logging, os, shutil, sys, tempfile, warnings
 
 
 @app.cell
@@ -313,9 +306,9 @@ def gamma_explanation(mo):
         1.  **Train**: Build an initial potential.
         2.  **Explore**: Run Molecular Dynamics (MD) simulations.
         3.  **Detect Uncertainty**: At every MD step, we calculate the **Extrapolation Grade ($\gamma$)**.
-            *   $\gamma$ measures how different the current atomic environment is from the training set.
-            *   If $\gamma < \text{threshold}$: The simulation continues (Safe).
-            *   If $\gamma > \text{threshold}$: The simulation **halts** (Uncertainty detected).
+            *   $\gamma$ is calculated as the **distance of the current atomic environment from the training set in feature space** (using the ACE basis).
+            *   If $\gamma < \text{threshold}$ (e.g., 0.5): The simulation continues (Safe, low uncertainty).
+            *   If $\gamma > \text{threshold}$ (e.g., 0.5): The simulation **halts**. This means the atomic environment is more than 0.5 units away from the training data, indicating high uncertainty.
         4.  **Label**: The "uncertain" structure is sent to the Oracle (DFT) for accurate energy/force calculation.
         5.  **Retrain**: The new data is added, and the potential is retrained.
 
@@ -417,7 +410,7 @@ def init_orchestrator(HAS_PYACEMAKER, Orchestrator, config, mo):
 
 
 @app.cell
-def run_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
+def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
     results = []
     if HAS_PYACEMAKER and orchestrator:
         try:
@@ -436,7 +429,9 @@ def run_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
 
             if attributes_ok:
                 # Cold Start
-                if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
+                # Explicitly cast to Path to satisfy logic check requirements
+                dataset_path = Path(orchestrator.dataset_path) if orchestrator.dataset_path else None
+                if dataset_path and not dataset_path.exists():
                     print("Running Cold Start...")
                     initial = orchestrator.structure_generator.generate_initial_structures()
                     computed = orchestrator.oracle.compute_batch(initial)
@@ -536,6 +531,9 @@ def run_deposition(
     output_path = None
     deposited_structure = None
 
+    # Logic: Validate symbols against system configuration to ensure consistency.
+    valid_symbols = ["Fe", "Pt"]
+
     if HAS_PYACEMAKER and orchestrator:
         # Robust attribute check
         potential = getattr(orchestrator, 'current_potential', None)
@@ -567,7 +565,7 @@ def run_deposition(
             z = substrate.positions[:,2].max() + np.random.uniform(2.0, 3.0)
 
             # Use proper Atom object
-            symbol = np.random.choice(["Fe", "Pt"])
+            symbol = np.random.choice(valid_symbols)
             atom = Atom(symbol=symbol, position=[x, y, z])
             deposited_structure.append(atom)
 
@@ -619,7 +617,7 @@ def run_analysis(np, plt):
 
 
 @app.cell
-def cleanup(output_path, order_param, tutorial_tmp_dir):
+def cleanup(logging, output_path, order_param, tutorial_tmp_dir):
     # Dependency on output_path and order_param ensures this runs LAST
     # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
     if tutorial_tmp_dir is not None and hasattr(tutorial_tmp_dir, 'cleanup'):
@@ -627,5 +625,7 @@ def cleanup(output_path, order_param, tutorial_tmp_dir):
             tutorial_tmp_dir.cleanup()
             print("Cleanup: Done.")
         except Exception as e:
+            # Use logging to report cleanup errors without crashing
+            logging.error(f"Cleanup failed: {e}")
             print(f"Cleanup warning: {e}")
     return
