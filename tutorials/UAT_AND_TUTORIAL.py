@@ -93,11 +93,6 @@ def imports_and_setup(os, sys, Path, importlib, mo):
     os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
     print("WARNING: PYACEMAKER_SKIP_FILE_CHECKS is enabled. This bypasses strict path validation for tutorial temporary directories. DO NOT USE IN PRODUCTION.")
 
-    # Explicitly mock API Keys for tutorial safety
-    if "MP_API_KEY" not in os.environ:
-        os.environ["MP_API_KEY"] = "dummy_key_for_tutorial"
-        os.environ["M3GNET_KEY"] = "dummy_key_for_tutorial"
-
     # Default to CI mode (Mock) if not specified
     # We check existence here, strict validation happens in detect_mode
     if "CI" not in os.environ:
