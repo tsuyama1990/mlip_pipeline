@@ -590,6 +590,7 @@ def dynamic_deposition(
     orchestrator,
     plot_atoms,
     plt,
+    results, # Dependency Injection: Ensures execution AFTER Active Learning
     surface,
     tutorial_dir,
     write,
@@ -806,8 +807,11 @@ def cleanup_explanation(mo):
 
 
 @app.cell
-def cleanup(tutorial_tmp_dir):
+def cleanup(order_param, output_path, tutorial_tmp_dir):
     # Explicit cleanup hook
+    # Dependency Injection: Ensure this runs LAST by depending on order_param (final analysis)
+    # and output_path (MD results)
+
     if tutorial_tmp_dir and hasattr(tutorial_tmp_dir, 'cleanup'):
         try:
             tutorial_tmp_dir.cleanup()
