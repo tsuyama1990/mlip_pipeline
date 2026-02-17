@@ -132,10 +132,11 @@ def step1c_md(mo):
 @app.cell
 def path_setup(PathRef, mo, sys):
     # Locate src directory
-    cwd = PathRef.cwd()
+    # Rename to avoid global scope conflict with setup_config
+    current_wd = PathRef.cwd()
     possible_src_paths = [
-        cwd / "src",
-        cwd.parent / "src",
+        current_wd / "src",
+        current_wd.parent / "src",
     ]
 
     src_path = None
@@ -184,21 +185,29 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
     PotentialHelper = None
     metadata_to_atoms = None
 
+    # Step 1: Check if package specification exists
     spec = importlib.util.find_spec("pyacemaker")
+
     if spec is None:
         mo.md(
             """
             ::: error
             **ERROR: PYACEMAKER package not found.**
 
-            Please install dependencies:
+            The `pyacemaker` package is not installed or not found in the current environment.
+
+            **To fix this:**
+            Please install the package and dependencies:
             ```bash
             uv sync
+            # OR
+            pip install -e .[dev]
             ```
             :::
             """
         )
     else:
+        # Step 2: Attempt import
         try:
             import pyacemaker
             from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
@@ -214,7 +223,7 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
                 ::: error
                 **Import Error:** {e}
 
-                The `pyacemaker` package was found but failed to import. This usually means a required dependency (e.g., `ase`, `numpy`, `scipy`) is missing or incompatible.
+                The `pyacemaker` package was found but failed to load. This usually indicates a missing dependency (e.g., `ase`, `numpy`, `scipy`).
 
                 **Solution:**
                 Please verify your environment setup:
@@ -231,6 +240,8 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
                 f"""
                 ::: error
                 **Unexpected Error:** {e}
+
+                An unexpected error occurred while importing `pyacemaker`.
                 :::
                 """
             )
@@ -394,6 +405,7 @@ def setup_config(
     SAFE_DUMMY_UPF_CONTENT,
     atexit,
     mo,
+    os,
     tempfile,
 ):
     config = None
@@ -404,8 +416,14 @@ def setup_config(
 
     if HAS_PYACEMAKER:
         try:
+            # Check for write permissions in CWD
+            cwd = PathRef.cwd()
+            if not os.access(cwd, os.W_OK):
+                raise PermissionError(f"Current working directory '{cwd}' is not writable. Cannot create temporary workspace.")
+
             # Create temporary directory in CWD for security compliance (Pydantic validation requires path inside CWD)
-            tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=PathRef.cwd())
+            # We strictly enforce CWD for tutorial safety/visibility
+            tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=cwd)
             tutorial_dir = PathRef(tutorial_tmp_dir.name)
 
             # Register cleanup on exit to ensure directory is removed even on crash
