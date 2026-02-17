@@ -91,10 +91,8 @@ def imports_and_setup(os, sys, Path, importlib, mo):
             """
         )
 
-    # Set environment variables BEFORE importing pyacemaker to affect CONSTANTS
-    # Bypass strict file checks for tutorial temporary directories
-    os.environ["PYACEMAKER_SKIP_FILE_CHECKS"] = "1"
-    print("WARNING: PYACEMAKER_SKIP_FILE_CHECKS is enabled. This bypasses strict path validation for tutorial temporary directories. DO NOT USE IN PRODUCTION.")
+    # NOTE: We do NOT enable PYACEMAKER_SKIP_FILE_CHECKS.
+    # We will ensure all temporary files are created within the project root to satisfy strict security.
 
     # Default to CI mode (Mock) if not specified
     if "CI" not in os.environ:
@@ -142,11 +140,16 @@ def imports_and_setup(os, sys, Path, importlib, mo):
             mo.md(
                 f"""
                 ::: error
-                **ERROR: Import failed despite package detection.**
+                **ERROR: Import failed.**
+                Even though the package was detected, the import raised an error.
                 Details: {e}
                 :::
                 """
             )
+            HAS_PYACEMAKER = False
+            print(f"Import Error details: {e}")
+        except Exception as e:
+            mo.md(f"::: error\n**Unexpected Error during import:** {e}\n:::")
             HAS_PYACEMAKER = False
 
     return (
@@ -170,6 +173,19 @@ def imports_and_setup(os, sys, Path, importlib, mo):
         tempfile,
         write,
     )
+
+
+@app.cell
+def dependency_check_explanation(mo):
+    mo.md(
+        """
+        ### Dependency Verification
+
+        Before proceeding, we verify that the core `pyacemaker` library was successfully imported.
+        If not, we halt the tutorial with clear instructions.
+        """
+    )
+    return
 
 
 @app.cell
@@ -274,7 +290,9 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
 
     if HAS_PYACEMAKER:
         # Setup Configuration
-        tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_")
+        # SECURITY: Create temporary directory strictly within the current working directory
+        # to ensure all paths pass the CWD validation checks without needing bypass flags.
+        tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=Path.cwd())
         tutorial_dir = Path(tutorial_tmp_dir.name)
 
         mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
@@ -492,6 +510,19 @@ def step5_active_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
 
 
 @app.cell
+def visualization_explanation(mo):
+    mo.md(
+        """
+        ### Step 6: Visualization
+
+        We now visualize the training convergence by plotting the Energy RMSE (Root Mean Square Error) across the active learning cycles.
+        Decreasing RMSE indicates the potential is learning effectively.
+        """
+    )
+    return
+
+
+@app.cell
 def step6_visualization(HAS_PYACEMAKER, plt, results):
     cycles = None
     rmse_values = None
@@ -518,6 +549,7 @@ def step6_visualization(HAS_PYACEMAKER, plt, results):
             plt.plot(cycles, rmse_values, 'b-o')
             plt.title("Training Convergence")
             plt.xlabel("Cycle")
+            plt.ylabel("Energy RMSE (eV/atom)")
             plt.grid(True)
             plt.show()
         else:
@@ -757,6 +789,12 @@ def cleanup(tutorial_tmp_dir):
             print("Cleanup: Temporary directory removed.")
         except Exception as e:
             print(f"Cleanup warning: {e}")
+    return
+
+
+@app.cell
+def import_common_libs_explanation(mo):
+    mo.md("### Utility: Common Imports\nLoading standard libraries for utility functions.")
     return
 
 
