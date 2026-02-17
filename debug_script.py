@@ -484,85 +484,6 @@ if HAS_PYACEMAKER:
         print(f"Error initializing Orchestrator: {e}")
 
 # %%
-# Initialize returns to safe defaults
-atoms_stream = None
-computed_stream = None
-i = None
-initial_structures = None
-result = None
-results = []
-
-
-should_run = True
-if not HAS_PYACEMAKER:
-    should_run = False
-elif orchestrator is None:
-    mo.md("::: error\n**Error:** Orchestrator is not initialized.\n:::")
-    should_run = False
-
-if should_run:
-    try:
-        print("Starting Active Learning Cycles...")
-
-        # --- COLD START ---
-        if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
-            print("Running Cold Start...")
-            initial_structures = orchestrator.structure_generator.generate_initial_structures()
-            computed_stream = orchestrator.oracle.compute_batch(initial_structures)
-            atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-            orchestrator.dataset_manager.save_iter(atoms_stream, orchestrator.dataset_path, mode="ab", calculate_checksum=False)
-            print("Cold Start Complete.")
-
-        # --- MAIN LOOP ---
-        if orchestrator.config and orchestrator.config.orchestrator:
-            for i in range(orchestrator.config.orchestrator.max_cycles):
-                print(f"--- Cycle {i+1} ---")
-                result = orchestrator.run_cycle()
-                results.append(result)
-                print(f"Cycle {i+1} Status: {result.status}")
-                if result.error:
-                    print(f"Error: {result.error}")
-                if str(result.status).upper() == "CONVERGED":
-                    print("Converged!")
-                    break
-    except Exception as e:
-        print(f"Runtime Error: {e}")
-        mo.md(f"**Runtime Error:** {e}")
-
-
-# %%
-cycles = None
-rmse_values = None
-val = None
-
-if HAS_PYACEMAKER:
-    # --- VISUALIZATION ---
-    if results:
-        print("Visualizing results...")
-        cycles = range(1, len(results) + 1)
-        rmse_values = []
-        for r in results:
-            v = 0.0
-            if r and r.metrics:
-                v = getattr(r.metrics, "energy_rmse", 0.0)
-                if v == 0.0:
-                    v = r.metrics.model_dump().get("energy_rmse", 0.0)
-            if v == 0.0:
-                v = 1.0 / (len(rmse_values) + 1)
-            rmse_values.append(v)
-        val = rmse_values[-1] if rmse_values else 0.0
-
-        plt.figure(figsize=(8, 4))
-        plt.plot(cycles, rmse_values, 'b-o')
-        plt.title("Training Convergence")
-        plt.xlabel("Cycle")
-        plt.grid(True)
-        plt.show()
-    else:
-        print("No results to visualize.")
-
-
-# %%
 cmds = None
 deposited_structure = None
 helper = None
@@ -576,7 +497,6 @@ x = None
 y = None
 z = None
 n_deposition_steps = 5  # PARAMETER: Number of atoms to deposit. Low for tutorial speed.
-
 
 if HAS_PYACEMAKER and orchestrator:
     # Verify current potential exists and file is present

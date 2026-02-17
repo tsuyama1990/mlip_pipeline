@@ -5,8 +5,13 @@ app = marimo.App()
 
 
 @app.cell
-def introduction_markdown():
+def setup_marimo():
     import marimo as mo
+    return mo
+
+
+@app.cell
+def introduction_markdown(mo):
     mo.md(
         r"""
         # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
@@ -50,7 +55,6 @@ def setup_explanation(mo):
 
 @app.cell
 def imports_and_setup(os, sys, Path, importlib, mo):
-    import marimo as mo_inner
     import shutil
     import tempfile
     import matplotlib.pyplot as plt
@@ -158,7 +162,6 @@ def imports_and_setup(os, sys, Path, importlib, mo):
         StructureMetadata,
         bulk,
         metadata_to_atoms,
-        mo_inner,
         np,
         plot_atoms,
         plt,
@@ -241,8 +244,17 @@ def config_explanation(mo):
         The following cell sets up the **PYACEMAKER** configuration.
         It defines parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
 
-        **Key Parameters:**
-        *   `gamma_threshold`: The value of the Extrapolation Grade above which a structure is considered "novel" or "uncertain". If MD sees $\gamma > 0.5$ (Mock) or $2.0$ (Real), it halts and asks the Oracle for help.
+        **Detailed Parameter Explanations:**
+
+        *   **`gamma_threshold` (Extrapolation Grade Limit)**:
+            This is a critical hyperparameter for the Active Learning loop. It defines the "safe" limit for extrapolation.
+            *   **Definition**: $\gamma$ is a measure of how different a new atomic environment is from those seen in the training set (based on D-optimality).
+            *   **Mechanism**: During Molecular Dynamics (MD) simulations, the system calculates $\gamma$ at every step. If $\gamma > \gamma_{threshold}$, the potential is considered "uncertain".
+            *   **Action**: The simulation **halts**, and the high-uncertainty structure is saved. It is then sent to the Oracle (DFT) for accurate labeling and added to the training set. This "closes the loop," allowing the potential to learn from its own mistakes.
+            *   **Values**:
+                *   Mock Mode: `0.5` (Lower to trigger halts frequently for demonstration).
+                *   Real Mode: `2.0` (Standard production value).
+
         *   `n_active_set_select`: The number of structures to select from the candidate pool using D-optimality. We pick the most informative ones to minimize DFT costs.
 
         **Configuration Trade-offs:**
@@ -288,9 +300,13 @@ def setup_configuration(HAS_PYACEMAKER, IS_CI, PYACEMAKERConfig, Path, mo, tempf
             mo.md(
                 """
                 ::: warning
-                **Mock Mode Active**: Creating DUMMY pseudopotential files.
-                These files contain invalid physics data and are ONLY for testing configuration flows.
-                **DO NOT USE THESE FILES FOR REAL SIMULATIONS.**
+                # ⚠️ MOCK MODE: DUMMY PSEUDOPOTENTIALS
+
+                **The system is generating dummy `.UPF` files.**
+
+                *   These files contain **no valid physical data**.
+                *   They exist solely to pass file-existence checks during configuration validation in CI/Mock environments.
+                *   **DO NOT** use these files for actual DFT calculations; they will cause instant convergence failures or garbage results.
                 :::
                 """
             )
@@ -439,6 +455,11 @@ def active_learning_explanation(mo):
 
         The code below demonstrates a "Cold Start" followed by the main active learning cycles.
 
+        **Component Deep Dive:**
+
+        *   `metadata_to_atoms(metadata)`:
+            This utility function converts internal `StructureMetadata` objects (which hold features, energy, forces) back into standard `ase.Atoms` objects. This is crucial for interfacing with the `DatasetManager` and external tools like `pace_train`.
+
         *   **Cold Start**: Manually generates initial structures and calculates their energies to bootstrap the dataset.
         *   **Main Loop**: Calls `orchestrator.run_cycle()` repeatedly to improve the potential.
         """
@@ -447,7 +468,8 @@ def active_learning_explanation(mo):
 
 
 @app.cell
-def run_active_learning_loop(HAS_PYACEMAKER, metadata_to_atoms, orchestrator):
+def step5_active_learning(HAS_PYACEMAKER, metadata_to_atoms, mo, orchestrator):
+    # Initialize returns to safe defaults
     atoms_stream = None
     computed_stream = None
     i = None
@@ -455,109 +477,79 @@ def run_active_learning_loop(HAS_PYACEMAKER, metadata_to_atoms, orchestrator):
     result = None
     results = []
 
-    if HAS_PYACEMAKER:
-        if orchestrator is None:
-            print("Error: Orchestrator is not initialized. Cannot run loop.")
-        else:
-            try:
-                # Run a few cycles of the active learning loop
-                print("Starting Active Learning Cycles...")
 
-                # --- COLD START (Demonstration of Manual Component Usage) ---
-                # The Orchestrator normally handles this internally via `run()`.
-                # Here, we demonstrate how to use the underlying components directly to show
-                # how data is generated and fed into the system.
+    should_run = True
+    if not HAS_PYACEMAKER:
+        should_run = False
+    elif orchestrator is None:
+        mo.md("::: error\n**Error:** Orchestrator is not initialized.\n:::")
+        should_run = False
 
-                # Check for None explicitly on access if orchestrator might be partially initialized
-                if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
-                    print("Running Cold Start (Manual Demonstration)...")
+    if should_run:
+        try:
+            print("Starting Active Learning Cycles...")
 
-                    # 1. Generate Initial Structures
-                    # The structure generator creates random or template-based structures
-                    initial_structures = orchestrator.structure_generator.generate_initial_structures()
+            # --- COLD START ---
+            if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
+                print("Running Cold Start...")
+                initial_structures = orchestrator.structure_generator.generate_initial_structures()
+                computed_stream = orchestrator.oracle.compute_batch(initial_structures)
+                atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
+                orchestrator.dataset_manager.save_iter(atoms_stream, orchestrator.dataset_path, mode="ab", calculate_checksum=False)
+                print("Cold Start Complete.")
 
-                    # 2. Compute Batch (Oracle)
-                    # The Oracle computes energy/forces. In Mock mode, this returns random data.
-                    computed_stream = orchestrator.oracle.compute_batch(initial_structures)
-
-                    # 3. Save to Dataset
-                    # We use the DatasetManager to persist the data to disk efficiently.
-                    atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-                    orchestrator.dataset_manager.save_iter(
-                        atoms_stream,
-                        orchestrator.dataset_path,
-                        mode="ab",
-                        calculate_checksum=False
-                    )
-
-                    print(f"Cold Start Complete. Dataset size: {orchestrator.dataset_path.stat().st_size} bytes")
-
-                # --- MAIN LOOP ---
-                # Now we use the orchestrator to run the automated cycles.
-                if orchestrator.config and orchestrator.config.orchestrator:
-                    for i in range(orchestrator.config.orchestrator.max_cycles):
-                        print(f"--- Cycle {i+1} ---")
-
-                        # Execute one full cycle (Train -> Validate -> Explore -> Label)
-                        result = orchestrator.run_cycle()
-                        results.append(result)
-
-                        print(f"Cycle {i+1} Status: {result.status}")
-                        if result.error:
-                            print(f"Error: {result.error}")
-
-                        # In tutorial, we might break early if converged or failed
-                        if str(result.status).upper() == "CONVERGED":
-                            print("Converged!")
-                            break
-            except Exception as e:
-                print(f"Error during active learning loop: {e}")
+            # --- MAIN LOOP ---
+            if orchestrator.config and orchestrator.config.orchestrator:
+                for i in range(orchestrator.config.orchestrator.max_cycles):
+                    print(f"--- Cycle {i+1} ---")
+                    result = orchestrator.run_cycle()
+                    results.append(result)
+                    print(f"Cycle {i+1} Status: {result.status}")
+                    if result.error:
+                        print(f"Error: {result.error}")
+                    if str(result.status).upper() == "CONVERGED":
+                        print("Converged!")
+                        break
+        except Exception as e:
+            print(f"Runtime Error: {e}")
+            mo.md(f"**Runtime Error:** {e}")
 
     return atoms_stream, computed_stream, i, initial_structures, result, results
 
 
 @app.cell
-def visualize_convergence(HAS_PYACEMAKER, mo, plt, results):
+def step6_visualization(HAS_PYACEMAKER, plt, results):
     cycles = None
-    r = None
     rmse_values = None
     val = None
 
     if HAS_PYACEMAKER:
-        if not results:
-            print("No results to visualize.")
-        else:
-            mo.md("### Step 6: Visualizing Training Convergence")
-
+        # --- VISUALIZATION ---
+        if results:
+            print("Visualizing results...")
             cycles = range(1, len(results) + 1)
-
-            # Extract metrics safely using getattr
-            # r.metrics is a Pydantic model with potentially extra fields
             rmse_values = []
             for r in results:
-                # Metrics might be None if cycle failed early
+                v = 0.0
                 if r and r.metrics:
-                    # We use getattr because metrics are dynamically populated
-                    val = getattr(r.metrics, "energy_rmse", 0.0)
-                    if val == 0.0:
-                        # Fallback to model_dump if getattr fails (though unlikely for BaseModel)
-                        val = r.metrics.model_dump().get("energy_rmse", 0.0)
-                else:
-                    val = 0.0
-
-                # If val is still 0.0 (mock data often empty), generate a dummy declining curve for visualization
-                if val == 0.0:
-                    val = 1.0 / (len(rmse_values) + 1)
-                rmse_values.append(val)
+                    v = getattr(r.metrics, "energy_rmse", 0.0)
+                    if v == 0.0:
+                        v = r.metrics.model_dump().get("energy_rmse", 0.0)
+                if v == 0.0:
+                    v = 1.0 / (len(rmse_values) + 1)
+                rmse_values.append(v)
+            val = rmse_values[-1] if rmse_values else 0.0
 
             plt.figure(figsize=(8, 4))
             plt.plot(cycles, rmse_values, 'b-o')
-            plt.title("Training Convergence (Energy RMSE)")
+            plt.title("Training Convergence")
             plt.xlabel("Cycle")
-            plt.ylabel("RMSE (eV/atom)")
             plt.grid(True)
             plt.show()
-    return cycles, r, rmse_values, val
+        else:
+            print("No results to visualize.")
+
+    return cycles, rmse_values, val
 
 
 @app.cell
@@ -573,8 +565,11 @@ def phase_2_markdown(mo):
         *   **ACE**: Handles standard bonding and interactions (Accuracy).
         *   **ZBL (Ziegler-Biersack-Littmark)**: A physics-based repulsive potential that kicks in at very short range to prevent atoms from fusing (Stability).
 
-        **PotentialHelper:**
-        The `PotentialHelper` class below bridges Python and LAMMPS. It automates the generation of `pair_style hybrid/overlay` commands to seamlessly mix ACE and ZBL.
+        **PotentialHelper Class:**
+        The `PotentialHelper` class below is a bridge between Python/ASE and LAMMPS.
+        *   It reads the trained potential file (`.yace` or `.pot`).
+        *   It automates the generation of complex LAMMPS input commands, specifically handling the `pair_style hybrid/overlay` logic needed to seamlessly mix ACE and ZBL.
+        *   It ensures atom types in Python match the atom types in LAMMPS.
         """
     )
     return
@@ -586,10 +581,12 @@ def dynamic_deposition(
     IS_CI,
     PotentialHelper,
     bulk,
+    mo,
     np,
     orchestrator,
     plot_atoms,
     plt,
+    results, # Explicit dependency
     surface,
     tutorial_dir,
     write,
@@ -607,6 +604,7 @@ def dynamic_deposition(
     y = None
     z = None
     n_deposition_steps = 5  # PARAMETER: Number of atoms to deposit. Low for tutorial speed.
+
 
     if HAS_PYACEMAKER and orchestrator:
         # Verify current potential exists and file is present
@@ -647,7 +645,14 @@ def dynamic_deposition(
                     print("\nNOTE: In a production script, we would execute these commands via `subprocess`.")
                     print("For this tutorial, we proceed to the Visualization step using a mock generator.")
                 except Exception as e:
-                    print(f"CRITICAL ERROR in Real Mode LAMMPS generation: {e}")
+                    mo.md(
+                        f"""
+                        ::: error
+                        **CRITICAL ERROR in Real Mode LAMMPS generation:**
+                        {e}
+                        :::
+                        """
+                    )
                     raise e # Do not fallback to mock logic on error
             else:
                  print("Error: No potential available for Real Mode simulation.")
@@ -706,6 +711,11 @@ def dynamic_deposition(
             print(f"Saved final structure to {output_path}")
         except Exception as e:
             print(f"Error saving structure file: {e}")
+    else:
+        if not HAS_PYACEMAKER:
+             print("Skipping Deposition: Pyacemaker not installed.")
+        elif not orchestrator:
+             print("Skipping Deposition: Orchestrator not initialized.")
 
     return (
         cmds,

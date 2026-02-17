@@ -2,10 +2,8 @@
 __generated_with = "0.19.11"
 
 # %%
-import marimo as mo
-
-# %%
-mo.md(
+import marimo as mo_intro
+mo_intro.md(
     r"""
     # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
 
@@ -31,178 +29,6 @@ mo.md(
 )
 
 # %%
-mo.md(
-    """
-    ### Step 1: Environment Setup
-
-    In this step, we configure the Python environment. We ensure the `pyacemaker` source code is accessible (checking for `src/pyacemaker/__init__.py`) and import necessary libraries.
-
-    We also set environment variables to configure the system for this tutorial.
-    """
-)
-
-# %%
-mo.md(
-    """
-    ### Step 2: Mode Detection
-
-    We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
-
-    *   **Mock Mode**: Uses simulated data and skips external binary calls (QE, LAMMPS). Suitable for quick verification.
-    *   **Real Mode**: Attempts to run full physics simulations. Suitable for actual research.
-    """
-)
-
-# %%
-mo.md(
-    r"""
-    ### Step 3: Configuration Setup
-
-    The following cell sets up the **PYACEMAKER** configuration.
-    It defines parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
-
-    **Detailed Parameter Explanations:**
-
-    *   **`gamma_threshold` (Extrapolation Grade Limit)**:
-        This is a critical hyperparameter for the Active Learning loop. It defines the "safe" limit for extrapolation.
-        *   **Definition**: $\gamma$ is a measure of how different a new atomic environment is from those seen in the training set (based on D-optimality).
-        *   **Mechanism**: During Molecular Dynamics (MD) simulations, the system calculates $\gamma$ at every step. If $\gamma > \gamma_{threshold}$, the potential is considered "uncertain".
-        *   **Action**: The simulation **halts**, and the high-uncertainty structure is saved. It is then sent to the Oracle (DFT) for accurate labeling and added to the training set. This "closes the loop," allowing the potential to learn from its own mistakes.
-        *   **Values**:
-            *   Mock Mode: `0.5` (Lower to trigger halts frequently for demonstration).
-            *   Real Mode: `2.0` (Standard production value).
-
-    *   `n_active_set_select`: The number of structures to select from the candidate pool using D-optimality. We pick the most informative ones to minimize DFT costs.
-
-    **Configuration Trade-offs:**
-    *   **Mock Mode (CI)**: `max_cycles=2`, `n_local_candidates=5`. This ensures the tutorial finishes in seconds while still exercising the code paths.
-    *   **Real Mode**: `max_cycles=10`, `n_local_candidates=50`. This provides enough iterations and candidates to actually converge the physical potential, which would take hours on a cluster.
-
-    It also manages a temporary workspace to ensure no files are left behind after the tutorial.
-    """
-)
-
-# %%
-mo.md(
-    r"""
-    ## Step 4: Phase 1 - Active Learning Loop
-
-    This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
-
-    **Key Concepts:**
-
-    *   **Extrapolation Grade ($\gamma$):**
-        This is the "Uncertainty Score" of the potential for a given atomic configuration.
-        *   It is calculated using the **D-Optimality** criterion on the linear basis functions of the ACE potential.
-        *   Mathematically, if $\mathbf{B}$ is the basis matrix of the training set, and $\mathbf{b}$ is the basis vector of a new structure, $\gamma = \mathbf{b}^T (\mathbf{B}^T \mathbf{B})^{-1} \mathbf{b}$.
-        *   **Role**: If $\gamma > \gamma_{threshold}$ during MD, the simulation is halted. The structure is considered "novel" and sent to the Oracle (DFT) for labeling.
-
-    *   **Active Set Optimization (MaxVol):**
-        Instead of training on every single snapshot, we select an **Optimal Active Set**.
-        *   We use the **MaxVol** algorithm to find the subset of structures that maximizes the determinant of the information matrix.
-        *   This ensures we only train on the most mathematically distinct structures, preventing overfitting and reducing computational cost.
-
-    **The Loop Steps:**
-    1.  **Generation:** Create new candidate atomic structures.
-    2.  **Oracle (DFT):** Calculate "ground truth" energy/forces.
-    3.  **Training:** Train the ACE potential on the Active Set.
-    4.  **Exploration:** Run MD. If $\gamma > \text{threshold}$, halt and learn.
-    5.  **Validation:** Test against hold-out data.
-    """
-)
-
-# %%
-mo.md("Initializing the `Orchestrator` with the configuration defined above.")
-
-# %%
-mo.md(
-    """
-    ### Step 5: Running the Active Learning Loop
-
-    The code below demonstrates a "Cold Start" followed by the main active learning cycles.
-
-    **Component Deep Dive:**
-
-    *   `metadata_to_atoms(metadata)`:
-        This utility function converts internal `StructureMetadata` objects (which hold features, energy, forces) back into standard `ase.Atoms` objects. This is crucial for interfacing with the `DatasetManager` and external tools like `pace_train`.
-
-    *   **Cold Start**: Manually generates initial structures and calculates their energies to bootstrap the dataset.
-    *   **Main Loop**: Calls `orchestrator.run_cycle()` repeatedly to improve the potential.
-    """
-)
-
-# %%
-mo.md(
-    """
-    ## Step 7: Phase 2 - Dynamic Deposition (MD)
-
-    Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
-
-    **Scientific Concept: Hybrid Potentials**
-    Machine Learning potentials like ACE are accurate but can be unstable at very short interatomic distances (high energy collisions). To fix this, we use a **Hybrid Potential**:
-    *   **ACE**: Handles standard bonding and interactions (Accuracy).
-    *   **ZBL (Ziegler-Biersack-Littmark)**: A physics-based repulsive potential that kicks in at very short range to prevent atoms from fusing (Stability).
-
-    **PotentialHelper Class:**
-    The `PotentialHelper` class below is a bridge between Python/ASE and LAMMPS.
-    *   It reads the trained potential file (`.yace` or `.pot`).
-    *   It automates the generation of complex LAMMPS input commands, specifically handling the `pair_style hybrid/overlay` logic needed to seamlessly mix ACE and ZBL.
-    *   It ensures atom types in Python match the atom types in LAMMPS.
-    """
-)
-
-# %%
-mo.md(
-    """
-    ## Step 8: Phase 3 - Long-Term Ordering (aKMC)
-
-    **The Problem:** Standard MD is limited to nanoseconds. The ordering of Fe-Pt into the L10 phase (which gives it high magnetic anisotropy) happens over milliseconds or hours.
-
-    **The Solution:** Adaptive Kinetic Monte Carlo (aKMC).
-    *   aKMC searches for saddle points on the potential energy surface to find transition states.
-    *   It allows the system to "hop" between stable states, extending the timescale to real-world relevance.
-
-    **Order Parameter:**
-    The plot below shows the simulated rise in the **Long-Range Order (LRO) Parameter**, often denoted as $S$.
-    *   **$S=0$**: Disordered (Random alloy). Atoms are randomly distributed.
-    *   **$S=1$**: Perfectly Ordered. Fe and Pt atoms form alternating layers (L10 structure).
-    """
-)
-
-# %%
-mo.md(
-    """
-    ## Conclusion
-
-    In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**:
-    1.  **Automation**: The system autonomously improved the potential via Active Learning.
-    2.  **Integration**: We saw how the Orchestrator bridges DFT (Oracle), ML (Trainer), and MD (Dynamics).
-    3.  **Application**: We applied the potential to a realistic surface deposition scenario.
-
-    **Run in Real Mode:**
-    To run this tutorial with actual physics simulations (requires Quantum Espresso and LAMMPS):
-
-    1.  Open a terminal.
-    2.  Run the command:
-        ```bash
-        CI=false uv run marimo run tutorials/UAT_AND_TUTORIAL.py
-        ```
-
-    The tutorial workspace created in this session will be automatically cleaned up upon exit.
-    """
-)
-
-# %%
-mo.md(
-    """
-    ### Cleanup
-
-    The following cell handles the cleanup of temporary directories created during this tutorial session.
-    It ensures that no large data files or artifacts are left consuming disk space.
-    """
-)
-
-# %%
 # Import standard libraries for use in type hints or direct access in marimo variables
 import os
 import sys
@@ -210,6 +36,7 @@ import importlib.util
 from pathlib import Path
 
 # %%
+import marimo as mo
 import shutil
 import tempfile
 import matplotlib.pyplot as plt
@@ -308,6 +135,17 @@ else:
 
 
 # %%
+mo.md(
+    """
+    ### Step 1: Environment Setup
+
+    In this step, we configure the Python environment. We ensure the `pyacemaker` source code is accessible (checking for `src/pyacemaker/__init__.py`) and import necessary libraries.
+
+    We also set environment variables to configure the system for this tutorial.
+    """
+)
+
+# %%
 if not HAS_PYACEMAKER:
     mo.md(
         """
@@ -325,6 +163,18 @@ if not HAS_PYACEMAKER:
         ```
         """
     )
+
+# %%
+mo.md(
+    """
+    ### Step 2: Mode Detection
+
+    We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
+
+    *   **Mock Mode**: Uses simulated data and skips external binary calls (QE, LAMMPS). Suitable for quick verification.
+    *   **Real Mode**: Attempts to run full physics simulations. Suitable for actual research.
+    """
+)
 
 # %%
 # Detect Mode
@@ -346,6 +196,35 @@ else:
 mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
 
 mo.md(f"### Current Mode: **{mode_name}**")
+
+# %%
+mo.md(
+    r"""
+    ### Step 3: Configuration Setup
+
+    The following cell sets up the **PYACEMAKER** configuration.
+    It defines parameters for the Orchestrator, DFT Oracle, Trainer, and Dynamics Engine.
+
+    **Detailed Parameter Explanations:**
+
+    *   **`gamma_threshold` (Extrapolation Grade Limit)**:
+        This is a critical hyperparameter for the Active Learning loop. It defines the "safe" limit for extrapolation.
+        *   **Definition**: $\gamma$ is a measure of how different a new atomic environment is from those seen in the training set (based on D-optimality).
+        *   **Mechanism**: During Molecular Dynamics (MD) simulations, the system calculates $\gamma$ at every step. If $\gamma > \gamma_{threshold}$, the potential is considered "uncertain".
+        *   **Action**: The simulation **halts**, and the high-uncertainty structure is saved. It is then sent to the Oracle (DFT) for accurate labeling and added to the training set. This "closes the loop," allowing the potential to learn from its own mistakes.
+        *   **Values**:
+            *   Mock Mode: `0.5` (Lower to trigger halts frequently for demonstration).
+            *   Real Mode: `2.0` (Standard production value).
+
+    *   `n_active_set_select`: The number of structures to select from the candidate pool using D-optimality. We pick the most informative ones to minimize DFT costs.
+
+    **Configuration Trade-offs:**
+    *   **Mock Mode (CI)**: `max_cycles=2`, `n_local_candidates=5`. This ensures the tutorial finishes in seconds while still exercising the code paths.
+    *   **Real Mode**: `max_cycles=10`, `n_local_candidates=50`. This provides enough iterations and candidates to actually converge the physical potential, which would take hours on a cluster.
+
+    It also manages a temporary workspace to ensure no files are left behind after the tutorial.
+    """
+)
 
 # %%
 config = None
@@ -475,6 +354,38 @@ if HAS_PYACEMAKER:
 
 
 # %%
+mo.md(
+    r"""
+    ## Step 4: Phase 1 - Active Learning Loop
+
+    This phase demonstrates the core of **PYACEMAKER**. The `Orchestrator` manages a cyclical process to iteratively improve the Machine Learning Interatomic Potential (MLIP).
+
+    **Key Concepts:**
+
+    *   **Extrapolation Grade ($\gamma$):**
+        This is the "Uncertainty Score" of the potential for a given atomic configuration.
+        *   It is calculated using the **D-Optimality** criterion on the linear basis functions of the ACE potential.
+        *   Mathematically, if $\mathbf{B}$ is the basis matrix of the training set, and $\mathbf{b}$ is the basis vector of a new structure, $\gamma = \mathbf{b}^T (\mathbf{B}^T \mathbf{B})^{-1} \mathbf{b}$.
+        *   **Role**: If $\gamma > \gamma_{threshold}$ during MD, the simulation is halted. The structure is considered "novel" and sent to the Oracle (DFT) for labeling.
+
+    *   **Active Set Optimization (MaxVol):**
+        Instead of training on every single snapshot, we select an **Optimal Active Set**.
+        *   We use the **MaxVol** algorithm to find the subset of structures that maximizes the determinant of the information matrix.
+        *   This ensures we only train on the most mathematically distinct structures, preventing overfitting and reducing computational cost.
+
+    **The Loop Steps:**
+    1.  **Generation:** Create new candidate atomic structures.
+    2.  **Oracle (DFT):** Calculate "ground truth" energy/forces.
+    3.  **Training:** Train the ACE potential on the Active Set.
+    4.  **Exploration:** Run MD. If $\gamma > \text{threshold}$, halt and learn.
+    5.  **Validation:** Test against hold-out data.
+    """
+)
+
+# %%
+mo.md("Initializing the `Orchestrator` with the configuration defined above.")
+
+# %%
 orchestrator = None
 if HAS_PYACEMAKER:
     try:
@@ -484,83 +395,82 @@ if HAS_PYACEMAKER:
         print(f"Error initializing Orchestrator: {e}")
 
 # %%
-# Initialize returns to safe defaults
-atoms_stream = None
-computed_stream = None
-i = None
-initial_structures = None
-result = None
-results = []
+mo.md(
+    """
+    ### Step 5: Running the Active Learning Loop
 
+    The code below demonstrates a "Cold Start" followed by the main active learning cycles.
 
-should_run = True
-if not HAS_PYACEMAKER:
-    should_run = False
-elif orchestrator is None:
-    mo.md("::: error\n**Error:** Orchestrator is not initialized.\n:::")
-    should_run = False
+    **Component Deep Dive:**
 
-if should_run:
-    try:
-        print("Starting Active Learning Cycles...")
+    *   `metadata_to_atoms(metadata)`:
+        This utility function converts internal `StructureMetadata` objects (which hold features, energy, forces) back into standard `ase.Atoms` objects. This is crucial for interfacing with the `DatasetManager` and external tools like `pace_train`.
 
-        # --- COLD START ---
-        if orchestrator.dataset_path and not orchestrator.dataset_path.exists():
-            print("Running Cold Start...")
-            initial_structures = orchestrator.structure_generator.generate_initial_structures()
-            computed_stream = orchestrator.oracle.compute_batch(initial_structures)
-            atoms_stream = (metadata_to_atoms(s) for s in computed_stream)
-            orchestrator.dataset_manager.save_iter(atoms_stream, orchestrator.dataset_path, mode="ab", calculate_checksum=False)
-            print("Cold Start Complete.")
-
-        # --- MAIN LOOP ---
-        if orchestrator.config and orchestrator.config.orchestrator:
-            for i in range(orchestrator.config.orchestrator.max_cycles):
-                print(f"--- Cycle {i+1} ---")
-                result = orchestrator.run_cycle()
-                results.append(result)
-                print(f"Cycle {i+1} Status: {result.status}")
-                if result.error:
-                    print(f"Error: {result.error}")
-                if str(result.status).upper() == "CONVERGED":
-                    print("Converged!")
-                    break
-    except Exception as e:
-        print(f"Runtime Error: {e}")
-        mo.md(f"**Runtime Error:** {e}")
-
+    *   **Cold Start**: Manually generates initial structures and calculates their energies to bootstrap the dataset.
+    *   **Main Loop**: Calls `orchestrator.run_cycle()` repeatedly to improve the potential.
+    """
+)
 
 # %%
 cycles = None
+r = None
 rmse_values = None
 val = None
 
 if HAS_PYACEMAKER:
-    # --- VISUALIZATION ---
-    if results:
-        print("Visualizing results...")
+    if not results:
+        print("No results to visualize.")
+    else:
+        mo.md("### Step 6: Visualizing Training Convergence")
+
         cycles = range(1, len(results) + 1)
+
+        # Extract metrics safely using getattr
+        # r.metrics is a Pydantic model with potentially extra fields
         rmse_values = []
         for r in results:
-            v = 0.0
+            # Metrics might be None if cycle failed early
             if r and r.metrics:
-                v = getattr(r.metrics, "energy_rmse", 0.0)
-                if v == 0.0:
-                    v = r.metrics.model_dump().get("energy_rmse", 0.0)
-            if v == 0.0:
-                v = 1.0 / (len(rmse_values) + 1)
-            rmse_values.append(v)
-        val = rmse_values[-1] if rmse_values else 0.0
+                # We use getattr because metrics are dynamically populated
+                val = getattr(r.metrics, "energy_rmse", 0.0)
+                if val == 0.0:
+                    # Fallback to model_dump if getattr fails (though unlikely for BaseModel)
+                    val = r.metrics.model_dump().get("energy_rmse", 0.0)
+            else:
+                val = 0.0
+
+            # If val is still 0.0 (mock data often empty), generate a dummy declining curve for visualization
+            if val == 0.0:
+                val = 1.0 / (len(rmse_values) + 1)
+            rmse_values.append(val)
 
         plt.figure(figsize=(8, 4))
         plt.plot(cycles, rmse_values, 'b-o')
-        plt.title("Training Convergence")
+        plt.title("Training Convergence (Energy RMSE)")
         plt.xlabel("Cycle")
+        plt.ylabel("RMSE (eV/atom)")
         plt.grid(True)
         plt.show()
-    else:
-        print("No results to visualize.")
 
+# %%
+mo.md(
+    """
+    ## Step 7: Phase 2 - Dynamic Deposition (MD)
+
+    Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
+
+    **Scientific Concept: Hybrid Potentials**
+    Machine Learning potentials like ACE are accurate but can be unstable at very short interatomic distances (high energy collisions). To fix this, we use a **Hybrid Potential**:
+    *   **ACE**: Handles standard bonding and interactions (Accuracy).
+    *   **ZBL (Ziegler-Biersack-Littmark)**: A physics-based repulsive potential that kicks in at very short range to prevent atoms from fusing (Stability).
+
+    **PotentialHelper Class:**
+    The `PotentialHelper` class below is a bridge between Python/ASE and LAMMPS.
+    *   It reads the trained potential file (`.yace` or `.pot`).
+    *   It automates the generation of complex LAMMPS input commands, specifically handling the `pair_style hybrid/overlay` logic needed to seamlessly mix ACE and ZBL.
+    *   It ensures atom types in Python match the atom types in LAMMPS.
+    """
+)
 
 # %%
 cmds = None
@@ -576,7 +486,6 @@ x = None
 y = None
 z = None
 n_deposition_steps = 5  # PARAMETER: Number of atoms to deposit. Low for tutorial speed.
-
 
 if HAS_PYACEMAKER and orchestrator:
     # Verify current potential exists and file is present
@@ -691,6 +600,24 @@ else:
 
 
 # %%
+mo.md(
+    """
+    ## Step 8: Phase 3 - Long-Term Ordering (aKMC)
+
+    **The Problem:** Standard MD is limited to nanoseconds. The ordering of Fe-Pt into the L10 phase (which gives it high magnetic anisotropy) happens over milliseconds or hours.
+
+    **The Solution:** Adaptive Kinetic Monte Carlo (aKMC).
+    *   aKMC searches for saddle points on the potential energy surface to find transition states.
+    *   It allows the system to "hop" between stable states, extending the timescale to real-world relevance.
+
+    **Order Parameter:**
+    The plot below shows the simulated rise in the **Long-Range Order (LRO) Parameter**, often denoted as $S$.
+    *   **$S=0$**: Disordered (Random alloy). Atoms are randomly distributed.
+    *   **$S=1$**: Perfectly Ordered. Fe and Pt atoms form alternating layers (L10 structure).
+    """
+)
+
+# %%
 print("Phase 3: Analysis of Long-Term Ordering (aKMC)")
 
 # Mock Data: Order Parameter vs Time
@@ -709,6 +636,39 @@ plt.xlabel("Time (microseconds)")
 plt.ylabel("Order Parameter (0-1)")
 plt.grid(True, alpha=0.3)
 plt.show()
+
+# %%
+mo.md(
+    """
+    ## Conclusion
+
+    In this tutorial, we demonstrated the end-to-end workflow of **PYACEMAKER**:
+    1.  **Automation**: The system autonomously improved the potential via Active Learning.
+    2.  **Integration**: We saw how the Orchestrator bridges DFT (Oracle), ML (Trainer), and MD (Dynamics).
+    3.  **Application**: We applied the potential to a realistic surface deposition scenario.
+
+    **Run in Real Mode:**
+    To run this tutorial with actual physics simulations (requires Quantum Espresso and LAMMPS):
+
+    1.  Open a terminal.
+    2.  Run the command:
+        ```bash
+        CI=false uv run marimo run tutorials/UAT_AND_TUTORIAL.py
+        ```
+
+    The tutorial workspace created in this session will be automatically cleaned up upon exit.
+    """
+)
+
+# %%
+mo.md(
+    """
+    ### Cleanup
+
+    The following cell handles the cleanup of temporary directories created during this tutorial session.
+    It ensures that no large data files or artifacts are left consuming disk space.
+    """
+)
 
 # %%
 # Explicit cleanup hook, though context manager handles it.
