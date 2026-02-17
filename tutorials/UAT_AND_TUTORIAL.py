@@ -436,7 +436,8 @@ def run_learning(HAS_PYACEMAKER, Path, metadata_to_atoms, mo, orchestrator):
                     initial = orchestrator.structure_generator.generate_initial_structures()
                     computed = orchestrator.oracle.compute_batch(initial)
                     atoms_stream = (metadata_to_atoms(s) for s in computed)
-                    orchestrator.dataset_manager.save_iter(atoms_stream, orchestrator.dataset_path, mode="ab", calculate_checksum=False)
+                    # Safe usage: Use the confirmed Path object 'dataset_path'
+                    orchestrator.dataset_manager.save_iter(atoms_stream, dataset_path, mode="ab", calculate_checksum=False)
 
                 # Cycles
                 for i in range(orchestrator.config.orchestrator.max_cycles):
@@ -517,6 +518,10 @@ def run_deposition(
 ):
     """
     Simulates the deposition process.
+
+    In **Real Mode**, this step generates the LAMMPS input files required to run the actual molecular dynamics simulation.
+    For the purpose of this interactive tutorial (and immediate visualization), we perform a **Mock Simulation** using
+    Python to randomly place atoms, mimicking the visual result of deposition.
 
     Parameters:
     - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
@@ -620,10 +625,16 @@ def run_analysis(np, plt):
 def cleanup(logging, output_path, order_param, tutorial_tmp_dir):
     # Dependency on output_path and order_param ensures this runs LAST
     # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
+    # Safety Check: Ensure the path is a safe temporary directory created by this tutorial
     if tutorial_tmp_dir is not None and hasattr(tutorial_tmp_dir, 'cleanup'):
         try:
-            tutorial_tmp_dir.cleanup()
-            print("Cleanup: Done.")
+            # Double check the name/path to prevent arbitrary deletions
+            # tutorial_tmp_dir.name should contain the prefix
+            if "pyacemaker_tutorial_" in tutorial_tmp_dir.name:
+                tutorial_tmp_dir.cleanup()
+                print("Cleanup: Done.")
+            else:
+                logging.warning(f"Skipping cleanup: {tutorial_tmp_dir.name} does not match expected pattern.")
         except Exception as e:
             # Use logging to report cleanup errors without crashing
             logging.error(f"Cleanup failed: {e}")
