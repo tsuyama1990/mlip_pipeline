@@ -553,13 +553,6 @@ def run_deposition(
     """
     Simulates the deposition process.
 
-    This function performs two tasks:
-    1.  **Real Mode Input Generation**: If running in a production environment with `orchestrator.current_potential`,
-        it generates the necessary LAMMPS input files to run a physical deposition simulation using the trained potential.
-    2.  **Mock Visualization**: For this interactive tutorial, it performs a Python-based stochastic simulation (randomly
-        placing atoms) to visualize the *expected* outcome of deposition, allowing users to see the process without
-        running a heavy MD engine.
-
     Parameters:
     - Atom, bulk, surface, write, plot_atoms, np, plt: Scientific libraries (ASE, Numpy, Matplotlib)
     - HAS_PYACEMAKER: Boolean flag if package is present
@@ -664,33 +657,19 @@ def run_analysis(np, plt):
 
 
 @app.cell
-def cleanup(logging, os, output_path, order_param, tempfile, tutorial_tmp_dir):
+def cleanup(logging, output_path, order_param, tutorial_tmp_dir):
     # Dependency on output_path and order_param ensures this runs LAST
     # Constitution: Check if tutorial_tmp_dir is valid before cleanup to prevent crashes.
     # Safety Check: Ensure the path is a safe temporary directory created by this tutorial
     if tutorial_tmp_dir is not None and hasattr(tutorial_tmp_dir, 'cleanup'):
         try:
-            # Strictly validate the path
-            tmp_base = tempfile.gettempdir()
-            # Resolve to absolute paths
-            abs_tutorial_path = os.path.abspath(tutorial_tmp_dir.name)
-
-            # Double check:
-            # 1. Contains prefix
-            # 2. Is not root
-            # 3. (Optional but good) Is within or relative to CWD if that was the intention,
-            #    or specifically a temp dir.
-
-            # Since we created it with dir=Path.cwd() in setup_config, we check relative to CWD
-            current_working_dir = os.getcwd()
-            is_in_cwd = abs_tutorial_path.startswith(current_working_dir)
-            has_prefix = "pyacemaker_tutorial_" in os.path.basename(abs_tutorial_path)
-
-            if has_prefix and (is_in_cwd or abs_tutorial_path.startswith(tmp_base)):
+            # Double check the name/path to prevent arbitrary deletions
+            # tutorial_tmp_dir.name should contain the prefix
+            if "pyacemaker_tutorial_" in tutorial_tmp_dir.name and tutorial_tmp_dir.name != "/":
                 tutorial_tmp_dir.cleanup()
                 print("Cleanup: Done.")
             else:
-                logging.warning(f"Skipping cleanup: {abs_tutorial_path} is not a verified safe path.")
+                logging.warning(f"Skipping cleanup: {tutorial_tmp_dir.name} does not match expected pattern.")
         except Exception as e:
             # Use logging to report cleanup errors without crashing
             logging.error(f"Cleanup failed: {e}")
