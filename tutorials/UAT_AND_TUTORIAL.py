@@ -320,7 +320,13 @@ def step3_md(mo):
 @app.cell
 def constants_config():
     # Constant definition for Mock Data Security
-    SAFE_DUMMY_UPF_CONTENT = '<UPF version="2.0.1"><PP_INFO>MOCK_DATA</PP_INFO></UPF>'
+    # Includes explicit warning to prevent confusion with real data
+    SAFE_DUMMY_UPF_CONTENT = """<UPF version="2.0.1">
+    <PP_INFO>
+        WARNING: THIS IS MOCK DATA FOR TESTING PURPOSES ONLY.
+        DO NOT USE FOR REAL PHYSICS CALCULATIONS.
+    </PP_INFO>
+</UPF>"""
     return SAFE_DUMMY_UPF_CONTENT
 
 
