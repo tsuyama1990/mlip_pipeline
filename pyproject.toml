@@ -39,6 +39,7 @@ dev = [
     "marimo>=0.19.11",
     "pyvista>=0.47.0",
     "trame>=3.12.0",
+    "nbformat>=5.10.4",
 ]
 
 [tool.ruff]
