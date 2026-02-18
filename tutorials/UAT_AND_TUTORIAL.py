@@ -527,6 +527,15 @@ def section2_md(mo):
             *   The simulation halts, and the high-$\gamma$ structure is added to the training set.
 
         This cycle repeats until convergence, ensuring the potential is robust for the specific environments encountered in deposition (e.g., adatoms, clusters).
+
+        **Active Learning Loop in Detail**:
+        1.  **Exploration**: The current potential is used to run Molecular Dynamics (MD) simulations.
+        2.  **Uncertainty Quantification**: During MD, the potential evaluates the "Extrapolation Grade" ($\gamma$) for each configuration. $\gamma$ measures how different the current atomic environment is from the training data.
+        3.  **Halt & Diagnose**: If $\gamma$ exceeds a threshold (e.g., $\gamma > 2$), the simulation is paused. The high-uncertainty structure is flagged.
+        4.  **Labeling**: The flagged structure is sent to the Oracle (DFT) to calculate the true energy and forces.
+        5.  **Retraining**: The new data is added to the training set, and the potential is retrained to learn this new configuration.
+
+        This process ensures the potential "learns from its mistakes" and explores the phase space efficiently.
         """
     )
     return
@@ -902,6 +911,12 @@ def section4_md(mo):
         The plot below shows the **Long Range Order Parameter ($S$)** over time.
         *   $S = 0$: Completely Disordered.
         *   $S = 1$: Perfect L10 Ordering.
+
+        **L10 Ordering Process**:
+        The Fe-Pt alloy tends to form the L10 chemically ordered phase, which consists of alternating layers of Fe and Pt atoms. This ordering is driven by thermodynamics (energy minimization) but is limited by kinetics (diffusion barriers).
+        *   **Disordered State**: Initially, Fe and Pt atoms are randomly distributed (solid solution).
+        *   **Ordering Transition**: As atoms diffuse (via vacancy hopping, simulated by aKMC), they rearrange into the lower-energy layered structure.
+        *   **Order Parameter ($S$)**: We quantify this transition using the Long Range Order parameter. An S-shaped curve (sigmoid) is typical for nucleation and growth of the ordered phase.
         """
     )
     return
