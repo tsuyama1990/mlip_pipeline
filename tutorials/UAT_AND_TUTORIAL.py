@@ -174,7 +174,13 @@ def sci_imports(mo):
 
     mo.md(
         """
-        **Reproducibility Note**: We set `np.random.seed(42)` to ensure that the "random" structures generated in this tutorial are consistent across runs. This is critical for debugging and validating the tutorial's output.
+        ### Reproducibility Note
+
+        We set `np.random.seed(42)` at the beginning of the tutorial.
+
+        **Why?** Scientific simulations often involve stochastic processes (random velocities, Monte Carlo steps). By fixing the seed, we ensure that:
+        1.  The "Random" structures generated in Mock Mode are identical every time you run this notebook.
+        2.  The tutorial results are deterministic and verifiable, making debugging easier.
         """
     )
 
@@ -313,6 +319,14 @@ def check_dependencies(os, shutil, mo):
                 **Missing Binaries:** {', '.join(missing_binaries)}
 
                 **FALLBACK TRIGGERED**: Switching to **Mock Mode** despite `CI={raw_ci}` because required simulation tools are not found in PATH.
+
+                **To Run in Real Mode:**
+                You must install the external physics codes:
+                1.  **Quantum Espresso (`pw.x`)**: [Installation Guide](https://www.quantum-espresso.org/Doc/user_guide/node10.html)
+                2.  **LAMMPS (`lmp`)**: [Installation Guide](https://docs.lammps.org/Install.html)
+                3.  **Pacemaker (`pace_train`)**: [Installation Guide](https://pacemaker.readthedocs.io/en/latest/)
+
+                After installation, ensure they are in your system `$PATH` and restart this notebook.
                 :::
                 """
             )
@@ -356,6 +370,8 @@ def constants_config(mo):
 
         The following constant defines dummy content for Pseudopotential (`.UPF`) files.
         This is **strictly for testing/CI environments** where real physics data is unavailable.
+
+        **Why Mock Data?** Real pseudopotentials are large binary files that may have licensing restrictions. In Mock Mode, we generate harmless placeholders to ensure the file I/O logic of the pipeline works correctly without needing actual physics data.
 
         **NEVER** use these dummy files for actual scientific calculations as they will produce meaningless results.
         :::
@@ -639,8 +655,10 @@ def deposition_and_validation(
 
         We initialize a `MgO` slab (001) surface and randomly place atoms above it to simulate the initial stage of deposition.
 
-        *   **Mock Mode**: Random placement of atoms without running MD.
-        *   **Real Mode**: Generates LAMMPS input files using `PotentialHelper` to run `fix deposit` with the trained potential.
+        **Understanding `PotentialHelper`**:
+        This class acts as a bridge between the trained ACE potential and the LAMMPS simulation engine.
+        *   **Problem**: LAMMPS configuration for hybrid potentials (ACE + ZBL) is complex (`pair_style hybrid/overlay`).
+        *   **Solution**: `PotentialHelper` automatically generates the correct input commands based on the potential file and element list, preventing syntax errors and ensuring physical correctness (ZBL activation).
         """
     )
 
@@ -771,6 +789,9 @@ def section4_md(mo):
         After deposition, we are interested in whether the Fe and Pt atoms arrange themselves into the chemically ordered L10 phase. This process happens over long timescales (microseconds to seconds).
 
         We use **Adaptive Kinetic Monte Carlo (aKMC)** (via EON) to accelerate time.
+
+        **Why L10 Ordering?**
+        The transition from a disordered A1 phase (random alloy) to an ordered L10 phase (layered structure) is critical for magnetic storage devices. The L10 phase has extremely high magnetocrystalline anisotropy, allowing for smaller, stable magnetic bits. Demonstrating that the trained potential can capture this ordering process validates its accuracy for thermodynamic and kinetic studies.
         """
     )
     return
