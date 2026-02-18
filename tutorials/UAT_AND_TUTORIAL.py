@@ -1,13 +1,13 @@
 import marimo
 
-__generated_with = "0.10.9"
+__generated_with = "0.19.11"
 app = marimo.App()
 
 
 @app.cell
 def setup_marimo():
     import marimo as mo
-    return mo
+    return (mo,)
 
 
 @app.cell
@@ -36,14 +36,12 @@ def intro_md(mo):
 
 
 @app.cell
-def imports_md(mo):
+def section1_md(mo):
     mo.md(
         """
-        ### Step 1: Environment Setup
+        ## Section 1: Setup & Initialization
 
-        We import the necessary libraries.
-        *   **Standard Library**: For path manipulation and system operations.
-        *   **Scientific Stack**: **NumPy** for calculations, **Matplotlib** for plotting, and **ASE (Atomic Simulation Environment)** for atomistic manipulation.
+        We begin by setting up the environment, importing necessary libraries, and configuring the simulation parameters.
         """
     )
     return
@@ -65,19 +63,19 @@ def std_imports():
     warnings.filterwarnings("ignore")
     PathRef = Path
     # Return only what is used in other cells
-    return PathRef, atexit, importlib, os, shutil, sys, tempfile
+    return PathRef, atexit, importlib, logging, os, shutil, sys, tempfile, warnings
 
 
 @app.cell
 def verify_packages(importlib, mo):
     # Explicitly check for required dependencies before proceeding
-    # Map package names (pip) to module names (import) if they differ
     pkg_map = {
         "pyyaml": "yaml",
     }
 
     required_packages = ["ase", "numpy", "matplotlib", "pyyaml", "pydantic"]
     missing = []
+
     for pkg in required_packages:
         module_name = pkg_map.get(pkg, pkg)
         if importlib.util.find_spec(module_name) is None:
@@ -112,10 +110,6 @@ def verify_packages(importlib, mo):
 def sci_imports(mo):
     import matplotlib.pyplot as plt
     import numpy as np
-    from ase import Atoms, Atom
-    from ase.visualize.plot import plot_atoms
-    from ase.build import surface, bulk
-    from ase.io import write
 
     mo.md(
         """
@@ -125,19 +119,7 @@ def sci_imports(mo):
 
     # Set random seed for reproducibility
     np.random.seed(42)
-    return Atom, Atoms, bulk, np, plot_atoms, plt, surface, write
-
-
-@app.cell
-def step1c_md(mo):
-    mo.md(
-        """
-        #### Source Code Discovery
-
-        Now we locate the `pyacemaker` source code. This logic allows the tutorial to run even if the package is installed in editable mode or located in a parent directory (`src/`). This is critical for development environments where the code might not be in the system path. It searches `cwd/src` and `cwd/../src`.
-        """
-    )
-    return
+    return np, plt
 
 
 @app.cell
@@ -169,19 +151,7 @@ def path_setup(PathRef, mo, sys):
             :::
             """
         )
-    return cwd, possible_src_paths, src_path
-
-
-@app.cell
-def step1d_md(mo):
-    mo.md(
-        """
-        #### Package Import
-
-        Finally, we attempt to import the **PYACEMAKER** core modules. This cell ensures all necessary components are available before proceeding.
-        """
-    )
-    return
+    return current_wd, possible_src_paths, src_path
 
 
 @app.cell
@@ -267,21 +237,8 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
         StructureMetadata,
         metadata_to_atoms,
         pyacemaker,
+        spec,
     )
-
-
-@app.cell
-def step2_md(mo):
-    mo.md(
-        """
-        ### Step 2: Mode Detection & Dependency Check
-
-        We detect whether to run in **Mock Mode** (CI) or **Real Mode** (Production) based on the `CI` environment variable.
-
-        We also verify the presence of critical external binaries.
-        """
-    )
-    return
 
 
 @app.cell
@@ -340,22 +297,17 @@ def check_dependencies(os, shutil, mo):
             status_md += f"| `{binary}` | ❌ Missing | - |\n"
 
     mo.md(status_md)
-    return IS_CI, mode_name, raw_ci, valid_false, valid_true, found_binaries, missing_binaries
-
-
-@app.cell
-def step3_md(mo):
-    mo.md(
-        r"""
-        ### Step 3: Configuration Setup
-
-        We configure the **PYACEMAKER** system. This involves:
-        1.  Creating a temporary workspace.
-        2.  Setting up Pseudopotentials (using dummies in Mock mode).
-        3.  Defining the `PYACEMAKERConfig` object.
-        """
+    return (
+        IS_CI,
+        found_binaries,
+        missing_binaries,
+        mode_name,
+        raw_ci,
+        required_binaries,
+        status_md,
+        valid_false,
+        valid_true,
     )
-    return
 
 
 @app.cell
@@ -374,41 +326,7 @@ def constants_config(mo):
     # Constant definition for Mock Data Security
     # Minimal content to satisfy file existence checks without mimicking real physics data
     SAFE_DUMMY_UPF_CONTENT = "# MOCK UPF FILE: FOR TESTING PURPOSES ONLY. DO NOT USE FOR PHYSICS."
-    return SAFE_DUMMY_UPF_CONTENT
-
-
-@app.cell
-def gamma_explanation(mo):
-    mo.md(
-        r"""
-        #### Understanding Active Learning & Extrapolation Grade ($\gamma$)
-
-        The core innovation of PYACEMAKER is its **Active Learning Loop**, designed to train potentials efficiently by focusing only on "unknown" atomic configurations.
-
-        ### What is the Extrapolation Grade ($\gamma$)?
-        $\gamma$ is a mathematical metric that quantifies the **uncertainty** of the machine learning model for a given atomic structure. It measures the distance of the current atomic environment from the training set in the high-dimensional ACE feature space.
-
-        *   **Low $\gamma$ (e.g., < 2.0)**: The model has seen similar structures before. Its predictions are reliable (Interpolation).
-        *   **High $\gamma$ (e.g., > 10.0)**: The structure is very different from anything in the training set. Predictions are likely unreliable (Extrapolation).
-
-        ### Analogy: The Explorer's Map
-        Imagine an explorer mapping a new island.
-        *   **Training Data**: The areas they have already visited and mapped.
-        *   **MD Simulation**: The explorer walking into the unknown.
-        *   **$\gamma$**: The distance from the nearest known landmark.
-
-        If the explorer wanders too far into the unknown (High $\gamma$), they stop and take detailed measurements (DFT Calculation) to update the map. This prevents them from getting lost (Unphysical Simulation).
-
-        ### The "Halt & Diagnose" Mechanism
-        1.  **Train**: Build an initial potential from available data.
-        2.  **Explore**: Run Molecular Dynamics (MD).
-        3.  **Detect**: At every step, calculate $\gamma$.
-            *   If $\gamma > \text{Threshold}$ (e.g., 2.0), the simulation **HALTS** immediately.
-        4.  **Label**: The exact structure that caused the halt is sent to the Oracle (DFT) for accurate labeling.
-        5.  **Retrain**: The potential is updated with this new "hard case", ensuring it won't fail there again.
-        """
-    )
-    return
+    return (SAFE_DUMMY_UPF_CONTENT,)
 
 
 @app.cell
@@ -481,60 +399,31 @@ def setup_config(
         except Exception as e:
             mo.md(f"::: error\n**Setup Failed:** Could not create temporary directory or config. {e}\n:::")
 
-    return config, config_dict, pseudos, tutorial_dir, tutorial_tmp_dir
+    return (
+        config,
+        config_dict,
+        pseudos,
+        tutorial_dir,
+        tutorial_tmp_dir,
+    )
 
 
 @app.cell
-def step4_md(mo):
+def section2_md(mo):
     mo.md(
         r"""
-        ## Step 4: Phase 1 - Active Learning Loop
+        ## Section 2: Phase 1 - Divide & Conquer Training (Active Learning)
 
-        The `Orchestrator` manages the loop: Generation -> Oracle -> Training -> Exploration -> Validation.
+        We employ an **Active Learning Loop** to train the potential. While conceptualized as "Divide & Conquer" steps (MgO -> FePt -> Interface), the PYACEMAKER Orchestrator manages these simultaneously by adaptively exploring the configuration space.
 
-        1.  **Cold Start**: This is the initial bootstrap phase where we generate random atomic structures to seed the dataset, as we have no prior data to train on.
-        2.  **Cycle Loop**: This is the iterative process of:
-            *   **Training**: Fit an ACE potential to the current dataset.
-            *   **Exploration**: Run MD with `fix halt` to find uncertain structures.
-            *   **Refinement**: If MD halts, label the bad structure and retrain.
-        """
-    )
-    return
+        The process involves:
+        *   **Step A**: Train MgO bulk & surface potential.
+        *   **Step B**: Train Fe-Pt alloy potential (L10 phase).
+        *   **Step C**: Train Interface potential (Fe/Pt on MgO).
 
-
-@app.cell
-def metadata_explanation(mo):
-    mo.md(
-        """
-        ### Data Conversion: `metadata_to_atoms`
-
-        The `metadata_to_atoms` function is a crucial utility that bridges the gap between PYACEMAKER's internal data model and the ASE (Atomic Simulation Environment) ecosystem.
-
-        *   **Internal Model (`StructureMetadata`)**: PYACEMAKER uses a rich Pydantic model to store structures along with their full provenance (origin, calculation status, tags) and calculated features (energy, forces, stress, uncertainty).
-        *   **External Tool (`ase.Atoms`)**: Most simulation engines (like Pacemaker, LAMMPS via ASE) operate on standard `ase.Atoms` objects.
-
-        `metadata_to_atoms` extracts the atomic positions, cell, and numbers from `StructureMetadata` and packages them into an `ase.Atoms` object, attaching energy and forces as properties if they exist. This allows seamless data exchange between the orchestrator and the training/simulation modules.
-        """
-    )
-    return
-
-
-@app.cell
-def active_learning_md(mo):
-    mo.md(
-        r"""
-        ### Active Learning Loop Execution
-
-        The following cell executes the core active learning loop using the `Orchestrator`.
-
-        **Key Object: `Orchestrator`**
-        The `Orchestrator` class is the central controller. Its `run()` method executes the entire pipeline:
-        1.  **Cold Start**: If no data exists, it generates initial random structures and labels them using the Oracle.
-        2.  **Cycle Loop**: It iterates through `Train -> Validate -> Explore -> Label` cycles.
-        3.  **Output**: It returns a `ModuleResult` object containing the final status and `Metrics`.
-
-        **Metrics & History**
-        The `ModuleResult.metrics` object contains a `history` list. Each item in this list represents the metrics (e.g., RMSE Energy, RMSE Forces) for a specific cycle. We extract this history into the `results` variable to visualize the training progress.
+        The `Orchestrator` automatically iterates through:
+        1.  **Cold Start**: Initial structure generation.
+        2.  **Cycle Loop**: Train -> Validate -> Explore (MD) -> Label (Oracle).
         """
     )
     return
@@ -544,10 +433,8 @@ def active_learning_md(mo):
 def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
     orchestrator = None
     results = [] # Define at start to ensure it exists in cell scope
-
-    # Note: We rely on the high-level API orchestrator.run() which encapsulates
-    # structure generation, oracle computation, and dataset management.
-    # This avoids exposing internal sub-modules in the tutorial.
+    metrics_dict = None
+    module_result = None
 
     if HAS_PYACEMAKER:
         # Step 1: Initialization
@@ -599,31 +486,20 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
                     """
                 )
                 print(f"Critical Runtime Error: {e}")
-                # Partial results might be available if we had logic to extract them,
-                # but for now results remains as is (likely empty or partial if modified in place)
 
     # Final check for initialization success
     if HAS_PYACEMAKER and orchestrator is None:
         mo.md("::: error\n**Fatal Error**: Orchestrator failed to initialize.\n:::")
 
-    return orchestrator, results
-
-
-@app.cell
-def step6_md(mo):
-    mo.md(
-        """
-        ### Visualization
-
-        We plot the Root Mean Square Error (RMSE) of the energy predictions on the validation set for each cycle.
-        A downward trend indicates the potential is improving.
-        """
-    )
-    return
+    return metrics_dict, module_result, orchestrator, results
 
 
 @app.cell
 def visualize(HAS_PYACEMAKER, plt, results):
+    data = None
+    rmse_values = None
+    v = None
+
     if HAS_PYACEMAKER and results:
         rmse_values = []
         for metrics in results:
@@ -651,14 +527,14 @@ def visualize(HAS_PYACEMAKER, plt, results):
         plt.ylabel("RMSE (eV/atom)")
         plt.grid(True)
         plt.show()
-    return
+    return data, rmse_values, v
 
 
 @app.cell
-def step7_md(mo):
+def section3_md(mo):
     mo.md(
         """
-        ## Step 7: Phase 2 - Dynamic Deposition (MD)
+        ## Section 3: Phase 2 - Dynamic Deposition (MD)
 
         Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
 
@@ -670,50 +546,40 @@ def step7_md(mo):
 
 
 @app.cell
-def deposition_explanation(mo):
-    mo.md(
-        """
-        ### Deposition Simulation & PotentialHelper
-
-        **Understanding `PotentialHelper`**
-        The `PotentialHelper` class is a critical utility for bridging Machine Learning Potentials (MLIPs) with classical Molecular Dynamics engines like LAMMPS.
-        *   **Hybrid Potentials**: MLIPs are often combined with physics-based baselines (like ZBL for short-range repulsion) to prevent unphysical behavior (e.g., atoms fusing).
-        *   **Complexity**: Configuring LAMMPS to use multiple potentials (`pair_style hybrid/overlay`) is error-prone.
-        *   **Solution**: `PotentialHelper` automatically generates the correct LAMMPS input commands given a potential file and element list.
-
-        **Simulation Logic**
-        The `run_deposition` function below operates in two modes:
-        1.  **Real Mode (`IS_CI=False`)**: Uses `PotentialHelper` to generate commands for the trained potential and runs a full LAMMPS simulation (requires `lmp` binary).
-        2.  **Mock Mode (`IS_CI=True`)**: Since we are in a CI environment without heavy compute resources, we simulate the *outcome* of the deposition by placing atoms stochastically using Python. This validates the data pipeline and visualization without running the physics engine.
-        """
-    )
-    return
-
-
-@app.cell
-def run_deposition(
-    Atom,
+def deposition_and_validation(
     HAS_PYACEMAKER,
     IS_CI,
     PotentialHelper,
-    bulk,
     mo,
     np,
     orchestrator,
-    plot_atoms,
     plt,
-    results,  # Dependency injection: `results` ensures this cell runs AFTER learning (topological order)
-    surface,
+    results,
     tutorial_dir,
-    write,
 ):
+    # Local imports to avoid dependency issues
+    from ase import Atom
+    from ase.build import surface, bulk
+    from ase.visualize.plot import plot_atoms
+    from ase.io import write
+    from scipy.spatial.distance import pdist
+
     output_path = None
     deposited_structure = None
+    validation_status = []
+
+    artifacts = None
+    dists = None
+    min_dist = None
+    name = None
+    path = None
 
     # Graceful exit if upstream failed
     if orchestrator is None:
         mo.md("::: warning\nSkipping deposition: Orchestrator not initialized.\n:::")
-        return None, None
+        return artifacts, deposited_structure, dists, min_dist, name, output_path, path, validation_status
+
+    # --- Deposition Phase ---
 
     # Logic: Validate symbols against system configuration to ensure consistency.
     valid_symbols = ["Fe", "Pt"]
@@ -776,22 +642,64 @@ def run_deposition(
             output_path = md_work_dir / "final.xyz"
             write(output_path, deposited_structure)
 
-    return deposited_structure, output_path
+    # --- Validation Phase ---
+
+    mo.md("### Validation Criteria Checks")
+
+    # 1. Artifacts Check
+    artifacts = {
+        "dataset": tutorial_dir / "data" / "dataset.pckl.gzip",
+        "trajectory": output_path,
+        "potential": None # Dynamic check
+    }
+
+    if orchestrator and hasattr(orchestrator, 'current_potential') and orchestrator.current_potential:
+        artifacts["potential"] = orchestrator.current_potential.path
+
+    for name, path in artifacts.items():
+        if path and path.exists():
+            validation_status.append(f"✅ **Artifact Created**: `{name}` ({path.name})")
+        else:
+            if name == "potential" and not orchestrator.current_potential:
+                validation_status.append(f"⚠️ **Artifact Missing**: `{name}` (Training failed or mock)")
+            else:
+                validation_status.append(f"❌ **Artifact Missing**: `{name}`")
+
+    # 2. Physics Check: Min Distance > 1.5 A
+    if deposited_structure:
+        min_dist = 10.0
+        # Simple O(N^2) check for small N
+        positions = deposited_structure.get_positions()
+        # Calculate distance matrix (upper triangle)
+        if len(positions) > 1:
+            dists = pdist(positions)
+            min_dist = np.min(dists)
+
+        if min_dist > 1.5:
+            validation_status.append(f"✅ **Physics Check**: Min atomic distance {min_dist:.2f} Å > 1.5 Å (No Core Overlap)")
+        else:
+            validation_status.append(f"❌ **Physics Check**: Core Overlap Detected! Min distance {min_dist:.2f} Å < 1.5 Å")
+    else:
+        validation_status.append("⚠️ **Physics Check**: Skipped (No structure)")
+
+    # 3. Physics Check: Negative Energy (Sanity)
+    # This requires potential evaluation, which we might not have in mock mode easily without calculation.
+    # We will check if the last cycle metrics showed valid energies.
+
+    mo.md("\n\n".join(validation_status))
+
+    return artifacts, deposited_structure, dists, min_dist, name, output_path, path, validation_status
 
 
 @app.cell
-def step8_md(mo):
+def section4_md(mo):
     mo.md(
         """
-        ## Step 8: Phase 3 - Analysis (L10 Ordering)
+        ## Section 4: Phase 3 - Long-Term Ordering (aKMC)
 
-        After deposition, we are interested in whether the Fe and Pt atoms arrange themselves into the chemically ordered L10 phase. This process happens over long timescales (microseconds to seconds), which is too slow for standard MD.
+        After deposition, we are interested in whether the Fe and Pt atoms arrange themselves into the chemically ordered L10 phase. This process happens over long timescales (microseconds to seconds).
 
         We use **Adaptive Kinetic Monte Carlo (aKMC)** (via EON) to accelerate time.
-
-        The plot below shows the **Order Parameter** vs Time.
-        *   **0**: Disordered (Random alloy)
-        *   **1**: Perfectly Ordered (L10 layers)
         """
     )
     return
@@ -803,10 +711,9 @@ def run_analysis(HAS_PYACEMAKER, mo, np, plt):
         """
         ### Analysis: L10 Ordering
 
-        This cell visualizes the **Order Parameter** evolution over time during the long-timescale simulation.
-
-        *   **What is the Order Parameter?** It is a scalar value (0 to 1) representing the degree of chemical ordering in the Fe-Pt alloy. 0 represents a random solid solution, while 1 represents the perfect L10 chemically ordered phase (layered structure).
-        *   **Why aKMC?** Standard MD is too fast (nanoseconds). Adaptive Kinetic Monte Carlo (aKMC) allows us to reach seconds or hours, observing the slow diffusion processes that lead to ordering.
+        This cell visualizes the **Order Parameter** vs Time.
+        *   **0**: Disordered (Random alloy)
+        *   **1**: Perfectly Ordered (L10 layers)
 
         *Note: In this tutorial, we generate a mock sigmoid curve to demonstrate the expected phase transition.*
         """
@@ -832,44 +739,12 @@ def run_analysis(HAS_PYACEMAKER, mo, np, plt):
 
 
 @app.cell
-def summary_md(mo):
-    mo.md(
-        r"""
-        ## Tutorial Summary & Next Steps
-
-        Congratulations! You have successfully run the **PYACEMAKER** automated pipeline.
-
-        ### What We Achieved:
-        1.  **Orchestration**: We set up an `Orchestrator` to manage the complex lifecycle of active learning.
-        2.  **Active Learning**: The system autonomously improved a Machine Learning Potential by:
-            *   Generating structures.
-            *   Detecting high uncertainty ($\gamma$) during exploration.
-            *   Retraining on-the-fly.
-        3.  **Application**: We used the trained potential to simulate the deposition of Fe/Pt on MgO.
-        4.  **Analysis**: We visualized the L10 ordering process.
-
-        ### Expected Outputs:
-        In the `pyacemaker_tutorial_*/` directory (created in your current working directory), you will find:
-        *   `potentials/*.yace`: The final trained ACE potentials.
-        *   `data/dataset.pckl.gzip`: The accumulated training dataset.
-        *   `deposition_md/final.xyz`: The final atomic structure from the deposition simulation.
-        *   `validation/validation_report.html`: (If in Real Mode) Detailed physics validation report.
-
-        ### Next Steps:
-        *   **Run in Production**: Install Quantum Espresso and LAMMPS, set `CI=false`, and run this notebook again to generate a real, high-quality potential.
-        *   **Explore Config**: Modify `config` in Step 3 to change the material system (e.g., Al-Cu) or adjust training parameters.
-        """
-    )
-    return
-
-
-@app.cell
 def cleanup(mo, tutorial_tmp_dir):
     mo.md(
         """
         ### Cleanup
 
-        Finally, we clean up the temporary workspace to keep the environment clean.
+        Finally, we clean up the temporary workspace.
         """
     )
     if tutorial_tmp_dir:
@@ -879,3 +754,7 @@ def cleanup(mo, tutorial_tmp_dir):
         except Exception as e:
             print(f"Cleanup warning: {e}")
     return
+
+
+if __name__ == "__main__":
+    app.run()
