@@ -177,7 +177,11 @@ def check_api_keys(mo, os):
 
             *   **Impact**: Strategies relying on M3GNet/Materials Project (e.g., "smart" Cold Start) will be disabled or mocked.
             *   **Fallback**: We will default to the **'Random'** exploration strategy, which generates random structures. This ensures the tutorial runs without errors.
-            *   **Fix**: To enable full functionality, set `export MP_API_KEY='your_key'` before running.
+            *   **How to Fix**:
+                1.  **Get a Key**: Sign up at [Materials Project](https://next-gen.materialsproject.org/api) to get your API key.
+                2.  **Set Environment Variable**:
+                    *   **Linux/Mac**: Run `export MP_API_KEY='your_key_here'` in your terminal before starting Marimo.
+                    *   **Windows**: Set the environment variable in System Properties or PowerShell (`$env:MP_API_KEY='your_key_here'`).
             :::
             """
         )
@@ -529,13 +533,14 @@ def section2_md(mo):
         This cycle repeats until convergence, ensuring the potential is robust for the specific environments encountered in deposition (e.g., adatoms, clusters).
 
         **Active Learning Loop in Detail**:
-        1.  **Exploration**: The current potential is used to run Molecular Dynamics (MD) simulations.
-        2.  **Uncertainty Quantification**: During MD, the potential evaluates the "Extrapolation Grade" ($\gamma$) for each configuration. $\gamma$ measures how different the current atomic environment is from the training data.
-        3.  **Halt & Diagnose**: If $\gamma$ exceeds a threshold (e.g., $\gamma > 2$), the simulation is paused. The high-uncertainty structure is flagged.
-        4.  **Labeling**: The flagged structure is sent to the Oracle (DFT) to calculate the true energy and forces.
-        5.  **Retraining**: The new data is added to the training set, and the potential is retrained to learn this new configuration.
+        Think of this like a student learning with a teacher:
+        1.  **Exploration (Homework)**: The AI (potential) tries to simulate atomic movements (MD).
+        2.  **Uncertainty Quantification (Confusion)**: As it simulates, it checks if it recognizes the atomic arrangements. The "Extrapolation Grade" ($\gamma$) is its confusion level. Low $\gamma$ means confident; high $\gamma$ means confused.
+        3.  **Halt & Diagnose (Raise Hand)**: If the AI gets too confused ($\gamma > 2$), it stops and asks for help.
+        4.  **Labeling (Teacher's Correction)**: The "Oracle" (Quantum Mechanics/DFT) calculates the correct answer (Energy/Forces) for that specific confusing structure.
+        5.  **Retraining (Study)**: The AI adds this new example to its textbook (dataset) and retrains itself.
 
-        This process ensures the potential "learns from its mistakes" and explores the phase space efficiently.
+        This cycle repeats until the AI can simulate the entire process without getting confused. This is much faster than asking the teacher for every single step!
         """
     )
     return
@@ -913,10 +918,17 @@ def section4_md(mo):
         *   $S = 1$: Perfect L10 Ordering.
 
         **L10 Ordering Process**:
-        The Fe-Pt alloy tends to form the L10 chemically ordered phase, which consists of alternating layers of Fe and Pt atoms. This ordering is driven by thermodynamics (energy minimization) but is limited by kinetics (diffusion barriers).
-        *   **Disordered State**: Initially, Fe and Pt atoms are randomly distributed (solid solution).
-        *   **Ordering Transition**: As atoms diffuse (via vacancy hopping, simulated by aKMC), they rearrange into the lower-energy layered structure.
-        *   **Order Parameter ($S$)**: We quantify this transition using the Long Range Order parameter. An S-shaped curve (sigmoid) is typical for nucleation and growth of the ordered phase.
+        The Fe-Pt alloy is special because it acts like a 3D chess board with magnetic properties.
+        *   **Disordered Phase (A1)**: Imagine Fe and Pt atoms placed randomly on the board. This is what we get immediately after deposition. It has poor magnetic properties.
+        *   **Ordered Phase (L10)**: To get strong magnets, the atoms must arrange themselves into alternating layers: a layer of Fe, then a layer of Pt, and so on. This is the L10 phase.
+
+        **Why Simulation Matters**:
+        This ordering happens over seconds or hours in real life, driven by atoms hopping into empty spots (vacancies). Standard MD can only simulate nanoseconds. We use **Adaptive Kinetic Monte Carlo (aKMC)** to "fast-forward" time, focusing only on these hopping events.
+
+        **The Graph**:
+        We track the **Order Parameter ($S$)**:
+        *   $S \approx 0$: Random mess (Disordered).
+        *   $S \approx 1$: Perfect layers (L10 Ordered).
         """
     )
     return
