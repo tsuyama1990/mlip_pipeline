@@ -226,7 +226,6 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
     StructureMetadata = None
     metadata_to_atoms = None
     pyacemaker = None
-    spec = None
     HAS_PYACEMAKER = False
 
     try:
@@ -274,7 +273,6 @@ def package_import(importlib, mo, src_path): # src_path dependency ensures topol
         StructureMetadata,
         metadata_to_atoms,
         pyacemaker,
-        spec,
     )
 
 
@@ -635,6 +633,16 @@ def deposition_and_validation(
         return artifacts, deposited_structure, dists, min_dist, name, output_path, path, validation_status
 
     # --- Deposition Phase ---
+    mo.md(
+        """
+        ### Deposition Simulation Setup
+
+        We initialize a `MgO` slab (001) surface and randomly place atoms above it to simulate the initial stage of deposition.
+
+        *   **Mock Mode**: Random placement of atoms without running MD.
+        *   **Real Mode**: Generates LAMMPS input files using `PotentialHelper` to run `fix deposit` with the trained potential.
+        """
+    )
 
     # Logic: Validate symbols against system configuration to ensure consistency.
     valid_symbols = ["Fe", "Pt"]
@@ -699,7 +707,15 @@ def deposition_and_validation(
 
     # --- Validation Phase ---
 
-    mo.md("### Validation Criteria Checks")
+    mo.md(
+        """
+        ### Validation Criteria Checks
+
+        We automatically verify that the simulation satisfies key requirements:
+        1.  **Artifacts**: Ensuring the dataset and potential files were created.
+        2.  **Physics Check (Core Repulsion)**: We verify that no two atoms are dangerously close (< 1.5 Å). This validates that the `ZBL` baseline or the training data correctly learned short-range repulsion.
+        """
+    )
 
     # 1. Artifacts Check
     artifacts = {
