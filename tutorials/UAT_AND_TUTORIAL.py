@@ -83,7 +83,6 @@ def verify_packages(importlib, mo):
     }
 
     # CRITICAL LOGIC CHECK: Ensure 'pyacemaker' is installed
-    # We check it first to fail fast.
     if importlib.util.find_spec("pyacemaker") is None:
         mo.md(
             """
@@ -218,37 +217,52 @@ def path_setup(PathRef, mo, sys):
 
 @app.cell
 def package_import(importlib, mo, src_path): # src_path dependency ensures topological sort
-    HAS_PYACEMAKER = False
-    pyacemaker = None
-    PYACEMAKERConfig = None
+    # Initialize variables to avoid UnboundLocalError
     CONSTANTS = None
     Orchestrator = None
+    PYACEMAKERConfig = None
     Potential = None
-    StructureMetadata = None
     PotentialHelper = None
+    StructureMetadata = None
     metadata_to_atoms = None
+    pyacemaker = None
+    spec = None
+    HAS_PYACEMAKER = False
 
-    # Step 1: Check if package specification exists
-    spec = importlib.util.find_spec("pyacemaker")
+    try:
+        # 1. Base Import
+        import pyacemaker
 
-    if spec is None:
-        # Redundant check but good for safety if cells run out of order
-        mo.md("::: error\n**ERROR**: `pyacemaker` not found.\n:::")
-    else:
-        # Step 2: Attempt import
-        try:
-            import pyacemaker
-            from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
-            from pyacemaker.orchestrator import Orchestrator
-            from pyacemaker.domain_models.models import Potential, StructureMetadata
-            from pyacemaker.modules.dynamics_engine import PotentialHelper
-            from pyacemaker.core.utils import metadata_to_atoms
-            HAS_PYACEMAKER = True
-            print(f"Successfully imported pyacemaker from {pyacemaker.__file__}")
-        except ImportError as e:
-            mo.md(f"::: error\n**Import Error:** {e}\n:::")
-        except Exception as e:
-             mo.md(f"::: error\n**Unexpected Error:** {e}\n:::")
+        # 2. Core Config
+        from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
+
+        # 3. Orchestrator
+        from pyacemaker.orchestrator import Orchestrator
+
+        # 4. Domain Models
+        from pyacemaker.domain_models.models import Potential, StructureMetadata
+
+        # 5. Dynamics (PotentialHelper is in modules.dynamics_engine)
+        from pyacemaker.modules.dynamics_engine import PotentialHelper
+
+        # 6. Utils
+        from pyacemaker.core.utils import metadata_to_atoms
+
+        HAS_PYACEMAKER = True
+        print(f"Successfully imported pyacemaker components from {pyacemaker.__file__}")
+
+    except ImportError as e:
+        mo.md(
+            f"""
+            ::: error
+            **Import Error**: {e}
+
+            Failed to import a specific module from `pyacemaker`. This usually indicates a broken installation or version mismatch.
+            :::
+            """
+        )
+    except Exception as e:
+        mo.md(f"::: error\n**Unexpected Error:** {e}\n:::")
 
     return (
         CONSTANTS,
@@ -284,6 +298,7 @@ def check_dependencies(os, shutil, mo):
     valid_true = ["true", "1", "yes", "on"]
     valid_false = ["false", "0", "no", "off"]
 
+    # Initial decision based on Env Var
     if raw_ci in valid_true:
         IS_CI = True
     elif raw_ci in valid_false:
@@ -291,17 +306,18 @@ def check_dependencies(os, shutil, mo):
     else:
         IS_CI = True # Default safe
 
-    # Force Mock Mode if binaries are missing
-    if not IS_CI and missing_binaries:
-        mo.md(
-            f"""
-            ::: warning
-            **Missing Binaries:** {', '.join(missing_binaries)}
+    # Force Mock Mode if binaries are missing (Logic Update: Explicit Fallback)
+    if missing_binaries:
+        if not IS_CI:
+            mo.md(
+                f"""
+                ::: warning
+                **Missing Binaries:** {', '.join(missing_binaries)}
 
-            Falling back to **Mock Mode** despite `CI={raw_ci}` because required tools are not in PATH.
-            :::
-            """
-        )
+                **FALLBACK TRIGGERED**: Switching to **Mock Mode** despite `CI={raw_ci}` because required simulation tools are not found in PATH.
+                :::
+                """
+            )
         IS_CI = True
 
     mode_name = "Mock Mode (CI)" if IS_CI else "Real Mode (Production)"
@@ -338,10 +354,11 @@ def constants_config(mo):
     mo.md(
         """
         ::: danger
-        **SECURITY WARNING: MOCK DATA**
+        **SECURITY WARNING: MOCK DATA GENERATION**
 
         The following constant defines dummy content for Pseudopotential (`.UPF`) files.
         This is **strictly for testing/CI environments** where real physics data is unavailable.
+
         **NEVER** use these dummy files for actual scientific calculations as they will produce meaningless results.
         :::
         """
@@ -398,7 +415,7 @@ def setup_config(
             pseudos = {"Fe": "Fe.pbe.UPF", "Pt": "Pt.pbe.UPF", "Mg": "Mg.pbe.UPF", "O": "O.pbe.UPF"}
 
             if IS_CI:
-                mo.md("::: danger\n**MOCK MODE: Creating DUMMY `.UPF` files.**\n:::")
+                print("creating dummy upf files")
                 # Security: Ensure content is static and harmless
                 for element, filename in pseudos.items():
                     pseudo_path = tutorial_dir / filename
