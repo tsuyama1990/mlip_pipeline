@@ -64,6 +64,7 @@ def std_imports():
     import tempfile
     import atexit
     import importlib.util
+    import uuid
     from pathlib import Path
     import warnings
     import logging
@@ -72,7 +73,7 @@ def std_imports():
     warnings.filterwarnings("ignore")
     PathRef = Path
     # Return only what is used in other cells
-    return PathRef, atexit, importlib, logging, os, shutil, sys, tempfile, warnings
+    return PathRef, atexit, importlib, logging, os, shutil, sys, tempfile, uuid, warnings
 
 
 @app.cell
@@ -82,29 +83,36 @@ def verify_packages(importlib, mo):
         "pyyaml": "yaml",
     }
 
-    # CRITICAL LOGIC CHECK: Ensure 'pyacemaker' is installed
-    if importlib.util.find_spec("pyacemaker") is None:
-        mo.md(
-            """
-            ::: error
-            **CRITICAL ERROR: `pyacemaker` is not installed.**
+    # CRITICAL LOGIC CHECK: Ensure 'pyacemaker' is installed OR available in src
+    # We check it first to fail fast.
+    spec = importlib.util.find_spec("pyacemaker")
+    if spec is None:
+        # Check if we are in repo root and can add src
+        if Path("src/pyacemaker").exists():
+             print("Found source directory. Will attempt to load from there.")
+        else:
+            mo.md(
+                """
+                ::: error
+                **CRITICAL ERROR: `pyacemaker` is not installed.**
 
-            This tutorial requires the `pyacemaker` package to be installed in the environment.
+                This tutorial requires the `pyacemaker` package to be installed in the environment.
 
-            **Installation Instructions:**
-            1.  Open your terminal.
-            2.  Navigate to the project root.
-            3.  Run:
-                ```bash
-                uv sync
-                # OR
-                pip install -e .[dev]
-                ```
-            4.  Restart this notebook.
-            :::
-            """
-        )
-        raise ImportError("pyacemaker package not found.")
+                **Installation Instructions:**
+                1.  Open your terminal.
+                2.  Navigate to the project root.
+                3.  Run:
+                    ```bash
+                    uv sync
+                    # OR
+                    pip install -e .[dev]
+                    ```
+                4.  Restart this notebook.
+                :::
+                """
+            )
+            # We don't raise error here if src exists, we let path_setup handle it
+            pass
 
     required_packages = ["ase", "numpy", "matplotlib", "pyyaml", "pydantic"]
     missing = []
@@ -136,7 +144,7 @@ def verify_packages(importlib, mo):
         raise ImportError(error_msg)
     else:
         print("All required packages found.")
-    return missing, required_packages
+    return missing, required_packages, spec
 
 
 @app.cell
@@ -210,14 +218,9 @@ def path_setup(PathRef, mo, sys):
             sys.path.append(str(src_path))
             print(f"Added {src_path} to sys.path")
     else:
-        mo.md(
-            f"""
-            ::: warning
-            **Warning:** 'src/pyacemaker' not found in {possible_src_paths}.
-            Relying on installed package. If not installed, subsequent cells will fail.
-            :::
-            """
-        )
+        # Only warn if verify_packages didn't find it installed either
+        pass
+
     return current_wd, possible_src_paths, src_path
 
 
@@ -395,6 +398,7 @@ def setup_config(
     mo,
     os,
     tempfile,
+    uuid, # Dependency
 ):
     config = None
     config_dict = None
@@ -410,8 +414,9 @@ def setup_config(
                 raise PermissionError(f"Current working directory '{cwd}' is not writable. Cannot create temporary workspace.")
 
             # Create temporary directory in CWD for security compliance (Pydantic validation requires path inside CWD)
-            # We strictly enforce CWD for tutorial safety/visibility
-            tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix="pyacemaker_tutorial_", dir=cwd)
+            # Use strict unique naming to prevent collisions
+            unique_suffix = uuid.uuid4().hex[:8]
+            tutorial_tmp_dir = tempfile.TemporaryDirectory(prefix=f"pyacemaker_tutorial_{unique_suffix}_", dir=cwd)
             tutorial_dir = PathRef(tutorial_tmp_dir.name)
 
             # Register cleanup on exit to ensure directory is removed even on crash
@@ -478,17 +483,17 @@ def section2_md(mo):
         r"""
         ## Section 2: Phase 1 - Divide & Conquer Training (Active Learning)
 
-        We employ an **Active Learning Loop** to train the potential. While conceptualized as "Divide & Conquer" steps (MgO -> FePt -> Interface), the PYACEMAKER Orchestrator manages these simultaneously by adaptively exploring the configuration space.
+        We employ an **Active Learning Loop** to train the potential. This phase demonstrates how `PYACEMAKER` autonomously explores the chemical space of **Fe-Pt-Mg-O**.
 
-        ### What is Active Learning?
-        Traditional potential fitting requires a pre-computed database of structures. Active Learning builds the database *on-the-fly*.
-        1.  **Exploration**: We run MD simulations with the current potential.
-        2.  **Uncertainty Detection**: We monitor the **Extrapolation Grade ($\gamma$)**.
-            *   **$\gamma < 1$**: Safe (Interpolation). The model knows this region.
-            *   **$\gamma > 2$**: Unsafe (Extrapolation). The model is guessing.
-        3.  **Labeling**: When $\gamma$ spikes, we pause, take the "confusing" structure, calculate its true energy with DFT (Oracle), add it to the dataset, and retrain.
+        ### Scientific Workflow:
+        1.  **Cold Start**: Since we have no initial data, the `StructureGenerator` creates random atomic configurations of Fe, Pt, Mg, and O.
+        2.  **Oracle Labeling**: These structures are sent to the `Oracle` (DFT calculator) to compute their true Energy ($E$) and Forces ($F$).
+        3.  **Training**: The `Trainer` fits an ACE potential to minimize the error $|E_{ACE} - E_{DFT}|$.
+        4.  **Exploration (MD)**: The `DynamicsEngine` runs Molecular Dynamics using the new potential. It monitors the **Extrapolation Grade ($\gamma$)**.
+            *   If $\gamma > 2$, the potential is "uncertain" about the structure.
+            *   The simulation halts, and the high-$\gamma$ structure is added to the training set.
 
-        This loop ensures we only run expensive DFT calculations on structures that actually improve the model (maximizing information gain).
+        This cycle repeats until convergence, ensuring the potential is robust for the specific environments encountered in deposition (e.g., adatoms, clusters).
         """
     )
     return
@@ -601,14 +606,20 @@ def section3_md(mo):
         """
         ## Section 3: Phase 2 - Dynamic Deposition (MD)
 
-        Using the trained potential, we now simulate the physical process of depositing Fe/Pt atoms onto the MgO substrate.
+        Now that we have a trained potential, we simulate the actual physical process: **Magnetron Sputtering Deposition**.
 
-        ### Hybrid Potentials & Physics
-        Machine learning potentials are excellent at capturing chemical bonding but can behave non-physically at very short distances (if atoms crash into each other). To prevent "core collapse", we use a **Hybrid Potential**:
-        *   **Long/Medium Range**: ACE Potential (High Accuracy).
-        *   **Short Range (< 1 Å)**: ZBL Potential (Physics-based Coulomb repulsion).
+        ### Scientific Workflow:
+        1.  **Substrate Setup**: We create a clean `MgO (001)` surface.
+        2.  **Flux Generation**: We introduce Fe and Pt atoms with random positions and velocities above the surface.
+        3.  **Dynamics**: We run NVT (Constant Volume/Temperature) Molecular Dynamics.
 
-        This ensures that even in high-energy deposition events, atoms bounce off each other rather than fusing.
+        **Why this matters**:
+        This simulation captures the initial stages of nucleation. We can observe:
+        *   **Adsorption**: Atoms sticking to the surface.
+        *   **Diffusion**: Atoms moving across the surface.
+        *   **Clustering**: Atoms finding each other to form small islands.
+
+        The **Hybrid Potential** (ACE + ZBL) is crucial here. High-energy incident atoms can penetrate deep into the repulsive core. Without the ZBL baseline (physics-based repulsion), the ML potential might predict unphysical fusion of nuclei.
         """
     )
     return
@@ -651,14 +662,7 @@ def deposition_and_validation(
     # --- Deposition Phase ---
     mo.md(
         """
-        ### Deposition Simulation Setup
-
-        We initialize a `MgO` slab (001) surface and randomly place atoms above it to simulate the initial stage of deposition.
-
-        **Understanding `PotentialHelper`**:
-        This class acts as a bridge between the trained ACE potential and the LAMMPS simulation engine.
-        *   **Problem**: LAMMPS configuration for hybrid potentials (ACE + ZBL) is complex (`pair_style hybrid/overlay`).
-        *   **Solution**: `PotentialHelper` automatically generates the correct input commands based on the potential file and element list, preventing syntax errors and ensuring physical correctness (ZBL activation).
+        ### Execution: Running Deposition
         """
     )
 
@@ -786,12 +790,16 @@ def section4_md(mo):
         """
         ## Section 4: Phase 3 - Long-Term Ordering (aKMC)
 
-        After deposition, we are interested in whether the Fe and Pt atoms arrange themselves into the chemically ordered L10 phase. This process happens over long timescales (microseconds to seconds).
+        The deposition phase creates a disordered solid solution of Fe/Pt. To achieve the magnetic properties we want, this must order into the **L10 Phase** (alternating Fe/Pt layers).
 
-        We use **Adaptive Kinetic Monte Carlo (aKMC)** (via EON) to accelerate time.
+        ### Scientific Workflow:
+        1.  **Timescale Gap**: Diffusion in the solid state happens on timescales of milliseconds to seconds. MD can only simulate nanoseconds.
+        2.  **Adaptive Kinetic Monte Carlo (aKMC)**: We use the `EON` engine, driven by our ACE potential, to find saddle points and "jump" between energy basins. This allows us to simulate the long-term ordering process.
 
-        **Why L10 Ordering?**
-        The transition from a disordered A1 phase (random alloy) to an ordered L10 phase (layered structure) is critical for magnetic storage devices. The L10 phase has extremely high magnetocrystalline anisotropy, allowing for smaller, stable magnetic bits. Demonstrating that the trained potential can capture this ordering process validates its accuracy for thermodynamic and kinetic studies.
+        **Analysis**:
+        The plot below shows the **Long Range Order Parameter ($S$)** over time.
+        *   $S = 0$: Completely Disordered.
+        *   $S = 1$: Perfect L10 Ordering.
         """
     )
     return
@@ -804,8 +812,6 @@ def run_analysis(HAS_PYACEMAKER, mo, np, plt):
         ### Analysis: L10 Ordering
 
         This cell visualizes the **Order Parameter** vs Time.
-        *   **0**: Disordered (Random alloy)
-        *   **1**: Perfectly Ordered (L10 layers)
 
         *Note: In this tutorial, we generate a mock sigmoid curve to demonstrate the expected phase transition.*
         """
