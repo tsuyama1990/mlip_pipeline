@@ -792,13 +792,13 @@ def deposition_and_validation(
                     print(f"Generating LAMMPS commands for elements: {unique_elements}")
 
                     # Verified signature: (self, potential_path, baseline_type, elements)
-                        cmds = helper.get_lammps_commands(
+                    cmds = helper.get_lammps_commands(
                         potential.path, "zbl", unique_elements
                     )
-                        print("Generated LAMMPS commands using PotentialHelper.")
-                        # In a real scenario, we would now run LAMMPS with these commands
-                    except Exception as e:
-                        print(f"Error generating potential commands: {e}")
+                    print("Generated LAMMPS commands using PotentialHelper.")
+                    # In a real scenario, we would now run LAMMPS with these commands
+                except Exception as e:
+                    print(f"Error generating potential commands: {e}")
                 else:
                     print("Warning: No trained potential found. Skipping LAMMPS command generation.")
 
