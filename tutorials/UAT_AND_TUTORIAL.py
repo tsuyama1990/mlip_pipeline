@@ -86,10 +86,20 @@ def verify_packages(importlib, mo):
 
     # CRITICAL LOGIC CHECK: Ensure 'pyacemaker' is installed OR available in src
     # We check it first to fail fast.
-    spec = importlib.util.find_spec("pyacemaker")
-    if spec is None:
+    has_pyacemaker_pkg = False
+    try:
+        spec = importlib.util.find_spec("pyacemaker")
+        if spec is not None:
+            has_pyacemaker_pkg = True
+    except (ImportError, AttributeError):
+        pass
+
+    if not has_pyacemaker_pkg:
         # Check if we are in repo root and can add src
-        if Path("src/pyacemaker").exists():
+        # We look for src/pyacemaker relative to CWD
+        src_exists = Path("src/pyacemaker").exists() or Path("../src/pyacemaker").exists()
+
+        if src_exists:
             print("Found source directory. Will attempt to load from there.")
         else:
             mo.md(
@@ -97,7 +107,7 @@ def verify_packages(importlib, mo):
                 ::: error
                 **CRITICAL ERROR: `pyacemaker` is not installed.**
 
-                This tutorial requires the `pyacemaker` package to be installed in the environment.
+                This tutorial requires the `pyacemaker` package to be installed in the environment or the source code to be present in `src/`.
 
                 **Installation Instructions:**
                 1.  Open your terminal.
@@ -649,6 +659,33 @@ def section3_md(mo):
 
 
 @app.cell
+def explain_potential_helper(mo):
+    mo.md(
+        """
+        ### Understanding `PotentialHelper` and LAMMPS Commands
+
+        To run Molecular Dynamics with our trained hybrid potential, we need to instruct the simulation engine (LAMMPS) correctly.
+
+        **`PotentialHelper`**:
+        This utility class automates the generation of complex LAMMPS input scripts for hybrid potentials.
+        *   It reads the `potential.yace` file.
+        *   It identifies the element mapping.
+        *   It constructs the correct `pair_style hybrid/overlay` command to combine the ACE potential with the ZBL baseline.
+
+        **`get_lammps_commands(potential_path, baseline_type, elements)`**:
+        This method returns the list of LAMMPS commands required to set up the potential.
+        *   `potential_path`: Path to the `.yace` file.
+        *   `baseline_type`: The type of physics baseline (e.g., `"zbl"` for Ziegler-Biersack-Littmark).
+        *   `elements`: List of chemical symbols in the system (e.g., `["Mg", "O", "Fe", "Pt"]`).
+
+        **Why is this needed?**
+        Manually writing `pair_coeff` lines for multicomponent hybrid potentials is error-prone. This helper ensures the potential is loaded exactly as it was trained, preventing simulation artifacts.
+        """
+    )
+    return
+
+
+@app.cell
 def deposition_and_validation(
     HAS_PYACEMAKER,
     IS_CI,
@@ -677,9 +714,13 @@ def deposition_and_validation(
     name = None
     path = None
 
-    # Graceful exit if upstream failed
+    # Graceful exit if upstream failed or Orchestrator missing
     if orchestrator is None:
-        mo.md("::: warning\nSkipping deposition: Orchestrator not initialized.\n:::")
+        mo.md("::: warning\nSkipping deposition: Orchestrator not initialized. Ensure `pyacemaker` is installed and initialized correctly.\n:::")
+    elif not HAS_PYACEMAKER:
+        mo.md("::: warning\nSkipping deposition: `pyacemaker` package not found.\n:::")
+    elif PotentialHelper is None:
+        mo.md("::: warning\nSkipping deposition setup: `PotentialHelper` class not found. Check `pyacemaker` version.\n:::")
     else:
         # --- Deposition Phase ---
         mo.md(
@@ -710,9 +751,7 @@ def deposition_and_validation(
             if not IS_CI:
                 if potential and potential.path.exists():
                     try:
-                        if PotentialHelper is None:
-                            raise ImportError("PotentialHelper not available.")
-
+                        # PotentialHelper is guaranteed not None by the check above
                         helper = PotentialHelper()
                         # Verified signature: (self, potential_path, baseline_type, elements)
                         cmds = helper.get_lammps_commands(
