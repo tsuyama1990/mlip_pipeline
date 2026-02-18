@@ -22,9 +22,10 @@ def intro_md(mo):
         **Goal**: Simulate the deposition of Iron (Fe) and Platinum (Pt) atoms onto a Magnesium Oxide (MgO) (001) substrate, observe the nucleation of clusters, and visualize the L10 ordering process.
 
         **Scientific Context**:
-        *   **Material System**: Fe-Pt alloys are technologically important for high-density magnetic recording media due to their high magnetocrystalline anisotropy in the L10 phase.
+        *   **Material System**: Fe-Pt alloys are technologically important for high-density magnetic recording media (Hard Drives). The **L10 phase** (chemically ordered layers of Fe and Pt) has extremely high magnetocrystalline anisotropy, which keeps data stable at the nanoscale.
         *   **Challenge**: Simulating the growth and ordering of these alloys requires both high accuracy (DFT level) and long time scales (seconds), which is impossible with standard ab-initio MD.
         *   **Solution**: We use **Active Learning** to train a fast, accurate Neural Network Potential (ACE) and use it to drive accelerated dynamics (MD + kMC).
+        *   **Why L10 Ordering?**: The transition from a random alloy (A1 phase) to the ordered L10 phase determines the magnetic quality. We simulate this using Adaptive Kinetic Monte Carlo (aKMC) to find the rare atomic hops that lead to ordering.
 
         **How to Run:**
         Execute this notebook using Marimo:
@@ -213,6 +214,20 @@ def sci_imports(mo):
 
 
 @app.cell
+def reproducibility_md(mo):
+    mo.md(
+        """
+        ### Note on Reproducibility
+        We set `np.random.seed(42)` at the beginning of the tutorial.
+        **Why?** Scientific simulations often involve stochastic processes (random velocities, Monte Carlo steps). By fixing the seed, we ensure that:
+        1.  The "Random" structures generated in Mock Mode are identical every time you run this notebook.
+        2.  The tutorial results are deterministic and verifiable, making debugging easier.
+        """
+    )
+    return
+
+
+@app.cell
 def path_setup(PathRef, mo, sys):
     # Locate src directory
     # Rename to avoid global scope conflict with setup_config
@@ -331,6 +346,7 @@ def check_dependencies(os, shutil, mo):
     # Force Mock Mode if binaries are missing (Logic Update: Explicit Fallback)
     if missing_binaries:
         if not IS_CI:
+            print("Missing binaries detected. Switching to Mock Mode.") # Visible in logs
             mo.md(
                 f"""
                 ::: warning
@@ -690,10 +706,10 @@ def explain_potential_helper(mo):
         This method returns the list of LAMMPS commands required to set up the potential.
         *   `potential_path`: Path to the `.yace` file.
         *   `baseline_type`: The type of physics baseline (e.g., `"zbl"` for Ziegler-Biersack-Littmark).
-        *   `elements`: List of chemical symbols in the system (e.g., `["Mg", "O", "Fe", "Pt"]`).
+        *   `elements`: **Crucial**: This list must contain ALL elements present in the simulation box (both substrate and deposited atoms) in the correct order. LAMMPS maps atom types (1, 2, 3...) to these elements.
 
         **Why is this needed?**
-        Manually writing `pair_coeff` lines for multicomponent hybrid potentials is error-prone. This helper ensures the potential is loaded exactly as it was trained, preventing simulation artifacts.
+        Manually writing `pair_coeff` lines for multicomponent hybrid potentials is error-prone. This helper ensures the potential is loaded exactly as it was trained, and that atom type 1 is correctly identified as Mg, type 2 as O, etc., preventing catastrophic physics errors (e.g., treating Mg atoms as Fe).
         """
     )
     return
@@ -767,10 +783,18 @@ def deposition_and_validation(
                     try:
                         # PotentialHelper is guaranteed not None by the check above
                         helper = PotentialHelper()
-                        # Verified signature: (self, potential_path, baseline_type, elements)
+
+                    # Logic Fix: Dynamically determine elements from the structure to ensure
+                    # correct mapping of atom types (1..N) to species in LAMMPS.
+                    # Hardcoding ["Mg", "O", "Fe", "Pt"] is risky if the order changes.
+                    # We sort them to ensure deterministic order, matching standard conventions.
+                    unique_elements = sorted(list(set(deposited_structure.get_chemical_symbols())))
+                    print(f"Generating LAMMPS commands for elements: {unique_elements}")
+
+                    # Verified signature: (self, potential_path, baseline_type, elements)
                         cmds = helper.get_lammps_commands(
-                            potential.path, "zbl", ["Mg", "O", "Fe", "Pt"]
-                        )
+                        potential.path, "zbl", unique_elements
+                    )
                         print("Generated LAMMPS commands using PotentialHelper.")
                         # In a real scenario, we would now run LAMMPS with these commands
                     except Exception as e:
