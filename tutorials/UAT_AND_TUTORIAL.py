@@ -86,9 +86,10 @@ def verify_packages(importlib, mo):
     # CRITICAL LOGIC CHECK: Ensure 'pyacemaker' is installed OR available in src
     # We check it first to fail fast.
     has_pyacemaker_pkg = False
+    pyacemaker_spec = None # Initialize to avoid NameError
     try:
-        spec = importlib.util.find_spec("pyacemaker")
-        if spec is not None:
+        pyacemaker_spec = importlib.util.find_spec("pyacemaker")
+        if pyacemaker_spec is not None:
             has_pyacemaker_pkg = True
     except (ImportError, AttributeError):
         pass
@@ -154,7 +155,7 @@ def verify_packages(importlib, mo):
         raise ImportError(error_msg)
     else:
         print("All required packages found.")
-    return missing, required_packages, spec
+    return missing, pyacemaker_spec, required_packages
 
 
 @app.cell
@@ -204,6 +205,9 @@ def sci_imports():
     import numpy as np
 
     # Set random seed for reproducibility
+    # NOTE: In Marimo, this cell runs once unless variables change.
+    # To be safe, we re-seed in stochastic cells if necessary,
+    # but global seeding here covers most cases.
     np.random.seed(42)
     return np, plt
 
@@ -348,12 +352,13 @@ def check_dependencies(os, shutil, mo):
     found_binaries = {}
     missing_binaries = []
 
-    IS_CI = True # Default safe
+    IS_CI = True  # Default safe
     mode_name = "Mock Mode (CI)"
     raw_ci = "true"
     valid_true = ["true", "1", "yes", "on"]
     valid_false = ["false", "0", "no", "off"]
     status_md = ""
+    fallback_msg = None
 
     if os is not None and shutil is not None:
         for binary in required_binaries:
@@ -378,8 +383,10 @@ def check_dependencies(os, shutil, mo):
         # Force Mock Mode if binaries are missing (Logic Update: Explicit Fallback)
         if missing_binaries:
             if not IS_CI:
-                print("Missing binaries detected. Switching to Mock Mode.") # Visible in logs
-                mo.md(
+                print(
+                    "Missing binaries detected. Switching to Mock Mode."
+                )  # Visible in logs
+                fallback_msg = mo.md(
                     f"""
                     ::: warning
                     **Missing Binaries:** {", ".join(missing_binaries)}
@@ -409,16 +416,21 @@ def check_dependencies(os, shutil, mo):
         """
         for binary in required_binaries:
             if binary in found_binaries:
-                status_md += f"| `{binary}` | ✅ Found | `{found_binaries[binary]}` |\n"
+                status_md += (
+                    f"| `{binary}` | ✅ Found | `{found_binaries[binary]}` |\n"
+                )
             else:
                 status_md += f"| `{binary}` | ❌ Missing | - |\n"
 
         mo.md(status_md)
     else:
-        mo.md("::: error\n**Fatal Error**: Standard libraries `os` or `shutil` are not available.\n:::")
+        mo.md(
+            "::: error\n**Fatal Error**: Standard libraries `os` or `shutil` are not available.\n:::"
+        )
 
     return (
         IS_CI,
+        fallback_msg,
         found_binaries,
         missing_binaries,
         mode_name,
@@ -469,13 +481,21 @@ def setup_config(
     config = None
     config_dict = None
     pseudos = None
-    strategy = "random" # Default strategy
+    strategy = "random"  # Default strategy
     tutorial_dir = None
     tutorial_tmp_dir = None
     setup_msg = None
 
-    if PathRef is None or atexit is None or tempfile is None or uuid is None or os is None:
-         setup_msg = mo.md("::: error\n**Fatal Error**: Standard libraries `pathlib`, `atexit`, `tempfile`, `uuid`, or `os` are not available.\n:::")
+    if (
+        PathRef is None
+        or atexit is None
+        or tempfile is None
+        or uuid is None
+        or os is None
+    ):
+        setup_msg = mo.md(
+            "::: error\n**Fatal Error**: Standard libraries `pathlib`, `atexit`, `tempfile`, `uuid`, or `os` are not available.\n:::"
+        )
     elif HAS_PYACEMAKER and PYACEMAKERConfig:
         try:
             # Check for write permissions in CWD
@@ -486,8 +506,8 @@ def setup_config(
                 )
 
             # Create temporary directory in CWD for security compliance (Pydantic validation requires path inside CWD)
-            # Use strict unique naming to prevent collisions
-            unique_suffix = uuid.uuid4().hex[:8]
+            # Use full hex for robustness
+            unique_suffix = uuid.uuid4().hex
             tutorial_tmp_dir = tempfile.TemporaryDirectory(
                 prefix=f"pyacemaker_tutorial_{unique_suffix}_", dir=cwd
             )
@@ -506,7 +526,12 @@ def setup_config(
 
             setup_msg = mo.md(f"Initializing Tutorial Workspace at: `{tutorial_dir}`")
 
-            pseudos = {"Fe": "Fe.pbe.UPF", "Pt": "Pt.pbe.UPF", "Mg": "Mg.pbe.UPF", "O": "O.pbe.UPF"}
+            pseudos = {
+                "Fe": "Fe.pbe.UPF",
+                "Pt": "Pt.pbe.UPF",
+                "Mg": "Mg.pbe.UPF",
+                "O": "O.pbe.UPF",
+            }
 
             if IS_CI:
                 print("creating dummy upf files")
@@ -535,12 +560,17 @@ def setup_config(
                 "oracle": {
                     "dft": {
                         "pseudopotentials": {
-                            k: str(tutorial_dir / v) if IS_CI else v for k, v in pseudos.items()
+                            k: str(tutorial_dir / v) if IS_CI else v
+                            for k, v in pseudos.items()
                         }
                     },
                     "mock": IS_CI,
                 },
-                "trainer": {"potential_type": "pace", "mock": IS_CI, "max_epochs": 1},
+                "trainer": {
+                    "potential_type": "pace",
+                    "mock": IS_CI,
+                    "max_epochs": 1,
+                },
                 "dynamics_engine": {
                     "engine": "lammps",
                     "mock": IS_CI,
@@ -810,11 +840,12 @@ def visualize(HAS_PYACEMAKER, plt, results):
         plt.xlabel("Cycle")
         plt.ylabel("RMSE (eV/atom)")
         plt.grid(True)
-        # plt.show() returns None, so we return the figure object implicitly created or explicitly
+        # In Marimo, plt.gca() or plt.gcf() is captured automatically.
+        # Explicitly returning the figure is good practice.
         fig_training = plt.gcf()
-        plt.show()
+        plt.show() # Ensure display in standard output contexts if needed
 
-    return data, rmse_values, v, fig_training
+    return data, fig_training, rmse_values, v
 
 
 @app.cell
@@ -900,146 +931,223 @@ def deposition_and_validation(
 
     # Robust checks for inputs
     if not HAS_PYACEMAKER:
-        dep_output = mo.md("::: warning\nSkipping deposition: `pyacemaker` package not found.\n:::")
-    elif orchestrator is None:
-        dep_output = mo.md("::: warning\nSkipping deposition: Orchestrator not initialized. Ensure `pyacemaker` is installed and initialized correctly.\n:::")
-    elif PotentialHelper is None:
-        dep_output = mo.md("::: warning\nSkipping deposition setup: `PotentialHelper` class not found. Check `pyacemaker` version.\n:::")
-    elif tutorial_dir is None:
-        dep_output = mo.md("::: error\n**Fatal Error**: Tutorial directory `tutorial_dir` is None.\n:::")
-    else:
-        # --- Deposition Phase ---
-        print(f"Starting deposition phase (Previous cycles: {len(results) if results else 0})")
-
-        # Robust attribute check
-        potential = getattr(orchestrator, "current_potential", None)
-
-        md_work_dir = tutorial_dir / "deposition_md"
-        md_work_dir.mkdir(exist_ok=True)
-
-        # Setup Substrate
-        substrate = surface(bulk("MgO", "rocksalt", a=4.21), (0, 0, 1), 2)
-        substrate.center(vacuum=10.0, axis=2)
-        deposited_structure = substrate.copy()
-
-        # Real Mode Logic
-        if not IS_CI:
-            if potential and potential.path.exists():
-                try:
-                    # PotentialHelper is guaranteed not None by the check above
-                    helper = PotentialHelper()
-
-                    # Logic Fix: Dynamically determine elements from the structure to ensure
-                    # correct mapping of atom types (1..N) to species in LAMMPS.
-                    unique_elements = sorted(list(set(deposited_structure.get_chemical_symbols())))
-                    print(f"Generating LAMMPS commands for elements: {unique_elements}")
-
-                    # Verified signature: (self, potential_path, baseline_type, elements)
-                    cmds = helper.get_lammps_commands(
-                        potential.path, "zbl", unique_elements
-                    )
-                    print("Generated LAMMPS commands using PotentialHelper.")
-                except Exception as e:
-                    print(f"Error generating potential commands: {e}")
-            else:
-                print("Warning: No trained potential found. Skipping LAMMPS command generation.")
-
-        # Simulation (Mock Logic for visual or Fallback)
-        # Using np.random for consistency
-        n_atoms = 5 if IS_CI else 50
-        print(
-            f"Simulating deposition of {n_atoms} atoms (Mode: {'CI/Mock' if IS_CI else 'Real'})..."
+        dep_output = mo.md(
+            "::: warning\nSkipping deposition: `pyacemaker` package not found.\n:::"
+        )
+        return (
+            artifacts_check,
+            deposited_structure,
+            dep_output,
+            dists,
+            min_dist,
+            name,
+            output_path,
+            path,
+            validation_status,
         )
 
-        if np is not None:
-            valid_symbols = ["Fe", "Pt"]
-            for _ in range(n_atoms):
-                # Simple rejection sampling to prevent overlaps in Mock Mode
-                valid_pos = False
-                x, y, z = 0.0, 0.0, 0.0
+    if orchestrator is None:
+        dep_output = mo.md(
+            "::: warning\nSkipping deposition: Orchestrator not initialized. Ensure `pyacemaker` is installed and initialized correctly.\n:::"
+        )
+        return (
+            artifacts_check,
+            deposited_structure,
+            dep_output,
+            dists,
+            min_dist,
+            name,
+            output_path,
+            path,
+            validation_status,
+        )
 
-                for _ in range(100):  # max retries
-                    x = np.random.uniform(0, substrate.cell[0, 0])
-                    y = np.random.uniform(0, substrate.cell[1, 1])
-                    z = substrate.positions[:, 2].max() + np.random.uniform(2.0, 3.0)
+    if PotentialHelper is None:
+        dep_output = mo.md(
+            "::: warning\nSkipping deposition setup: `PotentialHelper` class not found. Check `pyacemaker` version.\n:::"
+        )
+        return (
+            artifacts_check,
+            deposited_structure,
+            dep_output,
+            dists,
+            min_dist,
+            name,
+            output_path,
+            path,
+            validation_status,
+        )
 
-                    # Check distance to existing atoms
+    if tutorial_dir is None:
+        dep_output = mo.md(
+            "::: error\n**Fatal Error**: Tutorial directory `tutorial_dir` is None.\n:::"
+        )
+        return (
+            artifacts_check,
+            deposited_structure,
+            dep_output,
+            dists,
+            min_dist,
+            name,
+            output_path,
+            path,
+            validation_status,
+        )
+
+    # --- Deposition Phase ---
+    print(
+        f"Starting deposition phase (Previous cycles: {len(results) if results else 0})"
+    )
+
+    # Robust attribute check
+    potential = getattr(orchestrator, "current_potential", None)
+
+    md_work_dir = tutorial_dir / "deposition_md"
+    md_work_dir.mkdir(exist_ok=True)
+
+    # Setup Substrate
+    substrate = surface(bulk("MgO", "rocksalt", a=4.21), (0, 0, 1), 2)
+    substrate.center(vacuum=10.0, axis=2)
+    deposited_structure = substrate.copy()
+
+    # Real Mode Logic
+    if not IS_CI:
+        if potential and potential.path.exists():
+            try:
+                # PotentialHelper is guaranteed not None by the check above
+                helper = PotentialHelper()
+
+                # Logic Fix: Dynamically determine elements from the structure to ensure
+                # correct mapping of atom types (1..N) to species in LAMMPS.
+                unique_elements = sorted(
+                    list(set(deposited_structure.get_chemical_symbols()))
+                )
+                print(f"Generating LAMMPS commands for elements: {unique_elements}")
+
+                # Verified signature: (self, potential_path, baseline_type, elements)
+                cmds = helper.get_lammps_commands(
+                    potential.path, "zbl", unique_elements
+                )
+                print("Generated LAMMPS commands using PotentialHelper.")
+            except Exception as e:
+                print(f"Error generating potential commands: {e}")
+        else:
+            print(
+                "Warning: No trained potential found. Skipping LAMMPS command generation."
+            )
+
+    # Simulation (Mock Logic for visual or Fallback)
+    # Using np.random for consistency
+    n_atoms = 5 if IS_CI else 50
+    print(
+        f"Simulating deposition of {n_atoms} atoms (Mode: {'CI/Mock' if IS_CI else 'Real'})..."
+    )
+
+    if np is not None:
+        valid_symbols = ["Fe", "Pt"]
+        for _ in range(n_atoms):
+            # Simple rejection sampling to prevent overlaps in Mock Mode
+            valid_pos = False
+            x, y, z = 0.0, 0.0, 0.0
+
+            for _ in range(100):  # max retries
+                # Ensure within bounds (substrate cell)
+                x = np.random.uniform(0, substrate.cell[0, 0])
+                y = np.random.uniform(0, substrate.cell[1, 1])
+                # Height above surface
+                z = substrate.positions[:, 2].max() + np.random.uniform(2.0, 3.0)
+
+                # Check distance to existing atoms if structure exists
+                if len(deposited_structure) > 0:
                     pos = np.array([x, y, z])
-                    dists = np.linalg.norm(deposited_structure.positions - pos, axis=1)
+                    dists = np.linalg.norm(
+                        deposited_structure.positions - pos, axis=1
+                    )
                     if np.all(dists > 1.6):  # Use 1.6 to be safe > 1.5
                         valid_pos = True
                         break
+                else:
+                    valid_pos = True
+                    break
 
-                if valid_pos:
-                    # Use proper Atom object
-                    symbol = np.random.choice(valid_symbols)
+            if valid_pos:
+                # Use proper Atom object and check symbol validity
+                symbol = np.random.choice(valid_symbols)
+                if symbol in valid_symbols:
                     atom = Atom(symbol=symbol, position=[x, y, z])
                     deposited_structure.append(atom)
-                else:
-                    print("Warning: Could not place atom without overlap after retries.")
-
-        # Visualization
-        if deposited_structure and plt:
-            plt.figure(figsize=(6, 6))
-            plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
-            plt.title(f"Deposition Result ({n_atoms} atoms)")
-            plt.axis("off")
-            plt.show()
-
-            output_path = md_work_dir / "final.xyz"
-            write(output_path, deposited_structure)
-
-        # --- Validation Phase ---
-
-        # 1. Artifacts Check
-        artifacts_check = {
-            "dataset": tutorial_dir / "data" / "dataset.pckl.gzip",
-            "trajectory": output_path,
-            "potential": None,  # Dynamic check
-        }
-
-        if (
-            orchestrator
-            and hasattr(orchestrator, "current_potential")
-            and orchestrator.current_potential
-        ):
-            artifacts_check["potential"] = orchestrator.current_potential.path
-
-        for name, path in artifacts_check.items():
-            if path and path.exists():
-                validation_status.append(f"✅ **Artifact Created**: `{name}` ({path.name})")
             else:
-                if name == "potential" and not orchestrator.current_potential:
-                    validation_status.append(
-                        f"⚠️ **Artifact Missing**: `{name}` (Training failed or mock)"
-                    )
-                else:
-                    validation_status.append(f"❌ **Artifact Missing**: `{name}`")
+                print("Warning: Could not place atom without overlap after retries.")
 
-        # 2. Physics Check: Min Distance > 1.5 A
-        if deposited_structure and np:
-            min_dist = 10.0
-            # Simple O(N^2) check for small N
-            positions = deposited_structure.get_positions()
-            # Calculate distance matrix (upper triangle)
-            if len(positions) > 1:
-                dists = pdist(positions)
-                min_dist = np.min(dists)
+    # Visualization
+    if deposited_structure and plt:
+        plt.figure(figsize=(6, 6))
+        plot_atoms(deposited_structure, rotation="-80x, 20y, 0z")
+        plt.title(f"Deposition Result ({n_atoms} atoms)")
+        plt.axis("off")
+        plt.show()
 
-            if min_dist > 1.5:
-                validation_status.append(
-                    f"✅ **Physics Check**: Min atomic distance {min_dist:.2f} Å > 1.5 Å (No Core Overlap)"
-                )
-            else:
-                validation_status.append(
-                    f"❌ **Physics Check**: Core Overlap Detected! Min distance {min_dist:.2f} Å < 1.5 Å"
-                )
+        output_path = md_work_dir / "final.xyz"
+        write(output_path, deposited_structure)
+
+    # --- Validation Phase ---
+
+    # 1. Artifacts Check
+    artifacts_check = {
+        "dataset": tutorial_dir / "data" / "dataset.pckl.gzip",
+        "trajectory": output_path,
+        "potential": None,  # Dynamic check
+    }
+
+    if (
+        orchestrator
+        and hasattr(orchestrator, "current_potential")
+        and orchestrator.current_potential
+    ):
+        artifacts_check["potential"] = orchestrator.current_potential.path
+
+    for name, path in artifacts_check.items():
+        if path and path.exists():
+            validation_status.append(
+                f"✅ **Artifact Created**: `{name}` ({path.name})"
+            )
         else:
-            validation_status.append("⚠️ **Physics Check**: Skipped (No structure)")
+            if name == "potential" and not orchestrator.current_potential:
+                validation_status.append(
+                    f"⚠️ **Artifact Missing**: `{name}` (Training failed or mock)"
+                )
+            else:
+                validation_status.append(f"❌ **Artifact Missing**: `{name}`")
 
-        # Display results
-        dep_output = mo.md("\n\n".join(validation_status))
-        print("\n".join(validation_status))
+    # 2. Physics Check: Min Distance > 1.5 A
+    if deposited_structure and np:
+        min_dist = 10.0
+        # Simple O(N^2) check for small N
+        positions = deposited_structure.get_positions()
+        # Calculate distance matrix (upper triangle)
+        if len(positions) > 1:
+            dists = pdist(positions)
+            if dists.size > 0:
+                min_dist = np.min(dists)
+            else:
+                min_dist = 10.0  # Safe default if no pairs
+        else:
+            min_dist = 10.0  # Safe default if 0 or 1 atom
+
+        if min_dist > 1.5:
+            validation_status.append(
+                f"✅ **Physics Check**: Min atomic distance {min_dist:.2f} Å > 1.5 Å (No Core Overlap)"
+            )
+        else:
+            validation_status.append(
+                f"❌ **Physics Check**: Core Overlap Detected! Min distance {min_dist:.2f} Å < 1.5 Å"
+            )
+    else:
+        validation_status.append("⚠️ **Physics Check**: Skipped (No structure)")
+
+    # Display results
+    dep_output = mo.md("\n\n".join(validation_status))
+    print("\n".join(validation_status))
 
     return (
         artifacts_check,
@@ -1104,7 +1212,11 @@ def run_analysis(HAS_PYACEMAKER, mo, np, plt):
         # Mock data for visualization
         time_steps = np.linspace(0, 1e6, 50)
         # Sigmoid function to simulate ordering transition
-        order_param = 1.0 / (1.0 + np.exp(-1e-5 * (time_steps - 3e5)))
+        # Ensure exponent is within reasonable bounds to avoid overflow
+        exponent = -1e-5 * (time_steps - 3e5)
+        # Clip exponent to avoid overflow in exp (e.g., -700 to 700 usually safe for float64)
+        exponent = np.clip(exponent, -100, 100)
+        order_param = 1.0 / (1.0 + np.exp(exponent))
 
         plt.figure(figsize=(8, 4))
         plt.plot(time_steps, order_param, "r-", linewidth=2, label="Order Parameter")
@@ -1116,7 +1228,9 @@ def run_analysis(HAS_PYACEMAKER, mo, np, plt):
         fig_analysis = plt.gcf()
         plt.show()
     elif not HAS_PYACEMAKER:
-        analysis_output = mo.md("::: warning\nSkipping Analysis: `pyacemaker` not available.\n:::")
+        analysis_output = mo.md(
+            "::: warning\nSkipping Analysis: `pyacemaker` not available.\n:::"
+        )
 
     return analysis_output, fig_analysis, order_param, time_steps
 
