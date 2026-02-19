@@ -262,6 +262,11 @@ def package_import(mo, src_path):
     Potential = None
     PotentialHelper = None
     StructureMetadata = None
+    StructureStatus = None
+    StructureGenerator = None
+    BaseModule = None
+    Metrics = None
+    ModuleResult = None
     metadata_to_atoms = None
     pyacemaker = None
     HAS_PYACEMAKER = False
@@ -279,13 +284,21 @@ def package_import(mo, src_path):
         from pyacemaker.orchestrator import Orchestrator
 
         # 4. Domain Models
-        from pyacemaker.domain_models.models import Potential, StructureMetadata
+        from pyacemaker.domain_models.models import (
+            Potential,
+            StructureMetadata,
+            StructureStatus,
+        )
 
         # 5. Dynamics (PotentialHelper is in modules.dynamics_engine)
         from pyacemaker.modules.dynamics_engine import PotentialHelper
 
         # 6. Utils
         from pyacemaker.core.utils import metadata_to_atoms
+
+        # 7. Core Interfaces & Base
+        from pyacemaker.core.interfaces import StructureGenerator
+        from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 
         HAS_PYACEMAKER = True
         print(f"Successfully imported pyacemaker components from {pyacemaker.__file__}")
@@ -306,16 +319,21 @@ def package_import(mo, src_path):
         error_md = mo.md(f"::: error\n**Unexpected Error:** {e}\n:::")
 
     return (
+        BaseModule,
         CONSTANTS,
         HAS_PYACEMAKER,
+        Metrics,
+        ModuleResult,
         Orchestrator,
         PYACEMAKERConfig,
         Potential,
         PotentialHelper,
+        StructureGenerator,
         StructureMetadata,
+        StructureStatus,
         metadata_to_atoms,
         pyacemaker,
-        error_md
+        error_md,
     )
 
 
@@ -579,7 +597,85 @@ def section2_md(mo):
 
 
 @app.cell
-def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
+def define_generator(
+    BaseModule,
+    Metrics,
+    ModuleResult,
+    StructureGenerator,
+    StructureMetadata,
+    StructureStatus,
+    mo,
+    np,
+):
+    TutorialStructureGenerator = None
+
+    if StructureGenerator is not None:
+
+        class TutorialStructureGenerator(StructureGenerator):
+            """Custom generator for Fe/Pt on MgO tutorial.
+
+            Ensures realistic structures are used even in Mock Mode.
+            """
+
+            def run(self) -> ModuleResult:
+                return ModuleResult(status="success", metrics=Metrics())
+
+            def generate_initial_structures(self):
+                """Generate initial structures (MgO, Fe, Pt, MgO surface)."""
+                # Use ase.build inside method to avoid global scope issues if not imported
+                from ase.build import bulk, surface
+
+                # 1. MgO Bulk
+                atoms = bulk("MgO", "rocksalt", a=4.21)
+                yield self._wrap(atoms, "initial_MgO_bulk")
+
+                # 2. Fe Bulk
+                atoms = bulk("Fe", "bcc", a=2.87)
+                yield self._wrap(atoms, "initial_Fe_bulk")
+
+                # 3. Pt Bulk
+                atoms = bulk("Pt", "fcc", a=3.92)
+                yield self._wrap(atoms, "initial_Pt_bulk")
+
+                # 4. MgO Surface
+                atoms = surface(bulk("MgO", "rocksalt", a=4.21), (0, 0, 1), 2)
+                atoms.center(vacuum=10.0, axis=2)
+                yield self._wrap(atoms, "initial_MgO_surf")
+
+            def _wrap(self, atoms, tag):
+                return StructureMetadata(
+                    features={"atoms": atoms},
+                    tags=[tag, "tutorial"],
+                    status=StructureStatus.NEW,
+                )
+
+            def generate_local_candidates(self, seed, n_candidates, cycle=1):
+                """Generate perturbed candidates."""
+                if not seed or "atoms" not in seed.features:
+                    return
+
+                atoms_ref = seed.features["atoms"]
+                for i in range(n_candidates):
+                    atoms = atoms_ref.copy()
+                    atoms.rattle(stdev=0.1)
+                    yield self._wrap(atoms, f"candidate_c{cycle}_{i}")
+
+            def generate_batch_candidates(self, seeds, n_candidates_per_seed, cycle=1):
+                for s in seeds:
+                    yield from self.generate_local_candidates(
+                        s, n_candidates_per_seed, cycle
+                    )
+
+            def get_strategy_info(self):
+                return {"strategy": "tutorial_custom"}
+
+    return (TutorialStructureGenerator,)
+
+
+@app.cell
+def run_simulation(
+    HAS_PYACEMAKER, Orchestrator, TutorialStructureGenerator, config, mo
+):
     orchestrator = None
     results = []  # Define at start to ensure it exists in cell scope
     metrics_dict = None
@@ -588,15 +684,27 @@ def run_simulation(HAS_PYACEMAKER, Orchestrator, config, mo):
 
     # Robust checks
     if not HAS_PYACEMAKER:
-        sim_output = mo.md("::: warning\nSkipping simulation: `pyacemaker` not available.\n:::")
+        sim_output = mo.md(
+            "::: warning\nSkipping simulation: `pyacemaker` not available.\n:::"
+        )
     elif Orchestrator is None:
-        sim_output = mo.md("::: error\n**Fatal Error**: `Orchestrator` class not found.\n:::")
+        sim_output = mo.md(
+            "::: error\n**Fatal Error**: `Orchestrator` class not found.\n:::"
+        )
     elif config is None:
-        sim_output = mo.md("::: error\n**Fatal Error**: Configuration `config` is None.\n:::")
+        sim_output = mo.md(
+            "::: error\n**Fatal Error**: Configuration `config` is None.\n:::"
+        )
     else:
         # Step 1: Initialization
         try:
-            orchestrator = Orchestrator(config)
+            # Use custom generator if available to ensure realistic structures
+            gen_instance = None
+            if TutorialStructureGenerator:
+                gen_instance = TutorialStructureGenerator(config)
+                print("Using Custom Tutorial Structure Generator (Fe/Pt/MgO).")
+
+            orchestrator = Orchestrator(config, structure_generator=gen_instance)
             print("Orchestrator Initialized successfully.")
         except Exception as e:
             sim_output = mo.md(
