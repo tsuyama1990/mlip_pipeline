@@ -13,7 +13,7 @@ def setup_marimo():
 
 @app.cell
 def intro_md(mo):
-    mo.md(
+    return mo.md(
         r"""
         # PYACEMAKER Tutorial: Fe/Pt Deposition on MgO
 
@@ -39,12 +39,11 @@ def intro_md(mo):
         3.  **Phase 3 (Analysis):** Analyze long-term ordering (mocked aKMC results).
         """
     )
-    return
 
 
 @app.cell
 def section1_md(mo):
-    mo.md(
+    return mo.md(
         """
         ## Section 1: Setup & Initialization
 
@@ -55,7 +54,6 @@ def section1_md(mo):
         *   **Real Mode**: Runs actual Physics calculations (DFT/MD). Requires `pw.x` and `lmp` binaries.
         """
     )
-    return
 
 
 @app.cell
@@ -192,21 +190,9 @@ def check_api_keys(mo, os):
 
 
 @app.cell
-def sci_imports(mo):
+def sci_imports():
     import matplotlib.pyplot as plt
     import numpy as np
-
-    mo.md(
-        """
-        ### Reproducibility Note
-
-        We set `np.random.seed(42)` at the beginning of the tutorial.
-
-        **Why?** Scientific simulations often involve stochastic processes (random velocities, Monte Carlo steps). By fixing the seed, we ensure that:
-        1.  The "Random" structures generated in Mock Mode are identical every time you run this notebook.
-        2.  The tutorial results are deterministic and verifiable, making debugging easier.
-        """
-    )
 
     # Set random seed for reproducibility
     np.random.seed(42)
@@ -215,7 +201,7 @@ def sci_imports(mo):
 
 @app.cell
 def reproducibility_md(mo):
-    mo.md(
+    return mo.md(
         """
         ### Note on Reproducibility
         We set `np.random.seed(42)` at the beginning of the tutorial.
@@ -224,7 +210,6 @@ def reproducibility_md(mo):
         2.  The tutorial results are deterministic and verifiable, making debugging easier.
         """
     )
-    return
 
 
 @app.cell
@@ -532,7 +517,7 @@ def setup_config(
 
 @app.cell
 def section2_md(mo):
-    mo.md(
+    return mo.md(
         r"""
         ## Section 2: Phase 1 - Divide & Conquer Training (Active Learning)
 
@@ -559,7 +544,6 @@ def section2_md(mo):
         This cycle repeats until the AI can simulate the entire process without getting confused. This is much faster than asking the teacher for every single step!
         """
     )
-    return
 
 
 @app.cell
@@ -665,7 +649,7 @@ def visualize(HAS_PYACEMAKER, plt, results):
 
 @app.cell
 def section3_md(mo):
-    mo.md(
+    return mo.md(
         """
         ## Section 3: Phase 2 - Dynamic Deposition (MD)
 
@@ -685,12 +669,11 @@ def section3_md(mo):
         The **Hybrid Potential** (ACE + ZBL) is crucial here. High-energy incident atoms can penetrate deep into the repulsive core. Without the ZBL baseline (physics-based repulsion), the ML potential might predict unphysical fusion of nuclei.
         """
     )
-    return
 
 
 @app.cell
 def explain_potential_helper(mo):
-    mo.md(
+    return mo.md(
         """
         ### Understanding `PotentialHelper` and LAMMPS Commands
 
@@ -712,7 +695,6 @@ def explain_potential_helper(mo):
         Manually writing `pair_coeff` lines for multicomponent hybrid potentials is error-prone. This helper ensures the potential is loaded exactly as it was trained, and that atom type 1 is correctly identified as Mg, type 2 as O, etc., preventing catastrophic physics errors (e.g., treating Mg atoms as Fe).
         """
     )
-    return
 
 
 @app.cell
@@ -784,21 +766,21 @@ def deposition_and_validation(
                         # PotentialHelper is guaranteed not None by the check above
                         helper = PotentialHelper()
 
-                    # Logic Fix: Dynamically determine elements from the structure to ensure
-                    # correct mapping of atom types (1..N) to species in LAMMPS.
-                    # Hardcoding ["Mg", "O", "Fe", "Pt"] is risky if the order changes.
-                    # We sort them to ensure deterministic order, matching standard conventions.
-                    unique_elements = sorted(list(set(deposited_structure.get_chemical_symbols())))
-                    print(f"Generating LAMMPS commands for elements: {unique_elements}")
+                        # Logic Fix: Dynamically determine elements from the structure to ensure
+                        # correct mapping of atom types (1..N) to species in LAMMPS.
+                        # Hardcoding ["Mg", "O", "Fe", "Pt"] is risky if the order changes.
+                        # We sort them to ensure deterministic order, matching standard conventions.
+                        unique_elements = sorted(list(set(deposited_structure.get_chemical_symbols())))
+                        print(f"Generating LAMMPS commands for elements: {unique_elements}")
 
-                    # Verified signature: (self, potential_path, baseline_type, elements)
-                    cmds = helper.get_lammps_commands(
-                        potential.path, "zbl", unique_elements
-                    )
-                    print("Generated LAMMPS commands using PotentialHelper.")
-                    # In a real scenario, we would now run LAMMPS with these commands
-                except Exception as e:
-                    print(f"Error generating potential commands: {e}")
+                        # Verified signature: (self, potential_path, baseline_type, elements)
+                        cmds = helper.get_lammps_commands(
+                            potential.path, "zbl", unique_elements
+                        )
+                        print("Generated LAMMPS commands using PotentialHelper.")
+                        # In a real scenario, we would now run LAMMPS with these commands
+                    except Exception as e:
+                        print(f"Error generating potential commands: {e}")
                 else:
                     print("Warning: No trained potential found. Skipping LAMMPS command generation.")
 
@@ -926,7 +908,7 @@ def deposition_and_validation(
 
 @app.cell
 def section4_md(mo):
-    mo.md(
+    return mo.md(
         """
         ## Section 4: Phase 3 - Long-Term Ordering (aKMC)
 
@@ -955,20 +937,15 @@ def section4_md(mo):
         *   $S \approx 1$: Perfect layers (L10 Ordered).
         """
     )
-    return
 
 
 @app.cell
 def run_analysis(HAS_PYACEMAKER, mo, np, plt):
-    mo.md(
-        """
-        ### Analysis: L10 Ordering
-
-        This cell visualizes the **Order Parameter** vs Time.
-
-        *Note: In this tutorial, we generate a mock sigmoid curve to demonstrate the expected phase transition.*
-        """
-    )
+    # We print the markdown here because we return variables.
+    # In Marimo interactive mode, this markdown might not be prominently displayed
+    # if not returned, but we need to return variables.
+    # Using print as fallback for logs.
+    print("Running Analysis: L10 Ordering Phase Transition (Mock)")
 
     order_param = None
     time_steps = None
@@ -992,20 +969,20 @@ def run_analysis(HAS_PYACEMAKER, mo, np, plt):
 
 @app.cell
 def cleanup(mo, tutorial_tmp_dir):
-    mo.md(
-        """
-        ### Cleanup
-
-        Finally, we clean up the temporary workspace.
-        """
-    )
     if tutorial_tmp_dir:
         try:
             tutorial_tmp_dir.cleanup()
             print("Cleanup: Done.")
         except Exception as e:
             print(f"Cleanup warning: {e}")
-    return
+
+    return mo.md(
+        """
+        ### Cleanup
+
+        Finally, we clean up the temporary workspace.
+        """
+    )
 
 
 if __name__ == "__main__":
