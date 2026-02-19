@@ -162,15 +162,19 @@ def check_api_keys(mo, os):
     # CONSTITUTION CHECK: Graceful handling of API Keys
     mp_api_key = None
     has_api_key = False
+    api_key_status = None
 
     if os is not None:
         mp_api_key = os.environ.get("MP_API_KEY")
 
         if mp_api_key:
             has_api_key = True
-            print("✅ MP_API_KEY found. Advanced exploration strategies enabled.")
+            api_key_status = mo.md(
+                "::: success\n✅ **MP_API_KEY found.** Advanced exploration strategies enabled.\n:::"
+            )
+            print("✅ MP_API_KEY found.")
         else:
-            mo.md(
+            api_key_status = mo.md(
                 """
                 ::: warning
                 **Missing API Key: `MP_API_KEY`**
@@ -191,7 +195,7 @@ def check_api_keys(mo, os):
     else:
         print("⚠️ Warning: `os` module not available. Cannot check environment variables.")
 
-    return has_api_key, mp_api_key
+    return api_key_status, has_api_key, mp_api_key
 
 
 @app.cell
@@ -592,6 +596,24 @@ def section2_md(mo):
         5.  **Retraining (Study)**: The AI adds this new example to its textbook (dataset) and retrains itself.
 
         This cycle repeats until the AI can simulate the entire process without getting confused. This is much faster than asking the teacher for every single step!
+        """
+    )
+
+
+@app.cell
+def custom_generator_md(mo):
+    return mo.md(
+        """
+        ### Custom Structure Generator
+
+        To ensure this tutorial is robust and deterministic (especially in Mock Mode or without an API Key), we define a custom `StructureGenerator`.
+
+        **Why?**
+        *   **Chemical Relevance**: Randomly placing atoms often results in unphysical high-energy structures. For this specific scenario (Fe/Pt on MgO), we want to start with relevant phases: MgO bulk, Fe bulk (BCC), Pt bulk (FCC), and the MgO (001) surface.
+        *   **Determinism**: By using `ase.build` functions, we ensure the initial structures are physically reasonable and identical every time you run this notebook.
+        *   **Independence**: This allows the tutorial to run without external dependencies like the Materials Project API or M3GNet, making it a reliable User Acceptance Test (UAT).
+
+        The class `TutorialStructureGenerator` below implements the `StructureGenerator` interface and injects these specific structures into the active learning loop.
         """
     )
 
