@@ -42,6 +42,47 @@ def intro_md(mo):
 
 
 @app.cell
+def prerequisites_md(mo):
+    return mo.md(
+        """
+        ### Prerequisites
+
+        To run this tutorial in **Real Mode** (performing actual physics calculations), you need:
+
+        1.  **Quantum Espresso (`pw.x`)**: A DFT code for ground-truth calculations.
+            *   [Installation Guide](https://www.quantum-espresso.org/Doc/user_guide/node10.html)
+        2.  **LAMMPS (`lmp`)**: A molecular dynamics engine.
+            *   [Installation Guide](https://docs.lammps.org/Install.html)
+        3.  **Pacemaker (`pace_train`)**: The ACE training code.
+            *   [Installation Guide](https://pacemaker.readthedocs.io/en/latest/)
+        4.  **Materials Project API Key (`MP_API_KEY`)**: For accessing initial structures (Optional, tutorial has a fallback).
+            *   [Get API Key](https://next-gen.materialsproject.org/api)
+
+        **Mock Mode (CI/Testing)**:
+        If you don't have these tools, the tutorial will automatically switch to **Mock Mode**.
+        In this mode, heavy calculations are simulated instantly using dummy data, allowing you to verify the workflow logic without needing a supercomputer.
+        """
+    )
+
+
+@app.cell
+def glossary_md(mo):
+    return mo.md(
+        """
+        ### Glossary & Key Concepts
+
+        *   **MLIP (Machine Learning Interatomic Potential)**: A regression model (Neural Network or Linear Basis) that predicts the energy and forces of an atomic structure, trained on quantum mechanical data.
+        *   **DFT (Density Functional Theory)**: The "Ground Truth" physics method used to calculate accurate energies/forces. It is computationally expensive ($O(N^3)$).
+        *   **ACE (Atomic Cluster Expansion)**: A mathematical formalism for MLIPs that is both accurate and very fast ($O(N)$).
+        *   **Active Learning**: A training strategy where the model identifies structures it is uncertain about (high extrapolation grade $\gamma$) and requests ground-truth labels (DFT) for only those structures.
+        *   **Extrapolation Grade ($\gamma$)**: A metric measuring how "far" a new structure is from the training set. $\gamma > 1$ usually implies high uncertainty.
+        *   **MD (Molecular Dynamics)**: Simulating the movement of atoms by integrating Newton's laws of motion ($F=ma$).
+        *   **aKMC (Adaptive Kinetic Monte Carlo)**: A simulation method for long timescales that focuses on rare events (transitions between energy minima) rather than vibrating atoms.
+        """
+    )
+
+
+@app.cell
 def section1_md(mo):
     return mo.md(
         """
@@ -182,17 +223,15 @@ def check_api_keys(mo, os):
 
                 The **Materials Project API Key** was not found in the environment variables.
 
-                *   **Impact**: Strategies relying on M3GNet/Materials Project (e.g., "smart" Cold Start) will be disabled or mocked.
-                *   **Fallback**: We will default to the **'Random'** exploration strategy, which generates random structures. This ensures the tutorial runs without errors.
-                *   **How to Fix**:
-                    1.  **Get a Key**: Sign up at [Materials Project](https://next-gen.materialsproject.org/api) to get your API key.
-                    2.  **Set Environment Variable**:
-                        *   **Linux/Mac**: Run `export MP_API_KEY='your_key_here'` in your terminal before starting Marimo.
-                        *   **Windows**: Set the environment variable in System Properties or PowerShell (`$env:MP_API_KEY='your_key_here'`).
+                *   **Impact**: Strategies relying on M3GNet/Materials Project will be disabled.
+                *   **Fallback**: We will use a custom **Tutorial Strategy** that generates necessary structures (MgO, Fe, Pt) locally.
+                *   **Action**: No action required for this tutorial to run in Mock Mode. To enable full features in production:
+                    1.  [Get a Key](https://next-gen.materialsproject.org/api)
+                    2.  Set `export MP_API_KEY='your_key_here'`
                 :::
                 """
             )
-            print("⚠️ No MP_API_KEY. Defaulting to 'Random' strategy.")
+            print("⚠️ No MP_API_KEY. Using local fallback generator.")
     else:
         print("⚠️ Warning: `os` module not available. Cannot check environment variables.")
 
@@ -389,17 +428,29 @@ def check_dependencies(os, shutil, mo):
                 fallback_msg = mo.md(
                     f"""
                     ::: warning
-                    **Missing Binaries:** {", ".join(missing_binaries)}
+                    **Missing Binaries: {', '.join(missing_binaries)}**
 
                     **FALLBACK TRIGGERED**: Switching to **Mock Mode** despite `CI={raw_ci}` because required simulation tools are not found in PATH.
 
                     **To Run in Real Mode:**
                     You must install the external physics codes:
-                    1.  **Quantum Espresso (`pw.x`)**: [Installation Guide](https://www.quantum-espresso.org/Doc/user_guide/node10.html)
-                    2.  **LAMMPS (`lmp`)**: [Installation Guide](https://docs.lammps.org/Install.html)
-                    3.  **Pacemaker (`pace_train`)**: [Installation Guide](https://pacemaker.readthedocs.io/en/latest/)
+                    *   **Quantum Espresso (`pw.x`)**: [Installation Guide](https://www.quantum-espresso.org/Doc/user_guide/node10.html)
+                    *   **LAMMPS (`lmp`)**: [Installation Guide](https://docs.lammps.org/Install.html)
+                    *   **Pacemaker (`pace_train`)**: [Installation Guide](https://pacemaker.readthedocs.io/en/latest/)
 
                     After installation, ensure they are in your system `$PATH` and restart this notebook.
+                    :::
+                    """
+                )
+            else:
+                # Even in CI mode, inform the user why they are in CI mode if binaries are missing
+                fallback_msg = mo.md(
+                    """
+                    ::: info
+                    **Running in Mock Mode**
+
+                    Required binaries (`pw.x`, `lmp`, `pace_train`) were not found.
+                    The tutorial will proceed using simulated data.
                     :::
                     """
                 )
@@ -439,6 +490,20 @@ def check_dependencies(os, shutil, mo):
         status_md,
         valid_false,
         valid_true,
+    )
+
+
+@app.cell
+def config_section_md(mo):
+    return mo.md(
+        """
+        ## Section 2: Configuration
+
+        Here we define the system parameters.
+        *   **Workspace**: A secure temporary directory for all simulation files.
+        *   **Pseudopotentials**: Links to physics files (or dummy placeholders in Mock Mode).
+        *   **PYACEMAKER Config**: The YAML-like structure controlling the entire pipeline.
+        """
     )
 
 
@@ -591,6 +656,7 @@ def setup_config(
     return (
         config,
         config_dict,
+        config_section_md,
         pseudos,
         setup_msg,
         strategy,
@@ -603,7 +669,7 @@ def setup_config(
 def section2_md(mo):
     return mo.md(
         r"""
-        ## Section 2: Phase 1 - Divide & Conquer Training (Active Learning)
+        ## Section 3: Phase 1 - Divide & Conquer Training (Active Learning)
 
         We employ an **Active Learning Loop** to train the potential. This phase demonstrates how `PYACEMAKER` autonomously explores the chemical space of **Fe-Pt-Mg-O**.
 
