@@ -1,0 +1,115 @@
+# Default Configuration Values
+version: "0.1.0"
+log_level: "INFO"
+log_format: "[{time}] [{level}] [{extra[name]}] {message}"
+
+# File Check Skip (can be true/false)
+skip_file_checks: false
+
+# Max Config Size
+max_config_size: 1048576
+
+# Dataset
+max_object_size: 134217728  # 128 MB
+default_buffer_size: 10485760  # 10 MB
+default_validation_buffer_size: 100
+
+# Orchestrator
+orchestrator:
+  max_cycles: 10
+  uncertainty_threshold: 0.1
+  n_local_candidates: 10
+  n_active_set_select: 5
+  validation_split: 0.1
+  min_validation_size: 10
+  max_validation_size: 1000
+
+# Structure Generator
+structure_strategy: "random"
+
+# Trainer
+trainer_potential: "pace"
+trainer_cutoff: 5.0
+trainer_order: 3
+trainer_basis_size: [15, 5]
+trainer_delta_learning: "zbl"
+trainer_max_epochs: 500
+trainer_batch_size: 100
+
+# Dynamics Engine
+engine: "lammps"
+dynamics_gamma_threshold: 10.0
+dynamics_halt_probability: 0.3
+dynamics_timestep: 0.001
+dynamics_temp_damping: 0.1
+dynamics_templates:
+  zbl:
+    - "pair_style hybrid/overlay pace zbl 4.0 5.0"
+    - "pair_coeff * * pace {path} {elements}"
+    - "pair_coeff * * zbl 0.0 0.0"
+  lj:
+    - "pair_style hybrid/overlay pace lj/cut 10.0"
+    - "pair_coeff * * pace {path} {elements}"
+    - "pair_coeff * * lj/cut 1.0 1.0"
+  default:
+    - "pair_style pace"
+    - "pair_coeff * * pace {path} {elements}"
+
+# Validator
+validator_metrics:
+  - "rmse_energy"
+  - "rmse_forces"
+
+# DFT / Oracle
+dft:
+  code: "quantum_espresso"
+  command: "mpirun -np 4 pw.x"
+  kspacing: 0.04
+  smearing: 0.02
+  max_retries: 3
+  mixing_beta: 0.7
+  chunk_size: 100
+  max_workers: 4
+  recoverable_errors:
+    - "scf not converged"
+    - "convergence not achieved"
+    - "electronic convergence failed"
+  allowed_input_sections:
+    - "control"
+    - "system"
+    - "electrons"
+    - "ions"
+    - "cell"
+  ecutwfc: 50.0
+  ecutrho: 200.0
+  conv_thr: 1.0e-6
+  occupations: "smearing"
+  smearing_method: "mv"
+
+# Security Warnings
+pickle_security_warning: "SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources."
+
+# Regex
+version_regex: "^\\d+\\.\\d+\\.\\d+$"
+# Strict Validation Regex (Alphanumeric, underscore, hyphen, dot)
+valid_key_regex: '^[a-zA-Z0-9_\-\.]+$'
+# Strict Value Regex (Alphanumeric, path chars, basic punctuation, no shell metachars like ; | &)
+valid_value_regex: '^[a-zA-Z0-9_\-\./:, \(\)\[\]\{\}]+$'
+
+# Temporary File Prefixes
+temp_prefix_train: "pace_train_"
+temp_prefix_active: "pace_active_"
+dft_temp_prefix: "dft_run_"
+
+# Physical Bounds
+max_energy_ev: 1000000.0  # 1e6
+max_force_ev_a: 1000.0
+max_atoms_dft: 1000
+composition_tolerance: 0.001
+
+# Physics Validation Defaults
+physics_phonon_supercell: [2, 2, 2]
+physics_phonon_tolerance: -0.05
+physics_eos_strain: 0.05
+physics_eos_points: 5
+physics_elastic_strain: 0.01
