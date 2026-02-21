@@ -20,6 +20,7 @@ def measure_memory_peak(func: Callable[..., Any], *args: Any, **kwargs: Any) -> 
     tracemalloc.stop()
     return peak / (1024 * 1024)
 
+
 def test_dataset_manager_streaming_memory(tmp_path: Path) -> None:
     """Test that DatasetManager.save_iter and load_iter are memory efficient."""
     dataset_path = tmp_path / "large_dataset.pckl.gzip"
@@ -78,7 +79,7 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
         manager,
         validation_split=0.2,
         max_validation_size=1000,
-        buffer_size=100  # Flush every 100 items
+        buffer_size=100,  # Flush every 100 items
     )
 
     # We must patch load_iter to skip verify inside DatasetSplitter, or just ensure checksum exists.
@@ -99,8 +100,14 @@ def test_dataset_splitter_memory(tmp_path: Path) -> None:
     from unittest.mock import patch
 
     def consume_split() -> None:
-        with patch.object(manager, "load_iter", side_effect=lambda p, **kwargs: DatasetManager.load_iter(manager, p, verify=False, **kwargs)):
-             for _ in splitter.train_stream():
+        with patch.object(
+            manager,
+            "load_iter",
+            side_effect=lambda p, **kwargs: DatasetManager.load_iter(
+                manager, p, verify=False, **kwargs
+            ),
+        ):
+            for _ in splitter.train_stream():
                 pass
 
     peak_mb = measure_memory_peak(consume_split)

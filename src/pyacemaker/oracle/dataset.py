@@ -93,9 +93,7 @@ class DatasetManager:
         """Initialize the Dataset Manager."""
         self.logger = logger.bind(name="DatasetManager")
 
-    def _read_and_process_object_stream(
-        self, f: IO[bytes], size: int, path: Path
-    ) -> Atoms | None:
+    def _read_and_process_object_stream(self, f: IO[bytes], size: int, path: Path) -> Atoms | None:
         """Deserialize and validate a single object from stream."""
         try:
             limited_stream = LimitedStream(f, size)
@@ -216,9 +214,7 @@ class DatasetManager:
         ):
             yield from self._process_frames(f, path, start_index)
 
-    def _process_frames(
-        self, f: IO[bytes], path: Path, start_index: int
-    ) -> Iterator[Atoms]:
+    def _process_frames(self, f: IO[bytes], path: Path, start_index: int) -> Iterator[Atoms]:
         """Process frames from the buffered stream."""
         current_idx = 0
         while True:
@@ -325,5 +321,6 @@ class DatasetManager:
                 # Fallback to full read for append if requested (expensive)
                 # Ideally caller avoids this for large files in append mode.
                 from pyacemaker.core.utils import calculate_checksum as calc_checksum
+
                 checksum = calc_checksum(path)
                 path.with_suffix(path.suffix + ".sha256").write_text(checksum)

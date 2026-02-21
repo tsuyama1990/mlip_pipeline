@@ -47,10 +47,14 @@ class Task(BaseModel):
         if self.status == TaskStatus.COMPLETED:
             if self.type == TaskType.DFT:
                 if "energy" not in self.result and "forces" not in self.result:
-                     # Allow some flexibility but generally DFT results have these
-                     pass
-            elif self.type == TaskType.TRAINING and "potential_path" not in self.result and "metrics" not in self.result:
-                 pass
+                    # Allow some flexibility but generally DFT results have these
+                    pass
+            elif (
+                self.type == TaskType.TRAINING
+                and "potential_path" not in self.result
+                and "metrics" not in self.result
+            ):
+                pass
         return self
 
 

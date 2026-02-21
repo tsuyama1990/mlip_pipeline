@@ -49,7 +49,7 @@ def test_limited_stream_behavior() -> None:
     assert read1 == b"123"
     assert limited._remaining == 2
 
-    read2 = limited.read(10) # Ask for more than remaining
+    read2 = limited.read(10)  # Ask for more than remaining
     assert read2 == b"45"
     assert limited._remaining == 0
 

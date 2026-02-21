@@ -12,7 +12,9 @@ def test_uat_cli_help() -> None:
     env.update(os.environ)
 
     # Force use of venv python to ensure deps are found
-    python_exe = "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
+    python_exe = (
+        "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
+    )
 
     # Running via -m fails to capture output with subprocess sometimes due to typer/rich interaction?
     # Or maybe it's just how the test environment captures stdout.
@@ -21,7 +23,7 @@ def test_uat_cli_help() -> None:
     cmd = [
         python_exe,
         "-c",
-        "import sys; sys.argv=['pyacemaker', '--help']; from pyacemaker.main import app; app()"
+        "import sys; sys.argv=['pyacemaker', '--help']; from pyacemaker.main import app; app()",
     ]
 
     result = subprocess.run(
@@ -73,12 +75,14 @@ trainer:
 
     # Let's try running as module
     # Force use of venv python
-    python_exe = "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
+    python_exe = (
+        "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
+    )
 
     cmd = [
         python_exe,
         "-c",
-        f"import sys; sys.argv=['pyacemaker', 'run', r'{config_file}']; from pyacemaker.main import app; app()"
+        f"import sys; sys.argv=['pyacemaker', 'run', r'{config_file}']; from pyacemaker.main import app; app()",
     ]
 
     result = subprocess.run(
@@ -110,12 +114,14 @@ project:
     env.update(os.environ)
 
     # Force use of venv python
-    python_exe = "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
+    python_exe = (
+        "/app/.venv/bin/python3" if Path("/app/.venv/bin/python3").exists() else sys.executable
+    )
 
     cmd = [
         python_exe,
         "-c",
-        f"import sys; sys.argv=['pyacemaker', 'run', r'{config_file}']; from pyacemaker.main import app; app()"
+        f"import sys; sys.argv=['pyacemaker', 'run', r'{config_file}']; from pyacemaker.main import app; app()",
     ]
 
     result = subprocess.run(

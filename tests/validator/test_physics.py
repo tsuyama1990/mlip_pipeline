@@ -38,7 +38,7 @@ def test_check_phonons_stable(mock_atoms: Atoms) -> None:
         # phonopy.get_band_structure_dict() returns a dict with 'frequencies' and 'qpoints' etc.
         instance.get_band_structure_dict.return_value = {
             "frequencies": [[0.0, 0.1, 1.0, 2.0], [0.0, 0.2, 1.5, 2.5]],
-            "qpoints": [[0,0,0], [0.5,0.5,0.5]]
+            "qpoints": [[0, 0, 0], [0.5, 0.5, 0.5]],
         }
 
         is_stable = check_phonons(mock_atoms, supercell=[2, 2, 2])
@@ -52,7 +52,7 @@ def test_check_phonons_unstable(mock_atoms: Atoms) -> None:
         # Mock band structure with imaginary (negative) frequencies
         instance.get_band_structure_dict.return_value = {
             "frequencies": [[0.0, -0.1, 1.0, 2.0], [0.0, 0.2, 1.5, 2.5]],
-            "qpoints": [[0,0,0], [0.5,0.5,0.5]]
+            "qpoints": [[0, 0, 0], [0.5, 0.5, 0.5]],
         }
 
         is_stable = check_phonons(mock_atoms, supercell=[2, 2, 2])
@@ -84,9 +84,7 @@ def test_check_elastic_stable(mock_atoms: Atoms) -> None:
     with patch("pyacemaker.validator.physics.calculate_elastic_constants") as mock_calc:
         # Mock Cij matrix for cubic system (stable)
         # C11 > |C12|, C11 + 2C12 > 0, C44 > 0
-        mock_calc.return_value = {
-            "C11": 160.0, "C12": 60.0, "C44": 80.0
-        }
+        mock_calc.return_value = {"C11": 160.0, "C12": 60.0, "C44": 80.0}
 
         is_stable, Cij = check_elastic(mock_atoms)
 
@@ -98,9 +96,7 @@ def test_check_elastic_unstable(mock_atoms: Atoms) -> None:
     """Test elastic stability check for unstable system."""
     with patch("pyacemaker.validator.physics.calculate_elastic_constants") as mock_calc:
         # Unstable case: C11 < C12
-        mock_calc.return_value = {
-            "C11": 50.0, "C12": 60.0, "C44": 80.0
-        }
+        mock_calc.return_value = {"C11": 50.0, "C12": 60.0, "C44": 80.0}
 
         is_stable, Cij = check_elastic(mock_atoms)
 

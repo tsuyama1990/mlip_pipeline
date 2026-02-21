@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pyacemaker.core.config import CONSTANTS, DFTConfig, _validate_structure
+from pyacemaker.core.config import CONSTANTS, DFTConfig
+from pyacemaker.core.validation import _validate_structure
 
 
 def test_validate_parameters_whitelist_keys() -> None:
@@ -59,7 +60,10 @@ def test_validate_parameters_depth_limit() -> None:
     with pytest.raises(ValueError, match="Configuration nesting too deep"):
         _validate_structure(deep_data)
 
-def test_dft_pseudopotentials_path_traversal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+
+def test_dft_pseudopotentials_path_traversal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test path traversal check in DFT pseudopotentials."""
     # Re-enable security checks explicitly for this test
     monkeypatch.setattr(CONSTANTS, "skip_file_checks", False)
@@ -82,12 +86,12 @@ def test_dft_pseudopotentials_path_traversal(tmp_path: Path, monkeypatch: pytest
     rel_path = "../unsafe/evil.upf"
 
     with pytest.raises(ValidationError, match="Path traversal not allowed"):
-        DFTConfig(
-            code="qe",
-            pseudopotentials={"Fe": rel_path}
-        )
+        DFTConfig(code="qe", pseudopotentials={"Fe": rel_path})
 
-def test_dft_pseudopotentials_path_traversal_skip_checks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+
+def test_dft_pseudopotentials_path_traversal_skip_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test path traversal check even when file checks are skipped."""
     monkeypatch.setattr(CONSTANTS, "skip_file_checks", True)
 
@@ -100,7 +104,4 @@ def test_dft_pseudopotentials_path_traversal_skip_checks(tmp_path: Path, monkeyp
     rel_path = "../unsafe/evil.upf"
 
     with pytest.raises(ValidationError, match="Path traversal not allowed"):
-        DFTConfig(
-            code="qe",
-            pseudopotentials={"Fe": rel_path}
-        )
+        DFTConfig(code="qe", pseudopotentials={"Fe": rel_path})

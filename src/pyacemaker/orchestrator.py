@@ -114,9 +114,7 @@ class Orchestrator(IOrchestrator):
             self.config.project.root_dir / "data" / CONSTANTS.default_validation_file
         )
         # Training set path (persistent subset)
-        self.training_path = (
-            self.config.project.root_dir / "data" / CONSTANTS.default_training_file
-        )
+        self.training_path = self.config.project.root_dir / "data" / CONSTANTS.default_training_file
 
         self.dataset_manager = DatasetManager()
         self.cycle_count = 0

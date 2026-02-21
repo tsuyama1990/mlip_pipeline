@@ -45,6 +45,7 @@ class TestTrainerModule:
         """Test trainer.train method."""
         # Create a valid structure with atoms, energy, and forces
         from ase import Atoms
+
         real_atoms = Atoms("H")
 
         structure = StructureMetadata(

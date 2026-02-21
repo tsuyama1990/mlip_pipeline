@@ -1,6 +1,5 @@
 """Validator domain models."""
 
-
 from pydantic import BaseModel, ConfigDict, Field
 
 

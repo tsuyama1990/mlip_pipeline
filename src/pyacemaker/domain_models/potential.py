@@ -35,10 +35,12 @@ class Potential(BaseModel):
             msg = "Version string cannot be empty"
             raise ValueError(msg)
         # Basic semver check or alphanumeric
-        if not re.match(r"^v?\d+\.\d+(\.\d+)?(-[\w\.]+)?$", v) and (not v.isalnum() or "." not in v):
-             # Allow simpler versions for now but warn/restrict
-             msg = f"Invalid version format: {v}"
-             raise ValueError(msg)
+        if not re.match(r"^v?\d+\.\d+(\.\d+)?(-[\w\.]+)?$", v) and (
+            not v.isalnum() or "." not in v
+        ):
+            # Allow simpler versions for now but warn/restrict
+            msg = f"Invalid version format: {v}"
+            raise ValueError(msg)
         return v
 
     @field_validator("parameters")
@@ -57,8 +59,8 @@ class Potential(BaseModel):
         """Validate metrics."""
         for name, value in v.items():
             if value < 0 and "rmse" in name.lower():
-                 msg = f"Metric {name} must be non-negative"
-                 raise ValueError(msg)
+                msg = f"Metric {name} must be non-negative"
+                raise ValueError(msg)
         return v
 
     @field_validator("path")

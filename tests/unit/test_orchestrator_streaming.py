@@ -121,7 +121,14 @@ def test_validation_slice(streaming_config: PYACEMAKERConfig) -> None:
     # Consume train_stream to trigger splitting
     # We must patch load_iter to disable verification inside DatasetSplitter
     from unittest.mock import patch
-    with patch.object(orchestrator.dataset_manager, "load_iter", side_effect=lambda p, **kwargs: orchestrator.dataset_manager.__class__.load_iter(orchestrator.dataset_manager, p, verify=False, **kwargs)):
+
+    with patch.object(
+        orchestrator.dataset_manager,
+        "load_iter",
+        side_effect=lambda p, **kwargs: orchestrator.dataset_manager.__class__.load_iter(
+            orchestrator.dataset_manager, p, verify=False, **kwargs
+        ),
+    ):
         train_stream = splitter.train_stream()
         consumed_train = list(train_stream)
 

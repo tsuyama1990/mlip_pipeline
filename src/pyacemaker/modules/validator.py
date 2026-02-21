@@ -16,9 +16,7 @@ class MockValidator(ValidatorInterface):
         """Run the validator."""
         return ModuleResult(status="success")
 
-    def validate(
-        self, potential: Potential, test_set: Iterable[StructureMetadata]
-    ) -> ModuleResult:
+    def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
         # Validate consumes the test_set stream
         count = sum(1 for _ in test_set)
@@ -39,13 +37,10 @@ class Validator(ValidatorInterface):
         # Just return success.
         return ModuleResult(status="success")
 
-    def validate(
-        self, potential: Potential, test_set: Iterable[StructureMetadata]
-    ) -> ModuleResult:
+    def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
         # Stream processing to avoid OOM
         self.logger.info(f"Validating {potential.path}")
-
 
         reference_structure = None
         min_e_pa = float("inf")

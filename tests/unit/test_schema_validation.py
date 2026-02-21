@@ -20,6 +20,7 @@ def test_strenum_behavior() -> None:
     assert PotentialType.PACE == "PACE"
     assert CycleStatus.CONVERGED == "CONVERGED"
 
+
 def test_structure_metadata_features_validation() -> None:
     """Test validation of features dictionary."""
     # Valid Atoms object
@@ -39,10 +40,12 @@ def test_structure_metadata_features_validation() -> None:
 
     # Object with todict (should FAIL now)
     class DictObj:
-        def todict(self) -> dict[str, object]: return {}
+        def todict(self) -> dict[str, object]:
+            return {}
 
     with pytest.raises(ValidationError, match="unsafe type"):
         StructureMetadata(features={"dict_obj": DictObj()})
+
 
 def test_structure_metadata_atoms_validation() -> None:
     """Test strict validation of ASE Atoms objects."""
@@ -61,18 +64,21 @@ def test_structure_metadata_atoms_validation() -> None:
     s = StructureMetadata(features={"atoms": Atoms("H")})
     assert isinstance(s.features["atoms"], Atoms)
 
+
 def test_structure_metadata_energy_validation() -> None:
     """Test energy validation."""
     with pytest.raises(ValidationError, match="finite number"):
         StructureMetadata(energy=float("inf"))
 
     with pytest.raises(ValidationError, match="physically implausible"):
-        StructureMetadata(energy=1e9) # Too high
+        StructureMetadata(energy=1e9)  # Too high
+
 
 def test_structure_metadata_forces_validation() -> None:
     """Test forces validation."""
     with pytest.raises(ValidationError, match="physically implausible"):
-        StructureMetadata(forces=[[1e5, 0, 0]]) # Too high
+        StructureMetadata(forces=[[1e5, 0, 0]])  # Too high
+
 
 def test_structure_metadata_calculated_fields() -> None:
     """Test consistency of calculated fields."""
@@ -84,12 +90,9 @@ def test_structure_metadata_calculated_fields() -> None:
         StructureMetadata(status=StructureStatus.CALCULATED, energy=-10.0)
 
     # Valid
-    s = StructureMetadata(
-        status=StructureStatus.CALCULATED,
-        energy=-10.0,
-        forces=[[0.0, 0.0, 0.0]]
-    )
+    s = StructureMetadata(status=StructureStatus.CALCULATED, energy=-10.0, forces=[[0.0, 0.0, 0.0]])
     assert s.status == StructureStatus.CALCULATED
+
 
 def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test potential path security validation."""
@@ -97,34 +100,18 @@ def test_potential_path_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.chdir(tmp_path)
 
     # Valid relative path
-    p = Potential(
-        path=Path("potentials/test.yace"),
-        type=PotentialType.PACE,
-        version="1.0"
-    )
+    p = Potential(path=Path("potentials/test.yace"), type=PotentialType.PACE, version="1.0")
     assert p.path == Path("potentials/test.yace")
 
     # Path traversal attempt
     with pytest.raises(ValidationError, match="strictly within current working directory"):
-        Potential(
-            path=Path("../../../etc/passwd"),
-            type=PotentialType.PACE,
-            version="1.0"
-        )
+        Potential(path=Path("../../../etc/passwd"), type=PotentialType.PACE, version="1.0")
 
     # Absolute path outside CWD (e.g. /etc/passwd)
     with pytest.raises(ValidationError, match="within current working directory"):
-        Potential(
-            path=Path("/etc/passwd"),
-            type=PotentialType.PACE,
-            version="1.0"
-        )
+        Potential(path=Path("/etc/passwd"), type=PotentialType.PACE, version="1.0")
 
     # Absolute path INSIDE CWD should be allowed
     safe_abs_path = (tmp_path / "test.yace").resolve()
-    p_safe = Potential(
-        path=safe_abs_path,
-        type=PotentialType.PACE,
-        version="1.0"
-    )
+    p_safe = Potential(path=safe_abs_path, type=PotentialType.PACE, version="1.0")
     assert p_safe.path == safe_abs_path

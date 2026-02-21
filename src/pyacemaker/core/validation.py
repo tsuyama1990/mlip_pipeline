@@ -5,6 +5,29 @@ from pathlib import Path
 from typing import Any
 
 
+def _validate_absolute_path(path: Path, cwd: Path) -> Path:
+    """Validate an absolute path against CWD and the allowed-paths whitelist."""
+    from pyacemaker.core.config import CONSTANTS
+
+    # Resolve the path (or its parent if it doesn't exist yet).
+    if path.exists():
+        resolved = path.resolve(strict=True).absolute()
+    else:
+        parent = path.parent.resolve(strict=True)
+        resolved = (parent / path.name).absolute()
+
+    if resolved.is_relative_to(cwd):
+        return resolved
+
+    for allowed in CONSTANTS.allowed_potential_paths:
+        allowed_path = Path(allowed).resolve(strict=True)
+        if resolved.is_relative_to(allowed_path):
+            return resolved
+
+    msg = f"Path {resolved} is not within current working directory or allowed whitelist"
+    raise ValueError(msg)
+
+
 def validate_safe_path(path: Path) -> Path:
     """Validate that path is safe (within CWD or whitelisted)."""
     from pyacemaker.core.config import CONSTANTS
@@ -13,34 +36,28 @@ def validate_safe_path(path: Path) -> Path:
         msg = "Path cannot be empty"
         raise ValueError(msg)
 
+    # Always reject explicit path traversal components, regardless of skip_file_checks.
+    if ".." in path.parts:
+        msg = (
+            f"Path traversal not allowed: {path} must be strictly within current working directory"
+        )
+        raise ValueError(msg)
+
     if CONSTANTS.skip_file_checks:
         return path
 
     try:
         cwd = Path.cwd().resolve(strict=True)
-        # 1. Strict Resolution
-        if path.exists():
-            resolved = path.resolve(strict=True)
-        else:
-            # If path doesn't exist, we must still check traversal via parent
-            parent = path.parent.resolve(strict=True)
-            resolved = parent / path.name
 
-        # 2. Containment Check (Canonical Paths)
-        # Ensure we compare absolute paths
-        resolved = resolved.absolute()
+        # For relative paths: check containment lexically without requiring existence on disk.
+        if not path.is_absolute():
+            candidate = (cwd / path).resolve()
+            if candidate.is_relative_to(cwd):
+                return path
+            msg = f"Path {path} must be strictly within current working directory"
+            raise ValueError(msg)  # noqa: TRY301
 
-        if resolved.is_relative_to(cwd):
-            return resolved
-
-        # 3. Whitelist Check (Strict Prefix)
-        for allowed in CONSTANTS.allowed_potential_paths:
-            allowed_path = Path(allowed).resolve(strict=True)
-            if resolved.is_relative_to(allowed_path):
-                return resolved
-
-        msg = f"Path is outside CWD and not in allowed whitelist: {resolved}"
-        raise ValueError(msg)  # noqa: TRY301
+        return _validate_absolute_path(path, cwd)
 
     except (ValueError, RuntimeError, OSError) as e:
         msg = f"Path {path} is unsafe or outside allowed base directory: {e}"
@@ -88,7 +105,9 @@ def _validate_dict(data: dict[str, Any], path: str, depth: int) -> None:
             raise TypeError(msg)
 
         if not valid_key_regex.match(key):
-            msg = f"Invalid characters in key '{current_path}'. Must match {valid_key_regex.pattern}"
+            msg = (
+                f"Invalid characters in key '{current_path}'. Must match {valid_key_regex.pattern}"
+            )
             raise ValueError(msg)
 
         _validate_structure(value, current_path, depth + 1)

@@ -24,7 +24,7 @@ def test_load_config_permission_error() -> None:
     mock_path.exists.return_value = True
     mock_path.is_file.return_value = True
     mock_path.resolve.return_value = mock_path  # Mock resolve
-    mock_path.is_relative_to.return_value = True # Mock relative check
+    mock_path.is_relative_to.return_value = True  # Mock relative check
     mock_path.stat.return_value.st_size = 100  # Set valid size
     mock_path.name = "protected.yaml"
 

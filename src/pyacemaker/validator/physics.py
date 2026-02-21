@@ -1,6 +1,5 @@
 """Physics validation logic."""
 
-
 import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms
@@ -78,9 +77,7 @@ def check_phonons(atoms: Atoms, supercell: list[int] | None = None) -> bool:
     return bool(min_freq >= CONSTANTS.physics_phonon_tolerance)
 
 
-def check_eos(
-    atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain
-) -> tuple[float, str]:
+def check_eos(atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain) -> tuple[float, str]:
     """Check Equation of State.
 
     Returns:
@@ -94,9 +91,7 @@ def check_eos(
     energies = []
 
     # 5 points
-    factors = np.linspace(
-        1.0 - strain, 1.0 + strain, CONSTANTS.physics_eos_points
-    )
+    factors = np.linspace(1.0 - strain, 1.0 + strain, CONSTANTS.physics_eos_points)
 
     original_cell = atoms.get_cell()  # type: ignore[no-untyped-call]
 
@@ -146,7 +141,7 @@ def calculate_elastic_constants(
     atoms_c11 = atoms.copy()  # type: ignore[no-untyped-call]
     atoms_c11.calc = atoms.calc
     c = cell.copy()
-    c[0, 0] *= (1 + strain)
+    c[0, 0] *= 1 + strain
     atoms_c11.set_cell(c, scale_atoms=True)
     stress_c11 = atoms_c11.get_stress(voigt=True)
 
@@ -170,11 +165,7 @@ def calculate_elastic_constants(
     C44 = stress_c44[5] / strain / GPa
 
     # Ensure positive for robustness
-    return {
-        "C11": abs(C11),
-        "C12": abs(C12),
-        "C44": abs(C44)
-    }
+    return {"C11": abs(C11), "C12": abs(C12), "C44": abs(C44)}
 
 
 def check_elastic(

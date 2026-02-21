@@ -109,10 +109,25 @@ class Constants(BaseSettings):
     # Structure Feature Whitelist
     # Allow common keys for atoms, forces, etc. plus 'atoms' object itself.
     allowed_feature_keys: list[str] = [
-        "atoms", "forces", "stress", "energy", "virial", "dipole",
-        "magmom", "charges", "momenta", "masses", "numbers", "positions",
-        "cell", "pbc", "initial_magmoms", "initial_charges", "uncertainty",
-        "original_id", "source"
+        "atoms",
+        "forces",
+        "stress",
+        "energy",
+        "virial",
+        "dipole",
+        "magmom",
+        "charges",
+        "momenta",
+        "masses",
+        "numbers",
+        "positions",
+        "cell",
+        "pbc",
+        "initial_magmoms",
+        "initial_charges",
+        "uncertainty",
+        "original_id",
+        "source",
     ]
 
     # Dynamics Engine Defaults
@@ -155,7 +170,7 @@ class Constants(BaseSettings):
     @field_validator("max_config_size")
     @classmethod
     def validate_max_config_size(cls, v: int) -> int:
-        if v < 1024: # Minimum 1KB
+        if v < 1024:  # Minimum 1KB
             msg = "max_config_size must be at least 1KB"
             raise ValueError(msg)
         return v

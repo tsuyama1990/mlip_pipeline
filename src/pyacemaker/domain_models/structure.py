@@ -36,10 +36,10 @@ class MaterialDNA(BaseModel):
             raise ValueError(msg)
         total = sum(v.values())
         if not math.isclose(total, 1.0, rel_tol=CONSTANTS.composition_tolerance):
-             # Just warn or fail? Requirement says "proper normalization". Let's enforce it or normalize it.
-             # Strict validation:
-             msg = f"Composition must sum to 1.0 (got {total})"
-             raise ValueError(msg)
+            # Just warn or fail? Requirement says "proper normalization". Let's enforce it or normalize it.
+            # Strict validation:
+            msg = f"Composition must sum to 1.0 (got {total})"
+            raise ValueError(msg)
         return v
 
     @field_validator("average_valence_electrons")
@@ -54,8 +54,13 @@ class MaterialDNA(BaseModel):
     @classmethod
     def validate_crystal_system(cls, v: str | None) -> str | None:
         valid_systems = {
-            "cubic", "tetragonal", "orthorhombic", "hexagonal",
-            "trigonal", "monoclinic", "triclinic"
+            "cubic",
+            "tetragonal",
+            "orthorhombic",
+            "hexagonal",
+            "trigonal",
+            "monoclinic",
+            "triclinic",
         }
         if v is not None and v.lower() not in valid_systems:
             msg = f"Invalid crystal system: {v}"
@@ -227,8 +232,8 @@ class StructureMetadata(BaseModel):
                         is_valid_object = True
                         # Data Integrity: Check for essential attributes
                         if not hasattr(value, "positions") or not hasattr(value, "numbers"):
-                             msg = f"Feature '{key}' is an ASE Atoms object but lacks essential data (positions/numbers)"
-                             raise ValueError(msg)
+                            msg = f"Feature '{key}' is an ASE Atoms object but lacks essential data (positions/numbers)"
+                            raise ValueError(msg)
                 except ImportError:
                     # If ASE not installed or value is not Atoms, check purely by name is risky but maybe necessary for mocks?
                     # No, let's be strict. If it's not a primitive and not an Atoms instance, reject it.
@@ -248,14 +253,21 @@ class StructureMetadata(BaseModel):
     def validate_tags(cls, v: list[str]) -> list[str]:
         # Validate against a predefined set of allowed tags or pattern
         # For now, allow common tags but maybe restrict arbitrary strings
-        allowed_prefixes = {"initial", "high_uncertainty", "active_set", "validation", "outlier", "failed"}
+        allowed_prefixes = {
+            "initial",
+            "high_uncertainty",
+            "active_set",
+            "validation",
+            "outlier",
+            "failed",
+        }
         for tag in v:
             # Allow underscores in tags (e.g. candidate_0)
             clean_tag = tag.replace("_", "")
             if not any(tag.startswith(p) for p in allowed_prefixes) and not clean_tag.isalnum():
-                 # Allow alphanumeric user tags but warn/restrict weird chars
-                 msg = f"Tag '{tag}' contains invalid characters"
-                 raise ValueError(msg)
+                # Allow alphanumeric user tags but warn/restrict weird chars
+                msg = f"Tag '{tag}' contains invalid characters"
+                raise ValueError(msg)
         return v
 
     @model_validator(mode="after")

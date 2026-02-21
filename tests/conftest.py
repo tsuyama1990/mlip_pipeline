@@ -1,6 +1,5 @@
 """Global pytest configuration."""
 
-
 import pytest
 
 from pyacemaker.core.config import CONSTANTS
