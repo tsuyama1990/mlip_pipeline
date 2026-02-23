@@ -26,6 +26,11 @@ __all__ = ["DFTOracle", "MaceSurrogateOracle", "MockOracle"]
 class MockOracle(BaseOracle):
     """Mock Oracle implementation for testing."""
 
+    # Mock parameters (Fe-like)
+    EPSILON = 1.0  # eV
+    SIGMA = 2.0    # Angstrom
+    ATOM_LIMIT = 50 # Limit pair calculation for performance
+
     def __init__(self, config: PYACEMAKERConfig) -> None:
         """Initialize the Mock Oracle."""
         super().__init__(config)
@@ -49,10 +54,8 @@ class MockOracle(BaseOracle):
 
     def _compute_lj(self, atoms: Atoms) -> tuple[float, list[list[float]]]:
         """Compute simplified Lennard-Jones potential."""
-        # Simple LJ parameters (mocking Fe)
-        # epsilon = 1.0 eV, sigma = 2.0 A
-        epsilon = 1.0
-        sigma = 2.0
+        epsilon = self.EPSILON
+        sigma = self.SIGMA
 
         positions = atoms.get_positions()
         n_atoms = len(atoms)
@@ -60,7 +63,7 @@ class MockOracle(BaseOracle):
         energy = 0.0
         forces = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
 
-        if n_atoms < 50:
+        if n_atoms < self.ATOM_LIMIT:
             import numpy as np
             from scipy.spatial.distance import pdist
 
@@ -152,11 +155,12 @@ class DFTOracle(BaseOracle):
             try:
                 future = executor.submit(self.dft_manager.compute, atoms)
                 futures[future] = s
-                return True
             except Exception:
                 self.logger.exception(f"Failed to submit task for {s.id}")
                 s.status = StructureStatus.FAILED
                 return False
+            else:
+                return True
         return False
 
     def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:

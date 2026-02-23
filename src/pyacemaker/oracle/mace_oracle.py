@@ -9,7 +9,7 @@ from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
-from pyacemaker.core.exceptions import ConfigurationError
+from pyacemaker.core.exceptions import ConfigurationError, OracleError
 from pyacemaker.core.interfaces import UncertaintyModel
 from pyacemaker.core.utils import update_structure_metadata, validate_structure_integrity
 from pyacemaker.domain_models.models import (
@@ -100,8 +100,11 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
                 s.label_source = "mace"
                 s.status = StructureStatus.CALCULATED
 
+            except OracleError:
+                self.logger.exception(f"Oracle prediction failed for structure {s.id}")
+                s.status = StructureStatus.FAILED
             except Exception:
-                self.logger.exception(f"Failed to predict structure {s.id}")
+                self.logger.exception(f"Unexpected error for structure {s.id}")
                 s.status = StructureStatus.FAILED
 
         return structures

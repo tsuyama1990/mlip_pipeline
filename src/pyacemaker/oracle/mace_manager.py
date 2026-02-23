@@ -240,15 +240,30 @@ class MaceManager:
         try:
             # Not printing full command to avoid leaking potentially sensitive paths in logs if high verbosity
             self.logger.info("Executing mace_run_train")
-            # Explicit shell=False for security
-            subprocess.run(  # noqa: S603
-                cmd, check=True, cwd=work_dir, capture_output=True, text=True, shell=False
-            )
+
+            log_path = work_dir / "mace_train.log"
+            with log_path.open("w") as log_file:
+                # Explicit shell=False for security
+                # Redirect output to file to avoid OOM with large logs
+                subprocess.run(  # noqa: S603
+                    cmd, check=True, cwd=work_dir, stdout=log_file, stderr=subprocess.STDOUT, shell=False
+                )
         except subprocess.CalledProcessError as e:
-            msg = f"MACE training failed: {e.stderr}"
+            # Try to read last few lines of log for context
+            log_tail = "Check log file for details."
+            if log_path.exists():
+                try:
+                    # Read last 1KB
+                    with log_path.open("rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(max(0, size - 1024))
+                        log_tail = f.read().decode(errors="replace")
+                except Exception:
+                    self.logger.debug("Failed to read log tail")
+
+            msg = f"MACE training failed. Last log output:\n{log_tail}"
             self.logger.exception(msg)
-            # In mock environment or if mace_run_train is missing, this will fail.
-            # We should probably catch FileNotFoundError if binary missing.
             raise OracleError(msg) from e
         except FileNotFoundError:
             self.logger.warning("mace_run_train not found. Creating mock model.")

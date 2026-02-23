@@ -105,7 +105,10 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
 
     from pyacemaker.trainer.pacemaker import PacemakerTrainer
     if isinstance(orchestrator.trainer, PacemakerTrainer):
-        with patch.object(orchestrator.trainer.wrapper, 'train_from_input') as mock_train:
+        with (
+            patch.object(orchestrator.trainer.wrapper, 'train_from_input') as mock_train,
+            patch.object(orchestrator.trainer, '_generate_input_yaml', wraps=orchestrator.trainer._generate_input_yaml) as mock_gen_yaml
+        ):
             mock_pot_path = project_dir / "trained.yace"
             mock_pot_path.touch()
             mock_train.return_value = mock_pot_path
@@ -125,12 +128,16 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
             # B. Verify Trainer Wrapper was called
             mock_train.assert_called_once()
 
-            # C. Verify arguments
+            # C. Verify arguments passed to input generation
+            # We check if the config dict passed to _generate_input_yaml matches expectation
+            mock_gen_yaml.assert_called_once()
+            gen_args = mock_gen_yaml.call_args
+            config_dict = gen_args[0][0]
+            assert config_dict["cutoff"] == 4.5
+
+            # D. Verify arguments passed to wrapper
             call_args = mock_train.call_args
             input_yaml_arg = call_args[0][0]
-
-            # The file is deleted after train returns, so we can't check existence.
-            # We verify the path structure.
             assert Path(input_yaml_arg).name == "input.yaml"
 
         # D. Verify dataset splitter processed items
