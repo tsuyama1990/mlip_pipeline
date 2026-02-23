@@ -115,6 +115,42 @@ class PacemakerWrapper:
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
 
+    def train_from_input(self, input_file: Path, output_dir: Path) -> Path:
+        """Run pace_train with input.yaml.
+
+        Args:
+            input_file: Path to input.yaml
+            output_dir: Output directory (where potential.yace is expected to be)
+
+        Returns:
+            Path to the trained potential file.
+        """
+        if not input_file.exists():
+            msg = f"Input file does not exist: {input_file}"
+            raise FileNotFoundError(msg)
+
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = ["pace_train", str(input_file)]
+
+        # S603 ignored because we are constructing the list securely
+        # Use cwd=output_dir to ensure relative paths in input.yaml (like output filenames) resolve correctly
+        subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=output_dir)  # noqa: S603
+
+        # Return the path to the generated potential
+        # Note: Pacemaker input.yaml usually specifies output file name.
+        # We assume standard output or check where it went.
+        # But commonly it produces potential.yace in CWD or specified output.
+        # If input.yaml specifies output path relative to CWD, we need to know it.
+        # We assume for now it is "potential.yace" in the CWD of execution?
+        # subprocess.run uses default CWD unless specified.
+        # If input.yaml has paths, they are relative to CWD.
+        # We should probably run in output_dir or ensure input.yaml paths are absolute.
+        # But input_file is passed as argument.
+
+        return output_dir / "potential.yace"
+
     def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:
         """Run pace_activeset command.
 

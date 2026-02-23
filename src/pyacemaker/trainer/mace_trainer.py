@@ -2,7 +2,7 @@
 
 import shutil
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 from uuid import uuid4

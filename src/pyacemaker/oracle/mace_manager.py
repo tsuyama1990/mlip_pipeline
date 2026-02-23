@@ -142,7 +142,6 @@ class MaceManager:
                 # Actually, if integrity check fails, we shouldn't trust it.
                 # But here we are just validating. If it fails, we should probably fail the call or return dummy.
                 # Let's assume the caller filters, but double check.
-                pass
 
         try:
             if self.calculator and hasattr(self.calculator, "get_variance"):

@@ -9,8 +9,7 @@ DatasetManager, and Trainer is seamless.
 
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -25,8 +24,6 @@ from pyacemaker.core.config import (
     StructureGeneratorConfig,
     TrainerConfig,
 )
-from pyacemaker.core.factory import ModuleFactory
-from pyacemaker.domain_models.models import StructureMetadata
 from pyacemaker.orchestrator import Orchestrator
 
 

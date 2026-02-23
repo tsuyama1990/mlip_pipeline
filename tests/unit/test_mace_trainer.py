@@ -1,10 +1,12 @@
 
-import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
-from pyacemaker.trainer.mace_trainer import MaceTrainer
+
+import pytest
+
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.domain_models.models import Potential, StructureMetadata
+from pyacemaker.trainer.mace_trainer import MaceTrainer
+
 
 class TestMaceTrainer:
     @pytest.fixture

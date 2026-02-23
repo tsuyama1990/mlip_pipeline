@@ -29,7 +29,6 @@ from pyacemaker.domain_models.models import (
     StructureStatus,
 )
 from pyacemaker.modules.active_learner import ActiveLearner
-from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.oracle.dataset import DatasetManager
 
 

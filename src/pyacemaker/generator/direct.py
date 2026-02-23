@@ -1,7 +1,6 @@
 """Direct Generator implementation."""
 
 from collections.abc import Iterable, Iterator
-from itertools import islice
 from typing import Any
 
 import numpy as np

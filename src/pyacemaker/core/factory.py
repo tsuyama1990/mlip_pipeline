@@ -15,13 +15,15 @@ from pyacemaker.modules.dynamics_engine import (
     EONEngine,
     LAMMPSEngine,
 )
-from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
+from pyacemaker.modules.oracle import DFTOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
 )
-from pyacemaker.modules.trainer import MaceTrainer, PacemakerTrainer
 from pyacemaker.modules.validator import Validator as ProductionValidator
+from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
+from pyacemaker.trainer.mace_trainer import MaceTrainer
+from pyacemaker.trainer.pacemaker import PacemakerTrainer
 
 if TYPE_CHECKING:
     pass
