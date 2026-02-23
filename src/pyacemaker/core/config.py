@@ -524,6 +524,8 @@ class Step2ActiveLearningConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     uncertainty_threshold: float = Field(default=0.8, description="Uncertainty threshold")
     dft_calculator: str = Field(default="VASP", description="DFT calculator name")
+    cycles: int = Field(default=3, description="Number of active learning cycles")
+    n_select: int = Field(default=10, description="Number of structures to select per cycle")
 
 
 class Step3MaceFinetuneConfig(BaseModel):

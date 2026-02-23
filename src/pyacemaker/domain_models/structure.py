@@ -277,6 +277,8 @@ class StructureMetadata(BaseModel):
             "validation",
             "outlier",
             "failed",
+            "direct",
+            "objective",
         }
         for tag in v:
             # Allow underscores in tags (e.g. candidate_0)

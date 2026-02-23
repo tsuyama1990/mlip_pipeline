@@ -1,5 +1,6 @@
 """Orchestrator module implementation."""
 
+import heapq
 from collections.abc import Callable, Iterable, Iterator
 from itertools import chain, islice
 from pathlib import Path
@@ -207,6 +208,10 @@ class Orchestrator(IOrchestrator):
 
     def _run_mace_distillation(self) -> ModuleResult:
         """Run the 7-Step MACE Distillation Workflow."""
+        if not isinstance(self.oracle, UncertaintyModel):
+            msg = "Oracle must implement UncertaintyModel for MACE distillation."
+            raise TypeError(msg)
+
         dist_config = self.config.distillation
 
         # Step 1: DIRECT Sampling
@@ -253,19 +258,16 @@ class Orchestrator(IOrchestrator):
         """Step 2 & 3: MACE Uncertainty-based Active Learning & Fine-tuning."""
         self.logger.info("Step 2: MACE Active Learning Loop")
 
-        if not isinstance(self.oracle, UncertaintyModel):
-            msg = "Oracle must implement UncertaintyModel for MACE distillation."
-            raise TypeError(msg)
-
         if not self.mace_trainer:
             msg = "MaceTrainer not initialized."
             raise RuntimeError(msg)
 
         calculated_ids: set[Any] = set()
 
-        # Fixed iterations for now (e.g. 3)
-        for i in range(3):
-            self.logger.info(f"Step 2 (Iteration {i + 1}/3)")
+        # Configured iterations
+        max_cycles = dist_config.step2_active_learning.cycles
+        for i in range(max_cycles):
+            self.logger.info(f"Step 2 (Iteration {i + 1}/{max_cycles})")
 
             # Load pool
             pool_iter = (
@@ -283,17 +285,15 @@ class Orchestrator(IOrchestrator):
             # Compute uncertainty
             scored_pool = self.oracle.compute_uncertainty(unknown_pool)
 
-            # Select Top N
-            scored_list = list(scored_pool)
-            scored_list.sort(
+            # Select Top N (using heap to avoid full sort)
+            n_select = dist_config.step2_active_learning.n_select
+            selected = heapq.nlargest(
+                n_select,
+                scored_pool,
                 key=lambda s: s.uncertainty_state.gamma_max
                 if s.uncertainty_state and s.uncertainty_state.gamma_max
                 else 0.0,
-                reverse=True,
             )
-
-            n_select = 10
-            selected = scored_list[:n_select]
             if not selected:
                 self.logger.info("No more candidates in pool.")
                 break
