@@ -213,5 +213,6 @@ def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
         training_path=Path("train")
     )
 
-    with pytest.raises(RuntimeError, match="Oracle Failed"):
-        workflow.run()
+    result = workflow.run()
+    assert result.status == "failed"
+    assert "Oracle Failed" in result.error

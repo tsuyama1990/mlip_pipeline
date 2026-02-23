@@ -19,7 +19,7 @@ from pyacemaker.core.interfaces import (
 )
 from pyacemaker.core.utils import (
     atoms_to_metadata,
-    stream_metadata_to_atoms,
+    save_metadata_stream,
 )
 from pyacemaker.domain_models.models import (
     Potential,
@@ -33,11 +33,6 @@ from pyacemaker.oracle.dataset import DatasetManager
 
 class MaceDistillationWorkflow:
     """Implements the 7-Step MACE Knowledge Distillation Workflow."""
-
-    # Default filenames
-    POOL_FILE = "pool_structures.pckl.gzip"
-    SURROGATE_UNLABELED_FILE = "surrogate_unlabeled.pckl.gzip"
-    SURROGATE_DATASET_FILE = "surrogate_dataset.pckl.gzip"
 
     def __init__(
         self,
@@ -69,52 +64,60 @@ class MaceDistillationWorkflow:
 
     def run(self) -> ModuleResult:
         """Run the workflow."""
-        if not isinstance(self.oracle, UncertaintyModel):
-            msg = "Oracle must implement UncertaintyModel for MACE distillation."
-            raise TypeError(msg)
+        try:
+            if not isinstance(self.oracle, UncertaintyModel):
+                msg = "Oracle must implement UncertaintyModel for MACE distillation."
+                raise TypeError(msg)
 
-        dist_config = self.config.distillation
+            dist_config = self.config.distillation
 
-        # Step 1: DIRECT Sampling
-        pool_path = self._step1_direct_sampling(dist_config)
+            # Step 1: DIRECT Sampling
+            pool_path = self._step1_direct_sampling(dist_config)
 
-        # Step 2 & 3: Active Learning & Fine-tuning
-        fine_tuned_potential = self._step2_active_learning_loop(dist_config, pool_path)
+            # Step 2 & 3: Active Learning & Fine-tuning
+            fine_tuned_potential = self._step2_active_learning_loop(dist_config, pool_path)
 
-        if not fine_tuned_potential:
-            # Fallback to configured model if no fine-tuning happened
-            self.logger.warning("No fine-tuning performed. Using base model from config.")
-            fine_tuned_potential = Potential(
-                path=Path(self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"),
-                type=PotentialType.MACE,
-                version="1.0",
-                metrics={},
-                parameters={},
+            if not fine_tuned_potential:
+                # Fallback to configured model if no fine-tuning happened
+                self.logger.warning("No fine-tuning performed. Using base model from config.")
+                fine_tuned_potential = Potential(
+                    path=Path(self.config.oracle.mace.model_path if self.config.oracle.mace else "mock"),
+                    type=PotentialType.MACE,
+                    version="1.0",
+                    metrics={},
+                    parameters={},
+                )
+
+            # Step 4: Surrogate Data Generation
+            surrogate_structures_path = self._step4_surrogate_data_generation(
+                dist_config, fine_tuned_potential
             )
 
-        # Step 4: Surrogate Data Generation
-        surrogate_structures_path = self._step4_surrogate_data_generation(
-            dist_config, fine_tuned_potential
-        )
+            # Step 5: Surrogate Labeling
+            # Update oracle model first!
+            if hasattr(self.oracle, "update_model"):
+                self.oracle.update_model(fine_tuned_potential.path)
 
-        # Step 5: Surrogate Labeling
-        # Update oracle model first!
-        if hasattr(self.oracle, "update_model"):
-            self.oracle.update_model(fine_tuned_potential.path)
+            surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
 
-        surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
+            # Step 6: Pacemaker Base Training
+            base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
 
-        # Step 6: Pacemaker Base Training
-        base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
+            # Step 7: Delta Learning
+            final_potential = self._step7_delta_learning(dist_config, base_ace_potential)
 
-        # Step 7: Delta Learning
-        final_potential = self._step7_delta_learning(dist_config, base_ace_potential)
-
-        return ModuleResult(
-            status="success",
-            metrics=Metrics(),
-            artifacts={"potential": str(final_potential.path)}
-        )
+            return ModuleResult(
+                status="success",
+                metrics=Metrics(),
+                artifacts={"potential": str(final_potential.path)}
+            )
+        except Exception as e:
+            self.logger.exception("MACE Distillation Workflow failed")
+            return ModuleResult(
+                status="failed",
+                metrics=Metrics(),
+                error=str(e),
+            )
 
     def _step1_direct_sampling(self, dist_config: Any) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
@@ -125,12 +128,14 @@ class MaceDistillationWorkflow:
             objective=dist_config.step1_direct_sampling.objective,
         )
 
-        pool_file = getattr(dist_config, "pool_file", self.POOL_FILE)
+        pool_file = dist_config.pool_file
         pool_path = self.config.project.root_dir / "data" / pool_file
 
-        self.dataset_manager.save_iter(
-            stream_metadata_to_atoms(samples_iter),
+        save_metadata_stream(
+            self.dataset_manager,
+            samples_iter,
             pool_path,
+            mode="wb",  # Overwrite pool
             calculate_checksum=False,
         )
         self.logger.info(f"Generated pool at {pool_path}")
@@ -209,7 +214,14 @@ class MaceDistillationWorkflow:
         # Compute DFT (Streaming)
         self.logger.info(f"Computing DFT for {len(selected)} structures")
         computed_iter = self.oracle.compute_batch(selected)
-        self._save_dataset_stream(computed_iter)
+
+        save_metadata_stream(
+            self.dataset_manager,
+            computed_iter,
+            self.dataset_path,
+            mode="ab",  # Append to dataset
+            calculate_checksum=False,
+        )
 
         # Fine-tune MACE
         self.logger.info("Fine-tuning MACE...")
@@ -231,16 +243,18 @@ class MaceDistillationWorkflow:
         seeds = self._get_exploration_seeds(n_seeds=5)
         surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
 
-        surrogate_file = getattr(dist_config, "surrogate_file", self.SURROGATE_UNLABELED_FILE)
+        surrogate_file = dist_config.surrogate_file
         surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_file
 
         limited_iter = islice(
             surrogate_iter, dist_config.step4_surrogate_sampling.target_points
         )
 
-        self.dataset_manager.save_iter(
-            stream_metadata_to_atoms(limited_iter),
+        save_metadata_stream(
+            self.dataset_manager,
+            limited_iter,
             surrogate_dataset_path,
+            mode="wb",  # Overwrite surrogate pool
             calculate_checksum=False,
         )
         self.logger.info(f"Generated surrogate dataset at {surrogate_dataset_path}")
@@ -261,12 +275,14 @@ class MaceDistillationWorkflow:
 
         labeled_surrogate_iter = mace_labeler.compute_batch(load_stream())
 
-        surrogate_dataset_file = getattr(dist_config, "surrogate_dataset_file", self.SURROGATE_DATASET_FILE)
+        surrogate_dataset_file = dist_config.surrogate_dataset_file
         surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_dataset_file
 
-        self.dataset_manager.save_iter(
-            stream_metadata_to_atoms(labeled_surrogate_iter),
+        save_metadata_stream(
+            self.dataset_manager,
+            labeled_surrogate_iter,
             surrogate_dataset_path,
+            mode="wb",  # Overwrite labeled dataset
             calculate_checksum=False,
         )
         return surrogate_dataset_path
@@ -306,19 +322,6 @@ class MaceDistillationWorkflow:
                 weight_dft=weight_dft,
             )
         return base_potential
-
-    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
-        """Convert metadata stream to atoms and save to dataset."""
-        atoms_stream = stream_metadata_to_atoms(stream)
-        self.dataset_manager.save_iter(
-            atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
-        )
-        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
-        if checksum_path.exists():
-            try:
-                checksum_path.unlink()
-            except OSError:
-                self.logger.warning("Failed to remove stale checksum file.")
 
     def _get_exploration_seeds(self, n_seeds: int = 20) -> list[StructureMetadata]:
         """Get seed structures for exploration."""

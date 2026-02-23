@@ -79,7 +79,9 @@ class PacemakerWrapper:
         # Capture output for logging/debugging
         # We rely on subprocess raising CalledProcessError on failure (check=True)
         # S603 ignored because we are constructing the list securely
-        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+        subprocess.run(
+            cmd, check=True, capture_output=True, text=True, shell=False
+        )
 
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
@@ -108,7 +110,14 @@ class PacemakerWrapper:
             # S603 ignored because we are constructing the list securely
             # Use cwd=output_dir to ensure relative paths in input.yaml (like output filenames) resolve correctly
             # Redirect output to file to avoid OOM
-            subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT, cwd=output_dir)  # noqa: S603
+            subprocess.run(
+                cmd,
+                check=True,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                cwd=output_dir,
+                shell=False,
+            )
 
         # Return the path to the generated potential
         # Note: Pacemaker input.yaml usually specifies output file name.
@@ -150,6 +159,8 @@ class PacemakerWrapper:
         cmd.extend(["--select", str(num_select)])
         cmd.extend(["--output", str(output_path)])
 
-        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+        subprocess.run(
+            cmd, check=True, capture_output=True, text=True, shell=False
+        )
 
         return output_path

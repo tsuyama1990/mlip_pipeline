@@ -1,6 +1,8 @@
 """MACE Manager module."""
 
+import contextlib
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -85,38 +87,49 @@ class MaceManager:
 
     def compute(self, structure: Atoms) -> Atoms:
         """Run MACE prediction for a single structure."""
-        # Validate structure first
-        try:
-            validate_structure_integrity_atoms(structure)
-        except (ValueError, TypeError) as e:
-            msg = f"Invalid structure input: {e}"
-            raise OracleError(msg) from e
+        # Delegate to batch method for consistency
+        results = self.compute_batch([structure])
+        if not results:
+             msg = "Batch computation returned empty list"
+             raise OracleError(msg)
+        return results[0]
+
+    def compute_batch(self, atoms_list: list[Atoms]) -> list[Atoms]:
+        """Run MACE prediction for a batch of structures."""
+        if not atoms_list:
+            return []
+
+        # Security check on batch size
+        if len(atoms_list) > 1000:
+            msg = f"Batch size {len(atoms_list)} exceeds limit of 1000"
+            raise ValueError(msg)
 
         if self.calculator is None:
             self.load_model()
 
-        # Copy structure to avoid side effects
-        calc_structure = structure.copy()
-        if not isinstance(calc_structure, Atoms):
-            msg = "Failed to copy structure"
-            raise OracleError(msg)
+        # TODO: Implement true batching using mace_eval if performance is critical
+        # Currently iterating but structured for future optimization
+        results = []
+        for atoms in atoms_list:
+             # Validate
+            try:
+                validate_structure_integrity_atoms(atoms)
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"Skipping invalid structure in batch: {e}")
+                continue # Or raise?
 
-        calc_structure.calc = self.calculator
+            calc_structure = atoms.copy()
+            calc_structure.calc = self.calculator
 
-        try:
-            # Trigger calculation
-            # ASE's get_potential_energy is untyped, but we expect it to exist
-            if not hasattr(calc_structure, "get_potential_energy"):
-                msg = "Structure object missing get_potential_energy method"
-                raise TypeError(msg)  # noqa: TRY301
+            try:
+                calc_structure.get_potential_energy()
+                results.append(calc_structure)
+            except Exception as e:
+                msg = f"Batch prediction failed: {e}"
+                self.logger.exception(msg)
+                raise OracleError(msg) from e
 
-            calc_structure.get_potential_energy()
-        except Exception as e:
-            msg = f"MACE prediction failed: {e}"
-            self.logger.exception(msg)
-            raise OracleError(msg) from e
-        else:
-            return calc_structure
+        return results
 
     def compute_uncertainty(self, atoms_list: list[Atoms]) -> list[float]:
         """Compute uncertainty for a list of structures.
@@ -168,8 +181,16 @@ class MaceManager:
         self, dataset_path: Path, work_dir: Path, params: dict[str, Any]
     ) -> list[str]:
         """Build the mace_run_train command with strict validation."""
+        # Locate executable safely
+        executable = shutil.which("mace_run_train")
+        if not executable:
+            if self.config.mock:
+                 return ["mock_mace_run_train"] # Fallback for testing
+            msg = "mace_run_train executable not found in PATH"
+            raise OracleError(msg)
+
         cmd = [
-            "mace_run_train",
+            executable,
             "--train_file",
             str(dataset_path),
             "--name",
@@ -180,12 +201,9 @@ class MaceManager:
             str(work_dir / "checkpoints"),
         ]
 
-        import re
-
-        # Alphanumeric keys only
+        # Use compiled regex from module/class level optimization
+        # (Assuming these are fast enough to compile here, but moving out is better if called frequently)
         valid_key = re.compile(CONSTANTS.mace_param_key_regex)
-
-        # Strict whitelist for values
         valid_val = re.compile(CONSTANTS.mace_param_value_regex)
 
         for key, value in params.items():
@@ -210,22 +228,70 @@ class MaceManager:
                     continue
                 cmd.append(f"--{key}")
                 cmd.append(val_str)
+
+        # Final safety check of the command list
+        self._validate_final_command(cmd)
+
         return cmd
+
+    def _validate_final_command(self, cmd: list[str]) -> None:
+        """Validate the constructed command list for safety."""
+        if not cmd:
+            msg = "Empty command list"
+            raise ValueError(msg)
+
+        # Ensure first element is absolute path (from shutil.which) or trusted mock
+        executable = Path(cmd[0])
+        if (
+            not executable.is_absolute()
+            and cmd[0] != "mock_mace_run_train"
+            and not shutil.which(cmd[0])
+        ):
+            msg = f"Command executable not found or not absolute: {cmd[0]}"
+            raise ValueError(msg)
+
+        # Check for suspicious characters in arguments that might slip through
+        suspicious = re.compile(r"[\x00-\x1f]") # Control characters
+        for arg in cmd:
+            if suspicious.search(arg):
+                msg = f"Command argument contains control characters: {arg!r}"
+                raise ValueError(msg)
+
+    def _execute_train(self, cmd: list[str], work_dir: Path) -> None:
+        """Execute training command."""
+        self.logger.info("Executing mace_run_train")
+        log_path = work_dir / "mace_train.log"
+
+        try:
+            with log_path.open("w") as log_file:
+                subprocess.run(
+                    cmd, check=True, cwd=work_dir, stdout=log_file, stderr=subprocess.STDOUT, shell=False
+                )
+        except subprocess.CalledProcessError as e:
+            self._handle_subprocess_error(e, log_path)
+
+    def _handle_subprocess_error(self, e: subprocess.CalledProcessError, log_path: Path) -> None:
+        """Handle subprocess error with log reading."""
+        log_tail = "Check log file for details."
+        if log_path.exists():
+            with contextlib.suppress(Exception), log_path.open("rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                f.seek(max(0, size - 1024))
+                log_tail = f.read().decode(errors="replace")
+
+        msg = f"MACE training failed. Last log output:\n{log_tail}"
+        self.logger.exception(msg)
+        raise OracleError(msg) from e
 
     def train(self, dataset_path: Path, work_dir: Path, params: dict[str, Any]) -> Path:
         """Train or fine-tune MACE model."""
         self.logger.info(f"Training MACE model with data at {dataset_path}")
 
-        # Use configured mock name or default from config to avoid hardcoding
-
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Skipping training (Mock).")
-            model_path = work_dir / "mace_model_mock.model"
-            model_path.touch()
-            return model_path
+            return self._create_mock_model(work_dir)
 
-        # Construct command for mace_run_train
-        # This is highly dependent on MACE version. Assuming CLI usage.
         # Validate dataset_path
         try:
             validate_safe_path(dataset_path)
@@ -233,57 +299,40 @@ class MaceManager:
             msg = f"Invalid dataset path: {e}"
             raise OracleError(msg) from e
 
-        cmd = self._build_train_command(dataset_path, work_dir, params)
+        try:
+            cmd = self._build_train_command(dataset_path, work_dir, params)
+        except Exception as e:
+             if self.config.mock:
+                 self.logger.warning(f"Failed to build command in mock mode: {e}. creating mock.")
+                 return self._create_mock_model(work_dir)
+             raise
 
         try:
-            # Not printing full command to avoid leaking potentially sensitive paths in logs if high verbosity
-            self.logger.info("Executing mace_run_train")
+            if cmd[0] == "mock_mace_run_train":
+                 return self._create_mock_model(work_dir)
 
-            log_path = work_dir / "mace_train.log"
-            with log_path.open("w") as log_file:
-                # Explicit shell=False for security
-                # Redirect output to file to avoid OOM with large logs
-                subprocess.run(  # noqa: S603
-                    cmd, check=True, cwd=work_dir, stdout=log_file, stderr=subprocess.STDOUT, shell=False
-                )
-        except subprocess.CalledProcessError as e:
-            # Try to read last few lines of log for context
-            log_tail = "Check log file for details."
-            if log_path.exists():
-                try:
-                    # Read last 1KB
-                    with log_path.open("rb") as f:
-                        f.seek(0, 2)
-                        size = f.tell()
-                        f.seek(max(0, size - 1024))
-                        log_tail = f.read().decode(errors="replace")
-                except Exception:
-                    self.logger.debug("Failed to read log tail")
+            self._execute_train(cmd, work_dir)
 
-            msg = f"MACE training failed. Last log output:\n{log_tail}"
-            self.logger.exception(msg)
-            raise OracleError(msg) from e
         except FileNotFoundError as e:
             if self.config.mock:
                 self.logger.warning("mace_run_train not found. Creating mock model (Mock Mode).")
-                model_path = work_dir / "mace_model_mock.model"
-                model_path.touch()
-                return model_path
+                return self._create_mock_model(work_dir)
             msg = "mace_run_train executable not found. Ensure MACE is installed and in PATH."
             raise OracleError(msg) from e
 
-        # Find the best model
-        # Use configurable name if possible, otherwise search
+        return self._find_model_artifact(work_dir)
+
+    def _create_mock_model(self, work_dir: Path) -> Path:
+        """Create a mock model file."""
+        model_path = work_dir / "mace_model_mock.model"
+        model_path.touch()
+        return model_path
+
+    def _find_model_artifact(self, work_dir: Path) -> Path:
+        """Locate the trained model artifact."""
         model_name_base = CONSTANTS.mace_default_model_name
         model_path = work_dir / model_name_base
         if not model_path.exists():
-             # Fallback to search
             models = list(work_dir.glob("*.model"))
-            if models:
-                model_path = models[0]
-            else:
-                # Create dummy if failed to produce (or mock)
-                model_path = work_dir / "mace_model_mock.model"
-                model_path.touch()
-
+            model_path = models[0] if models else self._create_mock_model(work_dir)
         return model_path

@@ -9,7 +9,7 @@ from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
-from pyacemaker.core.exceptions import ConfigurationError, OracleError
+from pyacemaker.core.exceptions import ConfigurationError
 from pyacemaker.core.interfaces import UncertaintyModel
 from pyacemaker.core.utils import update_structure_metadata, validate_structure_integrity
 from pyacemaker.domain_models.models import (
@@ -56,58 +56,102 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
             self.mace_manager.update_model_path(path)
 
     def predict_batch(self, structures: list[StructureMetadata]) -> list[StructureMetadata]:
-        """Efficiently process a list of structures (Batch Prediction).
-
-        This method updates the energy, forces, and stress fields of the input structures in-place.
-        Returns the updated list.
-        """
+        """Efficiently process a list of structures (Batch Prediction)."""
         self.logger.info(f"Predicting batch of {len(structures)} structures (MACE)")
 
-        # In Mock mode, we just fill dummy data
         if self.config.oracle.mock:
-            for s in structures:
-                s.energy = -10.0
-                # Use number of atoms if available, else generic
-                atoms = self._extract_atoms(s)
-                n_atoms = len(atoms) if atoms else 1
-                s.forces = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
-                s.stress = [0.0] * 6
-                s.status = StructureStatus.CALCULATED
-                s.label_source = "mace"
-            return structures
+            return self._predict_batch_mock(structures)
 
         if not self.mace_manager:
-            # Should not happen if not mock
             msg = "MaceManager is not initialized."
             raise ConfigurationError(msg)
 
-        # Batch processing loop
-        # Although MaceManager.compute handles one at a time, we wrap it here.
-        # Future optimization: Implement true batching in MaceManager and call it here.
+        valid_indices, atoms_list = self._prepare_batch(structures)
+        if not atoms_list:
+            return structures
+
+        results = self._execute_batch(atoms_list)
+        if not results:
+            self._mark_failed(structures, valid_indices)
+            return structures
+
+        if len(results) != len(atoms_list):
+            self.logger.error(
+                f"Mismatch in batch results: sent {len(atoms_list)}, got {len(results)}"
+            )
+            self._mark_failed(structures, valid_indices)
+            return structures
+
+        self._update_results(structures, valid_indices, results)
+        return structures
+
+    def _predict_batch_mock(
+        self, structures: list[StructureMetadata]
+    ) -> list[StructureMetadata]:
+        """Mock batch prediction."""
         for s in structures:
+            s.energy = -10.0
+            atoms = self._extract_atoms(s)
+            n_atoms = len(atoms) if atoms else 1
+            s.forces = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
+            s.stress = [0.0] * 6
+            s.status = StructureStatus.CALCULATED
+            s.label_source = "mace"
+        return structures
+
+    def _prepare_batch(
+        self, structures: list[StructureMetadata]
+    ) -> tuple[list[int], list[Atoms]]:
+        """Collect valid atoms for batch processing."""
+        valid_indices: list[int] = []
+        atoms_list: list[Atoms] = []
+
+        for i, s in enumerate(structures):
             try:
-                # Basic validation
                 self.validate_structure(s)
                 atoms = self._extract_atoms(s)
-                if not atoms:
-                    continue
+                if atoms:
+                    validate_structure_integrity(s)
+                    atoms_list.append(atoms)
+                    valid_indices.append(i)
+            except Exception:
+                self.logger.warning(
+                    f"Skipping invalid structure {s.id} before batch compute"
+                )
+                s.status = StructureStatus.FAILED
+        return valid_indices, atoms_list
 
-                # Compute
-                result_atoms = self.mace_manager.compute(atoms)
+    def _execute_batch(self, atoms_list: list[Atoms]) -> list[Atoms] | None:
+        """Execute batch computation safely."""
+        try:
+            # We already checked self.mace_manager is not None
+            if self.mace_manager:
+                return self.mace_manager.compute_batch(atoms_list)
+        except Exception:
+            self.logger.exception("MaceManager batch computation failed completely")
+        return None
 
-                # Update metadata
+    def _mark_failed(self, structures: list[StructureMetadata], indices: list[int]) -> None:
+        """Mark specific indices as failed."""
+        for idx in indices:
+            structures[idx].status = StructureStatus.FAILED
+
+    def _update_results(
+        self,
+        structures: list[StructureMetadata],
+        valid_indices: list[int],
+        results: list[Atoms],
+    ) -> None:
+        """Update structures with computation results."""
+        for idx, result_atoms in zip(valid_indices, results, strict=True):
+            s = structures[idx]
+            try:
                 update_structure_metadata(s, result_atoms)
                 s.label_source = "mace"
                 s.status = StructureStatus.CALCULATED
-
-            except OracleError:
-                self.logger.exception(f"Oracle prediction failed for structure {s.id}")
-                s.status = StructureStatus.FAILED
             except Exception:
-                self.logger.exception(f"Unexpected error for structure {s.id}")
+                self.logger.exception(f"Failed to update metadata for {s.id}")
                 s.status = StructureStatus.FAILED
-
-        return structures
 
     def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch of structures (Streaming Interface)."""

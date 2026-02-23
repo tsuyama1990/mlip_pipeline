@@ -21,6 +21,8 @@ from pyacemaker.domain_models.models import (
 if TYPE_CHECKING:
     from ase import Atoms
 
+    from pyacemaker.oracle.dataset import DatasetManager
+
 T = TypeVar("T")
 
 
@@ -410,3 +412,37 @@ def update_structure_metadata(structure: StructureMetadata, result_atoms: Any) -
     except Exception:
         logger.exception(f"Failed to extract properties for {structure.id}")
         structure.status = StructureStatus.FAILED
+
+
+def save_metadata_stream(
+    dataset_manager: "DatasetManager",
+    stream: Iterator[StructureMetadata],
+    path: Path,
+    mode: str = "ab",
+    calculate_checksum: bool = False,
+) -> None:
+    """Convert metadata stream to atoms and save to dataset using Manager.
+
+    Optimized to skip expensive checksum calculation if requested (e.g. for streaming append).
+    Removes stale checksum file to prevent validation failures if appending.
+
+    Args:
+        dataset_manager: Instance of DatasetManager.
+        stream: Iterator of StructureMetadata.
+        path: Path to the dataset file.
+        mode: File open mode ('w' or 'wb' for overwrite, 'a' or 'ab' for append).
+        calculate_checksum: Whether to calculate checksum of the file after writing.
+
+    """
+    atoms_stream = stream_metadata_to_atoms(stream)
+
+    # If appending, we must invalidate the existing checksum first
+    if "a" in mode:
+        checksum_path = path.with_suffix(path.suffix + ".sha256")
+        if checksum_path.exists():
+            with contextlib.suppress(OSError):
+                checksum_path.unlink()
+
+    dataset_manager.save_iter(
+        atoms_stream, path, mode=mode, calculate_checksum=calculate_checksum
+    )
