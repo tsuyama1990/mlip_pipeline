@@ -183,12 +183,10 @@ class MaceManager:
         import re
 
         # Alphanumeric keys only
-        valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
+        valid_key = re.compile(CONSTANTS.mace_param_key_regex)
 
-        # Strict whitelist for values:
-        # Alphanumeric, underscore, hyphen, dot, slash, plus (sci notation), comma, colon, equals, at
-        # No shell metacharacters like ;, &, |, >, <, $, `
-        valid_val = re.compile(r"^[a-zA-Z0-9_\-\.\/\:\+,=@]+$")
+        # Strict whitelist for values
+        valid_val = re.compile(CONSTANTS.mace_param_value_regex)
 
         for key, value in params.items():
             if key not in CONSTANTS.mace_allowed_train_params:
@@ -265,11 +263,14 @@ class MaceManager:
             msg = f"MACE training failed. Last log output:\n{log_tail}"
             self.logger.exception(msg)
             raise OracleError(msg) from e
-        except FileNotFoundError:
-            self.logger.warning("mace_run_train not found. Creating mock model.")
-            model_path = work_dir / "mace_model_mock.model"
-            model_path.touch()
-            return model_path
+        except FileNotFoundError as e:
+            if self.config.mock:
+                self.logger.warning("mace_run_train not found. Creating mock model (Mock Mode).")
+                model_path = work_dir / "mace_model_mock.model"
+                model_path.touch()
+                return model_path
+            msg = "mace_run_train executable not found. Ensure MACE is installed and in PATH."
+            raise OracleError(msg) from e
 
         # Find the best model
         # Use configurable name if possible, otherwise search

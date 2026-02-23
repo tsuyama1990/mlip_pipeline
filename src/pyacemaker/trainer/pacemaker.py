@@ -48,7 +48,7 @@ class PacemakerTrainer(BaseTrainer):
     ) -> Path:
         """Generate input.yaml for Pacemaker."""
         # Defaults
-        default_elements = ["Fe"]  # TODO: Infer from dataset or config
+        default_elements = CONSTANTS.default_trainer_elements
         default_embeddings = {
             "Fe": {
                 "npot": "FinnisSinclair",
@@ -136,7 +136,8 @@ class PacemakerTrainer(BaseTrainer):
                         stats["count"] += 1
                         yield s
 
-            # Streaming execution
+            # Streaming execution: consumes generator lazily, processes one item at a time
+            # Memory usage is O(1) relative to dataset size
             atoms_stream = stream_metadata_to_atoms(valid_counting_stream(dataset))
             self.dataset_manager.save_iter(atoms_stream, dataset_path)
 

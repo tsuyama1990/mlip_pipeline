@@ -84,6 +84,7 @@ def test_scenario_01_successful_batch_labeling(mock_workflow, tmp_path):
 
     # AND it should save the labeled structures to surrogate_dataset.pckl.gzip
     assert dataset_path.exists()
+    assert dataset_path.stat().st_size > 0  # Verify file is not empty
     assert dataset_path.name == "surrogate_dataset.pckl.gzip"
 
     # AND the dataset should contain valid energy and force values

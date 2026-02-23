@@ -97,6 +97,9 @@ class Constants(BaseSettings):
     default_trainer_batch_size: int = Field(
         default_factory=lambda: get_defaults()["trainer_batch_size"]
     )
+    default_trainer_elements: list[str] = Field(
+        default_factory=lambda: get_defaults()["trainer_default_elements"]
+    )
     default_engine: str = Field(
         default_factory=lambda: get_defaults()["engine"]
     )
@@ -249,6 +252,12 @@ class Constants(BaseSettings):
     )
     valid_value_regex: str = Field(
         default_factory=lambda: get_defaults()["valid_value_regex"]
+    )
+    mace_param_key_regex: str = Field(
+        default_factory=lambda: get_defaults()["mace_param_key_regex"]
+    )
+    mace_param_value_regex: str = Field(
+        default_factory=lambda: get_defaults()["mace_param_value_regex"]
     )
 
     TRAINER_TEMP_PREFIX_TRAIN: str = Field(
@@ -476,7 +485,8 @@ class MaceConfig(BaseModel):
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e
 
-        return str(path)
+        # Return resolved absolute path
+        return str(resolved) if 'resolved' in locals() else str(path)
 
     @staticmethod
     def _check_absolute_path(resolved: Path, original: str) -> None:

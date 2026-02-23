@@ -1,6 +1,8 @@
 """Base Oracle implementation."""
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Iterable, Iterator
+from itertools import islice
+from typing import TYPE_CHECKING, TypeVar
 
 from ase import Atoms
 from loguru import logger
@@ -15,6 +17,8 @@ from pyacemaker.domain_models.models import (
 
 if TYPE_CHECKING:
     pass
+
+T = TypeVar("T")
 
 
 class BaseOracle(Oracle):
@@ -61,3 +65,34 @@ class BaseOracle(Oracle):
             structure.status = StructureStatus.FAILED
             return None
         return atoms
+
+    def _process_in_batches(
+        self,
+        iterator: Iterable[T],
+        batch_processor: Callable[[list[T]], Iterable[T] | None],
+        batch_size: int = 100,
+    ) -> Iterator[T]:
+        """Process an iterator in batches.
+
+        Args:
+            iterator: Input iterable.
+            batch_processor: Function that processes a list of items.
+                             Should return an iterable of results or None.
+            batch_size: Size of batches.
+
+        Yields:
+            Processed items.
+        """
+        iterator = iter(iterator)
+        while True:
+            chunk = list(islice(iterator, batch_size))
+            if not chunk:
+                break
+
+            results = batch_processor(chunk)
+            if results is not None:
+                yield from results
+            else:
+                # If processor returns None, it might have modified chunk in-place or failed
+                # We yield the original chunk items (which might be updated)
+                yield from chunk
