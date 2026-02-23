@@ -26,7 +26,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
 )
 from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
-from pyacemaker.modules.oracle import DFTOracle, MockOracle
+from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
@@ -76,7 +76,14 @@ class Orchestrator(IOrchestrator):
             self.structure_generator = _create_default_module(sg_cls, config)
 
         # Select Oracle implementation based on config
-        oracle_cls = MockOracle if config.oracle.mock else DFTOracle
+        oracle_cls: type[Oracle]
+        if config.oracle.mace:
+            oracle_cls = MaceSurrogateOracle
+        elif config.oracle.mock:
+            oracle_cls = MockOracle
+        else:
+            oracle_cls = DFTOracle
+
         self.oracle: Oracle = oracle or _create_default_module(oracle_cls, config)
 
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)

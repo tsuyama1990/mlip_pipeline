@@ -1,0 +1,700 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0, mock-3.15.1
+collected 2 items
+
+tests/uat/test_cycle01.py F./app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+                                             [100%]
+
+=================================== FAILURES ===================================
+____________________ test_scenario_01_valid_initialization _____________________
+
+config_dir = PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs')
+
+    def test_scenario_01_valid_initialization(config_dir: Path) -> None:
+        """Scenario 01: Successful System Initialization (Mock Mode)."""
+        config_path = config_dir / "valid.yaml"
+        # Use a root_dir that is definitely safe and exists
+        root_dir = config_dir / "project_root"
+        root_dir.mkdir()
+
+        config_content = f"""
+    version: "1.0.0"
+    project:
+      name: "Cycle01_UAT"
+      root_dir: "{root_dir}"
+    logging:
+      level: "DEBUG"
+    oracle:
+      mock: true
+      dft:
+        pseudopotentials:
+          Fe: "Fe.pbe.UPF"
+      mace:
+        model_path: "medium"
+        device: "cpu"
+    trainer:
+      mock: true
+    dynamics_engine:
+      mock: true
+    """
+        config_path.write_text(config_content)
+
+        result = runner.invoke(app, ["run", str(config_path), "-v"])
+
+        # Check exit code
+>       assert result.exit_code == 0, f"Exit code {result.exit_code}. Output: {result.output}"
+E       AssertionError: Exit code 1. Output: [2026-02-23T03:48:30.749364+0000] [DEBUG] [pyacemaker] Verbose mode enabled. Log level: DEBUG
+E         Configuration loaded successfully. Project: Cycle01_UAT
+E         [2026-02-23T03:48:30.757327+0000] [INFO] [MaceSurrogateOracle] MACE Oracle loaded (Mock)
+E         [2026-02-23T03:48:30.757754+0000] [INFO] [Orchestrator] Starting Active Learning Pipeline
+E         [2026-02-23T03:48:30.757937+0000] [INFO] [Orchestrator] Cold Start: Generating initial structures
+E         [2026-02-23T03:48:30.758792+0000] [INFO] [MaceSurrogateOracle] Computing batch of structures (MACE)
+E         [2026-02-23T03:48:30.758938+0000] [INFO] [RandomStructureGenerator] Generating initial structures (mock)
+E         [2026-02-23T03:48:30.776033+0000] [INFO] [Orchestrator] --- Cycle 1/10 ---
+E         [2026-02-23T03:48:30.776319+0000] [INFO] [Orchestrator] Phase: Training (Incremental from index 0)
+E         [2026-02-23T03:48:30.777021+0000] [WARNING] [DatasetManager] No checksum file found for /tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/project_root/data/dataset.pckl.gzip
+E         [2026-02-23T03:48:30.777217+0000] [WARNING] [DatasetManager] SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources.
+E         [2026-02-23T03:48:30.792336+0000] [INFO] [Orchestrator] Processed 20 new items. Total processed: 20
+E         [2026-02-23T03:48:30.793430+0000] [WARNING] [DatasetManager] No checksum file found for /tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/project_root/data/training_set.pckl.gzip
+E         [2026-02-23T03:48:30.793589+0000] [WARNING] [DatasetManager] SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources.
+E         [2026-02-23T03:48:30.804898+0000] [INFO] [PacemakerTrainer] Generating zbl baseline potential at /tmp/pace_train_u_vr2d9p/zbl_baseline.yace
+E         [2026-02-23T03:48:30.805280+0000] [INFO] [PacemakerTrainer] Mock Mode: Skipping pace_train execution.
+E         [2026-02-23T03:48:30.808211+0000] [INFO] [Orchestrator] Phase: Validation
+E         [2026-02-23T03:48:30.808522+0000] [WARNING] [DatasetManager] No checksum file found for /tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/project_root/data/validation_set.pckl.gzip
+E         [2026-02-23T03:48:30.808629+0000] [WARNING] [DatasetManager] SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources.
+E         [2026-02-23T03:48:30.810002+0000] [INFO] [Orchestrator] Phase: Exploration
+E         [2026-02-23T03:48:30.810307+0000] [WARNING] [DatasetManager] No checksum file found for /tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/project_root/data/validation_set.pckl.gzip
+E         [2026-02-23T03:48:30.810417+0000] [WARNING] [DatasetManager] SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources.
+E         [2026-02-23T03:48:30.811618+0000] [WARNING] [DatasetManager] No checksum file found for /tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/project_root/data/training_set.pckl.gzip
+E         [2026-02-23T03:48:30.811736+0000] [WARNING] [DatasetManager] SECURITY WARNING: pickle is unsafe. Do not load untrusted data. Ensure datasets are from trusted sources.
+E         [2026-02-23T03:48:30.817572+0000] [INFO] [Orchestrator] Exploration starting with 20 seeds.
+E         [2026-02-23T03:48:30.817786+0000] [INFO] [LAMMPSEngine] Running exploration with /tmp/pace_train_u_vr2d9p/mock_potential.yace
+E         [2026-02-23T03:48:30.819384+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 0
+E         [2026-02-23T03:48:30.819542+0000] [INFO] [Orchestrator] Phase: Selection
+E         [2026-02-23T03:48:30.820153+0000] [INFO] [RandomStructureGenerator] Generating batch candidates from seed structures (Cycle 1)
+E         [2026-02-23T03:48:30.826610+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 2
+E         [2026-02-23T03:48:30.832338+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 3
+E         [2026-02-23T03:48:30.838489+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 4
+E         [2026-02-23T03:48:30.844353+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 5
+E         [2026-02-23T03:48:30.851072+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 8
+E         [2026-02-23T03:48:30.859392+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 15
+E         [2026-02-23T03:48:30.865353+0000] [WARNING] [LAMMPSEngine] Halt triggered (Gamma > 11.0) for seed 16
+E         [2026-02-23T03:48:30.875454+0000] [INFO] [PacemakerTrainer] Mock Mode: Skipping pace_activeset execution.
+E         [2026-02-23T03:48:30.876258+0000] [ERROR] [DatasetManager] Checksum verification failed for /tmp/pace_active_ymljlzq2/candidates.pckl.gzip
+E         [2026-02-23T03:48:30.876505+0000] [ERROR] [Orchestrator] Exploration/Selection phase failed
+E         Traceback (most recent call last):
+E
+E           File "/app/.venv/bin/pytest", line 10, in <module>
+E             sys.exit(console_main())
+E             │   │    └ <function console_main at 0x7f17d36905e0>
+E             │   └ <built-in function exit>
+E             └ <module 'sys' (built-in)>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 223, in console_main
+E             code = main()
+E                    └ <function main at 0x7f17d3690540>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 199, in main
+E             ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+E                  │                │      │    │                          └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E                  │                │      │    └ <HookCaller 'pytest_cmdline_main'>
+E                  │                │      └ <_pytest.config.compat.PathAwareHookProxy object at 0x7f17d42b6de0>
+E                  │                └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E                  └ <enum 'ExitCode'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'config': <_pytest.config.Config object at 0x7f17d3f51d90>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_cmdline_main'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_cmdline_main'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_cmdline_main'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'config': <_pytest.config.Config object at 0x7f17d3f51d90>}
+E                    │    │               │          └ [<HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>...
+E                    │    │               └ 'pytest_cmdline_main'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<_pytest.config.Config object at 0x7f17d3f51d90>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+E             return wrap_session(config, _main)
+E                    │            │       └ <function _main at 0x7f17d374a3e0>
+E                    │            └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E                    └ <function wrap_session at 0x7f17d374a2a0>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 318, in wrap_session
+E             session.exitstatus = doit(config, session) or 0
+E             │       │            │    │       └ <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>
+E             │       │            │    └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E             │       │            └ <function _main at 0x7f17d374a3e0>
+E             │       └ <ExitCode.OK: 0>
+E             └ <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 372, in _main
+E             config.hook.pytest_runtestloop(session=session)
+E             │      │    │                          └ <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>
+E             │      │    └ <HookCaller 'pytest_runtestloop'>
+E             │      └ <_pytest.config.compat.PathAwareHookProxy object at 0x7f17d42b6de0>
+E             └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'session': <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_runtestloop'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_runtestloop'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_runtestloop'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'session': <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>}
+E                    │    │               │          └ [<HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>...
+E                    │    │               └ 'pytest_runtestloop'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+E             item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+E             │    │                                        │              └ <Function test_scenario_02_invalid_configuration>
+E             │    │                                        └ <Function test_scenario_01_valid_initialization>
+E             │    └ <member 'config' of 'Node' objects>
+E             └ <Function test_scenario_01_valid_initialization>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'item': <Function test_scenario_01_valid_initialization>, 'nextitem': <Function test_scenario_02_invalid_configuration>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_runtest_protocol'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_runtest_protocol'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_runtest_protocol'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'item': <Function test_scenario_01_valid_initialization>, 'nextitem': <Function test_scenario_02_invalid_configuration>}
+E                    │    │               │          └ [<HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/app/.venv/lib/python3.12/site-packages/_pytest/runner...
+E                    │    │               └ 'pytest_runtest_protocol'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Function test_scenario_01_valid_initialization>, <Function test_scenario_02_invalid_configuration>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/app/.venv/lib/python3.12/site-packages/_pytest/runner....
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+E             runtestprotocol(item, nextitem=nextitem)
+E             │               │              └ <Function test_scenario_02_invalid_configuration>
+E             │               └ <Function test_scenario_01_valid_initialization>
+E             └ <function runtestprotocol at 0x7f17d37494e0>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+E             reports.append(call_and_report(item, "call", log))
+E             │       │      │               │             └ True
+E             │       │      │               └ <Function test_scenario_01_valid_initialization>
+E             │       │      └ <function call_and_report at 0x7f17d3749940>
+E             │       └ <method 'append' of 'list' objects>
+E             └ [<TestReport 'tests/uat/test_cycle01.py::test_scenario_01_valid_initialization' when='setup' outcome='passed'>]
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 244, in call_and_report
+E             call = CallInfo.from_call(
+E                    │        └ <classmethod(<function CallInfo.from_call at 0x7f17d3749d00>)>
+E                    └ <class '_pytest.runner.CallInfo'>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 353, in from_call
+E             result: TResult | None = func()
+E                     │                └ <function call_and_report.<locals>.<lambda> at 0x7f17b25f40e0>
+E                     └ +TResult
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 245, in <lambda>
+E             lambda: runtest_hook(item=item, **kwds),
+E                     │                 │       └ {}
+E                     │                 └ <Function test_scenario_01_valid_initialization>
+E                     └ <HookCaller 'pytest_runtest_call'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ False
+E                    │    │         │    │     │    │                  └ {'item': <Function test_scenario_01_valid_initialization>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_runtest_call'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_runtest_call'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_runtest_call'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ False
+E                    │    │               │          │        └ {'item': <Function test_scenario_01_valid_initialization>}
+E                    │    │               │          └ [<HookImpl plugin_name='threadexception', plugin=<module '_pytest.threadexception' from '/app/.venv/lib/python3.12/site-packa...
+E                    │    │               └ 'pytest_runtest_call'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Function test_scenario_01_valid_initialization>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/app/.venv/lib/python3.12/site-packages/_pytest/runner....
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+E             item.runtest()
+E             │    └ <function Function.runtest at 0x7f17d364f740>
+E             └ <Function test_scenario_01_valid_initialization>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1720, in runtest
+E             self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+E             │    │                                   └ <Function test_scenario_01_valid_initialization>
+E             │    └ <property object at 0x7f17d36b41d0>
+E             └ <Function test_scenario_01_valid_initialization>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'pyfuncitem': <Function test_scenario_01_valid_initialization>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_pyfunc_call'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_pyfunc_call'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_pyfunc_call'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'pyfuncitem': <Function test_scenario_01_valid_initialization>}
+E                    │    │               │          └ [<HookImpl plugin_name='python', plugin=<module '_pytest.python' from '/app/.venv/lib/python3.12/site-packages/_pytest/python...
+E                    │    │               └ 'pytest_pyfunc_call'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Function test_scenario_01_valid_initialization>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='python', plugin=<module '_pytest.python' from '/app/.venv/lib/python3.12/site-packages/_pytest/python....
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+E             result = testfunction(**testargs)
+E                      │              └ {'config_dir': PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs')}
+E                      └ <function test_scenario_01_valid_initialization at 0x7f17d1b11c60>
+E
+E           File "/app/tests/uat/test_cycle01.py", line 54, in test_scenario_01_valid_initialization
+E             result = runner.invoke(app, ["run", str(config_path), "-v"])
+E                      │      │      │                └ PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml')
+E                      │      │      └ <typer.main.Typer object at 0x7f17d1b392e0>
+E                      │      └ <function CliRunner.invoke at 0x7f17d1b11da0>
+E                      └ <typer.testing.CliRunner object at 0x7f17d1b38920>
+E
+E           File "/app/.venv/lib/python3.12/site-packages/typer/testing.py", line 22, in invoke
+E             return super().invoke(
+E           File "/app/.venv/lib/python3.12/site-packages/click/testing.py", line 504, in invoke
+E             return_value = cli.main(args=args or (), prog_name=prog_name, **extra)
+E                            │   │         │                     │            └ {}
+E                            │   │         │                     └ 'root'
+E                            │   │         └ ['run', '/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml', '-v']
+E                            │   └ <function TyperGroup.main at 0x7f17d1a0efc0>
+E                            └ <TyperGroup >
+E           File "/app/.venv/lib/python3.12/site-packages/typer/core.py", line 813, in main
+E             return _main(
+E                    └ <function _main at 0x7f17d1a0dc60>
+E           File "/app/.venv/lib/python3.12/site-packages/typer/core.py", line 189, in _main
+E             rv = self.invoke(ctx)
+E                  │    │      └ <click.core.Context object at 0x7f17b25e7740>
+E                  │    └ <function Group.invoke at 0x7f17d19d5760>
+E                  └ <TyperGroup >
+E           File "/app/.venv/lib/python3.12/site-packages/click/core.py", line 1873, in invoke
+E             return _process_result(sub_ctx.command.invoke(sub_ctx))
+E                    │               │       │       │      └ <click.core.Context object at 0x7f17b3403d40>
+E                    │               │       │       └ <function Command.invoke at 0x7f17d19d4540>
+E                    │               │       └ <TyperCommand run>
+E                    │               └ <click.core.Context object at 0x7f17b3403d40>
+E                    └ <function Group.invoke.<locals>._process_result at 0x7f17b25f56c0>
+E           File "/app/.venv/lib/python3.12/site-packages/click/core.py", line 1269, in invoke
+E             return ctx.invoke(self.callback, **ctx.params)
+E                    │   │      │    │           │   └ {'verbose': True, 'config_path': '/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml'}
+E                    │   │      │    │           └ <click.core.Context object at 0x7f17b3403d40>
+E                    │   │      │    └ <function run at 0x7f17b25f4ea0>
+E                    │   │      └ <TyperCommand run>
+E                    │   └ <function Context.invoke at 0x7f17d19cb740>
+E                    └ <click.core.Context object at 0x7f17b3403d40>
+E           File "/app/.venv/lib/python3.12/site-packages/click/core.py", line 824, in invoke
+E             return callback(*args, **kwargs)
+E                    │         │       └ {'verbose': True, 'config_path': '/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml'}
+E                    │         └ ()
+E                    └ <function run at 0x7f17b25f4ea0>
+E           File "/app/.venv/lib/python3.12/site-packages/typer/main.py", line 1514, in wrapper
+E             return callback(**use_params)
+E                    │          └ {'config_path': PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml'), 'verbose': True}
+E                    └ <function run at 0x7f17b25db880>
+E
+E           File "/app/src/pyacemaker/main.py", line 80, in run
+E             _run_pipeline(config)
+E             │             └ PYACEMAKERConfig(version='1.0.0', project=ProjectConfig(name='Cycle01_UAT', root_dir=PosixPath('/tmp/pytest-of-jules/pytest-1...
+E             └ <function _run_pipeline at 0x7f17b25db740>
+E
+E           File "/app/src/pyacemaker/main.py", line 49, in _run_pipeline
+E             result = orchestrator.run()
+E                      │            └ <function Orchestrator.run at 0x7f17d18a3a60>
+E                      └ <pyacemaker.orchestrator.Orchestrator object at 0x7f17b25e7b90>
+E
+E           File "/app/src/pyacemaker/orchestrator.py", line 145, in run
+E             result = self.run_cycle()
+E                      │    └ <function Orchestrator.run_cycle at 0x7f17b4de00e0>
+E                      └ <pyacemaker.orchestrator.Orchestrator object at 0x7f17b25e7b90>
+E
+E         > File "/app/src/pyacemaker/orchestrator.py", line 206, in run_cycle
+E             selected_structures = self._run_exploration_and_selection_phase()
+E                                   │    └ <function Orchestrator._run_exploration_and_selection_phase at 0x7f17b25db560>
+E                                   └ <pyacemaker.orchestrator.Orchestrator object at 0x7f17b25e7b90>
+E
+E           File "/app/src/pyacemaker/orchestrator.py", line 413, in _run_exploration_and_selection_phase
+E             active_set = self.trainer.select_active_set(candidates_iter, n_select=n_select)
+E                          │    │       │                 │                         └ 5
+E                          │    │       │                 └ <generator object RandomStructureGenerator.generate_batch_candidates at 0x7f17b25fa840>
+E                          │    │       └ <function PacemakerTrainer.select_active_set at 0x7f17b4e36c00>
+E                          │    └ <pyacemaker.modules.trainer.PacemakerTrainer object at 0x7f17b25e7aa0>
+E                          └ <pyacemaker.orchestrator.Orchestrator object at 0x7f17b25e7b90>
+E
+E           File "/app/src/pyacemaker/modules/trainer.py", line 138, in select_active_set
+E             self.dataset_manager.save_iter(limited_gen(), selected_path)
+E             │    │               │         │              └ PosixPath('/tmp/pace_active_ymljlzq2/selected.pckl.gzip')
+E             │    │               │         └ <function PacemakerTrainer.select_active_set.<locals>.limited_gen at 0x7f17b25f6520>
+E             │    │               └ <function DatasetManager.save_iter at 0x7f17b4e1e480>
+E             │    └ <pyacemaker.oracle.dataset.DatasetManager object at 0x7f17b25e7d40>
+E             └ <pyacemaker.modules.trainer.PacemakerTrainer object at 0x7f17b25e7aa0>
+E
+E           File "/app/src/pyacemaker/oracle/dataset.py", line 292, in save_iter
+E             for atoms in data:
+E                          └ <generator object PacemakerTrainer.select_active_set.<locals>.limited_gen at 0x7f17b2480740>
+E
+E           File "/app/src/pyacemaker/modules/trainer.py", line 133, in limited_gen
+E             for i, atoms in enumerate(reloaded_gen):
+E                                       └ <generator object DatasetManager.load_iter at 0x7f17b2601b90>
+E
+E           File "/app/src/pyacemaker/oracle/dataset.py", line 203, in load_iter
+E             raise ValueError(msg)
+E                              └ 'Checksum verification failed for /tmp/pace_active_ymljlzq2/candidates.pckl.gzip'
+E
+E         ValueError: Checksum verification failed for /tmp/pace_active_ymljlzq2/candidates.pckl.gzip
+E         [2026-02-23T03:48:30.896632+0000] [ERROR] [Orchestrator] Cycle failed! Reason: Checksum verification failed for /tmp/pace_active_ymljlzq2/candidates.pckl.gzip
+E         Pipeline failed: cycles=1
+E         [2026-02-23T03:48:30.897382+0000] [ERROR] [pyacemaker] An unexpected error occurred
+E         Traceback (most recent call last):
+E
+E           File "/app/.venv/bin/pytest", line 10, in <module>
+E             sys.exit(console_main())
+E             │   │    └ <function console_main at 0x7f17d36905e0>
+E             │   └ <built-in function exit>
+E             └ <module 'sys' (built-in)>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 223, in console_main
+E             code = main()
+E                    └ <function main at 0x7f17d3690540>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 199, in main
+E             ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+E                  │                │      │    │                          └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E                  │                │      │    └ <HookCaller 'pytest_cmdline_main'>
+E                  │                │      └ <_pytest.config.compat.PathAwareHookProxy object at 0x7f17d42b6de0>
+E                  │                └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E                  └ <enum 'ExitCode'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'config': <_pytest.config.Config object at 0x7f17d3f51d90>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_cmdline_main'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_cmdline_main'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_cmdline_main'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'config': <_pytest.config.Config object at 0x7f17d3f51d90>}
+E                    │    │               │          └ [<HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>...
+E                    │    │               └ 'pytest_cmdline_main'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<_pytest.config.Config object at 0x7f17d3f51d90>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+E             return wrap_session(config, _main)
+E                    │            │       └ <function _main at 0x7f17d374a3e0>
+E                    │            └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E                    └ <function wrap_session at 0x7f17d374a2a0>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 318, in wrap_session
+E             session.exitstatus = doit(config, session) or 0
+E             │       │            │    │       └ <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>
+E             │       │            │    └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E             │       │            └ <function _main at 0x7f17d374a3e0>
+E             │       └ <ExitCode.OK: 0>
+E             └ <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 372, in _main
+E             config.hook.pytest_runtestloop(session=session)
+E             │      │    │                          └ <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>
+E             │      │    └ <HookCaller 'pytest_runtestloop'>
+E             │      └ <_pytest.config.compat.PathAwareHookProxy object at 0x7f17d42b6de0>
+E             └ <_pytest.config.Config object at 0x7f17d3f51d90>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'session': <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_runtestloop'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_runtestloop'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_runtestloop'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'session': <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>}
+E                    │    │               │          └ [<HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>...
+E                    │    │               └ 'pytest_runtestloop'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=2>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='main', plugin=<module '_pytest.main' from '/app/.venv/lib/python3.12/site-packages/_pytest/main.py'>>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+E             item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+E             │    │                                        │              └ <Function test_scenario_02_invalid_configuration>
+E             │    │                                        └ <Function test_scenario_01_valid_initialization>
+E             │    └ <member 'config' of 'Node' objects>
+E             └ <Function test_scenario_01_valid_initialization>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'item': <Function test_scenario_01_valid_initialization>, 'nextitem': <Function test_scenario_02_invalid_configuration>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_runtest_protocol'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_runtest_protocol'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_runtest_protocol'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'item': <Function test_scenario_01_valid_initialization>, 'nextitem': <Function test_scenario_02_invalid_configuration>}
+E                    │    │               │          └ [<HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/app/.venv/lib/python3.12/site-packages/_pytest/runner...
+E                    │    │               └ 'pytest_runtest_protocol'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Function test_scenario_01_valid_initialization>, <Function test_scenario_02_invalid_configuration>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/app/.venv/lib/python3.12/site-packages/_pytest/runner....
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+E             runtestprotocol(item, nextitem=nextitem)
+E             │               │              └ <Function test_scenario_02_invalid_configuration>
+E             │               └ <Function test_scenario_01_valid_initialization>
+E             └ <function runtestprotocol at 0x7f17d37494e0>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 137, in runtestprotocol
+E             reports.append(call_and_report(item, "call", log))
+E             │       │      │               │             └ True
+E             │       │      │               └ <Function test_scenario_01_valid_initialization>
+E             │       │      └ <function call_and_report at 0x7f17d3749940>
+E             │       └ <method 'append' of 'list' objects>
+E             └ [<TestReport 'tests/uat/test_cycle01.py::test_scenario_01_valid_initialization' when='setup' outcome='passed'>]
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 244, in call_and_report
+E             call = CallInfo.from_call(
+E                    │        └ <classmethod(<function CallInfo.from_call at 0x7f17d3749d00>)>
+E                    └ <class '_pytest.runner.CallInfo'>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 353, in from_call
+E             result: TResult | None = func()
+E                     │                └ <function call_and_report.<locals>.<lambda> at 0x7f17b25f40e0>
+E                     └ +TResult
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 245, in <lambda>
+E             lambda: runtest_hook(item=item, **kwds),
+E                     │                 │       └ {}
+E                     │                 └ <Function test_scenario_01_valid_initialization>
+E                     └ <HookCaller 'pytest_runtest_call'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ False
+E                    │    │         │    │     │    │                  └ {'item': <Function test_scenario_01_valid_initialization>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_runtest_call'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_runtest_call'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_runtest_call'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ False
+E                    │    │               │          │        └ {'item': <Function test_scenario_01_valid_initialization>}
+E                    │    │               │          └ [<HookImpl plugin_name='threadexception', plugin=<module '_pytest.threadexception' from '/app/.venv/lib/python3.12/site-packa...
+E                    │    │               └ 'pytest_runtest_call'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Function test_scenario_01_valid_initialization>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='runner', plugin=<module '_pytest.runner' from '/app/.venv/lib/python3.12/site-packages/_pytest/runner....
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
+E             item.runtest()
+E             │    └ <function Function.runtest at 0x7f17d364f740>
+E             └ <Function test_scenario_01_valid_initialization>
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1720, in runtest
+E             self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+E             │    │                                   └ <Function test_scenario_01_valid_initialization>
+E             │    └ <property object at 0x7f17d36b41d0>
+E             └ <Function test_scenario_01_valid_initialization>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+E             return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+E                    │    │         │    │     │    │                  │       └ True
+E                    │    │         │    │     │    │                  └ {'pyfuncitem': <Function test_scenario_01_valid_initialization>}
+E                    │    │         │    │     │    └ <member '_hookimpls' of 'HookCaller' objects>
+E                    │    │         │    │     └ <HookCaller 'pytest_pyfunc_call'>
+E                    │    │         │    └ <member 'name' of 'HookCaller' objects>
+E                    │    │         └ <HookCaller 'pytest_pyfunc_call'>
+E                    │    └ <member '_hookexec' of 'HookCaller' objects>
+E                    └ <HookCaller 'pytest_pyfunc_call'>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+E             return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+E                    │    │               │          │        │       └ True
+E                    │    │               │          │        └ {'pyfuncitem': <Function test_scenario_01_valid_initialization>}
+E                    │    │               │          └ [<HookImpl plugin_name='python', plugin=<module '_pytest.python' from '/app/.venv/lib/python3.12/site-packages/_pytest/python...
+E                    │    │               └ 'pytest_pyfunc_call'
+E                    │    └ <function _multicall at 0x7f17d3f4c9a0>
+E                    └ <_pytest.config.PytestPluginManager object at 0x7f17d3b4d490>
+E           File "/app/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+E             res = hook_impl.function(*args)
+E                   │         │         └ [<Function test_scenario_01_valid_initialization>]
+E                   │         └ <member 'function' of 'HookImpl' objects>
+E                   └ <HookImpl plugin_name='python', plugin=<module '_pytest.python' from '/app/.venv/lib/python3.12/site-packages/_pytest/python....
+E           File "/app/.venv/lib/python3.12/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
+E             result = testfunction(**testargs)
+E                      │              └ {'config_dir': PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs')}
+E                      └ <function test_scenario_01_valid_initialization at 0x7f17d1b11c60>
+E
+E           File "/app/tests/uat/test_cycle01.py", line 54, in test_scenario_01_valid_initialization
+E             result = runner.invoke(app, ["run", str(config_path), "-v"])
+E                      │      │      │                └ PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml')
+E                      │      │      └ <typer.main.Typer object at 0x7f17d1b392e0>
+E                      │      └ <function CliRunner.invoke at 0x7f17d1b11da0>
+E                      └ <typer.testing.CliRunner object at 0x7f17d1b38920>
+E
+E           File "/app/.venv/lib/python3.12/site-packages/typer/testing.py", line 22, in invoke
+E             return super().invoke(
+E           File "/app/.venv/lib/python3.12/site-packages/click/testing.py", line 504, in invoke
+E             return_value = cli.main(args=args or (), prog_name=prog_name, **extra)
+E                            │   │         │                     │            └ {}
+E                            │   │         │                     └ 'root'
+E                            │   │         └ ['run', '/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml', '-v']
+E                            │   └ <function TyperGroup.main at 0x7f17d1a0efc0>
+E                            └ <TyperGroup >
+E           File "/app/.venv/lib/python3.12/site-packages/typer/core.py", line 813, in main
+E             return _main(
+E                    └ <function _main at 0x7f17d1a0dc60>
+E           File "/app/.venv/lib/python3.12/site-packages/typer/core.py", line 189, in _main
+E             rv = self.invoke(ctx)
+E                  │    │      └ <click.core.Context object at 0x7f17b25e7740>
+E                  │    └ <function Group.invoke at 0x7f17d19d5760>
+E                  └ <TyperGroup >
+E           File "/app/.venv/lib/python3.12/site-packages/click/core.py", line 1873, in invoke
+E             return _process_result(sub_ctx.command.invoke(sub_ctx))
+E                    │               │       │       │      └ <click.core.Context object at 0x7f17b3403d40>
+E                    │               │       │       └ <function Command.invoke at 0x7f17d19d4540>
+E                    │               │       └ <TyperCommand run>
+E                    │               └ <click.core.Context object at 0x7f17b3403d40>
+E                    └ <function Group.invoke.<locals>._process_result at 0x7f17b25f56c0>
+E           File "/app/.venv/lib/python3.12/site-packages/click/core.py", line 1269, in invoke
+E             return ctx.invoke(self.callback, **ctx.params)
+E                    │   │      │    │           │   └ {'verbose': True, 'config_path': '/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml'}
+E                    │   │      │    │           └ <click.core.Context object at 0x7f17b3403d40>
+E                    │   │      │    └ <function run at 0x7f17b25f4ea0>
+E                    │   │      └ <TyperCommand run>
+E                    │   └ <function Context.invoke at 0x7f17d19cb740>
+E                    └ <click.core.Context object at 0x7f17b3403d40>
+E           File "/app/.venv/lib/python3.12/site-packages/click/core.py", line 824, in invoke
+E             return callback(*args, **kwargs)
+E                    │         │       └ {'verbose': True, 'config_path': '/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml'}
+E                    │         └ ()
+E                    └ <function run at 0x7f17b25f4ea0>
+E           File "/app/.venv/lib/python3.12/site-packages/typer/main.py", line 1514, in wrapper
+E             return callback(**use_params)
+E                    │          └ {'config_path': PosixPath('/tmp/pytest-of-jules/pytest-10/test_scenario_01_valid_initial0/configs/valid.yaml'), 'verbose': True}
+E                    └ <function run at 0x7f17b25db880>
+E
+E         > File "/app/src/pyacemaker/main.py", line 80, in run
+E             _run_pipeline(config)
+E             │             └ PYACEMAKERConfig(version='1.0.0', project=ProjectConfig(name='Cycle01_UAT', root_dir=PosixPath('/tmp/pytest-of-jules/pytest-1...
+E             └ <function _run_pipeline at 0x7f17b25db740>
+E
+E           File "/app/src/pyacemaker/main.py", line 55, in _run_pipeline
+E             raise typer.Exit(code=1)
+E                   │     └ <class 'click.exceptions.Exit'>
+E                   └ <module 'typer' from '/app/.venv/lib/python3.12/site-packages/typer/__init__.py'>
+E
+E         click.exceptions.Exit
+E         Unexpected error:
+E
+E       assert 1 == 0
+E        +  where 1 = <Result SystemExit(1)>.exit_code
+
+tests/uat/test_cycle01.py:57: AssertionError
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+src/pyacemaker/__init__.py                          5      2    60%   5-6
+src/pyacemaker/core/__init__.py                     0      0   100%
+src/pyacemaker/core/base.py                        17      0   100%
+src/pyacemaker/core/config.py                     310     57    82%   23-24, 29-30, 180-181, 188-189, 196-197, 200-202, 222, 239-240, 249-263, 292-293, 300-303, 362-364, 367, 370-371, 378, 446-450, 465, 488-492, 565-568, 588-589, 631-632
+src/pyacemaker/core/config_loader.py               82     50    39%   20-21, 30-67, 79-81, 86-92, 95-96, 115-116, 124, 129-134
+src/pyacemaker/core/dataset.py                     45      4    91%   47, 65-66, 81
+src/pyacemaker/core/exceptions.py                  10      0   100%
+src/pyacemaker/core/interfaces.py                  38      0   100%
+src/pyacemaker/core/io_utils.py                    10     10     0%   3-26
+src/pyacemaker/core/logging.py                     10      0   100%
+src/pyacemaker/core/utils.py                       91     19    79%   33-34, 52-53, 103, 151-152, 174, 178, 180-183, 205-206, 221, 228-231
+src/pyacemaker/core/validation.py                  75     61    19%   10-28, 36-37, 41-44, 49-64, 69-70, 75-93, 97-113, 117-119
+src/pyacemaker/domain_models/__init__.py            2      0   100%
+src/pyacemaker/domain_models/common.py             31      0   100%
+src/pyacemaker/domain_models/models.py              6      0   100%
+src/pyacemaker/domain_models/potential.py          44      9    80%   35-36, 42-43, 52-53, 61-63
+src/pyacemaker/domain_models/structure.py         169     53    69%   33, 35-36, 41-42, 48-51, 56-68, 83-86, 91-94, 99-102, 163-164, 168-169, 188, 191-192, 196-197, 207-208, 212-213, 216-217, 235-240, 246-247, 269-270, 278-279, 281-282
+src/pyacemaker/domain_models/task.py               60     18    70%   31-34, 42, 47-58, 78-79, 81-82, 84-85
+src/pyacemaker/domain_models/validator.py           8      0   100%
+src/pyacemaker/dynamics/__init__.py                 0      0   100%
+src/pyacemaker/dynamics/kmc.py                     52     40    23%   20-21, 25-29, 33-160
+src/pyacemaker/generator/__init__.py                4      0   100%
+src/pyacemaker/generator/mutations.py              26     20    23%   20-37, 50-52, 65-79
+src/pyacemaker/generator/policy.py                 23     10    57%   35, 41-62
+src/pyacemaker/generator/strategies.py             59     42    29%   34-35, 39-44, 52, 56-70, 78, 84-111
+src/pyacemaker/main.py                             40      2    95%   52, 77
+src/pyacemaker/modules/__init__.py                  6      0   100%
+src/pyacemaker/modules/dynamics_engine.py         130     31    76%   54, 90-91, 95, 149-150, 158-175, 210-211, 237, 249-250, 258-259, 263-264, 270-278, 282-283
+src/pyacemaker/modules/oracle.py                  160    105    34%   28-29, 37-38, 44-70, 78-84, 88-95, 99, 111-135, 143-144, 153-154, 158-177, 185-217, 228-229, 235, 239-240, 249-250, 254-256, 268-280
+src/pyacemaker/modules/structure_generator.py      82     51    38%   23-24, 44-54, 64-65, 76, 84-85, 89-90, 97-120, 126-155, 168-175, 179
+src/pyacemaker/modules/trainer.py                  99     25    75%   36-37, 67-68, 97-98, 134-136, 140-164, 175-176, 191
+src/pyacemaker/modules/validator.py                50     36    28%   17, 35-38, 43-130
+src/pyacemaker/oracle/__init__.py                   4      0   100%
+src/pyacemaker/oracle/calculator.py                38     32    16%   13-18, 39-124
+src/pyacemaker/oracle/dataset.py                  165     63    62%   36-37, 55, 60, 70-82, 106-109, 112-118, 121-124, 134-136, 141-146, 152-165, 192-193, 204, 223-226, 235-238, 252-257, 282-283, 298-303, 320-326
+src/pyacemaker/oracle/mace_manager.py              45     31    31%   14, 25-30, 34-49, 53-72
+src/pyacemaker/oracle/manager.py                   70     57    19%   19-22, 26-30, 41-53, 72-131, 144-151
+src/pyacemaker/orchestrator.py                    203     57    72%   68, 82-85, 93, 148-149, 157-158, 177-180, 193, 199-200, 211-222, 228-230, 270-271, 294-295, 298-299, 311-313, 316-317, 327, 329-330, 348-351, 356, 368, 373-374, 382-384, 416-422, 426-429
+src/pyacemaker/trainer/__init__.py                  0      0   100%
+src/pyacemaker/trainer/active_set.py               14      8    43%   28-38
+src/pyacemaker/trainer/wrapper.py                  62     52    16%   14-19, 25-26, 31-73, 94-116, 131-147
+src/pyacemaker/validator/__init__.py                0      0   100%
+src/pyacemaker/validator/manager.py                77     65    16%   20-21, 25-55, 61-145
+src/pyacemaker/validator/physics.py                86     73    15%   16, 28-77, 86-119, 126-168, 179-188
+src/pyacemaker/validator/report.py                 13      7    46%   15-18, 22-26
+-----------------------------------------------------------------------------
+TOTAL                                            2521   1090    57%
+=========================== short test summary info ============================
+FAILED tests/uat/test_cycle01.py::test_scenario_01_valid_initialization - Ass...
+========================= 1 failed, 1 passed in 5.21s ==========================

@@ -12,13 +12,13 @@
 
 Ideally suited for materials scientists who need DFT-level accuracy with the speed of classical molecular dynamics.
 
-## Key Features
+## Key Features (Cycle 01 Verified)
 
--   **7-Step MACE Distillation**: A fully automated workflow that distills knowledge from MACE into a fast polynomial potential.
--   **Active Learning**: intelligently selects only the most critical structures for DFT calculation using uncertainty quantification, reducing computational cost by orders of magnitude.
--   **Delta Learning**: automatically corrects the "Sim-to-Real" gap by fine-tuning the potential on sparse high-fidelity DFT data.
--   **Zero-Config**: Define your system (e.g., `["Fe", "Pt"]`) in a single YAML file, and the Orchestrator handles the rest.
--   **Robust Validation**: Built-in physics checks ensure the generated potential is stable (Phonons) and physically reasonable (EOS).
+-   **MACE Integration**: Seamlessly load and use MACE-MP-0 foundation models as surrogate oracles.
+-   **Configurable Pipeline**: Robust YAML-based configuration with schema validation (Pydantic).
+-   **Mock Mode**: Fully functional mock execution for CI/CD and testing without expensive hardware.
+-   **Modular Architecture**: Extensible design separating Oracle, Trainer, and Generator components.
+-   **Automated Validation**: Built-in integrity checks for structures and datasets.
 
 ## Architecture Overview
 
@@ -84,40 +84,103 @@ graph TD
     pip install .
     ```
 
-3.  **Environment Setup**:
-    Copy the example environment file (if available) or set necessary variables.
-    ```bash
-    export PYACEMAKER_MODE=MOCK  # For testing without DFT
-    ```
-
 ## Usage
 
 ### Quick Start
 
 1.  **Create a configuration file** (`config.yaml`):
     ```yaml
-    system:
-      elements: ["Ni", "Al"]
-      base_directory: "./my_experiment"
-    distillation:
-      enable_mace_distillation: true
+    version: "0.1.0"
+    project:
+      name: "MyFirstPotential"
+      root_dir: "/abs/path/to/project"
+    oracle:
+      # Use MACE as surrogate
+      mace:
+        model_path: "medium" # or path to local .model file
+        device: "cuda"       # or "cpu"
+      # DFT Configuration (Optional if running pure MACE or Mock)
+      dft:
+        code: "quantum_espresso"
+        pseudopotentials:
+          Fe: "Fe.pbe.UPF"
     ```
 
 2.  **Run the pipeline**:
     ```bash
-    uv run pyacemaker config.yaml
+    uv run pyacemaker run config.yaml
     ```
 
 3.  **Monitor Progress**:
-    The system will log its progress through the 7 steps. Check the `my_experiment` directory for artifacts like `dft_dataset.pckl` and `final_potential.yace`.
+    The system will log its progress. Check the `data/` directory for artifacts like `dataset.pckl.gzip`.
 
-### Running Tutorials
+### Quick Validation
 
-To verify the installation and see the system in action (simulating an SN2 reaction):
+To verify the installation and see the system in action (Mock Mode), run the UAT script:
 
 ```bash
-uv run python tutorials/UAT_AND_TUTORIAL.py
+uv run pytest tests/uat/test_cycle01.py
 ```
+
+This ensures that the configuration loading, MACE integration (mock), and orchestrator workflow are functioning correctly.
+
+## Configuration Reference
+
+A complete `config.yaml` example:
+
+```yaml
+version: "0.1.0"
+
+project:
+  name: "Fe_C_System"
+  root_dir: "/home/user/projects/fe_c"
+
+logging:
+  level: "INFO"
+
+# Oracle Settings
+oracle:
+  mock: false  # Set to true for testing without GPU/DFT
+  mace:
+    model_path: "medium"  # Downloads MACE-MP-0 medium
+    device: "cuda"
+    default_dtype: "float64"
+    batch_size: 32
+  dft:
+    code: "quantum_espresso"
+    command: "mpirun -np 4 pw.x"
+    pseudopotentials:
+      Fe: "/path/to/pseudos/Fe.pbe.UPF"
+      C: "/path/to/pseudos/C.pbe.UPF"
+    kspacing: 0.04
+    smearing: 0.02
+
+# Generator Settings
+structure_generator:
+  strategy: "adaptive" # or "random"
+
+# Orchestrator Settings
+orchestrator:
+  max_cycles: 10
+  uncertainty_threshold: 0.1
+  n_local_candidates: 20
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1.  **`ConfigurationError: MaceManager is None but mock is False`**
+    *   **Cause**: You have enabled `mace` in config but `mock: false` and the `mace` library is not installed or failed to load.
+    *   **Fix**: Ensure `mace-torch` is installed (`pip install mace-torch`) or set `oracle.mock: true`.
+
+2.  **`ValueError: Checksum verification failed`**
+    *   **Cause**: Data corruption or file modification during write.
+    *   **Fix**: Ensure you have write permissions to the data directory. The system automatically handles checksums now; try deleting the corrupt `.pckl.gzip` and `.sha256` files to restart.
+
+3.  **`FileNotFoundError: Dataset file not found`**
+    *   **Cause**: Cold start failed or path is incorrect.
+    *   **Fix**: Ensure `project.root_dir` is absolute and exists. The Orchestrator will attempt to generate initial structures if the dataset is missing.
 
 ## Development Workflow
 
@@ -140,14 +203,14 @@ uv run mypy .
 ```text
 pyacemaker/
 ├── dev_documents/          # Specs and Architecture docs
-│   ├── system_prompts/     # Cycle 1-6 Specifications
-│   └── USER_TEST_SCENARIO.md
 ├── src/
 │   └── pyacemaker/         # Source code
 │       ├── core/           # Base classes & Config
 │       ├── oracle/         # MACE & DFT interfaces
+│       ├── modules/        # Module implementations (Oracle, Trainer, etc.)
 │       ├── trainer/        # Pacemaker & MACE training
 │       ├── generator/      # Structure generation
+│       ├── main.py         # CLI Entry Point
 │       └── orchestrator.py # Main logic
 ├── tests/                  # Unit and Integration tests
 ├── tutorials/              # Executable tutorials

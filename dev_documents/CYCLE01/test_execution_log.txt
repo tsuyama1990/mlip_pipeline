@@ -1,0 +1,162 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.0.0, mock-3.15.1
+collected 170 items
+
+tests/core/test_base.py .                                                [  0%]
+tests/core/test_config.py .............                                  [  8%]
+tests/core/test_config_failures.py ........                              [ 12%]
+tests/core/test_config_security.py .....                                 [ 15%]
+tests/core/test_generator_config_validation.py .....                     [ 18%]
+tests/core/test_logging.py ....                                          [ 21%]
+tests/dynamics/test_kmc.py ..                                            [ 22%]
+tests/generator/test_mutations.py ....                                   [ 24%]
+tests/generator/test_policy.py ....                                      [ 27%]
+tests/generator/test_strategies.py ......                                [ 30%]
+tests/integration/test_full_cycle.py .F                                  [ 31%]
+tests/integration/test_memory_usage.py ..                                [ 32%]
+tests/integration/test_pipeline.py .                                     [ 33%]
+tests/integration/test_streaming.py ..                                   [ 34%]
+tests/oracle/test_calculator.py .....                                    [ 37%]
+tests/oracle/test_dataset.py .....                                       [ 40%]
+tests/oracle/test_embedding.py ...                                       [ 42%]
+tests/oracle/test_manager.py .....                                       [ 45%]
+tests/oracle/test_manager_mutation.py .                                  [ 45%]
+tests/test_main.py ....                                                  [ 48%]
+tests/uat/test_cycle01.py ..                                             [ 49%]
+tests/uat/test_cycle03.py ...                                            [ 51%]
+tests/uat/test_cycle04.py ....                                           [ 53%]
+tests/uat/test_cycle06.py ....                                           [ 55%]
+tests/unit/test_config_full.py ......                                    [ 59%]
+tests/unit/test_config_mace.py ......                                    [ 62%]
+tests/unit/test_dft_manager_edge_cases.py ...                            [ 64%]
+tests/unit/test_domain_models.py .........                               [ 70%]
+tests/unit/test_dynamics_engine.py ........                              [ 74%]
+tests/unit/test_mace_manager.py ...                                      [ 76%]
+tests/unit/test_mace_oracle_module.py ..                                 [ 77%]
+tests/unit/test_oracle_module.py .......                                 [ 81%]
+tests/unit/test_orchestrator_streaming.py ...                            [ 83%]
+tests/unit/test_schema_validation.py .......                             [ 87%]
+tests/unit/test_structure_generator.py ...                               [ 89%]
+tests/unit/test_trainer_active_set.py .                                  [ 90%]
+tests/unit/test_trainer_config.py ...                                    [ 91%]
+tests/unit/test_trainer_module.py ..                                     [ 92%]
+tests/unit/test_trainer_wrapper.py ....                                  [ 95%]
+tests/validator/test_physics.py .....                                    [ 98%]
+tests/validator/test_report.py .                                         [ 98%]
+tests/validator/test_validator_manager.py ..                             [100%]
+
+=================================== FAILURES ===================================
+____________ TestFullCycleIntegration.test_cycle_failure_validation ____________
+
+self = <integration.test_full_cycle.TestFullCycleIntegration object at 0x7f5ce11879e0>
+tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-15/test_cycle_failure_validation0')
+
+    def test_cycle_failure_validation(self, tmp_path: Path) -> None:
+        """Test that validation failure halts the cycle."""
+        pp_path = tmp_path / "Fe.upf"
+        pp_path.touch()
+
+        config = PYACEMAKERConfig(
+            version="0.1.0",
+            project=ProjectConfig(name="FailureTest", root_dir=tmp_path),
+            orchestrator=OrchestratorConfig(max_cycles=1, validation_split=1.0),
+            structure_generator=StructureGeneratorConfig(strategy="random"),
+            oracle=OracleConfig(
+                dft=DFTConfig(code="qe", pseudopotentials={"Fe": str(pp_path)}), mock=True
+            ),
+            trainer=TrainerConfig(mock=True),
+        )
+
+        with (
+            patch("pyacemaker.modules.validator.Validator.validate") as mock_validate,
+            patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
+        ):
+            # Simulate validation failure
+            mock_validate.return_value = MagicMock(status="failed", metrics={})
+
+            # Mock train must consume stream to populate validation set
+            def consume_stream(dataset: Any, potential: Potential | None = None) -> Any:
+                for _ in dataset:
+                    pass
+                return MagicMock()
+
+            mock_train.side_effect = consume_stream
+
+            orchestrator = Orchestrator(config)
+            # Pre-populate dataset so training runs
+            dataset_path = orchestrator.dataset_path
+            orchestrator.dataset_manager.save_iter(iter([Atoms("Fe")]), dataset_path)
+
+            result = orchestrator.run()
+
+            # Should fail
+>       assert result.status == "FAILED"
+E       AssertionError: assert 'success' == 'FAILED'
+E
+E         - FAILED
+E         + success
+
+tests/integration/test_full_cycle.py:145: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    MDInterface:dynamics_engine.py:162 LAMMPS executable 'lammps' not found.
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+src/pyacemaker/__init__.py                          5      2    60%   5-6
+src/pyacemaker/core/__init__.py                     0      0   100%
+src/pyacemaker/core/base.py                        17      0   100%
+src/pyacemaker/core/config.py                     310     24    92%   23-24, 29-30, 180-181, 188-189, 196-197, 200-202, 222, 249-250, 260-263, 465, 566-567, 631-632
+src/pyacemaker/core/config_loader.py               82     27    67%   32-33, 37-38, 44-48, 55-67, 80-81, 129-134
+src/pyacemaker/core/dataset.py                     45      2    96%   47, 81
+src/pyacemaker/core/exceptions.py                  10      0   100%
+src/pyacemaker/core/interfaces.py                  38      0   100%
+src/pyacemaker/core/io_utils.py                    10     10     0%   3-26
+src/pyacemaker/core/logging.py                     10      0   100%
+src/pyacemaker/core/utils.py                       91     19    79%   33-34, 52-53, 103, 151-152, 174, 178, 180-183, 205-206, 221, 228-231
+src/pyacemaker/core/validation.py                  75     11    85%   23-25, 36-37, 57-58, 92-93, 104-105
+src/pyacemaker/domain_models/__init__.py            2      0   100%
+src/pyacemaker/domain_models/common.py             31      0   100%
+src/pyacemaker/domain_models/models.py              6      0   100%
+src/pyacemaker/domain_models/potential.py          44      9    80%   35-36, 42-43, 52-53, 61-63
+src/pyacemaker/domain_models/structure.py         169     38    78%   33, 35-36, 41-42, 48-51, 56-68, 84-85, 91-94, 99-102, 191-192, 207-208, 212-213, 216-217, 235-240, 269-270
+src/pyacemaker/domain_models/task.py               60      8    87%   32-33, 42, 48-57
+src/pyacemaker/domain_models/validator.py           8      0   100%
+src/pyacemaker/dynamics/__init__.py                 0      0   100%
+src/pyacemaker/dynamics/kmc.py                     52      9    83%   27-28, 42-45, 157-160
+src/pyacemaker/generator/__init__.py                4      0   100%
+src/pyacemaker/generator/mutations.py              26      0   100%
+src/pyacemaker/generator/policy.py                 23      1    96%   45
+src/pyacemaker/generator/strategies.py             59      3    95%   92-94
+src/pyacemaker/main.py                             40      5    88%   29-31, 54-55
+src/pyacemaker/modules/__init__.py                  6      0   100%
+src/pyacemaker/modules/dynamics_engine.py         130     18    86%   54, 91, 166-175, 237, 258-259, 263-264, 270-278, 282-283
+src/pyacemaker/modules/oracle.py                  160     26    84%   45-46, 68-70, 95, 153-154, 203, 214-216, 228-229, 239-240, 249-250, 254-256, 270-271, 276-278
+src/pyacemaker/modules/structure_generator.py      82     47    43%   23-24, 45-46, 48-49, 64-65, 76, 84-85, 89-90, 97-120, 126-155, 168-175, 179
+src/pyacemaker/modules/trainer.py                  99     10    90%   36-37, 67-68, 155, 157-158, 175-176, 191
+src/pyacemaker/modules/validator.py                50     36    28%   17, 35-38, 43-130
+src/pyacemaker/oracle/__init__.py                   4      0   100%
+src/pyacemaker/oracle/calculator.py                38      6    84%   68-69, 92, 98, 121-122
+src/pyacemaker/oracle/dataset.py                  156     43    72%   35-36, 69-81, 105-108, 111-117, 120-123, 153, 157-163, 200-202, 223, 234-237, 251-256, 281-282, 299-304
+src/pyacemaker/oracle/mace_manager.py              45     13    71%   14, 35-36, 46-49, 59-60, 67-70
+src/pyacemaker/oracle/manager.py                   70      8    89%   73-75, 81-83, 150-151
+src/pyacemaker/orchestrator.py                    203     35    83%   93, 151-152, 177-180, 193, 199-200, 207-209, 218, 228-230, 270-271, 294-295, 311-313, 316-317, 329-330, 351, 356, 368, 373-374, 421-422
+src/pyacemaker/trainer/__init__.py                  0      0   100%
+src/pyacemaker/trainer/active_set.py               14      3    79%   31-34
+src/pyacemaker/trainer/wrapper.py                  62     15    76%   15-16, 19, 32-33, 53-54, 70-71, 106-107, 132-133, 137-138
+src/pyacemaker/validator/__init__.py                0      0   100%
+src/pyacemaker/validator/manager.py                77     22    71%   26, 33-35, 52-55, 70-72, 84-86, 101-104, 112-115
+src/pyacemaker/validator/physics.py                86     30    65%   29, 32-33, 48-56, 87-88, 126-168
+src/pyacemaker/validator/report.py                 13      0   100%
+-----------------------------------------------------------------------------
+TOTAL                                            2512    480    81%
+=========================== short test summary info ============================
+FAILED tests/integration/test_full_cycle.py::TestFullCycleIntegration::test_cycle_failure_validation
+================== 1 failed, 169 passed in 214.10s (0:03:34) ===================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

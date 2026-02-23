@@ -11,10 +11,11 @@ from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.core.exceptions import PYACEMAKERError
+from pyacemaker.core.exceptions import ConfigurationError, PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
 from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
+from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.oracle.manager import DFTManager
 
 
@@ -213,4 +214,67 @@ class DFTOracle(BaseOracle):
             except Exception:
                 self.logger.exception(f"Error computing structure {s.id}")
                 s.status = StructureStatus.FAILED
+            yield s
+
+
+class MaceSurrogateOracle(BaseOracle):
+    """MACE Surrogate Oracle implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize the MACE Oracle."""
+        super().__init__(config)
+
+        if config.oracle.mace is None:
+            msg = "MACE configuration is missing."
+            raise ConfigurationError(msg)
+
+        if config.oracle.mock:
+            self.logger.info("MACE Oracle loaded (Mock)")
+            self.mace_manager = None
+        else:
+            self.mace_manager = MaceManager(config.oracle.mace)
+
+    def run(self) -> ModuleResult:
+        """Run the oracle (batch processing)."""
+        self.logger.info("Running MaceSurrogateOracle")
+        return ModuleResult(status="success")
+
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+        """Compute energy/forces for a batch of structures."""
+        self.logger.info("Computing batch of structures (MACE)")
+
+        for s in structures:
+            self.validate_structure(s)
+            if s.status == StructureStatus.CALCULATED:
+                yield s
+                continue
+
+            atoms = self._extract_atoms(s)
+            if atoms is None:
+                s.status = StructureStatus.FAILED
+                yield s
+                continue
+
+            if self.config.oracle.mock:
+                # Mock behavior
+                s.energy = -10.0
+                s.forces = [[0.0, 0.0, 0.0] for _ in range(len(atoms))]
+                s.status = StructureStatus.CALCULATED
+                yield s
+                continue
+
+            # We verified self.mace_manager is not None if not mock
+            # But type checker might complain if we don't assert/check
+            if self.mace_manager is None:
+                # Should not happen given __init__ logic unless modified
+                msg = "MaceManager is None but mock is False"
+                raise ConfigurationError(msg)
+
+            try:
+                result_atoms = self.mace_manager.compute(atoms)
+                self._update_structure_common(s, result_atoms)
+            except Exception:
+                self.logger.exception(f"Error computing structure {s.id}")
+                s.status = StructureStatus.FAILED
+
             yield s

@@ -4,7 +4,6 @@ Implements a Framed Pickle format for safe streaming and size validation.
 """
 
 import gzip
-import hashlib
 import io
 import pickle
 import struct
@@ -283,7 +282,9 @@ class DatasetManager:
             raise ValueError(msg)
 
         # Setup streaming checksum
-        hasher = hashlib.sha256() if calculate_checksum and mode == "wb" else None
+        # Note: We cannot easily calculate file checksum during streaming write because gzip
+        # compresses the output. The file on disk will differ from what we hash here.
+        # So we disable in-memory hashing and rely on post-write calculation.
 
         with (
             gzip.open(path, mode) as gz_file,
@@ -304,23 +305,13 @@ class DatasetManager:
 
                 header = struct.pack(">Q", size)
 
-                # Update hash if active
-                if hasher:
-                    hasher.update(header)
-                    hasher.update(obj_bytes)
-
                 # Write header and payload
                 f.write(header)
                 f.write(obj_bytes)
 
         if calculate_checksum:
-            if mode == "wb" and hasher:
-                checksum = hasher.hexdigest()
-                path.with_suffix(path.suffix + ".sha256").write_text(checksum)
-            elif mode == "ab":
-                # Fallback to full read for append if requested (expensive)
-                # Ideally caller avoids this for large files in append mode.
-                from pyacemaker.core.utils import calculate_checksum as calc_checksum
+            # Always calculate from disk to match file content (compressed)
+            from pyacemaker.core.utils import calculate_checksum as calc_checksum
 
-                checksum = calc_checksum(path)
-                path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+            checksum = calc_checksum(path)
+            path.with_suffix(path.suffix + ".sha256").write_text(checksum)

@@ -22,7 +22,11 @@ class ConfigurationError(PYACEMAKERError):
         self.details = details or {}
 
 
-class DFTError(PYACEMAKERError):
+class OracleError(PYACEMAKERError):
+    """Raised when an Oracle (DFT/MACE) calculation fails."""
+
+
+class DFTError(OracleError):
     """Raised when a DFT calculation fails."""
 
 

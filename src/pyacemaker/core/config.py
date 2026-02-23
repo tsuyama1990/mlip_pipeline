@@ -90,6 +90,12 @@ class Constants(BaseSettings):
     default_dft_chunk_size: int = _DEFAULTS["dft"]["chunk_size"]
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
+    # MACE Defaults
+    default_mace_model_path: str = "medium"  # Default to MACE-MP-0 medium
+    default_mace_device: str = "cpu"
+    default_mace_dtype: str = "float64"
+    default_mace_batch_size: int = 32
+
     # DFT Defaults
     default_dft_ecutwfc: float = _DEFAULTS["dft"]["ecutwfc"]
     default_dft_ecutrho: float = _DEFAULTS["dft"]["ecutrho"]
@@ -259,6 +265,44 @@ class ProjectConfig(BaseModel):
         return resolved
 
 
+class MaceConfig(BaseModel):
+    """MACE model configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model_path: str = Field(
+        default=CONSTANTS.default_mace_model_path,
+        description="Path or URL to the MACE model (e.g., 'medium', path/to/model.model)",
+    )
+    device: str = Field(
+        default=CONSTANTS.default_mace_device, description="Device to run on (cpu, cuda)"
+    )
+    default_dtype: str = Field(
+        default=CONSTANTS.default_mace_dtype, description="Default data type (float32, float64)"
+    )
+    batch_size: int = Field(
+        default=CONSTANTS.default_mace_batch_size, description="Batch size for prediction"
+    )
+
+    @field_validator("device")
+    @classmethod
+    def validate_device(cls, v: str) -> str:
+        """Validate device."""
+        if v not in {"cpu", "cuda", "mps"}:
+            msg = f"Invalid device: {v}. Must be cpu, cuda, or mps"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("default_dtype")
+    @classmethod
+    def validate_dtype(cls, v: str) -> str:
+        """Validate data type."""
+        if v not in {"float32", "float64"}:
+            msg = f"Invalid dtype: {v}. Must be float32 or float64"
+            raise ValueError(msg)
+        return v
+
+
 class DFTConfig(BaseModel):
     """DFT calculation configuration."""
 
@@ -340,6 +384,7 @@ class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     dft: DFTConfig = Field(..., description="DFT configuration")
+    mace: MaceConfig | None = Field(default=None, description="MACE configuration")
     mock: bool = Field(default=False, description="Use mock oracle for testing")
 
 
