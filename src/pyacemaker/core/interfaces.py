@@ -92,6 +92,7 @@ class Trainer(BaseModule):
         self,
         dataset: Iterable[StructureMetadata],
         initial_potential: Potential | None = None,
+        **kwargs: Any,
     ) -> Potential:
         """Train a potential using the provided dataset (Streaming)."""
         ...

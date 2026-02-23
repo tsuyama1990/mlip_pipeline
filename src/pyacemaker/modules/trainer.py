@@ -41,6 +41,7 @@ class PacemakerTrainer(Trainer):
         self,
         dataset: Iterable[StructureMetadata],
         initial_potential: Potential | None = None,
+        **kwargs: Any,
     ) -> Potential:
         """Train a potential (Streaming)."""
         # 1. Prepare Dataset
@@ -91,6 +92,9 @@ class PacemakerTrainer(Trainer):
         # If baseline file exists, pass it (assuming pace_train supports --baseline)
         if baseline_file:
             params["baseline"] = str(baseline_file)
+
+        # Merge additional arguments (e.g. from delta learning workflow)
+        params.update(kwargs)
 
         # 4. Train
         if self.trainer_config.mock:
@@ -218,6 +222,7 @@ class MaceTrainer(Trainer):
         self,
         dataset: Iterable[StructureMetadata],
         initial_potential: Potential | None = None,
+        **kwargs: Any,
     ) -> Potential:
         """Train or Fine-tune MACE model."""
         if not self.mace_manager:
@@ -245,13 +250,16 @@ class MaceTrainer(Trainer):
 
         # 2. Train
         # Params from config or specific distillation params
-        params: dict[str, Any] = {"epochs": 50}  # Default
+        params: dict[str, Any] = {"max_num_epochs": 50}  # Default
         if self.config.distillation and self.config.distillation.step3_mace_finetune:
             mace_conf = self.config.distillation.step3_mace_finetune
-            params["epochs"] = mace_conf.epochs
+            params["max_num_epochs"] = mace_conf.epochs
 
         if initial_potential:
             params["foundation_model"] = str(initial_potential.path)
+
+        # Merge extra params (optional)
+        params.update(kwargs)
 
         output_path = self.mace_manager.train(dataset_path, work_dir, params)
 

@@ -38,15 +38,18 @@ class ValidatorManager:
                      device="cpu",
                      default_dtype="float64"
                  )
+             except ImportError as e:
+                 self.logger.warning("MACE not installed.")
+                 msg = "MACE missing"
+                 raise RuntimeError(msg) from e
+             except Exception as e:
+                 self.logger.exception("Failed to attach MACE calculator")
+                 msg = "MACE failure"
+                 raise RuntimeError(msg) from e
+             else:
                  atoms.calc = calc
                  self.logger.info("Attached MACE calculator.")
                  return atoms
-             except ImportError as e:
-                 self.logger.warning("MACE not installed.")
-                 raise RuntimeError("MACE missing") from e
-             except Exception as e:
-                 self.logger.exception("Failed to attach MACE calculator")
-                 raise RuntimeError("MACE failure") from e
 
         # Try attaching real PACE calculator (Default or PACE type)
         try:

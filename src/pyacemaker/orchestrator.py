@@ -31,10 +31,10 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     StructureStatus,
 )
-from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
-from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
 from pyacemaker.generator.direct import DirectGenerator
 from pyacemaker.modules.active_learner import ActiveLearner
+from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
+from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
@@ -423,8 +423,13 @@ class Orchestrator(IOrchestrator):
                     for a in self.dataset_manager.load_iter(self.dataset_path)
                 )
 
+            weight_dft = dist_config.step7_pacemaker_finetune.weight_dft
+            self.logger.info(f"Using DFT weight: {weight_dft}")
+
             return self.trainer.train(
-                dft_train_stream(), initial_potential=base_potential
+                dft_train_stream(),
+                initial_potential=base_potential,
+                weight_dft=weight_dft,
             )
         return base_potential
 

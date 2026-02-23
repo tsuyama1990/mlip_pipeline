@@ -73,7 +73,6 @@ def test_select_batch_edge_cases() -> None:
     learner = ActiveLearner()
     candidates = generate_mock_structures(5)
 
-    # n_select = 0
     assert learner.select_batch(candidates, n_select=0) == []
 
     # Missing uncertainty
