@@ -353,7 +353,8 @@ class ASEDynamicsEngine(DynamicsEngine):
 
         try:
             MaxwellBoltzmannDistribution(atoms, temperature_K=temp_k)
-            dyn = Langevin(atoms, timestep=timestep, temperature_K=temp_k, friction=0.01)
+            friction = self.params.parameters.get("friction", 0.01)
+            dyn = Langevin(atoms, timestep=timestep, temperature_K=temp_k, friction=friction)
 
             captured_frames: list[StructureMetadata] = []
 
@@ -363,8 +364,7 @@ class ASEDynamicsEngine(DynamicsEngine):
                  return True
 
             steps = self.params.n_steps
-            # Collect every 10 steps
-            interval = 10
+            interval = self.params.parameters.get("dump_interval", 10)
 
             for _ in range(0, steps, interval):
                 dyn.run(interval)  # type: ignore[no-untyped-call]
