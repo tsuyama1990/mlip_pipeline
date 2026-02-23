@@ -69,3 +69,38 @@ def test_mace_manager_compute(
 
     # Verify result is the same atoms object (copy)
     assert isinstance(result, Atoms)
+
+
+def test_build_train_command_validation(mace_manager_class: type) -> None:
+    """Test train command construction with parameter validation."""
+    from pathlib import Path
+    config = MaceConfig(model_path="medium")
+    manager = mace_manager_class(config)
+
+    dataset_path = Path("/tmp/data.xyz")
+    work_dir = Path("/tmp/work")
+
+    # Valid params
+    params = {
+        "max_num_epochs": 100,
+        "batch_size": 32,
+        "lr": 1e-3, # Scientific notation
+        "loss": "energy_forces",
+    }
+
+    cmd = manager._build_train_command(dataset_path, work_dir, params)
+    assert "--max_num_epochs" in cmd
+    assert "100" in cmd
+    assert "--lr" in cmd
+    assert "0.001" in cmd # 1e-3 -> 0.001 str conversion usually
+
+    # Invalid key
+    params_invalid_key = {"bad_key": 1}
+    cmd_bad = manager._build_train_command(dataset_path, work_dir, params_invalid_key)
+    assert "--bad_key" not in cmd_bad
+
+    # Invalid value (injection attempt)
+    params_injection = {"model": "; rm -rf /"}
+    cmd_inj = manager._build_train_command(dataset_path, work_dir, params_injection)
+    # Value validation should block this
+    assert "; rm -rf /" not in cmd_inj

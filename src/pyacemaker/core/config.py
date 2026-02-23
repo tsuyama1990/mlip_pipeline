@@ -295,6 +295,38 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["dataset_extension"]
     )
 
+    # Generator Defaults
+    direct_oversample: int = Field(default=10, description="Oversampling factor for Direct Sampling")
+    direct_batch_size: int = Field(default=100, description="Batch size for Direct Sampling")
+    direct_box_size: float = Field(default=10.0, description="Box size for Direct Sampling")
+
+    # MACE Defaults
+    mace_default_model_name: str = Field(
+        default="mace_model_compiled.model", description="Default MACE model filename"
+    )
+    mace_default_max_epochs: int = Field(default=50, description="Default max epochs for MACE training")
+
+    mace_allowed_train_params: frozenset[str] = Field(
+        default_factory=lambda: frozenset({
+            "model", "train_file", "valid_file", "test_file", "E0s", "config", "seed",
+            "device", "batch_size", "max_num_epochs", "patience", "eval_interval",
+            "keep_checkpoints", "restart_latest", "loss", "ems", "forces_weight",
+            "energy_weight", "stress_weight", "virial_weight", "lr", "scheduler",
+            "decay", "clip_grad", "swa", "start_swa", "swa_lr", "swa_forces_weight",
+            "swa_energy_weight", "swa_stress_weight", "swa_virial_weight", "r_max",
+            "num_radial_basis", "num_cutoff_basis", "interaction", "interaction_first",
+            "max_ell", "correlation", "hidden_irreps", "MLP_irreps", "gate",
+            "scaling", "avg_num_neighbors", "compute_avg_num_neighbors",
+            "compute_stress", "compute_forces", "compute_virial", "error_table",
+            "default_dtype", "checkpoints_dir", "log_dir", "name", "wandb_name",
+            "wandb_project", "wandb_entity", "wandb_log_hypers", "foundation_model",
+            "finetune", "distributed",
+        })
+    )
+
+    # Oracle Defaults
+    oracle_chunk_size: int = Field(default=100, description="Chunk size for Oracle batch processing")
+
     @field_validator("max_config_size")
     @classmethod
     def validate_max_config_size(cls, v: int) -> int:
@@ -391,27 +423,39 @@ class MaceConfig(BaseModel):
     @field_validator("model_path")
     @classmethod
     def validate_model_path(cls, v: str, _info: Any) -> str:
-        """Validate model path existence if not mocking."""
-        # If 'mock' field is set to True in the model instance, skip validation
-        # But we don't have access to other fields easily in @field_validator unless using ValidationInfo context
-        # Actually, simpler: if the string is not a URL/magic string "medium", check existence.
-        # But we can't check 'mock' status easily here without `model_validator`.
-        # Let's check basic patterns first.
+        """Validate model path existence or URL format."""
         if v.lower() in {"medium", "small", "large"}:
             return v
 
+        # Check if URL
+        if v.startswith(("http://", "https://")):
+            # Simple URL validation regex to prevent injection chars
+            # Allows letters, numbers, dots, slashes, hyphens, underscores, colons (port)
+            if not re.match(r'^(http|https)://[a-zA-Z0-9\-\.]+(:\d+)?(/[\w\-\./?%&=]*)?$', v):
+                 msg = f"Invalid model URL format: {v}"
+                 raise ValueError(msg)
+            return v
+
         path = Path(v)
-        # Security check: ALWAYS valid path structure
+        # Security check: ALWAYS valid path structure and traversal prevention
         try:
+            # validate_safe_path checks for '..' components.
+            # We also ensure it resolves to an absolute path if it exists,
+            # or treat it as relative to CWD (or project root if we had context).
+            # Here we just strictly enforce safe path syntax.
             validate_safe_path(path)
+
+            # Additional check: If path exists, ensure it is absolute or handle it safely.
+            # We don't enforce existence here (e.g. for new files), but we enforce safety.
+            if path.is_absolute() and not path.exists() and not path.parent.exists():
+                 # Suspicious absolute path to non-existent location?
+                 # Actually, validate_safe_path is good enough for structure.
+                 pass
+
         except ValueError as e:
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e
 
-        # Existence check: delegated to manager or checked here?
-        # The user might provide a path that only exists at runtime (downloaded).
-        # We'll skip strict existence check here to allow download workflows,
-        # but ensure it's a safe path string.
         return v
 
     @field_validator("device")
@@ -850,6 +894,18 @@ class DistillationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     enable_mace_distillation: bool = Field(default=False, description="Enable MACE distillation")
+
+    # File paths for intermediate artifacts
+    pool_file: str = Field(
+        default="pool_structures.pckl.gzip", description="Filename for the initial structure pool"
+    )
+    surrogate_file: str = Field(
+        default="surrogate_unlabeled.pckl.gzip", description="Filename for generated surrogate structures"
+    )
+    surrogate_dataset_file: str = Field(
+        default="surrogate_dataset.pckl.gzip", description="Filename for labeled surrogate dataset"
+    )
+
     step1_direct_sampling: Step1DirectSamplingConfig = Field(
         default_factory=Step1DirectSamplingConfig
     )

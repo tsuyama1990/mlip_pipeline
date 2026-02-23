@@ -1,11 +1,13 @@
 """MACE Trainer implementation."""
 
+import shutil
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.utils import stream_metadata_to_atoms
 from pyacemaker.domain_models.models import (
     ActiveSet,
@@ -64,42 +66,64 @@ class MaceTrainer(BaseTrainer):
             msg = "MACE Manager not initialized. Check config."
             raise ValueError(msg)
 
-        # 1. Prepare Dataset
-        # Use a safe temporary directory
-        work_dir = Path(tempfile.mkdtemp(prefix="mace_train_"))
-        dataset_path = work_dir / "training_data.xyz"
+        # Ensure persistent models directory exists
+        models_dir = self.config.project.root_dir / "models"
+        models_dir.mkdir(parents=True, exist_ok=True)
 
-        # Filter valid structures
-        valid_dataset = (
-            s for s in dataset
-            if s.energy is not None and s.forces is not None
-        )
+        # Use temporary directory context for cleanup
+        with tempfile.TemporaryDirectory(prefix="mace_train_") as temp_dir_str:
+            work_dir = Path(temp_dir_str)
+            dataset_path = work_dir / "training_data.xyz"
 
-        # Save to file using streaming to prevent OOM
-        self.dataset_manager.save_iter(stream_metadata_to_atoms(valid_dataset), dataset_path)
+            # Filter valid structures using generator function
+            def valid_stream(data: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+                for s in data:
+                    if s.energy is not None and s.forces is not None:
+                        yield s
 
-        # 2. Train
-        # Params from config or specific distillation params
-        params: dict[str, Any] = {"max_num_epochs": 50}  # Default
-        if self.config.distillation and self.config.distillation.step3_mace_finetune:
-            mace_conf = self.config.distillation.step3_mace_finetune
-            params["max_num_epochs"] = mace_conf.epochs
+            valid_dataset_iter = valid_stream(dataset)
 
-        if initial_potential:
-            params["foundation_model"] = str(initial_potential.path)
+            # Save to file using streaming to prevent OOM
+            # stream_metadata_to_atoms returns a generator, save_iter consumes it lazily.
+            self.dataset_manager.save_iter(
+                stream_metadata_to_atoms(valid_dataset_iter), dataset_path
+            )
 
-        # Merge extra params (optional)
-        safe_kwargs = self._validate_train_kwargs(kwargs)
-        params.update(safe_kwargs)
+            # 2. Train
+            # Params from config or specific distillation params
+            params: dict[str, Any] = {
+                "max_num_epochs": CONSTANTS.mace_default_max_epochs
+            }
+            if self.config.distillation and self.config.distillation.step3_mace_finetune:
+                mace_conf = self.config.distillation.step3_mace_finetune
+                params["max_num_epochs"] = mace_conf.epochs
 
-        # Map common aliases
-        if "epochs" in params:
-            params["max_num_epochs"] = params.pop("epochs")
+            if initial_potential:
+                params["foundation_model"] = str(initial_potential.path)
 
-        output_path = self.mace_manager.train(dataset_path, work_dir, params)
+            # Merge extra params (optional)
+            safe_kwargs = self._validate_train_kwargs(kwargs)
+            params.update(safe_kwargs)
+
+            # Map common aliases
+            if "epochs" in params:
+                params["max_num_epochs"] = params.pop("epochs")
+
+            output_path = self.mace_manager.train(dataset_path, work_dir, params)
+
+            # Persist the model
+            unique_name = f"mace_model_{uuid4().hex[:8]}.model"
+            final_path = models_dir / unique_name
+
+            if output_path.exists():
+                shutil.copy2(output_path, final_path)
+            else:
+                # Should have been handled by mace_manager but double check
+                msg = f"Model not found at {output_path}"
+                raise FileNotFoundError(msg)
 
         return Potential(
-            path=output_path,
+            path=final_path,
             type=PotentialType.MACE,
             version=self.config.version,
             metrics={},
@@ -109,13 +133,15 @@ class MaceTrainer(BaseTrainer):
     def select_active_set(
         self, candidates: Iterable[StructureMetadata], n_select: int
     ) -> ActiveSet:
-        """Select active set.
+        """Select active set stub.
 
-        Currently not implemented for MACE as the active learning logic resides in the Orchestrator/ActiveLearner.
+        MACE active learning logic is handled by the Orchestrator/ActiveLearner module.
+        This method exists for interface compliance.
         """
-        # Return an empty ActiveSet or raise error.
-        # The Orchestrator handles MACE AL via ActiveLearner module directly in Cycle 02 logic.
-        # So this might technically be unreachable in current workflow,
-        # but for interface compliance we raise or return empty.
-        msg = "MaceTrainer.select_active_set is not implemented."
-        raise NotImplementedError(msg)
+        self.logger.warning("MaceTrainer.select_active_set called but MACE AL uses external logic.")
+        return ActiveSet(
+            structure_ids=[],
+            structures=None,
+            dataset_path=None,
+            selection_criteria="external_mace_al"
+        )

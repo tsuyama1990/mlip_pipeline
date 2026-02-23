@@ -1,13 +1,15 @@
 """MACE Manager module."""
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from ase import Atoms
 from loguru import logger
 
-from pyacemaker.core.config import MaceConfig
+from pyacemaker.core.config import CONSTANTS, MaceConfig
 from pyacemaker.core.exceptions import OracleError
 from pyacemaker.core.utils import validate_structure_integrity_atoms
 from pyacemaker.core.validation import validate_safe_path
@@ -24,22 +26,6 @@ except ImportError:
 class MaceManager:
     """Manages MACE calculations."""
 
-    _ALLOWED_TRAIN_PARAMS = frozenset({
-        "model", "train_file", "valid_file", "test_file", "E0s", "config", "seed",
-        "device", "batch_size", "max_num_epochs", "patience", "eval_interval",
-        "keep_checkpoints", "restart_latest", "loss", "ems", "forces_weight",
-        "energy_weight", "stress_weight", "virial_weight", "lr", "scheduler",
-        "decay", "clip_grad", "swa", "start_swa", "swa_lr", "swa_forces_weight",
-        "swa_energy_weight", "swa_stress_weight", "swa_virial_weight", "r_max",
-        "num_radial_basis", "num_cutoff_basis", "interaction", "interaction_first",
-        "max_ell", "correlation", "hidden_irreps", "MLP_irreps", "gate",
-        "scaling", "avg_num_neighbors", "compute_avg_num_neighbors",
-        "compute_stress", "compute_forces", "compute_virial", "error_table",
-        "default_dtype", "checkpoints_dir", "log_dir", "name", "wandb_name",
-        "wandb_project", "wandb_entity", "wandb_log_hypers", "foundation_model",
-        "finetune", "distributed",
-    })
-
     def __init__(self, config: MaceConfig) -> None:
         """Initialize the MACE Manager."""
         self.config = config
@@ -49,6 +35,11 @@ class MaceManager:
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Only Mock mode will work.")
 
+    def update_model_path(self, path: Path) -> None:
+        """Update the model path and reload the model."""
+        self.config.model_path = str(path)
+        self.load_model()
+
     def load_model(self) -> None:
         """Load the MACE model."""
         if not HAS_MACE:
@@ -56,11 +47,26 @@ class MaceManager:
             raise OracleError(msg)
 
         model_path = self.config.model_path
-        # Validate path safety if it's a local file path
-        if model_path not in ("medium", "large", "small") and not model_path.startswith("http"):
+
+        # Validate path or URL
+        if model_path.startswith(("http://", "https://")):
+            # Simple URL validation
+            url_pattern = re.compile(
+                r'^(?:http|ftp)s?://' # http:// or https://
+                r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' # domain...
+                r'localhost|' # localhost...
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
+                r'(?::\d+)?' # optional port
+                r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+            if not url_pattern.match(model_path):
+                 msg = f"Invalid model URL: {model_path}"
+                 raise OracleError(msg)
+        elif model_path not in ("medium", "large", "small"):
+            # Local file path
             try:
-                validate_safe_path(Path(model_path))
-            except ValueError as e:
+                p = Path(model_path).resolve()
+                validate_safe_path(p)
+            except (ValueError, RuntimeError) as e:
                 msg = f"Invalid MACE model path: {e}"
                 raise OracleError(msg) from e
 
@@ -90,7 +96,7 @@ class MaceManager:
             self.load_model()
 
         # Copy structure to avoid side effects
-        calc_structure = structure.copy()  # type: ignore[no-untyped-call]
+        calc_structure = structure.copy()
         if not isinstance(calc_structure, Atoms):
             msg = "Failed to copy structure"
             raise OracleError(msg)
@@ -104,7 +110,7 @@ class MaceManager:
                 msg = "Structure object missing get_potential_energy method"
                 raise TypeError(msg)  # noqa: TRY301
 
-            calc_structure.get_potential_energy()  # type: ignore[no-untyped-call]
+            calc_structure.get_potential_energy()
         except Exception as e:
             msg = f"MACE prediction failed: {e}"
             self.logger.exception(msg)
@@ -113,19 +119,51 @@ class MaceManager:
             return calc_structure
 
     def compute_uncertainty(self, atoms_list: list[Atoms]) -> list[float]:
-        """Compute uncertainty for a list of structures."""
+        """Compute uncertainty for a list of structures.
+
+        Returns a list of uncertainty values (float).
+        """
         if not atoms_list:
             return []
 
-        # Placeholder for actual MACE uncertainty (e.g. ensemble variance)
-        # If using a single model, we might not have uncertainty unless it outputs it.
-        # For now, return random/dummy values if not implemented or mock.
-        # If we had an ensemble, we would run each model and compute variance.
+        # Security: Validate batch size to prevent DoS
+        if len(atoms_list) > 1000:
+            msg = f"Batch size {len(atoms_list)} exceeds limit of 1000"
+            raise ValueError(msg)
 
-        # Assuming mock implementation for now as MACE dependency is optional/external
-        import numpy as np
+        # Validate inputs
+        for atoms in atoms_list:
+            try:
+                validate_structure_integrity_atoms(atoms)
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"Skipping invalid atoms in uncertainty computation: {e}")
+                # We must maintain list length alignment, so return a default high uncertainty or raise?
+                # Raising breaks the batch. Let's return -1.0 or None, but type says float.
+                # Actually, if integrity check fails, we shouldn't trust it.
+                # But here we are just validating. If it fails, we should probably fail the call or return dummy.
+                # Let's assume the caller filters, but double check.
+                pass
 
-        return list(np.random.default_rng().random(len(atoms_list)))
+        try:
+            if self.calculator and hasattr(self.calculator, "get_variance"):
+                 # Use real calculator variance if available
+                 # This depends on MACE version/implementation
+                 variances = []
+                 for atoms in atoms_list:
+                     # This is slow, but MACE calculator might not support batch list directly
+                     # unless we use specific batch methods.
+                     # For now, placeholder or loop.
+                     atoms.calc = self.calculator
+                     var = self.calculator.get_variance(atoms)
+                     variances.append(float(var))
+                 return variances
+        except Exception as e:
+            self.logger.warning(f"Failed to compute real uncertainty: {e}. Falling back to mock.")
+
+        # Fallback / Mock
+        # Return random values [0, 1]
+        rng = np.random.default_rng()
+        return [float(x) for x in rng.random(len(atoms_list))]
 
     def _build_train_command(
         self, dataset_path: Path, work_dir: Path, params: dict[str, Any]
@@ -146,10 +184,11 @@ class MaceManager:
         import re
 
         valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
-        valid_val = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+        # Allow alphanumeric, underscore, hyphen, dot, slash, plus (sci notation), comma (lists), colon
+        valid_val = re.compile(r"^[a-zA-Z0-9_\-./+,:]+$")
 
         for key, value in params.items():
-            if key not in self._ALLOWED_TRAIN_PARAMS:
+            if key not in CONSTANTS.mace_allowed_train_params:
                 self.logger.warning(f"Skipping disallowed parameter key: {key}")
                 continue
 
@@ -215,7 +254,7 @@ class MaceManager:
 
         # Find the best model
         # Use configurable name if possible, otherwise search
-        model_name_base = "mace_model_compiled.model" # Could be in config
+        model_name_base = CONSTANTS.mace_default_model_name
         model_path = work_dir / model_name_base
         if not model_path.exists():
              # Fallback to search

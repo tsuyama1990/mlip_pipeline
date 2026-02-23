@@ -14,10 +14,12 @@ from pyacemaker.modules.trainer import PacemakerTrainer as Trainer
 
 class TestTrainerModule:
     @pytest.fixture
-    def config(self) -> MagicMock:
+    def config(self, tmp_path: Path) -> MagicMock:
         # Mock PYACEMAKERConfig
         mock_config = MagicMock(spec=PYACEMAKERConfig)
         mock_config.version = "1.0.0"
+        mock_config.project = MagicMock()
+        mock_config.project.root_dir = tmp_path
         mock_config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,
@@ -55,7 +57,9 @@ class TestTrainerModule:
         dataset = [structure]
 
         # Configure mock return values
-        trainer.mock_wrapper.train.return_value = Path("output.yace")  # type: ignore[attr-defined]
+        dummy_output = trainer.config.project.root_dir / "output.yace"
+        dummy_output.touch()
+        trainer.mock_wrapper.train.return_value = dummy_output  # type: ignore[attr-defined]
 
         # Ensure save_iter consumes the iterator to trigger counting AND creates file
         def consume_iterator(data: Iterator[Any], path: Path) -> None:
@@ -79,3 +83,34 @@ class TestTrainerModule:
         assert trainer.wrapper is not None
         assert trainer.active_set_selector is not None
         assert trainer.dataset_manager is not None
+
+    def test_train_empty_dataset(self, trainer: Trainer) -> None:
+        """Test trainer raises error on empty dataset."""
+        dataset = []
+
+        # Configure mock to NOT yield anything when loaded/saved or just pass empty
+        # But train() iterates over dataset first.
+
+        with pytest.raises(ValueError, match="No valid structures"):
+            trainer.train(dataset)
+
+    def test_train_missing_file(self, trainer: Trainer) -> None:
+        """Test trainer handles missing output file."""
+        from ase import Atoms
+        structure = StructureMetadata(
+            features={"atoms": Atoms("H")}, energy=-10.0, forces=[[0.0, 0.0, 0.0]]
+        )
+        dataset = [structure]
+
+        # Mock wrapper to return a path that doesn't exist
+        trainer.mock_wrapper.train.return_value = Path("non_existent_model.yace") # type: ignore
+
+        # Mock save_iter to just consume
+        trainer.mock_dataset_manager.save_iter.side_effect = lambda data, path: list(data) # type: ignore
+
+        # Ensure we are not in mock mode for this test, or check logic
+        # Trainer config mock has mock=False by default in fixture?
+        # Check fixture: mock_config.trainer = TrainerConfig(...) -> mock defaults to False.
+
+        with pytest.raises(FileNotFoundError, match="Model not found"):
+            trainer.train(dataset)
