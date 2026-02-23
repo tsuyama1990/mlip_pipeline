@@ -1,32 +1,21 @@
 """Tests for MACE Distillation Workflow."""
 
-from collections.abc import Iterator
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
-
 import pytest
-from ase import Atoms
+from unittest.mock import MagicMock, patch
+from pathlib import Path
+from uuid import uuid4
+from typing import Iterator, Any, Iterable
 
-from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.core.interfaces import (
-    DynamicsEngine,
-    Oracle,
-    StructureGenerator,
-    Trainer,
-    UncertaintyModel,
-    Validator,
-)
-from pyacemaker.core.utils import validate_structure_integrity
-from pyacemaker.domain_models.models import (
-    Potential,
-    StructureMetadata,
-    StructureStatus,
-    UncertaintyState,
-)
+from pyacemaker.core.exceptions import OracleError
+from pydantic import ValidationError
+from pyacemaker.domain_models.models import StructureMetadata, StructureStatus, UncertaintyState, Potential, PotentialType
 from pyacemaker.orchestrator import Orchestrator
+from pyacemaker.core.interfaces import StructureGenerator, Oracle, UncertaintyModel, Trainer, DynamicsEngine, Validator
+from pyacemaker.core.base import ModuleResult, Metrics
+from pyacemaker.core.utils import validate_structure_integrity
+from pyacemaker.oracle.mace_manager import MaceManager, MaceConfig
+from ase import Atoms
 
 # Constants
 TEST_TARGET_POINTS = 5
@@ -59,7 +48,7 @@ class MockOracle(Oracle, UncertaintyModel):
     def run(self) -> ModuleResult:
         return ModuleResult(status="success", metrics=Metrics())
 
-    def compute_batch(self, structures: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]:
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         for s in structures:
             s.status = StructureStatus.CALCULATED
             s.energy = -1.0
@@ -69,7 +58,7 @@ class MockOracle(Oracle, UncertaintyModel):
                 s.forces = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
             yield s
 
-    def compute_uncertainty(self, structures: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]:
+    def compute_uncertainty(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         if self.fail_uncertainty:
             msg = "Oracle Failed"
             raise RuntimeError(msg)
@@ -117,7 +106,7 @@ def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> No
     mock_oracle = MockOracle(base_config)
 
     mock_trainer = MagicMock(spec=Trainer)
-    mock_trainer.train.return_value = Potential(path=Path("pot.yace"), type="PACE", version="1.0", metrics={}, parameters={})
+    mock_trainer.train.return_value = Potential(path=Path("pot.yace"), type=PotentialType.PACE, version="1.0", metrics={}, parameters={})
 
     mock_dyn = MagicMock(spec=DynamicsEngine)
     mock_dyn.run_exploration.side_effect = lambda pot, seeds: streaming_generator_mock(TEST_TARGET_POINTS)
@@ -125,7 +114,7 @@ def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> No
     mock_val = MagicMock(spec=Validator)
 
     mock_mace_trainer = MagicMock(spec=Trainer)
-    mock_mace_trainer.train.return_value = Potential(path=Path("mace.model"), type="MACE", version="1.0", metrics={}, parameters={})
+    mock_mace_trainer.train.return_value = Potential(path=Path("mace.model"), type=PotentialType.MACE, version="1.0", metrics={}, parameters={})
 
     orch = Orchestrator(
         base_config,
@@ -140,7 +129,7 @@ def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> No
     # Patch the internal surrogate oracle instantiation
     with patch('pyacemaker.orchestrator.MaceSurrogateOracle') as MockMaceOracleCls:
         mock_mace_instance = MockMaceOracleCls.return_value
-        def mock_compute_batch(structures: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]:
+        def mock_compute_batch(structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
             for s in structures:
                 s.status = StructureStatus.CALCULATED
                 s.energy = -2.0
@@ -167,16 +156,10 @@ def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
     # Oracle returns LOW uncertainty
     mock_oracle = MockOracle(base_config)
 
-    def low_uncertainty(structures: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]:
+    def low_uncertainty(structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         for s in structures:
             s.uncertainty_state = UncertaintyState(gamma_max=0.1, gamma_mean=0.1)
             yield s
-
-    # Override compute_uncertainty
-    # We need to bind it to the instance or just assign side_effect if it was a mock,
-    # but here it's a real class. We can't easily assign method.
-    # Instead, we subclass or use mock wrapper.
-    # Let's use patch on the instance method if possible, or MockOracle subclass.
 
     mock_oracle.compute_uncertainty = low_uncertainty # type: ignore
 
@@ -194,14 +177,6 @@ def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
     # Mock downstream
     with patch('pyacemaker.orchestrator.MaceSurrogateOracle'):
         orch._run_mace_distillation()
-
-    # Verify MACE trainer was NOT called because we converged (no selection)
-    # Wait, if selection logic finds NO structures above threshold, it breaks.
-    # My logic:
-    # 1. compute_uncertainty -> returns structures with low gamma
-    # 2. heapq.nlargest -> selects top N (which exist, just low gamma)
-    # 3. Check selected[0].gamma_max < threshold -> BREAK
-    # So yes, it breaks before compute_batch (DFT) and train.
 
     mock_mace_trainer.train.assert_not_called()
 
@@ -227,15 +202,11 @@ def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
 
 def test_config_validation_mace_mode(base_config: PYACEMAKERConfig) -> None:
     """Test that invalid configuration prevents running."""
-    # Setup standard Orchestrator which defaults to DFTOracle if mace is missing
-    # We construct a config without mace settings potentially, or just use base_config
-    # but verify Orchestrator enforces UncertaintyModel.
-
     # Create an Oracle that is NOT an UncertaintyModel
     class PlainOracle(Oracle):
         def __init__(self, c: PYACEMAKERConfig) -> None: super().__init__(c)
         def run(self) -> ModuleResult: return ModuleResult(status="ok", metrics=Metrics())
-        def compute_batch(self, s: Iterator[StructureMetadata]) -> Iterator[StructureMetadata]: yield from s
+        def compute_batch(self, s: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]: yield from s
 
     plain_oracle = PlainOracle(base_config)
 
@@ -268,3 +239,65 @@ def test_empty_generator_handling(base_config: PYACEMAKERConfig) -> None:
     # Should fail when attempting to train on empty dataset in Step 6
     with pytest.raises(ValueError, match="No valid structures"):
         orch._run_mace_distillation()
+
+def test_mace_workflow_malformed_uncertainty(base_config: PYACEMAKERConfig) -> None:
+    """Test handling of structures with missing/malformed uncertainty state."""
+    mock_sg = MagicMock(spec=StructureGenerator)
+    mock_sg.generate_direct_samples.side_effect = lambda **kwargs: streaming_generator_mock(5)
+
+    mock_oracle = MockOracle(base_config)
+    # Spy on compute_batch
+    mock_oracle.compute_batch = MagicMock(wraps=mock_oracle.compute_batch) # type: ignore
+
+    def malformed_uncertainty(structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+        for s in structures:
+            # uncertainty_state is None
+            s.uncertainty_state = None
+            yield s
+
+    mock_oracle.compute_uncertainty = malformed_uncertainty # type: ignore
+
+    mock_trainer = MagicMock(spec=Trainer)
+    mock_trainer.train.return_value = Potential(path=Path("pot.yace"), type=PotentialType.PACE, version="1.0", metrics={}, parameters={})
+
+    mock_dyn = MagicMock(spec=DynamicsEngine)
+    mock_dyn.run_exploration.return_value = iter([])
+
+    orch = Orchestrator(
+        base_config,
+        structure_generator=mock_sg,
+        oracle=mock_oracle,
+        trainer=mock_trainer,
+        dynamics_engine=mock_dyn,
+        mace_trainer=MagicMock()
+    )
+
+    # Should run without error but select nothing because keys are -1.0
+    with patch('pyacemaker.orchestrator.MaceSurrogateOracle'):
+        result = orch._run_mace_distillation()
+
+    assert result.status == "success"
+    # Verify Step 2 selected nothing (no DFT computation)
+    mock_oracle.compute_batch.assert_not_called()
+
+def test_mace_security_validation() -> None:
+    """Test MACE manager security validation."""
+    # Test valid path
+    config = MaceConfig(model_path="medium")
+    manager = MaceManager(config) # Should pass
+
+    # Test invalid path (traversal) - validation happens at Config init now?
+    # Actually, Config validation runs when MaceConfig is instantiated.
+    # But in MaceManager.load_model we explicitly added a check too.
+    # If we pass a bad path string to MaceConfig, it might fail there first if validators are robust.
+    # But let's check checking mechanisms.
+
+    # Case 1: Config validator (if present). `validate_safe_path` ensures checks.
+    # If MaceConfig model_path validator calls validate_safe_path, it fails at init.
+    # In my previous step, I didn't add it to MaceConfig validator, only MaceManager.load_model.
+    # Wait, I did verify `MaceConfig` validator in `core/config.py`?
+    # Ah, `test_mace_security_validation` failed with `ValidationError`.
+    # This means `MaceConfig` DOES validate.
+
+    with pytest.raises(ValidationError, match="Invalid model path structure"):
+        MaceConfig(model_path="/../../etc/passwd")

@@ -21,7 +21,11 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.interfaces import (
     Validator as ValidatorInterface,
 )
-from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
+from pyacemaker.core.utils import (
+    atoms_to_metadata,
+    metadata_to_atoms,
+    select_top_k_structures,
+)
 from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
@@ -288,25 +292,29 @@ class Orchestrator(IOrchestrator):
             uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
             scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
 
-            # Select Top N (using heap to avoid full sort)
+            # Select Top N (using shared utility with heap)
             n_select = dist_config.step2_active_learning.n_select
-            selected = heapq.nlargest(
-                n_select,
+            selected = select_top_k_structures(
                 scored_pool,
-                key=lambda s: s.uncertainty_state.gamma_max
-                if s.uncertainty_state and s.uncertainty_state.gamma_max
-                else 0.0,
+                n_select,
+                key_func=lambda s: s.uncertainty_state.gamma_max
+                if s.uncertainty_state and s.uncertainty_state.gamma_max is not None
+                else -1.0,
             )
             if not selected:
                 self.logger.info("No more candidates in pool.")
                 break
 
             # Check threshold
+            # Determine max gamma of top candidate (handle None as -1.0)
+            top_gamma = -1.0
             if (
                 selected[0].uncertainty_state
-                and selected[0].uncertainty_state.gamma_max
-                < dist_config.step2_active_learning.uncertainty_threshold
+                and selected[0].uncertainty_state.gamma_max is not None
             ):
+                top_gamma = selected[0].uncertainty_state.gamma_max
+
+            if top_gamma < dist_config.step2_active_learning.uncertainty_threshold:
                 self.logger.info("Uncertainty below threshold. Step 2 Converged.")
                 break
 

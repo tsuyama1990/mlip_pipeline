@@ -2,9 +2,10 @@
 
 import contextlib
 import hashlib
-from collections.abc import Iterator
+import heapq
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
 import numpy as np
@@ -18,6 +19,27 @@ from pyacemaker.domain_models.models import (
 
 if TYPE_CHECKING:
     from ase import Atoms
+
+T = TypeVar("T")
+
+
+def select_top_k_structures(
+    iterator: Iterable[T], k: int, key_func: Callable[[T], float]
+) -> list[T]:
+    """Select the top K elements from an iterable based on a key function.
+
+    Uses a heap to maintain O(K) memory usage, suitable for large streams.
+
+    Args:
+        iterator: Iterable of items.
+        k: Number of items to select.
+        key_func: Function to extract comparison key (larger is better).
+
+    Returns:
+        List of selected items (sorted by key descending).
+
+    """
+    return heapq.nlargest(k, iterator, key=key_func)
 
 
 def validate_structure_integrity(structure: StructureMetadata) -> None:

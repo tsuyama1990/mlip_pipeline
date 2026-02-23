@@ -9,6 +9,7 @@ from loguru import logger
 
 from pyacemaker.core.config import MaceConfig
 from pyacemaker.core.exceptions import OracleError
+from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.core.utils import validate_structure_integrity_atoms
 
 try:
@@ -38,7 +39,16 @@ class MaceManager:
             msg = "MACE is not installed. Cannot load model."
             raise OracleError(msg)
 
-        self.logger.info(f"Loading MACE model from {self.config.model_path}")
+        model_path = self.config.model_path
+        # Validate path safety if it's a local file path
+        if model_path not in ("medium", "large", "small") and not model_path.startswith("http"):
+            try:
+                validate_safe_path(Path(model_path))
+            except ValueError as e:
+                msg = f"Invalid MACE model path: {e}"
+                raise OracleError(msg) from e
+
+        self.logger.info(f"Loading MACE model from {model_path}")
         try:
             self.calculator = MACECalculator(
                 model_paths=self.config.model_path,
