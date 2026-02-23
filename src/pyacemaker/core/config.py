@@ -174,12 +174,12 @@ class Constants(BaseSettings):
     dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
 
     # File Names
-    default_dataset_file: str = "dataset.pckl.gzip"
-    default_validation_file: str = "validation_set.pckl.gzip"
-    default_training_file: str = "training_set.pckl.gzip"
-    default_candidates_file: str = "candidates.pckl.gzip"
-    default_selected_file: str = "selected.pckl.gzip"
-    dataset_extension: str = ".pckl.gzip"
+    default_dataset_file: str = _DEFAULTS.get("default_dataset_file", "dataset.pckl.gzip")
+    default_validation_file: str = _DEFAULTS.get("default_validation_file", "validation_set.pckl.gzip")
+    default_training_file: str = _DEFAULTS.get("default_training_file", "training_set.pckl.gzip")
+    default_candidates_file: str = _DEFAULTS.get("default_candidates_file", "candidates.pckl.gzip")
+    default_selected_file: str = _DEFAULTS.get("default_selected_file", "selected.pckl.gzip")
+    dataset_extension: str = _DEFAULTS.get("dataset_extension", ".pckl.gzip")
 
     @field_validator("max_config_size")
     @classmethod

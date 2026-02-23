@@ -56,8 +56,14 @@ class RestrictedUnpickler(pickle.Unpickler):
         if module in {"builtins", "copy_reg"}:
             return super().find_class(module, name)
 
-        # Allow numpy and collections
-        if module.startswith(("numpy", "collections")):
+        # Allow numpy and collections (needed for ASE arrays and internal structures)
+        # We restrict numpy to core to avoid loading arbitrary libs if possible,
+        # but ASE Atoms use numpy arrays heavily.
+        if module == "numpy" or module.startswith("numpy."):
+            return super().find_class(module, name)
+
+        # collections is used for deque, defaultdict, etc. in some objects
+        if module == "collections":
             return super().find_class(module, name)
 
         # Restrict ASE to specific submodules known to be used in Atoms/Calculators

@@ -121,3 +121,11 @@ physics_phonon_tolerance: -0.05
 physics_eos_strain: 0.05
 physics_eos_points: 5
 physics_elastic_strain: 0.01
+
+# File Names
+default_dataset_file: "dataset.pckl.gzip"
+default_validation_file: "validation_set.pckl.gzip"
+default_training_file: "training_set.pckl.gzip"
+default_candidates_file: "candidates.pckl.gzip"
+default_selected_file: "selected.pckl.gzip"
+dataset_extension: ".pckl.gzip"
