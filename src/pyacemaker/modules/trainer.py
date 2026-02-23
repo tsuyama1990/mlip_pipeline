@@ -18,14 +18,16 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
 )
 from pyacemaker.oracle.dataset import DatasetManager
-from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.trainer.active_set import ActiveSetSelector
+from pyacemaker.trainer.mace_trainer import MaceTrainer
 from pyacemaker.trainer.wrapper import PacemakerWrapper
 
 try:
     from ase import Atoms
 except ImportError:
-    Atoms = Any
+    Atoms = Any  # type: ignore[assignment,misc]
+
+__all__ = ["MaceTrainer", "PacemakerTrainer"]
 
 
 class PacemakerTrainer(Trainer):
@@ -37,6 +39,7 @@ class PacemakerTrainer(Trainer):
         self.trainer_config = config.trainer
         self.wrapper = PacemakerWrapper()
         self.active_set_selector = ActiveSetSelector(wrapper=self.wrapper)
+        # Expose dataset_manager as public attribute for tests
         self.dataset_manager = DatasetManager()
 
     def run(self) -> Any:
@@ -52,25 +55,22 @@ class PacemakerTrainer(Trainer):
     ) -> Potential:
         """Train a potential (Streaming)."""
         # 1. Prepare Dataset
-        # Generator for valid structures - Streaming
-        valid_structures = (s for s in dataset if s.energy is not None and s.forces is not None)
-
         # Create work directory
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
         dataset_path = work_dir / CONSTANTS.default_training_file
 
-        # Convert to Atoms and save (Streaming)
+        # Prepare streaming generator with validation and counting
         # We use a mutable counter inside the generator context
-        # This prevents loading anything into a list
         stats = {"count": 0}
 
-        def counting_stream(structures: Iterable[StructureMetadata]) -> Iterator[Any]:
+        def valid_counting_stream(structures: Iterable[StructureMetadata]) -> Iterator[Any]:
             for s in structures:
-                stats["count"] += 1
-                yield s
+                if s.energy is not None and s.forces is not None:
+                    stats["count"] += 1
+                    yield s
 
         # Use helper stream_metadata_to_atoms which uses metadata_to_atoms (now injects UUID)
-        atoms_stream = stream_metadata_to_atoms(counting_stream(valid_structures))
+        atoms_stream = stream_metadata_to_atoms(valid_counting_stream(dataset))
 
         # save_iter consumes the generator completely
         self.dataset_manager.save_iter(atoms_stream, dataset_path)
@@ -184,106 +184,3 @@ class PacemakerTrainer(Trainer):
         self.logger.info(f"Generating {type_} baseline potential at {path}")
         # Placeholder
         path.touch()
-
-
-class MaceTrainer(Trainer):
-    """MACE trainer implementation."""
-
-    def __init__(self, config: PYACEMAKERConfig) -> None:
-        """Initialize MaceTrainer."""
-        super().__init__(config)
-        self.trainer_config = config.trainer  # Reusing trainer config or maybe add mace config?
-        # Assuming MACE config is in oracle.mace for now, or we should look at config.distillation options.
-        # But MACE manager needs MaceConfig.
-        if config.oracle.mace:
-            self.mace_manager: MaceManager | None = MaceManager(config.oracle.mace)
-        else:
-            # Fallback or error if mace not configured but trainer instantiated
-            self.mace_manager = None
-        self.dataset_manager = DatasetManager()
-
-    def run(self) -> Any:
-        """Run the trainer."""
-        self.logger.info("Running MaceTrainer")
-        return {"status": "success"}
-
-    def train(
-        self,
-        dataset: Iterable[StructureMetadata],
-        initial_potential: Potential | None = None,
-        **kwargs: Any,
-    ) -> Potential:
-        """Train or Fine-tune MACE model."""
-        if not self.mace_manager:
-             # Should use config to initialize if not done
-             msg = "MACE Manager not initialized. Check config."
-             raise ValueError(msg)
-
-        # 1. Prepare Dataset
-        work_dir = Path(tempfile.mkdtemp(prefix="mace_train_"))
-        dataset_path = work_dir / "training_data.xyz"
-
-        # Save to file
-        # Filter valid
-        valid_dataset = (
-            s for s in dataset
-            if s.energy is not None and s.forces is not None
-        )
-        # Use centralized helper?
-        # Helper uses metadata_to_atoms which creates SinglePointCalculator.
-        # MaceManager.train likely expects .info/arrays or calculator.
-        # MaceManager.train accepts file path (XYZ).
-        # DatasetManager.save_iter writes pickle.
-        # Wait, MaceManager.train command line takes a file path.
-        # Does MaceManager expect .xyz or .pckl?
-        # _build_train_command passes dataset_path.
-        # If dataset_path is .xyz, save_iter (pickle) is wrong if extension matters.
-        # But here dataset_path is "training_data.xyz".
-        # DatasetManager.save_iter writes framed pickle format regardless of extension?
-        # Yes, save_iter implements pickle dump.
-        # If MACE needs XYZ, we should use ase.io.write.
-        # Checking MaceManager... it runs `mace_run_train`.
-        # MACE usually handles XYZ or Extended XYZ. It might not handle framed pickle.
-        # This seems like a pre-existing issue or MACE supports pickle?
-        # Assuming standard behaviour, we should use ase.io.write for .xyz.
-        # But DatasetManager is injected.
-        # If we stick to save_iter, it writes pickle.
-        # I will assume for now save_iter is intended, or MACE can read it.
-        # The audit didn't flag file format, just memory usage.
-
-        # Using helper to reduce duplication in logic if compatible
-        # stream_metadata_to_atoms uses metadata_to_atoms which attaches calculator.
-        # This is good.
-
-        self.dataset_manager.save_iter(stream_metadata_to_atoms(valid_dataset), dataset_path)
-
-        # 2. Train
-        # Params from config or specific distillation params
-        params: dict[str, Any] = {"max_num_epochs": 50}  # Default
-        if self.config.distillation and self.config.distillation.step3_mace_finetune:
-            mace_conf = self.config.distillation.step3_mace_finetune
-            params["max_num_epochs"] = mace_conf.epochs
-
-        if initial_potential:
-            params["foundation_model"] = str(initial_potential.path)
-
-        # Merge extra params (optional)
-        params.update(kwargs)
-
-        output_path = self.mace_manager.train(dataset_path, work_dir, params)
-
-        return Potential(
-            path=output_path,
-            type=PotentialType.MACE,
-            version=self.config.version,
-            metrics={},
-            parameters=params,
-        )
-
-    def select_active_set(
-        self, candidates: Iterable[StructureMetadata], n_select: int
-    ) -> ActiveSet:
-        """Select active set."""
-        # MACE active learning selection logic is not yet implemented in this trainer.
-        msg = "MaceTrainer.select_active_set is not implemented."
-        raise NotImplementedError(msg)

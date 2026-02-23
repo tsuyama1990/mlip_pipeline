@@ -7,6 +7,7 @@ import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import EONConfig, ValidatorConfig
+from pyacemaker.domain_models.models import Potential, PotentialType
 from pyacemaker.dynamics.kmc import EONWrapper
 from pyacemaker.validator.manager import ValidatorManager
 
@@ -37,6 +38,14 @@ def test_scenario_01_phonon_stability(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
     # Mock specific phonon check
     with (
         patch("pyacemaker.validator.manager.check_phonons") as mock_check,
@@ -48,7 +57,7 @@ def test_scenario_01_phonon_stability(
         mock_eos.return_value = (100.0, "eos.png")
         mock_elastic.return_value = (True, {})
 
-        result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
         assert result.phonon_stable is False
         assert result.passed is False
@@ -62,6 +71,14 @@ def test_scenario_02_eos_check(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
     with (
         patch("pyacemaker.validator.manager.check_eos") as mock_eos,
         patch("pyacemaker.validator.manager.check_phonons") as mock_phonons,
@@ -72,7 +89,7 @@ def test_scenario_02_eos_check(
         mock_phonons.return_value = True
         mock_elastic.return_value = (True, {})
 
-        result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
         assert result.metrics["bulk_modulus"] == 150.0
         assert any(str(v).endswith("eos.png") for v in result.artifacts.values())
@@ -86,6 +103,14 @@ def test_scenario_03_report_generation(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
     with patch("pyacemaker.validator.manager.ReportGenerator") as MockReport:
         mock_instance = MockReport.return_value
 
@@ -98,7 +123,7 @@ def test_scenario_03_report_generation(
             mock_e.return_value = (100.0, "eos.png")
             mock_el.return_value = (True, {})
 
-            manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+            manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
             mock_instance.generate.assert_called_once()
             # Verify generated path

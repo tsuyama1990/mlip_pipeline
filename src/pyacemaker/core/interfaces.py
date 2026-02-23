@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 from collections.abc import Iterable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -13,6 +13,9 @@ from pyacemaker.domain_models.models import (
     Potential,
     StructureMetadata,
 )
+
+if TYPE_CHECKING:
+    from pyacemaker.oracle.dataset import DatasetManager
 
 
 class CycleResult(BaseModel):
@@ -86,6 +89,8 @@ class UncertaintyModel(BaseModule):
 
 class Trainer(BaseModule):
     """Interface for Trainer (Pacemaker) module."""
+
+    dataset_manager: "DatasetManager"
 
     @abstractmethod
     def train(
