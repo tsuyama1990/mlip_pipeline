@@ -170,8 +170,12 @@ class Constants(BaseSettings):
     dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
 
     # File Names
+    default_dataset_file: str = "dataset.pckl.gzip"
     default_validation_file: str = "validation_set.pckl.gzip"
     default_training_file: str = "training_set.pckl.gzip"
+    default_candidates_file: str = "candidates.pckl.gzip"
+    default_selected_file: str = "selected.pckl.gzip"
+    dataset_extension: str = ".pckl.gzip"
 
     @field_validator("max_config_size")
     @classmethod
@@ -531,7 +535,7 @@ class OrchestratorConfig(BaseModel):
         description="Maximum number of structures in validation set (to prevent OOM)",
     )
     dataset_file: str = Field(
-        default="dataset.pckl.gzip",
+        default=CONSTANTS.default_dataset_file,
         description="Filename for the dataset within the data directory",
     )
     validation_file: str = Field(

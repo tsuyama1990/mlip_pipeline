@@ -48,7 +48,7 @@ class PacemakerTrainer(Trainer):
 
         # Create work directory
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
-        dataset_path = work_dir / "training_set.pckl.gzip"
+        dataset_path = work_dir / CONSTANTS.default_training_file
 
         # Convert to Atoms and save (Streaming)
         # We need to count to ensure we have data, but save_iter consumes.
@@ -111,7 +111,7 @@ class PacemakerTrainer(Trainer):
     ) -> ActiveSet:
         """Select active set."""
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_ACTIVE))
-        candidates_path = work_dir / "candidates.pckl.gzip"
+        candidates_path = work_dir / CONSTANTS.default_candidates_file
 
         # Save candidates (Streaming)
         atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
@@ -125,7 +125,7 @@ class PacemakerTrainer(Trainer):
             # We can't easily slice a generator without consuming it or caching.
             # But in mock mode, we usually just want to test flow.
             # We'll reload the saved candidates and take first n_select
-            selected_path = work_dir / "selected.pckl.gzip"
+            selected_path = work_dir / CONSTANTS.default_selected_file
             # Limit generator
             reloaded_gen = self.dataset_manager.load_iter(candidates_path)
 

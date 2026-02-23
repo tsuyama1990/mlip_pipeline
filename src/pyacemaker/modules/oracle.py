@@ -84,16 +84,19 @@ class MockOracle(BaseOracle):
                 yield s
                 continue
 
-            # Generate random values
-            energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
-            forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)]]
-
             # Ensure atoms object exists for Trainer
-            if "atoms" not in s.features or not isinstance(s.features.get("atoms"), Atoms):
+            atoms = s.features.get("atoms")
+            if not isinstance(atoms, Atoms):
                 # Create dummy atoms
-                s.features["atoms"] = Atoms(
+                atoms = Atoms(
                     "Fe", positions=[[0, 0, 0]], cell=[2.5, 2.5, 2.5], pbc=True
                 )
+                s.features["atoms"] = atoms
+
+            # Generate random values
+            energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
+            # Generate forces for EACH atom
+            forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)] for _ in range(len(atoms))]
 
             # Update structure
             s.energy = energy

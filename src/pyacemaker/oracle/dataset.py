@@ -3,20 +3,46 @@
 Implements a Framed Pickle format for safe streaming and size validation.
 """
 
+import contextlib
 import gzip
+import hashlib
 import io
 import pickle
 import struct
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from ase import Atoms
 from loguru import logger
 
+if TYPE_CHECKING:
+    from hashlib import _Hash
+
 from pyacemaker.core.config import CONSTANTS
 from pyacemaker.core.utils import verify_checksum
+
+
+class HashingWriter:
+    """Wrapper around a file object that updates a hash on write."""
+
+    def __init__(self, f: IO[bytes], hasher: "_Hash") -> None:
+        self.f = f
+        self.hasher = hasher
+
+    def write(self, b: bytes) -> int:
+        self.hasher.update(b)
+        return self.f.write(b)
+
+    def flush(self) -> None:
+        self.f.flush()
+
+    def close(self) -> None:
+        self.f.close()
+
+    def tell(self) -> int:
+        return self.f.tell()
 
 
 class RestrictedUnpickler(pickle.Unpickler):
@@ -28,11 +54,28 @@ class RestrictedUnpickler(pickle.Unpickler):
         if module in {"builtins", "copy_reg"}:
             return super().find_class(module, name)
 
-        if module.startswith(("ase", "numpy", "collections")):
+        # Allow numpy and collections
+        if module.startswith(("numpy", "collections")):
+            return super().find_class(module, name)
+
+        # Restrict ASE to specific submodules known to be used in Atoms/Calculators
+        # This reduces surface area compared to allowing all 'ase.*'
+        allowed_ase = {
+            "ase.atoms",
+            "ase.cell",
+            "ase.calculators.singlepoint",
+            "ase.calculators.calculator",
+            # Additional submodules that might be pickled with Atoms
+            "ase.constraints",
+            "ase.spacegroup",
+            "ase.data",
+            "ase.geometry",
+        }
+        if module in allowed_ase or module == "ase":
             return super().find_class(module, name)
 
         # Forbid everything else
-        msg = f"Global '{module}.{name}' is forbidden during unpickling."
+        msg = f"Global '{module}.{name}' is forbidden during unpickling. If this is a valid ASE object, update the whitelist."
         raise pickle.UnpicklingError(msg)
 
 
@@ -289,15 +332,27 @@ class DatasetManager:
             msg = f"Invalid mode '{mode}'. Must be 'wb' or 'ab'."
             raise ValueError(msg)
 
-        # Setup streaming checksum
-        # Note: We cannot easily calculate file checksum during streaming write because gzip
-        # compresses the output. The file on disk will differ from what we hash here.
-        # So we disable in-memory hashing and rely on post-write calculation.
+        # Setup streaming checksum optimization
+        # Only feasible if overwriting/creating new file (wb)
+        streaming_hash = mode == "wb" and calculate_checksum
+        hasher = hashlib.sha256() if streaming_hash else None
 
-        with (
-            gzip.open(path, mode) as gz_file,
-            io.BufferedWriter(gz_file, buffer_size=buffer_size) as f,  # type: ignore[arg-type]
-        ):
+        with contextlib.ExitStack() as stack:
+            if streaming_hash:
+                # Open raw file, wrap with hasher, then wrap with gzip
+                raw_f = stack.enter_context(path.open("wb"))
+                hashing_f = HashingWriter(raw_f, hasher)  # type: ignore
+                # gzip.GzipFile mode 'wb' writes to fileobj
+                gz_file = stack.enter_context(
+                    gzip.GzipFile(filename=path.name, mode="wb", fileobj=hashing_f)
+                )
+            else:
+                gz_file = stack.enter_context(gzip.open(path, mode))  # type: ignore[assignment]
+
+            f = stack.enter_context(
+                io.BufferedWriter(gz_file, buffer_size=buffer_size)  # type: ignore
+            )
+
             for atoms in data:
                 # Pickle to bytes first
                 obj_bytes = pickle.dumps(atoms)
@@ -317,8 +372,11 @@ class DatasetManager:
                 f.write(header)
                 f.write(obj_bytes)
 
-        if calculate_checksum:
-            # Always calculate from disk to match file content (compressed)
+        if streaming_hash and hasher:
+            checksum = hasher.hexdigest()
+            path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+        elif calculate_checksum:
+            # Fallback for append mode
             from pyacemaker.core.utils import calculate_checksum as calc_checksum
 
             checksum = calc_checksum(path)

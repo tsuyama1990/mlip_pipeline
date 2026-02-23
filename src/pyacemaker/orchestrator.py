@@ -2,12 +2,11 @@
 
 from collections.abc import Callable, Iterable, Iterator
 from itertools import chain
-from pathlib import Path
 from typing import Any, TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
-from pyacemaker.core.dataset import DatasetSplitter
+from pyacemaker.core.dataset import DatasetSplitter, SeedSelector
 from pyacemaker.core.interfaces import (
     CycleResult,
     DynamicsEngine,
@@ -318,42 +317,18 @@ class Orchestrator(IOrchestrator):
 
         return True
 
-    def _load_seeds_from_dataset(self, path: Path, limit: int) -> list[StructureMetadata]:
-        """Load seeds from a dataset file up to a limit."""
-        seeds = []
-        try:
-            for i, atoms in enumerate(self.dataset_manager.load_iter(path)):
-                if i >= limit:
-                    break
-                seeds.append(atoms_to_metadata(atoms))
-        except Exception:
-            self.logger.warning(f"Failed to load seeds from {path}.")
-        return seeds
-
     def _get_exploration_seeds(self, n_seeds: int = 20) -> list[StructureMetadata]:
         """Get seed structures for exploration."""
-        seeds: list[StructureMetadata] = []
+        selector = SeedSelector(self.dataset_manager)
+        seeds = selector.get_seeds(
+            self.validation_path,
+            self.training_path,
+            self.structure_generator,
+            n_seeds,
+        )
 
-        # Priority 1: Use validation set (unseen data) if available
-        if self.validation_path.exists():
-            seeds.extend(self._load_seeds_from_dataset(self.validation_path, n_seeds))
-
-        # Priority 2: Fill remaining from training set
-        if len(seeds) < n_seeds and self.training_path.exists():
-            remaining = n_seeds - len(seeds)
-            seeds.extend(self._load_seeds_from_dataset(self.training_path, remaining))
-
-        # Priority 3: If still empty, use generator
         if not seeds:
-            self.logger.warning("No seeds found in datasets. Using generator.")
-            seeds = list(self.structure_generator.generate_initial_structures())
-            if len(seeds) > n_seeds:
-                seeds = seeds[:n_seeds]
-
-        # Shuffle if we want randomness?
-        if len(seeds) > n_seeds:
-            # We already capped reading, but just in case
-            seeds = seeds[:n_seeds]
+            self.logger.warning("No seeds found in datasets or generator.")
 
         return seeds
 

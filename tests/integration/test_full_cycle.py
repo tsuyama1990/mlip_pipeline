@@ -140,7 +140,7 @@ class TestFullCycleIntegration:
             orchestrator = Orchestrator(config)
             # Pre-populate dataset so training runs
             dataset_path = orchestrator.dataset_path
-            orchestrator.dataset_manager.save_iter(iter([Atoms("Fe")]), dataset_path)
+            orchestrator.dataset_manager.save_iter((Atoms("Fe") for _ in range(1)), dataset_path)
 
             result = orchestrator.run()
 
