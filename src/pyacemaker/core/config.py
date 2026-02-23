@@ -850,6 +850,18 @@ class DistillationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     enable_mace_distillation: bool = Field(default=False, description="Enable MACE distillation")
+
+    # File paths for intermediate artifacts
+    pool_file: str = Field(
+        default="pool_structures.pckl.gzip", description="Filename for the initial structure pool"
+    )
+    surrogate_file: str = Field(
+        default="surrogate_unlabeled.pckl.gzip", description="Filename for generated surrogate structures"
+    )
+    surrogate_dataset_file: str = Field(
+        default="surrogate_dataset.pckl.gzip", description="Filename for labeled surrogate dataset"
+    )
+
     step1_direct_sampling: Step1DirectSamplingConfig = Field(
         default_factory=Step1DirectSamplingConfig
     )

@@ -128,13 +128,15 @@ class MaceTrainer(BaseTrainer):
     def select_active_set(
         self, candidates: Iterable[StructureMetadata], n_select: int
     ) -> ActiveSet:
-        """Select active set.
+        """Select active set stub.
 
-        Currently not implemented for MACE as the active learning logic resides in the Orchestrator/ActiveLearner.
+        MACE active learning logic is handled by the Orchestrator/ActiveLearner module.
+        This method exists for interface compliance.
         """
-        # Return an empty ActiveSet or raise error.
-        # The Orchestrator handles MACE AL via ActiveLearner module directly in Cycle 02 logic.
-        # So this might technically be unreachable in current workflow,
-        # but for interface compliance we raise or return empty.
-        msg = "MaceTrainer.select_active_set is not implemented."
-        raise NotImplementedError(msg)
+        self.logger.warning("MaceTrainer.select_active_set called but MACE AL uses external logic.")
+        return ActiveSet(
+            structure_ids=[],
+            structures=None,
+            dataset_path=None,
+            selection_criteria="external_mace_al"
+        )

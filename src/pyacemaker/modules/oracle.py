@@ -294,6 +294,14 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
         self.logger.info("Computing batch of structures (MACE)")
 
         for s in structures:
+            try:
+                validate_structure_integrity(s)
+            except ValueError:
+                self.logger.warning(f"Skipping invalid structure {s.id}")
+                s.status = StructureStatus.FAILED
+                yield s
+                continue
+
             atoms = self._validate_and_extract_atoms(s)
             if atoms is None:
                 yield s
@@ -326,19 +334,31 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
 
             yield s
 
-    def compute_uncertainty(  # noqa: C901, PLR0912
+    def _collect_valid_batch(
+        self, chunk: list[StructureMetadata]
+    ) -> tuple[list[Atoms], list[int]]:
+        """Collect valid atoms from a chunk of structures."""
+        atoms_list: list[Atoms] = []
+        valid_indices: list[int] = []
+
+        for i, s in enumerate(chunk):
+            try:
+                validate_structure_integrity(s)
+                atoms = self._extract_atoms(s)
+                if atoms:
+                    atoms_list.append(atoms)
+                    valid_indices.append(i)
+            except (ValueError, TypeError):
+                self.logger.warning(f"Skipping invalid structure {s.id} in uncertainty computation")
+
+        return atoms_list, valid_indices
+
+    def compute_uncertainty(
         self, structures: Iterable[StructureMetadata]
     ) -> Iterator[StructureMetadata]:
         """Compute uncertainty for a batch of structures."""
         self.logger.info("Computing uncertainty (MACE)")
 
-        # Uncertainty usually requires batch processing if using ensemble,
-        # but here we iterate. To optimize, we could batch collect.
-        # For simplicity and streaming consistency, we iterate but maybe call manager per item or batch internally.
-        # Let's collect a small batch or just process one by one if manager supports lists.
-
-        # Collecting all structures to batch process is risky for memory, but uncertainty is usually fast.
-        # Let's collect in chunks.
         chunk_size = 100
         iterator = iter(structures)
 
@@ -347,50 +367,30 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
             if not chunk:
                 break
 
-            # Extract atoms
-            atoms_list = []
-            valid_indices = []
-            for i, s in enumerate(chunk):
-                try:
-                    validate_structure_integrity(s)
-                except ValueError:
-                    self.logger.warning(f"Skipping invalid structure {s.id} in uncertainty computation")
-                    continue
-
-                atoms = self._extract_atoms(s)
-                if atoms:
-                    atoms_list.append(atoms)
-                    valid_indices.append(i)
+            atoms_list, valid_indices = self._collect_valid_batch(chunk)
 
             if not atoms_list:
                 for s in chunk:
                     yield s
                 continue
 
-            uncertainties: list[float | None] = []
+            uncertainties: list[float] = []
             if self.config.oracle.mock:
                 uncertainties = [0.5] * len(atoms_list)  # Mock uncertainty
             elif self.mace_manager:
                 try:
-                    uncertainties = [
-                        float(x) for x in self.mace_manager.compute_uncertainty(atoms_list)
-                    ]
+                    uncertainties = self.mace_manager.compute_uncertainty(atoms_list)
                 except Exception:
                     self.logger.exception("Failed to compute uncertainty batch")
-                    uncertainties = [None] * len(atoms_list)
-            else:
-                # Should not happen if mock checked above
-                uncertainties = [None] * len(atoms_list)
+                    # No easy way to fallback per item if batch failed, skip assignment
+                    pass
 
-            # Assign back
-            for idx, unc in zip(valid_indices, uncertainties, strict=False):
-                s = chunk[idx]
-                if unc is not None:
-                    # Update structure metadata with uncertainty
-                    # Assuming gamma_max is the metric (or use mean if appropriate)
-                    # Spec says "Uncertainty (Variance)".
+            # Assign back if we have results
+            if len(uncertainties) == len(valid_indices):
+                for idx, unc in zip(valid_indices, uncertainties, strict=False):
+                    s = chunk[idx]
                     s.uncertainty_state = UncertaintyState(
-                        gamma_mean=float(unc), gamma_max=float(unc)
+                        gamma_mean=unc, gamma_max=unc
                     )
 
             for s in chunk:

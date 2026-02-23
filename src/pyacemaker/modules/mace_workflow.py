@@ -96,7 +96,7 @@ class MaceDistillationWorkflow:
         # Step 5: Surrogate Labeling
         # Update oracle model first!
         if hasattr(self.oracle, "update_model"):
-            self.oracle.update_model(fine_tuned_potential.path)  # type: ignore[attr-defined]
+            self.oracle.update_model(fine_tuned_potential.path)
 
         surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
 
@@ -123,9 +123,11 @@ class MaceDistillationWorkflow:
             n_samples=dist_config.step1_direct_sampling.target_points,
             objective=dist_config.step1_direct_sampling.objective,
         )
-        pool_path = (
-            self.config.project.root_dir / "data" / "pool_structures.pckl.gzip"
-        )
+
+        # Use configured path
+        pool_file = getattr(dist_config, "pool_file", "pool_structures.pckl.gzip")
+        pool_path = self.config.project.root_dir / "data" / pool_file
+
         self.dataset_manager.save_iter(
             (metadata_to_atoms(s) for s in samples_iter),
             pool_path,
@@ -150,7 +152,7 @@ class MaceDistillationWorkflow:
 
             # Update oracle if we have a new potential
             if current_potential and hasattr(self.oracle, "update_model"):
-                self.oracle.update_model(current_potential.path)  # type: ignore[attr-defined]
+                self.oracle.update_model(current_potential.path)
 
             potential = self._execute_active_learning_iteration(
                 dist_config, pool_path, calculated_ids, current_potential
@@ -230,9 +232,8 @@ class MaceDistillationWorkflow:
         surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
 
         # Stream structures directly to file
-        surrogate_dataset_path = (
-            self.config.project.root_dir / "data" / "surrogate_unlabeled.pckl.gzip"
-        )
+        surrogate_file = getattr(dist_config, "surrogate_file", "surrogate_unlabeled.pckl.gzip")
+        surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_file
 
         limited_iter = islice(
             surrogate_iter, dist_config.step4_surrogate_sampling.target_points
@@ -253,15 +254,8 @@ class MaceDistillationWorkflow:
         self.logger.info("Step 5: Surrogate Labeling")
 
         # We assume self.oracle is already updated with fine-tuned potential in run() method
-        # But if it's not MaceSurrogateOracle (e.g. MockOracle), this might behave differently.
-        # But for MACE workflow, we expect MaceSurrogateOracle logic (or Mock mimicking it).
-
         mace_labeler = self.oracle
-
-        # Note: Previous code instantiated a NEW MaceSurrogateOracle:
-        # mace_labeler = MaceSurrogateOracle(self.config)
-        # But we want to use the one we injected (and updated).
-        # However, MaceSurrogateOracle inherits Oracle interface.
+        dist_config = self.config.distillation
 
         # Load stream
         def load_stream() -> Iterator[StructureMetadata]:
@@ -271,9 +265,9 @@ class MaceDistillationWorkflow:
         labeled_surrogate_iter = mace_labeler.compute_batch(load_stream())
 
         # Save to separate "surrogate_dataset"
-        surrogate_dataset_path = (
-            self.config.project.root_dir / "data" / "surrogate_dataset.pckl.gzip"
-        )
+        surrogate_dataset_file = getattr(dist_config, "surrogate_dataset_file", "surrogate_dataset.pckl.gzip")
+        surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_dataset_file
+
         self.dataset_manager.save_iter(
             (metadata_to_atoms(s) for s in labeled_surrogate_iter),
             surrogate_dataset_path,
