@@ -10,7 +10,7 @@ from typing import Any
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import DynamicsEngine
-from pyacemaker.core.utils import generate_dummy_structures
+from pyacemaker.core.utils import atoms_to_metadata, generate_dummy_structures, metadata_to_atoms
 from pyacemaker.domain_models.models import (
     HaltInfo,
     Potential,
@@ -18,6 +18,17 @@ from pyacemaker.domain_models.models import (
     UncertaintyState,
 )
 from pyacemaker.dynamics.kmc import EONWrapper
+
+try:
+    from ase import units
+    from ase.md.langevin import Langevin
+    from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+    from mace.calculators import MACECalculator
+except ImportError:
+    MACECalculator = Any  # type: ignore
+    units = Any  # type: ignore
+    Langevin = Any  # type: ignore
+    MaxwellBoltzmannDistribution = Any  # type: ignore
 
 
 class PotentialHelper:
@@ -281,3 +292,104 @@ class EONEngine(DynamicsEngine):
         """Run production."""
         self.logger.info(f"Running EON production with {potential.path}")
         return "eon_production_result"
+
+
+class ASEDynamicsEngine(DynamicsEngine):
+    """ASE Dynamics Engine implementation for Surrogate Generation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize ASE Dynamics Engine."""
+        super().__init__(config)
+        self.params = config.dynamics_engine
+
+    def run(self) -> ModuleResult:
+        """Run the engine."""
+        self.logger.info("Running ASEDynamicsEngine")
+        return ModuleResult(status="success")
+
+    def run_exploration(
+        self, potential: Potential, seeds: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Run MD exploration using ASE and return halted/high-uncertainty structures."""
+        self.logger.info(f"Running ASE exploration with {potential.path}")
+
+        # In a real scenario, we might want to run these in parallel.
+        # For now, sequential execution.
+        for seed in seeds:
+            results = self._run_md_single_seed(seed, potential)
+            if results:
+                yield from results
+
+    def _run_md_single_seed(
+        self, seed: StructureMetadata, potential: Potential
+    ) -> list[StructureMetadata]:
+        """Run MD for a single seed and return structure trajectory."""
+        try:
+            atoms = metadata_to_atoms(seed)
+        except Exception:
+            self.logger.warning(f"Failed to convert seed {seed.id} to atoms. Skipping.")
+            return []
+
+        # Setup Calculator
+        if self.params.mock:
+            from ase.calculators.lj import LennardJones
+
+            atoms.calc = LennardJones()  # type: ignore[no-untyped-call]
+        else:
+            # Load MACE calculator
+            try:
+                # Check if potential.path is a model file or "medium" etc.
+                model_path = str(potential.path)
+                atoms.calc = MACECalculator(
+                    model_paths=model_path, device="cpu"
+                )  # TODO: use config device
+            except Exception:
+                self.logger.exception("Failed to load calculator")
+                return None
+
+        # Setup MD
+        temp_k = self.params.temperature
+        timestep = self.params.timestep * units.fs if not self.params.mock else 0.1
+
+        try:
+            MaxwellBoltzmannDistribution(atoms, temperature_K=temp_k)
+            dyn = Langevin(atoms, timestep=timestep, temperature_K=temp_k, friction=0.01)
+
+            captured_frames: list[StructureMetadata] = []
+
+            def check_physical_sanity() -> bool:
+                 # Minimal distance check
+                 # Energy check
+                 return True
+
+            steps = self.params.n_steps
+            # Collect every 10 steps
+            interval = 10
+
+            for _ in range(0, steps, interval):
+                dyn.run(interval)  # type: ignore[no-untyped-call]
+
+                # Mock halt logic
+                if self.params.mock and secrets.SystemRandom().random() < 0.05:
+                     # Simulate halt
+                     s = atoms_to_metadata(atoms)
+                     s.tags.append("halted")
+                     s.uncertainty_state = UncertaintyState(gamma_max=self.params.gamma_threshold + 1.0)
+                     captured_frames.append(s)
+                     break
+
+                # Capture frame
+                s = atoms_to_metadata(atoms)
+                s.tags.append("surrogate")
+                captured_frames.append(s)
+
+        except Exception:
+            self.logger.exception(f"MD simulation failed for seed {seed.id}")
+            return []
+
+        return captured_frames
+
+    def run_production(self, potential: Potential) -> Any:
+        """Run production."""
+        msg = "Production run not implemented for ASE Engine yet."
+        raise NotImplementedError(msg)

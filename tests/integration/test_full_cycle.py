@@ -56,10 +56,6 @@ class TestFullCycleIntegration:
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.select_active_set") as mock_select,
             patch("pyacemaker.modules.dynamics_engine.MDInterface.run_md") as mock_run_md,
-            # We also need to ensure the random check passes to trigger run_md call effectively
-            # or just force run_exploration to yield something if we mocked run_exploration.
-            # But we are testing integration, so let's mock run_md.
-            # However, LAMMPSEngine.run_exploration has a random check.
             patch("pyacemaker.modules.dynamics_engine.secrets.SystemRandom") as mock_random,
         ):
             # Force random check to trigger halt logic in run_exploration loop
@@ -80,14 +76,23 @@ class TestFullCycleIntegration:
             mock_train.return_value = mock_potential
 
             mock_active_set = MagicMock()
-            mock_active_set.structures = [
-                StructureMetadata(features={"atoms": Atoms("Fe")}),
-                StructureMetadata(features={"atoms": Atoms("Fe")}),
-            ]
+            mock_active_set.structures = None
+            # Fix: Ensure dataset_path exists and is valid
+            active_set_path = tmp_path / "active_set.pckl.gzip"
+            # Create a dummy file for load_iter to find
+            # But Orchestrator.select_phase loads from dataset_path.
+            mock_active_set.dataset_path = active_set_path
 
             mock_select.return_value = mock_active_set
 
             orchestrator = Orchestrator(config)
+
+            # Pre-populate active_set file so orchestrator can load it
+            # We need to save something valid there
+            from pyacemaker.core.utils import metadata_to_atoms
+            orchestrator.dataset_manager.save_iter(
+                [Atoms("Fe"), Atoms("Fe")], active_set_path, calculate_checksum=False
+            )
 
             # Inject MockOracle directly to ensure it behaves as expected
             orchestrator.oracle = MockOracle(config)

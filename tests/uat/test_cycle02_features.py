@@ -15,6 +15,7 @@ from pyacemaker.core.config import (
     Step1DirectSamplingConfig,
     Step2ActiveLearningConfig,
 )
+from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.oracle.dataset import DatasetManager
 from pyacemaker.orchestrator import Orchestrator
 
@@ -47,11 +48,23 @@ def uat_config(tmp_path: Path) -> PYACEMAKERConfig:
 
 def test_scenario_01_intelligent_structure_generation(uat_config: PYACEMAKERConfig) -> None:
     """Scenario 01: Intelligent Structure Generation."""
-    # UAT: Verify DIRECT sampling produces diverse set
+    # Orchestrator delegates to Workflow. We instantiate workflow directly for granular test.
     orchestrator = Orchestrator(uat_config)
+    workflow = MaceDistillationWorkflow(
+        config=uat_config,
+        dataset_manager=orchestrator.dataset_manager,
+        dataset_path=orchestrator.dataset_path,
+        oracle=orchestrator.oracle,
+        trainer=orchestrator.trainer,
+        mace_trainer=orchestrator.mace_trainer,  # type: ignore[arg-type]
+        dynamics_engine=orchestrator.dynamics_engine,
+        structure_generator=orchestrator.structure_generator,
+        validation_path=orchestrator.validation_path,
+        training_path=orchestrator.training_path,
+    )
 
-    # We can invoke internal step directly for UAT verification
-    pool_path = orchestrator._step1_direct_sampling(uat_config.distillation)
+    # Use internal workflow method
+    pool_path = workflow._step1_direct_sampling(uat_config.distillation)
 
     assert pool_path.exists()
 
@@ -63,22 +76,27 @@ def test_scenario_01_intelligent_structure_generation(uat_config: PYACEMAKERConf
 
 def test_scenario_02_active_learning_selection(uat_config: PYACEMAKERConfig) -> None:
     """Scenario 02: Active Learning Selection."""
-    # UAT: Verify filtering high uncertainty
-
-    # Set threshold to verify filtering logic.
     uat_config.distillation.step2_active_learning.uncertainty_threshold = 0.4
 
     orchestrator = Orchestrator(uat_config)
+    workflow = MaceDistillationWorkflow(
+        config=uat_config,
+        dataset_manager=orchestrator.dataset_manager,
+        dataset_path=orchestrator.dataset_path,
+        oracle=orchestrator.oracle,
+        trainer=orchestrator.trainer,
+        mace_trainer=orchestrator.mace_trainer,  # type: ignore[arg-type]
+        dynamics_engine=orchestrator.dynamics_engine,
+        structure_generator=orchestrator.structure_generator,
+        validation_path=orchestrator.validation_path,
+        training_path=orchestrator.training_path,
+    )
 
     # Step 1 first to generate pool
-    pool_path = orchestrator._step1_direct_sampling(uat_config.distillation)
+    pool_path = workflow._step1_direct_sampling(uat_config.distillation)
 
     # Step 2
-    # This runs active learning loop which calls MaceSurrogateOracle (Mock)
-    # Mock MACE returns 0.5 uncertainty.
-    # Threshold 0.4 < 0.5, so they should be selected.
-
-    orchestrator._step2_active_learning_loop(uat_config.distillation, pool_path)
+    workflow._step2_active_learning_loop(uat_config.distillation, pool_path)
 
     # Verify dataset file exists and has entries
     assert orchestrator.dataset_path.exists()

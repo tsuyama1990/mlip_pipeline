@@ -16,6 +16,7 @@ class TestCycle03UAT:
     @pytest.fixture
     def trainer(self) -> Trainer:
         config = MagicMock(spec=PYACEMAKERConfig)
+        config.version = "0.1.0"  # Required by Trainer
         config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,
@@ -94,6 +95,7 @@ class TestCycle03UAT:
     def test_scenario_03_delta_learning(self, mock_run: MagicMock) -> None:
         """Scenario 03: Delta Learning Configuration."""
         config = MagicMock(spec=PYACEMAKERConfig)
+        config.version = "0.1.0"  # Required by Trainer
         # Use a variable to avoid hardcoding in checks later
         delta_method = "zbl"
         config.trainer = TrainerConfig(delta_learning=delta_method, mock=False)

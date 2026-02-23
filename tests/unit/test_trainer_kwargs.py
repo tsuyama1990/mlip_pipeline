@@ -95,8 +95,8 @@ def test_mace_trainer_passes_kwargs_and_epochs(
     mock_config: MagicMock, mock_dataset: list[StructureMetadata]
 ) -> None:
     """Test MaceTrainer passes kwargs and maps epochs correctly."""
-    with patch("pyacemaker.modules.trainer.MaceManager") as MockManager, \
-         patch("pyacemaker.modules.trainer.DatasetManager"):
+    with patch("pyacemaker.trainer.mace_trainer.MaceManager") as MockManager, \
+         patch("pyacemaker.trainer.mace_trainer.DatasetManager"):
 
         manager_instance = MockManager.return_value
         manager_instance.train.return_value = Path("output.model")
@@ -142,8 +142,8 @@ def test_mace_trainer_empty_dataset(
     mock_config: MagicMock
 ) -> None:
     """Test MaceTrainer handles empty dataset without crashing (save_iter handles it)."""
-    with patch("pyacemaker.modules.trainer.MaceManager") as MockManager, \
-         patch("pyacemaker.modules.trainer.DatasetManager"):
+    with patch("pyacemaker.trainer.mace_trainer.MaceManager") as MockManager, \
+         patch("pyacemaker.trainer.mace_trainer.DatasetManager"):
 
         manager_instance = MockManager.return_value
         manager_instance.train.return_value = Path("output.model")
@@ -182,7 +182,7 @@ def test_mace_trainer_select_active_set_raises(
     mock_config: MagicMock, mock_dataset: list[StructureMetadata]
 ) -> None:
     """Test MaceTrainer select_active_set raises NotImplementedError."""
-    with patch("pyacemaker.modules.trainer.MaceManager"):
+    with patch("pyacemaker.trainer.mace_trainer.MaceManager"):
         trainer = MaceTrainer(mock_config)
 
         with pytest.raises(NotImplementedError):
