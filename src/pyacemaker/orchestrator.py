@@ -23,7 +23,6 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.utils import (
     atoms_to_metadata,
     metadata_to_atoms,
-    select_top_k_structures,
 )
 from pyacemaker.domain_models.models import (
     CycleStatus,
@@ -34,6 +33,8 @@ from pyacemaker.domain_models.models import (
 )
 from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
 from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
+from pyacemaker.generator.direct import DirectGenerator
+from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
@@ -243,7 +244,11 @@ class Orchestrator(IOrchestrator):
     def _step1_direct_sampling(self, dist_config: Any) -> Path:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
-        samples_iter = self.structure_generator.generate_direct_samples(
+
+        # Use DirectGenerator specifically
+        direct_generator = DirectGenerator(self.config)
+
+        samples_iter = direct_generator.generate_direct_samples(
             n_samples=dist_config.step1_direct_sampling.target_points,
             objective=dist_config.step1_direct_sampling.objective,
         )
@@ -291,30 +296,19 @@ class Orchestrator(IOrchestrator):
             uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
             scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
 
-            # Select Top N (using shared utility with heap)
+            # Select Top N (using ActiveLearner)
             n_select = dist_config.step2_active_learning.n_select
-            selected = select_top_k_structures(
+            threshold = dist_config.step2_active_learning.uncertainty_threshold
+
+            learner = ActiveLearner()
+            selected = learner.select_batch(
                 scored_pool,
                 n_select,
-                key_func=lambda s: s.uncertainty_state.gamma_max
-                if s.uncertainty_state and s.uncertainty_state.gamma_max is not None
-                else -1.0,
+                threshold=threshold
             )
+
             if not selected:
-                self.logger.info("No more candidates in pool.")
-                break
-
-            # Check threshold
-            # Determine max gamma of top candidate (handle None as -1.0)
-            top_gamma = -1.0
-            if (
-                selected[0].uncertainty_state
-                and selected[0].uncertainty_state.gamma_max is not None
-            ):
-                top_gamma = selected[0].uncertainty_state.gamma_max
-
-            if top_gamma < dist_config.step2_active_learning.uncertainty_threshold:
-                self.logger.info("Uncertainty below threshold. Step 2 Converged.")
+                self.logger.info("No candidates selected (threshold not met or pool empty).")
                 break
 
             # Mark selected as calculated in local tracker

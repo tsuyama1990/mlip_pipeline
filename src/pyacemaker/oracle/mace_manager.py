@@ -24,6 +24,22 @@ except ImportError:
 class MaceManager:
     """Manages MACE calculations."""
 
+    _ALLOWED_TRAIN_PARAMS = frozenset({
+        "model", "train_file", "valid_file", "test_file", "E0s", "config", "seed",
+        "device", "batch_size", "max_num_epochs", "patience", "eval_interval",
+        "keep_checkpoints", "restart_latest", "loss", "ems", "forces_weight",
+        "energy_weight", "stress_weight", "virial_weight", "lr", "scheduler",
+        "decay", "clip_grad", "swa", "start_swa", "swa_lr", "swa_forces_weight",
+        "swa_energy_weight", "swa_stress_weight", "swa_virial_weight", "r_max",
+        "num_radial_basis", "num_cutoff_basis", "interaction", "interaction_first",
+        "max_ell", "correlation", "hidden_irreps", "MLP_irreps", "gate",
+        "scaling", "avg_num_neighbors", "compute_avg_num_neighbors",
+        "compute_stress", "compute_forces", "compute_virial", "error_table",
+        "default_dtype", "checkpoints_dir", "log_dir", "name", "wandb_name",
+        "wandb_project", "wandb_entity", "wandb_log_hypers", "foundation_model",
+        "finetune", "distributed",
+    })
+
     def __init__(self, config: MaceConfig) -> None:
         """Initialize the MACE Manager."""
         self.config = config
@@ -111,12 +127,56 @@ class MaceManager:
 
         return list(np.random.default_rng().random(len(atoms_list)))
 
+    def _build_train_command(
+        self, dataset_path: Path, work_dir: Path, params: dict[str, Any]
+    ) -> list[str]:
+        """Build the mace_run_train command with strict validation."""
+        cmd = [
+            "mace_run_train",
+            "--train_file",
+            str(dataset_path),
+            "--name",
+            "mace_model",
+            "--log_dir",
+            str(work_dir),
+            "--checkpoints_dir",
+            str(work_dir / "checkpoints"),
+        ]
+
+        import re
+
+        valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
+        valid_val = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+
+        for key, value in params.items():
+            if key not in self._ALLOWED_TRAIN_PARAMS:
+                self.logger.warning(f"Skipping disallowed parameter key: {key}")
+                continue
+
+            if not isinstance(key, str) or not valid_key.match(key):
+                self.logger.warning(f"Skipping invalid parameter key format: {key}")
+                continue
+
+            if value is True:
+                cmd.append(f"--{key}")
+            elif value is False:
+                continue
+            else:
+                val_str = str(value)
+                if not valid_val.match(val_str):
+                    self.logger.warning(
+                        f"Skipping parameter {key} with unsafe value: {val_str}"
+                    )
+                    continue
+                cmd.append(f"--{key}")
+                cmd.append(val_str)
+        return cmd
+
     def train(self, dataset_path: Path, work_dir: Path, params: dict[str, Any]) -> Path:
         """Train or fine-tune MACE model."""
         self.logger.info(f"Training MACE model with data at {dataset_path}")
 
         # Use configured mock name or default from config to avoid hardcoding
-        from pyacemaker.core.config import CONSTANTS
 
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Skipping training (Mock).")
@@ -133,42 +193,7 @@ class MaceManager:
             msg = f"Invalid dataset path: {e}"
             raise OracleError(msg) from e
 
-        cmd = [
-            "mace_run_train",
-            "--train_file",
-            str(dataset_path),
-            "--name",
-            "mace_model",
-            "--log_dir",
-            str(work_dir),
-            "--checkpoints_dir",
-            str(work_dir / "checkpoints"),
-        ]
-
-        # Add other params from config with STRICT sanitization
-        # Only allow alphanumeric keys and safe values
-        import re
-
-        valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
-        # Allow basic alphanumeric, dots, slashes, dashes for file paths/numbers
-        valid_val = re.compile(r"^[a-zA-Z0-9_\-./]+$")
-
-        for key, value in params.items():
-            if not isinstance(key, str) or not valid_key.match(key):
-                self.logger.warning(f"Skipping invalid parameter key: {key}")
-                continue
-
-            if value is True:
-                cmd.append(f"--{key}")
-            elif value is False:
-                continue
-            else:
-                val_str = str(value)
-                if not valid_val.match(val_str):
-                    self.logger.warning(f"Skipping parameter {key} with unsafe value: {val_str}")
-                    continue
-                cmd.append(f"--{key}")
-                cmd.append(val_str)
+        cmd = self._build_train_command(dataset_path, work_dir, params)
 
         try:
             # Not printing full command to avoid leaking potentially sensitive paths in logs if high verbosity

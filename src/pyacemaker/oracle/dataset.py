@@ -260,7 +260,11 @@ class DatasetManager:
 
         """
         # Security check
-        validate_safe_path(path)
+        try:
+            validate_safe_path(path)
+        except ValueError as e:
+            msg = f"Invalid dataset path: {e}"
+            raise ValueError(msg) from e
 
         if not path.exists():
             msg = f"Dataset file not found: {path}"
@@ -349,7 +353,11 @@ class DatasetManager:
 
         """
         # Security check
-        validate_safe_path(path)
+        try:
+            validate_safe_path(path)
+        except ValueError as e:
+            msg = f"Invalid dataset path: {e}"
+            raise ValueError(msg) from e
 
         # Ensure parent directory exists
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -309,6 +309,20 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults().get("dataset_extension", ".pckl.gzip")
     )
 
+    default_pool_file: str = Field(
+        default_factory=lambda: get_defaults().get("default_pool_file", "pool_structures.pckl.gzip")
+    )
+    default_surrogate_unlabeled_file: str = Field(
+        default_factory=lambda: get_defaults().get(
+            "default_surrogate_unlabeled_file", "surrogate_unlabeled.pckl.gzip"
+        )
+    )
+    default_surrogate_dataset_file: str = Field(
+        default_factory=lambda: get_defaults().get(
+            "default_surrogate_dataset_file", "surrogate_dataset.pckl.gzip"
+        )
+    )
+
     @field_validator("max_config_size")
     @classmethod
     def validate_max_config_size(cls, v: int) -> int:
