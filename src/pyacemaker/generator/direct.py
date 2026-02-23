@@ -8,7 +8,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 from pyacemaker.core.base import Metrics, ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import StructureGenerator
 from pyacemaker.core.utils import generate_dummy_structures
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
@@ -47,11 +47,19 @@ class DirectGenerator(StructureGenerator):
 
         # Oversampling factor determines batch size relative to 1 selection
         # For each selection, we look at 'oversample' candidates
-        oversample = int(self.config.structure_generator.parameters.get("oversample", 10))
+        oversample = int(
+            self.config.structure_generator.parameters.get(
+                "oversample", CONSTANTS.direct_oversample
+            )
+        )
         # Batch size for distance computation (chunking)
-        batch_size = max(100, oversample)
+        batch_size = max(CONSTANTS.direct_batch_size, oversample)
 
-        box_size = float(self.config.structure_generator.parameters.get("box_size", 10.0))
+        box_size = float(
+            self.config.structure_generator.parameters.get(
+                "box_size", CONSTANTS.direct_box_size
+            )
+        )
 
         # Generator for randomized candidates
         def candidate_generator() -> Iterator[StructureMetadata]:

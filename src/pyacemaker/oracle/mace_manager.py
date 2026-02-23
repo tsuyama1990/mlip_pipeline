@@ -9,7 +9,7 @@ import numpy as np
 from ase import Atoms
 from loguru import logger
 
-from pyacemaker.core.config import MaceConfig
+from pyacemaker.core.config import CONSTANTS, MaceConfig
 from pyacemaker.core.exceptions import OracleError
 from pyacemaker.core.utils import validate_structure_integrity_atoms
 from pyacemaker.core.validation import validate_safe_path
@@ -263,7 +263,7 @@ class MaceManager:
 
         # Find the best model
         # Use configurable name if possible, otherwise search
-        model_name_base = "mace_model_compiled.model" # Could be in config
+        model_name_base = CONSTANTS.mace_default_model_name
         model_path = work_dir / model_name_base
         if not model_path.exists():
              # Fallback to search

@@ -295,6 +295,17 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["dataset_extension"]
     )
 
+    # Generator Defaults
+    direct_oversample: int = Field(default=10, description="Oversampling factor for Direct Sampling")
+    direct_batch_size: int = Field(default=100, description="Batch size for Direct Sampling")
+    direct_box_size: float = Field(default=10.0, description="Box size for Direct Sampling")
+
+    # MACE Defaults
+    mace_default_model_name: str = Field(
+        default="mace_model_compiled.model", description="Default MACE model filename"
+    )
+    mace_default_max_epochs: int = Field(default=50, description="Default max epochs for MACE training")
+
     @field_validator("max_config_size")
     @classmethod
     def validate_max_config_size(cls, v: int) -> int:

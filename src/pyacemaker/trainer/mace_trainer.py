@@ -88,7 +88,9 @@ class MaceTrainer(BaseTrainer):
 
             # 2. Train
             # Params from config or specific distillation params
-            params: dict[str, Any] = {"max_num_epochs": 50}  # Default
+            params: dict[str, Any] = {
+                "max_num_epochs": CONSTANTS.mace_default_max_epochs
+            }
             if self.config.distillation and self.config.distillation.step3_mace_finetune:
                 mace_conf = self.config.distillation.step3_mace_finetune
                 params["max_num_epochs"] = mace_conf.epochs
