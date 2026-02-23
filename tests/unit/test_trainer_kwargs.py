@@ -71,7 +71,8 @@ def test_pacemaker_trainer_passes_kwargs(
 
         # Make save_iter consume iterator so stats are updated
         def side_effect_save_iter(iterator: Any, *args: Any, **kwargs: Any) -> None:
-            for _ in iterator: pass # Consume without materializing full list
+            for _ in iterator:
+                pass  # Consume without materializing full list
 
         MockDM.return_value.save_iter.side_effect = side_effect_save_iter
 

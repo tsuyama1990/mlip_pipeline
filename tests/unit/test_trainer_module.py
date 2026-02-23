@@ -17,6 +17,7 @@ class TestTrainerModule:
     def config(self) -> MagicMock:
         # Mock PYACEMAKERConfig
         mock_config = MagicMock(spec=PYACEMAKERConfig)
+        mock_config.version = "1.0.0"
         mock_config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,

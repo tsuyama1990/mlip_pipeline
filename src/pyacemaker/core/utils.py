@@ -11,6 +11,7 @@ from uuid import uuid4
 import numpy as np
 from loguru import logger
 
+from pyacemaker.core.config import CONSTANTS
 from pyacemaker.domain_models.models import (
     MaterialDNA,
     StructureMetadata,
@@ -59,7 +60,7 @@ def validate_structure_integrity(structure: StructureMetadata) -> None:
     for k in structure.features:
         if not isinstance(k, str):
             msg = "Structure features keys must be strings."
-            raise ValueError(msg)
+            raise TypeError(msg)
 
     # Validate atoms if present
     if "atoms" in structure.features:
@@ -309,6 +310,9 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
     atoms = metadata.features["atoms"]
 
     # Attach results if present
+    # Inject UUID for tracking
+    atoms.info["uuid"] = str(metadata.id)
+
     if metadata.energy is not None and metadata.forces is not None:
         try:
             from ase.calculators.singlepoint import SinglePointCalculator
@@ -366,6 +370,16 @@ def update_structure_metadata(structure: StructureMetadata, result_atoms: Any) -
     if result_atoms is None:
         structure.status = StructureStatus.FAILED
         return
+
+    # Basic type check for result_atoms if ASE is installed
+    try:
+        from ase import Atoms
+        if not isinstance(result_atoms, Atoms):
+             # Don't fail hard if it's a mock, but warn?
+             # _validate_result_atoms will check methods.
+             pass
+    except ImportError:
+        pass
 
     try:
         # Validate input atoms

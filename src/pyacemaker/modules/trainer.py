@@ -10,7 +10,6 @@ from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
 from pyacemaker.core.utils import (
     stream_metadata_to_atoms,
-    validate_structure_integrity,
 )
 from pyacemaker.domain_models.models import (
     ActiveSet,
@@ -65,13 +64,16 @@ class PacemakerTrainer(Trainer):
         # This prevents loading anything into a list
         stats = {"count": 0}
 
-        def streaming_converter() -> Iterator[Any]:
-            for s in valid_structures:
+        def counting_stream(structures: Iterable[StructureMetadata]) -> Iterator[Any]:
+            for s in structures:
                 stats["count"] += 1
-                yield self._metadata_to_atoms(s)
+                yield s
+
+        # Use helper stream_metadata_to_atoms which uses metadata_to_atoms (now injects UUID)
+        atoms_stream = stream_metadata_to_atoms(counting_stream(valid_structures))
 
         # save_iter consumes the generator completely
-        self.dataset_manager.save_iter(streaming_converter(), dataset_path)
+        self.dataset_manager.save_iter(atoms_stream, dataset_path)
 
         if stats["count"] == 0:
             msg = "No valid structures with energy and forces found for training."
@@ -130,12 +132,10 @@ class PacemakerTrainer(Trainer):
         candidates_path = work_dir / CONSTANTS.default_candidates_file
 
         # Save candidates (Streaming)
-        # Assuming candidates are metadata, _metadata_to_atoms is instance method
-        # which adds UUID. stream_metadata_to_atoms uses default metadata_to_atoms.
-        # PacemakerTrainer._metadata_to_atoms does extra stuff (inject uuid).
-        # So we keep using local logic but can use generator expression.
-        atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
-        self.dataset_manager.save_iter(atoms_gen, candidates_path)
+        # stream_metadata_to_atoms uses metadata_to_atoms which now injects UUID.
+        self.dataset_manager.save_iter(
+            stream_metadata_to_atoms(candidates), candidates_path
+        )
 
         # Run selection
         if self.trainer_config.mock:
@@ -177,34 +177,7 @@ class PacemakerTrainer(Trainer):
             selection_criteria="max_vol",
         )
 
-    def _metadata_to_atoms(self, metadata: StructureMetadata) -> Any:
-        """Convert StructureMetadata to ASE Atoms."""
-        validate_structure_integrity(metadata)
-        atoms = metadata.features.get("atoms")
-        if atoms is None:
-            msg = f"Structure {metadata.id} does not contain 'atoms' feature."
-            raise ValueError(msg)
-
-        if not isinstance(atoms, Atoms):
-            msg = f"Feature 'atoms' is not an ASE Atoms object. Got: {type(atoms)}"
-            raise TypeError(msg)
-
-        # Create a copy to avoid modifying original
-        atoms = atoms.copy()
-
-        # Inject UUID
-        atoms.info["uuid"] = str(metadata.id)
-
-        # Inject Energy/Forces/Stress if available (overwrite calc results)
-        if metadata.energy is not None:
-            atoms.info["energy"] = metadata.energy
-        if metadata.forces is not None:
-            # arrays expects numpy array or list
-            atoms.arrays["forces"] = metadata.forces
-        if metadata.stress is not None:
-            atoms.info["stress"] = metadata.stress
-
-        return atoms
+    # _metadata_to_atoms removed as stream_metadata_to_atoms/metadata_to_atoms is used
 
     def _generate_baseline(self, path: Path, type_: str) -> None:
         """Generate baseline potential file."""

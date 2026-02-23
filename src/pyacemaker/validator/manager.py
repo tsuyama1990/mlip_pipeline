@@ -1,6 +1,5 @@
 """Validator manager."""
 
-import os
 from pathlib import Path
 
 from ase import Atoms

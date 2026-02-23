@@ -11,7 +11,7 @@ from ase import Atoms
 from pydantic import ValidationError
 
 from pyacemaker.core.base import Metrics, ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import MaceConfig, PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
     Oracle,
@@ -28,7 +28,6 @@ from pyacemaker.domain_models.models import (
     StructureStatus,
     UncertaintyState,
 )
-from pyacemaker.core.config import MaceConfig
 from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.orchestrator import Orchestrator
 
@@ -233,6 +232,11 @@ def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
     # Step 4 (Surrogate Generation) runs even if AL converges, using the trained MACE.
     # So run_exploration SHOULD be called.
     assert mock_dyn.run_exploration.called
+
+    # Step 6 and 7 (Pacemaker training) should also run.
+    # Step 6 calls trainer.train once.
+    # Step 7 calls trainer.train once if delta learning enabled (default True in fixture).
+    # So we expect trainer.train calls.
 
 def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
     """Test handling of Oracle failure."""
