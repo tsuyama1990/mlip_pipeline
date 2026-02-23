@@ -28,7 +28,8 @@ def select_top_k_structures(
 ) -> list[T]:
     """Select the top K elements from an iterable based on a key function.
 
-    Uses a heap to maintain O(K) memory usage, suitable for large streams.
+    Uses a min-heap of size K to maintain the top elements in O(K) memory.
+    This avoids materializing the full iterator which heapq.nlargest might do depending on implementation.
 
     Args:
         iterator: Iterable of items.
@@ -39,7 +40,28 @@ def select_top_k_structures(
         List of selected items (sorted by key descending).
 
     """
-    return heapq.nlargest(k, iterator, key=key_func)
+    if k <= 0:
+        return []
+
+    # Min-heap stores tuples of (key, item).
+    # We want top K largest keys.
+    # If heap size < k: push.
+    # If heap size == k: pushpop if new key > min key in heap.
+    heap: list[tuple[float, int, T]] = []
+
+    # Tie-breaker counter to ensure stability/comparability if T is not comparable
+    # and to handle duplicate keys deterministically.
+    for counter, item in enumerate(iterator):
+        key = key_func(item)
+        entry = (key, counter, item)
+
+        if len(heap) < k:
+            heapq.heappush(heap, entry)
+        elif key > heap[0][0]:
+            heapq.heapreplace(heap, entry)
+
+    # Sort by key descending
+    return [item for _, _, item in sorted(heap, key=lambda x: x[0], reverse=True)]
 
 
 def validate_structure_integrity(structure: StructureMetadata) -> None:

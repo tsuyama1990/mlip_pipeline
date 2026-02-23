@@ -619,31 +619,41 @@ class Orchestrator(IOrchestrator):
         self, seeds: list[StructureMetadata]
     ) -> tuple[Iterator[StructureMetadata] | None, list[float]]:
         """Run exploration and return a monitored stream."""
-        high_uncertainty_iter = self.dynamics_engine.run_exploration(
-            self.current_potential, seeds  # type: ignore[arg-type]
-        )
-
-        # Check if we found anything without consuming the whole stream
         try:
-            first_structure = next(high_uncertainty_iter)
-        except StopIteration:
+            high_uncertainty_iter = self.dynamics_engine.run_exploration(
+                self.current_potential, seeds  # type: ignore[arg-type]
+            )
+
+            # Check if we found anything without consuming the whole stream
+            try:
+                first_structure = next(high_uncertainty_iter)
+            except StopIteration:
+                return None, [0.0]
+
+            # Reconstruct iterator
+            high_uncertainty_stream = chain([first_structure], high_uncertainty_iter)
+
+            # Spy on the stream to calculate metrics (max gamma) without materializing list
+            max_gamma_container = [0.0]
+
+            def stats_spy(iterator: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+                try:
+                    for s in iterator:
+                        if s.uncertainty_state and s.uncertainty_state.gamma_max:
+                            max_gamma_container[0] = max(
+                                max_gamma_container[0], s.uncertainty_state.gamma_max
+                            )
+                        yield s
+                except Exception:
+                    self.logger.exception("Error during exploration streaming")
+                    # Stop yielding on error, effectively truncating stream
+                    return
+
+            return stats_spy(high_uncertainty_stream), max_gamma_container
+
+        except Exception:
+            self.logger.exception("Failed to initialize exploration stream")
             return None, [0.0]
-
-        # Reconstruct iterator
-        high_uncertainty_stream = chain([first_structure], high_uncertainty_iter)
-
-        # Spy on the stream to calculate metrics (max gamma) without materializing list
-        max_gamma_container = [0.0]
-
-        def stats_spy(iterator: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-            for s in iterator:
-                if s.uncertainty_state and s.uncertainty_state.gamma_max:
-                    max_gamma_container[0] = max(
-                        max_gamma_container[0], s.uncertainty_state.gamma_max
-                    )
-                yield s
-
-        return stats_spy(high_uncertainty_stream), max_gamma_container
 
     def _run_selection_phase(
         self, high_uncertainty_stream: Iterator[StructureMetadata]

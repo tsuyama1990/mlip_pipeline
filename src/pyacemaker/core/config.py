@@ -20,10 +20,20 @@ _DEFAULTS_PATH = Path(
 
 @functools.lru_cache(maxsize=1)
 def get_defaults() -> dict[str, Any]:
-    """Load default configuration values from YAML file (Cached)."""
+    """Load default configuration values from YAML file (Cached).
+
+    Includes validation for file size to prevent OOM attacks.
+    """
     if not _DEFAULTS_PATH.exists():
         msg = f"Defaults file not found at {_DEFAULTS_PATH}"
         raise FileNotFoundError(msg)
+
+    # Size check before reading
+    max_defaults_size = 1024 * 1024  # 1MB limit for defaults
+    if _DEFAULTS_PATH.stat().st_size > max_defaults_size:
+        msg = f"Defaults file size ({_DEFAULTS_PATH.stat().st_size}) exceeds limit of {max_defaults_size} bytes"
+        raise ValueError(msg)
+
     with _DEFAULTS_PATH.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
