@@ -1,9 +1,11 @@
 """MACE Trainer implementation."""
 
+import shutil
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.utils import stream_metadata_to_atoms
@@ -64,42 +66,59 @@ class MaceTrainer(BaseTrainer):
             msg = "MACE Manager not initialized. Check config."
             raise ValueError(msg)
 
-        # 1. Prepare Dataset
-        # Use a safe temporary directory
-        work_dir = Path(tempfile.mkdtemp(prefix="mace_train_"))
-        dataset_path = work_dir / "training_data.xyz"
+        # Ensure persistent models directory exists
+        models_dir = self.config.project.root_dir / "models"
+        models_dir.mkdir(parents=True, exist_ok=True)
 
-        # Filter valid structures
-        valid_dataset = (
-            s for s in dataset
-            if s.energy is not None and s.forces is not None
-        )
+        # Use temporary directory context for cleanup
+        with tempfile.TemporaryDirectory(prefix="mace_train_") as temp_dir_str:
+            work_dir = Path(temp_dir_str)
+            dataset_path = work_dir / "training_data.xyz"
 
-        # Save to file using streaming to prevent OOM
-        self.dataset_manager.save_iter(stream_metadata_to_atoms(valid_dataset), dataset_path)
+            # Filter valid structures
+            valid_dataset = (
+                s for s in dataset
+                if s.energy is not None and s.forces is not None
+            )
 
-        # 2. Train
-        # Params from config or specific distillation params
-        params: dict[str, Any] = {"max_num_epochs": 50}  # Default
-        if self.config.distillation and self.config.distillation.step3_mace_finetune:
-            mace_conf = self.config.distillation.step3_mace_finetune
-            params["max_num_epochs"] = mace_conf.epochs
+            # Save to file using streaming to prevent OOM
+            self.dataset_manager.save_iter(
+                stream_metadata_to_atoms(valid_dataset), dataset_path
+            )
 
-        if initial_potential:
-            params["foundation_model"] = str(initial_potential.path)
+            # 2. Train
+            # Params from config or specific distillation params
+            params: dict[str, Any] = {"max_num_epochs": 50}  # Default
+            if self.config.distillation and self.config.distillation.step3_mace_finetune:
+                mace_conf = self.config.distillation.step3_mace_finetune
+                params["max_num_epochs"] = mace_conf.epochs
 
-        # Merge extra params (optional)
-        safe_kwargs = self._validate_train_kwargs(kwargs)
-        params.update(safe_kwargs)
+            if initial_potential:
+                params["foundation_model"] = str(initial_potential.path)
 
-        # Map common aliases
-        if "epochs" in params:
-            params["max_num_epochs"] = params.pop("epochs")
+            # Merge extra params (optional)
+            safe_kwargs = self._validate_train_kwargs(kwargs)
+            params.update(safe_kwargs)
 
-        output_path = self.mace_manager.train(dataset_path, work_dir, params)
+            # Map common aliases
+            if "epochs" in params:
+                params["max_num_epochs"] = params.pop("epochs")
+
+            output_path = self.mace_manager.train(dataset_path, work_dir, params)
+
+            # Persist the model
+            unique_name = f"mace_model_{uuid4().hex[:8]}.model"
+            final_path = models_dir / unique_name
+
+            if output_path.exists():
+                shutil.copy2(output_path, final_path)
+            else:
+                # Should have been handled by mace_manager but double check
+                msg = f"Model not found at {output_path}"
+                raise FileNotFoundError(msg)
 
         return Potential(
-            path=output_path,
+            path=final_path,
             type=PotentialType.MACE,
             version=self.config.version,
             metrics={},

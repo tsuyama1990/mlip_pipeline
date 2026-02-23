@@ -5,6 +5,7 @@ import random
 import secrets
 from collections.abc import Iterable, Iterator
 from itertools import islice
+from pathlib import Path
 from typing import Any
 
 from ase import Atoms
@@ -278,6 +279,15 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
         """Run the oracle (batch processing)."""
         self.logger.info("Running MaceSurrogateOracle")
         return ModuleResult(status="success")
+
+    def update_model(self, path: Path) -> None:
+        """Update the MACE model path."""
+        self.logger.info(f"Updating MACE model to {path}")
+        if self.config.oracle.mock:
+            return
+
+        if self.mace_manager:
+            self.mace_manager.update_model_path(path)
 
     def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch of structures."""

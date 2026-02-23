@@ -69,49 +69,73 @@ class DirectGenerator(StructureGenerator):
 
         # Compute descriptors (simple: sorted pairwise distances)
         # Using flat positions for simplicity as descriptor
-        descriptors = []
-        for s in candidates:
+        descriptors: list[np.ndarray] = []
+        valid_indices: list[int] = []
+
+        for i, s in enumerate(candidates):
             atoms = s.features.get("atoms")
             if atoms:
                 # Flatten positions as simple descriptor
-                descriptors.append(atoms.get_positions().flatten())
-            else:
-                descriptors.append(np.zeros(1))
+                desc = atoms.get_positions().flatten()
+                descriptors.append(desc)
+                valid_indices.append(i)
 
-        descriptors_array = np.array(descriptors)
+        if not descriptors:
+            return
+
+        # Ensure consistent shape
+        first_shape = descriptors[0].shape
+        filtered_descriptors = []
+        filtered_indices = []
+        for desc, idx in zip(descriptors, valid_indices):
+            if desc.shape == first_shape:
+                filtered_descriptors.append(desc)
+                filtered_indices.append(idx)
+
+        if not filtered_descriptors:
+            return
+
+        descriptors_array = np.array(filtered_descriptors)
+        n_valid = len(filtered_indices)
 
         # MaxMin Selection
-        selected_indices = [0] # Start with first
+        # Start with the first valid candidate
+        selected_local_indices = [0]
         selected_descriptors = [descriptors_array[0]]
 
-        for _ in range(n_samples - 1):
+        # Limit n_samples to available valid candidates
+        target_samples = min(n_samples, n_valid)
+
+        for _ in range(target_samples - 1):
             # Calculate distance from remaining candidates to selected set
             # We want to maximize the minimum distance to any selected point
 
-            # Distance matrix between all candidates and selected
             # Optimization: only compute for non-selected
-            remaining_indices = [i for i in range(n_candidates) if i not in selected_indices]
-            if not remaining_indices:
+            remaining_local_indices = [i for i in range(n_valid) if i not in selected_local_indices]
+            if not remaining_local_indices:
                 break
 
-            # Compute min distance to ANY selected point for each candidate
-            # d_min(x) = min_{y in selected} dist(x, y)
-            # We want x that maximizes d_min(x)
+            # Distance matrix between remaining candidates and selected set
+            # descriptors_array[remaining_local_indices] is (N_remaining, D)
+            # selected_descriptors is (N_selected, D)
+            remaining_desc = descriptors_array[remaining_local_indices]
+            selected_desc = np.array(selected_descriptors)
 
-            # Using cdist
-            dists = cdist(descriptors_array[remaining_indices], np.array(selected_descriptors))
+            dists = cdist(remaining_desc, selected_desc)
+            # min distance to ANY selected point for each remaining candidate
             min_dists = np.min(dists, axis=1)
 
             # Select candidate with max min_dist
             best_idx_in_remaining = np.argmax(min_dists)
-            best_idx = remaining_indices[best_idx_in_remaining]
+            best_local_idx = remaining_local_indices[best_idx_in_remaining]
 
-            selected_indices.append(best_idx)
-            selected_descriptors.append(descriptors_array[best_idx])
+            selected_local_indices.append(best_local_idx)
+            selected_descriptors.append(descriptors_array[best_local_idx])
 
         # Yield selected
-        for idx in selected_indices:
-            s = candidates[idx]
+        for local_idx in selected_local_indices:
+            original_idx = filtered_indices[local_idx]
+            s = candidates[original_idx]
             s.generation_method = "direct"
             s.tags = ["initial", "direct", f"objective:{objective}"]
             yield s

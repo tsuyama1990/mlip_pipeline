@@ -49,6 +49,11 @@ class MaceManager:
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Only Mock mode will work.")
 
+    def update_model_path(self, path: Path) -> None:
+        """Update the model path and reload the model."""
+        self.config.model_path = str(path)
+        self.load_model()
+
     def load_model(self) -> None:
         """Load the MACE model."""
         if not HAS_MACE:

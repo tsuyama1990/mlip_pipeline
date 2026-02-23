@@ -14,10 +14,12 @@ from pyacemaker.modules.trainer import PacemakerTrainer as Trainer
 
 class TestTrainerModule:
     @pytest.fixture
-    def config(self) -> MagicMock:
+    def config(self, tmp_path: Path) -> MagicMock:
         # Mock PYACEMAKERConfig
         mock_config = MagicMock(spec=PYACEMAKERConfig)
         mock_config.version = "1.0.0"
+        mock_config.project = MagicMock()
+        mock_config.project.root_dir = tmp_path
         mock_config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,
@@ -55,7 +57,9 @@ class TestTrainerModule:
         dataset = [structure]
 
         # Configure mock return values
-        trainer.mock_wrapper.train.return_value = Path("output.yace")  # type: ignore[attr-defined]
+        dummy_output = trainer.config.project.root_dir / "output.yace"
+        dummy_output.touch()
+        trainer.mock_wrapper.train.return_value = dummy_output  # type: ignore[attr-defined]
 
         # Ensure save_iter consumes the iterator to trigger counting AND creates file
         def consume_iterator(data: Iterator[Any], path: Path) -> None:
