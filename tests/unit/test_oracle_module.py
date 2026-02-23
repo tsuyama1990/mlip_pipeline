@@ -194,20 +194,24 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     ) as mock_compute:
         results_iter = oracle.compute_batch(structure_generator())
 
+        # Initial check - nothing processed yet
+        assert mock_compute.call_count == 0
+
         # Consume 1st (Should process 1st chunk of 2)
         r1 = next(results_iter)
         # Because we parallelize chunks, processing 1st chunk (size 2) calls compute 2 times immediately (submitted)
+        # We assert that at least 1 call happened, but typically batch submit happens
+        assert mock_compute.call_count >= 1
+        assert r1.status == StructureStatus.CALCULATED
 
         # Consume 2nd
         r2 = next(results_iter)
-
-        # Check calls after first chunk fully consumed
-        # mock_compute should have been called for struct 0 and 1
         assert mock_compute.call_count >= 2
-        assert r1.status == StructureStatus.CALCULATED
         assert r2.status == StructureStatus.CALCULATED
 
         # Consume 3rd (Second chunk, size 1)
+        # Before consuming, check we haven't processed the 3rd one yet if chunking works perfectly
+        # But this depends on implementation details of executor.submit.
         r3 = next(results_iter)
         assert mock_compute.call_count == 3
         assert r3.status == StructureStatus.CALCULATED

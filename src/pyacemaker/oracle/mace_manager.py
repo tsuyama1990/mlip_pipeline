@@ -7,6 +7,7 @@ from loguru import logger
 
 from pyacemaker.core.config import MaceConfig
 from pyacemaker.core.exceptions import OracleError
+from pyacemaker.core.utils import validate_structure_integrity_atoms
 
 try:
     from mace.calculators import MACECalculator
@@ -50,6 +51,13 @@ class MaceManager:
 
     def compute(self, structure: Atoms) -> Atoms:
         """Run MACE prediction for a single structure."""
+        # Validate structure first
+        try:
+            validate_structure_integrity_atoms(structure)
+        except (ValueError, TypeError) as e:
+            msg = f"Invalid structure input: {e}"
+            raise OracleError(msg) from e
+
         if self.calculator is None:
             self.load_model()
 

@@ -152,15 +152,23 @@ class DatasetManager:
         if size is None:
             return False
 
-        try:
-            f.seek(size, 1)
-        except (OSError, AttributeError, io.UnsupportedOperation):
-            # Fallback to read (chunked skip)
-            chunk_size = CONSTANTS.default_buffer_size
-            while size > 0:
-                to_read = min(size, chunk_size)
-                f.read(to_read)
-                size -= to_read
+        # Attempt efficient seek first
+        if hasattr(f, "seek"):
+            try:
+                f.seek(size, 1)
+            except (OSError, AttributeError, io.UnsupportedOperation):
+                pass  # Fallback to read
+            else:
+                return True
+
+        # Fallback to read (chunked skip) if seek fails or not supported (e.g. some gzip streams)
+        chunk_size = CONSTANTS.default_buffer_size
+        while size > 0:
+            to_read = min(size, chunk_size)
+            data = f.read(to_read)
+            if not data:
+                return False  # Unexpected EOF during skip
+            size -= len(data)
         return True
 
     def load_iter(

@@ -35,6 +35,31 @@ def validate_structure_integrity(structure: StructureMetadata) -> None:
         raise ValueError(msg)
 
 
+def validate_structure_integrity_atoms(atoms: "Atoms") -> None:
+    """Validate an ASE Atoms object.
+
+    Args:
+        atoms: The ASE Atoms object to validate.
+
+    Raises:
+        ValueError: If validation fails.
+
+    """
+    from ase import Atoms
+
+    if not isinstance(atoms, Atoms):
+        msg = f"Expected ASE Atoms object, got {type(atoms).__name__}"
+        raise TypeError(msg)
+
+    if len(atoms) == 0:
+        msg = "Structure contains no atoms"
+        raise ValueError(msg)
+
+    if not hasattr(atoms, "numbers") or not hasattr(atoms, "positions"):
+        msg = "Structure missing essential attributes (numbers, positions)"
+        raise ValueError(msg)
+
+
 def generate_dummy_structures(
     count: int = 10, tags: list[str] | None = None
 ) -> Iterator[StructureMetadata]:

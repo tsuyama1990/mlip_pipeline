@@ -1,5 +1,6 @@
 """Unit tests for MaceSurrogateOracle."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -21,9 +22,10 @@ CONSTANTS.skip_file_checks = True
 
 
 @pytest.fixture
-def mock_config() -> PYACEMAKERConfig:
+def mock_config(tmp_path: Path) -> PYACEMAKERConfig:
     return PYACEMAKERConfig(
-        project=ProjectConfig(name="test", root_dir="/tmp"),
+        version="0.1.0",
+        project=ProjectConfig(name="test", root_dir=tmp_path),
         oracle=OracleConfig(
             dft=DFTConfig(pseudopotentials={"Fe": "Fe.pbe.UPF"}),
             mace=MaceConfig(model_path="medium"),
@@ -32,26 +34,29 @@ def mock_config() -> PYACEMAKERConfig:
 
 
 @pytest.fixture
-def MaceSurrogateOracleClass() -> type:
+def mace_surrogate_oracle_class() -> type:
     from pyacemaker.modules.oracle import MaceSurrogateOracle
+
     return MaceSurrogateOracle
 
 
-def test_init(MaceSurrogateOracleClass: type, mock_config: PYACEMAKERConfig) -> None:
-    oracle = MaceSurrogateOracleClass(mock_config)
+def test_init(
+    mace_surrogate_oracle_class: type, mock_config: PYACEMAKERConfig
+) -> None:
+    oracle = mace_surrogate_oracle_class(mock_config)
     assert oracle.config == mock_config
     assert oracle.mace_manager is not None
 
 
 @patch("pyacemaker.modules.oracle.MaceManager")
 def test_compute_batch(
-    MockMaceManager: MagicMock,
-    MaceSurrogateOracleClass: type,
+    mock_mace_manager: MagicMock,
+    mace_surrogate_oracle_class: type,
     mock_config: PYACEMAKERConfig,
 ) -> None:
     # Setup
     # Create oracle instance. This will instantiate MaceManager(config.oracle.mace)
-    oracle = MaceSurrogateOracleClass(mock_config)
+    oracle = mace_surrogate_oracle_class(mock_config)
 
     # MockMaceManager is the class, so calling it returns an instance
     # But wait, MaceSurrogateOracle.__init__ calls MaceManager(...)
@@ -68,6 +73,9 @@ def test_compute_batch(
     # Mock manager.compute behavior
     def side_effect(atoms: Atoms) -> Atoms:
         calc_atoms = atoms.copy()  # type: ignore[no-untyped-call]
+        if not isinstance(calc_atoms, Atoms):
+            msg = "Expected Atoms object"
+            raise TypeError(msg)
         # Mock calculator behavior on the atoms object
         # Since we use get_potential_energy() from ASE atoms, we mock the method on atoms object?
         # No, manager returns atoms with attached results usually?
@@ -78,8 +86,8 @@ def test_compute_batch(
         # So the returned atoms object must respond to get_potential_energy().
 
         # Mock the get_potential_energy method directly on the returned atoms object
-        calc_atoms.get_potential_energy = MagicMock(return_value=-10.0)
-        calc_atoms.get_forces = MagicMock(
+        calc_atoms.get_potential_energy = MagicMock(return_value=-10.0)  # type: ignore[method-assign]
+        calc_atoms.get_forces = MagicMock(  # type: ignore[method-assign]
             return_value=np.array([[0.0, 0.0, 0.0]] * len(atoms))
         )
         return calc_atoms
