@@ -180,7 +180,7 @@ class TestCycle03UAT:
 
         # Mock file existence checks in wrapper
         with patch("pathlib.Path.exists", return_value=True):
-            potential = trainer.train(dataset_gen())
+            trainer.train(dataset_gen())
 
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]

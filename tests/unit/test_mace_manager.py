@@ -71,14 +71,13 @@ def test_mace_manager_compute(
     assert isinstance(result, Atoms)
 
 
-def test_build_train_command_validation(mace_manager_class: type) -> None:
+def test_build_train_command_validation(mace_manager_class: type, tmp_path) -> None:
     """Test train command construction with parameter validation."""
-    from pathlib import Path
     config = MaceConfig(model_path="medium")
     manager = mace_manager_class(config)
 
-    dataset_path = Path("/tmp/data.xyz")
-    work_dir = Path("/tmp/work")
+    dataset_path = tmp_path / "data.xyz"
+    work_dir = tmp_path / "work"
 
     # Valid params
     params = {

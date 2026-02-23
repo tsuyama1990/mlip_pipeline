@@ -140,17 +140,32 @@ class DFTOracle(BaseOracle):
         self.logger.info("Running DFTOracle")
         return ModuleResult(status="success")
 
+    def _submit_structure(
+        self,
+        s: StructureMetadata,
+        executor: concurrent.futures.ThreadPoolExecutor,
+        futures: dict[concurrent.futures.Future[Any], StructureMetadata],
+    ) -> bool:
+        """Submit a single structure to the executor."""
+        atoms = self._validate_and_extract_atoms(s)
+        if atoms:
+            try:
+                future = executor.submit(self.dft_manager.compute, atoms)
+                futures[future] = s
+                return True
+            except Exception:
+                self.logger.exception(f"Failed to submit task for {s.id}")
+                s.status = StructureStatus.FAILED
+                return False
+        return False
+
     def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch of structures."""
         self.logger.info("Computing batch of structures (DFT Parallel Streaming)")
 
         max_workers = self.config.oracle.dft.max_workers
-        # We want a buffer larger than workers to keep them busy
         buffer_size = max_workers * 2
-
         iterator = iter(structures)
-
-        # Map future back to structure
         futures: dict[concurrent.futures.Future[Any], StructureMetadata] = {}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -161,19 +176,13 @@ class DFTOracle(BaseOracle):
                 except StopIteration:
                     break
 
-                atoms = self._validate_and_extract_atoms(s)
-                if atoms:
-                    future = executor.submit(self.dft_manager.compute, atoms)
-                    futures[future] = s
-                else:
+                if not self._submit_structure(s, executor, futures):
                     yield s
 
             # Process loop
             while futures:
-                # Wait for at least one future
                 done, _ = concurrent.futures.wait(
-                    futures.keys(),
-                    return_when=concurrent.futures.FIRST_COMPLETED,
+                    futures.keys(), return_when=concurrent.futures.FIRST_COMPLETED
                 )
 
                 for future in done:
@@ -193,9 +202,5 @@ class DFTOracle(BaseOracle):
                     except StopIteration:
                         break
 
-                    atoms = self._validate_and_extract_atoms(s)
-                    if atoms:
-                        future = executor.submit(self.dft_manager.compute, atoms)
-                        futures[future] = s
-                    else:
+                    if not self._submit_structure(s, executor, futures):
                         yield s

@@ -47,43 +47,51 @@ class PacemakerTrainer(BaseTrainer):
         initial_potential: Path | None = None,
     ) -> Path:
         """Generate input.yaml for Pacemaker."""
+        # Defaults
+        default_elements = ["Fe"]  # TODO: Infer from dataset or config
+        default_embeddings = {
+            "Fe": {
+                "npot": "FinnisSinclair",
+                "fs_parameters": [1, 1, 1, 1],
+                "ndensity": 2,
+            }
+        }
+
+        # Override with config if present
+        elements = config.get("elements", default_elements)
+        embeddings = config.get("embeddings", default_embeddings)
+
         input_data = {
             "cutoff": float(config.get("cutoff", CONSTANTS.default_trainer_cutoff)),
-            "seed": 42,
+            "seed": config.get("seed", 42),
             "data": {
                 "filename": str(dataset_path),
-                "energy_unit": "eV",
-                "distance_unit": "A",
+                "energy_unit": config.get("energy_unit", "eV"),
+                "distance_unit": config.get("distance_unit", "A"),
             },
             "potential": {
-                "deltaSplineBins": 0.001,
-                "elements": ["Fe"],
-                "embeddings": {
-                    "Fe": {
-                        "npot": "FinnisSinclair",
-                        "fs_parameters": [1, 1, 1, 1],
-                        "ndensity": 2,
-                    }
-                },
+                "deltaSplineBins": config.get("deltaSplineBins", 0.001),
+                "elements": elements,
+                "embeddings": embeddings,
                 "bonds": {
                     "N": int(config.get("basis_size", (1, 1))[0]),
                     "L": int(config.get("basis_size", (1, 1))[1]),
                 },
             },
             "backend": {
-                "evaluator": "tensorpot",
+                "evaluator": config.get("evaluator", "tensorpot"),
                 "batch_size": int(config.get("batch_size", CONSTANTS.default_trainer_batch_size)),
-                "display_step": 100,
+                "display_step": config.get("display_step", 100),
             },
             "loss": {
-                "kappa": 0.3,
-                "w_energy": 1.0,
-                "w_forces": 1.0,
-                "w_stress": 0.1,
+                "kappa": config.get("kappa", 0.3),
+                "w_energy": config.get("w_energy", 1.0),
+                "w_forces": config.get("w_forces", 1.0),
+                "w_stress": config.get("w_stress", 0.1),
             },
             "optimizer": {
                 "max_epochs": int(config.get("max_epochs", CONSTANTS.default_trainer_max_epochs)),
-                "patience": 50,
+                "patience": config.get("patience", 50),
             },
         }
 

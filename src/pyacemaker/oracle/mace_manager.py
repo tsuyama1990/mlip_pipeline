@@ -182,9 +182,13 @@ class MaceManager:
 
         import re
 
+        # Alphanumeric keys only
         valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
-        # Allow alphanumeric, underscore, hyphen, dot, slash, plus (sci notation), comma (lists), colon
-        valid_val = re.compile(r"^[a-zA-Z0-9_\-./+,:]+$")
+
+        # Strict whitelist for values:
+        # Alphanumeric, underscore, hyphen, dot, slash, plus (sci notation), comma, colon, equals, at
+        # No shell metacharacters like ;, &, |, >, <, $, `
+        valid_val = re.compile(r"^[a-zA-Z0-9_\-\.\/\:\+,=@]+$")
 
         for key, value in params.items():
             if key not in CONSTANTS.mace_allowed_train_params:
@@ -236,8 +240,9 @@ class MaceManager:
         try:
             # Not printing full command to avoid leaking potentially sensitive paths in logs if high verbosity
             self.logger.info("Executing mace_run_train")
+            # Explicit shell=False for security
             subprocess.run(  # noqa: S603
-                cmd, check=True, cwd=work_dir, capture_output=True, text=True
+                cmd, check=True, cwd=work_dir, capture_output=True, text=True, shell=False
             )
         except subprocess.CalledProcessError as e:
             msg = f"MACE training failed: {e.stderr}"

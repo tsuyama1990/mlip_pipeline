@@ -129,7 +129,6 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
             wrapper_instance.train.assert_not_called()
 
         # C. Verify arguments passed to wrapper
-        # wrapper.train(dataset_path, work_dir, params, initial_pot)
         if not config.trainer.mock:
             call_args = wrapper_instance.train.call_args
             dataset_arg = call_args[0][0]

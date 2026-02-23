@@ -209,7 +209,7 @@ class MDInterface:
             try:
                 with log_file.open("w") as f:
                     # Explicit shell=False for security
-                    subprocess.run(
+                    subprocess.run(  # noqa: S603
                         exe_cmd,
                         cwd=work_dir,
                         stdout=f,

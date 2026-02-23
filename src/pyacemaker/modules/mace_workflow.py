@@ -19,7 +19,6 @@ from pyacemaker.core.interfaces import (
 )
 from pyacemaker.core.utils import (
     atoms_to_metadata,
-    metadata_to_atoms,
     stream_metadata_to_atoms,
 )
 from pyacemaker.domain_models.models import (
@@ -35,6 +34,11 @@ from pyacemaker.oracle.dataset import DatasetManager
 class MaceDistillationWorkflow:
     """Implements the 7-Step MACE Knowledge Distillation Workflow."""
 
+    # Default filenames
+    POOL_FILE = "pool_structures.pckl.gzip"
+    SURROGATE_UNLABELED_FILE = "surrogate_unlabeled.pckl.gzip"
+    SURROGATE_DATASET_FILE = "surrogate_dataset.pckl.gzip"
+
     def __init__(
         self,
         config: PYACEMAKERConfig,
@@ -45,8 +49,8 @@ class MaceDistillationWorkflow:
         mace_trainer: Trainer,
         dynamics_engine: DynamicsEngine,
         structure_generator: StructureGenerator,
-        validation_path: Path,  # For seed selection
-        training_path: Path,    # For seed selection
+        validation_path: Path,
+        training_path: Path,
     ) -> None:
         """Initialize the workflow."""
         self.config = config
@@ -114,18 +118,16 @@ class MaceDistillationWorkflow:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
 
-        # Use injected generator (must implement generate_direct_samples)
         samples_iter = self.structure_generator.generate_direct_samples(
             n_samples=dist_config.step1_direct_sampling.target_points,
             objective=dist_config.step1_direct_sampling.objective,
         )
 
-        # Use configured path
-        pool_file = getattr(dist_config, "pool_file", "pool_structures.pckl.gzip")
+        pool_file = getattr(dist_config, "pool_file", self.POOL_FILE)
         pool_path = self.config.project.root_dir / "data" / pool_file
 
         self.dataset_manager.save_iter(
-            (metadata_to_atoms(s) for s in samples_iter),
+            stream_metadata_to_atoms(samples_iter),
             pool_path,
             calculate_checksum=False,
         )
@@ -141,12 +143,10 @@ class MaceDistillationWorkflow:
         calculated_ids: set[Any] = set()
         current_potential: Potential | None = None
 
-        # Configured iterations
         max_cycles = dist_config.step2_active_learning.cycles
         for i in range(max_cycles):
             self.logger.info(f"Step 2 (Iteration {i + 1}/{max_cycles})")
 
-            # Update oracle if we have a new potential
             if current_potential and hasattr(self.oracle, "update_model"):
                 self.oracle.update_model(current_potential.path)
 
@@ -162,6 +162,31 @@ class MaceDistillationWorkflow:
 
         return current_potential
 
+    def _select_candidates(
+        self,
+        dist_config: Any,
+        pool_path: Path,
+        calculated_ids: set[Any]
+    ) -> list[StructureMetadata] | None:
+        """Select candidates using uncertainty sampling."""
+        pool_iter = (
+            atoms_to_metadata(a) for a in self.dataset_manager.load_iter(pool_path)
+        )
+        unknown_pool = (
+            s
+            for s in pool_iter
+            if s.status != StructureStatus.CALCULATED and s.id not in calculated_ids
+        )
+
+        uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
+        scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
+
+        n_select = dist_config.step2_active_learning.n_select
+        threshold = dist_config.step2_active_learning.uncertainty_threshold
+
+        learner = ActiveLearner()
+        return learner.select_batch(scored_pool, n_select, threshold=threshold)
+
     def _execute_active_learning_iteration(
         self,
         dist_config: Any,
@@ -170,27 +195,7 @@ class MaceDistillationWorkflow:
         current_potential: Potential | None
     ) -> Potential | None:
         """Execute a single iteration of Active Learning."""
-        # Load pool
-        pool_iter = (
-            atoms_to_metadata(a) for a in self.dataset_manager.load_iter(pool_path)
-        )
-        # Filter out calculated IDs
-        unknown_pool = (
-            s
-            for s in pool_iter
-            if s.status != StructureStatus.CALCULATED and s.id not in calculated_ids
-        )
-
-        # Compute uncertainty
-        uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
-        scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
-
-        # Select Top N
-        n_select = dist_config.step2_active_learning.n_select
-        threshold = dist_config.step2_active_learning.uncertainty_threshold
-
-        learner = ActiveLearner()
-        selected = learner.select_batch(scored_pool, n_select, threshold=threshold)
+        selected = self._select_candidates(dist_config, pool_path, calculated_ids)
 
         if not selected:
             self.logger.info("No candidates selected (threshold not met or pool empty).")
@@ -200,7 +205,7 @@ class MaceDistillationWorkflow:
         for s in selected:
             calculated_ids.add(s.id)
 
-        # Compute DFT
+        # Compute DFT (Streaming)
         self.logger.info(f"Computing DFT for {len(selected)} structures")
         computed_iter = self.oracle.compute_batch(selected)
         self._save_dataset_stream(computed_iter)
@@ -222,13 +227,10 @@ class MaceDistillationWorkflow:
         """Step 4: Surrogate Data Generation."""
         self.logger.info("Step 4: Surrogate Data Generation")
 
-        # Use fine-tuned potential
-        # Seeds from dataset
         seeds = self._get_exploration_seeds(n_seeds=5)
         surrogate_iter = self.dynamics_engine.run_exploration(fine_tuned_potential, seeds)
 
-        # Stream structures directly to file
-        surrogate_file = getattr(dist_config, "surrogate_file", "surrogate_unlabeled.pckl.gzip")
+        surrogate_file = getattr(dist_config, "surrogate_file", self.SURROGATE_UNLABELED_FILE)
         surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_file
 
         limited_iter = islice(
@@ -236,7 +238,7 @@ class MaceDistillationWorkflow:
         )
 
         self.dataset_manager.save_iter(
-            (metadata_to_atoms(s) for s in limited_iter),
+            stream_metadata_to_atoms(limited_iter),
             surrogate_dataset_path,
             calculate_checksum=False,
         )
@@ -249,23 +251,20 @@ class MaceDistillationWorkflow:
         """Step 5: Surrogate Labeling."""
         self.logger.info("Step 5: Surrogate Labeling")
 
-        # We assume self.oracle is already updated with fine-tuned potential in run() method
         mace_labeler = self.oracle
         dist_config = self.config.distillation
 
-        # Load stream
         def load_stream() -> Iterator[StructureMetadata]:
             for atoms in self.dataset_manager.load_iter(surrogate_path):
                 yield atoms_to_metadata(atoms)
 
         labeled_surrogate_iter = mace_labeler.compute_batch(load_stream())
 
-        # Save to separate "surrogate_dataset"
-        surrogate_dataset_file = getattr(dist_config, "surrogate_dataset_file", "surrogate_dataset.pckl.gzip")
+        surrogate_dataset_file = getattr(dist_config, "surrogate_dataset_file", self.SURROGATE_DATASET_FILE)
         surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_dataset_file
 
         self.dataset_manager.save_iter(
-            (metadata_to_atoms(s) for s in labeled_surrogate_iter),
+            stream_metadata_to_atoms(labeled_surrogate_iter),
             surrogate_dataset_path,
             calculate_checksum=False,
         )
@@ -313,7 +312,6 @@ class MaceDistillationWorkflow:
         self.dataset_manager.save_iter(
             atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
         )
-        # Remove stale checksum file if it exists
         checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
         if checksum_path.exists():
             try:
