@@ -98,4 +98,11 @@ def test_compute_batch(
     assert len(results) == 2
     assert results[0].status == StructureStatus.CALCULATED
     assert results[0].energy == -10.0
+    # Check forces are present (mocked return value)
+    assert results[0].forces is not None
+    assert len(results[0].forces) == 2  # H2 has 2 atoms
+
     assert results[1].status == StructureStatus.CALCULATED
+    assert results[1].energy == -10.0
+    assert results[1].forces is not None
+    assert len(results[1].forces) == 1  # O has 1 atom

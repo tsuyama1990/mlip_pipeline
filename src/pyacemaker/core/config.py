@@ -233,36 +233,17 @@ class ProjectConfig(BaseModel):
     @field_validator("root_dir")
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
-        """Validate root directory for path traversal."""
-        # Prevent path traversal characters explicitly
-        if ".." in v.parts:
-            msg = f"Invalid root directory: {v}. Path traversal not allowed."
-            raise ValueError(msg)
-
+        """Validate root directory."""
+        # Use centralized safe path validation
         try:
-            # Strict resolution checks existence and resolves symlinks
-            resolved = v.resolve(strict=True)
+            # validate_safe_path handles skip_file_checks internally where appropriate
+            validate_safe_path(v)
+        except ValueError as e:
+            msg = f"Invalid root directory: {e}"
+            raise ValueError(msg) from e
 
-            # Additional security check: ensure resolved path is absolute
-            if not resolved.is_absolute():
-                # Should typically be absolute after resolve(), but explicitly checking is safer
-                msg = f"Resolved root directory is not absolute: {resolved}"
-                raise ValueError(msg)
-
-        except (OSError, RuntimeError):
-            # If it doesn't exist, we can't fully resolve symlinks in the final component.
-            # But we can resolve the parent.
-            try:
-                # Resolve parent strictly
-                v.parent.resolve(strict=True)
-                # If parent exists, use absolute path for the full path
-                resolved = v.absolute()
-            except (OSError, RuntimeError) as e:
-                # Parent doesn't exist or loop?
-                msg = f"Invalid root directory: {v}. Parent directory must exist."
-                raise ValueError(msg) from e
-
-        return resolved
+        # Resolve to absolute
+        return v.resolve() if v.exists() else v.absolute()
 
 
 class MaceConfig(BaseModel):
@@ -552,6 +533,10 @@ class OrchestratorConfig(BaseModel):
     dataset_file: str = Field(
         default="dataset.pckl.gzip",
         description="Filename for the dataset within the data directory",
+    )
+    validation_file: str = Field(
+        default=CONSTANTS.default_validation_file,
+        description="Filename for the validation dataset",
     )
     validation_buffer_size: int = Field(
         default=CONSTANTS.default_validation_buffer_size,

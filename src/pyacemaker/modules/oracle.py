@@ -1,7 +1,6 @@
 """Oracle (DFT) module implementation."""
 
 import concurrent.futures
-import contextlib
 import random
 import secrets
 from collections.abc import Iterable, Iterator
@@ -13,7 +12,7 @@ from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.exceptions import ConfigurationError, PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
-from pyacemaker.core.utils import validate_structure_integrity
+from pyacemaker.core.utils import update_structure_metadata, validate_structure_integrity
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
 from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.oracle.manager import DFTManager
@@ -36,38 +35,6 @@ class BaseOracle(Oracle):
             return atoms
         self.logger.warning(f"Structure {structure.id} has no valid 'atoms' feature.")
         return None
-
-    def _update_structure_common(
-        self, structure: StructureMetadata, result_atoms: Atoms | None
-    ) -> None:
-        """Update structure metadata with results (Energy, Forces, Stress)."""
-        if result_atoms is None:
-            structure.status = StructureStatus.FAILED
-            return
-
-        # Prepare values before setting status to CALCULATED
-        try:
-            # We use type: ignore because ASE types are often missing
-            energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
-            forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
-            stress = None
-
-            with contextlib.suppress(Exception):
-                stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
-
-            # Update explicit fields
-            structure.energy = energy
-            structure.forces = forces
-            if stress:
-                structure.stress = stress
-
-            structure.features["atoms"] = result_atoms
-            # Set status last
-            structure.status = StructureStatus.CALCULATED
-
-        except Exception:
-            self.logger.exception(f"Failed to extract properties for {structure.id}")
-            structure.status = StructureStatus.FAILED
 
 
 class MockOracle(BaseOracle):
@@ -210,7 +177,7 @@ class DFTOracle(BaseOracle):
             s = future_to_struct[future]
             try:
                 result_atoms = future.result()
-                self._update_structure_common(s, result_atoms)
+                update_structure_metadata(s, result_atoms)
             except Exception:
                 self.logger.exception(f"Error computing structure {s.id}")
                 s.status = StructureStatus.FAILED
@@ -272,7 +239,7 @@ class MaceSurrogateOracle(BaseOracle):
 
             try:
                 result_atoms = self.mace_manager.compute(atoms)
-                self._update_structure_common(s, result_atoms)
+                update_structure_metadata(s, result_atoms)
             except Exception:
                 self.logger.exception(f"Error computing structure {s.id}")
                 s.status = StructureStatus.FAILED

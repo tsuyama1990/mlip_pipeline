@@ -38,8 +38,9 @@ def config(tmp_path: Path) -> PYACEMAKERConfig:
 
 
 def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
-    """Test the _update_structure_common method logic in isolation."""
-    oracle = DFTOracle(config)
+    """Test the update_structure_metadata method logic in isolation."""
+    from pyacemaker.core.utils import update_structure_metadata
+
     s1 = StructureMetadata(tags=["test"], features={"atoms": Atoms("H")})
 
     # mock result atoms
@@ -49,7 +50,7 @@ def test_dft_oracle_update_structure_logic(config: PYACEMAKERConfig) -> None:
     result_atoms.get_forces.return_value = np.array([[0.0, 0.0, 0.0]])
     result_atoms.get_stress.return_value = np.array([0.0] * 6)
 
-    oracle._update_structure_common(s1, result_atoms)
+    update_structure_metadata(s1, result_atoms)
 
     assert s1.status == StructureStatus.CALCULATED
     assert s1.energy == -13.6
@@ -79,14 +80,21 @@ def test_dft_oracle_compute_batch_flow(config: PYACEMAKERConfig) -> None:
     result_atoms.get_forces = MagicMock(return_value=np.array([[0.0, 0.0, 0.0]]))  # type: ignore[method-assign]
 
     # Mock DFTManager to return iterator
-    # Mock _update_structure_common to verify it is called
+    # Mock update_structure_metadata to verify it is called
+
+    def side_effect_update(s: StructureMetadata, atoms: Atoms | None) -> None:
+        if atoms:
+            s.status = StructureStatus.CALCULATED
+            s.energy = -10.0
+
     with (
         patch(
             "pyacemaker.modules.oracle.DFTManager.compute",
             return_value=result_atoms,
         ) as mock_compute,
-        patch.object(
-            oracle, "_update_structure_common", wraps=oracle._update_structure_common
+        patch(
+            "pyacemaker.modules.oracle.update_structure_metadata",
+            side_effect=side_effect_update
         ) as mock_update,
     ):
         results_iter = oracle.compute_batch(structures)

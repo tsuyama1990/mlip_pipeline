@@ -156,7 +156,7 @@ class DatasetManager:
             f.seek(size, 1)
         except (OSError, AttributeError, io.UnsupportedOperation):
             # Fallback to read (chunked skip)
-            chunk_size = 1024 * 1024
+            chunk_size = CONSTANTS.default_buffer_size
             while size > 0:
                 to_read = min(size, chunk_size)
                 f.read(to_read)

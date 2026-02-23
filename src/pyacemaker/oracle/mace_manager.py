@@ -63,6 +63,11 @@ class MaceManager:
 
         try:
             # Trigger calculation
+            # ASE's get_potential_energy is untyped, but we expect it to exist
+            if not hasattr(calc_structure, "get_potential_energy"):
+                msg = "Structure object missing get_potential_energy method"
+                raise TypeError(msg)  # noqa: TRY301
+
             calc_structure.get_potential_energy()  # type: ignore[no-untyped-call]
         except Exception as e:
             msg = f"MACE prediction failed: {e}"

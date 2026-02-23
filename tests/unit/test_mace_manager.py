@@ -80,3 +80,6 @@ def test_mace_manager_compute(mock_calculator_cls: MagicMock, MaceManagerClass: 
     # We can check if `get_potential_energy` was called on the calculator.
     # Standard ASE calculators have `get_potential_energy`.
     mock_calc.get_potential_energy.assert_called()
+
+    # Verify result is the same atoms object (copy)
+    assert isinstance(result, Atoms)

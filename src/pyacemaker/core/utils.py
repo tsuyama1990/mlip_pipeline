@@ -1,5 +1,6 @@
 """Utility functions for PYACEMAKER."""
 
+import contextlib
 import hashlib
 from collections.abc import Iterator
 from pathlib import Path
@@ -231,3 +232,39 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
             logger.warning(f"Failed to attach results to atoms: {e}")
 
     return atoms  # type: ignore[no-any-return]
+
+
+def update_structure_metadata(structure: StructureMetadata, result_atoms: "Atoms | None") -> None:
+    """Update structure metadata with results (Energy, Forces, Stress).
+
+    Args:
+        structure: The structure metadata object to update.
+        result_atoms: The ASE Atoms object containing calculation results.
+
+    """
+    if result_atoms is None:
+        structure.status = StructureStatus.FAILED
+        return
+
+    try:
+        # We use type: ignore because ASE types are often missing
+        energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
+        forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
+        stress = None
+
+        with contextlib.suppress(Exception):
+            stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+
+        # Update explicit fields
+        structure.energy = energy
+        structure.forces = forces
+        if stress:
+            structure.stress = stress
+
+        structure.features["atoms"] = result_atoms
+        # Set status last
+        structure.status = StructureStatus.CALCULATED
+
+    except Exception:
+        logger.exception(f"Failed to extract properties for {structure.id}")
+        structure.status = StructureStatus.FAILED

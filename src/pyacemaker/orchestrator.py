@@ -118,7 +118,7 @@ class Orchestrator(IOrchestrator):
         )
         # Validation set path
         self.validation_path = (
-            self.config.project.root_dir / "data" / CONSTANTS.default_validation_file
+            self.config.project.root_dir / "data" / self.config.orchestrator.validation_file
         )
         # Training set path (persistent subset)
         self.training_path = self.config.project.root_dir / "data" / CONSTANTS.default_training_file

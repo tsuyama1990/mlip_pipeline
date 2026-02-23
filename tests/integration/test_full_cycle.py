@@ -121,10 +121,13 @@ class TestFullCycleIntegration:
 
         with (
             patch("pyacemaker.modules.validator.Validator.validate") as mock_validate,
+            patch("pyacemaker.modules.validator.MockValidator.validate") as mock_mock_validate,
             patch("pyacemaker.modules.trainer.PacemakerTrainer.train") as mock_train,
         ):
-            # Simulate validation failure
-            mock_validate.return_value = MagicMock(status="failed", metrics={})
+            # Simulate validation failure on both to be safe
+            failure_result = MagicMock(status="failed", metrics={})
+            mock_validate.return_value = failure_result
+            mock_mock_validate.return_value = failure_result
 
             # Mock train must consume stream to populate validation set
             def consume_stream(dataset: Any, potential: Potential | None = None) -> Any:
@@ -142,6 +145,6 @@ class TestFullCycleIntegration:
             result = orchestrator.run()
 
             # Should fail
-        assert result.status == "FAILED"
-        # Cycle count should be 1 (failed at cycle 1)
-        assert orchestrator.cycle_count == 1
+            assert result.status == "FAILED"
+            # Cycle count should be 1 (failed at cycle 1)
+            assert orchestrator.cycle_count == 1
