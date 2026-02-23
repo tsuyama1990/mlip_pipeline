@@ -64,8 +64,9 @@ class MaceManager:
         elif model_path not in ("medium", "large", "small"):
             # Local file path
             try:
-                validate_safe_path(Path(model_path))
-            except ValueError as e:
+                p = Path(model_path).resolve()
+                validate_safe_path(p)
+            except (ValueError, RuntimeError) as e:
                 msg = f"Invalid MACE model path: {e}"
                 raise OracleError(msg) from e
 
@@ -124,6 +125,11 @@ class MaceManager:
         """
         if not atoms_list:
             return []
+
+        # Security: Validate batch size to prevent DoS
+        if len(atoms_list) > 1000:
+            msg = f"Batch size {len(atoms_list)} exceeds limit of 1000"
+            raise ValueError(msg)
 
         # Validate inputs
         for atoms in atoms_list:

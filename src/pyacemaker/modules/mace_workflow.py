@@ -28,7 +28,6 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     StructureStatus,
 )
-from pyacemaker.generator.direct import DirectGenerator
 from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.oracle.dataset import DatasetManager
@@ -116,10 +115,8 @@ class MaceDistillationWorkflow:
         """Step 1: DIRECT Sampling (Entropy Maximization)."""
         self.logger.info("Step 1: DIRECT Sampling")
 
-        # Use DirectGenerator specifically
-        direct_generator = DirectGenerator(self.config)
-
-        samples_iter = direct_generator.generate_direct_samples(
+        # Use injected generator (must implement generate_direct_samples)
+        samples_iter = self.structure_generator.generate_direct_samples(
             n_samples=dist_config.step1_direct_sampling.target_points,
             objective=dist_config.step1_direct_sampling.objective,
         )

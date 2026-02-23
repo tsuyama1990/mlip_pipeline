@@ -75,16 +75,18 @@ class MaceTrainer(BaseTrainer):
             work_dir = Path(temp_dir_str)
             dataset_path = work_dir / "training_data.xyz"
 
-            # Filter valid structures
-            valid_dataset = (
-                s for s in dataset
-                if s.energy is not None and s.forces is not None
-            )
+            # Filter valid structures using generator function
+            def valid_stream(data: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+                for s in data:
+                    if s.energy is not None and s.forces is not None:
+                        yield s
+
+            valid_dataset_iter = valid_stream(dataset)
 
             # Save to file using streaming to prevent OOM
             # stream_metadata_to_atoms returns a generator, save_iter consumes it lazily.
             self.dataset_manager.save_iter(
-                stream_metadata_to_atoms(valid_dataset), dataset_path
+                stream_metadata_to_atoms(valid_dataset_iter), dataset_path
             )
 
             # 2. Train

@@ -138,23 +138,11 @@ def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> No
         training_path=Path("train")
     )
 
-    with patch('pyacemaker.modules.mace_workflow.MaceSurrogateOracle') as MockMaceOracleCls, \
-         patch('pyacemaker.modules.mace_workflow.DirectGenerator') as MockDirectGen:
+    # Mock behavior is now on the injected instances
+    # mock_sg is already configured for generate_direct_samples
+    # mock_oracle handles compute_batch
 
-        mock_direct_instance = MockDirectGen.return_value
-        mock_direct_instance.generate_direct_samples.side_effect = mock_sg.generate_direct_samples
-
-        mock_mace_instance = MockMaceOracleCls.return_value
-        def mock_compute_batch(structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-            for s in structures:
-                s.status = StructureStatus.CALCULATED
-                s.energy = -2.0
-                n_atoms = len(s.features.get("atoms", []))
-                s.forces = [[0.1, 0.1, 0.1] for _ in range(n_atoms)]
-                yield s
-        mock_mace_instance.compute_batch.side_effect = mock_compute_batch
-
-        result = workflow.run()
+    result = workflow.run()
 
     assert result.status == "success"
     assert mock_dyn.run_exploration.called
@@ -189,11 +177,7 @@ def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
         training_path=Path("train")
     )
 
-    with patch('pyacemaker.modules.mace_workflow.MaceSurrogateOracle'), \
-         patch('pyacemaker.modules.mace_workflow.DirectGenerator') as MockDirectGen:
-
-        MockDirectGen.return_value.generate_direct_samples.side_effect = mock_sg.generate_direct_samples
-        workflow.run() # Testing run() which calls _step2...
+    workflow.run()
 
     # MACE trainer should NOT have trained in Step 2 (AL loop) because it converged early
     # But wait, step 2 loop calls `_finetune_mace` if `selected` is True.
@@ -229,9 +213,5 @@ def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
         training_path=Path("train")
     )
 
-    # We need to patch DirectGenerator because run() calls _step1 which uses it
-    with (
-        patch('pyacemaker.modules.mace_workflow.DirectGenerator'),
-        pytest.raises(RuntimeError, match="Oracle Failed"),
-    ):
+    with pytest.raises(RuntimeError, match="Oracle Failed"):
         workflow.run()
