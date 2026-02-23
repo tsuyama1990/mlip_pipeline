@@ -285,6 +285,19 @@ def _extract_properties(
         if forces is None and "forces" in atoms.arrays:
             forces = atoms.arrays["forces"].tolist()
 
+        # Extract other metadata from info if present
+        if "label_source" in atoms.info and "label_source" not in kwargs:
+            kwargs["label_source"] = atoms.info["label_source"]
+        if "generation_method" in atoms.info and "generation_method" not in kwargs:
+            kwargs["generation_method"] = atoms.info["generation_method"]
+        if "tags" in atoms.info and "tags" not in kwargs:
+            # tags might be stored as string or list
+            tags_val = atoms.info["tags"]
+            if isinstance(tags_val, str):
+                kwargs["tags"] = tags_val.split(",")
+            elif isinstance(tags_val, list):
+                kwargs["tags"] = tags_val
+
     except Exception as e:
         logger.debug(f"Failed to extract properties: {e}")
 
@@ -335,6 +348,14 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
             logger.warning("ASE SinglePointCalculator not available.")
         except Exception as e:
             logger.warning(f"Failed to attach results to atoms: {e}")
+
+    # Store persistent metadata in info
+    if metadata.label_source:
+        atoms.info["label_source"] = metadata.label_source
+    if metadata.generation_method:
+        atoms.info["generation_method"] = metadata.generation_method
+    if metadata.tags:
+        atoms.info["tags"] = metadata.tags
 
     return atoms  # type: ignore[no-any-return]
 

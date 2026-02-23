@@ -23,7 +23,6 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.utils import (
     atoms_to_metadata,
     metadata_to_atoms,
-    select_top_k_structures,
 )
 from pyacemaker.domain_models.models import (
     CycleStatus,
@@ -32,6 +31,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     StructureStatus,
 )
+from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
 from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
@@ -41,6 +41,13 @@ from pyacemaker.modules.structure_generator import (
 from pyacemaker.modules.trainer import MaceTrainer, PacemakerTrainer
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
+
+# Import new DirectGenerator
+try:
+    from pyacemaker.generator.direct import DirectGenerator
+    HAS_DIRECT = True
+except ImportError:
+    HAS_DIRECT = False
 
 T = TypeVar("T", bound=BaseModule)
 
@@ -62,6 +69,7 @@ class Orchestrator(IOrchestrator):
         dynamics_engine: DynamicsEngine | None = None,
         validator: Validator | None = None,
         mace_trainer: Trainer | None = None,
+        active_learner: ActiveLearner | None = None,
     ) -> None:
         """Initialize the orchestrator and sub-modules."""
         super().__init__(config)
@@ -72,16 +80,27 @@ class Orchestrator(IOrchestrator):
         if structure_generator:
             self.structure_generator = structure_generator
         else:
-            sg_cls = (
-                AdaptiveStructureGenerator
-                if config.structure_generator.strategy == "adaptive"
-                else RandomStructureGenerator
-            )
+            if config.distillation.enable_mace_distillation and HAS_DIRECT:
+                # Use DirectGenerator for MACE distillation Step 1
+                sg_cls = DirectGenerator
+            else:
+                sg_cls = (
+                    AdaptiveStructureGenerator
+                    if config.structure_generator.strategy == "adaptive"
+                    else RandomStructureGenerator
+                )
             self.structure_generator = _create_default_module(sg_cls, config)
 
         # Select Oracle implementation based on config
+        # Default to DFT/Mock unless MACE is explicitly the ONLY oracle desired
+        # For distillation, we usually want DFT as the Oracle (Labeler) and MACE as Uncertainty Model
+
         oracle_cls: type[Oracle]
-        if config.oracle.mace:
+        if config.distillation.enable_mace_distillation:
+            # Distillation implies DFT is the ground truth oracle
+            oracle_cls = MockOracle if config.oracle.mock else DFTOracle
+        elif config.oracle.mace:
+            # MACE as primary oracle (Surrogate mode)
             oracle_cls = MaceSurrogateOracle
         elif config.oracle.mock:
             oracle_cls = MockOracle
@@ -90,12 +109,24 @@ class Orchestrator(IOrchestrator):
 
         self.oracle: Oracle = oracle or _create_default_module(oracle_cls, config)
 
+        # Initialize Uncertainty Model (MACE) if needed
+        self.uncertainty_model: UncertaintyModel | None = None
+        if config.distillation.enable_mace_distillation and config.oracle.mace:
+             self.uncertainty_model = _create_default_module(MaceSurrogateOracle, config)
+        elif isinstance(self.oracle, UncertaintyModel):
+             self.uncertainty_model = self.oracle
+
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
 
         # Initialize MaceTrainer if needed for distillation
         self.mace_trainer: Trainer | None = mace_trainer
         if not self.mace_trainer and config.distillation.enable_mace_distillation:
             self.mace_trainer = _create_default_module(MaceTrainer, config)
+
+        # Initialize ActiveLearner if needed
+        self.active_learner: ActiveLearner | None = active_learner
+        if not self.active_learner and config.distillation.enable_mace_distillation:
+             self.active_learner = _create_default_module(ActiveLearner, config)
 
         engine_cls: type[DynamicsEngine] = LAMMPSEngine
         if config.dynamics_engine.engine == "eon":
@@ -142,6 +173,49 @@ class Orchestrator(IOrchestrator):
         # Default: Classic Active Learning
         self.logger.info("Mode: Standard Active Learning Loop")
         return self._run_active_learning_loop()
+
+    def run_step1_direct_sampling(self) -> list[StructureMetadata]:
+        """Run Step 1: Direct Sampling (Public Interface for UAT)."""
+        pool_path = self._step1_direct_sampling(self.config.distillation)
+        # Load back for verification in UAT
+        return [
+            atoms_to_metadata(a) for a in self.dataset_manager.load_iter(pool_path)
+        ]
+
+    def run_step2_active_learning(self) -> list[StructureMetadata]:
+        """Run Step 2: Active Learning (Public Interface for UAT)."""
+        pool_path = self.config.project.root_dir / "data" / "pool_structures.pckl.gzip"
+        # If pool doesn't exist, use candidates file (from UAT setup)
+        candidates_file = self.config.project.root_dir / CONSTANTS.default_candidates_file
+        if not pool_path.exists() and candidates_file.exists():
+            pool_path = candidates_file
+
+        # Load pool
+        pool_iter = (
+            atoms_to_metadata(a)
+            for a in self.dataset_manager.load_iter(pool_path)
+        )
+
+        # Compute Uncertainty
+        if not self.uncertainty_model:
+            msg = "Uncertainty Model not initialized"
+            raise RuntimeError(msg)
+        scored_pool = list(self.uncertainty_model.compute_uncertainty(pool_iter))
+
+        # Select
+        if not self.active_learner:
+            msg = "ActiveLearner not initialized"
+            raise RuntimeError(msg)
+
+        selected = list(self.active_learner.select_batch(scored_pool))
+
+        # Compute DFT (Simulate labeling)
+        labeled = list(self.oracle.compute_batch(selected))
+
+        # Save to main dataset
+        self._save_dataset_stream(iter(labeled))
+
+        return labeled
 
     def run_cycle(self) -> CycleResult:
         """Execute one active learning cycle (Standard Loop)."""
@@ -212,8 +286,8 @@ class Orchestrator(IOrchestrator):
 
     def _run_mace_distillation(self) -> ModuleResult:
         """Run the 7-Step MACE Distillation Workflow."""
-        if not isinstance(self.oracle, UncertaintyModel):
-            msg = "Oracle must implement UncertaintyModel for MACE distillation."
+        if not self.uncertainty_model:
+            msg = "Uncertainty Model (MACE) required for MACE distillation."
             raise TypeError(msg)
 
         dist_config = self.config.distillation
@@ -266,6 +340,10 @@ class Orchestrator(IOrchestrator):
             msg = "MaceTrainer not initialized."
             raise RuntimeError(msg)
 
+        if not self.active_learner:
+            msg = "ActiveLearner not initialized."
+            raise RuntimeError(msg)
+
         calculated_ids: set[Any] = set()
 
         # Configured iterations
@@ -279,7 +357,6 @@ class Orchestrator(IOrchestrator):
                 for a in self.dataset_manager.load_iter(pool_path)
             )
             # Filter out calculated IDs
-            # (Note: pool file itself is not updated, so we filter in memory using set)
             unknown_pool = (
                 s
                 for s in pool_iter
@@ -287,34 +364,16 @@ class Orchestrator(IOrchestrator):
             )
 
             # Compute uncertainty
-            # Cast oracle to UncertaintyModel for mypy (validated at start of method)
-            uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
-            scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
+            if not self.uncertainty_model:
+                msg = "Uncertainty Model not initialized"
+                raise RuntimeError(msg)
+            scored_pool = self.uncertainty_model.compute_uncertainty(unknown_pool)
 
-            # Select Top N (using shared utility with heap)
-            n_select = dist_config.step2_active_learning.n_select
-            selected = select_top_k_structures(
-                scored_pool,
-                n_select,
-                key_func=lambda s: s.uncertainty_state.gamma_max
-                if s.uncertainty_state and s.uncertainty_state.gamma_max is not None
-                else -1.0,
-            )
+            # Select Batch using ActiveLearner
+            selected = list(self.active_learner.select_batch(scored_pool))
+
             if not selected:
-                self.logger.info("No more candidates in pool.")
-                break
-
-            # Check threshold
-            # Determine max gamma of top candidate (handle None as -1.0)
-            top_gamma = -1.0
-            if (
-                selected[0].uncertainty_state
-                and selected[0].uncertainty_state.gamma_max is not None
-            ):
-                top_gamma = selected[0].uncertainty_state.gamma_max
-
-            if top_gamma < dist_config.step2_active_learning.uncertainty_threshold:
-                self.logger.info("Uncertainty below threshold. Step 2 Converged.")
+                self.logger.info("No more candidates selected.")
                 break
 
             # Mark selected as calculated in local tracker

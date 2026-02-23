@@ -145,7 +145,7 @@ def test_structure_metadata_mace_extensions() -> None:
     assert s.generation_method == "direct"
 
     with pytest.raises(ValidationError):
-        StructureMetadata(label_source="invalid")  # type: ignore[arg-type]
+        StructureMetadata(label_source="invalid")
 
 
 def test_cycle_status_mace_extensions() -> None:

@@ -35,6 +35,19 @@ class MaceManager:
 
     def load_model(self) -> None:
         """Load the MACE model."""
+        if self.config.mock:
+            self.logger.info("Mock mode enabled. Using dummy calculator.")
+            # Use LJ or simple mock if available, else just a placeholder
+            # Since we need to return energy/forces, we need something that mimics a calculator.
+            try:
+                from ase.calculators.lj import LennardJones
+                self.calculator = LennardJones()
+            except ImportError:
+                # If ASE not fully present (unlikely), just set an object that has get_potential_energy?
+                # We assume ASE is present as it is a dependency.
+                pass
+            return
+
         if not HAS_MACE:
             msg = "MACE is not installed. Cannot load model."
             raise OracleError(msg)
@@ -116,7 +129,6 @@ class MaceManager:
         self.logger.info(f"Training MACE model with data at {dataset_path}")
 
         # Use configured mock name or default from config to avoid hardcoding
-        from pyacemaker.core.config import CONSTANTS
 
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Skipping training (Mock).")
