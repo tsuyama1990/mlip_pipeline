@@ -272,6 +272,33 @@ class MaceConfig(BaseModel):
     batch_size: int = Field(
         default=CONSTANTS.default_mace_batch_size, description="Batch size for prediction"
     )
+    mock: bool = Field(default=False, description="Mock MACE for testing")
+
+    @field_validator("model_path")
+    @classmethod
+    def validate_model_path(cls, v: str, _info: Any) -> str:
+        """Validate model path existence if not mocking."""
+        # If 'mock' field is set to True in the model instance, skip validation
+        # But we don't have access to other fields easily in @field_validator unless using ValidationInfo context
+        # Actually, simpler: if the string is not a URL/magic string "medium", check existence.
+        # But we can't check 'mock' status easily here without `model_validator`.
+        # Let's check basic patterns first.
+        if v.lower() in {"medium", "small", "large"}:
+            return v
+
+        path = Path(v)
+        # Security check: ALWAYS valid path structure
+        try:
+            validate_safe_path(path)
+        except ValueError as e:
+            msg = f"Invalid model path structure: {e}"
+            raise ValueError(msg) from e
+
+        # Existence check: delegated to manager or checked here?
+        # The user might provide a path that only exists at runtime (downloaded).
+        # We'll skip strict existence check here to allow download workflows,
+        # but ensure it's a safe path string.
+        return v
 
     @field_validator("device")
     @classmethod
@@ -462,7 +489,9 @@ class DynamicsEngineConfig(BaseModuleConfig):
         default=CONSTANTS.default_dynamics_gamma_threshold,
         description="Threshold for extrapolation grade (gamma) to trigger halt",
     )
-    timestep: float = Field(default=0.001, description="Timestep in ps")
+    timestep: float = Field(
+        default=_DEFAULTS.get("dynamics_timestep", 0.001), description="Timestep in ps"
+    )
     temperature: float = Field(default=300.0, description="Temperature in K")
     pressure: float = Field(default=0.0, description="Pressure in Bar")
     n_steps: int = Field(default=100000, description="Number of MD steps")

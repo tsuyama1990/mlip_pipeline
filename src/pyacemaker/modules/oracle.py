@@ -36,6 +36,22 @@ class BaseOracle(Oracle):
         self.logger.warning(f"Structure {structure.id} has no valid 'atoms' feature.")
         return None
 
+    def _validate_and_extract_atoms(self, structure: StructureMetadata) -> Atoms | None:
+        """Validate structure and extract atoms in one go.
+
+        Returns:
+            Atoms object if valid and not already calculated, None otherwise (and sets status).
+        """
+        self.validate_structure(structure)
+        if structure.status == StructureStatus.CALCULATED:
+            return None
+
+        atoms = self._extract_atoms(structure)
+        if atoms is None:
+            structure.status = StructureStatus.FAILED
+            return None
+        return atoms
+
 
 class MockOracle(BaseOracle):
     """Mock Oracle implementation for testing."""
@@ -156,15 +172,11 @@ class DFTOracle(BaseOracle):
         already_done = []
 
         for s in chunk:
-            self.validate_structure(s)
-            if s.status != StructureStatus.CALCULATED:
-                atoms = self._extract_atoms(s)
-                if atoms:
-                    to_process.append((s, atoms))
-                else:
-                    s.status = StructureStatus.FAILED
-                    already_done.append(s)
+            atoms = self._validate_and_extract_atoms(s)
+            if atoms:
+                to_process.append((s, atoms))
             else:
+                # Either calculated or failed (status set in _validate_and_extract_atoms)
                 already_done.append(s)
 
         yield from already_done
@@ -214,14 +226,8 @@ class MaceSurrogateOracle(BaseOracle):
         self.logger.info("Computing batch of structures (MACE)")
 
         for s in structures:
-            self.validate_structure(s)
-            if s.status == StructureStatus.CALCULATED:
-                yield s
-                continue
-
-            atoms = self._extract_atoms(s)
+            atoms = self._validate_and_extract_atoms(s)
             if atoms is None:
-                s.status = StructureStatus.FAILED
                 yield s
                 continue
 

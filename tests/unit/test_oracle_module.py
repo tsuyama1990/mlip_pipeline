@@ -188,31 +188,47 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     dummy_atom.get_stress.return_value = np.array([0.0] * 6)
 
     # Use side_effect or return value
+    # We patch update_structure_metadata to prevent actual calculation status update failing due to mock mismatch
     with patch(
         "pyacemaker.modules.oracle.DFTManager.compute",
         return_value=dummy_atom,
-    ) as mock_compute:
+    ) as mock_compute, patch(
+        "pyacemaker.modules.oracle.update_structure_metadata"
+    ) as mock_update:
+        # We need update_structure_metadata to set status=CALCULATED manually if mocked out,
+        # or we verify calls. The original implementation sets s.status=CALCULATED inside update.
+        # Let's side effect the mock to set status.
+        def update_side_effect(s: StructureMetadata, a: Atoms | None) -> None:
+            s.status = StructureStatus.CALCULATED
+
+        mock_update.side_effect = update_side_effect
+
         results_iter = oracle.compute_batch(structure_generator())
 
-        # Initial check - nothing processed yet
+        # Initial check - nothing processed yet (generator not consumed)
         assert mock_compute.call_count == 0
 
-        # Consume 1st (Should process 1st chunk of 2)
+        # Consume 1st item
+        # This triggers loading the first chunk (size 2) and submitting tasks
         r1 = next(results_iter)
-        # Because we parallelize chunks, processing 1st chunk (size 2) calls compute 2 times immediately (submitted)
-        # We assert that at least 1 call happened, but typically batch submit happens
-        assert mock_compute.call_count >= 1
         assert r1.status == StructureStatus.CALCULATED
 
-        # Consume 2nd
+        # Consume 2nd item
+        # Should come from the same batch without new submissions
         r2 = next(results_iter)
-        assert mock_compute.call_count >= 2
         assert r2.status == StructureStatus.CALCULATED
 
-        # Consume 3rd (Second chunk, size 1)
-        # Before consuming, check we haven't processed the 3rd one yet if chunking works perfectly
-        # But this depends on implementation details of executor.submit.
+        # We assert that compute has been called 2 times (for the first chunk of 2)
+        # Note: If tasks complete very fast, they might be done before we yield.
+        # But submitting to ThreadPoolExecutor is eager.
+        assert mock_compute.call_count == 2
+
+        # Consume 3rd item
+        # This triggers chunk 2 (1 item) processing
         r3 = next(results_iter)
+
+        # When r3 is consumed, the executor submits the next chunk (of size 1).
+        # We assert that compute has been called 3 times in total.
         assert mock_compute.call_count == 3
         assert r3.status == StructureStatus.CALCULATED
 

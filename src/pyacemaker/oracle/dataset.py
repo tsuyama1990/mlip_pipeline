@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     from hashlib import _Hash
 
 from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.exceptions import DatasetCorruptionError
 from pyacemaker.core.utils import verify_checksum
+from pyacemaker.core.validation import validate_safe_path
 
 
 class HashingWriter:
@@ -166,6 +168,15 @@ class DatasetManager:
                 self.logger.exception(f"Security violation in {path}")
             else:
                 self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
+                # We stop reading here, effectively truncating the stream.
+                # If stricter handling is needed, we could raise DatasetCorruptionError(str(e)) from e
+                # But streaming usually implies "get what you can".
+                # However, for Audit "Silent Failures" suggestion:
+                # "Raise custom DatasetCorruptionError for upstream handling."
+                # We will raise it if it's not a recoverable partial read context.
+                # Since this is an iterator, raising stops iteration.
+                msg = f"Corrupted record in {path}: {e}"
+                raise DatasetCorruptionError(msg) from e
             return None
         return None
 
@@ -242,6 +253,9 @@ class DatasetManager:
             EOFError: If stream ends abruptly (handled internally).
 
         """
+        # Security check
+        validate_safe_path(path)
+
         if not path.exists():
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
@@ -328,6 +342,9 @@ class DatasetManager:
             buffer_size: Write buffer size in bytes.
 
         """
+        # Security check
+        validate_safe_path(path)
+
         # Ensure parent directory exists
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -380,8 +397,16 @@ class DatasetManager:
             checksum = hasher.hexdigest()
             path.with_suffix(path.suffix + ".sha256").write_text(checksum)
         elif calculate_checksum:
-            # Fallback for append mode
+            # Fallback for append mode: verify if we really want to pay the O(N) cost
+            # Ideally callers should pass calculate_checksum=False for tight loops
             from pyacemaker.core.utils import calculate_checksum as calc_checksum
 
             checksum = calc_checksum(path)
             path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+        elif mode == "ab":
+            # If appending and NOT calculating checksum, the old checksum is invalid.
+            # Remove it to avoid confusing verification later.
+            checksum_path = path.with_suffix(path.suffix + ".sha256")
+            if checksum_path.exists():
+                with contextlib.suppress(OSError):
+                    checksum_path.unlink()

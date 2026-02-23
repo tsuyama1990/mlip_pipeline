@@ -36,3 +36,7 @@ class StructureError(PYACEMAKERError):
 
 class DynamicsError(PYACEMAKERError):
     """Raised when a dynamics simulation fails."""
+
+
+class DatasetCorruptionError(PYACEMAKERError):
+    """Raised when a dataset file is corrupted or unreadable."""

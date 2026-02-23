@@ -295,6 +295,13 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
     return atoms  # type: ignore[no-any-return]
 
 
+def _validate_result_atoms(result_atoms: "Atoms") -> None:
+    """Validate that the result atoms object has required methods."""
+    if not hasattr(result_atoms, "get_potential_energy"):
+        msg = "Result atoms object missing energy calculation method"
+        raise TypeError(msg)
+
+
 def update_structure_metadata(structure: StructureMetadata, result_atoms: "Atoms | None") -> None:
     """Update structure metadata with results (Energy, Forces, Stress).
 
@@ -308,13 +315,20 @@ def update_structure_metadata(structure: StructureMetadata, result_atoms: "Atoms
         return
 
     try:
-        # We use type: ignore because ASE types are often missing
-        energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
-        forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
-        stress = None
+        # Validate input atoms
+        _validate_result_atoms(result_atoms)
 
+        # We use type: ignore because ASE types are often missing
+        energy_val = result_atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+        energy = float(energy_val)
+
+        forces_arr = result_atoms.get_forces()  # type: ignore[no-untyped-call]
+        forces: list[list[float]] = forces_arr.tolist()
+
+        stress: list[float] | None = None
         with contextlib.suppress(Exception):
-            stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
+            stress_arr = result_atoms.get_stress()  # type: ignore[no-untyped-call]
+            stress = stress_arr.tolist()
 
         # Update explicit fields
         structure.energy = energy

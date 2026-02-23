@@ -114,7 +114,7 @@ class DatasetSplitter:
                     self._val_count += 1
                     if len(val_buffer) >= self.buffer_size:
                         self._flush_validation(val_buffer)
-                        val_buffer = []
+                        val_buffer.clear()  # Clear list in-place to help GC
                 else:
                     yield atoms_to_metadata(atoms)
 
@@ -125,6 +125,7 @@ class DatasetSplitter:
 
                 with contextlib.suppress(Exception):
                     self._flush_validation(val_buffer)
+                val_buffer.clear()
 
     def _flush_validation(self, items: list[StructureMetadata]) -> None:
         """Flush validation buffer to disk."""
