@@ -91,10 +91,14 @@ class Constants(BaseSettings):
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
     # MACE Defaults
-    default_mace_model_path: str = "medium"  # Default to MACE-MP-0 medium
-    default_mace_device: str = "cpu"
-    default_mace_dtype: str = "float64"
-    default_mace_batch_size: int = 32
+    default_mace_model_path: str = _DEFAULTS["mace_model_path"]
+    default_mace_device: str = _DEFAULTS["mace_device"]
+    default_mace_dtype: str = _DEFAULTS["mace_dtype"]
+    default_mace_batch_size: int = _DEFAULTS["mace_batch_size"]
+
+    # Trainer File Defaults
+    default_trainer_baseline_suffix: str = _DEFAULTS["trainer_delta_baseline_suffix"]
+    default_trainer_mock_potential_name: str = _DEFAULTS["trainer_mock_potential_name"]
 
     # DFT Defaults
     default_dft_ecutwfc: float = _DEFAULTS["dft"]["ecutwfc"]

@@ -35,6 +35,14 @@ trainer_basis_size: [15, 5]
 trainer_delta_learning: "zbl"
 trainer_max_epochs: 500
 trainer_batch_size: 100
+trainer_delta_baseline_suffix: "_baseline.yace"
+trainer_mock_potential_name: "mock_potential.yace"
+
+# MACE
+mace_model_path: "medium"
+mace_device: "cpu"
+mace_dtype: "float64"
+mace_batch_size: 32
 
 # Dynamics Engine
 engine: "lammps"

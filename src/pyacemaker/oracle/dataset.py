@@ -160,8 +160,12 @@ class DatasetManager:
                 raise TypeError(msg)
             if isinstance(obj, Atoms):
                 return obj
-        except pickle.UnpicklingError:
-            self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
+        except (pickle.UnpicklingError, AttributeError, ImportError, ValueError) as e:
+            # AttributeError/ImportError can happen if class is not found/allowed
+            if "forbidden" in str(e):
+                self.logger.exception(f"Security violation in {path}")
+            else:
+                self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
             return None
         return None
 

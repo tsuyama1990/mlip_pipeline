@@ -1,6 +1,7 @@
 """Task and Cycle domain models."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -94,9 +95,12 @@ class ActiveSet(BaseModel):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for the active set")
     structure_ids: list[UUID] = Field(..., description="List of structure IDs in this set")
     # Optional field to carry the actual objects in memory if needed by the Orchestrator
-    # TODO: Implement lazy loading or streaming to avoid memory pressure with large sets
+    # If None, consumer should load from dataset_path
     structures: list["StructureMetadata"] | None = Field(
-        default=None, description="Selected structure objects"
+        default=None, description="Selected structure objects (optional for small sets)"
+    )
+    dataset_path: Path | None = Field(
+        default=None, description="Path to the dataset file containing selected structures"
     )
     selection_criteria: str = Field(
         ..., description="Description of selection criteria (e.g., 'max_uncertainty')"
