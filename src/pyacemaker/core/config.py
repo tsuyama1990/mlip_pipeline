@@ -17,6 +17,9 @@ _DEFAULTS_PATH = Path(
     os.environ.get("PYACEMAKER_DEFAULTS_PATH", Path(__file__).parent / "defaults.yaml")
 )
 
+# Safety limit for loading defaults file
+MAX_DEFAULTS_SIZE = 1024 * 1024  # 1MB limit
+
 
 @functools.lru_cache(maxsize=1)
 def get_defaults() -> dict[str, Any]:
@@ -29,9 +32,8 @@ def get_defaults() -> dict[str, Any]:
         raise FileNotFoundError(msg)
 
     # Size check before reading
-    max_defaults_size = 1024 * 1024  # 1MB limit for defaults
-    if _DEFAULTS_PATH.stat().st_size > max_defaults_size:
-        msg = f"Defaults file size ({_DEFAULTS_PATH.stat().st_size}) exceeds limit of {max_defaults_size} bytes"
+    if _DEFAULTS_PATH.stat().st_size > MAX_DEFAULTS_SIZE:
+        msg = f"Defaults file size ({_DEFAULTS_PATH.stat().st_size}) exceeds limit of {MAX_DEFAULTS_SIZE} bytes"
         raise ValueError(msg)
 
     with _DEFAULTS_PATH.open("r", encoding="utf-8") as f:
@@ -207,29 +209,13 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["dft"]["allowed_input_sections"]
     )
 
-    allowed_potential_paths: list[str] = []
+    allowed_potential_paths: list[str] = Field(
+        default_factory=lambda: get_defaults()["allowed_potential_paths"]
+    )
 
-    allowed_feature_keys: list[str] = [
-        "atoms",
-        "forces",
-        "stress",
-        "energy",
-        "virial",
-        "dipole",
-        "magmom",
-        "charges",
-        "momenta",
-        "masses",
-        "numbers",
-        "positions",
-        "cell",
-        "pbc",
-        "initial_magmoms",
-        "initial_charges",
-        "uncertainty",
-        "original_id",
-        "source",
-    ]
+    allowed_feature_keys: list[str] = Field(
+        default_factory=lambda: get_defaults()["allowed_feature_keys"]
+    )
 
     default_dynamics_gamma_threshold: float = Field(
         default_factory=lambda: get_defaults()["dynamics_gamma_threshold"]

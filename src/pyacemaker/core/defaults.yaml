@@ -202,3 +202,27 @@ default_training_file: "training_set.pckl.gzip"
 default_candidates_file: "candidates.pckl.gzip"
 default_selected_file: "selected.pckl.gzip"
 dataset_extension: ".pckl.gzip"
+
+# Allowed Keys
+allowed_feature_keys:
+  - "atoms"
+  - "forces"
+  - "stress"
+  - "energy"
+  - "virial"
+  - "dipole"
+  - "magmom"
+  - "charges"
+  - "momenta"
+  - "masses"
+  - "numbers"
+  - "positions"
+  - "cell"
+  - "pbc"
+  - "initial_magmoms"
+  - "initial_charges"
+  - "uncertainty"
+  - "original_id"
+  - "source"
+
+allowed_potential_paths: []
