@@ -42,6 +42,8 @@ class DirectGenerator(StructureGenerator):
         """Generate structures using Batched MaxMin diversity sampling.
 
         Uses a Batched Greedy approach to avoid O(N) memory usage for candidates.
+        Memory complexity: O(n_samples * D + batch_size * D), where D is descriptor size.
+        This ensures scalability even for large candidate pools.
         """
         self.logger.info(f"Generating {n_samples} samples using Batched MaxMin diversity ({objective})")
 

@@ -306,6 +306,27 @@ class Constants(BaseSettings):
     )
     mace_default_max_epochs: int = Field(default=50, description="Default max epochs for MACE training")
 
+    mace_allowed_train_params: frozenset[str] = Field(
+        default_factory=lambda: frozenset({
+            "model", "train_file", "valid_file", "test_file", "E0s", "config", "seed",
+            "device", "batch_size", "max_num_epochs", "patience", "eval_interval",
+            "keep_checkpoints", "restart_latest", "loss", "ems", "forces_weight",
+            "energy_weight", "stress_weight", "virial_weight", "lr", "scheduler",
+            "decay", "clip_grad", "swa", "start_swa", "swa_lr", "swa_forces_weight",
+            "swa_energy_weight", "swa_stress_weight", "swa_virial_weight", "r_max",
+            "num_radial_basis", "num_cutoff_basis", "interaction", "interaction_first",
+            "max_ell", "correlation", "hidden_irreps", "MLP_irreps", "gate",
+            "scaling", "avg_num_neighbors", "compute_avg_num_neighbors",
+            "compute_stress", "compute_forces", "compute_virial", "error_table",
+            "default_dtype", "checkpoints_dir", "log_dir", "name", "wandb_name",
+            "wandb_project", "wandb_entity", "wandb_log_hypers", "foundation_model",
+            "finetune", "distributed",
+        })
+    )
+
+    # Oracle Defaults
+    oracle_chunk_size: int = Field(default=100, description="Chunk size for Oracle batch processing")
+
     @field_validator("max_config_size")
     @classmethod
     def validate_max_config_size(cls, v: int) -> int:
@@ -416,9 +437,21 @@ class MaceConfig(BaseModel):
             return v
 
         path = Path(v)
-        # Security check: ALWAYS valid path structure
+        # Security check: ALWAYS valid path structure and traversal prevention
         try:
+            # validate_safe_path checks for '..' components.
+            # We also ensure it resolves to an absolute path if it exists,
+            # or treat it as relative to CWD (or project root if we had context).
+            # Here we just strictly enforce safe path syntax.
             validate_safe_path(path)
+
+            # Additional check: If path exists, ensure it is absolute or handle it safely.
+            # We don't enforce existence here (e.g. for new files), but we enforce safety.
+            if path.is_absolute() and not path.exists() and not path.parent.exists():
+                 # Suspicious absolute path to non-existent location?
+                 # Actually, validate_safe_path is good enough for structure.
+                 pass
+
         except ValueError as e:
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e

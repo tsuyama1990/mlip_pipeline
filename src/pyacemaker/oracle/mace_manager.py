@@ -26,22 +26,6 @@ except ImportError:
 class MaceManager:
     """Manages MACE calculations."""
 
-    _ALLOWED_TRAIN_PARAMS = frozenset({
-        "model", "train_file", "valid_file", "test_file", "E0s", "config", "seed",
-        "device", "batch_size", "max_num_epochs", "patience", "eval_interval",
-        "keep_checkpoints", "restart_latest", "loss", "ems", "forces_weight",
-        "energy_weight", "stress_weight", "virial_weight", "lr", "scheduler",
-        "decay", "clip_grad", "swa", "start_swa", "swa_lr", "swa_forces_weight",
-        "swa_energy_weight", "swa_stress_weight", "swa_virial_weight", "r_max",
-        "num_radial_basis", "num_cutoff_basis", "interaction", "interaction_first",
-        "max_ell", "correlation", "hidden_irreps", "MLP_irreps", "gate",
-        "scaling", "avg_num_neighbors", "compute_avg_num_neighbors",
-        "compute_stress", "compute_forces", "compute_virial", "error_table",
-        "default_dtype", "checkpoints_dir", "log_dir", "name", "wandb_name",
-        "wandb_project", "wandb_entity", "wandb_log_hypers", "foundation_model",
-        "finetune", "distributed",
-    })
-
     def __init__(self, config: MaceConfig) -> None:
         """Initialize the MACE Manager."""
         self.config = config
@@ -198,7 +182,7 @@ class MaceManager:
         valid_val = re.compile(r"^[a-zA-Z0-9_\-./+,:]+$")
 
         for key, value in params.items():
-            if key not in self._ALLOWED_TRAIN_PARAMS:
+            if key not in CONSTANTS.mace_allowed_train_params:
                 self.logger.warning(f"Skipping disallowed parameter key: {key}")
                 continue
 

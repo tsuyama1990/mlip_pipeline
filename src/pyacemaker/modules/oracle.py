@@ -11,7 +11,7 @@ from typing import Any
 from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.exceptions import ConfigurationError, PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle, UncertaintyModel
 from pyacemaker.core.utils import update_structure_metadata, validate_structure_integrity
@@ -359,7 +359,7 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
         """Compute uncertainty for a batch of structures."""
         self.logger.info("Computing uncertainty (MACE)")
 
-        chunk_size = 100
+        chunk_size = CONSTANTS.oracle_chunk_size
         iterator = iter(structures)
 
         while True:
