@@ -3,6 +3,7 @@
 Implements a Framed Pickle format for safe streaming and size validation.
 """
 
+import contextlib
 import gzip
 import hashlib
 import io
@@ -11,13 +12,39 @@ import struct
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from ase import Atoms
 from loguru import logger
 
+if TYPE_CHECKING:
+    from hashlib import _Hash
+
 from pyacemaker.core.config import CONSTANTS
+from pyacemaker.core.exceptions import DatasetCorruptionError
 from pyacemaker.core.utils import verify_checksum
+from pyacemaker.core.validation import validate_safe_path
+
+
+class HashingWriter:
+    """Wrapper around a file object that updates a hash on write."""
+
+    def __init__(self, f: IO[bytes], hasher: "_Hash") -> None:
+        self.f = f
+        self.hasher = hasher
+
+    def write(self, b: bytes) -> int:
+        self.hasher.update(b)
+        return self.f.write(b)
+
+    def flush(self) -> None:
+        self.f.flush()
+
+    def close(self) -> None:
+        self.f.close()
+
+    def tell(self) -> int:
+        return self.f.tell()
 
 
 class RestrictedUnpickler(pickle.Unpickler):
@@ -29,11 +56,34 @@ class RestrictedUnpickler(pickle.Unpickler):
         if module in {"builtins", "copy_reg"}:
             return super().find_class(module, name)
 
-        if module.startswith(("ase", "numpy", "collections")):
+        # Allow numpy and collections (needed for ASE arrays and internal structures)
+        # We restrict numpy to core to avoid loading arbitrary libs if possible,
+        # but ASE Atoms use numpy arrays heavily.
+        if module == "numpy" or module.startswith("numpy."):
+            return super().find_class(module, name)
+
+        # collections is used for deque, defaultdict, etc. in some objects
+        if module == "collections":
+            return super().find_class(module, name)
+
+        # Restrict ASE to specific submodules known to be used in Atoms/Calculators
+        # This reduces surface area compared to allowing all 'ase.*'
+        allowed_ase = {
+            "ase.atoms",
+            "ase.cell",
+            "ase.calculators.singlepoint",
+            "ase.calculators.calculator",
+            # Additional submodules that might be pickled with Atoms
+            "ase.constraints",
+            "ase.spacegroup",
+            "ase.data",
+            "ase.geometry",
+        }
+        if module in allowed_ase or module == "ase":
             return super().find_class(module, name)
 
         # Forbid everything else
-        msg = f"Global '{module}.{name}' is forbidden during unpickling."
+        msg = f"Global '{module}.{name}' is forbidden during unpickling. If this is a valid ASE object, update the whitelist."
         raise pickle.UnpicklingError(msg)
 
 
@@ -118,8 +168,21 @@ class DatasetManager:
                 raise TypeError(msg)
             if isinstance(obj, Atoms):
                 return obj
-        except pickle.UnpicklingError:
-            self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
+        except (pickle.UnpicklingError, AttributeError, ImportError, ValueError) as e:
+            # AttributeError/ImportError can happen if class is not found/allowed
+            if "forbidden" in str(e):
+                self.logger.exception(f"Security violation in {path}")
+            else:
+                self.logger.exception(f"Corrupted record found in {path}. Stop reading.")
+                # We stop reading here, effectively truncating the stream.
+                # If stricter handling is needed, we could raise DatasetCorruptionError(str(e)) from e
+                # But streaming usually implies "get what you can".
+                # However, for Audit "Silent Failures" suggestion:
+                # "Raise custom DatasetCorruptionError for upstream handling."
+                # We will raise it if it's not a recoverable partial read context.
+                # Since this is an iterator, raising stops iteration.
+                msg = f"Corrupted record in {path}: {e}"
+                raise DatasetCorruptionError(msg) from e
             return None
         return None
 
@@ -153,15 +216,23 @@ class DatasetManager:
         if size is None:
             return False
 
-        try:
-            f.seek(size, 1)
-        except (OSError, AttributeError, io.UnsupportedOperation):
-            # Fallback to read (chunked skip)
-            chunk_size = 1024 * 1024
-            while size > 0:
-                to_read = min(size, chunk_size)
-                f.read(to_read)
-                size -= to_read
+        # Attempt efficient seek first
+        if hasattr(f, "seek"):
+            try:
+                f.seek(size, 1)
+            except (OSError, AttributeError, io.UnsupportedOperation):
+                pass  # Fallback to read
+            else:
+                return True
+
+        # Fallback to read (chunked skip) if seek fails or not supported (e.g. some gzip streams)
+        chunk_size = CONSTANTS.default_buffer_size
+        while size > 0:
+            to_read = min(size, chunk_size)
+            data = f.read(to_read)
+            if not data:
+                return False  # Unexpected EOF during skip
+            size -= len(data)
         return True
 
     def load_iter(
@@ -188,6 +259,9 @@ class DatasetManager:
             EOFError: If stream ends abruptly (handled internally).
 
         """
+        # Security check
+        validate_safe_path(path)
+
         if not path.exists():
             msg = f"Dataset file not found: {path}"
             raise FileNotFoundError(msg)
@@ -274,6 +348,9 @@ class DatasetManager:
             buffer_size: Write buffer size in bytes.
 
         """
+        # Security check
+        validate_safe_path(path)
+
         # Ensure parent directory exists
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -282,13 +359,27 @@ class DatasetManager:
             msg = f"Invalid mode '{mode}'. Must be 'wb' or 'ab'."
             raise ValueError(msg)
 
-        # Setup streaming checksum
-        hasher = hashlib.sha256() if calculate_checksum and mode == "wb" else None
+        # Setup streaming checksum optimization
+        # Only feasible if overwriting/creating new file (wb)
+        streaming_hash = mode == "wb" and calculate_checksum
+        hasher = hashlib.sha256() if streaming_hash else None
 
-        with (
-            gzip.open(path, mode) as gz_file,
-            io.BufferedWriter(gz_file, buffer_size=buffer_size) as f,  # type: ignore[arg-type]
-        ):
+        with contextlib.ExitStack() as stack:
+            if streaming_hash:
+                # Open raw file, wrap with hasher, then wrap with gzip
+                raw_f = stack.enter_context(path.open("wb"))
+                hashing_f = HashingWriter(raw_f, hasher)  # type: ignore
+                # gzip.GzipFile mode 'wb' writes to fileobj
+                gz_file = stack.enter_context(
+                    gzip.GzipFile(filename=path.name, mode="wb", fileobj=hashing_f)
+                )
+            else:
+                gz_file = stack.enter_context(gzip.open(path, mode))  # type: ignore[assignment]
+
+            f = stack.enter_context(
+                io.BufferedWriter(gz_file, buffer_size=buffer_size)  # type: ignore
+            )
+
             for atoms in data:
                 # Pickle to bytes first
                 obj_bytes = pickle.dumps(atoms)
@@ -304,23 +395,24 @@ class DatasetManager:
 
                 header = struct.pack(">Q", size)
 
-                # Update hash if active
-                if hasher:
-                    hasher.update(header)
-                    hasher.update(obj_bytes)
-
                 # Write header and payload
                 f.write(header)
                 f.write(obj_bytes)
 
-        if calculate_checksum:
-            if mode == "wb" and hasher:
-                checksum = hasher.hexdigest()
-                path.with_suffix(path.suffix + ".sha256").write_text(checksum)
-            elif mode == "ab":
-                # Fallback to full read for append if requested (expensive)
-                # Ideally caller avoids this for large files in append mode.
-                from pyacemaker.core.utils import calculate_checksum as calc_checksum
+        if streaming_hash and hasher:
+            checksum = hasher.hexdigest()
+            path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+        elif calculate_checksum:
+            # Fallback for append mode: verify if we really want to pay the O(N) cost
+            # Ideally callers should pass calculate_checksum=False for tight loops
+            from pyacemaker.core.utils import calculate_checksum as calc_checksum
 
-                checksum = calc_checksum(path)
-                path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+            checksum = calc_checksum(path)
+            path.with_suffix(path.suffix + ".sha256").write_text(checksum)
+        elif mode == "ab":
+            # If appending and NOT calculating checksum, the old checksum is invalid.
+            # Remove it to avoid confusing verification later.
+            checksum_path = path.with_suffix(path.suffix + ".sha256")
+            if checksum_path.exists():
+                with contextlib.suppress(OSError):
+                    checksum_path.unlink()

@@ -1,11 +1,13 @@
 """Utility functions for PYACEMAKER."""
 
+import contextlib
 import hashlib
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+import numpy as np
 from loguru import logger
 
 from pyacemaker.domain_models.models import (
@@ -32,6 +34,66 @@ def validate_structure_integrity(structure: StructureMetadata) -> None:
     if not all(isinstance(k, str) for k in structure.features):
         msg = "Structure features keys must be strings."
         raise ValueError(msg)
+
+    # Validate atoms if present
+    if "atoms" in structure.features:
+        validate_structure_integrity_atoms(structure.features["atoms"])
+
+    # Validate consistency of forces if present
+    if structure.forces is not None and "atoms" in structure.features:
+        atoms = structure.features["atoms"]
+        if len(structure.forces) != len(atoms):
+            msg = f"Forces array length ({len(structure.forces)}) does not match atom count ({len(atoms)})"
+            raise ValueError(msg)
+
+
+def validate_structure_integrity_atoms(atoms: "Atoms") -> None:
+    """Validate an ASE Atoms object.
+
+    Args:
+        atoms: The ASE Atoms object to validate.
+
+    Raises:
+        ValueError: If validation fails.
+
+    """
+    from ase import Atoms
+
+    if not isinstance(atoms, Atoms):
+        msg = f"Expected ASE Atoms object, got {type(atoms).__name__}"
+        raise TypeError(msg)
+
+    if len(atoms) == 0:
+        msg = "Structure contains no atoms"
+        raise ValueError(msg)
+
+    if not hasattr(atoms, "numbers") or not hasattr(atoms, "positions"):
+        msg = "Structure missing essential attributes (numbers, positions)"
+        raise ValueError(msg)
+
+    # Check for NaN/Inf in positions
+    if np.isnan(atoms.positions).any() or np.isinf(atoms.positions).any():
+        msg = "Structure positions contain NaN or Inf values"
+        raise ValueError(msg)
+
+    # Check cell if periodic
+    if atoms.pbc.any():
+        if np.isnan(atoms.cell).any() or np.isinf(atoms.cell).any():
+            msg = "Structure cell contains NaN or Inf values"
+            raise ValueError(msg)
+
+        # Check for zero volume (singular cell) if fully periodic
+        if atoms.pbc.all():
+            try:
+                # use get_volume() if available, else determinant
+                vol = atoms.get_volume()  # type: ignore[no-untyped-call]
+            except Exception:
+                # Fallback if get_volume fails (e.g. rank < 3)
+                vol = 0.0
+
+            if abs(vol) < 1e-6:
+                msg = "Structure cell volume is near zero or invalid"
+                raise ValueError(msg)
 
 
 def generate_dummy_structures(
@@ -231,3 +293,53 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
             logger.warning(f"Failed to attach results to atoms: {e}")
 
     return atoms  # type: ignore[no-any-return]
+
+
+def _validate_result_atoms(result_atoms: "Atoms") -> None:
+    """Validate that the result atoms object has required methods."""
+    if not hasattr(result_atoms, "get_potential_energy"):
+        msg = "Result atoms object missing energy calculation method"
+        raise TypeError(msg)
+
+
+def update_structure_metadata(structure: StructureMetadata, result_atoms: "Atoms | None") -> None:
+    """Update structure metadata with results (Energy, Forces, Stress).
+
+    Args:
+        structure: The structure metadata object to update.
+        result_atoms: The ASE Atoms object containing calculation results.
+
+    """
+    if result_atoms is None:
+        structure.status = StructureStatus.FAILED
+        return
+
+    try:
+        # Validate input atoms
+        _validate_result_atoms(result_atoms)
+
+        # We use type: ignore because ASE types are often missing
+        energy_val = result_atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+        energy = float(energy_val)
+
+        forces_arr = result_atoms.get_forces()  # type: ignore[no-untyped-call]
+        forces: list[list[float]] = forces_arr.tolist()
+
+        stress: list[float] | None = None
+        with contextlib.suppress(Exception):
+            stress_arr = result_atoms.get_stress()  # type: ignore[no-untyped-call]
+            stress = stress_arr.tolist()
+
+        # Update explicit fields
+        structure.energy = energy
+        structure.forces = forces
+        if stress:
+            structure.stress = stress
+
+        structure.features["atoms"] = result_atoms
+        # Set status last
+        structure.status = StructureStatus.CALCULATED
+
+    except Exception:
+        logger.exception(f"Failed to extract properties for {structure.id}")
+        structure.status = StructureStatus.FAILED

@@ -22,17 +22,21 @@ class ActiveSetSelector:
             Path to the new dataset containing only selected structures.
 
         """
+        from pyacemaker.core.config import CONSTANTS
+
         # Determine output path based on input path
         # e.g., candidates.pckl.gzip -> candidates_selected.pckl.gzip
         # Ensure we handle multiple extensions correctly
         name = candidates_path.name
-        if name.endswith(".pckl.gzip"):
-            stem = name[:-10]  # Remove .pckl.gzip
+        ext = CONSTANTS.dataset_extension
+
+        if name.endswith(ext):
+            stem = name[: -len(ext)]
         elif name.endswith((".gzip", ".pckl")):
             stem = name[:-5]
         else:
             stem = candidates_path.stem
 
-        output_path = candidates_path.parent / f"{stem}_selected.pckl.gzip"
+        output_path = candidates_path.parent / f"{stem}_selected{ext}"
 
         return self.wrapper.select_active_set(candidates_path, num_select, output_path)

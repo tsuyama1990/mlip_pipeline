@@ -22,7 +22,11 @@ class ConfigurationError(PYACEMAKERError):
         self.details = details or {}
 
 
-class DFTError(PYACEMAKERError):
+class OracleError(PYACEMAKERError):
+    """Raised when an Oracle (DFT/MACE) calculation fails."""
+
+
+class DFTError(OracleError):
     """Raised when a DFT calculation fails."""
 
 
@@ -32,3 +36,7 @@ class StructureError(PYACEMAKERError):
 
 class DynamicsError(PYACEMAKERError):
     """Raised when a dynamics simulation fails."""
+
+
+class DatasetCorruptionError(PYACEMAKERError):
+    """Raised when a dataset file is corrupted or unreadable."""

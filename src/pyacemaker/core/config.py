@@ -90,6 +90,16 @@ class Constants(BaseSettings):
     default_dft_chunk_size: int = _DEFAULTS["dft"]["chunk_size"]
     default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
 
+    # MACE Defaults
+    default_mace_model_path: str = _DEFAULTS["mace_model_path"]
+    default_mace_device: str = _DEFAULTS["mace_device"]
+    default_mace_dtype: str = _DEFAULTS["mace_dtype"]
+    default_mace_batch_size: int = _DEFAULTS["mace_batch_size"]
+
+    # Trainer File Defaults
+    default_trainer_baseline_suffix: str = _DEFAULTS["trainer_delta_baseline_suffix"]
+    default_trainer_mock_potential_name: str = _DEFAULTS["trainer_mock_potential_name"]
+
     # DFT Defaults
     default_dft_ecutwfc: float = _DEFAULTS["dft"]["ecutwfc"]
     default_dft_ecutrho: float = _DEFAULTS["dft"]["ecutrho"]
@@ -164,8 +174,12 @@ class Constants(BaseSettings):
     dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
 
     # File Names
-    default_validation_file: str = "validation_set.pckl.gzip"
-    default_training_file: str = "training_set.pckl.gzip"
+    default_dataset_file: str = _DEFAULTS.get("default_dataset_file", "dataset.pckl.gzip")
+    default_validation_file: str = _DEFAULTS.get("default_validation_file", "validation_set.pckl.gzip")
+    default_training_file: str = _DEFAULTS.get("default_training_file", "training_set.pckl.gzip")
+    default_candidates_file: str = _DEFAULTS.get("default_candidates_file", "candidates.pckl.gzip")
+    default_selected_file: str = _DEFAULTS.get("default_selected_file", "selected.pckl.gzip")
+    dataset_extension: str = _DEFAULTS.get("dataset_extension", ".pckl.gzip")
 
     @field_validator("max_config_size")
     @classmethod
@@ -227,36 +241,82 @@ class ProjectConfig(BaseModel):
     @field_validator("root_dir")
     @classmethod
     def validate_root_dir(cls, v: Path) -> Path:
-        """Validate root directory for path traversal."""
-        # Prevent path traversal characters explicitly
-        if ".." in v.parts:
-            msg = f"Invalid root directory: {v}. Path traversal not allowed."
-            raise ValueError(msg)
-
+        """Validate root directory."""
+        # Use centralized safe path validation
         try:
-            # Strict resolution checks existence and resolves symlinks
-            resolved = v.resolve(strict=True)
+            # validate_safe_path handles skip_file_checks internally where appropriate
+            validate_safe_path(v)
+        except ValueError as e:
+            msg = f"Invalid root directory: {e}"
+            raise ValueError(msg) from e
 
-            # Additional security check: ensure resolved path is absolute
-            if not resolved.is_absolute():
-                # Should typically be absolute after resolve(), but explicitly checking is safer
-                msg = f"Resolved root directory is not absolute: {resolved}"
-                raise ValueError(msg)
+        # Resolve to absolute
+        return v.resolve() if v.exists() else v.absolute()
 
-        except (OSError, RuntimeError):
-            # If it doesn't exist, we can't fully resolve symlinks in the final component.
-            # But we can resolve the parent.
-            try:
-                # Resolve parent strictly
-                v.parent.resolve(strict=True)
-                # If parent exists, use absolute path for the full path
-                resolved = v.absolute()
-            except (OSError, RuntimeError) as e:
-                # Parent doesn't exist or loop?
-                msg = f"Invalid root directory: {v}. Parent directory must exist."
-                raise ValueError(msg) from e
 
-        return resolved
+class MaceConfig(BaseModel):
+    """MACE model configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model_path: str = Field(
+        default=CONSTANTS.default_mace_model_path,
+        description="Path or URL to the MACE model (e.g., 'medium', path/to/model.model)",
+    )
+    device: str = Field(
+        default=CONSTANTS.default_mace_device, description="Device to run on (cpu, cuda)"
+    )
+    default_dtype: str = Field(
+        default=CONSTANTS.default_mace_dtype, description="Default data type (float32, float64)"
+    )
+    batch_size: int = Field(
+        default=CONSTANTS.default_mace_batch_size, description="Batch size for prediction"
+    )
+    mock: bool = Field(default=False, description="Mock MACE for testing")
+
+    @field_validator("model_path")
+    @classmethod
+    def validate_model_path(cls, v: str, _info: Any) -> str:
+        """Validate model path existence if not mocking."""
+        # If 'mock' field is set to True in the model instance, skip validation
+        # But we don't have access to other fields easily in @field_validator unless using ValidationInfo context
+        # Actually, simpler: if the string is not a URL/magic string "medium", check existence.
+        # But we can't check 'mock' status easily here without `model_validator`.
+        # Let's check basic patterns first.
+        if v.lower() in {"medium", "small", "large"}:
+            return v
+
+        path = Path(v)
+        # Security check: ALWAYS valid path structure
+        try:
+            validate_safe_path(path)
+        except ValueError as e:
+            msg = f"Invalid model path structure: {e}"
+            raise ValueError(msg) from e
+
+        # Existence check: delegated to manager or checked here?
+        # The user might provide a path that only exists at runtime (downloaded).
+        # We'll skip strict existence check here to allow download workflows,
+        # but ensure it's a safe path string.
+        return v
+
+    @field_validator("device")
+    @classmethod
+    def validate_device(cls, v: str) -> str:
+        """Validate device."""
+        if v not in {"cpu", "cuda", "mps"}:
+            msg = f"Invalid device: {v}. Must be cpu, cuda, or mps"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("default_dtype")
+    @classmethod
+    def validate_dtype(cls, v: str) -> str:
+        """Validate data type."""
+        if v not in {"float32", "float64"}:
+            msg = f"Invalid dtype: {v}. Must be float32 or float64"
+            raise ValueError(msg)
+        return v
 
 
 class DFTConfig(BaseModel):
@@ -340,6 +400,7 @@ class OracleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     dft: DFTConfig = Field(..., description="DFT configuration")
+    mace: MaceConfig | None = Field(default=None, description="MACE configuration")
     mock: bool = Field(default=False, description="Use mock oracle for testing")
 
 
@@ -428,7 +489,9 @@ class DynamicsEngineConfig(BaseModuleConfig):
         default=CONSTANTS.default_dynamics_gamma_threshold,
         description="Threshold for extrapolation grade (gamma) to trigger halt",
     )
-    timestep: float = Field(default=0.001, description="Timestep in ps")
+    timestep: float = Field(
+        default=_DEFAULTS.get("dynamics_timestep", 0.001), description="Timestep in ps"
+    )
     temperature: float = Field(default=300.0, description="Temperature in K")
     pressure: float = Field(default=0.0, description="Pressure in Bar")
     n_steps: int = Field(default=100000, description="Number of MD steps")
@@ -505,8 +568,12 @@ class OrchestratorConfig(BaseModel):
         description="Maximum number of structures in validation set (to prevent OOM)",
     )
     dataset_file: str = Field(
-        default="dataset.pckl.gzip",
+        default=CONSTANTS.default_dataset_file,
         description="Filename for the dataset within the data directory",
+    )
+    validation_file: str = Field(
+        default=CONSTANTS.default_validation_file,
+        description="Filename for the validation dataset",
     )
     validation_buffer_size: int = Field(
         default=CONSTANTS.default_validation_buffer_size,

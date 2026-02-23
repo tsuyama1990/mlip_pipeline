@@ -1,5 +1,6 @@
 """Dataset utilities for PYACEMAKER."""
 
+import contextlib
 import secrets
 from collections.abc import Iterator
 from pathlib import Path
@@ -9,7 +10,57 @@ from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
 from pyacemaker.domain_models.models import StructureMetadata
 
 if TYPE_CHECKING:
+    from pyacemaker.core.interfaces import StructureGenerator
     from pyacemaker.oracle.dataset import DatasetManager
+
+
+class SeedSelector:
+    """Helper to select seeds for exploration from datasets or generator."""
+
+    def __init__(self, dataset_manager: "DatasetManager") -> None:
+        """Initialize the SeedSelector."""
+        self.dataset_manager = dataset_manager
+
+    def get_seeds(
+        self,
+        validation_path: Path,
+        training_path: Path,
+        structure_generator: "StructureGenerator",
+        n_seeds: int = 20,
+    ) -> list[StructureMetadata]:
+        """Get seed structures for exploration."""
+        seeds: list[StructureMetadata] = []
+
+        # Priority 1: Use validation set (unseen data) if available
+        if validation_path.exists():
+            seeds.extend(self._load_seeds_from_dataset(validation_path, n_seeds))
+
+        # Priority 2: Fill remaining from training set
+        if len(seeds) < n_seeds and training_path.exists():
+            remaining = n_seeds - len(seeds)
+            seeds.extend(self._load_seeds_from_dataset(training_path, remaining))
+
+        # Priority 3: If still empty, use generator
+        if not seeds:
+            # We rely on the caller to handle warnings if desired
+            gen_seeds = list(structure_generator.generate_initial_structures())
+            seeds.extend(gen_seeds)
+
+        # Truncate
+        if len(seeds) > n_seeds:
+            seeds = seeds[:n_seeds]
+
+        return seeds
+
+    def _load_seeds_from_dataset(self, path: Path, limit: int) -> list[StructureMetadata]:
+        """Load seeds from a dataset file up to a limit."""
+        seeds = []
+        with contextlib.suppress(Exception):
+            for i, atoms in enumerate(self.dataset_manager.load_iter(path)):
+                if i >= limit:
+                    break
+                seeds.append(atoms_to_metadata(atoms))
+        return seeds
 
 
 class DatasetSplitter:
@@ -63,7 +114,7 @@ class DatasetSplitter:
                     self._val_count += 1
                     if len(val_buffer) >= self.buffer_size:
                         self._flush_validation(val_buffer)
-                        val_buffer = []
+                        val_buffer.clear()  # Clear list in-place to help GC
                 else:
                     yield atoms_to_metadata(atoms)
 
@@ -74,6 +125,7 @@ class DatasetSplitter:
 
                 with contextlib.suppress(Exception):
                     self._flush_validation(val_buffer)
+                val_buffer.clear()
 
     def _flush_validation(self, items: list[StructureMetadata]) -> None:
         """Flush validation buffer to disk."""

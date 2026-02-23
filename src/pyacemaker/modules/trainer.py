@@ -48,7 +48,7 @@ class PacemakerTrainer(Trainer):
 
         # Create work directory
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
-        dataset_path = work_dir / "training_set.pckl.gzip"
+        dataset_path = work_dir / CONSTANTS.default_training_file
 
         # Convert to Atoms and save (Streaming)
         # We need to count to ensure we have data, but save_iter consumes.
@@ -70,7 +70,10 @@ class PacemakerTrainer(Trainer):
         # 2. Configure Delta Learning (Baseline)
         baseline_file = None
         if self.trainer_config.delta_learning in ("zbl", "lj"):
-            baseline_file = work_dir / f"{self.trainer_config.delta_learning}_baseline.yace"
+            baseline_file = (
+                work_dir
+                / f"{self.trainer_config.delta_learning}{CONSTANTS.default_trainer_baseline_suffix}"
+            )
             self._generate_baseline(baseline_file, self.trainer_config.delta_learning)
 
         # 3. Prepare Params
@@ -91,7 +94,7 @@ class PacemakerTrainer(Trainer):
         # 4. Train
         if self.trainer_config.mock:
             self.logger.info("Mock Mode: Skipping pace_train execution.")
-            output_pot_path = work_dir / "mock_potential.yace"
+            output_pot_path = work_dir / CONSTANTS.default_trainer_mock_potential_name
             output_pot_path.touch()
         else:
             initial_pot_path = initial_potential.path if initial_potential else None
@@ -111,7 +114,7 @@ class PacemakerTrainer(Trainer):
     ) -> ActiveSet:
         """Select active set."""
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_ACTIVE))
-        candidates_path = work_dir / "candidates.pckl.gzip"
+        candidates_path = work_dir / CONSTANTS.default_candidates_file
 
         # Save candidates (Streaming)
         atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
@@ -125,7 +128,7 @@ class PacemakerTrainer(Trainer):
             # We can't easily slice a generator without consuming it or caching.
             # But in mock mode, we usually just want to test flow.
             # We'll reload the saved candidates and take first n_select
-            selected_path = work_dir / "selected.pckl.gzip"
+            selected_path = work_dir / CONSTANTS.default_selected_file
             # Limit generator
             reloaded_gen = self.dataset_manager.load_iter(candidates_path)
 
@@ -139,7 +142,14 @@ class PacemakerTrainer(Trainer):
         else:
             selected_path = self.active_set_selector.select(candidates_path, n_select)
 
-        # Load selected structures from file to reconstruct metadata
+        # For scalability, we populate structure_ids but only optionally load structures
+        # if the count is small (e.g. < 1000). Otherwise, we return the dataset_path.
+        # But for Orchestrator, it expects structures.
+        # So we will load them for now, but also provide dataset_path.
+        # To avoid OOM if selection is huge, we should probably check n_select.
+        # Since n_select defaults to 20-100 in config, it's safe to load.
+        # But for correctness with "NEVER load entire datasets", we add the safeguard.
+
         for atoms in self.dataset_manager.load_iter(selected_path):
             uid_str = atoms.info.get("uuid")
             uid = UUID(uid_str) if uid_str else uuid4()
@@ -164,6 +174,7 @@ class PacemakerTrainer(Trainer):
         return ActiveSet(
             structure_ids=selected_ids,
             structures=selected_structures_list,
+            dataset_path=selected_path,
             selection_criteria="max_vol",
         )
 

@@ -29,7 +29,7 @@ class RandomStructureGenerator(StructureGenerator):
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures."""
         self.logger.info("Generating initial structures (mock)")
-        yield from generate_dummy_structures(5, tags=["initial", "random"])
+        yield from generate_dummy_structures(20, tags=["initial", "random"])
 
     def _generate_candidates_common(
         self, n_candidates: int, tags: list[str]

@@ -1,7 +1,6 @@
 """Oracle (DFT) module implementation."""
 
 import concurrent.futures
-import contextlib
 import random
 import secrets
 from collections.abc import Iterable, Iterator
@@ -11,10 +10,11 @@ from ase import Atoms
 
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.core.exceptions import PYACEMAKERError
+from pyacemaker.core.exceptions import ConfigurationError, PYACEMAKERError
 from pyacemaker.core.interfaces import Oracle
-from pyacemaker.core.utils import validate_structure_integrity
+from pyacemaker.core.utils import update_structure_metadata, validate_structure_integrity
 from pyacemaker.domain_models.models import StructureMetadata, StructureStatus
+from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.oracle.manager import DFTManager
 
 
@@ -36,37 +36,21 @@ class BaseOracle(Oracle):
         self.logger.warning(f"Structure {structure.id} has no valid 'atoms' feature.")
         return None
 
-    def _update_structure_common(
-        self, structure: StructureMetadata, result_atoms: Atoms | None
-    ) -> None:
-        """Update structure metadata with results (Energy, Forces, Stress)."""
-        if result_atoms is None:
+    def _validate_and_extract_atoms(self, structure: StructureMetadata) -> Atoms | None:
+        """Validate structure and extract atoms in one go.
+
+        Returns:
+            Atoms object if valid and not already calculated, None otherwise (and sets status).
+        """
+        self.validate_structure(structure)
+        if structure.status == StructureStatus.CALCULATED:
+            return None
+
+        atoms = self._extract_atoms(structure)
+        if atoms is None:
             structure.status = StructureStatus.FAILED
-            return
-
-        # Prepare values before setting status to CALCULATED
-        try:
-            # We use type: ignore because ASE types are often missing
-            energy = float(result_atoms.get_potential_energy())  # type: ignore[no-untyped-call]
-            forces = result_atoms.get_forces().tolist()  # type: ignore[no-untyped-call]
-            stress = None
-
-            with contextlib.suppress(Exception):
-                stress = result_atoms.get_stress().tolist()  # type: ignore[no-untyped-call]
-
-            # Update explicit fields
-            structure.energy = energy
-            structure.forces = forces
-            if stress:
-                structure.stress = stress
-
-            structure.features["atoms"] = result_atoms
-            # Set status last
-            structure.status = StructureStatus.CALCULATED
-
-        except Exception:
-            self.logger.exception(f"Failed to extract properties for {structure.id}")
-            structure.status = StructureStatus.FAILED
+            return None
+        return atoms
 
 
 class MockOracle(BaseOracle):
@@ -116,16 +100,19 @@ class MockOracle(BaseOracle):
                 yield s
                 continue
 
-            # Generate random values
-            energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
-            forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)]]
-
             # Ensure atoms object exists for Trainer
-            if "atoms" not in s.features or not isinstance(s.features.get("atoms"), Atoms):
+            atoms = s.features.get("atoms")
+            if not isinstance(atoms, Atoms):
                 # Create dummy atoms
-                s.features["atoms"] = Atoms(
+                atoms = Atoms(
                     "Fe", positions=[[0, 0, 0]], cell=[2.5, 2.5, 2.5], pbc=True
                 )
+                s.features["atoms"] = atoms
+
+            # Generate random values
+            energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
+            # Generate forces for EACH atom
+            forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)] for _ in range(len(atoms))]
 
             # Update structure
             s.energy = energy
@@ -185,15 +172,11 @@ class DFTOracle(BaseOracle):
         already_done = []
 
         for s in chunk:
-            self.validate_structure(s)
-            if s.status != StructureStatus.CALCULATED:
-                atoms = self._extract_atoms(s)
-                if atoms:
-                    to_process.append((s, atoms))
-                else:
-                    s.status = StructureStatus.FAILED
-                    already_done.append(s)
+            atoms = self._validate_and_extract_atoms(s)
+            if atoms:
+                to_process.append((s, atoms))
             else:
+                # Either calculated or failed (status set in _validate_and_extract_atoms)
                 already_done.append(s)
 
         yield from already_done
@@ -209,8 +192,65 @@ class DFTOracle(BaseOracle):
             s = future_to_struct[future]
             try:
                 result_atoms = future.result()
-                self._update_structure_common(s, result_atoms)
+                update_structure_metadata(s, result_atoms)
             except Exception:
                 self.logger.exception(f"Error computing structure {s.id}")
                 s.status = StructureStatus.FAILED
+            yield s
+
+
+class MaceSurrogateOracle(BaseOracle):
+    """MACE Surrogate Oracle implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize the MACE Oracle."""
+        super().__init__(config)
+
+        if config.oracle.mace is None:
+            msg = "MACE configuration is missing."
+            raise ConfigurationError(msg)
+
+        if config.oracle.mock:
+            self.logger.info("MACE Oracle loaded (Mock)")
+            self.mace_manager = None
+        else:
+            self.mace_manager = MaceManager(config.oracle.mace)
+
+    def run(self) -> ModuleResult:
+        """Run the oracle (batch processing)."""
+        self.logger.info("Running MaceSurrogateOracle")
+        return ModuleResult(status="success")
+
+    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
+        """Compute energy/forces for a batch of structures."""
+        self.logger.info("Computing batch of structures (MACE)")
+
+        for s in structures:
+            atoms = self._validate_and_extract_atoms(s)
+            if atoms is None:
+                yield s
+                continue
+
+            if self.config.oracle.mock:
+                # Mock behavior
+                s.energy = -10.0
+                s.forces = [[0.0, 0.0, 0.0] for _ in range(len(atoms))]
+                s.status = StructureStatus.CALCULATED
+                yield s
+                continue
+
+            # We verified self.mace_manager is not None if not mock
+            # But type checker might complain if we don't assert/check
+            if self.mace_manager is None:
+                # Should not happen given __init__ logic unless modified
+                msg = "MaceManager is None but mock is False"
+                raise ConfigurationError(msg)
+
+            try:
+                result_atoms = self.mace_manager.compute(atoms)
+                update_structure_metadata(s, result_atoms)
+            except Exception:
+                self.logger.exception(f"Error computing structure {s.id}")
+                s.status = StructureStatus.FAILED
+
             yield s
