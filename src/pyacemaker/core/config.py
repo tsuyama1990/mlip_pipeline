@@ -510,6 +510,66 @@ class DynamicsEngineConfig(BaseModuleConfig):
         return v.lower()
 
 
+class Step1DirectSamplingConfig(BaseModel):
+    """Configuration for Step 1: Direct Sampling."""
+
+    model_config = ConfigDict(extra="forbid")
+    target_points: int = Field(default=100, description="Number of target points")
+    objective: str = Field(default="maximize_entropy", description="Optimization objective")
+
+
+class Step2ActiveLearningConfig(BaseModel):
+    """Configuration for Step 2: Active Learning."""
+
+    model_config = ConfigDict(extra="forbid")
+    uncertainty_threshold: float = Field(default=0.8, description="Uncertainty threshold")
+    dft_calculator: str = Field(default="VASP", description="DFT calculator name")
+
+
+class Step3MaceFinetuneConfig(BaseModel):
+    """Configuration for Step 3: MACE Fine-tuning."""
+
+    model_config = ConfigDict(extra="forbid")
+    base_model: str = Field(default="MACE-MP-0", description="Base MACE model")
+    epochs: int = Field(default=50, description="Number of epochs")
+
+
+class Step4SurrogateSamplingConfig(BaseModel):
+    """Configuration for Step 4: Surrogate Sampling."""
+
+    model_config = ConfigDict(extra="forbid")
+    target_points: int = Field(default=1000, description="Number of target points")
+    method: str = Field(default="mace_md", description="Sampling method")
+
+
+class Step7PacemakerFinetuneConfig(BaseModel):
+    """Configuration for Step 7: Pacemaker Fine-tuning."""
+
+    model_config = ConfigDict(extra="forbid")
+    enable: bool = Field(default=True, description="Enable Delta Learning")
+    weight_dft: float = Field(default=10.0, description="Weight for DFT data")
+
+
+class DistillationConfig(BaseModel):
+    """Configuration for MACE Distillation Workflow."""
+
+    model_config = ConfigDict(extra="forbid")
+    enable_mace_distillation: bool = Field(default=False, description="Enable MACE distillation")
+    step1_direct_sampling: Step1DirectSamplingConfig = Field(
+        default_factory=Step1DirectSamplingConfig
+    )
+    step2_active_learning: Step2ActiveLearningConfig = Field(
+        default_factory=Step2ActiveLearningConfig
+    )
+    step3_mace_finetune: Step3MaceFinetuneConfig = Field(default_factory=Step3MaceFinetuneConfig)
+    step4_surrogate_sampling: Step4SurrogateSamplingConfig = Field(
+        default_factory=Step4SurrogateSamplingConfig
+    )
+    step7_pacemaker_finetune: Step7PacemakerFinetuneConfig = Field(
+        default_factory=Step7PacemakerFinetuneConfig
+    )
+
+
 class ValidatorConfig(BaseModel):
     """Validator module configuration."""
 
@@ -644,6 +704,7 @@ class PYACEMAKERConfig(BaseModel):
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     dynamics_engine: DynamicsEngineConfig = Field(default_factory=DynamicsEngineConfig)
     validator: ValidatorConfig = Field(default_factory=ValidatorConfig)
+    distillation: DistillationConfig = Field(default_factory=DistillationConfig)
 
     @field_validator("version")
     @classmethod

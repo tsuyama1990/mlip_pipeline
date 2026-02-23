@@ -31,6 +31,16 @@ class RandomStructureGenerator(StructureGenerator):
         self.logger.info("Generating initial structures (mock)")
         yield from generate_dummy_structures(20, tags=["initial", "random"])
 
+    def generate_direct_samples(
+        self, n_samples: int, objective: str = "maximize_entropy"
+    ) -> Iterator[StructureMetadata]:
+        """Generate structures using DIRECT sampling (Mock)."""
+        self.logger.info(f"Generating {n_samples} DIRECT samples (Mock: {objective})")
+        yield from generate_dummy_structures(
+            n_samples,
+            tags=["initial", "direct", f"objective:{objective}"],
+        )
+
     def _generate_candidates_common(
         self, n_candidates: int, tags: list[str]
     ) -> Iterator[StructureMetadata]:
@@ -118,6 +128,19 @@ class AdaptiveStructureGenerator(StructureGenerator):
             else:
                 # Fallback if no atoms object
                 yield proto
+
+    def generate_direct_samples(
+        self, n_samples: int, objective: str = "maximize_entropy"
+    ) -> Iterator[StructureMetadata]:
+        """Generate structures using DIRECT sampling."""
+        # For Adaptive, we can use the same logic as initial structures but with DIRECT specific tags/params
+        # In a real implementation, this would use a global optimizer on descriptors.
+        self.logger.info(f"Generating {n_samples} DIRECT samples (Adaptive Mock)")
+        # Reuse dummy generation for now as we lack descriptors lib
+        yield from generate_dummy_structures(
+            n_samples,
+            tags=["initial", "direct", "adaptive"],
+        )
 
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1

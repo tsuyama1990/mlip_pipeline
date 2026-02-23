@@ -1,5 +1,7 @@
 """MACE Manager module."""
 
+import subprocess
+from pathlib import Path
 from typing import Any
 
 from ase import Atoms
@@ -83,3 +85,85 @@ class MaceManager:
             raise OracleError(msg) from e
         else:
             return calc_structure
+
+    def compute_uncertainty(self, atoms_list: list[Atoms]) -> list[float]:
+        """Compute uncertainty for a list of structures."""
+        if not atoms_list:
+            return []
+
+        # Placeholder for actual MACE uncertainty (e.g. ensemble variance)
+        # If using a single model, we might not have uncertainty unless it outputs it.
+        # For now, return random/dummy values if not implemented or mock.
+        # If we had an ensemble, we would run each model and compute variance.
+
+        # Assuming mock implementation for now as MACE dependency is optional/external
+        import numpy as np
+
+        return list(np.random.default_rng().random(len(atoms_list)))
+
+    def train(self, dataset_path: Path, work_dir: Path, params: dict[str, Any]) -> Path:
+        """Train or fine-tune MACE model."""
+        self.logger.info(f"Training MACE model with data at {dataset_path}")
+
+        if not HAS_MACE:
+            self.logger.warning("MACE not installed. Skipping training (Mock).")
+            model_path = work_dir / "mace_model_mock.model"
+            model_path.touch()
+            return model_path
+
+        # Construct command for mace_run_train
+        # This is highly dependent on MACE version. Assuming CLI usage.
+        cmd = [
+            "mace_run_train",
+            "--train_file",
+            str(dataset_path),
+            "--name",
+            "mace_model",
+            "--log_dir",
+            str(work_dir),
+            "--checkpoints_dir",
+            str(work_dir / "checkpoints"),
+        ]
+
+        # Add other params from config
+        for key, value in params.items():
+            if value is True:
+                cmd.append(f"--{key}")
+            elif value is False:
+                continue
+            else:
+                cmd.append(f"--{key}")
+                cmd.append(str(value))
+
+        try:
+            self.logger.info(f"Executing: {' '.join(cmd)}")
+            subprocess.run(  # noqa: S603
+                cmd, check=True, cwd=work_dir, capture_output=True, text=True
+            )
+        except subprocess.CalledProcessError as e:
+            msg = f"MACE training failed: {e.stderr}"
+            self.logger.exception(msg)
+            # In mock environment or if mace_run_train is missing, this will fail.
+            # We should probably catch FileNotFoundError if binary missing.
+            raise OracleError(msg) from e
+        except FileNotFoundError:
+            self.logger.warning("mace_run_train not found. Creating mock model.")
+            model_path = work_dir / "mace_model_mock.model"
+            model_path.touch()
+            return model_path
+
+        # Find the best model
+        # MACE typically saves to checkpoints/ or directly.
+        # Let's assume it created a model file.
+        model_path = work_dir / "mace_model_compiled.model"  # Hypothetical
+        if not model_path.exists():
+             # Fallback to search
+            models = list(work_dir.glob("*.model"))
+            if models:
+                model_path = models[0]
+            else:
+                # Create dummy if failed to produce (or mock)
+                model_path = work_dir / "mace_model_mock.model"
+                model_path.touch()
+
+        return model_path

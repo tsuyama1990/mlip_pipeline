@@ -16,6 +16,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
 )
 from pyacemaker.oracle.dataset import DatasetManager
+from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.trainer.active_set import ActiveSetSelector
 from pyacemaker.trainer.wrapper import PacemakerWrapper
 
@@ -208,3 +209,84 @@ class PacemakerTrainer(Trainer):
         self.logger.info(f"Generating {type_} baseline potential at {path}")
         # Placeholder
         path.touch()
+
+
+class MaceTrainer(Trainer):
+    """MACE trainer implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize MaceTrainer."""
+        super().__init__(config)
+        self.trainer_config = config.trainer  # Reusing trainer config or maybe add mace config?
+        # Assuming MACE config is in oracle.mace for now, or we should look at config.distillation options.
+        # But MACE manager needs MaceConfig.
+        if config.oracle.mace:
+            self.mace_manager = MaceManager(config.oracle.mace)
+        else:
+            # Fallback or error if mace not configured but trainer instantiated
+            self.mace_manager = None
+        self.dataset_manager = DatasetManager()
+
+    def run(self) -> Any:
+        """Run the trainer."""
+        self.logger.info("Running MaceTrainer")
+        return {"status": "success"}
+
+    def train(
+        self,
+        dataset: Iterable[StructureMetadata],
+        initial_potential: Potential | None = None,
+    ) -> Potential:
+        """Train or Fine-tune MACE model."""
+        if not self.mace_manager:
+             # Should use config to initialize if not done
+             msg = "MACE Manager not initialized. Check config."
+             raise ValueError(msg)
+
+        # 1. Prepare Dataset
+        work_dir = Path(tempfile.mkdtemp(prefix="mace_train_"))
+        dataset_path = work_dir / "training_data.xyz"
+
+        # Save to file
+        def atoms_gen() -> Iterator[Any]:
+            for s in dataset:
+                if s.energy is not None and s.forces is not None:
+                     # Convert to atoms
+                     atoms = s.features.get("atoms")
+                     if atoms:
+                         atoms = atoms.copy()
+                         atoms.info["energy"] = s.energy
+                         atoms.arrays["forces"] = s.forces
+                         yield atoms
+
+        self.dataset_manager.save_iter(atoms_gen(), dataset_path)
+
+        # 2. Train
+        # Params from config or specific distillation params
+        params = {"epochs": 50}  # Default
+        if self.config.distillation and self.config.distillation.step3_mace_finetune:
+            mace_conf = self.config.distillation.step3_mace_finetune
+            params["epochs"] = mace_conf.epochs
+
+        if initial_potential:
+            params["foundation_model"] = str(initial_potential.path)
+
+        output_path = self.mace_manager.train(dataset_path, work_dir, params)
+
+        return Potential(
+            path=output_path,
+            type=PotentialType.MACE,
+            version="1.0",
+            metrics={},
+            parameters=params,
+        )
+
+    def select_active_set(
+        self, candidates: Iterable[StructureMetadata], n_select: int
+    ) -> ActiveSet:
+        """Select active set."""
+        # MACE active learning selection logic (e.g. uncertainty based)
+        # This might duplicate what Orchestrator does in Step 2 loop.
+        # But if Trainer interface requires it:
+        self.logger.warning("MaceTrainer.select_active_set not implemented. Returning empty.")
+        return ActiveSet(structure_ids=[], structures=[], dataset_path=Path(), selection_criteria="none")

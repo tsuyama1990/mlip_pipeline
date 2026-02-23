@@ -1,7 +1,8 @@
 """Orchestrator module implementation."""
 
 from collections.abc import Callable, Iterable, Iterator
-from itertools import chain
+from itertools import chain, islice
+from pathlib import Path
 from typing import Any, TypeVar
 
 from pyacemaker.core.base import BaseModule, Metrics, ModuleResult
@@ -14,6 +15,7 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
+    UncertaintyModel,
 )
 from pyacemaker.core.interfaces import (
     Validator as ValidatorInterface,
@@ -23,6 +25,7 @@ from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
     StructureMetadata,
+    StructureStatus,
 )
 from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
 from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
@@ -30,7 +33,7 @@ from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
     RandomStructureGenerator,
 )
-from pyacemaker.modules.trainer import PacemakerTrainer
+from pyacemaker.modules.trainer import MaceTrainer, PacemakerTrainer
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
 
@@ -53,11 +56,9 @@ class Orchestrator(IOrchestrator):
         trainer: Trainer | None = None,
         dynamics_engine: DynamicsEngine | None = None,
         validator: Validator | None = None,
+        mace_trainer: Trainer | None = None,
     ) -> None:
-        """Initialize the orchestrator and sub-modules.
-
-        Dependencies can be injected; otherwise, default implementations are instantiated via factory.
-        """
+        """Initialize the orchestrator and sub-modules."""
         super().__init__(config)
         self.config = config
 
@@ -66,7 +67,6 @@ class Orchestrator(IOrchestrator):
         if structure_generator:
             self.structure_generator = structure_generator
         else:
-            # Factory logic for structure generator based on config
             sg_cls = (
                 AdaptiveStructureGenerator
                 if config.structure_generator.strategy == "adaptive"
@@ -87,6 +87,11 @@ class Orchestrator(IOrchestrator):
 
         self.trainer: Trainer = trainer or _create_default_module(PacemakerTrainer, config)
 
+        # Initialize MaceTrainer if needed for distillation
+        self.mace_trainer: Trainer | None = mace_trainer
+        if not self.mace_trainer and config.distillation.enable_mace_distillation:
+            self.mace_trainer = _create_default_module(MaceTrainer, config)
+
         engine_cls: type[DynamicsEngine] = LAMMPSEngine
         if config.dynamics_engine.engine == "eon":
             engine_cls = EONEngine
@@ -94,11 +99,6 @@ class Orchestrator(IOrchestrator):
         self.dynamics_engine: DynamicsEngine = dynamics_engine or _create_default_module(
             engine_cls, config
         )
-
-        # If running in full mock mode (e.g. Oracle is mock), use MockValidator?
-        # Or let Validator handle it. Validator now calls check_phonons which needs a real calculator.
-        # If we are in mock mode, we don't have a real potential file usually.
-        # So we should use MockValidator if oracle.mock is True?
 
         val_cls: type[ValidatorInterface] = Validator
         if config.oracle.mock:
@@ -111,7 +111,6 @@ class Orchestrator(IOrchestrator):
         # State
         self.current_potential: Potential | None = None
         # Dataset is now file-based to prevent OOM
-        # Use config option instead of hardcoded
         self.dataset_path = (
             self.config.project.root_dir / "data" / self.config.orchestrator.dataset_file
         )
@@ -127,66 +126,21 @@ class Orchestrator(IOrchestrator):
         self.processed_items_count = 0
 
     def run(self) -> ModuleResult:
-        """Run the full active learning pipeline."""
+        """Run the active learning pipeline."""
         self.logger.info("Starting Active Learning Pipeline")
 
-        # 0. Cold Start (Initial Dataset)
-        if not self.dataset_path.exists():
-            self.logger.info("Cold Start: Generating initial structures")
-            self._run_cold_start()
+        # Check for MACE Distillation Mode
+        if self.config.distillation.enable_mace_distillation:
+            self.logger.info("Mode: MACE Distillation Workflow")
+            return self._run_mace_distillation()
 
-        # Main Loop
-        max_cycles = self.config.orchestrator.max_cycles
-        while self.cycle_count < max_cycles:
-            self.cycle_count += 1
-            self.logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
-
-            result = self.run_cycle()
-
-            if result.status == CycleStatus.CONVERGED:
-                self.logger.info("Convergence reached!")
-                break
-            if result.status == CycleStatus.FAILED:
-                self.logger.error(f"Cycle failed! Reason: {result.error}")
-                return ModuleResult(
-                    status=CycleStatus.FAILED,
-                    metrics=Metrics.model_validate({"cycles": self.cycle_count}),
-                )
-
-        self.logger.info("Pipeline completed")
-        return ModuleResult(
-            status="success",
-            metrics=Metrics.model_validate({"cycles": self.cycle_count}),
-        )
-
-    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
-        """Convert metadata stream to atoms and save to dataset.
-
-        Optimized to skip expensive checksum calculation during active learning loop.
-        Removes stale checksum file to prevent validation failures.
-        """
-        atoms_stream = (metadata_to_atoms(s) for s in stream)
-        # Skip checksum calculation for O(1) append
-        self.dataset_manager.save_iter(
-            atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
-        )
-        # Remove stale checksum file if it exists, as it no longer matches the dataset
-        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
-        if checksum_path.exists():
-            try:
-                checksum_path.unlink()
-            except OSError:
-                self.logger.warning("Failed to remove stale checksum file.")
-
-    def _run_cold_start(self) -> None:
-        """Execute cold start to generate initial dataset."""
-        initial_structures = self.structure_generator.generate_initial_structures()
-        # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
-        computed_stream = self.oracle.compute_batch(initial_structures)
-        self._save_dataset_stream(computed_stream)
+        # Default: Classic Active Learning
+        self.logger.info("Mode: Standard Active Learning Loop")
+        return self._run_active_learning_loop()
 
     def run_cycle(self) -> CycleResult:
-        """Execute one active learning cycle."""
+        """Execute one active learning cycle (Standard Loop)."""
+        # This method is kept for interface compliance and used by _run_active_learning_loop
         # 1. Training (Refinement)
         if not self._execute_phase(self._run_training_phase, "Training"):
             return CycleResult(
@@ -219,6 +173,267 @@ class Orchestrator(IOrchestrator):
             )
 
         return CycleResult(status=CycleStatus.TRAINING, metrics=Metrics())
+
+    def _run_active_learning_loop(self) -> ModuleResult:
+        """Run standard active learning loop."""
+        # 0. Cold Start
+        if not self.dataset_path.exists():
+            self.logger.info("Cold Start: Generating initial structures")
+            self._run_cold_start()
+
+        # Main Loop
+        max_cycles = self.config.orchestrator.max_cycles
+        while self.cycle_count < max_cycles:
+            self.cycle_count += 1
+            self.logger.info(f"--- Cycle {self.cycle_count}/{max_cycles} ---")
+
+            result = self.run_cycle()
+
+            if result.status == CycleStatus.CONVERGED:
+                self.logger.info("Convergence reached!")
+                break
+            if result.status == CycleStatus.FAILED:
+                self.logger.error(f"Cycle failed! Reason: {result.error}")
+                return ModuleResult(
+                    status=CycleStatus.FAILED,
+                    metrics=Metrics.model_validate({"cycles": self.cycle_count}),
+                )
+
+        self.logger.info("Pipeline completed")
+        return ModuleResult(
+            status="success",
+            metrics=Metrics.model_validate({"cycles": self.cycle_count}),
+        )
+
+    def _run_mace_distillation(self) -> ModuleResult:
+        """Run the 7-Step MACE Distillation Workflow."""
+        dist_config = self.config.distillation
+
+        # Step 1: DIRECT Sampling
+        pool_path = self._step1_direct_sampling(dist_config)
+
+        # Step 2 & 3: Active Learning & Fine-tuning
+        self._step2_active_learning_loop(dist_config, pool_path)
+
+        # Step 4: Surrogate Data Generation
+        surrogate_structures = self._step4_surrogate_data_generation(dist_config)
+
+        # Step 5: Surrogate Labeling
+        surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures)
+
+        # Step 6: Pacemaker Base Training
+        base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
+
+        # Step 7: Delta Learning
+        self.current_potential = self._step7_delta_learning(
+            dist_config, base_ace_potential
+        )
+
+        return ModuleResult(status="success", metrics=Metrics(), artifacts={})
+
+    def _step1_direct_sampling(self, dist_config: Any) -> Path:
+        """Step 1: DIRECT Sampling (Entropy Maximization)."""
+        self.logger.info("Step 1: DIRECT Sampling")
+        samples_iter = self.structure_generator.generate_direct_samples(
+            n_samples=dist_config.step1_direct_sampling.target_points,
+            objective=dist_config.step1_direct_sampling.objective,
+        )
+        pool_path = (
+            self.config.project.root_dir / "data" / "pool_structures.pckl.gzip"
+        )
+        self.dataset_manager.save_iter(
+            (metadata_to_atoms(s) for s in samples_iter),
+            pool_path,
+            calculate_checksum=False,
+        )
+        self.logger.info(f"Generated pool at {pool_path}")
+        return pool_path
+
+    def _step2_active_learning_loop(self, dist_config: Any, pool_path: Path) -> None:
+        """Step 2 & 3: MACE Uncertainty-based Active Learning & Fine-tuning."""
+        self.logger.info("Step 2: MACE Active Learning Loop")
+
+        if not isinstance(self.oracle, UncertaintyModel):
+            msg = "Oracle must implement UncertaintyModel for MACE distillation."
+            raise TypeError(msg)
+
+        if not self.mace_trainer:
+            msg = "MaceTrainer not initialized."
+            raise RuntimeError(msg)
+
+        calculated_ids: set[Any] = set()
+
+        # Fixed iterations for now (e.g. 3)
+        for i in range(3):
+            self.logger.info(f"Step 2 (Iteration {i + 1}/3)")
+
+            # Load pool
+            pool_iter = (
+                atoms_to_metadata(a)
+                for a in self.dataset_manager.load_iter(pool_path)
+            )
+            # Filter out calculated IDs
+            # (Note: pool file itself is not updated, so we filter in memory using set)
+            unknown_pool = (
+                s
+                for s in pool_iter
+                if s.status != StructureStatus.CALCULATED and s.id not in calculated_ids
+            )
+
+            # Compute uncertainty
+            scored_pool = self.oracle.compute_uncertainty(unknown_pool)
+
+            # Select Top N
+            scored_list = list(scored_pool)
+            scored_list.sort(
+                key=lambda s: s.uncertainty_state.gamma_max
+                if s.uncertainty_state and s.uncertainty_state.gamma_max
+                else 0.0,
+                reverse=True,
+            )
+
+            n_select = 10
+            selected = scored_list[:n_select]
+            if not selected:
+                self.logger.info("No more candidates in pool.")
+                break
+
+            # Check threshold
+            if (
+                selected[0].uncertainty_state
+                and selected[0].uncertainty_state.gamma_max
+                < dist_config.step2_active_learning.uncertainty_threshold
+            ):
+                self.logger.info("Uncertainty below threshold. Step 2 Converged.")
+                break
+
+            # Mark selected as calculated in local tracker
+            for s in selected:
+                calculated_ids.add(s.id)
+
+            # Compute DFT
+            self.logger.info(f"Computing DFT for {len(selected)} structures")
+            computed_iter = self.oracle.compute_batch(selected)
+            self._save_dataset_stream(computed_iter)
+
+            # Fine-tune MACE (Step 3 integrated)
+            self.logger.info("Fine-tuning MACE...")
+
+            def train_stream() -> Iterator[StructureMetadata]:
+                yield from (
+                    atoms_to_metadata(a)
+                    for a in self.dataset_manager.load_iter(self.dataset_path)
+                )
+
+            _ = self.mace_trainer.train(train_stream())
+
+    def _step4_surrogate_data_generation(
+        self, dist_config: Any
+    ) -> list[StructureMetadata]:
+        """Step 4: Surrogate Data Generation."""
+        self.logger.info("Step 4: Surrogate Data Generation")
+        # Reuse DynamicsEngine
+        # We need a MACE potential object.
+        # Construct generic potential for MACE
+        mace_pot = Potential(
+            path=Path(self.config.oracle.mace.model_path),  # type: ignore[union-attr]
+            type=(self.config.oracle.mace.mock and "MACE") or "MACE",  # type: ignore[union-attr]
+            version="1.0",
+            metrics={},
+            parameters={},
+        )
+
+        # Seeds from dataset
+        seeds = self._get_exploration_seeds(n_seeds=5)
+        surrogate_iter = self.dynamics_engine.run_exploration(mace_pot, seeds)
+
+        # Collect 1000 structures
+        surrogate_structures = list(
+            islice(
+                surrogate_iter, dist_config.step4_surrogate_sampling.target_points
+            )
+        )
+        self.logger.info(
+            f"Generated {len(surrogate_structures)} surrogate structures"
+        )
+        return surrogate_structures
+
+    def _step5_surrogate_labeling(
+        self, structures: list[StructureMetadata]
+    ) -> Path:
+        """Step 5: Surrogate Labeling."""
+        self.logger.info("Step 5: Surrogate Labeling")
+        mace_labeler = MaceSurrogateOracle(self.config)  # Config has oracle.mace
+        labeled_surrogate_iter = mace_labeler.compute_batch(structures)
+
+        # Save to separate "surrogate_dataset"
+        surrogate_dataset_path = (
+            self.config.project.root_dir / "data" / "surrogate_dataset.pckl.gzip"
+        )
+        self.dataset_manager.save_iter(
+            (metadata_to_atoms(s) for s in labeled_surrogate_iter),
+            surrogate_dataset_path,
+            calculate_checksum=False,
+        )
+        return surrogate_dataset_path
+
+    def _step6_pacemaker_base_training(
+        self, surrogate_dataset_path: Path
+    ) -> Potential:
+        """Step 6: Pacemaker Base Training."""
+        self.logger.info("Step 6: Pacemaker Base Training")
+
+        def surrogate_train_stream() -> Iterator[StructureMetadata]:
+            yield from (
+                atoms_to_metadata(a)
+                for a in self.dataset_manager.load_iter(surrogate_dataset_path)
+            )
+
+        return self.trainer.train(surrogate_train_stream())
+
+    def _step7_delta_learning(
+        self, dist_config: Any, base_potential: Potential
+    ) -> Potential:
+        """Step 7: Delta Learning (Fine-tuning with DFT)."""
+        self.logger.info("Step 7: Delta Learning (Fine-tuning with DFT)")
+        if dist_config.step7_pacemaker_finetune.enable:
+            def dft_train_stream() -> Iterator[StructureMetadata]:
+                yield from (
+                    atoms_to_metadata(a)
+                    for a in self.dataset_manager.load_iter(self.dataset_path)
+                )
+
+            return self.trainer.train(
+                dft_train_stream(), initial_potential=base_potential
+            )
+        else:
+            return base_potential
+
+    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
+        """Convert metadata stream to atoms and save to dataset.
+
+        Optimized to skip expensive checksum calculation during active learning loop.
+        Removes stale checksum file to prevent validation failures.
+        """
+        atoms_stream = (metadata_to_atoms(s) for s in stream)
+        # Skip checksum calculation for O(1) append
+        self.dataset_manager.save_iter(
+            atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
+        )
+        # Remove stale checksum file if it exists, as it no longer matches the dataset
+        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
+        if checksum_path.exists():
+            try:
+                checksum_path.unlink()
+            except OSError:
+                self.logger.warning("Failed to remove stale checksum file.")
+
+    def _run_cold_start(self) -> None:
+        """Execute cold start to generate initial dataset."""
+        initial_structures = self.structure_generator.generate_initial_structures()
+        # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
+        computed_stream = self.oracle.compute_batch(initial_structures)
+        self._save_dataset_stream(computed_stream)
 
     def _execute_phase(self, phase_func: Callable[[], Any], phase_name: str) -> bool:
         """Execute a phase with error handling."""

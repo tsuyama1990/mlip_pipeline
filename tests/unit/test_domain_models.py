@@ -136,3 +136,22 @@ def test_halt_info_validation() -> None:
 
     with pytest.raises(ValidationError, match="Structure must be provided"):
         HaltInfo(halted=True, step=100, max_gamma=5.5)
+
+
+def test_structure_metadata_mace_extensions() -> None:
+    """Test MACE specific fields in StructureMetadata."""
+    s = StructureMetadata(label_source="mace", generation_method="direct")
+    assert s.label_source == "mace"
+    assert s.generation_method == "direct"
+
+    with pytest.raises(ValidationError):
+        StructureMetadata(label_source="invalid")  # type: ignore[arg-type]
+
+
+def test_cycle_status_mace_extensions() -> None:
+    """Test MACE specific cycle statuses."""
+    assert CycleStatus.MACE_TRAINING == "MACE_TRAINING"
+    assert CycleStatus.DIRECT_SAMPLING == "DIRECT_SAMPLING"
+    assert CycleStatus.SURROGATE_GENERATION == "SURROGATE_GENERATION"
+    assert CycleStatus.SURROGATE_LABELING == "SURROGATE_LABELING"
+    assert CycleStatus.DELTA_LEARNING == "DELTA_LEARNING"

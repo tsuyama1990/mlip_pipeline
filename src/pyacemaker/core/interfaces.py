@@ -32,6 +32,13 @@ class StructureGenerator(BaseModule):
         ...
 
     @abstractmethod
+    def generate_direct_samples(
+        self, n_samples: int, objective: str = "maximize_entropy"
+    ) -> Iterator[StructureMetadata]:
+        """Generate structures using DIRECT sampling (or similar global optimization)."""
+        ...
+
+    @abstractmethod
     def generate_local_candidates(
         self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1
     ) -> Iterator[StructureMetadata]:
@@ -63,6 +70,17 @@ class Oracle(BaseModule):
 
         Streaming interface: Takes an iterable and yields processed structures.
         """
+        ...
+
+
+class UncertaintyModel(BaseModule):
+    """Interface for models that can predict uncertainty."""
+
+    @abstractmethod
+    def compute_uncertainty(
+        self, structures: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Compute uncertainty for a batch of structures."""
         ...
 
 
