@@ -18,7 +18,9 @@ class MockValidator(ValidatorInterface):
     def validate(self, potential: Potential, test_set: Iterable[StructureMetadata]) -> ModuleResult:
         """Validate potential."""
         # Validate consumes the test_set stream
-        count = sum(1 for _ in test_set)
+        count = 0
+        for _ in test_set:
+            count += 1
         return ModuleResult(
             status="success",
             metrics=Metrics.model_validate({"mock": 1.0, "count": count}),

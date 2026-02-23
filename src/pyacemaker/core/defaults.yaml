@@ -26,6 +26,10 @@ orchestrator:
 
 # Structure Generator
 structure_strategy: "random"
+structure_initial_exploration: "m3gnet"
+structure_strain_range: 0.15
+structure_rattle_amplitude: 0.1
+structure_defect_density: 0.01
 
 # Trainer
 trainer_potential: "pace"
@@ -43,6 +47,20 @@ mace_model_path: "medium"
 mace_device: "cpu"
 mace_dtype: "float64"
 mace_batch_size: 32
+
+# Distillation Defaults
+step1_target_points: 100
+step1_objective: "maximize_entropy"
+step2_uncertainty_threshold: 0.8
+step2_dft_calculator: "VASP"
+step2_cycles: 3
+step2_n_select: 10
+step3_base_model: "MACE-MP-0"
+step3_epochs: 50
+step4_target_points: 1000
+step4_method: "mace_md"
+step7_enable: true
+step7_weight_dft: 10.0
 
 # Dynamics Engine
 engine: "lammps"

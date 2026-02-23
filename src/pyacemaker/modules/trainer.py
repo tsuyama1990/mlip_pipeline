@@ -285,12 +285,5 @@ class MaceTrainer(Trainer):
     ) -> ActiveSet:
         """Select active set."""
         # MACE active learning selection logic is not yet implemented in this trainer.
-        # Orchestrator handles selection via ActiveLearner currently.
-        # Returning empty set to satisfy interface.
-        self.logger.warning("MaceTrainer.select_active_set is not implemented. Returning empty ActiveSet.")
-        return ActiveSet(
-            structure_ids=[],
-            structures=[],
-            dataset_path=Path("empty_active_set.pckl"),
-            selection_criteria="none",
-        )
+        msg = "MaceTrainer.select_active_set is not implemented."
+        raise NotImplementedError(msg)

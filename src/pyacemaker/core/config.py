@@ -536,20 +536,27 @@ class StructureGeneratorConfig(BaseModuleConfig):
     """Structure Generator module configuration."""
 
     strategy: str = Field(
-        default=CONSTANTS.default_structure_strategy,
+        default_factory=lambda: get_defaults()["structure_strategy"],
         description="Generation strategy (e.g., 'random', 'adaptive')",
     )
     initial_exploration: str = Field(
-        default="m3gnet", description="Initial exploration strategy (m3gnet or random)"
+        default_factory=lambda: get_defaults()["structure_initial_exploration"],
+        description="Initial exploration strategy (m3gnet or random)",
     )
     strain_range: float = Field(
-        default=0.15, ge=0.0, description="Maximum strain range for random perturbation"
+        default_factory=lambda: get_defaults()["structure_strain_range"],
+        ge=0.0,
+        description="Maximum strain range for random perturbation",
     )
     rattle_amplitude: float = Field(
-        default=0.1, ge=0.0, description="Standard deviation for atomic rattling (Angstrom)"
+        default_factory=lambda: get_defaults()["structure_rattle_amplitude"],
+        ge=0.0,
+        description="Standard deviation for atomic rattling (Angstrom)",
     )
     defect_density: float = Field(
-        default=0.01, ge=0.0, description="Target defect density for defect strategy"
+        default_factory=lambda: get_defaults()["structure_defect_density"],
+        ge=0.0,
+        description="Target defect density for defect strategy",
     )
 
 
@@ -780,42 +787,76 @@ class Step1DirectSamplingConfig(BaseModel):
     """Configuration for Step 1: Direct Sampling."""
 
     model_config = ConfigDict(extra="forbid")
-    target_points: int = Field(default=100, description="Number of target points")
-    objective: str = Field(default="maximize_entropy", description="Optimization objective")
+    target_points: int = Field(
+        default_factory=lambda: get_defaults()["step1_target_points"],
+        description="Number of target points",
+    )
+    objective: str = Field(
+        default_factory=lambda: get_defaults()["step1_objective"],
+        description="Optimization objective",
+    )
 
 
 class Step2ActiveLearningConfig(BaseModel):
     """Configuration for Step 2: Active Learning."""
 
     model_config = ConfigDict(extra="forbid")
-    uncertainty_threshold: float = Field(default=0.8, description="Uncertainty threshold")
-    dft_calculator: str = Field(default="VASP", description="DFT calculator name")
-    cycles: int = Field(default=3, description="Number of active learning cycles")
-    n_select: int = Field(default=10, description="Number of structures to select per cycle")
+    uncertainty_threshold: float = Field(
+        default_factory=lambda: get_defaults()["step2_uncertainty_threshold"],
+        description="Uncertainty threshold",
+    )
+    dft_calculator: str = Field(
+        default_factory=lambda: get_defaults()["step2_dft_calculator"],
+        description="DFT calculator name",
+    )
+    cycles: int = Field(
+        default_factory=lambda: get_defaults()["step2_cycles"],
+        description="Number of active learning cycles",
+    )
+    n_select: int = Field(
+        default_factory=lambda: get_defaults()["step2_n_select"],
+        description="Number of structures to select per cycle",
+    )
 
 
 class Step3MaceFinetuneConfig(BaseModel):
     """Configuration for Step 3: MACE Fine-tuning."""
 
     model_config = ConfigDict(extra="forbid")
-    base_model: str = Field(default="MACE-MP-0", description="Base MACE model")
-    epochs: int = Field(default=50, description="Number of epochs")
+    base_model: str = Field(
+        default_factory=lambda: get_defaults()["step3_base_model"],
+        description="Base MACE model",
+    )
+    epochs: int = Field(
+        default_factory=lambda: get_defaults()["step3_epochs"], description="Number of epochs"
+    )
 
 
 class Step4SurrogateSamplingConfig(BaseModel):
     """Configuration for Step 4: Surrogate Sampling."""
 
     model_config = ConfigDict(extra="forbid")
-    target_points: int = Field(default=1000, description="Number of target points")
-    method: str = Field(default="mace_md", description="Sampling method")
+    target_points: int = Field(
+        default_factory=lambda: get_defaults()["step4_target_points"],
+        description="Number of target points",
+    )
+    method: str = Field(
+        default_factory=lambda: get_defaults()["step4_method"], description="Sampling method"
+    )
 
 
 class Step7PacemakerFinetuneConfig(BaseModel):
     """Configuration for Step 7: Pacemaker Fine-tuning."""
 
     model_config = ConfigDict(extra="forbid")
-    enable: bool = Field(default=True, description="Enable Delta Learning")
-    weight_dft: float = Field(default=10.0, description="Weight for DFT data")
+    enable: bool = Field(
+        default_factory=lambda: get_defaults()["step7_enable"],
+        description="Enable Delta Learning",
+    )
+    weight_dft: float = Field(
+        default_factory=lambda: get_defaults()["step7_weight_dft"],
+        description="Weight for DFT data",
+    )
 
 
 class DistillationConfig(BaseModel):
