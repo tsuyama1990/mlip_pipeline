@@ -23,6 +23,7 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.utils import (
     atoms_to_metadata,
     metadata_to_atoms,
+    stream_metadata_to_atoms,
 )
 from pyacemaker.domain_models.models import (
     CycleStatus,
@@ -439,7 +440,7 @@ class Orchestrator(IOrchestrator):
         Optimized to skip expensive checksum calculation during active learning loop.
         Removes stale checksum file to prevent validation failures.
         """
-        atoms_stream = (metadata_to_atoms(s) for s in stream)
+        atoms_stream = stream_metadata_to_atoms(stream)
         # Skip checksum calculation for O(1) append
         self.dataset_manager.save_iter(
             atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False

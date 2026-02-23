@@ -346,6 +346,20 @@ def _validate_result_atoms(result_atoms: "Atoms") -> None:
         raise TypeError(msg)
 
 
+def stream_metadata_to_atoms(metadata_iter: Iterable[StructureMetadata]) -> Iterator["Atoms"]:
+    """Stream StructureMetadata objects to ASE Atoms.
+
+    Args:
+        metadata_iter: Iterable of StructureMetadata.
+
+    Yields:
+        ASE Atoms objects.
+
+    """
+    for metadata in metadata_iter:
+        yield metadata_to_atoms(metadata)
+
+
 def update_structure_metadata(structure: StructureMetadata, result_atoms: "Atoms | None") -> None:
     """Update structure metadata with results (Energy, Forces, Stress).
 

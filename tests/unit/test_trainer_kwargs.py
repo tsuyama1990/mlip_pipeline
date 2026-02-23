@@ -12,6 +12,7 @@ from pyacemaker.core.config import (
     TrainerConfig,
 )
 from pyacemaker.domain_models.models import (
+    PotentialType,
     StructureMetadata,
     StructureStatus,
 )
@@ -22,6 +23,7 @@ from pyacemaker.modules.trainer import MaceTrainer, PacemakerTrainer
 def mock_config() -> MagicMock:
     """Create a mock config."""
     config = MagicMock()
+    config.version = "1.0.0"
     config.trainer = TrainerConfig(
         potential_type="pace",
         mock=False,
@@ -69,7 +71,7 @@ def test_pacemaker_trainer_passes_kwargs(
 
         # Make save_iter consume iterator so stats are updated
         def side_effect_save_iter(iterator: Any, *args: Any, **kwargs: Any) -> None:
-            list(iterator) # Consume
+            for _ in iterator: pass # Consume without materializing full list
 
         MockDM.return_value.save_iter.side_effect = side_effect_save_iter
 
@@ -117,3 +119,37 @@ def test_mace_trainer_passes_kwargs_and_epochs(
         assert params["extra_mace_param"] is True
 
         # Check foundation model logic from args (not kwargs)
+
+
+def test_pacemaker_trainer_empty_dataset(
+    mock_config: MagicMock
+) -> None:
+    """Test PacemakerTrainer handles empty dataset correctly."""
+    with patch("pyacemaker.modules.trainer.PacemakerWrapper"), \
+         patch("pyacemaker.modules.trainer.DatasetManager") as MockDM:
+
+        # side effect to simulate empty iteration
+        MockDM.return_value.save_iter.side_effect = lambda it, *a, **k: list(it)
+
+        trainer = PacemakerTrainer(mock_config)
+
+        with pytest.raises(ValueError, match="No valid structures"):
+            trainer.train([])
+
+
+def test_mace_trainer_empty_dataset(
+    mock_config: MagicMock
+) -> None:
+    """Test MaceTrainer handles empty dataset without crashing (save_iter handles it)."""
+    with patch("pyacemaker.modules.trainer.MaceManager") as MockManager, \
+         patch("pyacemaker.modules.trainer.DatasetManager"):
+
+        manager_instance = MockManager.return_value
+        manager_instance.train.return_value = Path("output.model")
+
+        trainer = MaceTrainer(mock_config)
+
+        # Should just run and pass empty file to MACE (mocked)
+        result = trainer.train([])
+
+        assert result.type == PotentialType.MACE

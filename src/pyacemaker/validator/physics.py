@@ -77,7 +77,9 @@ def check_phonons(atoms: Atoms, supercell: list[int] | None = None) -> bool:
     return bool(min_freq >= CONSTANTS.physics_phonon_tolerance)
 
 
-def check_eos(atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain) -> tuple[float, str]:
+def check_eos(
+    atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain, output_path: str = "eos.png"
+) -> tuple[float, str]:
     """Check Equation of State.
 
     Returns:
@@ -111,12 +113,11 @@ def check_eos(atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain) -> tup
     B_GPa = B / GPa
 
     # Generate plot
-    plot_path = "eos.png"
     plt.switch_backend("Agg")
-    eos.plot(plot_path)  # type: ignore[no-untyped-call]
+    eos.plot(output_path)  # type: ignore[no-untyped-call]
     plt.close()
 
-    return B_GPa, plot_path
+    return B_GPa, output_path
 
 
 def calculate_elastic_constants(

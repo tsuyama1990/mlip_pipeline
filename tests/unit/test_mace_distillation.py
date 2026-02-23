@@ -209,10 +209,30 @@ def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
     )
 
     # Mock downstream
-    with patch('pyacemaker.orchestrator.MaceSurrogateOracle'):
+    with patch('pyacemaker.orchestrator.MaceSurrogateOracle'), \
+         patch('pyacemaker.orchestrator.DirectGenerator') as MockDirectGen:
+
+        # Configure DirectGenerator mock
+        MockDirectGen.return_value.generate_direct_samples.side_effect = mock_sg.generate_direct_samples
+
         orch._run_mace_distillation()
 
     mock_mace_trainer.train.assert_not_called()
+
+    # Also verify dynamics not run (Steps 4 onwards skipped)
+    # Orchestrator uses self.dynamics_engine which we mocked in fixture?
+    # No, we instantiated Orchestrator with explicit mocks.
+    # But wait, test_mace_workflow_early_convergence created orch with MagicMock() for dynamics_engine.
+    # We should assert on that.
+
+    # Wait, Orchestrator ctor:
+    # dynamics_engine=MagicMock() passed.
+
+    # We need to capture that mock to assert on it.
+    mock_dyn = orch.dynamics_engine
+    # Step 4 (Surrogate Generation) runs even if AL converges, using the trained MACE.
+    # So run_exploration SHOULD be called.
+    assert mock_dyn.run_exploration.called
 
 def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
     """Test handling of Oracle failure."""

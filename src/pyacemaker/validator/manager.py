@@ -7,6 +7,7 @@ from ase import Atoms
 from loguru import logger
 
 from pyacemaker.core.config import ValidatorConfig
+from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.domain_models.models import Potential, PotentialType
 from pyacemaker.domain_models.validator import ValidationResult
 from pyacemaker.validator.physics import check_elastic, check_eos, check_phonons
@@ -27,6 +28,7 @@ class ValidatorManager:
             return atoms
 
         potential_path = Path(potential.path)
+        validate_safe_path(potential_path)
 
         # MACE Support
         if potential.type == PotentialType.MACE:
@@ -115,16 +117,12 @@ class ValidatorManager:
         # 2. EOS
         self.logger.info("Running EOS check...")
         try:
-            # Run inside output_dir to capture artifacts
-            original_cwd = Path.cwd()
-            os.chdir(output_dir)
-            try:
-                bulk_modulus, eos_plot = check_eos(structure, strain=self.config.eos_strain)
-            finally:
-                os.chdir(original_cwd)
-
+            eos_output_path = output_dir / "eos.png"
+            bulk_modulus, eos_plot = check_eos(
+                structure, strain=self.config.eos_strain, output_path=str(eos_output_path)
+            )
             # Resolve artifact path
-            eos_plot_path = output_dir / eos_plot
+            eos_plot_path = Path(eos_plot)
         except Exception:
             self.logger.exception("EOS check failed with error")
             bulk_modulus = 0.0
