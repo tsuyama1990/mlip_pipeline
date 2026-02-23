@@ -136,21 +136,23 @@ class PacemakerTrainer(Trainer):
 
             self.dataset_manager.save_iter(limited_gen(), selected_path)
         else:
+            # ActiveSetSelector.select now typically takes path and returns path.
+            # Assuming it handles large files by passing path to CLI tool.
             selected_path = self.active_set_selector.select(candidates_path, n_select)
 
         # Process selected structures - Streaming Only
         # We only need IDs for the ActiveSet record if we are strict.
-        # However, Orchestrator traditionally used the objects.
-        # Now we return None for structures to enforce streaming usage downstream.
+        # We process the result file lazily to extract IDs.
         selected_ids: list[UUID] = []
 
         # We must iterate to get IDs, but we discard objects immediately.
-        # If dataset_path is used, loading is deferred.
         for atoms in self.dataset_manager.load_iter(selected_path):
             uid_str = atoms.info.get("uuid")
             if uid_str:
-                selected_ids.append(UUID(uid_str))
-            # No list append of structures here
+                try:
+                    selected_ids.append(UUID(uid_str))
+                except ValueError:
+                    self.logger.warning(f"Invalid UUID in selected structure: {uid_str}")
 
         return ActiveSet(
             structure_ids=selected_ids,
@@ -243,10 +245,10 @@ class MaceTrainer(Trainer):
 
         # 2. Train
         # Params from config or specific distillation params
-        params = {"epochs": 50}  # Default
+        params: dict[str, Any] = {"epochs": 50}  # Default
         if self.config.distillation and self.config.distillation.step3_mace_finetune:
             mace_conf = self.config.distillation.step3_mace_finetune
-            params["epochs"] = mace_conf.epochs  # type: ignore[assignment]
+            params["epochs"] = mace_conf.epochs
 
         if initial_potential:
             params["foundation_model"] = str(initial_potential.path)

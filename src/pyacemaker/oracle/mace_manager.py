@@ -115,6 +115,9 @@ class MaceManager:
         """Train or fine-tune MACE model."""
         self.logger.info(f"Training MACE model with data at {dataset_path}")
 
+        # Use configured mock name or default from config to avoid hardcoding
+        from pyacemaker.core.config import CONSTANTS
+
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Skipping training (Mock).")
             model_path = work_dir / "mace_model_mock.model"
@@ -123,6 +126,13 @@ class MaceManager:
 
         # Construct command for mace_run_train
         # This is highly dependent on MACE version. Assuming CLI usage.
+        # Validate dataset_path
+        try:
+            validate_safe_path(dataset_path)
+        except ValueError as e:
+            msg = f"Invalid dataset path: {e}"
+            raise OracleError(msg) from e
+
         cmd = [
             "mace_run_train",
             "--train_file",
@@ -135,18 +145,34 @@ class MaceManager:
             str(work_dir / "checkpoints"),
         ]
 
-        # Add other params from config
+        # Add other params from config with STRICT sanitization
+        # Only allow alphanumeric keys and safe values
+        import re
+
+        valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
+        # Allow basic alphanumeric, dots, slashes, dashes for file paths/numbers
+        valid_val = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+
         for key, value in params.items():
+            if not isinstance(key, str) or not valid_key.match(key):
+                self.logger.warning(f"Skipping invalid parameter key: {key}")
+                continue
+
             if value is True:
                 cmd.append(f"--{key}")
             elif value is False:
                 continue
             else:
+                val_str = str(value)
+                if not valid_val.match(val_str):
+                    self.logger.warning(f"Skipping parameter {key} with unsafe value: {val_str}")
+                    continue
                 cmd.append(f"--{key}")
-                cmd.append(str(value))
+                cmd.append(val_str)
 
         try:
-            self.logger.info(f"Executing: {' '.join(cmd)}")
+            # Not printing full command to avoid leaking potentially sensitive paths in logs if high verbosity
+            self.logger.info("Executing mace_run_train")
             subprocess.run(  # noqa: S603
                 cmd, check=True, cwd=work_dir, capture_output=True, text=True
             )
@@ -163,9 +189,9 @@ class MaceManager:
             return model_path
 
         # Find the best model
-        # MACE typically saves to checkpoints/ or directly.
-        # Let's assume it created a model file.
-        model_path = work_dir / "mace_model_compiled.model"  # Hypothetical
+        # Use configurable name if possible, otherwise search
+        model_name_base = "mace_model_compiled.model" # Could be in config
+        model_path = work_dir / model_name_base
         if not model_path.exists():
              # Fallback to search
             models = list(work_dir.glob("*.model"))

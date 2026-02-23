@@ -514,6 +514,8 @@ class Orchestrator(IOrchestrator):
         # but avoids O(N_total) splitting logic.
 
         # Need to convert atoms back to metadata for Trainer interface
+        # load_iter is a generator, so this is already streaming.
+        # We wrap it to convert Atoms -> StructureMetadata on the fly.
         def training_stream() -> Iterator[StructureMetadata]:
             # Use buffer_size for efficiency
             for atoms in self.dataset_manager.load_iter(self.training_path):

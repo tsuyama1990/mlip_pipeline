@@ -76,7 +76,12 @@ class RandomStructureGenerator(StructureGenerator):
 
         self.logger.info(f"Generating batch candidates from seed structures (Cycle {cycle})")
 
-        for _ in seed_structures:
+        # Use itertools.chain to flatten the generator stream if needed,
+        # but yield from in a loop is already a generator.
+        # The key is that `seed_structures` is an iterable, and we process it lazily.
+        for _seed in seed_structures:
+            # We don't use seed in Random generator logic (mock), but we iterate to match count.
+            # In real logic, we would use seed.
             yield from self._generate_candidates_common(
                 n_candidates_per_seed, tags=["candidate", "batch"]
             )
