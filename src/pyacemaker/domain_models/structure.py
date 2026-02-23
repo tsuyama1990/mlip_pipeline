@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from pyacemaker.core.config import CONSTANTS
 from pyacemaker.domain_models.common import StructureStatus, utc_now
@@ -162,6 +162,14 @@ class StructureMetadata(BaseModel):
 
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=utc_now, description="Last update timestamp")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def uncertainty(self) -> float | None:
+        """Return the primary uncertainty metric (gamma_max) for active learning."""
+        if self.uncertainty_state and self.uncertainty_state.gamma_max is not None:
+            return self.uncertainty_state.gamma_max
+        return None
 
     @field_validator("label_source")
     @classmethod

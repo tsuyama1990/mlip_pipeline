@@ -1,0 +1,78 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0, mock-3.15.1
+collected 9 items
+
+tests/unit/test_structure_generator.py ...                               [ 33%]
+tests/unit/test_mace_oracle.py ..                                        [ 55%]
+tests/unit/test_dft_oracle.py .                                          [ 66%]
+tests/unit/test_active_learner.py .                                      [ 77%]
+tests/uat/test_cycle02.py ..                                             [100%]
+
+=============================== warnings summary ===============================
+tests/uat/test_cycle02.py::test_cycle02_active_learning
+  /app/tests/uat/test_cycle02.py:140: UserWarning: DatasetManager.save() delegates to save_iter() for scalability. Prefer using save_iter() directly with iterators.
+    dm.save(atoms_list, candidates_file)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.12-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+src/pyacemaker/__init__.py                          5      2    60%   5-6
+src/pyacemaker/core/__init__.py                     0      0   100%
+src/pyacemaker/core/base.py                        17      0   100%
+src/pyacemaker/core/config.py                     356     64    82%   28-29, 34-35, 41-42, 316-317, 324-325, 332-333, 336-338, 358, 377-379, 417-429, 435-438, 444-447, 506-508, 511, 514-515, 590-594, 609, 635-639, 778-781, 799-803, 844-847
+src/pyacemaker/core/config_loader.py               82     55    33%   20-21, 30-67, 79-81, 86-92, 95-96, 115-116, 123-134
+src/pyacemaker/core/dataset.py                     71     56    21%   22, 32-53, 57-63, 80-93, 97-128, 132-138
+src/pyacemaker/core/exceptions.py                  11      2    82%   21-22
+src/pyacemaker/core/interfaces.py                  43      0   100%
+src/pyacemaker/core/io_utils.py                    10     10     0%   3-26
+src/pyacemaker/core/logging.py                     10      3    70%   21-23
+src/pyacemaker/core/utils.py                      183     68    63%   44, 79-80, 88-91, 107-108, 111-112, 115-116, 120-121, 125-140, 156-170, 209, 235, 257-258, 275-280, 284, 286, 297, 301-302, 324-325, 340, 347-350, 366-367, 379-380, 396, 402, 408-410
+src/pyacemaker/core/validation.py                  75     44    41%   10-28, 36-37, 41-44, 49-64, 80-81, 86, 88-90, 92-93, 104-105, 108-111, 117-119
+src/pyacemaker/domain_models/__init__.py            2      0   100%
+src/pyacemaker/domain_models/common.py             37      0   100%
+src/pyacemaker/domain_models/models.py              6      0   100%
+src/pyacemaker/domain_models/potential.py          44     17    61%   34-44, 51-54, 60-64, 70
+src/pyacemaker/domain_models/structure.py         184     69    62%   33, 35-36, 41-42, 48-51, 56-68, 83-86, 91-94, 99-102, 172, 178-179, 187-194, 207-224, 232-233, 237-238, 241-242, 260-265, 271-272, 296-297, 304-314
+src/pyacemaker/domain_models/task.py               62     23    63%   32-35, 43, 48-59, 77-87
+src/pyacemaker/domain_models/validator.py           8      0   100%
+src/pyacemaker/dynamics/__init__.py                 0      0   100%
+src/pyacemaker/dynamics/kmc.py                     52     40    23%   20-21, 25-29, 33-160
+src/pyacemaker/generator/__init__.py                4      0   100%
+src/pyacemaker/generator/direct.py                 55     17    69%   48, 57, 83-102, 111-112, 116, 129-130
+src/pyacemaker/generator/mutations.py              26     20    23%   20-37, 50-52, 65-79
+src/pyacemaker/generator/policy.py                 23     10    57%   35, 41-62
+src/pyacemaker/generator/strategies.py             59     42    29%   34-35, 39-44, 52, 56-70, 78, 84-111
+src/pyacemaker/main.py                             40     40     0%   3-83
+src/pyacemaker/modules/__init__.py                  6      0   100%
+src/pyacemaker/modules/active_learner.py           41      7    83%   30, 47-49, 77, 87-88
+src/pyacemaker/modules/dynamics_engine.py         130     94    28%   30-54, 60-65, 82-129, 135-141, 147-191, 210-211, 217-245, 249-250, 258-259, 263-264, 270-278, 282-283
+src/pyacemaker/modules/oracle.py                  184    101    45%   31-32, 40-41, 49-57, 69, 75-82, 104-105, 111-114, 133-134, 143-144, 148-204, 215-216, 222, 226-227, 231-264, 297-299, 304-314
+src/pyacemaker/modules/structure_generator.py      88     63    28%   19, 23-24, 31-32, 38-39, 48, 54-64, 73-85, 91, 99-100, 104-105, 112-135, 143-145, 154-183, 196-203, 207
+src/pyacemaker/modules/trainer.py                 134     99    26%   37-38, 48-105, 117-157, 166-187, 191-193, 209, 214-215, 223-258, 273-274
+src/pyacemaker/modules/validator.py                48     37    23%   16, 21-22, 34-37, 42-101
+src/pyacemaker/oracle/__init__.py                   4      0   100%
+src/pyacemaker/oracle/calculator.py                38     32    16%   13-18, 39-124
+src/pyacemaker/oracle/dataset.py                  205     78    62%   41, 44, 47, 57, 67, 86-87, 105, 110, 120-132, 156-159, 162-168, 171-187, 197-199, 204-209, 215-236, 266-267, 275-277, 297-300, 309-312, 359-360, 389-394, 408-411, 417-418
+src/pyacemaker/oracle/dft.py                       67     13    81%   27-29, 38, 66, 77-79, 88-89, 101-103
+src/pyacemaker/oracle/mace_manager.py             128     83    35%   18, 45-48, 51-75, 82-84, 92-93, 101-102, 105-108, 115, 129-217
+src/pyacemaker/oracle/mace_oracle.py               79     20    75%   29-34, 47, 64-65, 81-82, 96, 103-105, 121-122, 126-129
+src/pyacemaker/oracle/manager.py                   70     57    19%   19-22, 26-30, 41-53, 72-131, 144-151
+src/pyacemaker/orchestrator.py                    336    230    32%   49-50, 81, 87, 102-108, 116-117, 133, 166-175, 201-202, 207-208, 224-254, 259-282, 289-315, 337-397, 407-438, 444-463, 469-477, 483-494, 510-513, 517-520, 524-529, 533-584, 592-619, 623-634, 644-675, 681-715, 721-745, 749-752
+src/pyacemaker/trainer/__init__.py                  0      0   100%
+src/pyacemaker/trainer/active_set.py               16     10    38%   25-42
+src/pyacemaker/trainer/wrapper.py                  62     52    16%   14-19, 25-26, 31-73, 94-116, 131-147
+src/pyacemaker/validator/__init__.py                0      0   100%
+src/pyacemaker/validator/manager.py                93     80    14%   21-22, 26-78, 84-169
+src/pyacemaker/validator/physics.py                86     73    15%   16, 28-77, 86-119, 126-168, 179-188
+src/pyacemaker/validator/report.py                 13      7    46%   15-18, 22-26
+-----------------------------------------------------------------------------
+TOTAL                                            3293   1718    48%
+========================= 9 passed, 1 warning in 5.05s =========================
+/app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

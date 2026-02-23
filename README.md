@@ -12,9 +12,11 @@
 
 Ideally suited for materials scientists who need DFT-level accuracy with the speed of classical molecular dynamics.
 
-## Key Features (Cycle 01 Verified)
+## Key Features (Cycle 02 Verified)
 
--   **MACE Integration**: Seamlessly load and use MACE-MP-0 foundation models as surrogate oracles.
+-   **Direct Sampling**: Intelligent structure generation using DIRECT sampling (or entropy maximization) to ensure diverse initial datasets.
+-   **Active Learning Loop**: Integrated uncertainty quantification using MACE to select the most informative structures for DFT labeling.
+-   **MACE Integration**: Seamlessly load and use MACE-MP-0 foundation models as surrogate oracles for uncertainty and pre-labeling.
 -   **Configurable Pipeline**: Robust YAML-based configuration with schema validation (Pydantic).
 -   **Mock Mode**: Fully functional mock execution for CI/CD and testing without expensive hardware.
 -   **Modular Architecture**: Extensible design separating Oracle, Trainer, and Generator components.
@@ -119,10 +121,10 @@ graph TD
 To verify the installation and see the system in action (Mock Mode), run the UAT script:
 
 ```bash
-uv run pytest tests/uat/test_cycle01.py
+uv run pytest tests/uat/test_cycle02.py
 ```
 
-This ensures that the configuration loading, MACE integration (mock), and orchestrator workflow are functioning correctly.
+This verifies the Structure Generation, MACE Uncertainty, and Active Learning selection workflow.
 
 ## Configuration Reference
 

@@ -41,7 +41,7 @@ class TestErrorConditions:
     def test_checksum_corruption_detection(self, error_config: PYACEMAKERConfig) -> None:
         """Test that dataset loading fails if checksum is corrupted."""
         orchestrator = Orchestrator(error_config)
-        dataset_path = orchestrator.dataset_path
+        dataset_path = orchestrator.standard_workflow.dataset_path
 
         # Create valid dataset
         atoms = [Atoms("H")]
@@ -62,7 +62,7 @@ class TestErrorConditions:
     def test_partial_write_recovery(self, error_config: PYACEMAKERConfig) -> None:
         """Test behavior when dataset file is truncated/corrupted."""
         orchestrator = Orchestrator(error_config)
-        dataset_path = orchestrator.dataset_path
+        dataset_path = orchestrator.standard_workflow.dataset_path
 
         # Write valid frame
         atoms = Atoms("H")
@@ -86,12 +86,12 @@ class TestErrorConditions:
         orchestrator = Orchestrator(error_config)
 
         # Corrupt dataset (invalid gzip)
-        dataset_path = orchestrator.dataset_path
+        dataset_path = orchestrator.standard_workflow.dataset_path
         dataset_path.parent.mkdir(parents=True, exist_ok=True)
         dataset_path.write_bytes(b"garbage_data_not_gzip")
 
         # Create dummy potential so we don't fail on "No potential"
-        orchestrator.current_potential = MagicMock()
+        orchestrator.standard_workflow.current_potential = MagicMock()
 
         # Mock trainer to avoid other errors
         with patch("pyacemaker.modules.trainer.PacemakerTrainer.train"):

@@ -1,7 +1,6 @@
 """Validator module implementation."""
 
 from collections.abc import Iterable
-from pathlib import Path
 
 from pyacemaker.core.base import Metrics, ModuleResult
 from pyacemaker.core.interfaces import Validator as ValidatorInterface

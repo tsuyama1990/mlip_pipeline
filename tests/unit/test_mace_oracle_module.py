@@ -55,44 +55,26 @@ def test_compute_batch(
     mock_config: PYACEMAKERConfig,
 ) -> None:
     # Setup
-    # Create oracle instance. This will instantiate MaceManager(config.oracle.mace)
     oracle = mace_surrogate_oracle_class(mock_config)
-
-    # MockMaceManager is the class, so calling it returns an instance
-    # But wait, MaceSurrogateOracle.__init__ calls MaceManager(...)
-    # If we patch the class, we get a mock instance.
-    # However, creating oracle happens inside test function, so patch is active.
-    # We need to grab the instance created inside __init__.
-
-    # But wait, we are creating oracle instance *after* patch is applied decorator style?
-    # Yes.
-
-    # So oracle.mace_manager should be an instance of MockMaceManager.
     mock_manager = oracle.mace_manager
 
-    # Mock manager.compute behavior
-    def side_effect(atoms: Atoms) -> Atoms:
-        calc_atoms = atoms.copy()  # type: ignore[no-untyped-call]
-        if not isinstance(calc_atoms, Atoms):
-            msg = "Expected Atoms object"
-            raise TypeError(msg)
-        # Mock calculator behavior on the atoms object
-        # Since we use get_potential_energy() from ASE atoms, we mock the method on atoms object?
-        # No, manager returns atoms with attached results usually?
-        # In MaceManager.compute: it calls calc_structure.get_potential_energy() then returns calc_structure.
-        # So it returns an atoms object that has calculator results cached?
-        # Or simply returns atoms object.
-        # BaseOracle._update_structure_common calls atoms.get_potential_energy().
-        # So the returned atoms object must respond to get_potential_energy().
+    # Mock manager.compute_batch behavior
+    def side_effect(atoms_list: list[Atoms]) -> list[Atoms]:
+        results = []
+        for atoms in atoms_list:
+            calc_atoms = atoms.copy()  # type: ignore[no-untyped-call]
+            if not isinstance(calc_atoms, Atoms):
+                msg = "Expected Atoms object"
+                raise TypeError(msg)
 
-        # Mock the get_potential_energy method directly on the returned atoms object
-        calc_atoms.get_potential_energy = MagicMock(return_value=-10.0)  # type: ignore[method-assign]
-        calc_atoms.get_forces = MagicMock(  # type: ignore[method-assign]
-            return_value=np.array([[0.0, 0.0, 0.0]] * len(atoms))
-        )
-        return calc_atoms
+            calc_atoms.get_potential_energy = MagicMock(return_value=-10.0)  # type: ignore[method-assign]
+            calc_atoms.get_forces = MagicMock(  # type: ignore[method-assign]
+                return_value=np.array([[0.0, 0.0, 0.0]] * len(atoms))
+            )
+            results.append(calc_atoms)
+        return results
 
-    mock_manager.compute.side_effect = side_effect
+    mock_manager.compute_batch.side_effect = side_effect
 
     # Input structures
     structures = [
@@ -106,7 +88,6 @@ def test_compute_batch(
     assert len(results) == 2
     assert results[0].status == StructureStatus.CALCULATED
     assert results[0].energy == -10.0
-    # Check forces are present (mocked return value)
     assert results[0].forces is not None
     assert len(results[0].forces) == 2  # H2 has 2 atoms
 
