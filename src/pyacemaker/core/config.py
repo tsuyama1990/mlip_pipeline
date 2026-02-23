@@ -221,6 +221,25 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["dynamics_gamma_threshold"]
     )
 
+    default_dynamics_templates: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            "zbl": [
+                "pair_style hybrid/overlay pace zbl 4.0 5.0",
+                "pair_coeff * * pace {path} {elements}",
+                "pair_coeff * * zbl 0.0 0.0",
+            ],
+            "lj": [
+                "pair_style hybrid/overlay pace lj/cut 10.0",
+                "pair_coeff * * pace {path} {elements}",
+                "pair_coeff * * lj/cut 1.0 1.0",
+            ],
+            "default": [
+                "pair_style pace",
+                "pair_coeff * * pace {path} {elements}",
+            ],
+        }
+    )
+
     PICKLE_SECURITY_WARNING: str = Field(
         default_factory=lambda: get_defaults()["pickle_security_warning"]
     )

@@ -29,6 +29,7 @@ from pyacemaker.domain_models.models import (
     Potential,
     StructureMetadata,
 )
+from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
@@ -179,6 +180,9 @@ class Orchestrator(IOrchestrator):
             msg = "MACE Trainer not initialized for MACE workflow."
             raise RuntimeError(msg)
 
+        # Inject ActiveLearner
+        active_learner = ActiveLearner()
+
         workflow = MaceDistillationWorkflow(
             config=self.config,
             dataset_manager=self.dataset_manager,
@@ -190,6 +194,7 @@ class Orchestrator(IOrchestrator):
             structure_generator=self.structure_generator,
             validation_path=self.validation_path,
             training_path=self.training_path,
+            active_learner=active_learner,
         )
         return workflow.run()
 

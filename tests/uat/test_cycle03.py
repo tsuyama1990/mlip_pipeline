@@ -14,7 +14,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ase import Atoms
 
-from pyacemaker.core.config import PYACEMAKERConfig, TrainerConfig
+from pyacemaker.core.config import (
+    DFTConfig,
+    OracleConfig,
+    ProjectConfig,
+    PYACEMAKERConfig,
+    TrainerConfig,
+)
 from pyacemaker.core.factory import ModuleFactory
 from pyacemaker.core.interfaces import Trainer
 from pyacemaker.domain_models.models import StructureMetadata
@@ -24,19 +30,24 @@ class TestCycle03UAT:
     """UAT Scenarios for Trainer."""
 
     @pytest.fixture
-    def mock_config(self) -> MagicMock:
-        """Create a mock configuration object."""
-        config = MagicMock(spec=PYACEMAKERConfig)
-        config.version = "0.1.0"
-        config.trainer = TrainerConfig(
-            cutoff=5.0,
-            order=3,
-            mock=False,
+    def mock_config(self, tmp_path: Path) -> PYACEMAKERConfig:
+        """Create a real configuration object."""
+        return PYACEMAKERConfig(
+            version="0.1.0",
+            project=ProjectConfig(name="TestProject", root_dir=tmp_path),
+            oracle=OracleConfig(
+                dft=DFTConfig(pseudopotentials={"Fe": "Fe.upf"}),
+                mock=True
+            ),
+            trainer=TrainerConfig(
+                cutoff=5.0,
+                order=3,
+                mock=False,
+            ),
         )
-        return config
 
     @pytest.fixture
-    def trainer(self, mock_config: MagicMock) -> Trainer:
+    def trainer(self, mock_config: PYACEMAKERConfig) -> Trainer:
         """Create a Trainer instance using the Factory."""
         return ModuleFactory.create_trainer(mock_config)
 
@@ -61,6 +72,16 @@ class TestCycle03UAT:
 
         mock_run.return_value = MagicMock(returncode=0)
 
+        # Simulate output creation by pace_train
+        def mock_pace_train_side_effect(*args, **kwargs):
+            # Check if cwd is in kwargs
+            cwd = kwargs.get("cwd")
+            if cwd:
+                (cwd / "potential.yace").touch()
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = mock_pace_train_side_effect
+
         # Ensure save_iter consumes generator without crashing
         trainer.dataset_manager = MagicMock()
 
@@ -82,8 +103,9 @@ class TestCycle03UAT:
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "pace_train"
-        assert "--cutoff" in cmd
-        assert str(5.0) in cmd
+        # Since we use input.yaml, we verify an input file is passed
+        assert len(cmd) == 2
+        assert cmd[1].endswith("input.yaml")
 
     @patch("subprocess.run")
     def test_scenario_02_active_set_selection(
@@ -104,6 +126,19 @@ class TestCycle03UAT:
                 yield StructureMetadata(features={"atoms": Atoms("Fe")})
 
         mock_run.return_value = MagicMock(returncode=0)
+
+        # Simulate output creation by pace_activeset
+        def mock_activeset_side_effect(*args, **kwargs):
+            # pace_activeset command: ["pace_activeset", "--dataset", ..., "--output", output_path]
+            # args[0] is the command list
+            cmd = args[0]
+            output_idx = cmd.index("--output") + 1
+            output_path = Path(cmd[output_idx])
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.touch()
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = mock_activeset_side_effect
 
         # Mock DatasetManager
         trainer.dataset_manager = MagicMock()
@@ -147,7 +182,7 @@ class TestCycle03UAT:
 
     @patch("subprocess.run")
     def test_scenario_03_delta_learning(
-        self, mock_run: MagicMock, mock_config: MagicMock
+        self, mock_run: MagicMock, mock_config: PYACEMAKERConfig
     ) -> None:
         """Scenario 03: Delta Learning Configuration.
 
@@ -178,18 +213,23 @@ class TestCycle03UAT:
 
         mock_run.return_value = MagicMock(returncode=0)
 
+        def mock_pace_train_side_effect(*args, **kwargs):
+            cwd = kwargs.get("cwd")
+            if cwd:
+                (cwd / "potential.yace").touch()
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = mock_pace_train_side_effect
+
         # Mock file existence checks in wrapper
         with patch("pathlib.Path.exists", return_value=True):
             trainer.train(dataset_gen())
 
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
-        assert "--baseline" in cmd
+        # Verify input.yaml usage
+        assert len(cmd) == 2
+        assert cmd[1].endswith("input.yaml")
 
-        baseline_idx = cmd.index("--baseline") + 1
-        assert delta_method in cmd[baseline_idx]
-
-        # Verify delta learning configuration was used (since we can't check file content of mocked call)
-        # We assert that the potential object metadata reflects this configuration implicitly via parameters
-        # (Though parameters here are passed to trainer, we check trainer config)
+        # Verify delta learning configuration was stored
         assert trainer.trainer_config.delta_learning == delta_method

@@ -51,6 +51,7 @@ class MaceDistillationWorkflow:
         structure_generator: StructureGenerator,
         validation_path: Path,
         training_path: Path,
+        active_learner: ActiveLearner | None = None,
     ) -> None:
         """Initialize the workflow."""
         self.config = config
@@ -64,6 +65,7 @@ class MaceDistillationWorkflow:
         self.structure_generator = structure_generator
         self.validation_path = validation_path
         self.training_path = training_path
+        self.active_learner = active_learner or ActiveLearner()
 
     def run(self) -> ModuleResult:
         """Run the workflow."""
@@ -184,8 +186,7 @@ class MaceDistillationWorkflow:
         n_select = dist_config.step2_active_learning.n_select
         threshold = dist_config.step2_active_learning.uncertainty_threshold
 
-        learner = ActiveLearner()
-        return learner.select_batch(scored_pool, n_select, threshold=threshold)
+        return self.active_learner.select_batch(scored_pool, n_select, threshold=threshold)
 
     def _execute_active_learning_iteration(
         self,

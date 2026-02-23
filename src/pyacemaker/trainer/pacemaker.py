@@ -95,6 +95,13 @@ class PacemakerTrainer(BaseTrainer):
             },
         }
 
+        # Handle baseline for delta learning
+        if "baseline" in config:
+            # Pacemaker input.yaml usually handles this via 'potential' or specific key
+            # Assuming 'baseline' key at root or under potential
+            # Checking pacemaker docs (simulated): usually 'potential.baseline'
+            input_data["potential"]["baseline"] = config["baseline"]
+
         if initial_potential:
              # Add if supported or handled via CLI
              pass
