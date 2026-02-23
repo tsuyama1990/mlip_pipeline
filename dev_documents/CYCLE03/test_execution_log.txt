@@ -101,7 +101,7 @@ src/pyacemaker/generator/strategies.py             59      3    95%   92-94
 src/pyacemaker/main.py                             40      5    88%   29-31, 54-55
 src/pyacemaker/modules/__init__.py                  6      0   100%
 src/pyacemaker/modules/active_learner.py           15      0   100%
-src/pyacemaker/modules/dynamics_engine.py         196     59    70%   65, 102, 177-186, 248, 269-270, 274-275, 281-289, 293-294, 307-308, 327-390
+src/pyacemaker/modules/dynamics_engine.py         210     65    69%   65, 97, 146-148, 201, 209-223, 243-244, 288, 309-310, 314-315, 321-324, 328-329, 342-343, 360-419
 src/pyacemaker/modules/mace_workflow.py           127      9    93%   69-70, 250, 264, 277, 288-291
 src/pyacemaker/modules/oracle.py                  210     31    85%   83, 127, 159-160, 196-197, 240-242, 257, 268-269, 279-280, 289-290, 307-308, 313-315, 346-348, 356-358, 368-373
 src/pyacemaker/modules/structure_generator.py      88     51    42%   23-24, 38-39, 55-56, 58-59, 74-75, 91, 99-100, 104-105, 112-135, 143-145, 154-183, 196-203, 207
@@ -112,18 +112,18 @@ src/pyacemaker/oracle/calculator.py                38      6    84%   68-69, 92,
 src/pyacemaker/oracle/dataset.py                  205     49    76%   41, 44, 47, 67, 120-132, 156-159, 162-168, 176-185, 187, 217, 223-224, 229-236, 298, 326-331, 359-360, 389-394, 408-411, 417-418
 src/pyacemaker/oracle/mace_manager.py             127     76    40%   18, 55-56, 61-65, 75-78, 85-87, 95-96, 104-105, 108-111, 117-128, 134-173, 190-230
 src/pyacemaker/oracle/manager.py                   70      8    89%   73-75, 81-83, 150-151
-src/pyacemaker/orchestrator.py                    201     30    85%   127-129, 138, 179-180, 210-213, 268-269, 294-295, 311-313, 332, 346, 351-352, 372-373, 406-409, 413-415, 445
+src/pyacemaker/orchestrator.py                    203     30    85%   127-129, 138, 179-180, 210-213, 276-277, 302-303, 319-321, 340, 354, 359-360, 380-381, 414-417, 421-423, 453
 src/pyacemaker/trainer/__init__.py                  0      0   100%
 src/pyacemaker/trainer/active_set.py               16      3    81%   35-38
 src/pyacemaker/trainer/base.py                      9      0   100%
-src/pyacemaker/trainer/mace_trainer.py             42      6    86%   31, 36-37, 47-48, 77
+src/pyacemaker/trainer/mace_trainer.py             45      6    87%   31, 36-37, 64-65, 89
 src/pyacemaker/trainer/wrapper.py                  62     15    76%   15-16, 19, 32-33, 53-54, 70-71, 106-107, 132-133, 137-138
 src/pyacemaker/validator/__init__.py                0      0   100%
 src/pyacemaker/validator/manager.py                93     36    61%   27, 34-53, 60-62, 79-82, 98-100, 116-118, 132-135, 143-146
 src/pyacemaker/validator/physics.py                87     30    66%   33, 38-39, 54-62, 98-99, 135-177
 src/pyacemaker/validator/report.py                 13      0   100%
 -----------------------------------------------------------------------------
-TOTAL                                            3309    640    81%
-======================= 223 passed in 229.13s (0:03:49) ========================
+TOTAL                                            3328    646    81%
+======================= 223 passed in 224.72s (0:03:44) ========================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

@@ -7,10 +7,13 @@ a potential artifact. It ensures that data flow between the Orchestrator,
 DatasetManager, and Trainer is seamless.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from pyacemaker.core.config import (
     DFTConfig,
@@ -22,6 +25,8 @@ from pyacemaker.core.config import (
     StructureGeneratorConfig,
     TrainerConfig,
 )
+from pyacemaker.core.factory import ModuleFactory
+from pyacemaker.domain_models.models import StructureMetadata
 from pyacemaker.orchestrator import Orchestrator
 
 
@@ -73,18 +78,16 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
     # Ensure directory exists
     dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Generate mock data
-    # Create Atoms with positions AND energy/forces to pass validation in Trainer
-    from ase.calculators.singlepoint import SinglePointCalculator
-    atoms_list = []
-    for _ in range(5):
-        a = Atoms("Fe", positions=[[0, 0, 0]])
-        a.calc = SinglePointCalculator(a, energy=-1.0, forces=[[0.0, 0.0, 0.0]])
-        atoms_list.append(a)
+    # Generate mock data using a generator to avoid OOM in test
+    def atoms_generator() -> Iterator[Atoms]:
+        for _ in range(5):
+            a = Atoms("Fe", positions=[[0, 0, 0]])
+            a.calc = SinglePointCalculator(a, energy=-1.0, forces=[[0.0, 0.0, 0.0]])
+            yield a
 
     # Orchestrator uses dataset_manager.save_iter to append to file
     orchestrator.dataset_manager.save_iter(
-        iter(atoms_list), dataset_path, calculate_checksum=False
+        atoms_generator(), dataset_path, calculate_checksum=False
     )
 
     # 4. Mock External Dependencies
@@ -129,6 +132,7 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
             wrapper_instance.train.assert_not_called()
 
         # C. Verify arguments passed to wrapper
+        # wrapper.train(dataset_path, work_dir, params, initial_pot)
         if not config.trainer.mock:
             call_args = wrapper_instance.train.call_args
             dataset_arg = call_args[0][0]

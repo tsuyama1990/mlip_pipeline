@@ -180,7 +180,7 @@ class TestCycle03UAT:
 
         # Mock file existence checks in wrapper
         with patch("pathlib.Path.exists", return_value=True):
-            trainer.train(dataset_gen())
+            potential = trainer.train(dataset_gen())
 
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
@@ -188,3 +188,8 @@ class TestCycle03UAT:
 
         baseline_idx = cmd.index("--baseline") + 1
         assert delta_method in cmd[baseline_idx]
+
+        # Verify delta learning configuration was used (since we can't check file content of mocked call)
+        # We assert that the potential object metadata reflects this configuration implicitly via parameters
+        # (Though parameters here are passed to trainer, we check trainer config)
+        assert trainer.trainer_config.delta_learning == delta_method

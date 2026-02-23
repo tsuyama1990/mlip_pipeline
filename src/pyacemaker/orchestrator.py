@@ -228,10 +228,12 @@ class Orchestrator(IOrchestrator):
             return False
         return True
 
-    def _run_training_phase(self) -> None:
-        """Execute training phase with incremental partitioning."""
-        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+    def _prepare_training_data(self) -> int:
+        """Split new dataset items into training/validation sets.
 
+        Returns:
+             int: Number of new items processed.
+        """
         # 1. Incremental Partitioning
         # Only process new items from dataset
         splitter = DatasetSplitter(
@@ -256,9 +258,15 @@ class Orchestrator(IOrchestrator):
             calculate_checksum=False,  # Streaming append
         )
 
-        # Update progress tracking
-        added_count = splitter.processed_count
+        return splitter.processed_count
+
+    def _run_training_phase(self) -> None:
+        """Execute training phase with incremental partitioning."""
+        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+
+        added_count = self._prepare_training_data()
         self.processed_items_count += added_count
+
         self.logger.info(
             f"Processed {added_count} new items. Total processed: {self.processed_items_count}"
         )

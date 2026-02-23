@@ -55,6 +55,9 @@ def test_ase_dynamics_engine_exploration(
 
     assert len(results) == 1
     assert results[0].tags == ["halted"]
+    # Verify uncertainty_state is populated
+    assert results[0].uncertainty_state is not None
+    assert results[0].uncertainty_state.gamma_max == 2.0
     assert mock_run_md.call_count == 2
 
 
