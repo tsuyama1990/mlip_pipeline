@@ -1,186 +1,159 @@
-# PYACEMAKER: Automated MLIP Construction System
+# PYACEMAKER
+
+**Automated Machine Learning Interatomic Potential Construction System**
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Python](https://img.shields.io/badge/python-3.11+-blue)
-![Code Style](https://img.shields.io/badge/code%20style-ruff-000000.svg)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-**PYACEMAKER** is an automated system designed to democratize the creation of Machine Learning Interatomic Potentials (MLIP). By leveraging the Atomic Cluster Expansion (ACE) formalism via Pacemaker, it enables materials scientists to generate "State-of-the-Art" potentials with minimal manual intervention.
+## Overview
 
-From a single configuration file, PYACEMAKER orchestrates the entire lifecycle: generating candidate structures, running DFT calculations (Oracle), training the model (Trainer), and validating its physics (Validator). It features a robust "Active Learning" loop that autonomously detects high-uncertainty regions during Molecular Dynamics (MD) simulations and retrains the potential on-the-fly.
+**PYACEMAKER** is a next-generation pipeline designed to democratize the creation of high-accuracy Machine Learning Interatomic Potentials (MLIPs). It solves the "data efficiency" problem by leveraging **MACE Knowledge Distillation**. Instead of running thousands of expensive DFT calculations, PYACEMAKER uses a pre-trained Large Foundation Model (MACE-MP) as a "Teacher" to guide the exploration of chemical space and train a fast, production-ready "Student" potential (ACE/Pacemaker).
 
-## Features
+Ideally suited for materials scientists who need DFT-level accuracy with the speed of classical molecular dynamics.
 
--   **Zero-Config Automation**: Define your material system in `config.yaml` and let the system handle structure generation, DFT, training, and validation.
--   **Adaptive Structure Generation**: Intelligently explores the configuration space using multiple strategies (Random, Defect, M3GNet) driven by an adaptive policy engine. It automatically switches between cold start (using M3GNet or prototypes) and refinement strategies based on model uncertainty.
--   **Automated DFT (Oracle)**: Integrated wrapper around Quantum Espresso (via ASE) with self-healing retry logic for SCF convergence failures.
--   **Pacemaker Integration (Trainer)**: Seamlessly trains ACE potentials using `pace_train`. Supports active set selection (`pace_activeset`) to filter redundant structures (D-optimality).
--   **Physics Validation (Validator)**: Automatically runs comprehensive physics checks on trained potentials, including Phonon stability (no imaginary frequencies), Equation of State (EOS) bulk modulus, and Elastic constants ($C_{ij}$) stability criteria. Generates HTML reports with plots.
--   **Dynamics Engine Integration**:  Support for running MD simulations via LAMMPS with automated input generation (including hybrid potentials like ACE+ZBL/LJ). Also integrates with **EON** for long-timescale Adaptive Kinetic Monte Carlo (akMC) simulations.
--   **Delta Learning**: Automatically configures physics-based baselines (ZBL/LJ) to ensure core repulsion, allowing the ACE potential to learn only the difference ($E_{ACE} = E_{DFT} - E_{Baseline}$).
--   **Dataset Management**: Efficient handling of large atomic structure datasets (`.pckl.gzip`), fully compatible with Pacemaker. Includes streaming support for large files.
--   **Active Learning Loop**: Uses "Halt & Diagnose" logic to monitor MD simulations. If uncertainty ($\gamma$) spikes, the simulation halts, and the problematic structure is automatically sent for labeling and retraining.
+## Key Features
 
-## Requirements
+-   **7-Step MACE Distillation**: A fully automated workflow that distills knowledge from MACE into a fast polynomial potential.
+-   **Active Learning**: intelligently selects only the most critical structures for DFT calculation using uncertainty quantification, reducing computational cost by orders of magnitude.
+-   **Delta Learning**: automatically corrects the "Sim-to-Real" gap by fine-tuning the potential on sparse high-fidelity DFT data.
+-   **Zero-Config**: Define your system (e.g., `["Fe", "Pt"]`) in a single YAML file, and the Orchestrator handles the rest.
+-   **Robust Validation**: Built-in physics checks ensure the generated potential is stable (Phonons) and physically reasonable (EOS).
+
+## Architecture Overview
+
+The system operates as a centralized Orchestrator managing specialized modules for Generation, Oracle evaluation (MACE/DFT), and Training.
+
+```mermaid
+graph TD
+    User[User] -->|config.yaml| Orch[Orchestrator]
+
+    subgraph "Phase 1: Active Learning"
+        Orch -->|Step 1: DIRECT| Gen[Structure Generator]
+        Gen -->|Structures| AL[Active Learning Loop]
+        AL -->|Step 2: Uncertainty| MACE_O[MACE Oracle]
+        MACE_O -->|High Variance| DFT[DFT Oracle]
+        DFT -->|Truth Labels| DB[(DFT Dataset)]
+    end
+
+    subgraph "Phase 2: Distillation"
+        Orch -->|Step 3: Fine-tune| MACE_T[MACE Trainer]
+        DB --> MACE_T
+        MACE_T -->|Fine-tuned Model| MACE_MD[MACE Dynamics]
+        Orch -->|Step 4: Surrogate Sampling| MACE_MD
+        MACE_MD -->|Structures| Label[Surrogate Labeler]
+        MACE_T -->|Predict| Label
+        Label -->|Pseudo Labels| S_DB[(Surrogate Dataset)]
+    end
+
+    subgraph "Phase 3: ACE Training"
+        Orch -->|Step 6: Base Train| PACE_T[Pacemaker Trainer]
+        S_DB --> PACE_T
+        PACE_T -->|Base Potential| PACE_Model
+
+        Orch -->|Step 7: Delta Learning| Delta[Delta Learner]
+        DB -->|Real Labels| Delta
+        PACE_Model --> Delta
+        Delta -->|Final Potential| Final_ACE[(Final ACE.yace)]
+    end
+```
+
+## Prerequisites
 
 -   **Python 3.11+**
--   **Quantum Espresso** (pw.x) installed and accessible in PATH (or specified in config).
--   **Pacemaker** (ACE training engine)
--   **LAMMPS** (with USER-PACE package installed)
--   **EON** (Optional, for kMC simulations)
--   **uv** (Recommended for dependency management)
+-   **uv** (Recommended for dependency management) or pip.
+-   **MACE-MP-0** (automatically downloaded or provided via path).
+-   **Pacemaker** (external binary or library).
+-   **Optional**: VASP or Quantum Espresso for "Real Mode" execution.
 
-## Installation
+## Installation & Setup
 
-1.  **Clone the repository:**
+1.  **Clone the repository**:
     ```bash
     git clone https://github.com/your-org/pyacemaker.git
     cd pyacemaker
     ```
 
-2.  **Install dependencies using `uv`:**
+2.  **Install dependencies**:
+    We use `uv` for fast dependency resolution.
     ```bash
     uv sync
     ```
-    *Alternatively, using pip:*
+    Or using pip:
     ```bash
-    pip install -e .[dev]
+    pip install .
+    ```
+
+3.  **Environment Setup**:
+    Copy the example environment file (if available) or set necessary variables.
+    ```bash
+    export PYACEMAKER_MODE=MOCK  # For testing without DFT
     ```
 
 ## Usage
 
-### 1. Configuration
-Create a `config.yaml` file. Here is an example with DFT, Trainer, and Generator settings:
+### Quick Start
 
-```yaml
-version: "0.1.0"
-project:
-  name: "MyMaterial"
-  root_dir: "./project_data"
+1.  **Create a configuration file** (`config.yaml`):
+    ```yaml
+    system:
+      elements: ["Ni", "Al"]
+      base_directory: "./my_experiment"
+    distillation:
+      enable_mace_distillation: true
+    ```
 
-oracle:
-  dft:
-    code: "quantum_espresso"
-    command: "mpirun -np 16 pw.x"
-    pseudopotentials:
-      Fe: "path/to/Fe.pbe.UPF"
-      O: "path/to/O.pbe.UPF"
-    kspacing: 0.05
-    smearing: 0.02
-    max_retries: 3
-    parameters:
-      system:
-        ecutwfc: 80.0
-        ecutrho: 320.0
-      electrons:
-        mixing_beta: 0.5
-  mock: false
+2.  **Run the pipeline**:
+    ```bash
+    uv run pyacemaker config.yaml
+    ```
 
-structure_generator:
-  strategy: "adaptive"
-  initial_exploration: "m3gnet"
-  strain_range: 0.15
-  rattle_amplitude: 0.1
-  defect_density: 0.01
+3.  **Monitor Progress**:
+    The system will log its progress through the 7 steps. Check the `my_experiment` directory for artifacts like `dft_dataset.pckl` and `final_potential.yace`.
 
-trainer:
-  potential_type: "pace"
-  cutoff: 6.0
-  order: 3
-  basis_size: [15, 5]
-  delta_learning: "zbl"
-  max_epochs: 500
-  batch_size: 100
-  mock: false
+### Running Tutorials
 
-validator:
-  test_set_ratio: 0.1
-  phonon_supercell: [3, 3, 3]
-  eos_strain: 0.1
-  elastic_strain: 0.01
+To verify the installation and see the system in action (simulating an SN2 reaction):
 
-dynamics_engine:
-  engine: "lammps" # or "eon"
-  timestep: 0.001
-  temperature: 300.0
-  gamma_threshold: 2.0
-  eon:
-    executable: "eonclient"
-
-orchestrator:
-  max_cycles: 10
-```
-
-### 2. Run the Pipeline
-Execute the full active learning loop:
 ```bash
-uv run pyacemaker run config.yaml
+uv run python tutorials/UAT_AND_TUTORIAL.py
 ```
 
-### 3. Oracle (DFT) Usage
-You can also use the Oracle module independently in your Python scripts:
+## Development Workflow
 
-```python
-from pyacemaker.core.config import load_config
-from pyacemaker.modules.oracle import DFTOracle
-from pyacemaker.domain_models.models import StructureMetadata
-from ase.build import bulk
+This project follows a strict cycle-based development process.
 
-# Load config
-config = load_config("config.yaml")
-
-# Initialize Oracle
-oracle = DFTOracle(config)
-
-# Create a structure
-atoms = bulk("Fe", cubic=True)
-structure = StructureMetadata(features={"atoms": atoms})
-
-# Compute properties (Energy, Forces, Stress)
-results = oracle.compute_batch([structure])
-
-print(f"Energy: {results[0].features['energy']} eV")
+### Running Tests
+```bash
+uv run pytest
 ```
 
-## Architecture/Structure
+### Linting & Formatting
+We enforce strict code quality using `ruff` and `mypy`.
+```bash
+uv run ruff check .
+uv run mypy .
+```
+
+## Project Structure
 
 ```text
 pyacemaker/
+├── dev_documents/          # Specs and Architecture docs
+│   ├── system_prompts/     # Cycle 1-6 Specifications
+│   └── USER_TEST_SCENARIO.md
 ├── src/
-│   └── pyacemaker/
-│       ├── core/           # Configuration, Logging, Base Classes
-│       ├── domain_models/  # Pydantic Data Models
-│       ├── modules/        # High-level Modules (Oracle, Trainer, Generator, etc.)
-│       │   ├── oracle.py   # DFTOracle Implementation
-│       │   ├── trainer.py  # PacemakerTrainer Implementation
-│       │   ├── structure_generator.py # Structure Generator Implementation
-│       │   ├── validator.py           # Validator Implementation
-│       │   └── dynamics_engine.py     # MD/kMC Engine Implementation
-│       ├── oracle/         # DFT Logic Package
-│       ├── trainer/        # Trainer Logic Package
-│       ├── generator/      # Structure Generation Package (Strategies, Policies)
-│       │   ├── strategies.py # Exploration Strategies
-│       │   ├── policy.py     # Adaptive Policy Logic
-│       │   └── mutations.py  # Atomic Mutations
-│       ├── validator/      # Validation Logic Package
-│       │   ├── manager.py    # Validator Orchestrator
-│       │   ├── physics.py    # Phonon, EOS, Elastic Checks
-│       │   └── report.py     # HTML Report Generation
-│       ├── dynamics/       # Dynamics Logic Package
-│       │   └── kmc.py        # EON Wrapper
-│       ├── orchestrator.py # Main Loop
-│       └── main.py         # CLI Entry Point
-├── tests/                  # Unit & Integration Tests
-└── pyproject.toml          # Project Configuration
+│   └── pyacemaker/         # Source code
+│       ├── core/           # Base classes & Config
+│       ├── oracle/         # MACE & DFT interfaces
+│       ├── trainer/        # Pacemaker & MACE training
+│       ├── generator/      # Structure generation
+│       └── orchestrator.py # Main logic
+├── tests/                  # Unit and Integration tests
+├── tutorials/              # Executable tutorials
+├── pyproject.toml          # Project configuration
+└── README.md
 ```
-
-## Roadmap
-
--   [x] Cycle 01: Core Infrastructure & Orchestrator
--   [x] Cycle 02: Oracle (DFT) & Data Management
--   [x] Cycle 03: Trainer (Pacemaker Integration)
--   [x] Cycle 04: Structure Generation
--   [x] Cycle 05: Dynamics Engine (MD/kMC) & On-the-Fly Learning
--   [x] Cycle 06: Validator & Final Polish
 
 ## License
 

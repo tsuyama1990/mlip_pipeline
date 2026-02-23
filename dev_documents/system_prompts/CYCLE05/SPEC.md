@@ -1,114 +1,63 @@
-# Cycle 05 Specification: Dynamics Engine & On-the-Fly Learning
+# Cycle 05 Specification: Delta Learning & Full Orchestration
 
 ## 1. Summary
-Cycle 05 implements the "Dynamics Engine", enabling molecular dynamics (MD) simulations powered by the trained ACE potentials. Crucially, this cycle closes the Active Learning loop by implementing "On-the-Fly" (OTF) monitoring. The system automatically detects when the simulation enters a region of high uncertainty (high extrapolation grade $\gamma$), halts the simulation, and extracts the problematic structure for retraining.
+Cycle 05 implements the final and most critical step of the MACE Distillation Workflow: **Delta Learning** (Step 7). This step corrects the systematic errors ("Sim-to-Real gap") of the base ACE potential by fine-tuning it on the high-fidelity DFT data collected in Step 2.
 
-Key features:
-1.  **LAMMPS Integration**: A flexible interface to generate LAMMPS input scripts and execute simulations.
-2.  **Hybrid Potential Logic**: Implementation of the safety mechanism that superimposes a physical baseline (LJ/ZBL) onto the ML potential (`pair_style hybrid/overlay`), preventing unphysical behavior in unknown regions.
-3.  **Halt & Diagnose**: A watchdog mechanism (`fix halt`) that monitors $\gamma$ in real-time. If it exceeds a threshold, the simulation stops, and the system extracts the "bad" structure.
-4.  **Orchestrator Logic**: The central brain that connects all modules (Generator -> Dynamics -> Oracle -> Trainer) into an autonomous loop.
+Additionally, this cycle focuses on **Full Orchestration**. We will connect all 7 steps into a seamless, automated pipeline. The `Orchestrator` will manage the state transitions, ensuring that the system can recover from interruptions (idempotency) and that data flows correctly from one stage to the next.
 
 ## 2. System Architecture
 
-The file structure expands `src/pyacemaker/dynamics` and `src/pyacemaker/core`. **Bold files** are new.
+The following file structure will be created or modified. **Bold** files are new or significantly modified.
 
 ```text
-src/
-└── pyacemaker/
-    ├── core/
-    │   ├── **config.py**       # Updated with DynamicsConfig
-    │   └── **orchestrator.py** # The Main Loop Logic
-    └── **dynamics/**
-        ├── **__init__.py**
-        ├── **md.py**           # LAMMPS Interface & Halt Logic
-        └── **potential.py**    # Hybrid Potential Helper
+src/pyacemaker/
+├── trainer/
+│   └── **pacemaker.py**      # Updated: Delta Learning Logic
+├── core/
+│   └── **state.py**          # Pipeline State Persistence
+└── **orchestrator.py**       # Updated: Full 7-Step Logic
 ```
-
-### File Details
--   `src/pyacemaker/dynamics/md.py`: Contains `MDInterface`. It writes `in.lammps`, runs `lmp`, and parses output.
--   `src/pyacemaker/dynamics/potential.py`: Helper class to generate the correct `pair_style` and `pair_coeff` commands for hybrid potentials (ACE + ZBL/LJ).
--   `src/pyacemaker/core/orchestrator.py`: Implements the `Orchestrator` class. It manages the state of the active learning cycle (iteration number, current potential, dataset size).
--   `src/pyacemaker/core/config.py`: Expanded to include `DynamicsConfig` (timestep, temperature, halt_threshold).
 
 ## 3. Design Architecture
 
-### 3.1. Dynamics Configuration
-```python
-class DynamicsConfig(BaseModel):
-    timestep: float = 0.001 # ps
-    temperature: float = 300.0
-    pressure: float = 0.0
-    n_steps: int = 100000
-    halt_threshold: float = 5.0 # Max gamma before halting
-    hybrid_baseline: str = "zbl" # "lj" or "zbl"
-```
+### 3.1. Delta Learning (`trainer/pacemaker.py`)
+-   **`PacemakerTrainer.train_delta(base_potential: Path, dft_dataset: Path, weight: float)`**:
+    -   Loads the pre-trained base ACE potential (`potential.yace`).
+    -   Configures Pacemaker to use the `dft_dataset` for fine-tuning.
+    -   **Key Mechanism**: Uses a high weight for the DFT data (e.g., 10x or 100x relative to the base training weight) to force the potential to prioritize DFT accuracy while maintaining the general shape learned from MACE.
+    -   **Output**: A `final_potential.yace` file.
 
-### 3.2. Halt Info Model
-```python
-class HaltInfo(BaseModel):
-    halted: bool
-    step: int
-    max_gamma: float
-    structure: Optional[Atoms] # The snapshot where halt occurred
-```
+### 3.2. Orchestration State (`core/state.py`)
+-   **`PipelineState`**: A Pydantic model saved to `pipeline_state.json`.
+    -   `current_step`: int (1-7).
+    -   `completed_steps`: List[int].
+    -   `artifacts`: Dict[str, Path] (e.g., {"dft_dataset": "path/to/dft.pckl", "surrogate_model": "path/to/mace.model"}).
 
-### 3.3. Orchestrator State Machine
-```python
-class Orchestrator:
-    def run_cycle(self):
-        # 1. Exploration (MD)
-        halt_info = self.dynamics.run(self.current_potential)
-
-        if halt_info.halted:
-            # 2. Selection (Active Learning)
-            candidates = self.generator.generate_local(halt_info.structure)
-            selected = self.trainer.select_active_set(candidates)
-
-            # 3. Labeling (Oracle)
-            new_data = self.oracle.compute(selected)
-            self.dataset.add(new_data)
-
-            # 4. Training (Trainer)
-            self.current_potential = self.trainer.train(self.dataset)
-```
+### 3.3. Full Pipeline Logic (`orchestrator.py`)
+-   **`Orchestrator.run()`**:
+    -   Checks `pipeline_state.json`.
+    -   Resumes from the last incomplete step.
+    -   Sequentially executes `run_step1` through `run_step7`.
+    -   Updates state after each step.
 
 ## 4. Implementation Approach
 
-### Step 1: Update Configuration
--   Modify `src/pyacemaker/core/config.py` to add `DynamicsConfig`.
-
-### Step 2: Hybrid Potential Helper
--   Implement `src/pyacemaker/dynamics/potential.py`.
--   `get_lammps_commands(potential_path, baseline_type)`: Returns a list of strings (e.g., `pair_style hybrid/overlay ...`).
-
-### Step 3: LAMMPS Interface
--   Implement `src/pyacemaker/dynamics/md.py`.
--   `run_md(structure, potential, work_dir)`:
-    -   Write `in.lammps` with `fix halt` command monitoring `c_pace_gamma`.
-    -   Execute LAMMPS via `subprocess`.
-    -   If exit code indicates halt (or log contains "Halt triggered"), parse the dump file.
--   `extract_bad_structure(dump_file)`: Read the last frame from the dump.
-
-### Step 4: Orchestrator Integration
--   Implement `src/pyacemaker/core/orchestrator.py`.
--   Connect `MDInterface` with `Oracle` and `Trainer`.
--   Implement the "Halt & Diagnose" loop logic.
+1.  **Implement Delta Learning**: Update `PacemakerTrainer` in `trainer/pacemaker.py` to support "restart" training or weighted dataset mixing.
+2.  **Implement State Management**: Create `PipelineState` in `core/state.py`.
+3.  **Finalize Orchestrator**: Update `orchestrator.py` to implement the full state machine and error handling.
+    -   Wrap each step in a try-except block to save state on failure.
 
 ## 5. Test Strategy
 
 ### 5.1. Unit Testing
--   **Potential Helper (`tests/dynamics/test_potential.py`)**:
-    -   Verify that `zbl` baseline generates `pair_style hybrid/overlay pace zbl ...`.
-    -   Verify that `lj` baseline generates correct parameters.
--   **MD Interface (`tests/dynamics/test_md.py`)**:
-    -   Mock `subprocess.run`.
-    -   Verify `in.lammps` content includes `fix halt` and `compute pace`.
-    -   Simulate a halt scenario: Create a dummy dump file, verify `extract_bad_structure` returns the correct frame.
+-   **State Persistence**: Verify that `PipelineState` correctly saves and loads from JSON.
+-   **Delta Configuration**: Verify that `PacemakerTrainer` generates the correct command-line arguments or config for fine-tuning (e.g., `--load-potential=potential.yace`).
 
 ### 5.2. Integration Testing
--   **Orchestrator Loop (`tests/core/test_orchestrator.py`)**:
-    -   Mock all subsystems (`Dynamics`, `Oracle`, `Trainer`).
-    -   Simulate `Dynamics` returning `HaltInfo(halted=True)`.
-    -   Verify that `Oracle.compute` and `Trainer.train` are called in sequence.
-    -   Verify that iteration counter increments.
+-   **Full Pipeline (Mock Mode)**:
+    1.  Start a fresh run with `config.yaml`.
+    2.  Interrupt the process (simulate crash) after Step 3.
+    3.  Restart the process.
+    4.  Verify that it skips Steps 1-3 and resumes at Step 4.
+    5.  Verify that it completes all 7 steps and produces `final_potential.yace`.
+    6.  Verify that `final_potential.yace` exists and is distinct from the base `potential.yace`.
