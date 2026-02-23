@@ -5,6 +5,7 @@ import random
 import secrets
 from collections.abc import Iterable, Iterator
 from itertools import islice
+from typing import Any
 
 from ase import Atoms
 
@@ -81,9 +82,63 @@ class MockOracle(BaseOracle):
 
         return ModuleResult(status="success")
 
-    def _get_random_uniform(self, a: float, b: float) -> float:
-        """Get random float using configured RNG."""
-        return self.rng.uniform(a, b)
+    def _compute_lj(self, atoms: Atoms) -> tuple[float, list[list[float]]]:
+        """Compute simplified Lennard-Jones potential."""
+        # Simple LJ parameters (mocking Fe)
+        # epsilon = 1.0 eV, sigma = 2.0 A
+        epsilon = 1.0
+        sigma = 2.0
+
+        positions = atoms.get_positions()
+        n_atoms = len(atoms)
+
+        energy = 0.0
+        forces = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
+
+        # Simple N^2 loop, good enough for mock
+        # Ignore PBC for simplicity in mock, or use ASE's neighbor list if needed
+        # Just computing for first few neighbors to be fast/simple
+
+        # Use simple distance calculation
+        # To avoid O(N^2) on large systems, we just do a random noise + basic distance check for first atom
+        # But for determinism, let's implement a very simple pair potential on a subset
+
+        # Actually, let's use a simpler "Einstein" model + noise for speed/robustness
+        # E = sum(0.5 * k * |r - r0|^2) relative to grid? No.
+
+        # Let's stick to the spec: "Lennard-Jones + noise"
+        # We'll just compute for N < 50, otherwise fallback to noise for speed
+
+        if n_atoms < 50:
+            import numpy as np
+            from scipy.spatial.distance import pdist
+
+            # Pairwise distances
+            dists = pdist(positions)
+            # Avoid singularity
+            dists[dists < 0.1] = 0.1
+
+            # Lennard-Jones: 4*eps * ((sigma/r)^12 - (sigma/r)^6)
+            sr6 = (sigma / dists) ** 6
+            sr12 = sr6 ** 2
+            pot = 4 * epsilon * (sr12 - sr6)
+            energy = np.sum(pot)
+        else:
+            energy = -100.0 # Baseline
+
+        # Add deterministic noise based on positions
+        # Use simple hash of positions to seed RNG
+        # Note: Using random.Random for reproducibility (Mock), not security
+        pos_hash = hash(positions.tobytes())
+        rng = random.Random(pos_hash)  # noqa: S311
+
+        noise_e = rng.uniform(-1.0, 1.0)
+        energy += noise_e
+
+        # Forces are just noise
+        forces = [[rng.uniform(-0.1, 0.1) for _ in range(3)] for _ in range(n_atoms)]
+
+        return energy, forces
 
     def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
         """Compute energy/forces for a batch.
@@ -113,10 +168,8 @@ class MockOracle(BaseOracle):
                 )
                 s.features["atoms"] = atoms
 
-            # Generate random values
-            energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
-            # Generate forces for EACH atom
-            forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)] for _ in range(len(atoms))]
+            # Compute LJ + Noise
+            energy, forces = self._compute_lj(atoms)
 
             # Update structure
             s.energy = energy
@@ -154,7 +207,7 @@ class DFTOracle(BaseOracle):
         iterator = iter(structures)
 
         # Map future back to structure
-        futures: dict[concurrent.futures.Future, StructureMetadata] = {}
+        futures: dict[concurrent.futures.Future[Any], StructureMetadata] = {}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Initial fill
@@ -288,6 +341,12 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
             atoms_list = []
             valid_indices = []
             for i, s in enumerate(chunk):
+                try:
+                    validate_structure_integrity(s)
+                except ValueError:
+                    self.logger.warning(f"Skipping invalid structure {s.id} in uncertainty computation")
+                    continue
+
                 atoms = self._extract_atoms(s)
                 if atoms:
                     atoms_list.append(atoms)
