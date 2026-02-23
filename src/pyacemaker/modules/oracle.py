@@ -297,17 +297,19 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
                     yield s
                 continue
 
-            uncertainties = []
+            uncertainties: list[float | None] = []
             if self.config.oracle.mock:
                 uncertainties = [0.5] * len(atoms_list)  # Mock uncertainty
             elif self.mace_manager:
                 try:
-                    uncertainties = self.mace_manager.compute_uncertainty(atoms_list)
+                    uncertainties = [
+                        float(x) for x in self.mace_manager.compute_uncertainty(atoms_list)
+                    ]
                 except Exception:
                     self.logger.exception("Failed to compute uncertainty batch")
                     uncertainties = [None] * len(atoms_list)
             else:
-                 # Should not happen if mock checked above
+                # Should not happen if mock checked above
                 uncertainties = [None] * len(atoms_list)
 
             # Assign back

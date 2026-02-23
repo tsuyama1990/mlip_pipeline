@@ -221,7 +221,7 @@ class MaceTrainer(Trainer):
         # Assuming MACE config is in oracle.mace for now, or we should look at config.distillation options.
         # But MACE manager needs MaceConfig.
         if config.oracle.mace:
-            self.mace_manager = MaceManager(config.oracle.mace)
+            self.mace_manager: MaceManager | None = MaceManager(config.oracle.mace)
         else:
             # Fallback or error if mace not configured but trainer instantiated
             self.mace_manager = None
@@ -266,7 +266,7 @@ class MaceTrainer(Trainer):
         params = {"epochs": 50}  # Default
         if self.config.distillation and self.config.distillation.step3_mace_finetune:
             mace_conf = self.config.distillation.step3_mace_finetune
-            params["epochs"] = mace_conf.epochs
+            params["epochs"] = mace_conf.epochs  # type: ignore[assignment]
 
         if initial_potential:
             params["foundation_model"] = str(initial_potential.path)

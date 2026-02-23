@@ -25,6 +25,7 @@ from pyacemaker.core.utils import atoms_to_metadata, metadata_to_atoms
 from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
+    PotentialType,
     StructureMetadata,
     StructureStatus,
 )
@@ -283,7 +284,9 @@ class Orchestrator(IOrchestrator):
             )
 
             # Compute uncertainty
-            scored_pool = self.oracle.compute_uncertainty(unknown_pool)
+            # Cast oracle to UncertaintyModel for mypy (validated at start of method)
+            uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
+            scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
 
             # Select Top N (using heap to avoid full sort)
             n_select = dist_config.step2_active_learning.n_select
@@ -337,7 +340,7 @@ class Orchestrator(IOrchestrator):
         # Construct generic potential for MACE
         mace_pot = Potential(
             path=Path(self.config.oracle.mace.model_path),  # type: ignore[union-attr]
-            type=(self.config.oracle.mace.mock and "MACE") or "MACE",  # type: ignore[union-attr]
+            type=PotentialType.MACE,
             version="1.0",
             metrics={},
             parameters={},
@@ -406,8 +409,7 @@ class Orchestrator(IOrchestrator):
             return self.trainer.train(
                 dft_train_stream(), initial_potential=base_potential
             )
-        else:
-            return base_potential
+        return base_potential
 
     def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
         """Convert metadata stream to atoms and save to dataset.
