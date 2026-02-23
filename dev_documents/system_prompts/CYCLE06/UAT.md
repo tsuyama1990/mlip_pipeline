@@ -1,72 +1,44 @@
-# Cycle 06 UAT: Validation & kMC Integration
+# Cycle 06 UAT: Scientific Validation and Tutorial Execution
 
 ## 1. Test Scenarios
 
-### Scenario 01: Phonon Stability Validation (Mock)
-**Priority**: High
-**Description**: Verify that the `Validator` can run a phonon calculation and correctly identify stability.
-**Steps**:
-1.  Create a python script `test_phonon.py`.
-2.  Mock `phonopy.Phonopy.get_band_structure_dict` to return imaginary frequencies (negative eigenvalues).
-3.  Run `Validator.check_phonons(structure)`.
-**Expected Result**:
--   Returns `stable=False`.
--   Logs warning "Imaginary frequencies detected".
+### Scenario 01: Physics Validation (EOS & Phonons)
+-   **Priority**: High
+-   **Description**: Verify that the generated potential passes basic physical checks (Equation of State and Phonon stability).
+-   **Execution**:
+    1.  Provide a stable structure (e.g., ground state bulk) and a `potential.yace`.
+    2.  Run the validation command.
+    3.  Check output for "EOS Fit Success: Bulk Modulus = X GPa".
+    4.  Verify that X > 0.
+    5.  Check output for "Phonon Check Success" (or "Mock Phonon Check Passed").
 
-### Scenario 02: Equation of State Check
-**Priority**: Medium
-**Description**: Verify that the `Validator` computes the bulk modulus using Birch-Murnaghan EOS.
-**Steps**:
-1.  Create a python script `test_eos.py`.
-2.  Mock `get_potential_energy` to return energies for different volumes (parabolic).
-3.  Run `Validator.check_eos(structure)`.
-**Expected Result**:
--   Returns valid `bulk_modulus`.
--   Plot generated: `eos_curve.png`.
-
-### Scenario 03: HTML Report Generation
-**Priority**: Medium
-**Description**: Verify that `Validator` aggregates results into a readable HTML report.
-**Steps**:
-1.  Create a `ValidationResult` object with dummy metrics and plot paths.
-2.  Run `ReportGenerator.generate(result, output_path="report.html")`.
-3.  Inspect `report.html`.
-**Expected Result**:
--   File exists.
--   Contains metrics tables and `<img>` tags for plots.
-
-### Scenario 04: EON kMC Execution (Mock)
-**Priority**: High
-**Description**: Verify that `EONWrapper` correctly sets up and runs an EON simulation.
-**Steps**:
-1.  Create a python script `test_eon.py`.
-2.  Mock `subprocess.run` for `eonclient`.
-3.  Run `EONWrapper.run_search(initial_state, potential_path)`.
-4.  Check for `config.ini` creation.
-**Expected Result**:
--   `config.ini` contains `potential = script`.
--   `pace_driver.py` is present in the directory.
+### Scenario 02: End-to-End Tutorial Execution (The Master UAT)
+-   **Priority**: Critical
+-   **Description**: Execute the complete `tutorials/UAT_AND_TUTORIAL.py` script to simulate the entire user journey.
+-   **Execution**:
+    1.  Ensure a clean environment.
+    2.  Run `marimo run tutorials/UAT_AND_TUTORIAL.py` (or export to script and run).
+    3.  Verify that it completes without error.
+    4.  Verify that the final potential `final_potential.yace` is created in the output directory.
+    5.  Verify that a `report.html` is generated.
 
 ## 2. Behavior Definitions (Gherkin)
 
-```gherkin
-Feature: Validation & Advanced Dynamics
+### Feature: Scientific Validation and Tutorial
 
-  Scenario: Validate Phonon Stability
-    Given a trained potential
-    When I request phonon validation
-    Then the system should calculate the band structure
-    And report if any imaginary frequencies exist
+**Scenario: Validate potential physics**
+  GIVEN a trained `final_potential.yace`
+  AND a known stable crystal structure
+  WHEN the Validator executes `check_eos` and `check_phonons`
+  THEN it should calculate a positive Bulk Modulus
+  AND it should not detect unstable phonon modes (imaginary frequencies)
+  AND it should generate a validation report
 
-  Scenario: Calculate Equation of State
-    Given a trained potential
-    When I request EOS validation
-    Then the system should compute the bulk modulus
-    And generate an energy-volume curve plot
-
-  Scenario: Run kMC Simulation
-    Given a stable potential and initial state
-    When I request an EON kMC search
-    Then the system should generate the EON configuration
-    And execute the EON client with the potential driver
-```
+**Scenario: Execute Master Tutorial Script**
+  GIVEN the `tutorials/UAT_AND_TUTORIAL.py` file
+  AND the `pyacemaker` package installed
+  WHEN I execute the tutorial script
+  THEN it should initialize the Orchestrator
+  AND it should run the full 7-step pipeline (in Mock or Real mode)
+  AND it should visualize the training progress
+  AND it should successfully complete and exit with code 0
