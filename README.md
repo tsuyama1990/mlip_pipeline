@@ -16,6 +16,8 @@ Ideally suited for materials scientists who need DFT-level accuracy with the spe
 
 -   **MACE Knowledge Distillation (New)**: Fine-tune MACE foundation models on small DFT datasets and use them to generate massive surrogate datasets for student training.
 -   **Surrogate Generation (New)**: High-throughput MD sampling using `ASEDynamicsEngine` driven by fine-tuned MACE models.
+-   **Surrogate Labeling (New)**: Efficient batch processing of thousands of structures using the fine-tuned MACE model to generate pseudo-labels (energy, forces).
+-   **Pacemaker Base Training (New)**: Automated training of ACE (Atomic Cluster Expansion) potentials using the `Pacemaker` library on surrogate datasets.
 -   **Intelligent Exploration**: DIRECT sampling (MaxMin diversity) for initial structure generation to maximize coverage.
 -   **Active Learning**: Uncertainty-based selection of structures using MACE ensemble variance or heuristics.
 -   **Configurable Pipeline**: Robust YAML-based configuration with schema validation (Pydantic).
@@ -44,12 +46,14 @@ graph TD
         DB --> MACE_T
         MACE_T -->|Fine-tuned Model| MACE_MD[MACE Dynamics]
         Orch -->|Step 4: Surrogate Sampling| MACE_MD
-        MACE_MD -->|Structures| Label[Surrogate Labeler]
-        MACE_T -->|Predict| Label
-        Label -->|Pseudo Labels| S_DB[(Surrogate Dataset)]
+        MACE_MD -->|Structures| S_Unlabeled[(Surrogate Candidates)]
     end
 
-    subgraph "Phase 3: ACE Training"
+    subgraph "Phase 3: ACE Training (Cycle 04)"
+        S_Unlabeled --> Label[MACE Surrogate Labeler]
+        MACE_T -->|Predict Batch| Label
+        Label -->|Pseudo Labels| S_DB[(Surrogate Dataset)]
+
         Orch -->|Step 6: Base Train| PACE_T[Pacemaker Trainer]
         S_DB --> PACE_T
         PACE_T -->|Base Potential| PACE_Model
@@ -126,10 +130,10 @@ graph TD
 To verify the installation and see the system in action (Mock Mode), run the UAT script:
 
 ```bash
-uv run pytest tests/uat/test_cycle03.py
+uv run pytest tests/uat/test_cycle04.py
 ```
 
-This ensures that the configuration loading, MACE integration (mock), and orchestrator workflow are functioning correctly.
+This ensures that the configuration loading, MACE integration (mock), Pacemaker training (mock), and orchestrator workflow are functioning correctly.
 
 ## Configuration Reference
 

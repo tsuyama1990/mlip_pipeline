@@ -71,14 +71,16 @@ def test_mace_manager_compute(
     assert isinstance(result, Atoms)
 
 
-def test_build_train_command_validation(mace_manager_class: type) -> None:
+@patch("shutil.which", return_value="/usr/bin/mace_run_train")
+def test_build_train_command_validation(
+    mock_which: MagicMock, mace_manager_class: type, tmp_path
+) -> None:
     """Test train command construction with parameter validation."""
-    from pathlib import Path
     config = MaceConfig(model_path="medium")
     manager = mace_manager_class(config)
 
-    dataset_path = Path("/tmp/data.xyz")
-    work_dir = Path("/tmp/work")
+    dataset_path = tmp_path / "data.xyz"
+    work_dir = tmp_path / "work"
 
     # Valid params
     params = {
@@ -89,6 +91,7 @@ def test_build_train_command_validation(mace_manager_class: type) -> None:
     }
 
     cmd = manager._build_train_command(dataset_path, work_dir, params)
+    assert cmd[0] == "/usr/bin/mace_run_train"
     assert "--max_num_epochs" in cmd
     assert "100" in cmd
     assert "--lr" in cmd

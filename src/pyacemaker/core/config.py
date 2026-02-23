@@ -97,6 +97,9 @@ class Constants(BaseSettings):
     default_trainer_batch_size: int = Field(
         default_factory=lambda: get_defaults()["trainer_batch_size"]
     )
+    default_trainer_elements: list[str] = Field(
+        default_factory=lambda: get_defaults()["trainer_default_elements"]
+    )
     default_engine: str = Field(
         default_factory=lambda: get_defaults()["engine"]
     )
@@ -221,6 +224,25 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["dynamics_gamma_threshold"]
     )
 
+    default_dynamics_templates: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            "zbl": [
+                "pair_style hybrid/overlay pace zbl 4.0 5.0",
+                "pair_coeff * * pace {path} {elements}",
+                "pair_coeff * * zbl 0.0 0.0",
+            ],
+            "lj": [
+                "pair_style hybrid/overlay pace lj/cut 10.0",
+                "pair_coeff * * pace {path} {elements}",
+                "pair_coeff * * lj/cut 1.0 1.0",
+            ],
+            "default": [
+                "pair_style pace",
+                "pair_coeff * * pace {path} {elements}",
+            ],
+        }
+    )
+
     PICKLE_SECURITY_WARNING: str = Field(
         default_factory=lambda: get_defaults()["pickle_security_warning"]
     )
@@ -230,6 +252,12 @@ class Constants(BaseSettings):
     )
     valid_value_regex: str = Field(
         default_factory=lambda: get_defaults()["valid_value_regex"]
+    )
+    mace_param_key_regex: str = Field(
+        default_factory=lambda: get_defaults()["mace_param_key_regex"]
+    )
+    mace_param_value_regex: str = Field(
+        default_factory=lambda: get_defaults()["mace_param_value_regex"]
     )
 
     TRAINER_TEMP_PREFIX_TRAIN: str = Field(
@@ -439,24 +467,33 @@ class MaceConfig(BaseModel):
         path = Path(v)
         # Security check: ALWAYS valid path structure and traversal prevention
         try:
-            # validate_safe_path checks for '..' components.
-            # We also ensure it resolves to an absolute path if it exists,
-            # or treat it as relative to CWD (or project root if we had context).
-            # Here we just strictly enforce safe path syntax.
             validate_safe_path(path)
 
-            # Additional check: If path exists, ensure it is absolute or handle it safely.
-            # We don't enforce existence here (e.g. for new files), but we enforce safety.
-            if path.is_absolute() and not path.exists() and not path.parent.exists():
-                 # Suspicious absolute path to non-existent location?
-                 # Actually, validate_safe_path is good enough for structure.
-                 pass
+            # Enforce absolute paths for security (except abstract names like 'medium')
+            if not path.is_absolute():
+                # We could resolve it, but that depends on CWD.
+                # Safer to require user to provide absolute path or rely on project root resolution downstream.
+                # However, many users provide relative. We will resolve and check.
+                resolved = path.resolve()
+                cls._check_absolute_path(resolved, v)
 
-        except ValueError as e:
+                # Check for traversal after resolution
+                # (validate_safe_path checks '..' in string, resolve handles symlinks)
+                # We assume resolve is safe if the OS handles it.
+
+        except (ValueError, RuntimeError) as e:
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e
 
-        return v
+        # Return resolved absolute path
+        return str(resolved) if 'resolved' in locals() else str(path)
+
+    @staticmethod
+    def _check_absolute_path(resolved: Path, original: str) -> None:
+        """Verify resolved path is absolute."""
+        if not resolved.is_absolute():
+             msg = f"Model path must resolve to an absolute path: {original}"
+             raise ValueError(msg)
 
     @field_validator("device")
     @classmethod

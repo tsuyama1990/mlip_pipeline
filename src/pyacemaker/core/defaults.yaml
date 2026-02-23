@@ -41,6 +41,7 @@ trainer_max_epochs: 500
 trainer_batch_size: 100
 trainer_delta_baseline_suffix: "_baseline.yace"
 trainer_mock_potential_name: "mock_potential.yace"
+trainer_default_elements: ["Fe"]
 
 # MACE
 mace_model_path: "medium"
@@ -176,6 +177,8 @@ version_regex: "^\\d+\\.\\d+\\.\\d+$"
 valid_key_regex: '^[a-zA-Z0-9_\-\.]+$'
 # Strict Value Regex (Alphanumeric, path chars, basic punctuation, no shell metachars like ; | &)
 valid_value_regex: '^[a-zA-Z0-9_\-\./:, \(\)\[\]\{\}]+$'
+mace_param_key_regex: '^[a-zA-Z0-9_]+$'
+mace_param_value_regex: '^[a-zA-Z0-9_\-\.\/\:\+,=@]+$'
 
 # Temporary File Prefixes
 temp_prefix_train: "pace_train_"

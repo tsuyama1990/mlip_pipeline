@@ -1,7 +1,6 @@
 """Direct Generator implementation."""
 
 from collections.abc import Iterable, Iterator
-from itertools import islice
 from typing import Any
 
 import numpy as np
@@ -36,26 +35,59 @@ class DirectGenerator(StructureGenerator):
         self.logger.info("Generating initial structures (Direct/Random)")
         yield from generate_dummy_structures(20, tags=["initial", "direct"])
 
+    def _get_next_valid_candidate(
+        self, gen: Iterator[StructureMetadata]
+    ) -> tuple[StructureMetadata | None, np.ndarray | None]:
+        """Get next valid candidate with atoms feature."""
+        try:
+            while True:
+                s = next(gen)
+                atoms = s.features.get("atoms")
+                if atoms:
+                    desc = atoms.get_positions().flatten()
+                    return s, desc
+        except StopIteration:
+            return None, None
+
+    def _collect_batch(
+        self,
+        gen: Iterator[StructureMetadata],
+        oversample: int,
+        ref_shape: tuple[int, ...],
+        box_size: float
+    ) -> tuple[list[StructureMetadata], list[np.ndarray]]:
+        """Collect a batch of valid candidates."""
+        batch_candidates: list[StructureMetadata] = []
+        batch_descriptors: list[np.ndarray] = []
+
+        # We assume gen yields structures with randomized positions already
+        # but if we needed to randomize here, we could.
+        # The generator logic handles it.
+
+        candidates_checked = 0
+        while candidates_checked < oversample:
+            s, desc = self._get_next_valid_candidate(gen)
+            if s is None:
+                break
+
+            candidates_checked += 1
+            if desc.shape == ref_shape:
+                batch_candidates.append(s)
+                batch_descriptors.append(desc)
+
+        return batch_candidates, batch_descriptors
+
     def generate_direct_samples(
         self, n_samples: int, objective: str = "maximize_entropy"
     ) -> Iterator[StructureMetadata]:
-        """Generate structures using Batched MaxMin diversity sampling.
-
-        Uses a Batched Greedy approach to avoid O(N) memory usage for candidates.
-        Memory complexity: O(n_samples * D + batch_size * D), where D is descriptor size.
-        This ensures scalability even for large candidate pools.
-        """
+        """Generate structures using Batched MaxMin diversity sampling."""
         self.logger.info(f"Generating {n_samples} samples using Batched MaxMin diversity ({objective})")
 
-        # Oversampling factor determines batch size relative to 1 selection
-        # For each selection, we look at 'oversample' candidates
         oversample = int(
             self.config.structure_generator.parameters.get(
                 "oversample", CONSTANTS.direct_oversample
             )
         )
-        # Batch size for distance computation (chunking)
-        batch_size = max(CONSTANTS.direct_batch_size, oversample)
 
         box_size = float(
             self.config.structure_generator.parameters.get(
@@ -63,19 +95,12 @@ class DirectGenerator(StructureGenerator):
             )
         )
 
-        # Generator for randomized candidates
         def candidate_generator() -> Iterator[StructureMetadata]:
-            # Infinite stream effectively, or large enough
-            # We need n_samples * oversample total candidates approximately
             total_needed = n_samples * oversample
-
-            # Use generate_dummy_structures as base
             base_gen = generate_dummy_structures(total_needed, tags=["pool"])
-
             for s in base_gen:
                 atoms = s.features.get("atoms")
                 if atoms:
-                    # Randomize positions
                     n_atoms = len(atoms)
                     new_pos = np.random.rand(n_atoms, 3) * box_size
                     atoms.set_positions(new_pos)
@@ -83,76 +108,41 @@ class DirectGenerator(StructureGenerator):
                 yield s
 
         candidates_gen = candidate_generator()
-
-        # Selected set (descriptors)
-        # Memory usage scales with n_samples (O(K * D)), not total candidates.
         selected_descriptors: list[np.ndarray] = []
 
-        # 1. Select first point randomly (or first valid from stream)
-        try:
-            first_valid = None
-            first_desc = None
+        # 1. Select first point
+        first_valid, first_desc = self._get_next_valid_candidate(candidates_gen)
 
-            while first_valid is None:
-                s = next(candidates_gen)
-                atoms = s.features.get("atoms")
-                if atoms:
-                    desc = atoms.get_positions().flatten()
-                    first_valid = s
-                    first_desc = desc
-
-            s = first_valid
-            s.generation_method = "direct"
-            s.tags = ["initial", "direct", f"objective:{objective}"]
-            selected_descriptors.append(first_desc)
-            yield s
-
-        except StopIteration:
+        if first_valid is None:
             return
 
+        s = first_valid
+        s.generation_method = "direct"
+        s.tags = ["initial", "direct", f"objective:{objective}"]
+        selected_descriptors.append(first_desc)
+        yield s
+
         # 2. Iteratively select remaining
-        # For each needed sample, we process 'oversample' candidates (or a batch)
-        # and pick the one maximizing min-dist to selected_descriptors.
-
         for _ in range(n_samples - 1):
-            # Consume a batch of candidates
-            batch_candidates: list[StructureMetadata] = []
-            batch_descriptors: list[np.ndarray] = []
-
-            # We want to scan 'oversample' candidates to find the next best one
-            # But we must ensure consistent shape
-
-            candidates_checked = 0
-            while candidates_checked < oversample:
-                try:
-                    s = next(candidates_gen)
-                except StopIteration:
-                    break
-
-                candidates_checked += 1
-                atoms = s.features.get("atoms")
-                if atoms:
-                    desc = atoms.get_positions().flatten()
-                    # Check shape consistency
-                    if desc.shape == selected_descriptors[0].shape:
-                        batch_candidates.append(s)
-                        batch_descriptors.append(desc)
+            batch_candidates, batch_descriptors = self._collect_batch(
+                candidates_gen, oversample, selected_descriptors[0].shape, box_size
+            )
 
             if not batch_candidates:
                 break
 
-            # Compute distances
-            # (Batch, Selected)
             batch_desc_arr = np.array(batch_descriptors)
-            selected_desc_arr = np.array(selected_descriptors)
+            min_dists = np.full(len(batch_candidates), np.inf)
 
-            dists = cdist(batch_desc_arr, selected_desc_arr)
-            # min dist to any selected
-            min_dists = np.min(dists, axis=1)
+            chunk_size = 1000
+            for i in range(0, len(selected_descriptors), chunk_size):
+                chunk = selected_descriptors[i : i + chunk_size]
+                chunk_arr = np.array(chunk)
+                dists_chunk = cdist(batch_desc_arr, chunk_arr)
+                chunk_mins = np.min(dists_chunk, axis=1)
+                min_dists = np.minimum(min_dists, chunk_mins)
 
-            # Maximize min dist
             best_idx = np.argmax(min_dists)
-
             best_s = batch_candidates[best_idx]
             best_desc = batch_descriptors[best_idx]
 

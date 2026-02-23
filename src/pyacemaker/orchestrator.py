@@ -22,13 +22,14 @@ from pyacemaker.core.interfaces import (
 from pyacemaker.core.utils import (
     atoms_to_metadata,
     metadata_to_atoms,
-    stream_metadata_to_atoms,
+    save_metadata_stream,
 )
 from pyacemaker.domain_models.models import (
     CycleStatus,
     Potential,
     StructureMetadata,
 )
+from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
@@ -179,6 +180,9 @@ class Orchestrator(IOrchestrator):
             msg = "MACE Trainer not initialized for MACE workflow."
             raise RuntimeError(msg)
 
+        # Inject ActiveLearner
+        active_learner = ActiveLearner()
+
         workflow = MaceDistillationWorkflow(
             config=self.config,
             dataset_manager=self.dataset_manager,
@@ -190,34 +194,23 @@ class Orchestrator(IOrchestrator):
             structure_generator=self.structure_generator,
             validation_path=self.validation_path,
             training_path=self.training_path,
+            active_learner=active_learner,
         )
         return workflow.run()
-
-    def _save_dataset_stream(self, stream: Iterator[StructureMetadata]) -> None:
-        """Convert metadata stream to atoms and save to dataset.
-
-        Optimized to skip expensive checksum calculation during active learning loop.
-        Removes stale checksum file to prevent validation failures.
-        """
-        atoms_stream = stream_metadata_to_atoms(stream)
-        # Skip checksum calculation for O(1) append
-        self.dataset_manager.save_iter(
-            atoms_stream, self.dataset_path, mode="ab", calculate_checksum=False
-        )
-        # Remove stale checksum file if it exists, as it no longer matches the dataset
-        checksum_path = self.dataset_path.with_suffix(self.dataset_path.suffix + ".sha256")
-        if checksum_path.exists():
-            try:
-                checksum_path.unlink()
-            except OSError:
-                self.logger.warning("Failed to remove stale checksum file.")
 
     def _run_cold_start(self) -> None:
         """Execute cold start to generate initial dataset."""
         initial_structures = self.structure_generator.generate_initial_structures()
         # Stream: initial_structures (iter) -> compute_batch (iter) -> save (append)
         computed_stream = self.oracle.compute_batch(initial_structures)
-        self._save_dataset_stream(computed_stream)
+
+        save_metadata_stream(
+            self.dataset_manager,
+            computed_stream,
+            self.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )
 
     def _execute_phase(self, phase_func: Callable[[], Any], phase_name: str) -> bool:
         """Execute a phase with error handling."""
@@ -457,4 +450,11 @@ class Orchestrator(IOrchestrator):
         self.logger.info("Phase: Calculation (Streaming)")
         # Stream processing: iterable -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
-        self._save_dataset_stream(new_data)
+
+        save_metadata_stream(
+            self.dataset_manager,
+            new_data,
+            self.dataset_path,
+            mode="ab",
+            calculate_checksum=False
+        )

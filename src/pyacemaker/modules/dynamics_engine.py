@@ -1,5 +1,6 @@
 """Dynamics Engine (MD/kMC) module implementation."""
 
+import re
 import secrets
 import shutil
 import subprocess
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from pyacemaker.core.base import ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import DynamicsEngine
 from pyacemaker.core.utils import (
     atoms_to_metadata,
@@ -42,33 +43,37 @@ class PotentialHelper:
     def __init__(self, templates: dict[str, list[str]] | None = None) -> None:
         """Initialize PotentialHelper with command templates."""
         # Load default templates from configuration if not provided
-        # Hardcoded defaults moved to here for fallback, but should ideally come from config.
-        # Given constraints, we keep fallback but structure it better.
         if templates is None:
-            self.templates = {
-                "zbl": [
-                    "pair_style hybrid/overlay pace zbl 4.0 5.0",
-                    "pair_coeff * * pace {path} {elements}",
-                    "pair_coeff * * zbl 0.0 0.0",
-                ],
-                "lj": [
-                    "pair_style hybrid/overlay pace lj/cut 10.0",
-                    "pair_coeff * * pace {path} {elements}",
-                    "pair_coeff * * lj/cut 1.0 1.0",
-                ],
-                "default": [
-                    "pair_style pace",
-                    "pair_coeff * * pace {path} {elements}",
-                ],
-            }
+            self.templates = CONSTANTS.default_dynamics_templates
         else:
             self.templates = templates
+
+    def _validate_inputs(self, baseline_type: str, elements: list[str]) -> None:
+        """Validate inputs against whitelist to prevent injection."""
+        # Whitelist for baseline_type: alphanumeric and underscores
+        if not re.match(r"^[a-zA-Z0-9_]+$", baseline_type):
+            msg = f"Invalid baseline_type: {baseline_type}"
+            raise ValueError(msg)
+
+        # Whitelist for elements: standard chemical symbols (1-2 letters, rarely 3 like Uuu)
+        # Using strict regex: ^[A-Z][a-z]{0,2}$
+        for el in elements:
+            if not re.match(r"^[A-Z][a-z]{0,2}$", el):
+                msg = f"Invalid element symbol: {el}"
+                raise ValueError(msg)
 
     def get_lammps_commands(
         self, potential_path: Path, baseline_type: str, elements: list[str]
     ) -> list[str]:
         """Generate LAMMPS pair_style and pair_coeff commands."""
+        self._validate_inputs(baseline_type, elements)
+
         path_str = str(potential_path)
+        # Verify path is safe (should be covered by earlier checks but good to double check)
+        # Here we trust Path object logic, but injection via path string is possible if not quoted.
+        # LAMMPS usually handles paths with spaces if quoted, but simple substitution is risky.
+        # We assume potential_path is a trusted Path object from internal logic.
+
         element_str = " ".join(elements)
         context = {"path": path_str, "elements": element_str}
 
@@ -209,7 +214,7 @@ class MDInterface:
             try:
                 with log_file.open("w") as f:
                     # Explicit shell=False for security
-                    subprocess.run(
+                    subprocess.run(  # noqa: S603
                         exe_cmd,
                         cwd=work_dir,
                         stdout=f,

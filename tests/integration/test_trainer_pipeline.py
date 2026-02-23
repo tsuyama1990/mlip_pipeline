@@ -9,8 +9,7 @@ DatasetManager, and Trainer is seamless.
 
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -25,8 +24,6 @@ from pyacemaker.core.config import (
     StructureGeneratorConfig,
     TrainerConfig,
 )
-from pyacemaker.core.factory import ModuleFactory
-from pyacemaker.domain_models.models import StructureMetadata
 from pyacemaker.orchestrator import Orchestrator
 
 
@@ -60,7 +57,7 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
         ),
         trainer=TrainerConfig(
             potential_type="pace",
-            mock=True,
+            mock=False,
             cutoff=4.5,
         ),
         dynamics_engine=DynamicsEngineConfig(mock=True),
@@ -93,56 +90,55 @@ def test_trainer_pipeline_execution(tmp_path: Path) -> None:
     # 4. Mock External Dependencies
     # We mock the Trainer's wrapper to avoid actual subprocess calls
     # but we allow the Trainer module logic (file IO, param prep) to run.
-    with patch("pyacemaker.modules.trainer.PacemakerWrapper") as MockWrapper:
-        wrapper_instance = MockWrapper.return_value
-        # Mock train return value (path to potential)
-        mock_pot_path = project_dir / "trained.yace"
-        wrapper_instance.train.return_value = mock_pot_path
+    # Note: PacemakerWrapper is instantiated inside PacemakerTrainer's __init__,
+    # so we must patch the class where it's used BEFORE initialization if possible,
+    # or mock the instance on the trainer object.
+    # Since Orchestrator is already initialized, we need to access its trainer.
 
-        # Mock wrapper.select_active_set to prevent errors if called
-        # Though this test focuses on training phase, setting up the mock is safer
-        wrapper_instance.select_active_set.return_value = project_dir / "active_set.pckl.gzip"
+    # Check if trainer is indeed PacemakerTrainer (it should be default)
+    # But wait, ModuleFactory created it.
 
-        # 5. Execute Training Phase
-        # We invoke the private method _run_training_phase to isolate this test
-        # In a real run, this is called by run_cycle()
+    # Better approach: Patch subprocess.run used by wrapper, OR patch wrapper method on the instance.
+    # Since we want to verify arguments passed to wrapper, patching the wrapper instance is best.
 
-        # The orchestrator splitter logic relies on self.processed_items_count
-        # Since we just created the file, processed_count is 0.
-        # The splitter will read the file, splitting into train/val (0% val here).
+    # Orchestrator -> Trainer (PacemakerTrainer) -> wrapper (PacemakerWrapper)
 
-        orchestrator._run_training_phase()
+    from pyacemaker.trainer.pacemaker import PacemakerTrainer
+    if isinstance(orchestrator.trainer, PacemakerTrainer):
+        with (
+            patch.object(orchestrator.trainer.wrapper, 'train_from_input') as mock_train,
+            patch.object(orchestrator.trainer, '_generate_input_yaml', wraps=orchestrator.trainer._generate_input_yaml) as mock_gen_yaml
+        ):
+            mock_pot_path = project_dir / "trained.yace"
+            mock_pot_path.touch()
+            mock_train.return_value = mock_pot_path
 
-        # 6. Verifications
+            # 5. Execute Training Phase
+            orchestrator._run_training_phase()
 
-        # A. Verify potential was stored
-        assert orchestrator.current_potential is not None
-        # Mock mode in PacemakerTrainer generates a specific mock potential path
-        # instead of using the return value of wrapper.train
-        # So we assert the potential exists and has correct type
-        assert orchestrator.current_potential.type == "PACE"
-        assert orchestrator.current_potential.path.name == "mock_potential.yace"
+            # 6. Verifications
 
-        # B. Verify Trainer Wrapper was called
-        # Note: In mock mode, PacemakerTrainer skips wrapper.train()
-        # So we assert it was NOT called, but verify mock path logic above
-        if not config.trainer.mock:
-            wrapper_instance.train.assert_called_once()
-        else:
-            wrapper_instance.train.assert_not_called()
+            # A. Verify potential was stored
+            assert orchestrator.current_potential is not None
+            assert orchestrator.current_potential.type == "PACE"
+            # Filename is randomized by PacemakerTrainer
+            assert orchestrator.current_potential.path.name.startswith("pace_model_")
+            assert orchestrator.current_potential.path.name.endswith(".yace")
 
-        # C. Verify arguments passed to wrapper
-        # wrapper.train(dataset_path, work_dir, params, initial_pot)
-        if not config.trainer.mock:
-            call_args = wrapper_instance.train.call_args
-            dataset_arg = call_args[0][0]
-            params_arg = call_args[0][2]
+            # B. Verify Trainer Wrapper was called
+            mock_train.assert_called_once()
 
-            # Ensure passed dataset path exists (it's a temp file created by Trainer)
-            assert Path(dataset_arg).exists()
+            # C. Verify arguments passed to input generation
+            # We check if the config dict passed to _generate_input_yaml matches expectation
+            mock_gen_yaml.assert_called_once()
+            gen_args = mock_gen_yaml.call_args
+            config_dict = gen_args[0][0]
+            assert config_dict["cutoff"] == 4.5
 
-            # Ensure params match config
-            assert params_arg["cutoff"] == 4.5
+            # D. Verify arguments passed to wrapper
+            call_args = mock_train.call_args
+            input_yaml_arg = call_args[0][0]
+            assert Path(input_yaml_arg).name == "input.yaml"
 
         # D. Verify dataset splitter processed items
         # 5 items total

@@ -1,6 +1,5 @@
 """Pacemaker Wrapper."""
 
-import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -18,16 +17,13 @@ class PacemakerWrapper:
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _is_safe_string(self, value: str) -> bool:
-        """Check if string contains only safe characters (alphanumeric, -, _, ., /, :, =, @)."""
-        # Strict whitelist pattern: only allow characters commonly used in file paths and options
-        # A-Z, a-z, 0-9, dash, underscore, dot, forward slash, colon, equals, at
-        pattern = r"^[a-zA-Z0-9\-\_\.\/\:\=\@]+$"
-        return bool(re.match(pattern, value))
-
     def _sanitize_arg(self, key: str, value: Any) -> list[str]:
-        """Sanitize and format a single argument."""
-        # Basic sanitization: keys should be simple strings (alphanumeric + underscore)
+        """Format a single argument.
+
+        Relies on subprocess.run(shell=False) for safety of values.
+        Validates keys to ensure they are simple flags.
+        """
+        # Validate key (flags) to be safe
         if not key.replace("_", "").isalnum():
             msg = f"Invalid parameter key: {key}"
             raise ValueError(msg)
@@ -40,37 +36,10 @@ class PacemakerWrapper:
         if isinstance(value, tuple | list):
             args = [cli_arg]
             for item in value:
-                item_str = str(item)
-                # Whitelist validation first
-                if not self._is_safe_string(item_str):
-                    # If strictly safe check fails, we could potentially rely on shlex.quote
-                    # But for strict security per audit, we should REJECT unless it's known safe.
-                    # Or we can allow broader chars but FORCE quote.
-                    # However, pace_train might not parse quoted args if passed via subprocess list.
-                    # Subprocess list arguments are NOT shell expanded, so injection is harder.
-                    # But if the called program (pacemaker) invokes a shell internally, it matters.
-                    # Given the audit requirement "whitelist approach", we stick to rejection.
-                    msg = f"Invalid list item value: {item}. Must match whitelist pattern."
-                    raise ValueError(msg)
-
-                # Double safety: quote it just in case, though subprocess handles args safely usually.
-                # Actually, adding quotes manually in a subprocess list argument results in the
-                # quotes being passed literally to the program, which is usually WRONG.
-                # Example: ['ls', "'file'"] looks for a file named "'file'" (with quotes).
-                # shlex.quote is useful if we were constructing a shell string.
-                # Since we use shell=False (default) in subprocess.run([args]), injection is mostly mitigated.
-                # The "command injection" concern usually implies shell=True usage or insecure inner calls.
-                # We will enforce whitelist strictly.
-                args.append(item_str)
+                args.append(str(item))
             return args
 
-        # Sanitize scalar value
-        val_str = str(value)
-        if not self._is_safe_string(val_str):
-            msg = f"Potential unsafe value or command injection detected in: {val_str}. Must match whitelist pattern."
-            raise ValueError(msg)
-
-        return [cli_arg, val_str]
+        return [cli_arg, str(value)]
 
     def train(
         self,
@@ -110,10 +79,58 @@ class PacemakerWrapper:
         # Capture output for logging/debugging
         # We rely on subprocess raising CalledProcessError on failure (check=True)
         # S603 ignored because we are constructing the list securely
-        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+        subprocess.run(
+            cmd, check=True, capture_output=True, text=True, shell=False
+        )
 
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
+
+    def train_from_input(self, input_file: Path, output_dir: Path) -> Path:
+        """Run pace_train with input.yaml.
+
+        Args:
+            input_file: Path to input.yaml
+            output_dir: Output directory (where potential.yace is expected to be)
+
+        Returns:
+            Path to the trained potential file.
+        """
+        if not input_file.exists():
+            msg = f"Input file does not exist: {input_file}"
+            raise FileNotFoundError(msg)
+
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = ["pace_train", str(input_file)]
+
+        log_path = output_dir / "pace_train.log"
+        with log_path.open("w") as log_file:
+            # S603 ignored because we are constructing the list securely
+            # Use cwd=output_dir to ensure relative paths in input.yaml (like output filenames) resolve correctly
+            # Redirect output to file to avoid OOM
+            subprocess.run(
+                cmd,
+                check=True,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                cwd=output_dir,
+                shell=False,
+            )
+
+        # Return the path to the generated potential
+        # Note: Pacemaker input.yaml usually specifies output file name.
+        # We assume standard output or check where it went.
+        # But commonly it produces potential.yace in CWD or specified output.
+        # If input.yaml specifies output path relative to CWD, we need to know it.
+        # We assume for now it is "potential.yace" in the CWD of execution?
+        # subprocess.run uses default CWD unless specified.
+        # If input.yaml has paths, they are relative to CWD.
+        # We should probably run in output_dir or ensure input.yaml paths are absolute.
+        # But input_file is passed as argument.
+
+        return output_dir / "potential.yace"
 
     def select_active_set(self, candidates_path: Path, num_select: int, output_path: Path) -> Path:
         """Run pace_activeset command.
@@ -142,6 +159,8 @@ class PacemakerWrapper:
         cmd.extend(["--select", str(num_select)])
         cmd.extend(["--output", str(output_path)])
 
-        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+        subprocess.run(
+            cmd, check=True, capture_output=True, text=True, shell=False
+        )
 
         return output_path
