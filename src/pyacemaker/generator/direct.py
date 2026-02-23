@@ -83,6 +83,7 @@ class DirectGenerator(StructureGenerator):
         candidates_gen = candidate_generator()
 
         # Selected set (descriptors)
+        # Memory usage scales with n_samples (O(K * D)), not total candidates.
         selected_descriptors: list[np.ndarray] = []
 
         # 1. Select first point randomly (or first valid from stream)

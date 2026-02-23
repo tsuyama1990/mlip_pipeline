@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.utils import stream_metadata_to_atoms
 from pyacemaker.domain_models.models import (
     ActiveSet,
@@ -82,6 +82,7 @@ class MaceTrainer(BaseTrainer):
             )
 
             # Save to file using streaming to prevent OOM
+            # stream_metadata_to_atoms returns a generator, save_iter consumes it lazily.
             self.dataset_manager.save_iter(
                 stream_metadata_to_atoms(valid_dataset), dataset_path
             )

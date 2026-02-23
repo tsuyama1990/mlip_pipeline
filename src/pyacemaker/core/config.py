@@ -402,13 +402,17 @@ class MaceConfig(BaseModel):
     @field_validator("model_path")
     @classmethod
     def validate_model_path(cls, v: str, _info: Any) -> str:
-        """Validate model path existence if not mocking."""
-        # If 'mock' field is set to True in the model instance, skip validation
-        # But we don't have access to other fields easily in @field_validator unless using ValidationInfo context
-        # Actually, simpler: if the string is not a URL/magic string "medium", check existence.
-        # But we can't check 'mock' status easily here without `model_validator`.
-        # Let's check basic patterns first.
+        """Validate model path existence or URL format."""
         if v.lower() in {"medium", "small", "large"}:
+            return v
+
+        # Check if URL
+        if v.startswith(("http://", "https://")):
+            # Simple URL validation regex to prevent injection chars
+            # Allows letters, numbers, dots, slashes, hyphens, underscores, colons (port)
+            if not re.match(r'^(http|https)://[a-zA-Z0-9\-\.]+(:\d+)?(/[\w\-\./?%&=]*)?$', v):
+                 msg = f"Invalid model URL format: {v}"
+                 raise ValueError(msg)
             return v
 
         path = Path(v)
@@ -419,10 +423,6 @@ class MaceConfig(BaseModel):
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e
 
-        # Existence check: delegated to manager or checked here?
-        # The user might provide a path that only exists at runtime (downloaded).
-        # We'll skip strict existence check here to allow download workflows,
-        # but ensure it's a safe path string.
         return v
 
     @field_validator("device")

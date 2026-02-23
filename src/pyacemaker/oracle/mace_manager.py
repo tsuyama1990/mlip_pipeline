@@ -194,7 +194,8 @@ class MaceManager:
         import re
 
         valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
-        valid_val = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+        # Allow alphanumeric, underscore, hyphen, dot, slash, plus (sci notation), comma (lists), colon
+        valid_val = re.compile(r"^[a-zA-Z0-9_\-./+,:]+$")
 
         for key, value in params.items():
             if key not in self._ALLOWED_TRAIN_PARAMS:

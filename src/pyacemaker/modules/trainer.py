@@ -73,6 +73,8 @@ class PacemakerTrainer(Trainer):
                         yield s
 
             # Use helper stream_metadata_to_atoms
+            # Streaming execution: dataset is consumed item-by-item and written to disk.
+            # No full list materialization occurs here.
             atoms_stream = stream_metadata_to_atoms(valid_counting_stream(dataset))
             self.dataset_manager.save_iter(atoms_stream, dataset_path)
 
