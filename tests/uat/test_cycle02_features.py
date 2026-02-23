@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-from ase import Atoms
 
 from pyacemaker.core.config import (
     CONSTANTS,
@@ -67,11 +66,6 @@ def test_scenario_02_active_learning_selection(uat_config: PYACEMAKERConfig) -> 
     # UAT: Verify filtering high uncertainty
 
     # Set threshold to verify filtering logic.
-    # Mock MACE uncertainty is usually fixed or random?
-    # In MaceSurrogateOracle.compute_uncertainty logic:
-    # if self.config.oracle.mock: uncertainties = [0.5] * len(atoms_list)
-    # So 0.5 is returned.
-
     uat_config.distillation.step2_active_learning.uncertainty_threshold = 0.4
 
     orchestrator = Orchestrator(uat_config)

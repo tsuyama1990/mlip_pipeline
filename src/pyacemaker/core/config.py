@@ -17,6 +17,9 @@ _DEFAULTS_PATH = Path(
     os.environ.get("PYACEMAKER_DEFAULTS_PATH", Path(__file__).parent / "defaults.yaml")
 )
 
+# Safety limit for loading defaults file
+MAX_DEFAULTS_SIZE = 1024 * 1024  # 1MB limit
+
 
 @functools.lru_cache(maxsize=1)
 def get_defaults() -> dict[str, Any]:
@@ -29,9 +32,8 @@ def get_defaults() -> dict[str, Any]:
         raise FileNotFoundError(msg)
 
     # Size check before reading
-    max_defaults_size = 1024 * 1024  # 1MB limit for defaults
-    if _DEFAULTS_PATH.stat().st_size > max_defaults_size:
-        msg = f"Defaults file size ({_DEFAULTS_PATH.stat().st_size}) exceeds limit of {max_defaults_size} bytes"
+    if _DEFAULTS_PATH.stat().st_size > MAX_DEFAULTS_SIZE:
+        msg = f"Defaults file size ({_DEFAULTS_PATH.stat().st_size}) exceeds limit of {MAX_DEFAULTS_SIZE} bytes"
         raise ValueError(msg)
 
     with _DEFAULTS_PATH.open("r", encoding="utf-8") as f:
@@ -207,29 +209,13 @@ class Constants(BaseSettings):
         default_factory=lambda: get_defaults()["dft"]["allowed_input_sections"]
     )
 
-    allowed_potential_paths: list[str] = []
+    allowed_potential_paths: list[str] = Field(
+        default_factory=lambda: get_defaults()["allowed_potential_paths"]
+    )
 
-    allowed_feature_keys: list[str] = [
-        "atoms",
-        "forces",
-        "stress",
-        "energy",
-        "virial",
-        "dipole",
-        "magmom",
-        "charges",
-        "momenta",
-        "masses",
-        "numbers",
-        "positions",
-        "cell",
-        "pbc",
-        "initial_magmoms",
-        "initial_charges",
-        "uncertainty",
-        "original_id",
-        "source",
-    ]
+    allowed_feature_keys: list[str] = Field(
+        default_factory=lambda: get_defaults()["allowed_feature_keys"]
+    )
 
     default_dynamics_gamma_threshold: float = Field(
         default_factory=lambda: get_defaults()["dynamics_gamma_threshold"]
@@ -291,22 +277,22 @@ class Constants(BaseSettings):
     )
 
     default_dataset_file: str = Field(
-        default_factory=lambda: get_defaults().get("default_dataset_file", "dataset.pckl.gzip")
+        default_factory=lambda: get_defaults()["default_dataset_file"]
     )
     default_validation_file: str = Field(
-        default_factory=lambda: get_defaults().get("default_validation_file", "validation_set.pckl.gzip")
+        default_factory=lambda: get_defaults()["default_validation_file"]
     )
     default_training_file: str = Field(
-        default_factory=lambda: get_defaults().get("default_training_file", "training_set.pckl.gzip")
+        default_factory=lambda: get_defaults()["default_training_file"]
     )
     default_candidates_file: str = Field(
-        default_factory=lambda: get_defaults().get("default_candidates_file", "candidates.pckl.gzip")
+        default_factory=lambda: get_defaults()["default_candidates_file"]
     )
     default_selected_file: str = Field(
-        default_factory=lambda: get_defaults().get("default_selected_file", "selected.pckl.gzip")
+        default_factory=lambda: get_defaults()["default_selected_file"]
     )
     dataset_extension: str = Field(
-        default_factory=lambda: get_defaults().get("dataset_extension", ".pckl.gzip")
+        default_factory=lambda: get_defaults()["dataset_extension"]
     )
 
     @field_validator("max_config_size")
@@ -536,20 +522,27 @@ class StructureGeneratorConfig(BaseModuleConfig):
     """Structure Generator module configuration."""
 
     strategy: str = Field(
-        default=CONSTANTS.default_structure_strategy,
+        default_factory=lambda: get_defaults()["structure_strategy"],
         description="Generation strategy (e.g., 'random', 'adaptive')",
     )
     initial_exploration: str = Field(
-        default="m3gnet", description="Initial exploration strategy (m3gnet or random)"
+        default_factory=lambda: get_defaults()["structure_initial_exploration"],
+        description="Initial exploration strategy (m3gnet or random)",
     )
     strain_range: float = Field(
-        default=0.15, ge=0.0, description="Maximum strain range for random perturbation"
+        default_factory=lambda: get_defaults()["structure_strain_range"],
+        ge=0.0,
+        description="Maximum strain range for random perturbation",
     )
     rattle_amplitude: float = Field(
-        default=0.1, ge=0.0, description="Standard deviation for atomic rattling (Angstrom)"
+        default_factory=lambda: get_defaults()["structure_rattle_amplitude"],
+        ge=0.0,
+        description="Standard deviation for atomic rattling (Angstrom)",
     )
     defect_density: float = Field(
-        default=0.01, ge=0.0, description="Target defect density for defect strategy"
+        default_factory=lambda: get_defaults()["structure_defect_density"],
+        ge=0.0,
+        description="Target defect density for defect strategy",
     )
 
 
@@ -599,8 +592,130 @@ class EONConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    executable: str = Field(default="eonclient", description="Path to EON executable")
-    parameters: dict[str, Any] = Field(default_factory=dict, description="EON parameters")
+    executable: str = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_executable"],
+        description="Path to EON executable",
+    )
+    parameters: dict[str, Any] = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_parameters"],
+        description="EON parameters",
+    )
+    mock: bool = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_mock"],
+        description="Use mock EON",
+    )
+    log_file: str = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_log_file"],
+        description="EON log file",
+    )
+    max_steps: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_steps"],
+        description="Max steps",
+    )
+    temperature: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_temperature"],
+        description="Temperature",
+    )
+    pressure: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_pressure"],
+        description="Pressure",
+    )
+    seed: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_seed"],
+        description="Random seed",
+    )
+    output_dir: str = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_output_dir"],
+        description="Output directory",
+    )
+    restart_file: str = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_restart_file"],
+        description="Restart file",
+    )
+    checkpoint_interval: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_checkpoint_interval"],
+        description="Checkpoint interval",
+    )
+    max_restarts: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_restarts"],
+        description="Max restarts",
+    )
+    max_failures: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_failures"],
+        description="Max failures",
+    )
+    max_time: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_time"],
+        description="Max time",
+    )
+    max_memory: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_memory"],
+        description="Max memory",
+    )
+    max_disk: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_disk"],
+        description="Max disk",
+    )
+    max_network: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_network"],
+        description="Max network",
+    )
+    max_cpu: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_cpu"],
+        description="Max cpu",
+    )
+    max_gpu: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_gpu"],
+        description="Max gpu",
+    )
+    max_threads: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_threads"],
+        description="Max threads",
+    )
+    max_processes: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_processes"],
+        description="Max processes",
+    )
+    max_queues: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_queues"],
+        description="Max queues",
+    )
+    max_jobs: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_jobs"],
+        description="Max jobs",
+    )
+    max_tasks: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_tasks"],
+        description="Max tasks",
+    )
+    max_workers: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_workers"],
+        description="Max workers",
+    )
+    max_concurrent: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_concurrent"],
+        description="Max concurrent",
+    )
+    max_parallel: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_parallel"],
+        description="Max parallel",
+    )
+    max_batch: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_batch"],
+        description="Max batch",
+    )
+    max_chunk: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_chunk"],
+        description="Max chunk",
+    )
+    max_buffer: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_buffer"],
+        description="Max buffer",
+    )
+    max_cache: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_eon_max_cache"],
+        description="Max cache",
+    )
 
     @field_validator("parameters")
     @classmethod
@@ -614,18 +729,33 @@ class DynamicsEngineConfig(BaseModuleConfig):
 
     engine: str = Field(default=CONSTANTS.default_engine, description="MD/kMC engine")
     gamma_threshold: float = Field(
-        default=CONSTANTS.default_dynamics_gamma_threshold,
+        default_factory=lambda: get_defaults()["dynamics_gamma_threshold"],
         description="Threshold for extrapolation grade (gamma) to trigger halt",
     )
     timestep: float = Field(
-        default_factory=lambda: get_defaults().get("dynamics_timestep", 0.001),
+        default_factory=lambda: get_defaults()["dynamics_timestep"],
         description="Timestep in ps",
     )
-    temperature: float = Field(default=300.0, description="Temperature in K")
-    pressure: float = Field(default=0.0, description="Pressure in Bar")
-    n_steps: int = Field(default=100000, description="Number of MD steps")
-    hybrid_baseline: str = Field(default="zbl", description="Hybrid potential baseline (zbl or lj)")
-    mock: bool = Field(default=False, description="Use mock engine for testing")
+    temperature: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_temperature"],
+        description="Temperature in K",
+    )
+    pressure: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_pressure"],
+        description="Pressure in Bar",
+    )
+    n_steps: int = Field(
+        default_factory=lambda: get_defaults()["dynamics_n_steps"],
+        description="Number of MD steps",
+    )
+    hybrid_baseline: str = Field(
+        default_factory=lambda: get_defaults()["dynamics_hybrid_baseline"],
+        description="Hybrid potential baseline (zbl or lj)",
+    )
+    mock: bool = Field(
+        default_factory=lambda: get_defaults()["dynamics_mock"],
+        description="Use mock engine for testing",
+    )
     eon: EONConfig = Field(default_factory=EONConfig, description="EON configuration")
 
     @field_validator("hybrid_baseline")
@@ -643,42 +773,76 @@ class Step1DirectSamplingConfig(BaseModel):
     """Configuration for Step 1: Direct Sampling."""
 
     model_config = ConfigDict(extra="forbid")
-    target_points: int = Field(default=100, description="Number of target points")
-    objective: str = Field(default="maximize_entropy", description="Optimization objective")
+    target_points: int = Field(
+        default_factory=lambda: get_defaults()["step1_target_points"],
+        description="Number of target points",
+    )
+    objective: str = Field(
+        default_factory=lambda: get_defaults()["step1_objective"],
+        description="Optimization objective",
+    )
 
 
 class Step2ActiveLearningConfig(BaseModel):
     """Configuration for Step 2: Active Learning."""
 
     model_config = ConfigDict(extra="forbid")
-    uncertainty_threshold: float = Field(default=0.8, description="Uncertainty threshold")
-    dft_calculator: str = Field(default="VASP", description="DFT calculator name")
-    cycles: int = Field(default=3, description="Number of active learning cycles")
-    n_select: int = Field(default=10, description="Number of structures to select per cycle")
+    uncertainty_threshold: float = Field(
+        default_factory=lambda: get_defaults()["step2_uncertainty_threshold"],
+        description="Uncertainty threshold",
+    )
+    dft_calculator: str = Field(
+        default_factory=lambda: get_defaults()["step2_dft_calculator"],
+        description="DFT calculator name",
+    )
+    cycles: int = Field(
+        default_factory=lambda: get_defaults()["step2_cycles"],
+        description="Number of active learning cycles",
+    )
+    n_select: int = Field(
+        default_factory=lambda: get_defaults()["step2_n_select"],
+        description="Number of structures to select per cycle",
+    )
 
 
 class Step3MaceFinetuneConfig(BaseModel):
     """Configuration for Step 3: MACE Fine-tuning."""
 
     model_config = ConfigDict(extra="forbid")
-    base_model: str = Field(default="MACE-MP-0", description="Base MACE model")
-    epochs: int = Field(default=50, description="Number of epochs")
+    base_model: str = Field(
+        default_factory=lambda: get_defaults()["step3_base_model"],
+        description="Base MACE model",
+    )
+    epochs: int = Field(
+        default_factory=lambda: get_defaults()["step3_epochs"], description="Number of epochs"
+    )
 
 
 class Step4SurrogateSamplingConfig(BaseModel):
     """Configuration for Step 4: Surrogate Sampling."""
 
     model_config = ConfigDict(extra="forbid")
-    target_points: int = Field(default=1000, description="Number of target points")
-    method: str = Field(default="mace_md", description="Sampling method")
+    target_points: int = Field(
+        default_factory=lambda: get_defaults()["step4_target_points"],
+        description="Number of target points",
+    )
+    method: str = Field(
+        default_factory=lambda: get_defaults()["step4_method"], description="Sampling method"
+    )
 
 
 class Step7PacemakerFinetuneConfig(BaseModel):
     """Configuration for Step 7: Pacemaker Fine-tuning."""
 
     model_config = ConfigDict(extra="forbid")
-    enable: bool = Field(default=True, description="Enable Delta Learning")
-    weight_dft: float = Field(default=10.0, description="Weight for DFT data")
+    enable: bool = Field(
+        default_factory=lambda: get_defaults()["step7_enable"],
+        description="Enable Delta Learning",
+    )
+    weight_dft: float = Field(
+        default_factory=lambda: get_defaults()["step7_weight_dft"],
+        description="Weight for DFT data",
+    )
 
 
 class DistillationConfig(BaseModel):
@@ -719,9 +883,16 @@ class ValidatorConfig(BaseModel):
     eos_strain: float = Field(
         default=CONSTANTS.physics_eos_strain, description="Strain range for EOS calculation"
     )
+    eos_points: int = Field(
+        default=CONSTANTS.physics_eos_points, description="Number of points for EOS calculation"
+    )
     elastic_strain: float = Field(
         default=CONSTANTS.physics_elastic_strain,
         description="Strain for elastic constants calculation",
+    )
+    phonon_tolerance: float = Field(
+        default=CONSTANTS.physics_phonon_tolerance,
+        description="Tolerance for phonon stability (min frequency)",
     )
 
 
