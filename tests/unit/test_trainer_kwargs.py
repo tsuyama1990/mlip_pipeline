@@ -178,12 +178,13 @@ def test_pacemaker_trainer_select_active_set(
         assert str(mock_dataset[0].id) in [str(u) for u in active_set.structure_ids]
 
 
-def test_mace_trainer_select_active_set_raises(
+def test_mace_trainer_select_active_set_returns_empty(
     mock_config: MagicMock, mock_dataset: list[StructureMetadata]
 ) -> None:
-    """Test MaceTrainer select_active_set raises NotImplementedError."""
+    """Test MaceTrainer select_active_set returns empty ActiveSet."""
     with patch("pyacemaker.modules.trainer.MaceManager"):
         trainer = MaceTrainer(mock_config)
 
-        with pytest.raises(NotImplementedError):
-            trainer.select_active_set(mock_dataset, n_select=5)
+        active_set = trainer.select_active_set(mock_dataset, n_select=5)
+        assert active_set.structure_ids == []
+        assert active_set.selection_criteria == "none"

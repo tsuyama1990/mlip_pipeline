@@ -237,6 +237,8 @@ def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
     # Step 6 calls trainer.train once.
     # Step 7 calls trainer.train once if delta learning enabled (default True in fixture).
     # So we expect trainer.train calls.
+    # We verify that MACE training (Step 3) was NOT called because Step 2 loop broke early.
+    mock_mace_trainer.train.assert_not_called()
 
 def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
     """Test handling of Oracle failure."""
