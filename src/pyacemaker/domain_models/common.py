@@ -21,6 +21,7 @@ class StructureStatus(StrEnum):
 class CycleStatus(StrEnum):
     """Status of the active learning cycle."""
 
+    # Standard AL Statuses
     EXPLORATION = "EXPLORATION"
     LABELING = "LABELING"
     TRAINING = "TRAINING"
@@ -28,11 +29,19 @@ class CycleStatus(StrEnum):
     CONVERGED = "CONVERGED"
     FAILED = "FAILED"
 
+    # MACE Distillation Workflow Statuses
+    DIRECT_SAMPLING = "DIRECT_SAMPLING"
+    MACE_TRAINING = "MACE_TRAINING"
+    SURROGATE_GENERATION = "SURROGATE_GENERATION"
+    SURROGATE_LABELING = "SURROGATE_LABELING"
+    DELTA_LEARNING = "DELTA_LEARNING"
+
 
 class PotentialType(StrEnum):
     """Type of interatomic potential."""
 
     PACE = "PACE"
+    MACE = "MACE"
     M3GNET = "M3GNET"
     LJ = "LJ"
     EAM = "EAM"

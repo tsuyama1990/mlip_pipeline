@@ -7,6 +7,7 @@ from ase import Atoms
 from loguru import logger
 
 from pyacemaker.core.config import ValidatorConfig
+from pyacemaker.domain_models.models import Potential, PotentialType
 from pyacemaker.domain_models.validator import ValidationResult
 from pyacemaker.validator.physics import check_elastic, check_eos, check_phonons
 from pyacemaker.validator.report import ReportGenerator
@@ -20,12 +21,34 @@ class ValidatorManager:
         self.config = config
         self.logger = logger.bind(name="ValidatorManager")
 
-    def _attach_calculator(self, atoms: Atoms, potential_path: Path) -> Atoms:
+    def _attach_calculator(self, atoms: Atoms, potential: Potential) -> Atoms:
         """Attach potential calculator to atoms."""
         if atoms.calc is not None:
             return atoms
 
-        # Try attaching real PACE calculator
+        potential_path = Path(potential.path)
+
+        # MACE Support
+        if potential.type == PotentialType.MACE:
+             try:
+                 from mace.calculators import MACECalculator
+                 # Simple loading for validation (CPU default for stability)
+                 calc = MACECalculator(
+                     model_paths=str(potential_path),
+                     device="cpu",
+                     default_dtype="float64"
+                 )
+                 atoms.calc = calc
+                 self.logger.info("Attached MACE calculator.")
+                 return atoms
+             except ImportError as e:
+                 self.logger.warning("MACE not installed.")
+                 raise RuntimeError("MACE missing") from e
+             except Exception as e:
+                 self.logger.exception("Failed to attach MACE calculator")
+                 raise RuntimeError("MACE failure") from e
+
+        # Try attaching real PACE calculator (Default or PACE type)
         try:
             from ase.calculators.lammpslib import LAMMPSlib
 
@@ -55,10 +78,11 @@ class ValidatorManager:
             raise RuntimeError(msg) from e
 
     def validate(
-        self, potential_path: Path, structure: Atoms, output_dir: Path
+        self, potential: Potential, structure: Atoms, output_dir: Path
     ) -> ValidationResult:
         """Run validation."""
         output_dir.mkdir(parents=True, exist_ok=True)
+        potential_path = Path(potential.path)
 
         self.logger.info(
             f"Validating potential {potential_path} on structure {structure.get_chemical_formula()}"  # type: ignore[no-untyped-call]
@@ -66,7 +90,7 @@ class ValidatorManager:
 
         # Attach calculator to structure
         try:
-            structure = self._attach_calculator(structure, potential_path)
+            structure = self._attach_calculator(structure, potential)
         except RuntimeError:
             self.logger.exception("Skipping validation due to missing calculator.")
             return ValidationResult(

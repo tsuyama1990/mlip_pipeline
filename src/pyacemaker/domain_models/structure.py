@@ -151,8 +151,25 @@ class StructureMetadata(BaseModel):
     status: StructureStatus = Field(
         default=StructureStatus.NEW, description="Processing status of the structure"
     )
+
+    # MACE Distillation Workflow extensions
+    label_source: str = Field(
+        default="dft", description="Source of the labels (energy/forces): 'dft' or 'mace'"
+    )
+    generation_method: str | None = Field(
+        default=None, description="Method used to generate this structure (e.g. 'direct', 'md')"
+    )
+
     created_at: datetime = Field(default_factory=utc_now, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=utc_now, description="Last update timestamp")
+
+    @field_validator("label_source")
+    @classmethod
+    def validate_label_source(cls, v: str) -> str:
+        if v not in ("dft", "mace"):
+            msg = f"Invalid label source: {v}. Must be 'dft' or 'mace'."
+            raise ValueError(msg)
+        return v
 
     @field_validator("energy")
     @classmethod
@@ -260,6 +277,8 @@ class StructureMetadata(BaseModel):
             "validation",
             "outlier",
             "failed",
+            "direct",
+            "objective",
         }
         for tag in v:
             # Allow underscores in tags (e.g. candidate_0)

@@ -7,6 +7,7 @@ import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import ValidatorConfig
+from pyacemaker.domain_models.models import Potential, PotentialType
 from pyacemaker.domain_models.validator import ValidationResult
 from pyacemaker.validator.manager import ValidatorManager
 
@@ -31,6 +32,14 @@ def test_validator_run(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
     with (
         patch("pyacemaker.validator.manager.check_phonons") as mock_phonons,
         patch("pyacemaker.validator.manager.check_eos") as mock_eos,
@@ -41,7 +50,7 @@ def test_validator_run(
         mock_eos.return_value = (100.0, "eos.png")
         mock_elastic.return_value = (True, {"C11": 100.0})
 
-        result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
         assert isinstance(result, ValidationResult)
         assert result.passed is True
@@ -60,6 +69,14 @@ def test_validator_failure(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
     with (
         patch("pyacemaker.validator.manager.check_phonons") as mock_phonons,
         patch("pyacemaker.validator.manager.check_eos") as mock_eos,
@@ -70,7 +87,7 @@ def test_validator_failure(
         mock_eos.return_value = (100.0, "eos.png")
         mock_elastic.return_value = (True, {"C11": 100.0})
 
-        result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
         assert isinstance(result, ValidationResult)
         assert result.passed is False

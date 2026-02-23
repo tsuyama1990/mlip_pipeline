@@ -1,5 +1,6 @@
 """Configuration models for PYACEMAKER."""
 
+import functools
 import os
 import re
 from pathlib import Path
@@ -17,11 +18,22 @@ _DEFAULTS_PATH = Path(
 )
 
 
-def _load_defaults() -> dict[str, Any]:
-    """Load default configuration values from YAML file."""
+@functools.lru_cache(maxsize=1)
+def get_defaults() -> dict[str, Any]:
+    """Load default configuration values from YAML file (Cached).
+
+    Includes validation for file size to prevent OOM attacks.
+    """
     if not _DEFAULTS_PATH.exists():
         msg = f"Defaults file not found at {_DEFAULTS_PATH}"
         raise FileNotFoundError(msg)
+
+    # Size check before reading
+    max_defaults_size = 1024 * 1024  # 1MB limit for defaults
+    if _DEFAULTS_PATH.stat().st_size > max_defaults_size:
+        msg = f"Defaults file size ({_DEFAULTS_PATH.stat().st_size}) exceeds limit of {max_defaults_size} bytes"
+        raise ValueError(msg)
+
     with _DEFAULTS_PATH.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
@@ -32,92 +44,171 @@ def _load_defaults() -> dict[str, Any]:
     return data
 
 
-_DEFAULTS = _load_defaults()
-
-
 class Constants(BaseSettings):
     """System-wide constants configuration.
 
-    Values are loaded from defaults.yaml but can be overridden by environment variables
-    (e.g., PYACEMAKER_MAX_CONFIG_SIZE).
+    Values are loaded lazily from defaults.yaml using default_factory.
     """
 
     model_config = SettingsConfigDict(extra="forbid", env_prefix="PYACEMAKER_")
 
-    default_log_format: str = _DEFAULTS["log_format"]
-    # 1 MB limit for configuration files to prevent OOM/DOS
-    max_config_size: int = _DEFAULTS["max_config_size"]
-    # Dataset limits
-    max_object_size: int = _DEFAULTS["max_object_size"]
-    default_buffer_size: int = _DEFAULTS["default_buffer_size"]
+    default_log_format: str = Field(
+        default_factory=lambda: get_defaults()["log_format"]
+    )
+    max_config_size: int = Field(
+        default_factory=lambda: get_defaults()["max_config_size"]
+    )
+    max_object_size: int = Field(
+        default_factory=lambda: get_defaults()["max_object_size"]
+    )
+    default_buffer_size: int = Field(
+        default_factory=lambda: get_defaults()["default_buffer_size"]
+    )
 
-    default_version: str = _DEFAULTS["version"]
-    default_log_level: str = _DEFAULTS["log_level"]
-    default_structure_strategy: str = _DEFAULTS["structure_strategy"]
-    default_trainer_potential: str = _DEFAULTS["trainer_potential"]
-    default_trainer_cutoff: float = _DEFAULTS["trainer_cutoff"]
-    default_trainer_order: int = _DEFAULTS["trainer_order"]
-    default_trainer_basis_size: tuple[int, int] = tuple(_DEFAULTS["trainer_basis_size"])
-    default_trainer_delta_learning: str = _DEFAULTS["trainer_delta_learning"]
-    default_trainer_max_epochs: int = _DEFAULTS["trainer_max_epochs"]
-    default_trainer_batch_size: int = _DEFAULTS["trainer_batch_size"]
-    default_engine: str = _DEFAULTS["engine"]
+    default_version: str = Field(
+        default_factory=lambda: get_defaults()["version"]
+    )
+    default_log_level: str = Field(
+        default_factory=lambda: get_defaults()["log_level"]
+    )
+    default_structure_strategy: str = Field(
+        default_factory=lambda: get_defaults()["structure_strategy"]
+    )
+    default_trainer_potential: str = Field(
+        default_factory=lambda: get_defaults()["trainer_potential"]
+    )
+    default_trainer_cutoff: float = Field(
+        default_factory=lambda: get_defaults()["trainer_cutoff"]
+    )
+    default_trainer_order: int = Field(
+        default_factory=lambda: get_defaults()["trainer_order"]
+    )
+    default_trainer_basis_size: tuple[int, int] = Field(
+        default_factory=lambda: tuple(get_defaults()["trainer_basis_size"])
+    )
+    default_trainer_delta_learning: str = Field(
+        default_factory=lambda: get_defaults()["trainer_delta_learning"]
+    )
+    default_trainer_max_epochs: int = Field(
+        default_factory=lambda: get_defaults()["trainer_max_epochs"]
+    )
+    default_trainer_batch_size: int = Field(
+        default_factory=lambda: get_defaults()["trainer_batch_size"]
+    )
+    default_engine: str = Field(
+        default_factory=lambda: get_defaults()["engine"]
+    )
 
     # Orchestrator Defaults
-    default_orchestrator_max_cycles: int = _DEFAULTS["orchestrator"]["max_cycles"]
-    default_orchestrator_uncertainty: float = _DEFAULTS["orchestrator"]["uncertainty_threshold"]
-    default_orchestrator_n_local_candidates: int = _DEFAULTS["orchestrator"]["n_local_candidates"]
-    default_orchestrator_n_active_set_select: int = _DEFAULTS["orchestrator"]["n_active_set_select"]
-    default_orchestrator_validation_split: float = _DEFAULTS["orchestrator"]["validation_split"]
-    default_orchestrator_min_validation_size: int = _DEFAULTS["orchestrator"]["min_validation_size"]
-    default_orchestrator_max_validation_size: int = _DEFAULTS["orchestrator"]["max_validation_size"]
-    default_validation_buffer_size: int = _DEFAULTS["default_validation_buffer_size"]
+    default_orchestrator_max_cycles: int = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["max_cycles"]
+    )
+    default_orchestrator_uncertainty: float = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["uncertainty_threshold"]
+    )
+    default_orchestrator_n_local_candidates: int = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["n_local_candidates"]
+    )
+    default_orchestrator_n_active_set_select: int = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["n_active_set_select"]
+    )
+    default_orchestrator_validation_split: float = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["validation_split"]
+    )
+    default_orchestrator_min_validation_size: int = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["min_validation_size"]
+    )
+    default_orchestrator_max_validation_size: int = Field(
+        default_factory=lambda: get_defaults()["orchestrator"]["max_validation_size"]
+    )
+    default_validation_buffer_size: int = Field(
+        default_factory=lambda: get_defaults()["default_validation_buffer_size"]
+    )
 
     # Validator Defaults
-    default_validator_metrics: list[str] = _DEFAULTS["validator_metrics"]
+    default_validator_metrics: list[str] = Field(
+        default_factory=lambda: get_defaults()["validator_metrics"]
+    )
 
-    version_regex: str = _DEFAULTS["version_regex"]
-    # Allow skipping file checks for tests
-    skip_file_checks: bool = False  # Secure default
+    version_regex: str = Field(
+        default_factory=lambda: get_defaults()["version_regex"]
+    )
+    skip_file_checks: bool = False
 
     # Oracle / DFT defaults
-    default_dft_code: str = _DEFAULTS["dft"]["code"]
-    default_dft_command: str = _DEFAULTS["dft"]["command"]
-    default_dft_kspacing: float = _DEFAULTS["dft"]["kspacing"]
-    default_dft_smearing: float = _DEFAULTS["dft"]["smearing"]
-    default_dft_max_retries: int = _DEFAULTS["dft"]["max_retries"]
-    default_dft_mixing_beta: float = _DEFAULTS["dft"]["mixing_beta"]
-    default_dft_chunk_size: int = _DEFAULTS["dft"]["chunk_size"]
-    default_dft_max_workers: int = _DEFAULTS["dft"]["max_workers"]
+    default_dft_code: str = Field(
+        default_factory=lambda: get_defaults()["dft"]["code"]
+    )
+    default_dft_command: str = Field(
+        default_factory=lambda: get_defaults()["dft"]["command"]
+    )
+    default_dft_kspacing: float = Field(
+        default_factory=lambda: get_defaults()["dft"]["kspacing"]
+    )
+    default_dft_smearing: float = Field(
+        default_factory=lambda: get_defaults()["dft"]["smearing"]
+    )
+    default_dft_max_retries: int = Field(
+        default_factory=lambda: get_defaults()["dft"]["max_retries"]
+    )
+    default_dft_mixing_beta: float = Field(
+        default_factory=lambda: get_defaults()["dft"]["mixing_beta"]
+    )
+    default_dft_chunk_size: int = Field(
+        default_factory=lambda: get_defaults()["dft"]["chunk_size"]
+    )
+    default_dft_max_workers: int = Field(
+        default_factory=lambda: get_defaults()["dft"]["max_workers"]
+    )
 
     # MACE Defaults
-    default_mace_model_path: str = _DEFAULTS["mace_model_path"]
-    default_mace_device: str = _DEFAULTS["mace_device"]
-    default_mace_dtype: str = _DEFAULTS["mace_dtype"]
-    default_mace_batch_size: int = _DEFAULTS["mace_batch_size"]
+    default_mace_model_path: str = Field(
+        default_factory=lambda: get_defaults()["mace_model_path"]
+    )
+    default_mace_device: str = Field(
+        default_factory=lambda: get_defaults()["mace_device"]
+    )
+    default_mace_dtype: str = Field(
+        default_factory=lambda: get_defaults()["mace_dtype"]
+    )
+    default_mace_batch_size: int = Field(
+        default_factory=lambda: get_defaults()["mace_batch_size"]
+    )
 
     # Trainer File Defaults
-    default_trainer_baseline_suffix: str = _DEFAULTS["trainer_delta_baseline_suffix"]
-    default_trainer_mock_potential_name: str = _DEFAULTS["trainer_mock_potential_name"]
+    default_trainer_baseline_suffix: str = Field(
+        default_factory=lambda: get_defaults()["trainer_delta_baseline_suffix"]
+    )
+    default_trainer_mock_potential_name: str = Field(
+        default_factory=lambda: get_defaults()["trainer_mock_potential_name"]
+    )
 
     # DFT Defaults
-    default_dft_ecutwfc: float = _DEFAULTS["dft"]["ecutwfc"]
-    default_dft_ecutrho: float = _DEFAULTS["dft"]["ecutrho"]
-    default_dft_conv_thr: float = _DEFAULTS["dft"]["conv_thr"]
-    default_dft_occupations: str = _DEFAULTS["dft"]["occupations"]
-    default_dft_smearing_method: str = _DEFAULTS["dft"]["smearing_method"]
+    default_dft_ecutwfc: float = Field(
+        default_factory=lambda: get_defaults()["dft"]["ecutwfc"]
+    )
+    default_dft_ecutrho: float = Field(
+        default_factory=lambda: get_defaults()["dft"]["ecutrho"]
+    )
+    default_dft_conv_thr: float = Field(
+        default_factory=lambda: get_defaults()["dft"]["conv_thr"]
+    )
+    default_dft_occupations: str = Field(
+        default_factory=lambda: get_defaults()["dft"]["occupations"]
+    )
+    default_dft_smearing_method: str = Field(
+        default_factory=lambda: get_defaults()["dft"]["smearing_method"]
+    )
 
-    # Error patterns for DFT retry logic
-    dft_recoverable_errors: list[str] = _DEFAULTS["dft"]["recoverable_errors"]
-    # Allowed input sections for security validation
-    dft_allowed_input_sections: list[str] = _DEFAULTS["dft"]["allowed_input_sections"]
+    dft_recoverable_errors: list[str] = Field(
+        default_factory=lambda: get_defaults()["dft"]["recoverable_errors"]
+    )
+    dft_allowed_input_sections: list[str] = Field(
+        default_factory=lambda: get_defaults()["dft"]["allowed_input_sections"]
+    )
 
-    # Security: Allowed Potential Paths (Whitelist for external potentials)
-    # List of absolute path prefixes allowed.
     allowed_potential_paths: list[str] = []
 
-    # Structure Feature Whitelist
-    # Allow common keys for atoms, forces, etc. plus 'atoms' object itself.
     allowed_feature_keys: list[str] = [
         "atoms",
         "forces",
@@ -140,46 +231,83 @@ class Constants(BaseSettings):
         "source",
     ]
 
-    # Dynamics Engine Defaults
-    default_dynamics_gamma_threshold: float = _DEFAULTS["dynamics_gamma_threshold"]
+    default_dynamics_gamma_threshold: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_gamma_threshold"]
+    )
 
-    # Security Warnings
-    PICKLE_SECURITY_WARNING: str = _DEFAULTS["pickle_security_warning"]
+    PICKLE_SECURITY_WARNING: str = Field(
+        default_factory=lambda: get_defaults()["pickle_security_warning"]
+    )
 
-    # Regex
-    valid_key_regex: str = _DEFAULTS["valid_key_regex"]
-    valid_value_regex: str = _DEFAULTS["valid_value_regex"]
+    valid_key_regex: str = Field(
+        default_factory=lambda: get_defaults()["valid_key_regex"]
+    )
+    valid_value_regex: str = Field(
+        default_factory=lambda: get_defaults()["valid_value_regex"]
+    )
 
-    # Trainer Defaults
-    TRAINER_TEMP_PREFIX_TRAIN: str = _DEFAULTS["temp_prefix_train"]
-    TRAINER_TEMP_PREFIX_ACTIVE: str = _DEFAULTS["temp_prefix_active"]
+    TRAINER_TEMP_PREFIX_TRAIN: str = Field(
+        default_factory=lambda: get_defaults()["temp_prefix_train"]
+    )
+    TRAINER_TEMP_PREFIX_ACTIVE: str = Field(
+        default_factory=lambda: get_defaults()["temp_prefix_active"]
+    )
 
-    # DFT Manager Defaults
-    DFT_TEMP_PREFIX: str = _DEFAULTS["dft_temp_prefix"]
+    DFT_TEMP_PREFIX: str = Field(
+        default_factory=lambda: get_defaults()["dft_temp_prefix"]
+    )
 
-    # Physical Bounds
-    max_energy_ev: float = _DEFAULTS["max_energy_ev"]
-    max_force_ev_a: float = _DEFAULTS["max_force_ev_a"]
-    composition_tolerance: float = _DEFAULTS["composition_tolerance"]
+    max_energy_ev: float = Field(
+        default_factory=lambda: get_defaults()["max_energy_ev"]
+    )
+    max_force_ev_a: float = Field(
+        default_factory=lambda: get_defaults()["max_force_ev_a"]
+    )
+    composition_tolerance: float = Field(
+        default_factory=lambda: get_defaults()["composition_tolerance"]
+    )
 
-    # Physics Validation Defaults
-    physics_phonon_supercell: list[int] = _DEFAULTS["physics_phonon_supercell"]
-    physics_phonon_tolerance: float = _DEFAULTS["physics_phonon_tolerance"]
-    physics_eos_strain: float = _DEFAULTS["physics_eos_strain"]
-    physics_eos_points: int = _DEFAULTS["physics_eos_points"]
-    physics_elastic_strain: float = _DEFAULTS["physics_elastic_strain"]
+    physics_phonon_supercell: list[int] = Field(
+        default_factory=lambda: get_defaults()["physics_phonon_supercell"]
+    )
+    physics_phonon_tolerance: float = Field(
+        default_factory=lambda: get_defaults()["physics_phonon_tolerance"]
+    )
+    physics_eos_strain: float = Field(
+        default_factory=lambda: get_defaults()["physics_eos_strain"]
+    )
+    physics_eos_points: int = Field(
+        default_factory=lambda: get_defaults()["physics_eos_points"]
+    )
+    physics_elastic_strain: float = Field(
+        default_factory=lambda: get_defaults()["physics_elastic_strain"]
+    )
 
-    # Security & Limits
-    max_atoms_dft: int = _DEFAULTS["max_atoms_dft"]
-    dynamics_halt_probability: float = _DEFAULTS["dynamics_halt_probability"]
+    max_atoms_dft: int = Field(
+        default_factory=lambda: get_defaults()["max_atoms_dft"]
+    )
+    dynamics_halt_probability: float = Field(
+        default_factory=lambda: get_defaults()["dynamics_halt_probability"]
+    )
 
-    # File Names
-    default_dataset_file: str = _DEFAULTS.get("default_dataset_file", "dataset.pckl.gzip")
-    default_validation_file: str = _DEFAULTS.get("default_validation_file", "validation_set.pckl.gzip")
-    default_training_file: str = _DEFAULTS.get("default_training_file", "training_set.pckl.gzip")
-    default_candidates_file: str = _DEFAULTS.get("default_candidates_file", "candidates.pckl.gzip")
-    default_selected_file: str = _DEFAULTS.get("default_selected_file", "selected.pckl.gzip")
-    dataset_extension: str = _DEFAULTS.get("dataset_extension", ".pckl.gzip")
+    default_dataset_file: str = Field(
+        default_factory=lambda: get_defaults().get("default_dataset_file", "dataset.pckl.gzip")
+    )
+    default_validation_file: str = Field(
+        default_factory=lambda: get_defaults().get("default_validation_file", "validation_set.pckl.gzip")
+    )
+    default_training_file: str = Field(
+        default_factory=lambda: get_defaults().get("default_training_file", "training_set.pckl.gzip")
+    )
+    default_candidates_file: str = Field(
+        default_factory=lambda: get_defaults().get("default_candidates_file", "candidates.pckl.gzip")
+    )
+    default_selected_file: str = Field(
+        default_factory=lambda: get_defaults().get("default_selected_file", "selected.pckl.gzip")
+    )
+    dataset_extension: str = Field(
+        default_factory=lambda: get_defaults().get("dataset_extension", ".pckl.gzip")
+    )
 
     @field_validator("max_config_size")
     @classmethod
@@ -490,7 +618,8 @@ class DynamicsEngineConfig(BaseModuleConfig):
         description="Threshold for extrapolation grade (gamma) to trigger halt",
     )
     timestep: float = Field(
-        default=_DEFAULTS.get("dynamics_timestep", 0.001), description="Timestep in ps"
+        default_factory=lambda: get_defaults().get("dynamics_timestep", 0.001),
+        description="Timestep in ps",
     )
     temperature: float = Field(default=300.0, description="Temperature in K")
     pressure: float = Field(default=0.0, description="Pressure in Bar")
@@ -508,6 +637,68 @@ class DynamicsEngineConfig(BaseModuleConfig):
             msg = f"Invalid hybrid_baseline: {v}. Must be one of {valid}"
             raise ValueError(msg)
         return v.lower()
+
+
+class Step1DirectSamplingConfig(BaseModel):
+    """Configuration for Step 1: Direct Sampling."""
+
+    model_config = ConfigDict(extra="forbid")
+    target_points: int = Field(default=100, description="Number of target points")
+    objective: str = Field(default="maximize_entropy", description="Optimization objective")
+
+
+class Step2ActiveLearningConfig(BaseModel):
+    """Configuration for Step 2: Active Learning."""
+
+    model_config = ConfigDict(extra="forbid")
+    uncertainty_threshold: float = Field(default=0.8, description="Uncertainty threshold")
+    dft_calculator: str = Field(default="VASP", description="DFT calculator name")
+    cycles: int = Field(default=3, description="Number of active learning cycles")
+    n_select: int = Field(default=10, description="Number of structures to select per cycle")
+
+
+class Step3MaceFinetuneConfig(BaseModel):
+    """Configuration for Step 3: MACE Fine-tuning."""
+
+    model_config = ConfigDict(extra="forbid")
+    base_model: str = Field(default="MACE-MP-0", description="Base MACE model")
+    epochs: int = Field(default=50, description="Number of epochs")
+
+
+class Step4SurrogateSamplingConfig(BaseModel):
+    """Configuration for Step 4: Surrogate Sampling."""
+
+    model_config = ConfigDict(extra="forbid")
+    target_points: int = Field(default=1000, description="Number of target points")
+    method: str = Field(default="mace_md", description="Sampling method")
+
+
+class Step7PacemakerFinetuneConfig(BaseModel):
+    """Configuration for Step 7: Pacemaker Fine-tuning."""
+
+    model_config = ConfigDict(extra="forbid")
+    enable: bool = Field(default=True, description="Enable Delta Learning")
+    weight_dft: float = Field(default=10.0, description="Weight for DFT data")
+
+
+class DistillationConfig(BaseModel):
+    """Configuration for MACE Distillation Workflow."""
+
+    model_config = ConfigDict(extra="forbid")
+    enable_mace_distillation: bool = Field(default=False, description="Enable MACE distillation")
+    step1_direct_sampling: Step1DirectSamplingConfig = Field(
+        default_factory=Step1DirectSamplingConfig
+    )
+    step2_active_learning: Step2ActiveLearningConfig = Field(
+        default_factory=Step2ActiveLearningConfig
+    )
+    step3_mace_finetune: Step3MaceFinetuneConfig = Field(default_factory=Step3MaceFinetuneConfig)
+    step4_surrogate_sampling: Step4SurrogateSamplingConfig = Field(
+        default_factory=Step4SurrogateSamplingConfig
+    )
+    step7_pacemaker_finetune: Step7PacemakerFinetuneConfig = Field(
+        default_factory=Step7PacemakerFinetuneConfig
+    )
 
 
 class ValidatorConfig(BaseModel):
@@ -644,6 +835,7 @@ class PYACEMAKERConfig(BaseModel):
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     dynamics_engine: DynamicsEngineConfig = Field(default_factory=DynamicsEngineConfig)
     validator: ValidatorConfig = Field(default_factory=ValidatorConfig)
+    distillation: DistillationConfig = Field(default_factory=DistillationConfig)
 
     @field_validator("version")
     @classmethod

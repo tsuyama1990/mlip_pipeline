@@ -96,8 +96,9 @@ class ActiveSet(BaseModel):
     structure_ids: list[UUID] = Field(..., description="List of structure IDs in this set")
     # Optional field to carry the actual objects in memory if needed by the Orchestrator
     # If None, consumer should load from dataset_path
+    # To prevent OOM, this should generally be None for large sets
     structures: list["StructureMetadata"] | None = Field(
-        default=None, description="Selected structure objects (optional for small sets)"
+        default=None, description="Selected structure objects (optional)"
     )
     dataset_path: Path | None = Field(
         default=None, description="Path to the dataset file containing selected structures"

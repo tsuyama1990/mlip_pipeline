@@ -2,9 +2,10 @@
 
 import contextlib
 import hashlib
-from collections.abc import Iterator
+import heapq
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
 import numpy as np
@@ -18,6 +19,49 @@ from pyacemaker.domain_models.models import (
 
 if TYPE_CHECKING:
     from ase import Atoms
+
+T = TypeVar("T")
+
+
+def select_top_k_structures(
+    iterator: Iterable[T], k: int, key_func: Callable[[T], float]
+) -> list[T]:
+    """Select the top K elements from an iterable based on a key function.
+
+    Uses a min-heap of size K to maintain the top elements in O(K) memory.
+    This avoids materializing the full iterator which heapq.nlargest might do depending on implementation.
+
+    Args:
+        iterator: Iterable of items.
+        k: Number of items to select.
+        key_func: Function to extract comparison key (larger is better).
+
+    Returns:
+        List of selected items (sorted by key descending).
+
+    """
+    if k <= 0:
+        return []
+
+    # Min-heap stores tuples of (key, item).
+    # We want top K largest keys.
+    # If heap size < k: push.
+    # If heap size == k: pushpop if new key > min key in heap.
+    heap: list[tuple[float, int, T]] = []
+
+    # Tie-breaker counter to ensure stability/comparability if T is not comparable
+    # and to handle duplicate keys deterministically.
+    for counter, item in enumerate(iterator):
+        key = key_func(item)
+        entry = (key, counter, item)
+
+        if len(heap) < k:
+            heapq.heappush(heap, entry)
+        elif key > heap[0][0]:
+            heapq.heapreplace(heap, entry)
+
+    # Sort by key descending
+    return [item for _, _, item in sorted(heap, key=lambda x: x[0], reverse=True)]
 
 
 def validate_structure_integrity(structure: StructureMetadata) -> None:

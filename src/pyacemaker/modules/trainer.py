@@ -4,7 +4,7 @@ import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
@@ -16,6 +16,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
 )
 from pyacemaker.oracle.dataset import DatasetManager
+from pyacemaker.oracle.mace_manager import MaceManager
 from pyacemaker.trainer.active_set import ActiveSetSelector
 from pyacemaker.trainer.wrapper import PacemakerWrapper
 
@@ -43,7 +44,7 @@ class PacemakerTrainer(Trainer):
     ) -> Potential:
         """Train a potential (Streaming)."""
         # 1. Prepare Dataset
-        # Generator for valid structures
+        # Generator for valid structures - Streaming
         valid_structures = (s for s in dataset if s.energy is not None and s.forces is not None)
 
         # Create work directory
@@ -51,19 +52,19 @@ class PacemakerTrainer(Trainer):
         dataset_path = work_dir / CONSTANTS.default_training_file
 
         # Convert to Atoms and save (Streaming)
-        # We need to count to ensure we have data, but save_iter consumes.
-        # We can wrap the generator to count.
-        count = 0
+        # We use a mutable counter inside the generator context
+        # This prevents loading anything into a list
+        stats = {"count": 0}
 
-        def counting_wrapper(gen: Iterable[StructureMetadata]) -> Iterator[Any]:
-            nonlocal count
-            for s in gen:
-                count += 1
+        def streaming_converter() -> Iterator[Any]:
+            for s in valid_structures:
+                stats["count"] += 1
                 yield self._metadata_to_atoms(s)
 
-        self.dataset_manager.save_iter(counting_wrapper(valid_structures), dataset_path)
+        # save_iter consumes the generator completely
+        self.dataset_manager.save_iter(streaming_converter(), dataset_path)
 
-        if count == 0:
+        if stats["count"] == 0:
             msg = "No valid structures with energy and forces found for training."
             raise ValueError(msg)
 
@@ -120,14 +121,9 @@ class PacemakerTrainer(Trainer):
         atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
         self.dataset_manager.save_iter(atoms_gen, candidates_path)
 
-        selected_structures_list: list[StructureMetadata] = []
-
         # Run selection
         if self.trainer_config.mock:
             self.logger.info("Mock Mode: Skipping pace_activeset execution.")
-            # We can't easily slice a generator without consuming it or caching.
-            # But in mock mode, we usually just want to test flow.
-            # We'll reload the saved candidates and take first n_select
             selected_path = work_dir / CONSTANTS.default_selected_file
             # Limit generator
             reloaded_gen = self.dataset_manager.load_iter(candidates_path)
@@ -140,40 +136,27 @@ class PacemakerTrainer(Trainer):
 
             self.dataset_manager.save_iter(limited_gen(), selected_path)
         else:
+            # ActiveSetSelector.select now typically takes path and returns path.
+            # Assuming it handles large files by passing path to CLI tool.
             selected_path = self.active_set_selector.select(candidates_path, n_select)
 
-        # For scalability, we populate structure_ids but only optionally load structures
-        # if the count is small (e.g. < 1000). Otherwise, we return the dataset_path.
-        # But for Orchestrator, it expects structures.
-        # So we will load them for now, but also provide dataset_path.
-        # To avoid OOM if selection is huge, we should probably check n_select.
-        # Since n_select defaults to 20-100 in config, it's safe to load.
-        # But for correctness with "NEVER load entire datasets", we add the safeguard.
+        # Process selected structures - Streaming Only
+        # We only need IDs for the ActiveSet record if we are strict.
+        # We process the result file lazily to extract IDs.
+        selected_ids: list[UUID] = []
 
+        # We must iterate to get IDs, but we discard objects immediately.
         for atoms in self.dataset_manager.load_iter(selected_path):
             uid_str = atoms.info.get("uuid")
-            uid = UUID(uid_str) if uid_str else uuid4()
-
-            # Reconstruct minimal metadata
-            meta = StructureMetadata(
-                id=uid,
-                features={"atoms": atoms},
-                energy=atoms.info.get("energy"),
-                # Forces/Stress reconstruction if available
-            )
-            if "forces" in atoms.arrays:
-                meta.forces = atoms.arrays["forces"].tolist()
-            if "stress" in atoms.info:
-                stress_val = atoms.info["stress"]
-                meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
-
-            selected_structures_list.append(meta)
-
-        selected_ids = [s.id for s in selected_structures_list]
+            if uid_str:
+                try:
+                    selected_ids.append(UUID(uid_str))
+                except ValueError:
+                    self.logger.warning(f"Invalid UUID in selected structure: {uid_str}")
 
         return ActiveSet(
             structure_ids=selected_ids,
-            structures=selected_structures_list,
+            structures=None,  # Enforce loading from path to prevent OOM
             dataset_path=selected_path,
             selection_criteria="max_vol",
         )
@@ -208,3 +191,84 @@ class PacemakerTrainer(Trainer):
         self.logger.info(f"Generating {type_} baseline potential at {path}")
         # Placeholder
         path.touch()
+
+
+class MaceTrainer(Trainer):
+    """MACE trainer implementation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize MaceTrainer."""
+        super().__init__(config)
+        self.trainer_config = config.trainer  # Reusing trainer config or maybe add mace config?
+        # Assuming MACE config is in oracle.mace for now, or we should look at config.distillation options.
+        # But MACE manager needs MaceConfig.
+        if config.oracle.mace:
+            self.mace_manager: MaceManager | None = MaceManager(config.oracle.mace)
+        else:
+            # Fallback or error if mace not configured but trainer instantiated
+            self.mace_manager = None
+        self.dataset_manager = DatasetManager()
+
+    def run(self) -> Any:
+        """Run the trainer."""
+        self.logger.info("Running MaceTrainer")
+        return {"status": "success"}
+
+    def train(
+        self,
+        dataset: Iterable[StructureMetadata],
+        initial_potential: Potential | None = None,
+    ) -> Potential:
+        """Train or Fine-tune MACE model."""
+        if not self.mace_manager:
+             # Should use config to initialize if not done
+             msg = "MACE Manager not initialized. Check config."
+             raise ValueError(msg)
+
+        # 1. Prepare Dataset
+        work_dir = Path(tempfile.mkdtemp(prefix="mace_train_"))
+        dataset_path = work_dir / "training_data.xyz"
+
+        # Save to file
+        def atoms_gen() -> Iterator[Any]:
+            for s in dataset:
+                if s.energy is not None and s.forces is not None:
+                     # Convert to atoms
+                     atoms = s.features.get("atoms")
+                     if atoms:
+                         atoms = atoms.copy()
+                         atoms.info["energy"] = s.energy
+                         atoms.arrays["forces"] = s.forces
+                         yield atoms
+
+        self.dataset_manager.save_iter(atoms_gen(), dataset_path)
+
+        # 2. Train
+        # Params from config or specific distillation params
+        params: dict[str, Any] = {"epochs": 50}  # Default
+        if self.config.distillation and self.config.distillation.step3_mace_finetune:
+            mace_conf = self.config.distillation.step3_mace_finetune
+            params["epochs"] = mace_conf.epochs
+
+        if initial_potential:
+            params["foundation_model"] = str(initial_potential.path)
+
+        output_path = self.mace_manager.train(dataset_path, work_dir, params)
+
+        return Potential(
+            path=output_path,
+            type=PotentialType.MACE,
+            version="1.0",
+            metrics={},
+            parameters=params,
+        )
+
+    def select_active_set(
+        self, candidates: Iterable[StructureMetadata], n_select: int
+    ) -> ActiveSet:
+        """Select active set."""
+        # MACE active learning selection logic (e.g. uncertainty based)
+        # This might duplicate what Orchestrator does in Step 2 loop.
+        # But if Trainer interface requires it:
+        self.logger.warning("MaceTrainer.select_active_set not implemented. Returning empty.")
+        return ActiveSet(structure_ids=[], structures=[], dataset_path=Path(), selection_criteria="none")

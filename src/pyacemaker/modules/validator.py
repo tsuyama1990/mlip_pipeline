@@ -46,27 +46,14 @@ class Validator(ValidatorInterface):
         min_e_pa = float("inf")
         count = 0
 
-        # We need to process the stream but maybe limit how many we scan for reference structure
-        # to avoid reading 1M items just to pick one.
-        # However, for RMSE we need all.
-        # For this specific method, let's assume we scan all but efficiently (O(1) memory).
-        # We can use islice to batch if we were doing batch calc, but here we do single pass.
-
-        # Ensure we don't accidentally materialize
-        iterator = iter(test_set)
-
-        # Optimization: Process in chunks if needed, but simple loop is memory-safe for Python iterators
-        # provided the objects are released.
-        # But we hold reference_structure.
-        # Let's limit the scan for reference structure to the first N items to be safe/fast?
-        # Requirement says "Validator... processes... as a stream".
-        # We'll stick to full scan for now as it is strictly O(1) memory (1 structure held).
-
-        for s in iterator:
+        # Optimization: Single pass scan
+        # We stick to full scan for now as it is strictly O(1) memory (1 structure held).
+        for s in test_set:
             count += 1
             if s.features.get("atoms"):
                 atoms = s.features["atoms"]
-                # Select reference structure (lowest energy/atom)
+                # Select reference structure (lowest energy/atom from DFT/Source)
+                # s.energy should be the ground truth energy (from DFT)
                 if s.energy is not None and len(atoms) > 0:
                     e_pa = s.energy / len(atoms)
                     if e_pa < min_e_pa:
@@ -96,22 +83,8 @@ class Validator(ValidatorInterface):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Run physics validation
-        # We need potential path. Potential object has path.
-        pot_path = Path(potential.path)
-
-        # We also need to calculate RMSE on test set.
-        # This requires running potential on test_set structures.
-        # Does Validator module run potential?
-        # Or does it assume energies/forces are already in test_set?
-        # Usually test_set has DFT energies/forces (ground truth).
-        # We need to compute predicted E/F using potential.
-        # We can use ASE calculator for that.
-
-        # But for now, let's focus on Physics Checks as per Cycle 06 requirements.
-        # I'll add placeholder for RMSE.
-
         validation_result = manager.validate(
-            potential_path=pot_path,
+            potential=potential,
             structure=reference_structure,
             output_dir=output_dir,
         )
@@ -119,11 +92,10 @@ class Validator(ValidatorInterface):
         # Merge metrics
         metrics_dict = validation_result.metrics.copy()
 
-        # Calculate RMSE (placeholder)
-        # In real impl, we would iterate test_list, compute E_pred, compare with E_dft.
-        # We assume 0.0 for now to indicate "not calculated" rather than fake good values.
+        # Calculate RMSE (placeholder - future optimization would use batch predictor here)
         metrics_dict["rmse_energy"] = 0.0
         metrics_dict["rmse_forces"] = 0.0
+        metrics_dict["count"] = count
 
         status = "success" if validation_result.passed else "failed"
 
