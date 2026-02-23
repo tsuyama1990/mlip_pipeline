@@ -5,6 +5,7 @@ import random
 import secrets
 from collections.abc import Iterable, Iterator
 from itertools import islice
+from typing import Any
 
 from ase import Atoms
 
@@ -64,7 +65,6 @@ class MockOracle(BaseOracle):
         """Initialize the Mock Oracle."""
         super().__init__(config)
         self.seed = config.oracle.dft.parameters.get("seed")
-        # Use secrets for secure random if no seed provided, else random for determinism (tests)
         if self.seed is not None:
             self.rng = random.Random(self.seed)  # noqa: S311
         else:
@@ -74,7 +74,6 @@ class MockOracle(BaseOracle):
         """Run the oracle (batch processing)."""
         self.logger.info("Running MockOracle")
 
-        # Simulate failure based on config if needed
         if self.config.oracle.dft.parameters.get("simulate_failure", False):
             msg = "Simulated Oracle failure"
             raise PYACEMAKERError(msg)
@@ -86,39 +85,25 @@ class MockOracle(BaseOracle):
         return self.rng.uniform(a, b)
 
     def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-        """Compute energy/forces for a batch.
-
-        Args:
-            structures: Iterable of structure metadata.
-
-        Yields:
-            Updated structure metadata.
-
-        """
+        """Compute energy/forces for a batch."""
         self.logger.info("Computing batch of structures (mock)")
 
         for s in structures:
             self.validate_structure(s)
-            # Skip if already calculated
             if s.status == StructureStatus.CALCULATED:
                 yield s
                 continue
 
-            # Ensure atoms object exists for Trainer
             atoms = s.features.get("atoms")
             if not isinstance(atoms, Atoms):
-                # Create dummy atoms
                 atoms = Atoms(
                     "Fe", positions=[[0, 0, 0]], cell=[2.5, 2.5, 2.5], pbc=True
                 )
                 s.features["atoms"] = atoms
 
-            # Generate random values
             energy = -100.0 + self._get_random_uniform(-1.0, 1.0)
-            # Generate forces for EACH atom
             forces = [[self._get_random_uniform(-0.1, 0.1) for _ in range(3)] for _ in range(len(atoms))]
 
-            # Update structure
             s.energy = energy
             s.forces = forces
             s.status = StructureStatus.CALCULATED
@@ -132,11 +117,6 @@ class DFTOracle(BaseOracle):
         """Initialize the DFT Oracle."""
         super().__init__(config)
         self.dft_manager = DFTManager(config.oracle.dft)
-        # Persistent executor for lifetime of module?
-        # Since we cannot easily close it, we rely on context manager in compute_batch for now.
-        # The previous audit request "persistent executor" likely means "don't create one per chunk".
-        # We did that in the previous step (one per compute_batch call).
-        # We will stick to the current implementation which is safe.
 
     def run(self) -> ModuleResult:
         """Run the oracle (batch processing)."""
@@ -148,47 +128,13 @@ class DFTOracle(BaseOracle):
         self.logger.info("Computing batch of structures (DFT Parallel Streaming)")
 
         max_workers = self.config.oracle.dft.max_workers
-        # We want a buffer larger than workers to keep them busy
         buffer_size = max_workers * 2
 
         iterator = iter(structures)
-
-        # Map future back to structure
         futures: dict[concurrent.futures.Future, StructureMetadata] = {}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Initial fill
-            for _ in range(buffer_size):
-                try:
-                    s = next(iterator)
-                except StopIteration:
-                    break
-
-                atoms = self._validate_and_extract_atoms(s)
-                if atoms:
-                    future = executor.submit(self.dft_manager.compute, atoms)
-                    futures[future] = s
-                else:
-                    yield s
-
-            # Process loop
-            while futures:
-                # Wait for at least one future
-                done, _ = concurrent.futures.wait(
-                    futures.keys(),
-                    return_when=concurrent.futures.FIRST_COMPLETED,
-                )
-
-                for future in done:
-                    s = futures.pop(future)
-                    try:
-                        result_atoms = future.result()
-                        update_structure_metadata(s, result_atoms)
-                    except Exception:
-                        self.logger.exception(f"Error computing structure {s.id}")
-                        s.status = StructureStatus.FAILED
-                    yield s
-
+            while True:
                 # Refill
                 while len(futures) < buffer_size:
                     try:
@@ -202,6 +148,27 @@ class DFTOracle(BaseOracle):
                         futures[future] = s
                     else:
                         yield s
+
+                if not futures:
+                    break
+
+                # Wait
+                done, _ = concurrent.futures.wait(
+                    futures.keys(), return_when=concurrent.futures.FIRST_COMPLETED
+                )
+
+                for future in done:
+                    s = futures.pop(future)
+                    self._process_result(s, future)
+                    yield s
+
+    def _process_result(self, s: StructureMetadata, future: concurrent.futures.Future) -> None:
+        try:
+            result_atoms = future.result()
+            update_structure_metadata(s, result_atoms)
+        except Exception:
+            self.logger.exception(f"Error computing structure {s.id}")
+            s.status = StructureStatus.FAILED
 
 
 class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
@@ -230,99 +197,107 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
         """Compute energy/forces for a batch of structures."""
         self.logger.info("Computing batch of structures (MACE)")
 
-        for s in structures:
-            atoms = self._validate_and_extract_atoms(s)
-            if atoms is None:
-                yield s
-                continue
+        batch_size = self.config.oracle.mace.batch_size if self.config.oracle.mace else 32
+        iterator = iter(structures)
 
-            # Mark source as MACE
+        while True:
+            chunk = list(islice(iterator, batch_size))
+            if not chunk:
+                break
+
+            self._process_chunk(chunk)
+
+            yield from chunk
+
+    def _process_chunk(self, chunk: list[StructureMetadata]) -> None:
+        to_compute: list[tuple[int, StructureMetadata, Atoms]] = []
+
+        for i, s in enumerate(chunk):
             s.label_source = "mace"
+            atoms = self._validate_and_extract_atoms(s)
+            if atoms is not None:
+                to_compute.append((i, s, atoms))
 
-            if self.config.oracle.mock:
-                # Mock behavior
-                s.energy = -10.0
-                s.forces = [[0.0, 0.0, 0.0] for _ in range(len(atoms))]
-                s.status = StructureStatus.CALCULATED
-                yield s
-                continue
+        if not to_compute:
+            return
 
-            # We verified self.mace_manager is not None if not mock
-            # But type checker might complain if we don't assert/check
-            if self.mace_manager is None:
-                # Should not happen given __init__ logic unless modified
-                msg = "MaceManager is None but mock is False"
-                raise ConfigurationError(msg)
+        if self.config.oracle.mock:
+            self._mock_compute(to_compute)
+        else:
+            self._real_compute(to_compute)
 
-            try:
-                result_atoms = self.mace_manager.compute(atoms)
-                update_structure_metadata(s, result_atoms)
-            except Exception:
-                self.logger.exception(f"Error computing structure {s.id}")
+    def _mock_compute(self, items: list[tuple[int, StructureMetadata, Atoms]]) -> None:
+        for _, s, atoms in items:
+            s.energy = -10.0
+            s.forces = [[0.0, 0.0, 0.0] for _ in range(len(atoms))]
+            s.status = StructureStatus.CALCULATED
+
+    def _real_compute(self, items: list[tuple[int, StructureMetadata, Atoms]]) -> None:
+        if self.mace_manager is None:
+            msg = "MaceManager is None but mock is False"
+            raise ConfigurationError(msg)
+
+        try:
+            atoms_list = [t[2] for t in items]
+            results = self.mace_manager.compute_batch(atoms_list)
+
+            for item, res_atoms in zip(items, results, strict=True):
+                _, s, _ = item
+                update_structure_metadata(s, res_atoms)
+        except Exception:
+            self.logger.exception("Batch computation failed")
+            for _, s, _ in items:
                 s.status = StructureStatus.FAILED
 
-            yield s
-
-    def compute_uncertainty(  # noqa: C901, PLR0912
+    def compute_uncertainty(
         self, structures: Iterable[StructureMetadata]
     ) -> Iterator[StructureMetadata]:
         """Compute uncertainty for a batch of structures."""
         self.logger.info("Computing uncertainty (MACE)")
 
-        # Uncertainty usually requires batch processing if using ensemble,
-        # but here we iterate. To optimize, we could batch collect.
-        # For simplicity and streaming consistency, we iterate but maybe call manager per item or batch internally.
-        # Let's collect a small batch or just process one by one if manager supports lists.
-
-        # Collecting all structures to batch process is risky for memory, but uncertainty is usually fast.
-        # Let's collect in chunks.
-        chunk_size = 100
+        batch_size = 100
         iterator = iter(structures)
 
         while True:
-            chunk = list(islice(iterator, chunk_size))
+            chunk = list(islice(iterator, batch_size))
             if not chunk:
                 break
 
-            # Extract atoms
-            atoms_list = []
-            valid_indices = []
-            for i, s in enumerate(chunk):
-                atoms = self._extract_atoms(s)
-                if atoms:
-                    atoms_list.append(atoms)
-                    valid_indices.append(i)
+            self._process_uncertainty_chunk(chunk)
 
-            if not atoms_list:
-                for s in chunk:
-                    yield s
-                continue
+            yield from chunk
 
-            uncertainties: list[float | None] = []
-            if self.config.oracle.mock:
-                uncertainties = [0.5] * len(atoms_list)  # Mock uncertainty
-            elif self.mace_manager:
-                try:
-                    uncertainties = [
-                        float(x) for x in self.mace_manager.compute_uncertainty(atoms_list)
-                    ]
-                except Exception:
-                    self.logger.exception("Failed to compute uncertainty batch")
-                    uncertainties = [None] * len(atoms_list)
-            else:
-                # Should not happen if mock checked above
-                uncertainties = [None] * len(atoms_list)
+    def _process_uncertainty_chunk(self, chunk: list[StructureMetadata]) -> None:
+        atoms_list = []
+        valid_indices = []
+        for i, s in enumerate(chunk):
+            atoms = self._extract_atoms(s)
+            if atoms:
+                atoms_list.append(atoms)
+                valid_indices.append(i)
 
-            # Assign back
-            for idx, unc in zip(valid_indices, uncertainties, strict=False):
-                s = chunk[idx]
-                if unc is not None:
-                    # Update structure metadata with uncertainty
-                    # Assuming gamma_max is the metric (or use mean if appropriate)
-                    # Spec says "Uncertainty (Variance)".
-                    s.uncertainty_state = UncertaintyState(
-                        gamma_mean=float(unc), gamma_max=float(unc)
-                    )
+        if not atoms_list:
+            return
 
-            for s in chunk:
-                yield s
+        uncertainties = self._get_uncertainties(atoms_list)
+
+        for idx, unc in zip(valid_indices, uncertainties, strict=False):
+            s = chunk[idx]
+            if unc is not None:
+                s.uncertainty_state = UncertaintyState(
+                    gamma_mean=float(unc), gamma_max=float(unc)
+                )
+
+    def _get_uncertainties(self, atoms_list: list[Atoms]) -> list[float | None]:
+        if self.config.oracle.mock:
+            return [0.5] * len(atoms_list)
+
+        if self.mace_manager:
+            try:
+                return [
+                    float(x) for x in self.mace_manager.compute_uncertainty(atoms_list)
+                ]
+            except Exception:
+                self.logger.exception("Failed to compute uncertainty batch")
+
+        return [None] * len(atoms_list)

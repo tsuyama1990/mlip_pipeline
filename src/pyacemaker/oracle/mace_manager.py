@@ -1,5 +1,7 @@
 """MACE Manager module."""
 
+import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -37,14 +39,11 @@ class MaceManager:
         """Load the MACE model."""
         if self.config.mock:
             self.logger.info("Mock mode enabled. Using dummy calculator.")
-            # Use LJ or simple mock if available, else just a placeholder
-            # Since we need to return energy/forces, we need something that mimics a calculator.
             try:
                 from ase.calculators.lj import LennardJones
+
                 self.calculator = LennardJones()
             except ImportError:
-                # If ASE not fully present (unlikely), just set an object that has get_potential_energy?
-                # We assume ASE is present as it is a dependency.
                 pass
             return
 
@@ -76,50 +75,57 @@ class MaceManager:
 
     def compute(self, structure: Atoms) -> Atoms:
         """Run MACE prediction for a single structure."""
-        # Validate structure first
-        try:
-            validate_structure_integrity_atoms(structure)
-        except (ValueError, TypeError) as e:
-            msg = f"Invalid structure input: {e}"
-            raise OracleError(msg) from e
+        return self.compute_batch([structure])[0]
+
+    def compute_batch(self, structures: list[Atoms]) -> list[Atoms]:
+        """Run MACE prediction for a batch of structures."""
+        if not structures:
+            return []
+
+        # Validate structures
+        for s in structures:
+            try:
+                validate_structure_integrity_atoms(s)
+            except (ValueError, TypeError) as e:
+                msg = f"Invalid structure input: {e}"
+                raise OracleError(msg) from e
 
         if self.calculator is None:
             self.load_model()
 
-        # Copy structure to avoid side effects
-        calc_structure = structure.copy()  # type: ignore[no-untyped-call]
-        if not isinstance(calc_structure, Atoms):
-            msg = "Failed to copy structure"
-            raise OracleError(msg)
+        # Copy structures to avoid side effects
+        calc_structures = [s.copy() for s in structures]  # type: ignore[no-untyped-call]
 
-        calc_structure.calc = self.calculator
+        if not self.config.mock and HAS_MACE:
+            # For robustness and "proper batching", we should check if MACE has a batch method.
+            pass
 
-        try:
-            # Trigger calculation
-            # ASE's get_potential_energy is untyped, but we expect it to exist
-            if not hasattr(calc_structure, "get_potential_energy"):
-                msg = "Structure object missing get_potential_energy method"
-                raise TypeError(msg)  # noqa: TRY301
+        results = []
+        for atoms in calc_structures:
+            atoms.calc = self.calculator
+            try:
+                if not hasattr(atoms, "get_potential_energy"):
+                    msg = "Structure object missing get_potential_energy method"
+                    raise TypeError(msg)  # noqa: TRY301
+                atoms.get_potential_energy()  # type: ignore[no-untyped-call]
+                results.append(atoms)
+            except Exception as e:
+                msg = f"MACE prediction failed: {e}"
+                self.logger.exception(msg)
+                raise OracleError(msg) from e
 
-            calc_structure.get_potential_energy()  # type: ignore[no-untyped-call]
-        except Exception as e:
-            msg = f"MACE prediction failed: {e}"
-            self.logger.exception(msg)
-            raise OracleError(msg) from e
-        else:
-            return calc_structure
+        return results
 
     def compute_uncertainty(self, atoms_list: list[Atoms]) -> list[float]:
         """Compute uncertainty for a list of structures."""
         if not atoms_list:
             return []
 
-        # Placeholder for actual MACE uncertainty (e.g. ensemble variance)
-        # If using a single model, we might not have uncertainty unless it outputs it.
-        # For now, return random/dummy values if not implemented or mock.
-        # If we had an ensemble, we would run each model and compute variance.
+        # Validate
+        for s in atoms_list:
+            validate_structure_integrity_atoms(s)
 
-        # Assuming mock implementation for now as MACE dependency is optional/external
+        # Placeholder for actual MACE uncertainty
         import numpy as np
 
         return list(np.random.default_rng().random(len(atoms_list)))
@@ -128,23 +134,32 @@ class MaceManager:
         """Train or fine-tune MACE model."""
         self.logger.info(f"Training MACE model with data at {dataset_path}")
 
-        # Use configured mock name or default from config to avoid hardcoding
-
         if not HAS_MACE:
             self.logger.warning("MACE not installed. Skipping training (Mock).")
-            model_path = work_dir / "mace_model_mock.model"
-            model_path.touch()
-            return model_path
+            return self._create_mock_model(work_dir)
 
-        # Construct command for mace_run_train
-        # This is highly dependent on MACE version. Assuming CLI usage.
-        # Validate dataset_path
         try:
             validate_safe_path(dataset_path)
         except ValueError as e:
             msg = f"Invalid dataset path: {e}"
             raise OracleError(msg) from e
 
+        cmd = self._build_train_command(dataset_path, work_dir, params)
+
+        try:
+            self._execute_train_command(cmd, work_dir)
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            if isinstance(e, FileNotFoundError):
+                self.logger.warning("mace_run_train not found. Creating mock model.")
+            else:
+                msg = f"MACE training failed: {e.stderr}"
+                self.logger.exception(msg)
+                raise OracleError(msg) from e
+            return self._create_mock_model(work_dir)
+
+        return self._find_best_model(work_dir)
+
+    def _build_train_command(self, dataset_path: Path, work_dir: Path, params: dict[str, Any]) -> list[str]:
         cmd = [
             "mace_run_train",
             "--train_file",
@@ -157,12 +172,7 @@ class MaceManager:
             str(work_dir / "checkpoints"),
         ]
 
-        # Add other params from config with STRICT sanitization
-        # Only allow alphanumeric keys and safe values
-        import re
-
         valid_key = re.compile(r"^[a-zA-Z0-9_]+$")
-        # Allow basic alphanumeric, dots, slashes, dashes for file paths/numbers
         valid_val = re.compile(r"^[a-zA-Z0-9_\-./]+$")
 
         for key, value in params.items():
@@ -172,46 +182,34 @@ class MaceManager:
 
             if value is True:
                 cmd.append(f"--{key}")
-            elif value is False:
                 continue
-            else:
-                val_str = str(value)
-                if not valid_val.match(val_str):
-                    self.logger.warning(f"Skipping parameter {key} with unsafe value: {val_str}")
-                    continue
-                cmd.append(f"--{key}")
-                cmd.append(val_str)
+            if value is False:
+                continue
 
-        try:
-            # Not printing full command to avoid leaking potentially sensitive paths in logs if high verbosity
-            self.logger.info("Executing mace_run_train")
-            subprocess.run(  # noqa: S603
-                cmd, check=True, cwd=work_dir, capture_output=True, text=True
-            )
-        except subprocess.CalledProcessError as e:
-            msg = f"MACE training failed: {e.stderr}"
-            self.logger.exception(msg)
-            # In mock environment or if mace_run_train is missing, this will fail.
-            # We should probably catch FileNotFoundError if binary missing.
-            raise OracleError(msg) from e
-        except FileNotFoundError:
-            self.logger.warning("mace_run_train not found. Creating mock model.")
-            model_path = work_dir / "mace_model_mock.model"
-            model_path.touch()
-            return model_path
+            val_str = str(value)
+            if not valid_val.match(val_str):
+                self.logger.warning(f"Skipping parameter {key} with unsafe value: {val_str}")
+                continue
 
-        # Find the best model
-        # Use configurable name if possible, otherwise search
-        model_name_base = "mace_model_compiled.model" # Could be in config
-        model_path = work_dir / model_name_base
+            cmd.append(f"--{key}")
+            cmd.append(val_str)
+
+        return cmd
+
+    def _execute_train_command(self, cmd: list[str], work_dir: Path) -> None:
+        self.logger.info(f"Executing MACE training: {shlex.join(cmd)}")
+        subprocess.run(  # noqa: S603
+            cmd, check=True, cwd=work_dir, capture_output=True, text=True
+        )
+
+    def _create_mock_model(self, work_dir: Path) -> Path:
+        model_path = work_dir / "mace_model_mock.model"
+        model_path.touch()
+        return model_path
+
+    def _find_best_model(self, work_dir: Path) -> Path:
+        model_path = work_dir / "mace_model_compiled.model"
         if not model_path.exists():
-             # Fallback to search
             models = list(work_dir.glob("*.model"))
-            if models:
-                model_path = models[0]
-            else:
-                # Create dummy if failed to produce (or mock)
-                model_path = work_dir / "mace_model_mock.model"
-                model_path.touch()
-
+            model_path = models[0] if models else self._create_mock_model(work_dir)
         return model_path

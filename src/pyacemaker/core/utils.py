@@ -221,6 +221,9 @@ def atoms_to_metadata(atoms: "Atoms", **kwargs: Any) -> StructureMetadata:
         StructureMetadata object wrapping the atoms.
 
     """
+    # Validate atoms first
+    validate_structure_integrity_atoms(atoms)
+
     # Create basic metadata
     features = kwargs.pop("features", {})
     features["atoms"] = atoms
@@ -272,36 +275,52 @@ def _extract_properties(
         # Check explicit calc results
         calc = getattr(atoms, "calc", None)
         if calc:
-            if energy is None and "energy" in calc.results:
-                energy = float(calc.results["energy"])
-            if forces is None and "forces" in calc.results:
-                forces = calc.results["forces"].tolist()
-            if stress is None and "stress" in calc.results:
-                stress = calc.results["stress"].tolist()
+            energy, forces, stress = _extract_from_calc(calc, energy, forces, stress)
 
         # Also check info/arrays as fallback
-        if energy is None and "energy" in atoms.info:
-            energy = float(atoms.info["energy"])
-        if forces is None and "forces" in atoms.arrays:
-            forces = atoms.arrays["forces"].tolist()
+        energy, forces = _extract_from_info_arrays(atoms, energy, forces)
 
-        # Extract other metadata from info if present
-        if "label_source" in atoms.info and "label_source" not in kwargs:
-            kwargs["label_source"] = atoms.info["label_source"]
-        if "generation_method" in atoms.info and "generation_method" not in kwargs:
-            kwargs["generation_method"] = atoms.info["generation_method"]
-        if "tags" in atoms.info and "tags" not in kwargs:
-            # tags might be stored as string or list
-            tags_val = atoms.info["tags"]
-            if isinstance(tags_val, str):
-                kwargs["tags"] = tags_val.split(",")
-            elif isinstance(tags_val, list):
-                kwargs["tags"] = tags_val
+        _extract_additional_metadata(atoms, kwargs)
 
     except Exception as e:
         logger.debug(f"Failed to extract properties: {e}")
 
     return energy, forces, stress, status
+
+
+def _extract_from_calc(
+    calc: Any, energy: float | None, forces: list | None, stress: list | None
+) -> tuple[float | None, list | None, list | None]:
+    if energy is None and "energy" in calc.results:
+        energy = float(calc.results["energy"])
+    if forces is None and "forces" in calc.results:
+        forces = calc.results["forces"].tolist()
+    if stress is None and "stress" in calc.results:
+        stress = calc.results["stress"].tolist()
+    return energy, forces, stress
+
+
+def _extract_from_info_arrays(
+    atoms: "Atoms", energy: float | None, forces: list | None
+) -> tuple[float | None, list | None]:
+    if energy is None and "energy" in atoms.info:
+        energy = float(atoms.info["energy"])
+    if forces is None and "forces" in atoms.arrays:
+        forces = atoms.arrays["forces"].tolist()
+    return energy, forces
+
+
+def _extract_additional_metadata(atoms: "Atoms", kwargs: dict[str, Any]) -> None:
+    for key in ["label_source", "generation_method"]:
+        if key in atoms.info and key not in kwargs:
+            kwargs[key] = atoms.info[key]
+
+    if "tags" in atoms.info and "tags" not in kwargs:
+        tags_val = atoms.info["tags"]
+        if isinstance(tags_val, str):
+            kwargs["tags"] = tags_val.split(",")
+        elif isinstance(tags_val, list):
+            kwargs["tags"] = tags_val
 
 
 def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
@@ -320,6 +339,9 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
         ValueError: If 'atoms' is missing from features.
 
     """
+    # Validate metadata first
+    validate_structure_integrity(metadata)
+
     if "atoms" not in metadata.features:
         msg = "StructureMetadata does not contain 'atoms' in features."
         raise ValueError(msg)

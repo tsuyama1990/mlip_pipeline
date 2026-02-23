@@ -32,19 +32,12 @@ class DirectGenerator(StructureGenerator):
             self.gen_config = config.structure_generator
         else:
             # Testing mode or direct usage
-            # BaseModule.__init__ expects PYACEMAKERConfig, so we skip it or mock it?
-            # Creating a dummy config is hard. We'll just set attributes manually.
-            # This violates LSP if checked strictly against BaseModule but works at runtime.
             self.config = config  # type: ignore[assignment]
             self.gen_config = config
             self.logger = logger.bind(name="DirectGenerator")
 
     def run(self) -> ModuleResult:
         """Execute default generation task (Step 1)."""
-        # Default behavior: generate initial structures if not specified
-        # This implementation satisfies BaseModule abstract method
-        # Just consume iterator to count? No, usually run() produces side effects (files)
-        # But here we just return success as orchestrator calls specific methods.
         return ModuleResult(
             status="success",
             metrics=Metrics(message="DirectGenerator ready")  # type: ignore[call-arg]
@@ -52,8 +45,6 @@ class DirectGenerator(StructureGenerator):
 
     def generate_initial_structures(self) -> Iterator[StructureMetadata]:
         """Generate initial structures for cold start."""
-        # For now, delegate to direct samples
-        # In a real scenario, this might load from a database or use specific templates
         yield from self.generate_direct_samples(n_samples=20)
 
     def generate_direct_samples(
@@ -87,10 +78,11 @@ class DirectGenerator(StructureGenerator):
             return
 
         seed_atoms = seed_structure.features["atoms"]
+        rattle_stdev = self.gen_config.rattle_amplitude
 
         for _ in range(n_candidates):
             new_atoms = seed_atoms.copy()
-            new_atoms.rattle(stdev=0.1)
+            new_atoms.rattle(stdev=rattle_stdev)
 
             metadata = atoms_to_metadata(
                 new_atoms,
@@ -123,10 +115,15 @@ class DirectGenerator(StructureGenerator):
         """Generate a single random structure."""
         try:
             from ase.build import bulk
-            atoms = bulk("Fe", cubic=True)
-            atoms = atoms * (2, 2, 2)
-            atoms.rattle(stdev=0.2)
+            element = self.gen_config.default_element
+            supercell = self.gen_config.supercell
+            rattle_stdev = self.gen_config.rattle_amplitude
+
+            atoms = bulk(element, cubic=True)
+            atoms = atoms * supercell
+            atoms.rattle(stdev=rattle_stdev)
         except Exception:
+            # Fallback for testing environment without ASE data
             return Atoms("Fe2", positions=[[0, 0, 0], [2.0, 0, 0]], cell=[4, 4, 4], pbc=True)
         else:
             return atoms  # type: ignore[no-any-return]

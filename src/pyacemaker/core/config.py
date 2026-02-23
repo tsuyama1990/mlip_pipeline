@@ -406,26 +406,16 @@ class MaceConfig(BaseModel):
     @classmethod
     def validate_model_path(cls, v: str, _info: Any) -> str:
         """Validate model path existence if not mocking."""
-        # If 'mock' field is set to True in the model instance, skip validation
-        # But we don't have access to other fields easily in @field_validator unless using ValidationInfo context
-        # Actually, simpler: if the string is not a URL/magic string "medium", check existence.
-        # But we can't check 'mock' status easily here without `model_validator`.
-        # Let's check basic patterns first.
         if v.lower() in {"medium", "small", "large"}:
             return v
 
         path = Path(v)
-        # Security check: ALWAYS valid path structure
         try:
             validate_safe_path(path)
         except ValueError as e:
             msg = f"Invalid model path structure: {e}"
             raise ValueError(msg) from e
 
-        # Existence check: delegated to manager or checked here?
-        # The user might provide a path that only exists at runtime (downloaded).
-        # We'll skip strict existence check here to allow download workflows,
-        # but ensure it's a safe path string.
         return v
 
     @field_validator("device")
@@ -500,7 +490,6 @@ class DFTConfig(BaseModel):
         for element, path_str in v.items():
             path = Path(path_str)
 
-            # Security check for traversal - ALWAYS RUN
             try:
                 validate_safe_path(path)
             except ValueError as e:
@@ -550,6 +539,13 @@ class StructureGeneratorConfig(BaseModuleConfig):
     )
     defect_density: float = Field(
         default=0.01, ge=0.0, description="Target defect density for defect strategy"
+    )
+    # Added fields for DirectGenerator
+    default_element: str = Field(
+        default="Fe", description="Default element for bulk generation"
+    )
+    supercell: tuple[int, int, int] = Field(
+        default=(2, 2, 2), description="Supercell size for bulk generation"
     )
 
 
@@ -845,6 +841,3 @@ class PYACEMAKERConfig(BaseModel):
             msg = f"Invalid version format: {v}. Must match {CONSTANTS.version_regex}"
             raise ValueError(msg)
         return v
-
-
-# Configuration loading logic moved to pyacemaker.core.config_loader
