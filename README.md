@@ -12,11 +12,12 @@
 
 Ideally suited for materials scientists who need DFT-level accuracy with the speed of classical molecular dynamics.
 
-## Key Features (Cycle 02 Verified)
+## Key Features
 
+-   **MACE Knowledge Distillation (New)**: Fine-tune MACE foundation models on small DFT datasets and use them to generate massive surrogate datasets for student training.
+-   **Surrogate Generation (New)**: High-throughput MD sampling using `ASEDynamicsEngine` driven by fine-tuned MACE models.
 -   **Intelligent Exploration**: DIRECT sampling (MaxMin diversity) for initial structure generation to maximize coverage.
 -   **Active Learning**: Uncertainty-based selection of structures using MACE ensemble variance or heuristics.
--   **MACE Integration**: Seamlessly load and use MACE-MP-0 foundation models as surrogate oracles.
 -   **Configurable Pipeline**: Robust YAML-based configuration with schema validation (Pydantic).
 -   **Mock Mode**: Fully functional mock execution for CI/CD and testing without expensive hardware.
 -   **Modular Architecture**: Extensible design separating Oracle, Trainer, and Generator components.
@@ -38,7 +39,7 @@ graph TD
         DFT -->|Truth Labels| DB[(DFT Dataset)]
     end
 
-    subgraph "Phase 2: Distillation"
+    subgraph "Phase 2: Distillation (Cycle 03)"
         Orch -->|Step 3: Fine-tune| MACE_T[MACE Trainer]
         DB --> MACE_T
         MACE_T -->|Fine-tuned Model| MACE_MD[MACE Dynamics]
@@ -106,6 +107,10 @@ graph TD
         code: "quantum_espresso"
         pseudopotentials:
           Fe: "Fe.pbe.UPF"
+    distillation:
+        enable_mace_distillation: true
+        step3_mace_finetune:
+            epochs: 50
     ```
 
 2.  **Run the pipeline**:
@@ -114,14 +119,14 @@ graph TD
     ```
 
 3.  **Monitor Progress**:
-    The system will log its progress. Check the `data/` directory for artifacts like `dataset.pckl.gzip`.
+    The system will log its progress. Check the `data/` directory for artifacts like `dataset.pckl.gzip` and `fine_tuned_mace.model`.
 
 ### Quick Validation
 
 To verify the installation and see the system in action (Mock Mode), run the UAT script:
 
 ```bash
-uv run pytest tests/uat/test_cycle02_features.py
+uv run pytest tests/uat/test_cycle03.py
 ```
 
 This ensures that the configuration loading, MACE integration (mock), and orchestrator workflow are functioning correctly.
@@ -157,15 +162,25 @@ oracle:
     kspacing: 0.04
     smearing: 0.02
 
-# Generator Settings
-structure_generator:
-  strategy: "adaptive" # or "random"
+# Distillation / Trainer Settings
+distillation:
+  enable_mace_distillation: true
+  step3_mace_finetune:
+    base_model: "medium"
+    epochs: 100
+  step4_surrogate_sampling:
+    target_points: 1000
+    method: "mace_md"
 
-# Orchestrator Settings
-orchestrator:
-  max_cycles: 10
-  uncertainty_threshold: 0.1
-  n_local_candidates: 20
+trainer:
+  potential_type: "pace"
+  cutoff: 5.0
+  delta_learning: "zbl" # or "lj"
+
+dynamics_engine:
+  engine: "ase" # or "eon"
+  temperature: 1000
+  n_steps: 5000
 ```
 
 ## Troubleshooting
@@ -212,6 +227,7 @@ pyacemaker/
 │       ├── modules/        # Module implementations (Oracle, Trainer, etc.)
 │       ├── trainer/        # Pacemaker & MACE training
 │       ├── generator/      # Structure generation
+│       ├── dynamics/       # KMC & MD logic
 │       ├── main.py         # CLI Entry Point
 │       └── orchestrator.py # Main logic
 ├── tests/                  # Unit and Integration tests

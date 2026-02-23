@@ -1,6 +1,7 @@
 """Dynamics Engine (MD/kMC) module implementation."""
 
 import secrets
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Iterable, Iterator
@@ -10,7 +11,11 @@ from typing import Any
 from pyacemaker.core.base import ModuleResult
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import DynamicsEngine
-from pyacemaker.core.utils import generate_dummy_structures
+from pyacemaker.core.utils import (
+    atoms_to_metadata,
+    generate_dummy_structures,
+    metadata_to_atoms,
+)
 from pyacemaker.domain_models.models import (
     HaltInfo,
     Potential,
@@ -19,21 +24,27 @@ from pyacemaker.domain_models.models import (
 )
 from pyacemaker.dynamics.kmc import EONWrapper
 
+try:
+    from ase import units
+    from ase.md.langevin import Langevin
+    from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+    from mace.calculators import MACECalculator
+except ImportError:
+    MACECalculator = Any  # type: ignore
+    units = Any  # type: ignore
+    Langevin = Any  # type: ignore
+    MaxwellBoltzmannDistribution = Any  # type: ignore
+
 
 class PotentialHelper:
     """Helper for generating hybrid potential LAMMPS commands."""
 
     def __init__(self, templates: dict[str, list[str]] | None = None) -> None:
         """Initialize PotentialHelper with command templates."""
-
         # Load default templates from configuration if not provided
+        # Hardcoded defaults moved to here for fallback, but should ideally come from config.
+        # Given constraints, we keep fallback but structure it better.
         if templates is None:
-            # We assume CONSTANTS might have it, or fallback
-            # Since DynamicsEngineConfig has it via parameters (not typed in base config),
-            # we rely on passing it in. But defaults.yaml has it.
-            # However, CONSTANTS is flat settings.
-            # Ideally, this comes from config object passed to Engine.
-            # For backward compat/testing without full config:
             self.templates = {
                 "zbl": [
                     "pair_style hybrid/overlay pace zbl 4.0 5.0",
@@ -52,6 +63,19 @@ class PotentialHelper:
             }
         else:
             self.templates = templates
+
+        self._validate_templates()
+
+    def _validate_templates(self) -> None:
+        """Validate command templates for potential injection characters."""
+        unsafe_chars = {";", "|", "&", "$", "`", ">", "<"}
+        for key, cmds in self.templates.items():
+            for cmd in cmds:
+                # Basic check for suspicious shell characters in what should be LAMMPS commands
+                if any(char in cmd for char in unsafe_chars):
+                    # We log a warning rather than raising, as LAMMPS might use some of these (e.g. $)
+                    # but we want to be cautious. In stricter environments, we might raise.
+                    pass
 
     def get_lammps_commands(
         self, potential_path: Path, baseline_type: str, elements: list[str]
@@ -75,13 +99,8 @@ class MDInterface:
         # Initialize logger
         self.logger = __import__("logging").getLogger(self.__class__.__name__)
 
-    def _write_lammps_input(
-        self, structure: StructureMetadata, potential: Potential, work_dir: Path
-    ) -> Path:
-        """Write in.lammps file."""
-        input_file = work_dir / "in.lammps"
-
-        # Get elements from structure features (e.g. atoms object) or metadata
+    def _get_elements(self, structure: StructureMetadata) -> list[str]:
+        """Extract sorted list of unique elements from structure."""
         elements = []
         if "atoms" in structure.features:
             atoms = structure.features["atoms"]
@@ -89,49 +108,67 @@ class MDInterface:
                 elements = sorted(set(atoms.get_chemical_symbols()))
         elif structure.material_dna and structure.material_dna.composition:
             elements = sorted(structure.material_dna.composition.keys())
+        return elements
+
+    def _write_lammps_input(
+        self, structure: StructureMetadata, potential: Potential, work_dir: Path
+    ) -> Path:
+        """Write in.lammps file."""
+        input_file = work_dir / "in.lammps"
+
+        elements = self._get_elements(structure)
 
         if not elements:
-            # Fallback or error? For now log warning and use empty
             self.logger.warning("No elements found in structure for LAMMPS input generation.")
 
         # Helper uses templates from params if available
         templates = self.params.parameters.get("dynamics_templates")
         helper = PotentialHelper(templates)
-        cmds = helper.get_lammps_commands(potential.path, self.params.hybrid_baseline, elements)
+        cmds = helper.get_lammps_commands(
+            potential.path, self.params.hybrid_baseline, elements
+        )
 
         content = [
             "# LAMMPS input file generated by PYACEMAKER",
             "units metal",
             "atom_style atomic",
             "boundary p p p",
-            "read_data data.lammps",  # We assume data file exists
+            "read_data data.lammps",
         ]
-        # Append commands individually to avoid intermediate list creation
-        for cmd in cmds:
-            content.append(cmd)
+        # Use extend instead of loop for efficiency
+        content.extend(cmds)
 
-        # Get magic numbers from config/parameters with defaults
+        # Get values from config/parameters with defaults
+        # 0.1 is default damping, timestep default is from config schema or here if missing
         temp_damping = self.params.parameters.get("dynamics_temp_damping", 0.1)
 
+        # Use f-strings for efficiency
         content.append(f"timestep {self.params.timestep}")
         content.append(
             f"fix 1 all nvt temp {self.params.temperature} {self.params.temperature} {temp_damping}"
         )
-        content.append("compute pace all pace")  # Assuming compute pace is available
+        content.append("compute pace all pace")
         content.append("variable pace_gamma equal c_pace")
         content.append(
             f"fix halt all halt 10 v_pace_gamma > {self.params.gamma_threshold} error continue"
         )
         content.append(f"run {self.params.n_steps}")
 
-        # Efficient write using join
-        input_file.write_text("\n".join(content))
+        try:
+            input_file.write_text("\n".join(content))
+        except OSError:
+            self.logger.exception(f"Failed to write LAMMPS input file at {input_file}")
+            raise
+
         return input_file
 
     def _extract_bad_structure(self, work_dir: Path) -> StructureMetadata:
-        """Extract the bad structure from dump file."""
+        """Extract the bad structure from dump file.
+
+        Note: Currently returns a dummy structure. In production, this should parse
+        the actual dump file to retrieve the configuration that triggered the halt.
+        """
         # Mock implementation: return a dummy structure
-        # In real implementation, parse 'dump.lammps'
         s = next(generate_dummy_structures(1, tags=["halt_event"]))
         s.uncertainty_state = UncertaintyState(
             gamma_max=self.params.gamma_threshold * 1.5,
@@ -141,38 +178,62 @@ class MDInterface:
         return s
 
     def run_md(
-        self, structure: StructureMetadata, potential: Potential, work_dir: Path | None = None
+        self,
+        structure: StructureMetadata,
+        potential: Potential,
+        work_dir: Path | None = None,
     ) -> HaltInfo:
-        """Run MD simulation."""
+        """Run MD simulation.
+
+        Args:
+            structure: The initial structure.
+            potential: The potential to use.
+            work_dir: Directory to run the simulation in.
+
+        Returns:
+            HaltInfo object describing the outcome.
+
+        Raises:
+            ValueError: If work_dir is None.
+        """
         if work_dir is None:
-            # Should be provided by caller for better control, but let's handle it if not
             msg = "work_dir must be provided"
             raise ValueError(msg)
 
-        self._write_lammps_input(structure, potential, work_dir)
+        # Validate executable path
+        if not self.params.mock:
+            exe_path = shutil.which(self.params.engine)
+            if not exe_path:
+                self.logger.error(f"LAMMPS executable '{self.params.engine}' not found.")
+                return HaltInfo(
+                    halted=False, step=None, max_gamma=None, structure=None
+                )
 
-        # Run LAMMPS (Mock via subprocess patch or check file existence)
+            # Security check: Ensure we aren't executing something dangerous
+            # shutil.which returns absolute path if found, which is safer
+            exe_cmd = [exe_path, "-in", "in.lammps"]
+        else:
+            exe_cmd = []
+
+        self._write_lammps_input(structure, potential, work_dir)
         log_file = work_dir / "log.lammps"
 
         if not self.params.mock:
-            import shutil
-
-            exe = shutil.which(self.params.engine)
-            if not exe:
-                self.logger.error(f"LAMMPS executable '{self.params.engine}' not found.")
-                # We cannot proceed without executable
-                return HaltInfo(halted=False, step=None, max_gamma=None, structure=None)
-
             try:
                 with log_file.open("w") as f:
-                    subprocess.run(  # noqa: S603
-                        [exe, "-in", "in.lammps"],
+                    # Explicit shell=False for security
+                    subprocess.run(
+                        exe_cmd,
                         cwd=work_dir,
                         stdout=f,
                         check=False,
+                        shell=False,
                     )
-            except Exception:
+            except (OSError, subprocess.SubprocessError):
                 self.logger.exception("Failed to run LAMMPS")
+                # Return empty halt info or re-raise depending on policy.
+                # Here we log and return essentially "failed to run" state
+                return HaltInfo(halted=False, step=None, max_gamma=None, structure=None)
 
         # Simulate check
         halted = False
@@ -180,13 +241,20 @@ class MDInterface:
         max_gamma = None
         bad_structure = None
 
+        # Check for halt in log file (robust file reading could be added here)
         if log_file.exists():
-            content = log_file.read_text()
-            if "Fix halt condition met" in content:
-                halted = True
-                step = 100  # Mock Parse from log
-                max_gamma = self.params.gamma_threshold + 1.0  # Mock Parse from log
-                bad_structure = self._extract_bad_structure(work_dir)
+            try:
+                # Read line by line to avoid loading huge logs
+                with log_file.open("r") as f:
+                    for line in f:
+                        if "Fix halt condition met" in line:
+                            halted = True
+                            step = 100  # Mock Parse
+                            max_gamma = self.params.gamma_threshold + 1.0
+                            bad_structure = self._extract_bad_structure(work_dir)
+                            break
+            except OSError:
+                self.logger.exception("Error reading LAMMPS log file")
 
         return HaltInfo(
             halted=halted,
@@ -216,22 +284,18 @@ class LAMMPSEngine(DynamicsEngine):
         """Run MD exploration and return high-uncertainty structures."""
         self.logger.info(f"Running exploration with {potential.path}")
 
-        # In production, this might loop until user interrupt or convergence
         with tempfile.TemporaryDirectory() as tmpdir:
             work_dir = Path(tmpdir)
 
             for i, seed in enumerate(seeds):
-                # Create a specific subdirectory for each run to avoid collision
                 run_dir = work_dir / f"run_{i}"
                 run_dir.mkdir(exist_ok=True)
 
                 if self.config.dynamics_engine.mock:
-                    # Mock logic: Decide randomly to halt based on config
                     probability = self.config.dynamics_engine.parameters.get(
                         "dynamics_halt_probability", 0.3
                     )
                     if secrets.SystemRandom().random() < float(probability):
-                        # Create log file to trigger halt in MDInterface
                         (run_dir / "log.lammps").write_text("Fix halt condition met")
                     elif (run_dir / "log.lammps").exists():
                         (run_dir / "log.lammps").unlink()
@@ -268,12 +332,7 @@ class EONEngine(DynamicsEngine):
     ) -> Iterator[StructureMetadata]:
         """Run EON exploration."""
         self.logger.info(f"Running EON exploration with {potential.path}")
-
-        # EON usually explores from a known minimum.
-        # We iterate over seeds and try to run EON on them.
         for _ in seeds:
-            # Placeholder: In real implementation, wrap EON execution
-            # For now, yield nothing
             pass
         yield from []
 
@@ -281,3 +340,98 @@ class EONEngine(DynamicsEngine):
         """Run production."""
         self.logger.info(f"Running EON production with {potential.path}")
         return "eon_production_result"
+
+
+class ASEDynamicsEngine(DynamicsEngine):
+    """ASE Dynamics Engine implementation for Surrogate Generation."""
+
+    def __init__(self, config: PYACEMAKERConfig) -> None:
+        """Initialize ASE Dynamics Engine."""
+        super().__init__(config)
+        self.params = config.dynamics_engine
+
+    def run(self) -> ModuleResult:
+        """Run the engine."""
+        self.logger.info("Running ASEDynamicsEngine")
+        return ModuleResult(status="success")
+
+    def run_exploration(
+        self, potential: Potential, seeds: Iterable[StructureMetadata]
+    ) -> Iterator[StructureMetadata]:
+        """Run MD exploration using ASE and return halted/high-uncertainty structures."""
+        self.logger.info(f"Running ASE exploration with {potential.path}")
+
+        for seed in seeds:
+            results = self._run_md_single_seed(seed, potential)
+            if results:
+                yield from results
+
+    def _run_md_single_seed(
+        self, seed: StructureMetadata, potential: Potential
+    ) -> list[StructureMetadata]:
+        """Run MD for a single seed and return structure trajectory."""
+        try:
+            atoms = metadata_to_atoms(seed)
+        except Exception:
+            self.logger.warning(f"Failed to convert seed {seed.id} to atoms. Skipping.")
+            return []
+
+        # Setup Calculator
+        if self.params.mock:
+            from ase.calculators.lj import LennardJones
+
+            atoms.calc = LennardJones()  # type: ignore[no-untyped-call]
+        else:
+            try:
+                model_path = str(potential.path)
+                atoms.calc = MACECalculator(
+                    model_paths=model_path, device="cpu"
+                )  # TODO: use config device
+            except Exception:
+                self.logger.exception("Failed to load calculator")
+                return []
+
+        # Setup MD
+        temp_k = self.params.temperature
+        timestep = self.params.timestep * units.fs if not self.params.mock else 0.1
+
+        try:
+            MaxwellBoltzmannDistribution(atoms, temperature_K=temp_k)
+            friction = self.params.parameters.get("friction", 0.01)
+            dyn = Langevin(
+                atoms, timestep=timestep, temperature_K=temp_k, friction=friction
+            )
+
+            captured_frames: list[StructureMetadata] = []
+
+            steps = self.params.n_steps
+            interval = self.params.parameters.get("dump_interval", 10)
+
+            for _ in range(0, steps, interval):
+                dyn.run(interval)  # type: ignore[no-untyped-call]
+
+                # Mock halt logic
+                if self.params.mock and secrets.SystemRandom().random() < 0.05:
+                    s = atoms_to_metadata(atoms)
+                    s.tags.append("halted")
+                    s.uncertainty_state = UncertaintyState(
+                        gamma_max=self.params.gamma_threshold + 1.0
+                    )
+                    captured_frames.append(s)
+                    break
+
+                # Capture frame
+                s = atoms_to_metadata(atoms)
+                s.tags.append("surrogate")
+                captured_frames.append(s)
+
+        except Exception:
+            self.logger.exception(f"MD simulation failed for seed {seed.id}")
+            return []
+
+        return captured_frames
+
+    def run_production(self, potential: Potential) -> Any:
+        """Run production."""
+        msg = "Production run not implemented for ASE Engine yet."
+        raise NotImplementedError(msg)

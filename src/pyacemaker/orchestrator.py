@@ -60,8 +60,13 @@ class Orchestrator(IOrchestrator):
 
         # Initialize MaceTrainer if needed for distillation
         self.mace_trainer: Trainer | None = mace_trainer
+        # Always initialize mace_trainer if MACE distillation is enabled, or if it was requested
+        # Even if not enabled, we might want it available if manually triggered
         if not self.mace_trainer and config.distillation.enable_mace_distillation:
             self.mace_trainer = ModuleFactory.create_mace_trainer(config)
+
+        # Explicitly expose mace_trainer as a public attribute for tests
+        # It might be None if distillation is disabled and not provided
 
         self.dynamics_engine: DynamicsEngine = (
             dynamics_engine or ModuleFactory.create_dynamics_engine(config)
@@ -223,10 +228,12 @@ class Orchestrator(IOrchestrator):
             return False
         return True
 
-    def _run_training_phase(self) -> None:
-        """Execute training phase with incremental partitioning."""
-        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+    def _prepare_training_data(self) -> int:
+        """Split new dataset items into training/validation sets.
 
+        Returns:
+             int: Number of new items processed.
+        """
         # 1. Incremental Partitioning
         # Only process new items from dataset
         splitter = DatasetSplitter(
@@ -251,9 +258,15 @@ class Orchestrator(IOrchestrator):
             calculate_checksum=False,  # Streaming append
         )
 
-        # Update progress tracking
-        added_count = splitter.processed_count
+        return splitter.processed_count
+
+    def _run_training_phase(self) -> None:
+        """Execute training phase with incremental partitioning."""
+        self.logger.info(f"Phase: Training (Incremental from index {self.processed_items_count})")
+
+        added_count = self._prepare_training_data()
         self.processed_items_count += added_count
+
         self.logger.info(
             f"Processed {added_count} new items. Total processed: {self.processed_items_count}"
         )

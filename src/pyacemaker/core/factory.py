@@ -10,7 +10,11 @@ from pyacemaker.core.interfaces import (
     Trainer,
     Validator,
 )
-from pyacemaker.modules.dynamics_engine import EONEngine, LAMMPSEngine
+from pyacemaker.modules.dynamics_engine import (
+    ASEDynamicsEngine,
+    EONEngine,
+    LAMMPSEngine,
+)
 from pyacemaker.modules.oracle import DFTOracle, MaceSurrogateOracle, MockOracle
 from pyacemaker.modules.structure_generator import (
     AdaptiveStructureGenerator,
@@ -57,6 +61,8 @@ class ModuleFactory:
         """Create a dynamics engine instance."""
         if config.dynamics_engine.engine == "eon":
             return EONEngine(config)
+        if config.dynamics_engine.engine == "ase":
+            return ASEDynamicsEngine(config)
         return LAMMPSEngine(config)
 
     @staticmethod

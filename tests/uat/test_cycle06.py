@@ -7,6 +7,7 @@ import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import EONConfig, ValidatorConfig
+from pyacemaker.domain_models.models import Potential, PotentialType
 from pyacemaker.dynamics.kmc import EONWrapper
 from pyacemaker.validator.manager import ValidatorManager
 
@@ -37,6 +38,17 @@ def test_scenario_01_phonon_stability(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
+    expected_eos_modulus = 100.0
+    expected_eos_png = "eos.png"
+
     # Mock specific phonon check
     with (
         patch("pyacemaker.validator.manager.check_phonons") as mock_check,
@@ -45,10 +57,10 @@ def test_scenario_01_phonon_stability(
         patch("pyacemaker.validator.manager.ReportGenerator"),
     ):
         mock_check.return_value = False  # Unstable
-        mock_eos.return_value = (100.0, "eos.png")
+        mock_eos.return_value = (expected_eos_modulus, expected_eos_png)
         mock_elastic.return_value = (True, {})
 
-        result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
         assert result.phonon_stable is False
         assert result.passed is False
@@ -62,20 +74,31 @@ def test_scenario_02_eos_check(
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
 
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
+    expected_eos_modulus = 150.0
+    expected_eos_png = "eos.png"
+
     with (
         patch("pyacemaker.validator.manager.check_eos") as mock_eos,
         patch("pyacemaker.validator.manager.check_phonons") as mock_phonons,
         patch("pyacemaker.validator.manager.check_elastic") as mock_elastic,
         patch("pyacemaker.validator.manager.ReportGenerator"),
     ):
-        mock_eos.return_value = (150.0, "eos.png")
+        mock_eos.return_value = (expected_eos_modulus, expected_eos_png)
         mock_phonons.return_value = True
         mock_elastic.return_value = (True, {})
 
-        result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+        result = manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
-        assert result.metrics["bulk_modulus"] == 150.0
-        assert any(str(v).endswith("eos.png") for v in result.artifacts.values())
+        assert result.metrics["bulk_modulus"] == expected_eos_modulus
+        assert any(str(v).endswith(expected_eos_png) for v in result.artifacts.values())
 
 
 def test_scenario_03_report_generation(
@@ -85,6 +108,16 @@ def test_scenario_03_report_generation(
     manager = ValidatorManager(validator_config)
     potential_path = tmp_path / "potential.yace"
     potential_path.touch()
+
+    potential = Potential(
+        path=potential_path,
+        type=PotentialType.PACE,
+        version="1.0",
+        metrics={},
+        parameters={}
+    )
+
+    expected_report_name = "validation_report.html"
 
     with patch("pyacemaker.validator.manager.ReportGenerator") as MockReport:
         mock_instance = MockReport.return_value
@@ -98,12 +131,12 @@ def test_scenario_03_report_generation(
             mock_e.return_value = (100.0, "eos.png")
             mock_el.return_value = (True, {})
 
-            manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
+            manager.validate(potential, mock_atoms, output_dir=tmp_path)
 
             mock_instance.generate.assert_called_once()
             # Verify generated path
             args = mock_instance.generate.call_args
-            assert args[0][1] == tmp_path / "validation_report.html"
+            assert args[0][1] == tmp_path / expected_report_name
 
 
 def test_scenario_04_eon_execution(
@@ -112,13 +145,14 @@ def test_scenario_04_eon_execution(
     """Scenario 04: Verify EON execution."""
     wrapper = EONWrapper(eon_config)
     potential_path = Path("potential.yace")
+    mock_executable = "/usr/bin/mock_eon"
 
     with (
         patch("pyacemaker.dynamics.kmc.subprocess.run") as mock_run,
         patch("pyacemaker.dynamics.kmc.shutil.which") as mock_which,
     ):
         mock_run.return_value.returncode = 0
-        mock_which.return_value = "/usr/bin/mock_eon"
+        mock_which.return_value = mock_executable
 
         wrapper.run_search(mock_atoms, potential_path, work_dir=tmp_path)
 
