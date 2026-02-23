@@ -43,6 +43,7 @@ def mock_workflow(mock_config, tmp_path):
     """Create a MaceDistillationWorkflow with mocked dependencies."""
     dataset_manager = DatasetManager()
     oracle = MagicMock(spec=MockOracle)
+    mace_oracle = MagicMock(spec=MockOracle) # Use MockOracle structure for mace_oracle too
     trainer = MagicMock()
     mace_trainer = MagicMock()
     dynamics_engine = MagicMock()
@@ -53,6 +54,7 @@ def mock_workflow(mock_config, tmp_path):
         dataset_manager=dataset_manager,
         dataset_path=tmp_path / "dataset.pckl.gzip",
         oracle=oracle,
+        mace_oracle=mace_oracle,
         trainer=trainer,
         mace_trainer=mace_trainer,
         dynamics_engine=dynamics_engine,
@@ -81,14 +83,14 @@ def test_scenario_01_successful_batch_labeling(mock_workflow, tmp_path):
             s.status = StructureStatus.CALCULATED
             yield s
 
-    mock_workflow.oracle.compute_batch.side_effect = mock_compute_batch
+    mock_workflow.mace_oracle.compute_batch.side_effect = mock_compute_batch
 
     # WHEN the Orchestrator executes Step 5 (via workflow)
     # We call the internal step method directly for UAT
     dataset_path = mock_workflow._step5_surrogate_labeling(surrogate_path)
 
     # THEN it should run batch prediction on the structures
-    mock_workflow.oracle.compute_batch.assert_called_once()
+    mock_workflow.mace_oracle.compute_batch.assert_called_once()
 
     # AND it should save the labeled structures to surrogate_dataset.pckl.gzip
     assert dataset_path.exists()
@@ -136,8 +138,8 @@ def test_scenario_02_base_ace_training(mock_workflow, tmp_path):
 
 def test_scenario_03_error_handling(mock_workflow, tmp_path):
     """Scenario 03: Error Handling in Workflow."""
-    # GIVEN a workflow where Oracle fails
-    mock_workflow.oracle.compute_batch.side_effect = Exception("Oracle failure")
+    # GIVEN a workflow where MACE Oracle fails during Step 5
+    mock_workflow.mace_oracle.compute_batch.side_effect = Exception("Oracle failure")
 
     # We mock earlier steps to return valid paths so we reach labeling/calculation
     mock_workflow._step1_direct_sampling = MagicMock(return_value=tmp_path / "pool.pckl")

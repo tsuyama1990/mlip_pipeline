@@ -86,12 +86,18 @@ class PacemakerWrapper:
         # Return the path to the generated potential
         return output_dir / "output_potential.yace"
 
-    def train_from_input(self, input_file: Path, output_dir: Path) -> Path:
+    def train_from_input(
+        self,
+        input_file: Path,
+        output_dir: Path,
+        initial_potential: Path | None = None
+    ) -> Path:
         """Run pace_train with input.yaml.
 
         Args:
             input_file: Path to input.yaml
             output_dir: Output directory (where potential.yace is expected to be)
+            initial_potential: Optional initial potential for fine-tuning
 
         Returns:
             Path to the trained potential file.
@@ -104,6 +110,12 @@ class PacemakerWrapper:
             output_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = ["pace_train", str(input_file)]
+
+        if initial_potential:
+            if not initial_potential.exists():
+                msg = f"Initial potential path does not exist: {initial_potential}"
+                raise FileNotFoundError(msg)
+            cmd.extend(["--initial-potential", str(initial_potential)])
 
         log_path = output_dir / "pace_train.log"
         with log_path.open("w") as log_file:

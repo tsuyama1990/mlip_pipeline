@@ -61,6 +61,12 @@ class PacemakerTrainer(BaseTrainer):
         elements = config.get("elements", default_elements)
         embeddings = config.get("embeddings", default_embeddings)
 
+        # Handle weight_dft convenience parameter for delta learning
+        if "weight_dft" in config:
+            weight = float(config["weight_dft"])
+            config.setdefault("w_energy", weight)
+            config.setdefault("w_forces", weight)
+
         input_data = {
             "cutoff": float(config.get("cutoff", CONSTANTS.default_trainer_cutoff)),
             "seed": config.get("seed", 42),
@@ -101,10 +107,6 @@ class PacemakerTrainer(BaseTrainer):
             # Assuming 'baseline' key at root or under potential
             # Checking pacemaker docs (simulated): usually 'potential.baseline'
             input_data["potential"]["baseline"] = config["baseline"]
-
-        if initial_potential:
-             # Add if supported or handled via CLI
-             pass
 
         input_path = work_dir / "input.yaml"
         with input_path.open("w") as f:
@@ -163,7 +165,9 @@ class PacemakerTrainer(BaseTrainer):
             else:
                 # Use wrapper with input.yaml
                 # We execute in work_dir so output usually goes there
-                output_pot_path = self.wrapper.train_from_input(input_yaml_path, work_dir)
+                output_pot_path = self.wrapper.train_from_input(
+                    input_yaml_path, work_dir, initial_potential=initial_pot_path
+                )
 
             # Persist the model
             unique_name = f"pace_model_{uuid4().hex[:8]}.yace"

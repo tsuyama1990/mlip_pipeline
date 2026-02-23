@@ -8,6 +8,7 @@ from pyacemaker.core.interfaces import (
     Oracle,
     StructureGenerator,
     Trainer,
+    UncertaintyModel,
     Validator,
 )
 from pyacemaker.modules.dynamics_engine import (
@@ -41,12 +42,17 @@ class ModuleFactory:
 
     @staticmethod
     def create_oracle(config: PYACEMAKERConfig) -> Oracle:
-        """Create an oracle instance."""
-        if config.oracle.mace:
-            return MaceSurrogateOracle(config)
+        """Create the primary oracle instance (DFT or Mock)."""
         if config.oracle.mock:
             return MockOracle(config)
+        # Default to DFT Oracle for ground truth
         return DFTOracle(config)
+
+    @staticmethod
+    def create_mace_oracle(config: PYACEMAKERConfig) -> UncertaintyModel:
+        """Create a MACE surrogate oracle instance."""
+        # This is used for uncertainty and surrogate labeling
+        return MaceSurrogateOracle(config)
 
     @staticmethod
     def create_trainer(config: PYACEMAKERConfig) -> Trainer:

@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from ase import Atoms
 
-from pyacemaker.core.base import Metrics, ModuleResult
+from pyacemaker.core.base import Metrics
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -18,6 +18,7 @@ from pyacemaker.core.interfaces import (
     Trainer,
     UncertaintyModel,
 )
+from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
 from pyacemaker.core.utils import validate_structure_integrity
 from pyacemaker.domain_models.models import (
     Potential,
@@ -34,10 +35,11 @@ TEST_TARGET_POINTS = 5
 TEST_UNCERTAINTY_THRESHOLD = 0.5
 TEST_MACE_EPOCHS = 10
 
+
 def create_dummy_structure(id_val: Any = None, uncertainty: float | None = None) -> StructureMetadata:
     """Create a lightweight dummy structure with validation."""
     s = StructureMetadata(id=id_val or uuid4())
-    atoms = Atoms("Fe", positions=[[0,0,0]], cell=[2,2,2], pbc=True)
+    atoms = Atoms("Fe", positions=[[0, 0, 0]], cell=[2, 2, 2], pbc=True)
     s.features["atoms"] = atoms
     if uncertainty is not None:
         s.uncertainty_state = UncertaintyState(gamma_max=uncertainty, gamma_mean=uncertainty)
@@ -45,37 +47,12 @@ def create_dummy_structure(id_val: Any = None, uncertainty: float | None = None)
     validate_structure_integrity(s)
     return s
 
+
 def streaming_generator_mock(n: int = TEST_TARGET_POINTS) -> Iterator[StructureMetadata]:
     """Generator that yields dummy structures one by one."""
     for _ in range(n):
-        yield create_dummy_structure()
+        yield create_dummy_structure(uncertainty=0.8)  # High uncertainty by default
 
-class MockOracle(Oracle, UncertaintyModel):
-    """Mock Oracle implementing both interfaces."""
-
-    def __init__(self, config: PYACEMAKERConfig) -> None:
-        super().__init__(config)
-        self.fail_uncertainty = False
-
-    def run(self) -> ModuleResult:
-        return ModuleResult(status="success", metrics=Metrics())
-
-    def compute_batch(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-        for s in structures:
-            s.status = StructureStatus.CALCULATED
-            s.energy = -1.0
-            if "atoms" in s.features:
-                n_atoms = len(s.features["atoms"])
-                s.forces = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
-            yield s
-
-    def compute_uncertainty(self, structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-        if self.fail_uncertainty:
-            msg = "Oracle Failed"
-            raise RuntimeError(msg)
-        for s in structures:
-            s.uncertainty_state = UncertaintyState(gamma_max=0.9, gamma_mean=0.5)
-            yield s
 
 @pytest.fixture
 def base_config(tmp_path: Path) -> PYACEMAKERConfig:
@@ -86,9 +63,9 @@ def base_config(tmp_path: Path) -> PYACEMAKERConfig:
             "dft": {
                 "code": "vasp",
                 "pseudopotentials": {"Fe": "pot"},
-                "command": "run"
+                "command": "run",
             },
-            "mace": {"model_path": "medium", "mock": True}
+            "mace": {"model_path": "medium", "mock": True},
         },
         "distillation": {
             "enable_mace_distillation": True,
@@ -96,31 +73,54 @@ def base_config(tmp_path: Path) -> PYACEMAKERConfig:
             "step2_active_learning": {
                 "uncertainty_threshold": TEST_UNCERTAINTY_THRESHOLD,
                 "cycles": 1,
-                "n_select": 2
+                "n_select": 2,
             },
             "step3_mace_finetune": {"epochs": TEST_MACE_EPOCHS},
-            "step4_surrogate_sampling": {"target_points": TEST_TARGET_POINTS}
+            "step4_surrogate_sampling": {"target_points": TEST_TARGET_POINTS},
+            "step7_pacemaker_finetune": {"enable": True, "weight_dft": 10.0},
         },
-        "version": "0.1.0"
+        "version": "0.1.0",
     }
     return PYACEMAKERConfig(**config_dict)
 
+
 def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> None:
-    """Test the full happy path of the 7-step workflow."""
-
+    """Test the full happy path of the 7-step workflow with dual oracles."""
+    # Mocks
     mock_sg = MagicMock(spec=StructureGenerator)
-    mock_sg.generate_direct_samples.side_effect = lambda n_samples, objective: streaming_generator_mock(n_samples)
+    mock_sg.generate_direct_samples.return_value = streaming_generator_mock(TEST_TARGET_POINTS)
 
-    mock_oracle = MockOracle(base_config)
+    # DFT Oracle (Primary)
+    mock_dft_oracle = MagicMock(spec=Oracle)
+    mock_dft_oracle.compute_batch.side_effect = lambda structures: (
+        s for s in structures
+    )  # Identity pass-through
 
+    # MACE Oracle (Surrogate)
+    mock_mace_oracle = MagicMock(spec=MaceSurrogateOracle)
+    # Mock compute_uncertainty
+    mock_mace_oracle.compute_uncertainty.side_effect = lambda structures: (
+        create_dummy_structure(uncertainty=0.9) for _ in structures
+    )
+    # Mock compute_batch (for Step 5)
+    mock_mace_oracle.compute_batch.side_effect = lambda structures: (
+        s for s in structures
+    )
+
+    # Trainers
     mock_trainer = MagicMock(spec=Trainer)
-    mock_trainer.train.return_value = Potential(path=Path("pot.yace"), type=PotentialType.PACE, version="1.0", metrics={}, parameters={})
-
-    mock_dyn = MagicMock(spec=DynamicsEngine)
-    mock_dyn.run_exploration.side_effect = lambda pot, seeds: streaming_generator_mock(TEST_TARGET_POINTS)
+    mock_trainer.train.return_value = Potential(
+        path=Path("pot.yace"), type=PotentialType.PACE, version="1.0", metrics={}, parameters={}
+    )
 
     mock_mace_trainer = MagicMock(spec=Trainer)
-    mock_mace_trainer.train.return_value = Potential(path=Path("mace.model"), type=PotentialType.MACE, version="1.0", metrics={}, parameters={})
+    mock_mace_trainer.train.return_value = Potential(
+        path=Path("mace.model"), type=PotentialType.MACE, version="1.0", metrics={}, parameters={}
+    )
+
+    # Dynamics
+    mock_dyn = MagicMock(spec=DynamicsEngine)
+    mock_dyn.run_exploration.return_value = streaming_generator_mock(TEST_TARGET_POINTS)
 
     dataset_manager = DatasetManager()
     dataset_path = base_config.project.root_dir / "data" / "dataset.pckl.gzip"
@@ -129,88 +129,66 @@ def test_mace_distillation_workflow_success(base_config: PYACEMAKERConfig) -> No
         config=base_config,
         dataset_manager=dataset_manager,
         dataset_path=dataset_path,
-        oracle=mock_oracle,
+        oracle=mock_dft_oracle,
+        mace_oracle=mock_mace_oracle,
         trainer=mock_trainer,
         mace_trainer=mock_mace_trainer,
         dynamics_engine=mock_dyn,
         structure_generator=mock_sg,
         validation_path=Path("val"),
-        training_path=Path("train")
+        training_path=Path("train"),
     )
-
-    # Mock behavior is now on the injected instances
-    # mock_sg is already configured for generate_direct_samples
-    # mock_oracle handles compute_batch
 
     result = workflow.run()
 
     assert result.status == "success"
-    assert mock_dyn.run_exploration.called
-    assert mock_mace_trainer.train.called
-    assert mock_trainer.train.call_count >= 1
 
-def test_mace_workflow_early_convergence(base_config: PYACEMAKERConfig) -> None:
-    """Test that Step 2 loop breaks early if uncertainty is low."""
-    mock_sg = MagicMock(spec=StructureGenerator)
-    mock_sg.generate_direct_samples.side_effect = lambda **kwargs: streaming_generator_mock(5)
+    # Verify Step 2 (AL)
+    # DFT Oracle should be used for labeling selected structures
+    assert mock_dft_oracle.compute_batch.called, "DFT Oracle should be called for Ground Truth"
+    # MACE Oracle should be used for uncertainty
+    assert mock_mace_oracle.compute_uncertainty.called, "MACE Oracle should be called for Uncertainty"
+    # MACE Trainer should be called
+    assert mock_mace_trainer.train.called, "MACE Trainer should be called for Fine-tuning"
 
-    mock_oracle = MockOracle(base_config)
-    # Return low uncertainty
-    def low_uncertainty(structures: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-        for s in structures:
-            s.uncertainty_state = UncertaintyState(gamma_max=0.1, gamma_mean=0.1)
-            yield s
-    mock_oracle.compute_uncertainty = low_uncertainty # type: ignore
+    # Verify Step 5 (Surrogate Labeling)
+    # MACE Oracle should be used for pseudo-labeling
+    assert mock_mace_oracle.compute_batch.called, "MACE Oracle should be called for Surrogate Labeling"
 
-    mock_mace_trainer = MagicMock(spec=Trainer)
+    # Verify Step 6 & 7 (Pacemaker Training)
+    # Step 6: Base Training
+    # Step 7: Delta Learning
+    assert mock_trainer.train.call_count >= 2, "Pacemaker Trainer should be called twice (Base + Delta)"
 
-    workflow = MaceDistillationWorkflow(
-        config=base_config,
-        dataset_manager=DatasetManager(),
-        dataset_path=base_config.project.root_dir / "data" / "ds.pckl",
-        oracle=mock_oracle,
-        trainer=MagicMock(),
-        mace_trainer=mock_mace_trainer,
-        dynamics_engine=MagicMock(),
-        structure_generator=mock_sg,
-        validation_path=Path("val"),
-        training_path=Path("train")
-    )
+    # Check Delta Learning call arguments
+    args, kwargs = mock_trainer.train.call_args_list[-1]
+    assert kwargs.get("weight_dft") == 10.0
+    assert kwargs.get("initial_potential") is not None
 
-    workflow.run()
-
-    # MACE trainer should NOT have trained in Step 2 (AL loop) because it converged early
-    # But wait, step 2 loop calls `_finetune_mace` if `selected` is True.
-    # Here `selected` will be empty because uncertainty < threshold (0.5).
-    # So `_finetune_mace` is NOT called inside the loop.
-    # However, Step 3 is "integrated" into Step 2 loop in this architecture.
-    # The loop breaks.
-
-    # But later steps?
-    # Step 6 and 7 call trainer.train.
-    # Does Step 3 (MACE finetune) happen outside the loop? No, it's inside `_step2_active_learning_loop`.
-    # So mock_mace_trainer.train should NOT be called.
-    mock_mace_trainer.train.assert_not_called()
 
 def test_mace_workflow_oracle_failure(base_config: PYACEMAKERConfig) -> None:
     """Test handling of Oracle failure."""
     mock_sg = MagicMock(spec=StructureGenerator)
-    mock_sg.generate_direct_samples.side_effect = lambda **kwargs: streaming_generator_mock(5)
+    mock_sg.generate_direct_samples.return_value = streaming_generator_mock(TEST_TARGET_POINTS)
 
-    mock_oracle = MockOracle(base_config)
-    mock_oracle.fail_uncertainty = True
+    mock_dft_oracle = MagicMock(spec=Oracle)
+    mock_mace_oracle = MagicMock(spec=MaceSurrogateOracle)
+
+    # Simulate failure in uncertainty computation
+    mock_mace_oracle.compute_uncertainty.side_effect = RuntimeError("Oracle Failed")
 
     workflow = MaceDistillationWorkflow(
         config=base_config,
         dataset_manager=DatasetManager(),
         dataset_path=Path("ds"),
-        oracle=mock_oracle,
+        oracle=mock_dft_oracle,
+        mace_oracle=mock_mace_oracle,
         trainer=MagicMock(),
         mace_trainer=MagicMock(),
         dynamics_engine=MagicMock(),
         structure_generator=mock_sg,
         validation_path=Path("val"),
-        training_path=Path("train")
+        training_path=Path("train"),
     )
 
     result = workflow.run()

@@ -48,7 +48,7 @@ def test_init(
     assert oracle.mace_manager is not None
 
 
-@patch("pyacemaker.modules.oracle.MaceManager")
+@patch("pyacemaker.oracle.mace_oracle.MaceManager")
 def test_compute_batch(
     mock_mace_manager: MagicMock,
     mace_surrogate_oracle_class: type,
@@ -92,7 +92,11 @@ def test_compute_batch(
         )
         return calc_atoms
 
-    mock_manager.compute.side_effect = side_effect
+    # Mock manager.compute_batch behavior (since Oracle calls compute_batch)
+    def batch_side_effect(atoms_list: list[Atoms]) -> list[Atoms]:
+        return [side_effect(a) for a in atoms_list]
+
+    mock_manager.compute_batch.side_effect = batch_side_effect
 
     # Input structures
     structures = [

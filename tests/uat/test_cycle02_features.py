@@ -55,6 +55,7 @@ def test_scenario_01_intelligent_structure_generation(uat_config: PYACEMAKERConf
         dataset_manager=orchestrator.dataset_manager,
         dataset_path=orchestrator.dataset_path,
         oracle=orchestrator.oracle,
+        mace_oracle=orchestrator.mace_oracle,  # type: ignore[arg-type]
         trainer=orchestrator.trainer,
         mace_trainer=orchestrator.mace_trainer,  # type: ignore[arg-type]
         dynamics_engine=orchestrator.dynamics_engine,
@@ -84,6 +85,7 @@ def test_scenario_02_active_learning_selection(uat_config: PYACEMAKERConfig) -> 
         dataset_manager=orchestrator.dataset_manager,
         dataset_path=orchestrator.dataset_path,
         oracle=orchestrator.oracle,
+        mace_oracle=orchestrator.mace_oracle,  # type: ignore[arg-type]
         trainer=orchestrator.trainer,
         mace_trainer=orchestrator.mace_trainer,  # type: ignore[arg-type]
         dynamics_engine=orchestrator.dynamics_engine,

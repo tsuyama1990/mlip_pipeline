@@ -93,6 +93,16 @@ def test_trainer_select_active_set_streaming(streaming_config: PYACEMAKERConfig)
         # We need to ensure load_iter returns something.
         mock_load.return_value = iter([Atoms("H")])  # Dummy return for extraction loop
 
+        def save_side_effect(iterator, path, **kwargs):
+            # Consume iterator
+            for _ in iterator: pass
+            # Create dummy file to satisfy exists check
+            if path:
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                Path(path).touch()
+
+        mock_save.side_effect = save_side_effect
+
         _ = trainer.select_active_set(structure_gen(), n_select=5)
 
         # Check save_iter called with generator for candidates

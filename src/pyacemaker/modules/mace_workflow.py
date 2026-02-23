@@ -40,6 +40,7 @@ class MaceDistillationWorkflow:
         dataset_manager: DatasetManager,
         dataset_path: Path,
         oracle: Oracle,
+        mace_oracle: UncertaintyModel,
         trainer: Trainer,
         mace_trainer: Trainer,
         dynamics_engine: DynamicsEngine,
@@ -54,6 +55,7 @@ class MaceDistillationWorkflow:
         self.dataset_manager = dataset_manager
         self.dataset_path = dataset_path
         self.oracle = oracle
+        self.mace_oracle = mace_oracle
         self.trainer = trainer
         self.mace_trainer = mace_trainer
         self.dynamics_engine = dynamics_engine
@@ -65,10 +67,6 @@ class MaceDistillationWorkflow:
     def run(self) -> ModuleResult:
         """Run the workflow."""
         try:
-            if not isinstance(self.oracle, UncertaintyModel):
-                msg = "Oracle must implement UncertaintyModel for MACE distillation."
-                raise TypeError(msg)
-
             dist_config = self.config.distillation
 
             # Step 1: DIRECT Sampling
@@ -94,9 +92,9 @@ class MaceDistillationWorkflow:
             )
 
             # Step 5: Surrogate Labeling
-            # Update oracle model first!
-            if hasattr(self.oracle, "update_model"):
-                self.oracle.update_model(fine_tuned_potential.path)
+            # Update mace_oracle model first!
+            if hasattr(self.mace_oracle, "update_model"):
+                self.mace_oracle.update_model(fine_tuned_potential.path)
 
             surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
 
@@ -154,8 +152,9 @@ class MaceDistillationWorkflow:
         for i in range(max_cycles):
             self.logger.info(f"Step 2 (Iteration {i + 1}/{max_cycles})")
 
-            if current_potential and hasattr(self.oracle, "update_model"):
-                self.oracle.update_model(current_potential.path)
+            # Update MACE Oracle with latest potential
+            if current_potential and hasattr(self.mace_oracle, "update_model"):
+                self.mace_oracle.update_model(current_potential.path)
 
             potential = self._execute_active_learning_iteration(
                 dist_config, pool_path, calculated_ids, current_potential
@@ -185,8 +184,8 @@ class MaceDistillationWorkflow:
             if s.status != StructureStatus.CALCULATED and s.id not in calculated_ids
         )
 
-        uncertainty_oracle: UncertaintyModel = self.oracle  # type: ignore[assignment]
-        scored_pool = uncertainty_oracle.compute_uncertainty(unknown_pool)
+        # Use MACE Oracle for uncertainty
+        scored_pool = self.mace_oracle.compute_uncertainty(unknown_pool)
 
         n_select = dist_config.step2_active_learning.n_select
         threshold = dist_config.step2_active_learning.uncertainty_threshold
@@ -211,7 +210,7 @@ class MaceDistillationWorkflow:
         for s in selected:
             calculated_ids.add(s.id)
 
-        # Compute DFT (Streaming)
+        # Compute DFT (Ground Truth) using primary Oracle
         self.logger.info(f"Computing DFT for {len(selected)} structures")
         computed_iter = self.oracle.compute_batch(selected)
 
@@ -266,7 +265,13 @@ class MaceDistillationWorkflow:
         """Step 5: Surrogate Labeling."""
         self.logger.info("Step 5: Surrogate Labeling")
 
-        mace_labeler = self.oracle
+        # Use MACE Oracle for labeling
+        mace_labeler = self.mace_oracle
+        # Ensure it has compute_batch (inherited from Oracle/BaseOracle)
+        if not isinstance(mace_labeler, Oracle):
+            msg = "MACE Oracle does not support labeling (compute_batch)."
+            raise TypeError(msg)
+
         dist_config = self.config.distillation
 
         def load_stream() -> Iterator[StructureMetadata]:

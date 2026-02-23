@@ -33,15 +33,18 @@ class TestTrainerModule:
     @pytest.fixture
     def trainer(self, config: MagicMock) -> Iterator[Trainer]:
         with (
-            patch("pyacemaker.modules.trainer.PacemakerWrapper") as MockWrapper,
-            patch("pyacemaker.modules.trainer.ActiveSetSelector") as MockSelector,
-            patch("pyacemaker.modules.trainer.DatasetManager") as MockDatasetManager,
+            patch("pyacemaker.trainer.pacemaker.PacemakerWrapper") as MockWrapper,
+            patch("pyacemaker.trainer.pacemaker.ActiveSetSelector") as MockSelector,
+            patch("pyacemaker.trainer.pacemaker.DatasetManager") as MockDatasetManager,
+            patch.object(Trainer, "_generate_input_yaml") as MockGenYaml,
         ):
             trainer = Trainer(config=config)
             # Attach mocks to trainer instance for easy access in tests
             trainer.mock_wrapper = MockWrapper.return_value  # type: ignore[attr-defined]
             trainer.mock_selector = MockSelector.return_value  # type: ignore[attr-defined]
             trainer.mock_dataset_manager = MockDatasetManager.return_value  # type: ignore[attr-defined]
+            trainer.mock_gen_yaml = MockGenYaml  # type: ignore[attr-defined]
+            trainer.mock_gen_yaml.return_value = Path("input.yaml")
             yield trainer
 
     def test_train_method(self, trainer: Trainer) -> None:
@@ -59,7 +62,7 @@ class TestTrainerModule:
         # Configure mock return values
         dummy_output = trainer.config.project.root_dir / "output.yace"
         dummy_output.touch()
-        trainer.mock_wrapper.train.return_value = dummy_output  # type: ignore[attr-defined]
+        trainer.mock_wrapper.train_from_input.return_value = dummy_output  # type: ignore[attr-defined]
 
         # Ensure save_iter consumes the iterator to trigger counting AND creates file
         def consume_iterator(data: Iterator[Any], path: Path) -> None:
@@ -73,7 +76,7 @@ class TestTrainerModule:
         result = trainer.train(dataset)
 
         assert isinstance(result, Potential)
-        trainer.mock_wrapper.train.assert_called_once()  # type: ignore[attr-defined]
+        trainer.mock_wrapper.train_from_input.assert_called_once()  # type: ignore[attr-defined]
         trainer.mock_dataset_manager.save_iter.assert_called_once()  # type: ignore[attr-defined]
 
     def test_initialization(self, trainer: Trainer) -> None:
@@ -103,7 +106,7 @@ class TestTrainerModule:
         dataset = [structure]
 
         # Mock wrapper to return a path that doesn't exist
-        trainer.mock_wrapper.train.return_value = Path("non_existent_model.yace") # type: ignore
+        trainer.mock_wrapper.train_from_input.return_value = Path("non_existent_model.yace") # type: ignore
 
         # Mock save_iter to just consume
         trainer.mock_dataset_manager.save_iter.side_effect = lambda data, path: list(data) # type: ignore
