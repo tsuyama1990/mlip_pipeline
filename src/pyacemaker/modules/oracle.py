@@ -148,59 +148,60 @@ class DFTOracle(BaseOracle):
         self.logger.info("Computing batch of structures (DFT Parallel Streaming)")
 
         max_workers = self.config.oracle.dft.max_workers
-        chunk_size = self.config.oracle.dft.chunk_size
+        # We want a buffer larger than workers to keep them busy
+        buffer_size = max_workers * 2
+
         iterator = iter(structures)
 
-        # We use a single ThreadPoolExecutor for the entire batch to avoid overhead
+        # Map future back to structure
+        futures: dict[concurrent.futures.Future, StructureMetadata] = {}
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            while True:
-                # We still consume in chunks to avoid submitting infinite tasks if iterator is huge
-                chunk = list(islice(iterator, chunk_size))
-                if not chunk:
+            # Initial fill
+            for _ in range(buffer_size):
+                try:
+                    s = next(iterator)
+                except StopIteration:
                     break
 
-                # Submit chunk tasks
-                # To maintain streaming behavior and not block on the whole chunk finishing,
-                # we can submit all, yield futures as they complete.
-                # However, to avoid OOM by submitting 1M tasks, we do it in chunks.
-                # But we can process the chunk *using the shared executor*.
-                yield from self._process_chunk_with_executor(chunk, executor)
+                atoms = self._validate_and_extract_atoms(s)
+                if atoms:
+                    future = executor.submit(self.dft_manager.compute, atoms)
+                    futures[future] = s
+                else:
+                    yield s
 
-    def _process_chunk_with_executor(
-        self,
-        chunk: list[StructureMetadata],
-        executor: concurrent.futures.ThreadPoolExecutor,
-    ) -> Iterator[StructureMetadata]:
-        """Process a chunk using the provided executor."""
-        to_process = []
-        already_done = []
+            # Process loop
+            while futures:
+                # Wait for at least one future
+                done, _ = concurrent.futures.wait(
+                    futures.keys(),
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                )
 
-        for s in chunk:
-            atoms = self._validate_and_extract_atoms(s)
-            if atoms:
-                to_process.append((s, atoms))
-            else:
-                # Either calculated or failed (status set in _validate_and_extract_atoms)
-                already_done.append(s)
+                for future in done:
+                    s = futures.pop(future)
+                    try:
+                        result_atoms = future.result()
+                        update_structure_metadata(s, result_atoms)
+                    except Exception:
+                        self.logger.exception(f"Error computing structure {s.id}")
+                        s.status = StructureStatus.FAILED
+                    yield s
 
-        yield from already_done
+                # Refill
+                while len(futures) < buffer_size:
+                    try:
+                        s = next(iterator)
+                    except StopIteration:
+                        break
 
-        if not to_process:
-            return
-
-        future_to_struct = {
-            executor.submit(self.dft_manager.compute, atoms): s for s, atoms in to_process
-        }
-
-        for future in concurrent.futures.as_completed(future_to_struct):
-            s = future_to_struct[future]
-            try:
-                result_atoms = future.result()
-                update_structure_metadata(s, result_atoms)
-            except Exception:
-                self.logger.exception(f"Error computing structure {s.id}")
-                s.status = StructureStatus.FAILED
-            yield s
+                    atoms = self._validate_and_extract_atoms(s)
+                    if atoms:
+                        future = executor.submit(self.dft_manager.compute, atoms)
+                        futures[future] = s
+                    else:
+                        yield s
 
 
 class MaceSurrogateOracle(BaseOracle, UncertaintyModel):

@@ -1,21 +1,35 @@
 """Tests for MACE Distillation Workflow."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
-from typing import Iterator, Any, Iterable
 
-from pyacemaker.core.config import PYACEMAKERConfig
-from pyacemaker.core.exceptions import OracleError
-from pydantic import ValidationError
-from pyacemaker.domain_models.models import StructureMetadata, StructureStatus, UncertaintyState, Potential, PotentialType
-from pyacemaker.orchestrator import Orchestrator
-from pyacemaker.core.interfaces import StructureGenerator, Oracle, UncertaintyModel, Trainer, DynamicsEngine, Validator
-from pyacemaker.core.base import ModuleResult, Metrics
-from pyacemaker.core.utils import validate_structure_integrity
-from pyacemaker.oracle.mace_manager import MaceManager, MaceConfig
+import pytest
 from ase import Atoms
+from pydantic import ValidationError
+
+from pyacemaker.core.base import Metrics, ModuleResult
+from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.interfaces import (
+    DynamicsEngine,
+    Oracle,
+    StructureGenerator,
+    Trainer,
+    UncertaintyModel,
+    Validator,
+)
+from pyacemaker.core.utils import validate_structure_integrity
+from pyacemaker.domain_models.models import (
+    Potential,
+    PotentialType,
+    StructureMetadata,
+    StructureStatus,
+    UncertaintyState,
+)
+from pyacemaker.oracle.mace_manager import MaceConfig, MaceManager
+from pyacemaker.orchestrator import Orchestrator
 
 # Constants
 TEST_TARGET_POINTS = 5
@@ -284,7 +298,7 @@ def test_mace_security_validation() -> None:
     """Test MACE manager security validation."""
     # Test valid path
     config = MaceConfig(model_path="medium")
-    manager = MaceManager(config) # Should pass
+    _ = MaceManager(config)  # Should pass
 
     # Test invalid path (traversal) - validation happens at Config init now?
     # Actually, Config validation runs when MaceConfig is instantiated.

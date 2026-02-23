@@ -9,8 +9,8 @@ from loguru import logger
 
 from pyacemaker.core.config import MaceConfig
 from pyacemaker.core.exceptions import OracleError
-from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.core.utils import validate_structure_integrity_atoms
+from pyacemaker.core.validation import validate_safe_path
 
 try:
     from mace.calculators import MACECalculator

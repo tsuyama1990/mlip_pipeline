@@ -4,7 +4,7 @@ import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pyacemaker.core.config import CONSTANTS, PYACEMAKERConfig
 from pyacemaker.core.interfaces import Trainer
@@ -44,7 +44,7 @@ class PacemakerTrainer(Trainer):
     ) -> Potential:
         """Train a potential (Streaming)."""
         # 1. Prepare Dataset
-        # Generator for valid structures
+        # Generator for valid structures - Streaming
         valid_structures = (s for s in dataset if s.energy is not None and s.forces is not None)
 
         # Create work directory
@@ -52,19 +52,19 @@ class PacemakerTrainer(Trainer):
         dataset_path = work_dir / CONSTANTS.default_training_file
 
         # Convert to Atoms and save (Streaming)
-        # We need to count to ensure we have data, but save_iter consumes.
-        # We can wrap the generator to count.
-        count = 0
+        # We use a mutable counter inside the generator context
+        # This prevents loading anything into a list
+        stats = {"count": 0}
 
-        def counting_wrapper(gen: Iterable[StructureMetadata]) -> Iterator[Any]:
-            nonlocal count
-            for s in gen:
-                count += 1
+        def streaming_converter() -> Iterator[Any]:
+            for s in valid_structures:
+                stats["count"] += 1
                 yield self._metadata_to_atoms(s)
 
-        self.dataset_manager.save_iter(counting_wrapper(valid_structures), dataset_path)
+        # save_iter consumes the generator completely
+        self.dataset_manager.save_iter(streaming_converter(), dataset_path)
 
-        if count == 0:
+        if stats["count"] == 0:
             msg = "No valid structures with energy and forces found for training."
             raise ValueError(msg)
 
@@ -121,14 +121,9 @@ class PacemakerTrainer(Trainer):
         atoms_gen = (self._metadata_to_atoms(s) for s in candidates)
         self.dataset_manager.save_iter(atoms_gen, candidates_path)
 
-        selected_structures_list: list[StructureMetadata] = []
-
         # Run selection
         if self.trainer_config.mock:
             self.logger.info("Mock Mode: Skipping pace_activeset execution.")
-            # We can't easily slice a generator without consuming it or caching.
-            # But in mock mode, we usually just want to test flow.
-            # We'll reload the saved candidates and take first n_select
             selected_path = work_dir / CONSTANTS.default_selected_file
             # Limit generator
             reloaded_gen = self.dataset_manager.load_iter(candidates_path)
@@ -143,38 +138,23 @@ class PacemakerTrainer(Trainer):
         else:
             selected_path = self.active_set_selector.select(candidates_path, n_select)
 
-        # For scalability, we populate structure_ids but only optionally load structures
-        # if the count is small (e.g. < 1000). Otherwise, we return the dataset_path.
-        # But for Orchestrator, it expects structures.
-        # So we will load them for now, but also provide dataset_path.
-        # To avoid OOM if selection is huge, we should probably check n_select.
-        # Since n_select defaults to 20-100 in config, it's safe to load.
-        # But for correctness with "NEVER load entire datasets", we add the safeguard.
+        # Process selected structures - Streaming Only
+        # We only need IDs for the ActiveSet record if we are strict.
+        # However, Orchestrator traditionally used the objects.
+        # Now we return None for structures to enforce streaming usage downstream.
+        selected_ids: list[UUID] = []
 
+        # We must iterate to get IDs, but we discard objects immediately.
+        # If dataset_path is used, loading is deferred.
         for atoms in self.dataset_manager.load_iter(selected_path):
             uid_str = atoms.info.get("uuid")
-            uid = UUID(uid_str) if uid_str else uuid4()
-
-            # Reconstruct minimal metadata
-            meta = StructureMetadata(
-                id=uid,
-                features={"atoms": atoms},
-                energy=atoms.info.get("energy"),
-                # Forces/Stress reconstruction if available
-            )
-            if "forces" in atoms.arrays:
-                meta.forces = atoms.arrays["forces"].tolist()
-            if "stress" in atoms.info:
-                stress_val = atoms.info["stress"]
-                meta.stress = stress_val.tolist() if hasattr(stress_val, "tolist") else stress_val
-
-            selected_structures_list.append(meta)
-
-        selected_ids = [s.id for s in selected_structures_list]
+            if uid_str:
+                selected_ids.append(UUID(uid_str))
+            # No list append of structures here
 
         return ActiveSet(
             structure_ids=selected_ids,
-            structures=selected_structures_list,
+            structures=None,  # Enforce loading from path to prevent OOM
             dataset_path=selected_path,
             selection_criteria="max_vol",
         )

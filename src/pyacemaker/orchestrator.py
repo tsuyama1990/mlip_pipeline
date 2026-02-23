@@ -1,6 +1,5 @@
 """Orchestrator module implementation."""
 
-import heapq
 from collections.abc import Callable, Iterable, Iterator
 from itertools import chain, islice
 from pathlib import Path
@@ -226,10 +225,10 @@ class Orchestrator(IOrchestrator):
         self._step2_active_learning_loop(dist_config, pool_path)
 
         # Step 4: Surrogate Data Generation
-        surrogate_structures = self._step4_surrogate_data_generation(dist_config)
+        surrogate_structures_path = self._step4_surrogate_data_generation(dist_config)
 
         # Step 5: Surrogate Labeling
-        surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures)
+        surrogate_dataset_path = self._step5_surrogate_labeling(surrogate_structures_path)
 
         # Step 6: Pacemaker Base Training
         base_ace_potential = self._step6_pacemaker_base_training(surrogate_dataset_path)
@@ -340,8 +339,12 @@ class Orchestrator(IOrchestrator):
 
     def _step4_surrogate_data_generation(
         self, dist_config: Any
-    ) -> list[StructureMetadata]:
-        """Step 4: Surrogate Data Generation."""
+    ) -> Path:
+        """Step 4: Surrogate Data Generation.
+
+        Returns:
+            Path to the generated surrogate dataset.
+        """
         self.logger.info("Step 4: Surrogate Data Generation")
         # Reuse DynamicsEngine
         # We need a MACE potential object.
@@ -358,24 +361,36 @@ class Orchestrator(IOrchestrator):
         seeds = self._get_exploration_seeds(n_seeds=5)
         surrogate_iter = self.dynamics_engine.run_exploration(mace_pot, seeds)
 
-        # Collect 1000 structures
-        surrogate_structures = list(
-            islice(
-                surrogate_iter, dist_config.step4_surrogate_sampling.target_points
-            )
+        # Stream 1000 structures directly to file without list materialization
+        surrogate_dataset_path = (
+            self.config.project.root_dir / "data" / "surrogate_unlabeled.pckl.gzip"
         )
-        self.logger.info(
-            f"Generated {len(surrogate_structures)} surrogate structures"
+
+        limited_iter = islice(
+            surrogate_iter, dist_config.step4_surrogate_sampling.target_points
         )
-        return surrogate_structures
+
+        self.dataset_manager.save_iter(
+            (metadata_to_atoms(s) for s in limited_iter),
+            surrogate_dataset_path,
+            calculate_checksum=False,
+        )
+        self.logger.info(f"Generated surrogate dataset at {surrogate_dataset_path}")
+        return surrogate_dataset_path
 
     def _step5_surrogate_labeling(
-        self, structures: list[StructureMetadata]
+        self, surrogate_path: Path
     ) -> Path:
         """Step 5: Surrogate Labeling."""
         self.logger.info("Step 5: Surrogate Labeling")
         mace_labeler = MaceSurrogateOracle(self.config)  # Config has oracle.mace
-        labeled_surrogate_iter = mace_labeler.compute_batch(structures)
+
+        # Load stream
+        def load_stream() -> Iterator[StructureMetadata]:
+            for atoms in self.dataset_manager.load_iter(surrogate_path):
+                yield atoms_to_metadata(atoms)
+
+        labeled_surrogate_iter = mace_labeler.compute_batch(load_stream())
 
         # Save to separate "surrogate_dataset"
         surrogate_dataset_path = (
@@ -557,11 +572,13 @@ class Orchestrator(IOrchestrator):
 
         return seeds
 
-    def _run_exploration_and_selection_phase(self) -> list[StructureMetadata] | None:
+    def _run_exploration_and_selection_phase(
+        self,
+    ) -> Iterable[StructureMetadata] | None:
         """Execute exploration and selection phases.
 
         Returns:
-            List of selected structures for calculation, or None if converged.
+            Iterable of selected structures for calculation, or None if converged.
         """
         self.logger.info("Phase: Exploration")
         if not self.current_potential:
@@ -574,37 +591,67 @@ class Orchestrator(IOrchestrator):
             return None
 
         self.logger.info(f"Exploration starting with {len(seeds)} seeds.")
-        high_uncertainty_iter = self.dynamics_engine.run_exploration(self.current_potential, seeds)
+
+        # Run Dynamics Engine (Exploration)
+        high_uncertainty_stream, max_gamma_container = self._run_exploration_stream(seeds)
+
+        if high_uncertainty_stream is None:
+             self.logger.info("No high uncertainty structures found. Converged?")
+             return None
+
+        # Selection (Local Candidates & Active Set)
+        self.logger.info("Phase: Selection")
+        active_set_structures = self._run_selection_phase(high_uncertainty_stream)
+
+        # Log stats after consumption (Note: gamma will be updated as stream is consumed)
+        # Since stream is consumed by selection phase, the value should be final here.
+        self.logger.info(f"Exploration max gamma: {max_gamma_container[0]:.2f}")
+
+        if not active_set_structures:
+             self.logger.warning("ActiveSet returned no structures. Calculation skipped.")
+             return []
+
+        return active_set_structures
+
+    def _run_exploration_stream(
+        self, seeds: list[StructureMetadata]
+    ) -> tuple[Iterator[StructureMetadata] | None, list[float]]:
+        """Run exploration and return a monitored stream."""
+        high_uncertainty_iter = self.dynamics_engine.run_exploration(
+            self.current_potential, seeds  # type: ignore[arg-type]
+        )
 
         # Check if we found anything without consuming the whole stream
         try:
             first_structure = next(high_uncertainty_iter)
         except StopIteration:
-            self.logger.info("No high uncertainty structures found. Converged?")
-            return None
+            return None, [0.0]
 
         # Reconstruct iterator
         high_uncertainty_stream = chain([first_structure], high_uncertainty_iter)
 
         # Spy on the stream to calculate metrics (max gamma) without materializing list
-        max_gamma = 0.0
+        max_gamma_container = [0.0]
 
         def stats_spy(iterator: Iterable[StructureMetadata]) -> Iterator[StructureMetadata]:
-            nonlocal max_gamma
             for s in iterator:
                 if s.uncertainty_state and s.uncertainty_state.gamma_max:
-                    max_gamma = max(max_gamma, s.uncertainty_state.gamma_max)
+                    max_gamma_container[0] = max(
+                        max_gamma_container[0], s.uncertainty_state.gamma_max
+                    )
                 yield s
 
-        high_uncertainty_stream_with_stats = stats_spy(high_uncertainty_stream)
+        return stats_spy(high_uncertainty_stream), max_gamma_container
 
-        # Selection (Local Candidates & Active Set)
-        self.logger.info("Phase: Selection")
+    def _run_selection_phase(
+        self, high_uncertainty_stream: Iterator[StructureMetadata]
+    ) -> Iterable[StructureMetadata] | None:
+        """Execute selection phase on the exploration stream."""
         n_local = self.config.orchestrator.n_local_candidates
 
         # Stream candidates generation
         candidates_iter = self.structure_generator.generate_batch_candidates(
-            high_uncertainty_stream_with_stats,
+            high_uncertainty_stream,
             n_candidates_per_seed=n_local,
             cycle=self.cycle_count,
         )
@@ -612,18 +659,23 @@ class Orchestrator(IOrchestrator):
         n_select = self.config.orchestrator.n_active_set_select
         active_set = self.trainer.select_active_set(candidates_iter, n_select=n_select)
 
-        # Log stats after consumption
-        self.logger.info(f"Exploration max gamma: {max_gamma:.2f}")
+        # Active set now returns path, structures might be None to prevent OOM
+        if active_set.dataset_path and active_set.dataset_path.exists():
+            def structure_loader() -> Iterator[StructureMetadata]:
+                if active_set.dataset_path:
+                    for atoms in self.dataset_manager.load_iter(active_set.dataset_path):
+                        yield atoms_to_metadata(atoms)
+
+            return structure_loader()
 
         if active_set.structures:
             return active_set.structures
 
-        self.logger.warning("ActiveSet returned no structure objects. Calculation skipped.")
-        return []
+        return None
 
-    def _run_calculation_phase(self, structures: list[StructureMetadata]) -> None:
+    def _run_calculation_phase(self, structures: Iterable[StructureMetadata]) -> None:
         """Execute calculation phase."""
-        self.logger.info(f"Phase: Calculation ({len(structures)} structures)")
-        # Stream processing: list -> compute_batch(iter) -> save (append)
+        self.logger.info("Phase: Calculation (Streaming)")
+        # Stream processing: iterable -> compute_batch(iter) -> save (append)
         new_data = self.oracle.compute_batch(structures)
         self._save_dataset_stream(new_data)

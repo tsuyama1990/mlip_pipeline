@@ -170,15 +170,15 @@ def test_mock_oracle_randomness(config: PYACEMAKERConfig) -> None:
 
 def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
     """Test that DFTOracle streams data (yields results incrementally)."""
-    # Reduce chunk size for test
-    config.oracle.dft.chunk_size = 2
+    # Reduce workers to control buffer size (buffer = workers * 2 = 2)
+    config.oracle.dft.max_workers = 1
+    config.oracle.dft.chunk_size = 2  # No longer used but kept for config validity
     oracle = DFTOracle(config)
 
     # Create a generator that yields structures
     def structure_generator() -> Iterator[StructureMetadata]:
-        # We yield 3 structures. Chunk size 2.
-        # Chunk 1: s_0, s_1. Chunk 2: s_2.
-        for i in range(3):
+        # Yield more structures to verify we don't process all of them
+        for i in range(10):
             yield StructureMetadata(tags=[f"test_{i}"], features={"atoms": Atoms("H")})
 
     # Mock DFTManager to return dummy atoms
@@ -209,32 +209,30 @@ def test_dft_oracle_streaming_behavior(config: PYACEMAKERConfig) -> None:
         assert mock_compute.call_count == 0
 
         # Consume 1st item
-        # This triggers loading the first chunk (size 2) and submitting tasks
         r1 = next(results_iter)
         assert r1.status == StructureStatus.CALCULATED
 
         # Consume 2nd item
-        # Should come from the same batch without new submissions
         r2 = next(results_iter)
         assert r2.status == StructureStatus.CALCULATED
 
-        # We assert that compute has been called 2 times (for the first chunk of 2)
-        # Note: If tasks complete very fast, they might be done before we yield.
-        # But submitting to ThreadPoolExecutor is eager.
-        assert mock_compute.call_count == 2
+        # With sliding window and background workers, call count is at least 2
+        # but strictly less than 10 (proving streaming)
+        # Typically 2 or 3 depending on race conditions
+        assert mock_compute.call_count >= 2
+        assert mock_compute.call_count < 10
 
         # Consume 3rd item
-        # This triggers chunk 2 (1 item) processing
         r3 = next(results_iter)
-
-        # When r3 is consumed, the executor submits the next chunk (of size 1).
-        # We assert that compute has been called 3 times in total.
-        assert mock_compute.call_count == 3
         assert r3.status == StructureStatus.CALCULATED
 
-        # Should be empty now
-        with pytest.raises(StopIteration):
-            next(results_iter)
+        # Verify we still haven't processed everything
+        assert mock_compute.call_count >= 3
+        assert mock_compute.call_count < 10
+
+        # We don't need to consume the rest. The test proves:
+        # 1. We get results (r1, r2, r3)
+        # 2. We don't submit all 10 tasks at once (call_count < 10)
 
 
 def test_oracle_validation(config: PYACEMAKERConfig) -> None:
