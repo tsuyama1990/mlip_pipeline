@@ -1,8 +1,6 @@
 """Unit tests for ASE Dynamics Engine."""
 
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 

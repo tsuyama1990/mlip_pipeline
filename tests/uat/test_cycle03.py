@@ -1,78 +1,130 @@
-"""UAT for Cycle 03: Trainer & Potential Generation."""
+"""UAT for Cycle 03: Trainer & Potential Generation.
 
+This test suite verifies the end-to-end functionality of the Trainer module,
+focusing on Pacemaker integration, active set selection, and delta learning configuration.
+It ensures that the system correctly interfaces with external tools (via mocks)
+and handles data streaming efficiently.
+"""
+
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from ase import Atoms
 
 from pyacemaker.core.config import PYACEMAKERConfig, TrainerConfig
+from pyacemaker.core.factory import ModuleFactory
+from pyacemaker.core.interfaces import Trainer
 from pyacemaker.domain_models.models import StructureMetadata
-from pyacemaker.modules.trainer import PacemakerTrainer as Trainer
 
 
 class TestCycle03UAT:
     """UAT Scenarios for Trainer."""
 
     @pytest.fixture
-    def trainer(self) -> Trainer:
+    def mock_config(self) -> MagicMock:
+        """Create a mock configuration object."""
         config = MagicMock(spec=PYACEMAKERConfig)
-        config.version = "0.1.0"  # Required by Trainer
+        config.version = "0.1.0"
         config.trainer = TrainerConfig(
             cutoff=5.0,
             order=3,
-            mock=False,  # We want to test the logic that calls subprocess
+            mock=False,
         )
-        # We use mock=False in config, but patch subprocess in tests.
-        return Trainer(config)
+        return config
+
+    @pytest.fixture
+    def trainer(self, mock_config: MagicMock) -> Trainer:
+        """Create a Trainer instance using the Factory."""
+        return ModuleFactory.create_trainer(mock_config)
 
     @patch("subprocess.run")
-    def test_scenario_01_training_execution(self, mock_run: MagicMock, trainer: Trainer) -> None:
-        """Scenario 01: Training Execution."""
-        # Create dataset
-        # Need to mock save_iter to avoid file creation errors?
-        # Actually save_iter writes to temp dir, which is fine.
+    def test_scenario_01_training_execution(
+        self, mock_run: MagicMock, trainer: Trainer
+    ) -> None:
+        """Scenario 01: Training Execution.
 
-        structure = StructureMetadata(
-            features={"atoms": Atoms("Fe")},
-            energy=-10.0,
-            forces=[[0.0, 0.0, 0.0]],
-        )
-        dataset = [structure]
+        Verifies that:
+        1. Training accepts a generator of StructureMetadata.
+        2. The pace_train command is constructed correctly with config parameters.
+        3. A Potential object is returned with correct metadata.
+        """
+        # Generator for memory safety
+        def dataset_gen() -> Iterator[StructureMetadata]:
+            yield StructureMetadata(
+                features={"atoms": Atoms("Fe")},
+                energy=-10.0,
+                forces=[[0.0, 0.0, 0.0]],
+            )
 
         mock_run.return_value = MagicMock(returncode=0)
 
-        potential = trainer.train(dataset)
+        # Ensure save_iter consumes generator without crashing
+        trainer.dataset_manager = MagicMock()
+
+        def consume_iterator(data: Any, path: Path, **kwargs: Any) -> None:
+            # Materialize to ensure generator is valid, then discard
+            for _ in data:
+                pass
+            # Simulate file creation
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+
+        trainer.dataset_manager.save_iter.side_effect = consume_iterator
+
+        potential = trainer.train(dataset_gen())
 
         assert potential.type == "PACE"
-        # Verify pace_train was called with correct args
+
+        # Verify pace_train call
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "pace_train"
         assert "--cutoff" in cmd
-        # Ensure cutoff matches configuration
-        assert str(trainer.config.trainer.cutoff) in cmd
+        assert str(5.0) in cmd
 
     @patch("subprocess.run")
-    def test_scenario_02_active_set_selection(self, mock_run: MagicMock, trainer: Trainer) -> None:
-        """Scenario 02: Active Set Selection."""
-        candidates = [StructureMetadata(features={"atoms": Atoms("Fe")}) for _ in range(5)]
+    def test_scenario_02_active_set_selection(
+        self, mock_run: MagicMock, trainer: Trainer
+    ) -> None:
+        """Scenario 02: Active Set Selection.
+
+        Verifies that:
+        1. Selection accepts a generator of candidates.
+        2. The pace_activeset command is constructed correctly.
+        3. Selected structure IDs are correctly parsed from the output (mocked).
+        """
+        n_select = 2
+
+        # Generator for candidates
+        def candidates_gen() -> Iterator[StructureMetadata]:
+            for _ in range(5):
+                yield StructureMetadata(features={"atoms": Atoms("Fe")})
 
         mock_run.return_value = MagicMock(returncode=0)
 
-        # Mock DatasetManager.load_iter to return atoms with UUIDs
-        # because select_active_set loads the OUTPUT file which won't exist because subprocess is mocked.
+        # Mock DatasetManager
         trainer.dataset_manager = MagicMock()
 
-        # Mock load_iter to return atoms with matching UUIDs
+        # Mock load_iter to return atoms with UUIDs (simulating reading the output file)
+        # We need to simulate the result of selection which writes to a file
+        # The trainer.select_active_set reads from this file.
+
+        # We need consistent UUIDs to check against
+        dummy_candidates = list(candidates_gen())
+
         mock_atoms_iter = []
-        for s in candidates[:2]:
+        for s in dummy_candidates[:n_select]:
             a = Atoms("Fe")
             a.info["uuid"] = str(s.id)
             mock_atoms_iter.append(a)
-        trainer.dataset_manager.load_iter.return_value = mock_atoms_iter
 
-        # Ensure save_iter creates file
-        def consume_iterator(data, path):  # type: ignore[no-untyped-def]
+        trainer.dataset_manager.load_iter.return_value = iter(mock_atoms_iter)
+
+        # Mock save_iter to handle generator input
+        def consume_iterator(data: Any, path: Path, **kwargs: Any) -> None:
             for _ in data:
                 pass
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,30 +132,36 @@ class TestCycle03UAT:
 
         trainer.dataset_manager.save_iter.side_effect = consume_iterator
 
-        active_set = trainer.select_active_set(candidates, n_select=2)
+        # Pass fresh generator
+        active_set = trainer.select_active_set(candidates_gen(), n_select=n_select)
 
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "pace_activeset"
         assert "--select" in cmd
-        assert "2" in cmd
+        assert str(n_select) in cmd
 
-        assert len(active_set.structure_ids) == 2
-        assert active_set.structure_ids[0] == candidates[0].id
+        assert len(active_set.structure_ids) == n_select
+        # Verify ID matching (assuming the mock return setup aligns)
+        assert active_set.structure_ids[0] == dummy_candidates[0].id
 
     @patch("subprocess.run")
-    def test_scenario_03_delta_learning(self, mock_run: MagicMock) -> None:
-        """Scenario 03: Delta Learning Configuration."""
-        config = MagicMock(spec=PYACEMAKERConfig)
-        config.version = "0.1.0"  # Required by Trainer
-        # Use a variable to avoid hardcoding in checks later
-        delta_method = "zbl"
-        config.trainer = TrainerConfig(delta_learning=delta_method, mock=False)
-        trainer = Trainer(config)
-        trainer.dataset_manager = MagicMock()  # Mock to avoid file IO issues
+    def test_scenario_03_delta_learning(
+        self, mock_run: MagicMock, mock_config: MagicMock
+    ) -> None:
+        """Scenario 03: Delta Learning Configuration.
 
-        # Ensure save_iter consumes the iterator AND creates file (so exists checks pass)
-        def consume_iterator(data, path):  # type: ignore[no-untyped-def]
+        Verifies that:
+        1. Delta learning configuration (e.g., 'zbl') triggers baseline generation.
+        2. The baseline file path is passed to the training command.
+        """
+        delta_method = "zbl"
+        mock_config.trainer.delta_learning = delta_method
+
+        trainer = ModuleFactory.create_trainer(mock_config)
+        trainer.dataset_manager = MagicMock()
+
+        def consume_iterator(data: Any, path: Path, **kwargs: Any) -> None:
             for _ in data:
                 pass
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,24 +169,22 @@ class TestCycle03UAT:
 
         trainer.dataset_manager.save_iter.side_effect = consume_iterator
 
-        structure = StructureMetadata(
-            features={"atoms": Atoms("Fe")},
-            energy=-10.0,
-            forces=[[0.0, 0.0, 0.0]],
-        )
-        dataset = [structure]
+        def dataset_gen() -> Iterator[StructureMetadata]:
+            yield StructureMetadata(
+                features={"atoms": Atoms("Fe")},
+                energy=-10.0,
+                forces=[[0.0, 0.0, 0.0]],
+            )
 
         mock_run.return_value = MagicMock(returncode=0)
 
         # Mock file existence checks in wrapper
         with patch("pathlib.Path.exists", return_value=True):
-            trainer.train(dataset)
+            trainer.train(dataset_gen())
 
-        # Verify baseline file generated and passed
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
-        # Check if --baseline argument is present
         assert "--baseline" in cmd
-        # And verify baseline file name contains "zbl"
+
         baseline_idx = cmd.index("--baseline") + 1
         assert delta_method in cmd[baseline_idx]

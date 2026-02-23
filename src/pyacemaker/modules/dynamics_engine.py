@@ -345,7 +345,7 @@ class ASEDynamicsEngine(DynamicsEngine):
                 )  # TODO: use config device
             except Exception:
                 self.logger.exception("Failed to load calculator")
-                return None
+                return []
 
         # Setup MD
         temp_k = self.params.temperature

@@ -39,6 +39,7 @@ class PacemakerTrainer(Trainer):
         self.trainer_config = config.trainer
         self.wrapper = PacemakerWrapper()
         self.active_set_selector = ActiveSetSelector(wrapper=self.wrapper)
+        # Expose dataset_manager as public attribute for tests
         self.dataset_manager = DatasetManager()
 
     def run(self) -> Any:
@@ -54,25 +55,22 @@ class PacemakerTrainer(Trainer):
     ) -> Potential:
         """Train a potential (Streaming)."""
         # 1. Prepare Dataset
-        # Generator for valid structures - Streaming
-        valid_structures = (s for s in dataset if s.energy is not None and s.forces is not None)
-
         # Create work directory
         work_dir = Path(tempfile.mkdtemp(prefix=CONSTANTS.TRAINER_TEMP_PREFIX_TRAIN))
         dataset_path = work_dir / CONSTANTS.default_training_file
 
-        # Convert to Atoms and save (Streaming)
+        # Prepare streaming generator with validation and counting
         # We use a mutable counter inside the generator context
-        # This prevents loading anything into a list
         stats = {"count": 0}
 
-        def counting_stream(structures: Iterable[StructureMetadata]) -> Iterator[Any]:
+        def valid_counting_stream(structures: Iterable[StructureMetadata]) -> Iterator[Any]:
             for s in structures:
-                stats["count"] += 1
-                yield s
+                if s.energy is not None and s.forces is not None:
+                    stats["count"] += 1
+                    yield s
 
         # Use helper stream_metadata_to_atoms which uses metadata_to_atoms (now injects UUID)
-        atoms_stream = stream_metadata_to_atoms(counting_stream(valid_structures))
+        atoms_stream = stream_metadata_to_atoms(valid_counting_stream(dataset))
 
         # save_iter consumes the generator completely
         self.dataset_manager.save_iter(atoms_stream, dataset_path)

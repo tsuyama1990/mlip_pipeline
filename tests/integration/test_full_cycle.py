@@ -89,7 +89,6 @@ class TestFullCycleIntegration:
 
             # Pre-populate active_set file so orchestrator can load it
             # We need to save something valid there
-            from pyacemaker.core.utils import metadata_to_atoms
             orchestrator.dataset_manager.save_iter(
                 [Atoms("Fe"), Atoms("Fe")], active_set_path, calculate_checksum=False
             )

@@ -4,7 +4,7 @@ rootdir: /app
 configfile: pyproject.toml
 testpaths: tests
 plugins: cov-7.0.0, mock-3.15.1
-collected 222 items
+collected 223 items
 
 tests/core/test_base.py .                                                [  0%]
 tests/core/test_config.py .............                                  [  6%]
@@ -19,11 +19,12 @@ tests/generator/test_strategies.py ......                                [ 23%]
 tests/integration/test_error_conditions.py ...                           [ 24%]
 tests/integration/test_full_cycle.py ..                                  [ 25%]
 tests/integration/test_memory_usage.py ..                                [ 26%]
-tests/integration/test_pipeline.py .                                     [ 27%]
+tests/integration/test_pipeline.py .                                     [ 26%]
 tests/integration/test_streaming.py ..                                   [ 27%]
+tests/integration/test_trainer_pipeline.py .                             [ 28%]
 tests/oracle/test_calculator.py .....                                    [ 30%]
 tests/oracle/test_dataset.py .....                                       [ 32%]
-tests/oracle/test_embedding.py ...                                       [ 33%]
+tests/oracle/test_embedding.py ...                                       [ 34%]
 tests/oracle/test_manager.py .....                                       [ 36%]
 tests/oracle/test_manager_mutation.py .                                  [ 36%]
 tests/test_main.py ....                                                  [ 38%]
@@ -31,7 +32,7 @@ tests/uat/test_cycle01.py ..                                             [ 39%]
 tests/uat/test_cycle02_features.py ..                                    [ 40%]
 tests/uat/test_cycle03.py ...                                            [ 41%]
 tests/uat/test_cycle04.py ....                                           [ 43%]
-tests/uat/test_cycle06.py FFF.                                           [ 45%]
+tests/uat/test_cycle06.py ....                                           [ 45%]
 tests/unit/generator/test_direct.py ........                             [ 48%]
 tests/unit/modules/test_active_learner.py ....                           [ 50%]
 tests/unit/oracle/test_mace_uncertainty.py .....                         [ 52%]
@@ -40,7 +41,7 @@ tests/unit/test_config_mace.py ......                                    [ 58%]
 tests/unit/test_data_integrity.py ..                                     [ 59%]
 tests/unit/test_dft_manager_edge_cases.py ...                            [ 60%]
 tests/unit/test_domain_models.py ...........                             [ 65%]
-tests/unit/test_dynamics_engine.py ........                              [ 68%]
+tests/unit/test_dynamics_engine.py ........                              [ 69%]
 tests/unit/test_dynamics_engine_ase.py ...                               [ 70%]
 tests/unit/test_mace_manager.py ...                                      [ 71%]
 tests/unit/test_mace_oracle_module.py ..                                 [ 72%]
@@ -64,144 +65,6 @@ tests/validator/test_physics.py .....                                    [ 98%]
 tests/validator/test_report.py .                                         [ 99%]
 tests/validator/test_validator_manager.py ..                             [100%]
 
-=================================== FAILURES ===================================
-______________________ test_scenario_01_phonon_stability _______________________
-
-mock_atoms = Atoms(symbols='Si2', pbc=True, cell=[3.0, 3.0, 3.0])
-validator_config = ValidatorConfig(metrics=['rmse_energy', 'rmse_forces'], thresholds={}, test_set_ratio=0.1, phonon_supercell=[2, 2, 2], eos_strain=0.05, eos_points=5, elastic_strain=0.01, phonon_tolerance=-0.05)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_01_phonon_stabil0')
-
-    def test_scenario_01_phonon_stability(
-        mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
-    ) -> None:
-        """Scenario 01: Verify phonon stability check."""
-        manager = ValidatorManager(validator_config)
-        potential_path = tmp_path / "potential.yace"
-        potential_path.touch()
-
-        # Mock specific phonon check
-        with (
-            patch("pyacemaker.validator.manager.check_phonons") as mock_check,
-            patch("pyacemaker.validator.manager.check_eos") as mock_eos,
-            patch("pyacemaker.validator.manager.check_elastic") as mock_elastic,
-            patch("pyacemaker.validator.manager.ReportGenerator"),
-        ):
-            mock_check.return_value = False  # Unstable
-            mock_eos.return_value = (100.0, "eos.png")
-            mock_elastic.return_value = (True, {})
-
->           result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-tests/uat/test_cycle06.py:51:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <pyacemaker.validator.manager.ValidatorManager object at 0x7f4716d96d80>
-potential = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_01_phonon_stabil0/potential.yace')
-structure = Atoms(symbols='Si2', pbc=True, cell=[3.0, 3.0, 3.0])
-output_dir = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_01_phonon_stabil0')
-
-    def validate(
-        self, potential: Potential, structure: Atoms, output_dir: Path
-    ) -> ValidationResult:
-        """Run validation."""
-        output_dir.mkdir(parents=True, exist_ok=True)
->       potential_path = Path(potential.path)
-                              ^^^^^^^^^^^^^^
-E       AttributeError: 'PosixPath' object has no attribute 'path'
-
-src/pyacemaker/validator/manager.py:89: AttributeError
-__________________________ test_scenario_02_eos_check __________________________
-
-mock_atoms = Atoms(symbols='Si2', pbc=True, cell=[3.0, 3.0, 3.0])
-validator_config = ValidatorConfig(metrics=['rmse_energy', 'rmse_forces'], thresholds={}, test_set_ratio=0.1, phonon_supercell=[2, 2, 2], eos_strain=0.05, eos_points=5, elastic_strain=0.01, phonon_tolerance=-0.05)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_02_eos_check0')
-
-    def test_scenario_02_eos_check(
-        mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
-    ) -> None:
-        """Scenario 02: Verify EOS check."""
-        manager = ValidatorManager(validator_config)
-        potential_path = tmp_path / "potential.yace"
-        potential_path.touch()
-
-        with (
-            patch("pyacemaker.validator.manager.check_eos") as mock_eos,
-            patch("pyacemaker.validator.manager.check_phonons") as mock_phonons,
-            patch("pyacemaker.validator.manager.check_elastic") as mock_elastic,
-            patch("pyacemaker.validator.manager.ReportGenerator"),
-        ):
-            mock_eos.return_value = (150.0, "eos.png")
-            mock_phonons.return_value = True
-            mock_elastic.return_value = (True, {})
-
->           result = manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-tests/uat/test_cycle06.py:75:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <pyacemaker.validator.manager.ValidatorManager object at 0x7f47170c4bc0>
-potential = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_02_eos_check0/potential.yace')
-structure = Atoms(symbols='Si2', pbc=True, cell=[3.0, 3.0, 3.0])
-output_dir = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_02_eos_check0')
-
-    def validate(
-        self, potential: Potential, structure: Atoms, output_dir: Path
-    ) -> ValidationResult:
-        """Run validation."""
-        output_dir.mkdir(parents=True, exist_ok=True)
->       potential_path = Path(potential.path)
-                              ^^^^^^^^^^^^^^
-E       AttributeError: 'PosixPath' object has no attribute 'path'
-
-src/pyacemaker/validator/manager.py:89: AttributeError
-______________________ test_scenario_03_report_generation ______________________
-
-mock_atoms = Atoms(symbols='Si2', pbc=True, cell=[3.0, 3.0, 3.0])
-validator_config = ValidatorConfig(metrics=['rmse_energy', 'rmse_forces'], thresholds={}, test_set_ratio=0.1, phonon_supercell=[2, 2, 2], eos_strain=0.05, eos_points=5, elastic_strain=0.01, phonon_tolerance=-0.05)
-tmp_path = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_03_report_genera0')
-
-    def test_scenario_03_report_generation(
-        mock_atoms: Atoms, validator_config: ValidatorConfig, tmp_path: Path
-    ) -> None:
-        """Scenario 03: Verify HTML report generation."""
-        manager = ValidatorManager(validator_config)
-        potential_path = tmp_path / "potential.yace"
-        potential_path.touch()
-
-        with patch("pyacemaker.validator.manager.ReportGenerator") as MockReport:
-            mock_instance = MockReport.return_value
-
-            with (
-                patch("pyacemaker.validator.manager.check_phonons") as mock_p,
-                patch("pyacemaker.validator.manager.check_eos") as mock_e,
-                patch("pyacemaker.validator.manager.check_elastic") as mock_el,
-            ):
-                mock_p.return_value = True
-                mock_e.return_value = (100.0, "eos.png")
-                mock_el.return_value = (True, {})
-
->               manager.validate(potential_path, mock_atoms, output_dir=tmp_path)
-
-tests/uat/test_cycle06.py:101:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-self = <pyacemaker.validator.manager.ValidatorManager object at 0x7f4716c225a0>
-potential = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_03_report_genera0/potential.yace')
-structure = Atoms(symbols='Si2', pbc=True, cell=[3.0, 3.0, 3.0])
-output_dir = PosixPath('/tmp/pytest-of-jules/pytest-12/test_scenario_03_report_genera0')
-
-    def validate(
-        self, potential: Potential, structure: Atoms, output_dir: Path
-    ) -> ValidationResult:
-        """Run validation."""
-        output_dir.mkdir(parents=True, exist_ok=True)
->       potential_path = Path(potential.path)
-                              ^^^^^^^^^^^^^^
-E       AttributeError: 'PosixPath' object has no attribute 'path'
-
-src/pyacemaker/validator/manager.py:89: AttributeError
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.12-final-0 _______________
 
@@ -215,7 +78,7 @@ src/pyacemaker/core/config_loader.py               82     27    67%   32-33, 37-
 src/pyacemaker/core/dataset.py                     71      3    96%   51, 98, 133
 src/pyacemaker/core/exceptions.py                  11      0   100%
 src/pyacemaker/core/factory.py                     40      3    92%   37, 63, 65
-src/pyacemaker/core/interfaces.py                  43      0   100%
+src/pyacemaker/core/interfaces.py                  44      0   100%
 src/pyacemaker/core/io_utils.py                    10     10     0%   3-26
 src/pyacemaker/core/logging.py                     10      0   100%
 src/pyacemaker/core/utils.py                      179     42    77%   43-46, 62-63, 90-91, 94-95, 98-99, 143-144, 178-179, 199, 217-218, 253-254, 276, 280, 282-285, 307-308, 326, 333-336, 344-345, 371-372, 380-382, 410-412
@@ -242,14 +105,14 @@ src/pyacemaker/modules/dynamics_engine.py         196     59    70%   65, 102, 1
 src/pyacemaker/modules/mace_workflow.py           127      9    93%   69-70, 250, 264, 277, 288-291
 src/pyacemaker/modules/oracle.py                  210     31    85%   83, 127, 159-160, 196-197, 240-242, 257, 268-269, 279-280, 289-290, 307-308, 313-315, 346-348, 356-358, 368-373
 src/pyacemaker/modules/structure_generator.py      88     51    42%   23-24, 38-39, 55-56, 58-59, 74-75, 91, 99-100, 104-105, 112-135, 143-145, 154-183, 196-203, 207
-src/pyacemaker/modules/trainer.py                  87      6    93%   27-28, 46-47, 172-173
+src/pyacemaker/modules/trainer.py                  87      6    93%   27-28, 47-48, 170-171
 src/pyacemaker/modules/validator.py                50      9    82%   16, 36-39, 63-65, 68-69, 76-77
 src/pyacemaker/oracle/__init__.py                   4      0   100%
 src/pyacemaker/oracle/calculator.py                38      6    84%   68-69, 92, 98, 121-122
 src/pyacemaker/oracle/dataset.py                  205     49    76%   41, 44, 47, 67, 120-132, 156-159, 162-168, 176-185, 187, 217, 223-224, 229-236, 298, 326-331, 359-360, 389-394, 408-411, 417-418
 src/pyacemaker/oracle/mace_manager.py             127     76    40%   18, 55-56, 61-65, 75-78, 85-87, 95-96, 104-105, 108-111, 117-128, 134-173, 190-230
 src/pyacemaker/oracle/manager.py                   70      8    89%   73-75, 81-83, 150-151
-src/pyacemaker/orchestrator.py                    201     30    85%   122-124, 133, 174-175, 205-208, 263-264, 289-290, 306-308, 327, 341, 346-347, 367-368, 401-404, 408-410, 440
+src/pyacemaker/orchestrator.py                    201     30    85%   127-129, 138, 179-180, 210-213, 268-269, 294-295, 311-313, 332, 346, 351-352, 372-373, 406-409, 413-415, 445
 src/pyacemaker/trainer/__init__.py                  0      0   100%
 src/pyacemaker/trainer/active_set.py               16      3    81%   35-38
 src/pyacemaker/trainer/base.py                      9      0   100%
@@ -260,11 +123,7 @@ src/pyacemaker/validator/manager.py                93     36    61%   27, 34-53,
 src/pyacemaker/validator/physics.py                87     30    66%   33, 38-39, 54-62, 98-99, 135-177
 src/pyacemaker/validator/report.py                 13      0   100%
 -----------------------------------------------------------------------------
-TOTAL                                            3308    640    81%
-=========================== short test summary info ============================
-FAILED tests/uat/test_cycle06.py::test_scenario_01_phonon_stability - Attribu...
-FAILED tests/uat/test_cycle06.py::test_scenario_02_eos_check - AttributeError...
-FAILED tests/uat/test_cycle06.py::test_scenario_03_report_generation - Attrib...
-================== 3 failed, 219 passed in 216.88s (0:03:36) ===================
+TOTAL                                            3309    640    81%
+======================= 223 passed in 229.13s (0:03:49) ========================
 /app/.venv/lib/python3.12/site-packages/coverage/inorout.py:497: CoverageWarning: Module dev_src was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.1/messages.html#warning-module-not-imported
   self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

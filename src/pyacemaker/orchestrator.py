@@ -60,8 +60,13 @@ class Orchestrator(IOrchestrator):
 
         # Initialize MaceTrainer if needed for distillation
         self.mace_trainer: Trainer | None = mace_trainer
+        # Always initialize mace_trainer if MACE distillation is enabled, or if it was requested
+        # Even if not enabled, we might want it available if manually triggered
         if not self.mace_trainer and config.distillation.enable_mace_distillation:
             self.mace_trainer = ModuleFactory.create_mace_trainer(config)
+
+        # Explicitly expose mace_trainer as a public attribute for tests
+        # It might be None if distillation is disabled and not provided
 
         self.dynamics_engine: DynamicsEngine = (
             dynamics_engine or ModuleFactory.create_dynamics_engine(config)
