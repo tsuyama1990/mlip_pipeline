@@ -153,3 +153,36 @@ def test_mace_trainer_empty_dataset(
         result = trainer.train([])
 
         assert result.type == PotentialType.MACE
+
+
+def test_pacemaker_trainer_select_active_set(
+    mock_config: MagicMock, mock_dataset: list[StructureMetadata]
+) -> None:
+    """Test PacemakerTrainer select_active_set."""
+    with patch("pyacemaker.modules.trainer.PacemakerWrapper") as MockWrapper, \
+         patch("pyacemaker.modules.trainer.DatasetManager") as MockDM:
+
+        wrapper = MockWrapper.return_value
+        wrapper.select_active_set.return_value = Path("selected.pckl.gzip")
+
+        # Mock load_iter to return empty list or some atoms with uuid
+        mock_atoms = NonCallableMagicMock()
+        mock_atoms.info = {"uuid": str(mock_dataset[0].id)}
+        MockDM.return_value.load_iter.return_value = iter([mock_atoms])
+
+        trainer = PacemakerTrainer(mock_config)
+
+        active_set = trainer.select_active_set(mock_dataset, n_select=5)
+
+        assert str(mock_dataset[0].id) in [str(u) for u in active_set.structure_ids]
+
+
+def test_mace_trainer_select_active_set_raises(
+    mock_config: MagicMock, mock_dataset: list[StructureMetadata]
+) -> None:
+    """Test MaceTrainer select_active_set raises NotImplementedError."""
+    with patch("pyacemaker.modules.trainer.MaceManager"):
+        trainer = MaceTrainer(mock_config)
+
+        with pytest.raises(NotImplementedError):
+            trainer.select_active_set(mock_dataset, n_select=5)

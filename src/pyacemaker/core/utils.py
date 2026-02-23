@@ -28,8 +28,7 @@ def select_top_k_structures(
 ) -> list[T]:
     """Select the top K elements from an iterable based on a key function.
 
-    Uses a min-heap of size K to maintain the top elements in O(K) memory.
-    This avoids materializing the full iterator which heapq.nlargest might do depending on implementation.
+    Uses heapq.nlargest which is efficient and optimized for this use case.
 
     Args:
         iterator: Iterable of items.
@@ -43,25 +42,7 @@ def select_top_k_structures(
     if k <= 0:
         return []
 
-    # Min-heap stores tuples of (key, item).
-    # We want top K largest keys.
-    # If heap size < k: push.
-    # If heap size == k: pushpop if new key > min key in heap.
-    heap: list[tuple[float, int, T]] = []
-
-    # Tie-breaker counter to ensure stability/comparability if T is not comparable
-    # and to handle duplicate keys deterministically.
-    for counter, item in enumerate(iterator):
-        key = key_func(item)
-        entry = (key, counter, item)
-
-        if len(heap) < k:
-            heapq.heappush(heap, entry)
-        elif key > heap[0][0]:
-            heapq.heapreplace(heap, entry)
-
-    # Sort by key descending
-    return [item for _, _, item in sorted(heap, key=lambda x: x[0], reverse=True)]
+    return heapq.nlargest(k, iterator, key=key_func)
 
 
 def validate_structure_integrity(structure: StructureMetadata) -> None:
@@ -74,10 +55,11 @@ def validate_structure_integrity(structure: StructureMetadata) -> None:
         ValueError: If validation fails.
 
     """
-    # Check for features dictionary keys
-    if not all(isinstance(k, str) for k in structure.features):
-        msg = "Structure features keys must be strings."
-        raise ValueError(msg)
+    # Check for features dictionary keys using iterator to be memory safe
+    for k in structure.features:
+        if not isinstance(k, str):
+            msg = "Structure features keys must be strings."
+            raise ValueError(msg)
 
     # Validate atoms if present
     if "atoms" in structure.features:
@@ -91,7 +73,7 @@ def validate_structure_integrity(structure: StructureMetadata) -> None:
             raise ValueError(msg)
 
 
-def validate_structure_integrity_atoms(atoms: "Atoms") -> None:
+def validate_structure_integrity_atoms(atoms: Any) -> None:
     """Validate an ASE Atoms object.
 
     Args:
@@ -145,6 +127,8 @@ def generate_dummy_structures(
 ) -> Iterator[StructureMetadata]:
     """Generate dummy structures for testing (Lazily).
 
+    Creates Atoms objects only when yielded to respect memory constraints.
+
     Args:
         count: Number of structures to generate.
         tags: Optional tags to add.
@@ -187,9 +171,14 @@ def calculate_checksum(file_path: Path) -> str:
 
     """
     sha256_hash = hashlib.sha256()
+    # Use block size from CONSTANTS if available, else default to 4096
+    try:
+        block_size = CONSTANTS.default_buffer_size
+    except Exception:
+        block_size = 4096
+
     with file_path.open("rb") as f:
-        # Read and update hash string value in blocks of 4K
-        for byte_block in iter(lambda: f.read(4096), b""):
+        for byte_block in iter(lambda: f.read(block_size), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
@@ -221,6 +210,12 @@ def atoms_to_metadata(atoms: "Atoms", **kwargs: Any) -> StructureMetadata:
         StructureMetadata object wrapping the atoms.
 
     """
+    # Validate atoms input type
+    from ase import Atoms
+    if not isinstance(atoms, Atoms):
+        msg = f"Expected ASE Atoms object, got {type(atoms)}"
+        raise TypeError(msg)
+
     # Create basic metadata
     features = kwargs.pop("features", {})
     features["atoms"] = atoms
@@ -339,14 +334,14 @@ def metadata_to_atoms(metadata: StructureMetadata) -> "Atoms":
     return atoms  # type: ignore[no-any-return]
 
 
-def _validate_result_atoms(result_atoms: "Atoms") -> None:
+def _validate_result_atoms(result_atoms: Any) -> None:
     """Validate that the result atoms object has required methods."""
     if not hasattr(result_atoms, "get_potential_energy"):
         msg = "Result atoms object missing energy calculation method"
         raise TypeError(msg)
 
 
-def stream_metadata_to_atoms(metadata_iter: Iterable[StructureMetadata]) -> Iterator["Atoms"]:
+def stream_metadata_to_atoms(metadata_iter: Iterable[StructureMetadata]) -> Iterator[Any]:
     """Stream StructureMetadata objects to ASE Atoms.
 
     Args:
@@ -360,7 +355,7 @@ def stream_metadata_to_atoms(metadata_iter: Iterable[StructureMetadata]) -> Iter
         yield metadata_to_atoms(metadata)
 
 
-def update_structure_metadata(structure: StructureMetadata, result_atoms: "Atoms | None") -> None:
+def update_structure_metadata(structure: StructureMetadata, result_atoms: Any) -> None:
     """Update structure metadata with results (Energy, Forces, Stress).
 
     Args:

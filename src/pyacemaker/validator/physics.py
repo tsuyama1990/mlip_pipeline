@@ -20,13 +20,19 @@ def ase_to_phonopy(atoms: Atoms) -> PhonopyAtoms:
     )
 
 
-def check_phonons(atoms: Atoms, supercell: list[int] | None = None) -> bool:
+def check_phonons(
+    atoms: Atoms,
+    supercell: list[int] | None = None,
+    tolerance: float | None = None,
+) -> bool:
     """Check phonon stability.
 
     Returns True if no imaginary frequencies are found.
     """
     if supercell is None:
         supercell = CONSTANTS.physics_phonon_supercell
+    if tolerance is None:
+        tolerance = CONSTANTS.physics_phonon_tolerance
 
     if atoms.calc is None:
         msg = "Atoms object must have a calculator attached."
@@ -74,11 +80,14 @@ def check_phonons(atoms: Atoms, supercell: list[int] | None = None) -> bool:
 
     # Tolerance for numerical noise (e.g. -0.05 THz)
     # Imaginary frequencies are negative in phonopy
-    return bool(min_freq >= CONSTANTS.physics_phonon_tolerance)
+    return bool(min_freq >= tolerance)
 
 
 def check_eos(
-    atoms: Atoms, strain: float = CONSTANTS.physics_eos_strain, output_path: str = "eos.png"
+    atoms: Atoms,
+    strain: float = CONSTANTS.physics_eos_strain,
+    points: int = CONSTANTS.physics_eos_points,
+    output_path: str = "eos.png",
 ) -> tuple[float, str]:
     """Check Equation of State.
 
@@ -92,8 +101,7 @@ def check_eos(
     volumes = []
     energies = []
 
-    # 5 points
-    factors = np.linspace(1.0 - strain, 1.0 + strain, CONSTANTS.physics_eos_points)
+    factors = np.linspace(1.0 - strain, 1.0 + strain, points)
 
     original_cell = atoms.get_cell()  # type: ignore[no-untyped-call]
 

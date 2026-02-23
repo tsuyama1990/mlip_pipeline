@@ -719,9 +719,16 @@ class ValidatorConfig(BaseModel):
     eos_strain: float = Field(
         default=CONSTANTS.physics_eos_strain, description="Strain range for EOS calculation"
     )
+    eos_points: int = Field(
+        default=CONSTANTS.physics_eos_points, description="Number of points for EOS calculation"
+    )
     elastic_strain: float = Field(
         default=CONSTANTS.physics_elastic_strain,
         description="Strain for elastic constants calculation",
+    )
+    phonon_tolerance: float = Field(
+        default=CONSTANTS.physics_phonon_tolerance,
+        description="Tolerance for phonon stability (min frequency)",
     )
 
 

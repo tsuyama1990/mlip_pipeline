@@ -109,7 +109,11 @@ class ValidatorManager:
         # 1. Phonons
         self.logger.info("Running phonon stability check...")
         try:
-            phonon_stable = check_phonons(structure, supercell=self.config.phonon_supercell)
+            phonon_stable = check_phonons(
+                structure,
+                supercell=self.config.phonon_supercell,
+                tolerance=self.config.phonon_tolerance,
+            )
         except Exception:
             self.logger.exception("Phonon check failed with error")
             phonon_stable = False
@@ -119,7 +123,10 @@ class ValidatorManager:
         try:
             eos_output_path = output_dir / "eos.png"
             bulk_modulus, eos_plot = check_eos(
-                structure, strain=self.config.eos_strain, output_path=str(eos_output_path)
+                structure,
+                strain=self.config.eos_strain,
+                points=self.config.eos_points,
+                output_path=str(eos_output_path),
             )
             # Resolve artifact path
             eos_plot_path = Path(eos_plot)

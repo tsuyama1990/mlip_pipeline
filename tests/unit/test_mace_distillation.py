@@ -327,7 +327,10 @@ def test_mace_workflow_malformed_uncertainty(base_config: PYACEMAKERConfig) -> N
     )
 
     # Should run without error but select nothing because keys are -1.0
-    with patch('pyacemaker.orchestrator.MaceSurrogateOracle'):
+    with patch('pyacemaker.orchestrator.MaceSurrogateOracle'), \
+         patch('pyacemaker.orchestrator.DirectGenerator') as MockDirectGen:
+
+        MockDirectGen.return_value.generate_direct_samples.side_effect = mock_sg.generate_direct_samples
         result = orch._run_mace_distillation()
 
     assert result.status == "success"
