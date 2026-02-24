@@ -44,8 +44,7 @@ class PhysicsValidator(BaseValidator):
 
         This method orchestrates individual checks.
         """
-        # Placeholder for full orchestration if needed.
-        # Currently, Manager calls specific methods.
+        # This implementation primarily used via direct calls to check_*, but kept for interface.
         return ValidationResult(
              passed=False,
              metrics={"error": 1.0}, # Satisfy min_length=1
@@ -72,7 +71,11 @@ class PhysicsValidator(BaseValidator):
             raise ValueError(msg)
 
         # Create Phonopy object
-        phonon = Phonopy(ase_to_phonopy(atoms), supercell_matrix=np.diag(supercell))
+        try:
+            phonon = Phonopy(ase_to_phonopy(atoms), supercell_matrix=np.diag(supercell))
+        except Exception as e:
+            msg = f"Failed to initialize Phonopy: {e}"
+            raise ValueError(msg) from e
 
         # Generate displacements
         phonon.generate_displacements()
@@ -133,6 +136,10 @@ class PhysicsValidator(BaseValidator):
             msg = "Atoms object must have a calculator attached."
             raise ValueError(msg)
 
+        if len(atoms) == 0:
+            msg = "Cannot check EOS for empty structure."
+            raise ValueError(msg)
+
         volumes = []
         energies = []
 
@@ -149,8 +156,12 @@ class PhysicsValidator(BaseValidator):
             volumes.append(atoms_copy.get_volume())
             energies.append(atoms_copy.get_potential_energy())
 
-        eos = EquationOfState(volumes, energies, eos="birchmurnaghan")  # type: ignore[no-untyped-call]
-        v0, e0, B, dBdP = eos.fit()  # type: ignore[no-untyped-call]
+        try:
+            eos = EquationOfState(volumes, energies, eos="birchmurnaghan")  # type: ignore[no-untyped-call]
+            v0, e0, B, dBdP = eos.fit()  # type: ignore[no-untyped-call]
+        except Exception as e:
+            msg = f"EOS fitting failed: {e}"
+            raise ValueError(msg) from e
 
         # Convert B to GPa
         B_GPa = B / GPa
@@ -173,6 +184,10 @@ class PhysicsValidator(BaseValidator):
 
         if atoms.calc is None:
             msg = "Atoms object must have a calculator attached."
+            raise ValueError(msg)
+
+        if len(atoms) == 0:
+            msg = "Cannot calculate elastic constants for empty structure."
             raise ValueError(msg)
 
         cell = atoms.get_cell()  # type: ignore[no-untyped-call]

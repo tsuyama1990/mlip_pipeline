@@ -173,6 +173,53 @@ class MaceDistillationWorkflow:
         state.current_step = 5
         return state
 
+    def _labeled_stream_gen(self, iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
+        """Generator that batches structure labeling.
+
+        Consumes input iterator, batches atoms for processing, and yields labeled atoms one by one.
+        """
+        batch: list[Atoms] = []
+        for atoms in iterator:
+            # Validation
+            validate_structure_integrity_atoms(atoms)
+            batch.append(atoms)
+
+            if len(batch) >= self.batch_size:
+                yield from self._process_batch(batch)
+                batch = [] # Clear memory
+
+        # Process remaining
+        if batch:
+            yield from self._process_batch(batch)
+
+    def _write_labeled_stream(self, labeled_iterator: Iterator["Atoms"], output_path: Path) -> int:
+        """Writes labeled structures to file using a buffer.
+
+        Consumes the labeled stream and writes in chunks to optimize I/O.
+        """
+        count = 0
+        if output_path.exists():
+            output_path.unlink()
+
+        try:
+            with output_path.open("w") as f:
+                 buffer: list[Atoms] = []
+
+                 for atoms in labeled_iterator:
+                     buffer.append(atoms)
+                     count += 1
+                     if len(buffer) >= self.write_buffer_size:
+                         write(f, buffer, format="extxyz")
+                         buffer = [] # Clear buffer after write (Fixes memory leak)
+
+                 if buffer:
+                     write(f, buffer, format="extxyz")
+        except Exception as e:
+            logger.error(f"Failed to write labeled structures to {output_path}: {e}")
+            raise
+
+        return count
+
     def step5_surrogate_labeling(self, state: PipelineState) -> PipelineState:
         """
         Step 5: Label the surrogate pool using the MACE model.
@@ -209,45 +256,10 @@ class MaceDistillationWorkflow:
         atoms_iter = stream_metadata_to_atoms(input_iter)
 
         # 3. Label stream (Generator-based batching)
-        def labeled_stream_gen(iterator: Iterator["Atoms"]) -> Iterator["Atoms"]:
-            batch: list[Atoms] = []
-            for atoms in iterator:
-                # Validation
-                validate_structure_integrity_atoms(atoms)
-                batch.append(atoms)
-
-                if len(batch) >= self.batch_size:
-                    yield from self._process_batch(batch)
-                    batch = [] # Clear memory
-
-            # Process remaining
-            if batch:
-                yield from self._process_batch(batch)
+        labeled_gen = self._labeled_stream_gen(atoms_iter)
 
         # 4. Save stream using batch write to optimize I/O
-        count = 0
-        # Initialize file
-        if labeled_pool_path.exists():
-            labeled_pool_path.unlink()
-
-        try:
-            # We open the file once and append batches
-            with labeled_pool_path.open("w") as f:
-                 buffer: list[Atoms] = []
-
-                 for atoms in labeled_stream_gen(atoms_iter):
-                     buffer.append(atoms)
-                     count += 1
-                     if len(buffer) >= self.write_buffer_size:
-                         write(f, buffer, format="extxyz")
-                         buffer = []
-
-                 if buffer:
-                     write(f, buffer, format="extxyz")
-
-        except Exception as e:
-            logger.error(f"Failed to write labeled structures to {labeled_pool_path}: {e}")
-            raise
+        count = self._write_labeled_stream(labeled_gen, labeled_pool_path)
 
         logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
         state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
@@ -308,9 +320,6 @@ class MaceDistillationWorkflow:
         pacemaker_pot_str = state.artifacts.get("pacemaker_potential_path")
         if not pacemaker_pot_str:
              logger.warning("Base Pacemaker potential missing. Cannot perform Delta Learning.")
-             # We could fail here, or skip. Failing is safer if enabled.
-             # raise ValueError("Artifact 'pacemaker_potential_path' missing")
-             # For robustness, let's log error but mark complete? No, fail if enabled.
              msg = "Artifact 'pacemaker_potential_path' missing for Delta Learning"
              raise ValueError(msg)
 

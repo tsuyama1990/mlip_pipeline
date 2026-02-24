@@ -107,6 +107,9 @@ class ValidatorManager:
                 artifacts={},
             )
 
+        # Use PhysicsValidator for all checks
+        # This keeps Manager clean and logic in Validator
+
         # 1. Phonons
         self.logger.info("Running phonon stability check...")
         try:
