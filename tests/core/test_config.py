@@ -91,10 +91,11 @@ def test_load_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from pyacemaker.core.config import get_defaults
     get_defaults.cache_clear()
 
-    # Patch _DEFAULTS_PATH directly because it's evaluated at import time
-    with patch("pyacemaker.core.config._DEFAULTS_PATH", defaults_file):
-        data = get_defaults()
-        assert data["version"] == "0.1.0"
+    # Monkeypatch the module-level variable
+    monkeypatch.setattr("pyacemaker.core.config._DEFAULTS_PATH", defaults_file)
+
+    data = get_defaults()
+    assert data["version"] == "0.1.0"
 
 
 def test_defaults_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -107,9 +108,11 @@ def test_defaults_file_too_large(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     from pyacemaker.core.config import get_defaults
     get_defaults.cache_clear()
 
-    with patch("pyacemaker.core.config._DEFAULTS_PATH", defaults_file):
-        with pytest.raises(ValueError, match="Defaults file size"):
-            get_defaults()
+    # Monkeypatch the module-level variable
+    monkeypatch.setattr("pyacemaker.core.config._DEFAULTS_PATH", defaults_file)
+
+    with pytest.raises(ValueError, match="Defaults file size"):
+        get_defaults()
 
 
 def test_defaults_not_dict(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -120,9 +123,11 @@ def test_defaults_not_dict(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     from pyacemaker.core.config import get_defaults
     get_defaults.cache_clear()
 
-    with patch("pyacemaker.core.config._DEFAULTS_PATH", defaults_file):
-        with pytest.raises(TypeError, match="must contain a YAML dictionary"):
-            get_defaults()
+    # Monkeypatch the module-level variable
+    monkeypatch.setattr("pyacemaker.core.config._DEFAULTS_PATH", defaults_file)
+
+    with pytest.raises(TypeError, match="must contain a YAML dictionary"):
+        get_defaults()
 
 
 def test_extra_fields_forbidden(tmp_path: Path) -> None:
