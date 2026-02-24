@@ -5,6 +5,29 @@ app = marimo.App(width="medium")
 
 
 @app.cell
+def setup_marimo():
+    import marimo as mo
+    return mo,
+
+
+@app.cell
+def intro_md(mo):
+    return mo.md(
+        """
+        # PYACEMAKER Cycle 06 UAT: End-to-End MACE Distillation
+
+        This tutorial demonstrates the full **MACE Knowledge Distillation** workflow using the **SN2 Reaction** scenario.
+
+        **Workflow Steps:**
+        1.  **Structure Generation**: Define a custom generator for the SN2 reaction pathway ($CH_3Cl + OH^- \\rightarrow CH_3OH + Cl^-$).
+        2.  **Configuration**: Setup the `Orchestrator` with a hybrid Mock/Real configuration.
+        3.  **Execution**: Run the 7-step pipeline (Direct Sampling -> Active Learning -> Surrogate Generation -> Labeling -> Training -> Delta Learning).
+        4.  **Validation**: Verify that artifacts (potentials, datasets) are created and physics checks pass.
+        """
+    )
+
+
+@app.cell
 def setup_constants():
     import os
     import sys
@@ -23,6 +46,18 @@ def setup_constants():
     MODE_NAME = "MOCK" if IS_MOCK else "REAL"
     print(f"Running in {MODE_NAME} Mode")
     return IS_MOCK, MODE_NAME, logger
+
+
+@app.cell
+def generator_md(mo):
+    return mo.md(
+        """
+        ## 1. Define Structure Generator
+
+        We define a custom `SN2StructureGenerator` that interpolates structures along the reaction coordinate.
+        This simulates the "Exploration" phase of the active learning loop.
+        """
+    )
 
 
 @app.cell
@@ -168,17 +203,37 @@ def define_sn2_generator(IS_MOCK, logger):
 
 
 @app.cell
+def workflow_md(mo):
+    return mo.md(
+        """
+        ## 2. Configure & Run Workflow
+
+        The `run_uat_workflow` function initializes the `Orchestrator` with our custom generator and runs the full pipeline.
+        It handles cleaning up the output directory and creating necessary mock files if needed.
+        """
+    )
+
+
+@app.cell
 def define_workflow(IS_MOCK, SN2StructureGenerator):
     from pathlib import Path
     import shutil
     import yaml
     from pyacemaker.core.config_loader import load_config
     from pyacemaker.orchestrator import Orchestrator
+    from pyacemaker.core.base import ModuleResult
 
     def run_uat_workflow():
         output_dir = Path("uat_sn2_reaction").absolute()
+
+        # Safety Check: Ensure we are not deleting something important
+        # We only delete if it looks like our output dir
         if output_dir.exists():
-            shutil.rmtree(output_dir)
+            if "uat_sn2_reaction" in output_dir.name:
+                shutil.rmtree(output_dir)
+            else:
+                raise RuntimeError(f"Safety check failed: Refusing to delete {output_dir}")
+
         output_dir.mkdir(parents=True)
 
         config_dict = {
@@ -219,14 +274,20 @@ def define_workflow(IS_MOCK, SN2StructureGenerator):
             "validator": {"phonon_supercell": [1, 1, 1], "eos_strain": 0.01},
         }
 
-        # Write config
+        # Write config with error handling
         config_path = output_dir / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(config_dict, f)
+        try:
+            with open(config_path, "w") as f:
+                yaml.dump(config_dict, f)
+        except Exception as e:
+            return ModuleResult(status="failed", error=f"Config write failed: {e}"), output_dir
 
-        config = load_config(config_path)
+        try:
+            config = load_config(config_path)
+        except Exception as e:
+             return ModuleResult(status="failed", error=f"Config load failed: {e}"), output_dir
 
-        # Create dummy pseudopotentials for validation if missing
+        # Create dummy pseudopotentials for validation if missing (Mock requirement)
         if IS_MOCK:
             for el in ["C", "H", "O", "Cl"]:
                 (output_dir / f"{el}.upf").touch()
@@ -264,12 +325,14 @@ def run_and_display(run_uat_workflow):
 
 
 @app.cell
-def visualizer(output_dir, result):
-    import marimo as mo
+def visualizer(mo, output_dir, result):
+    status = getattr(result, "status", "unknown")
+    error = getattr(result, "error", None)
 
-    if result.status == "success":
+    if status == "success":
         return mo.md(f"## ✅ UAT Passed! Artifacts: `{output_dir}`")
-    return mo.md(f"## ❌ UAT Failed: {result.error}")
+
+    return mo.md(f"## ❌ UAT Failed: {error}")
 
 
 if __name__ == "__main__":
