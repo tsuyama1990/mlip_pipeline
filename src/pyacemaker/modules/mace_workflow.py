@@ -23,6 +23,7 @@ from pyacemaker.core.utils import (
     save_metadata_stream,
     validate_structure_integrity,
 )
+from pyacemaker.core.validation import validate_safe_path
 from pyacemaker.domain_models.models import (
     Potential,
     PotentialType,
@@ -49,7 +50,7 @@ class MaceDistillationWorkflow:
         structure_generator: StructureGenerator,
         validation_path: Path,
         training_path: Path,
-        active_learner: ActiveLearner | None = None,
+        active_learner: ActiveLearner,
     ) -> None:
         """Initialize the workflow."""
         self.config = config
@@ -64,7 +65,7 @@ class MaceDistillationWorkflow:
         self.structure_generator = structure_generator
         self.validation_path = validation_path
         self.training_path = training_path
-        self.active_learner = active_learner or ActiveLearner()
+        self.active_learner = active_learner
 
     def run(self) -> ModuleResult:
         """Run the workflow."""
@@ -142,6 +143,7 @@ class MaceDistillationWorkflow:
 
             pool_file = dist_config.pool_file
             pool_path = self.config.project.root_dir / "data" / pool_file
+            validate_safe_path(pool_path)
 
             # Stream generator to file without materializing list
             # Uses buffered I/O internally in DatasetManager
@@ -229,7 +231,7 @@ class MaceDistillationWorkflow:
             self.logger.info("No candidates selected (threshold not met or pool empty).")
             return None
 
-        # Mark selected as calculated
+        # Mark selected as calculated and validate
         for s in selected:
             calculated_ids.add(s.id)
             # Validate structure before compute
@@ -269,14 +271,21 @@ class MaceDistillationWorkflow:
 
             surrogate_file = dist_config.surrogate_file
             surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_file
+            validate_safe_path(surrogate_dataset_path)
 
             limited_iter = islice(
                 surrogate_iter, dist_config.step4_surrogate_sampling.target_points
             )
 
+            # Ensure we validate surrogate structures too before saving
+            def validating_iter() -> Iterator[StructureMetadata]:
+                for s in limited_iter:
+                    validate_structure_integrity(s)
+                    yield s
+
             save_metadata_stream(
                 self.dataset_manager,
-                limited_iter,
+                validating_iter(),
                 surrogate_dataset_path,
                 mode="wb",  # Overwrite surrogate pool
                 calculate_checksum=False,
@@ -310,6 +319,7 @@ class MaceDistillationWorkflow:
 
             surrogate_dataset_file = dist_config.surrogate_dataset_file
             surrogate_dataset_path = self.config.project.root_dir / "data" / surrogate_dataset_file
+            validate_safe_path(surrogate_dataset_path)
 
             save_metadata_stream(
                 self.dataset_manager,
