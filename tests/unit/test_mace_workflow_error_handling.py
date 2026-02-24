@@ -1,11 +1,21 @@
-"""Tests for MACE Workflow Error Handling."""
+"""Tests for MACE workflow error handling."""
 
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from ase import Atoms
 
 from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.interfaces import (
+    DynamicsEngine,
+    Oracle,
+    StructureGenerator,
+    Trainer,
+    UncertaintyModel,
+)
 from pyacemaker.domain_models.models import (
     Potential,
     PotentialType,
@@ -19,18 +29,32 @@ from pyacemaker.oracle.mace_oracle import MaceSurrogateOracle
 
 @pytest.fixture
 def mock_config(tmp_path: Path) -> PYACEMAKERConfig:
-    config = MagicMock(spec=PYACEMAKERConfig)
-    config.distillation = MagicMock()
-    config.distillation.enable_mace_distillation = True
-    config.distillation.step2_active_learning.cycles = 2
-    config.distillation.step2_active_learning.uncertainty_threshold = 0.5
-    config.distillation.step2_active_learning.n_select = 5
-    config.oracle = MagicMock()
-    config.oracle.mace.model_path = "medium"
-    # Ensure nested mocks exist
-    config.project = MagicMock()
-    config.project.root_dir = tmp_path
-    return config
+    """Fixture for base configuration."""
+    config_dict = {
+        "project": {"name": "test", "root_dir": str(tmp_path)},
+        "oracle": {
+            "dft": {
+                "code": "vasp",
+                "pseudopotentials": {"Fe": "pot"},
+                "command": "run",
+            },
+            "mace": {"model_path": "medium", "mock": True},
+        },
+        "distillation": {
+            "enable_mace_distillation": True,
+            "step1_direct_sampling": {"target_points": 5},
+            "step2_active_learning": {
+                "uncertainty_threshold": 0.5,
+                "cycles": 1,
+                "n_select": 2,
+            },
+            "step3_mace_finetune": {"epochs": 10},
+            "step4_surrogate_sampling": {"target_points": 5},
+            "step7_pacemaker_finetune": {"enable": True, "weight_dft": 10.0},
+        },
+        "version": "0.1.0",
+    }
+    return PYACEMAKERConfig(**config_dict)
 
 
 def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tmp_path: Path) -> None:
@@ -53,10 +77,11 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
     mock_mace_oracle = MagicMock(spec=MaceSurrogateOracle)
 
     # Mock uncertainty to fail on first call, succeed on second
-    def uncertainty_side_effect(structures):
+    def uncertainty_side_effect(structures: Any) -> Iterator[StructureMetadata]:
         # We need to yield metadata, but fail on first call
         if mock_mace_oracle.compute_uncertainty.call_count == 1:
-            raise RuntimeError("Transient Failure")
+            err_msg = "Transient Failure"
+            raise RuntimeError(err_msg)
         # Return dummy structures
         for s in structures:
             s.uncertainty_state = UncertaintyState(gamma_max=0.9, gamma_mean=0.9)
@@ -72,7 +97,8 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
 
     # Mock Dynamics
     mock_dyn = MagicMock()
-    mock_dyn.run_exploration.return_value = []
+    # Return iterator for run_exploration
+    mock_dyn.run_exploration.return_value = iter([])
 
     workflow = MaceDistillationWorkflow(
         config=mock_config,
@@ -86,13 +112,22 @@ def test_mace_workflow_oracle_failure_recovery(mock_config: PYACEMAKERConfig, tm
         structure_generator=mock_sg,
         validation_path=tmp_path / "val",
         training_path=tmp_path / "train",
+        active_learner=MagicMock(),
     )
 
     # Patch Step 1 to return our pool path
-    with patch.object(workflow, "_step1_direct_sampling", return_value=pool_path):
+    with patch.object(workflow, "step1_direct_sampling", return_value=pool_path):
         result = workflow.run()
 
     # Should succeed overall (despite AL failure)
     assert result.status == "success"
-    # Verify we tried
+
+    # Assertions for recovery
+    # Should have tried uncertainty calculation at least once
     assert mock_mace_oracle.compute_uncertainty.called
+
+    # Even if AL failed transiently, workflow should have proceeded to surrogate generation
+    assert mock_dyn.run_exploration.called
+
+    # Verify we didn't crash completely
+    assert "potential" in result.artifacts

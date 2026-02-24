@@ -10,57 +10,83 @@ def _validate_absolute_path(path: Path, cwd: Path) -> Path:
     from pyacemaker.core.config import CONSTANTS
 
     # Resolve the path (or its parent if it doesn't exist yet).
+    # This prevents symlink traversal attacks.
     if path.exists():
         resolved = path.resolve(strict=True).absolute()
     else:
-        parent = path.parent.resolve(strict=True)
-        resolved = (parent / path.name).absolute()
+        # If it doesn't exist, validate the parent directory exists and is safe
+        try:
+            parent = path.parent.resolve(strict=True)
+            resolved = (parent / path.name).absolute()
+        except FileNotFoundError as e:
+            msg = f"Parent directory does not exist for path: {path}"
+            raise ValueError(msg) from e
 
+    # Check against CWD (default safe scope)
     if resolved.is_relative_to(cwd):
         return resolved
 
+    # Check against explicit whitelists (e.g. for MACE cache or external datasets)
     for allowed in CONSTANTS.allowed_potential_paths:
-        allowed_path = Path(allowed).resolve(strict=True)
-        if resolved.is_relative_to(allowed_path):
-            return resolved
+        try:
+            # Expand ~ if present, though resolve() usually handles relative paths
+            allowed_path = Path(allowed).expanduser().resolve(strict=True)
+            if resolved.is_relative_to(allowed_path):
+                return resolved
+        except (OSError, RuntimeError):
+            # Skip invalid/non-existent whitelist entries without crashing
+            continue
 
     msg = f"Path {resolved} is not within current working directory or allowed whitelist"
     raise ValueError(msg)
 
 
 def validate_safe_path(path: Path) -> Path:
-    """Validate that path is safe (within CWD or whitelisted)."""
+    """Validate that path is safe (within CWD or whitelisted).
+
+    This function defends against path traversal attacks by resolving symlinks
+    and ensuring the final target is within trusted boundaries.
+    """
     from pyacemaker.core.config import CONSTANTS
 
     if str(path).strip() == "":
         msg = "Path cannot be empty"
         raise ValueError(msg)
 
-    # Always reject explicit path traversal components, regardless of skip_file_checks.
+    # Always reject explicit path traversal components in the string representation
     if ".." in path.parts:
         msg = (
-            f"Path traversal not allowed: {path} must be strictly within current working directory"
+            f"Path traversal detected in '{path}': '..' component is forbidden."
         )
         raise ValueError(msg)
 
+    # If security checks are globally disabled (e.g. for testing mocks), bypass logic
     if CONSTANTS.skip_file_checks:
         return path
 
     try:
+        # Establish the trusted base (Project Root or CWD)
+        # Note: In a real app, this should be config.project.root_dir, but we default to CWD here.
         cwd = Path.cwd().resolve(strict=True)
 
-        # For relative paths: check containment lexically without requiring existence on disk.
         if not path.is_absolute():
+            # Convert to absolute path relative to CWD for verification
             candidate = (cwd / path).resolve()
+
+            # Re-verify containment after resolution to catch sneaky symlinks
             if candidate.is_relative_to(cwd):
-                return path
-            msg = f"Path {path} must be strictly within current working directory"
+                return path # Return original relative path for convenience if safe
+
+            # If resolved path escapes CWD, fail
+            msg = f"Path {path} resolves to {candidate}, which is outside base directory {cwd}"
             raise ValueError(msg)  # noqa: TRY301
 
+        # For absolute paths, perform full validation against whitelist
         return _validate_absolute_path(path, cwd)
 
     except (ValueError, RuntimeError, OSError) as e:
-        msg = f"Path {path} is unsafe or outside allowed base directory: {e}"
+        # Wrap all path errors in ValueError for consistent API handling
+        msg = f"Path validation failed for {path}: {e}"
         raise ValueError(msg) from e
 
 
@@ -74,6 +100,7 @@ def _validate_structure(data: Any, path: str = "", depth: int = 0) -> None:
     """Validate data structure recursively."""
     from pyacemaker.core.config import CONSTANTS
 
+    # Use constant from config for validation logic
     valid_value_regex = re.compile(CONSTANTS.valid_value_regex)
 
     if depth > 10:

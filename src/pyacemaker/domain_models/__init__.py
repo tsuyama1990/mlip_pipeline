@@ -17,12 +17,14 @@ from pyacemaker.domain_models.models import (
     ValidationResult,
     utc_now,
 )
+from pyacemaker.domain_models.state import PipelineState
 
 __all__ = [
     "ActiveSet",
     "CycleStatus",
     "HaltInfo",
     "MaterialDNA",
+    "PipelineState",
     "Potential",
     "PotentialType",
     "PredictedProperties",

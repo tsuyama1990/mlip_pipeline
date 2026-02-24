@@ -63,14 +63,14 @@ class PacemakerTrainer(BaseTrainer):
 
         input_data = {
             "cutoff": float(config.get("cutoff", CONSTANTS.default_trainer_cutoff)),
-            "seed": config.get("seed", 42),
+            "seed": config.get("seed", CONSTANTS.pacemaker_default_seed),
             "data": {
                 "filename": str(dataset_path),
                 "energy_unit": config.get("energy_unit", "eV"),
                 "distance_unit": config.get("distance_unit", "A"),
             },
             "potential": {
-                "deltaSplineBins": config.get("deltaSplineBins", 0.001),
+                "deltaSplineBins": config.get("deltaSplineBins", CONSTANTS.pacemaker_default_delta_spline_bins),
                 "elements": elements,
                 "embeddings": embeddings,
                 "bonds": {
@@ -79,19 +79,19 @@ class PacemakerTrainer(BaseTrainer):
                 },
             },
             "backend": {
-                "evaluator": config.get("evaluator", "tensorpot"),
+                "evaluator": config.get("evaluator", CONSTANTS.pacemaker_default_evaluator),
                 "batch_size": int(config.get("batch_size", CONSTANTS.default_trainer_batch_size)),
-                "display_step": config.get("display_step", 100),
+                "display_step": config.get("display_step", CONSTANTS.pacemaker_default_display_step),
             },
             "loss": {
-                "kappa": config.get("kappa", 0.3),
-                "w_energy": config.get("w_energy", 1.0),
-                "w_forces": config.get("w_forces", 1.0),
-                "w_stress": config.get("w_stress", 0.1),
+                "kappa": config.get("kappa", CONSTANTS.pacemaker_default_kappa),
+                "w_energy": config.get("w_energy", CONSTANTS.pacemaker_default_w_energy),
+                "w_forces": config.get("w_forces", CONSTANTS.pacemaker_default_w_forces),
+                "w_stress": config.get("w_stress", CONSTANTS.pacemaker_default_w_stress),
             },
             "optimizer": {
                 "max_epochs": int(config.get("max_epochs", CONSTANTS.default_trainer_max_epochs)),
-                "patience": config.get("patience", 50),
+                "patience": config.get("patience", CONSTANTS.pacemaker_default_patience),
             },
         }
 
@@ -101,6 +101,11 @@ class PacemakerTrainer(BaseTrainer):
             # Assuming 'baseline' key at root or under potential
             # Checking pacemaker docs (simulated): usually 'potential.baseline'
             input_data["potential"]["baseline"] = config["baseline"]
+
+        # If initial_potential is provided, we can document it in the YAML for reproducibility,
+        # even though wrapper passes it via CLI.
+        if initial_potential:
+             input_data["metadata"] = {"initial_potential": str(initial_potential)}
 
         input_path = work_dir / "input.yaml"
         with input_path.open("w") as f:
@@ -128,12 +133,14 @@ class PacemakerTrainer(BaseTrainer):
 
             def valid_counting_stream(structures: Iterable[StructureMetadata]) -> Iterator[Any]:
                 for s in structures:
+                    # Validate on the fly to avoid reading bad data
                     if s.energy is not None and s.forces is not None:
                         stats["count"] += 1
                         yield s
 
             # Streaming execution: consumes generator lazily, processes one item at a time
             # Memory usage is O(1) relative to dataset size
+            # stream_metadata_to_atoms handles conversion and basic validation
             atoms_stream = stream_metadata_to_atoms(valid_counting_stream(dataset))
             self.dataset_manager.save_iter(atoms_stream, dataset_path)
 

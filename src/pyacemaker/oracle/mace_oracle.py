@@ -166,7 +166,11 @@ class MaceSurrogateOracle(BaseOracle, UncertaintyModel):
                 break
 
             # Process chunk using predict_batch
-            yield from self.predict_batch(chunk)
+            # predict_batch works in-place but returns the list
+            self.predict_batch(chunk)
+
+            # Yield processed structures
+            yield from chunk
 
     def _collect_valid_batch(
         self, chunk: list[StructureMetadata]
