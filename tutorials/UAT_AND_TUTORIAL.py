@@ -5,30 +5,10 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def imports():
+def setup_constants():
     import os
-    import shutil
     import sys
-    import warnings
-    from pathlib import Path
-    from typing import Iterator, Any, Iterable
-    import numpy as np
-    from ase import Atoms
-    from ase.build import molecule
-    import yaml
     from loguru import logger
-
-    # pyacemaker imports
-    from pyacemaker.core.config_loader import load_config
-    from pyacemaker.orchestrator import Orchestrator
-    from pyacemaker.core.interfaces import StructureGenerator
-    from pyacemaker.core.base import ModuleResult, Metrics
-    from pyacemaker.domain_models.models import (
-        StructureMetadata,
-        StructureStatus,
-        MaterialDNA,
-    )
-    from pyacemaker.core.utils import generate_dummy_structures
 
     # Configure Logging
     logger.remove()
@@ -42,49 +22,22 @@ def imports():
     )
     MODE_NAME = "MOCK" if IS_MOCK else "REAL"
     print(f"Running in {MODE_NAME} Mode")
-
-    return (
-        Any,
-        Atoms,
-        IS_MOCK,
-        Iterable,
-        Iterator,
-        MODE_NAME,
-        MaterialDNA,
-        Metrics,
-        ModuleResult,
-        Orchestrator,
-        Path,
-        StructureGenerator,
-        StructureMetadata,
-        StructureStatus,
-        generate_dummy_structures,
-        load_config,
-        logger,
-        molecule,
-        np,
-        os,
-        shutil,
-        sys,
-        warnings,
-        yaml,
-    )
+    return IS_MOCK, MODE_NAME, logger
 
 
 @app.cell
-def define_sn2_generator(
-    IS_MOCK,
-    Iterable,
-    Iterator,
-    MaterialDNA,
-    Metrics,
-    ModuleResult,
-    StructureGenerator,
-    StructureMetadata,
-    StructureStatus,
-    logger,
-    molecule,
-):
+def define_sn2_generator(IS_MOCK, logger):
+    from typing import Iterator, Any, Iterable
+    import numpy as np
+    from ase.build import molecule
+    from pyacemaker.core.interfaces import StructureGenerator
+    from pyacemaker.core.base import ModuleResult, Metrics
+    from pyacemaker.domain_models.models import (
+        StructureMetadata,
+        StructureStatus,
+        MaterialDNA,
+    )
+
     class SN2StructureGenerator(StructureGenerator):
         """Generates SN2 Reaction Pathway Structures (CH3Cl + OH- -> CH3OH + Cl-)."""
 
@@ -97,7 +50,10 @@ def define_sn2_generator(
             return ModuleResult(status="success", metrics=Metrics())
 
         def get_strategy_info(self) -> dict[str, Any]:
-            return {"strategy": "sn2_custom", "parameters": {"rattle_amp": self.rattle_amp}}
+            return {
+                "strategy": "sn2_custom",
+                "parameters": {"rattle_amp": self.rattle_amp},
+            }
 
         def generate_initial_structures(self) -> Iterator[StructureMetadata]:
             # Provide basic endpoints
@@ -110,7 +66,10 @@ def define_sn2_generator(
             yield from self._generate_path(n_samples)
 
         def generate_local_candidates(
-            self, seed_structure: StructureMetadata, n_candidates: int, cycle: int = 1
+            self,
+            seed_structure: StructureMetadata,
+            n_candidates: int,
+            cycle: int = 1,
         ) -> Iterator[StructureMetadata]:
             atoms = seed_structure.features.get("atoms")
             if not atoms:
@@ -148,16 +107,11 @@ def define_sn2_generator(
                 # Rotate so Cl is on Z axis (approx)
                 cl_idx = [a.index for a in mol1 if a.symbol == "Cl"][0]
                 vec = mol1.positions[cl_idx] - mol1.positions[c_idx]
-                # Align vec to [0,0,1]
-                # Simple check: if vec is already aligned
                 if np.linalg.norm(np.cross(vec, [0, 0, 1])) > 1e-3:
-                     # Compute rotation matrix or use ASE rotate
-                     # ASE rotate takes vector
-                     mol1.rotate(vec, [0, 0, 1])
+                    mol1.rotate(vec, [0, 0, 1])
 
                 # OH-
                 mol2 = molecule("OH")
-                # Place OH at -4.0 Z (attacking C)
                 mol2.translate([0, 0, -4.0])
 
                 reactant = mol1.copy()
@@ -166,34 +120,33 @@ def define_sn2_generator(
                 reactant.center()
                 reactant.pbc = True
             except Exception as e:
-                self.logger.warning(f"Failed to build SN2 molecules: {e}. Using dummies.")
-                # Fallback for CI environments without G2 data
+                self.logger.warning(
+                    f"Failed to build SN2 molecules: {e}. Using dummies."
+                )
                 from ase import Atoms
-                reactant = Atoms('C', positions=[[0, 0, 0]], cell=[10,10,10], pbc=True)
+
+                reactant = Atoms(
+                    "C", positions=[[0, 0, 0]], cell=[10, 10, 10], pbc=True
+                )
 
             for i in range(n_points):
                 alpha = i / (n_points - 1) if n_points > 1 else 0.0
                 frame = reactant.copy()
 
-                # Mock trajectory: Move OH closer, Cl away
-                # Assuming atom indices are stable
-                # Find O and Cl
                 try:
-                    o_indices = [a.index for a in frame if a.symbol == 'O']
-                    cl_indices = [a.index for a in frame if a.symbol == 'Cl']
+                    o_indices = [a.index for a in frame if a.symbol == "O"]
+                    cl_indices = [a.index for a in frame if a.symbol == "Cl"]
                     if o_indices and cl_indices:
                         o_idx = o_indices[0]
                         cl_idx = cl_indices[0]
 
-                        # Move O from -4 to -1.5 (Reaction coord)
+                        # Move O from -4 to -1.5
                         # Move Cl from ~1.8 to 4.0
-
                         current_o_z = frame.positions[o_idx][2]
                         target_o_z = -1.5
                         shift_o = (target_o_z - (-4.0)) * alpha
                         frame.positions[o_idx][2] += shift_o
 
-                        # Cl usually at +1.78
                         frame.positions[cl_idx][2] += 2.0 * alpha
                 except Exception:
                     pass
@@ -205,25 +158,23 @@ def define_sn2_generator(
                 yield StructureMetadata(
                     features={"atoms": frame},
                     material_dna=MaterialDNA(
-                        composition={"C": 1/7, "H": 4/7, "O": 1/7, "Cl": 1/7}
+                        composition={"C": 1 / 7, "H": 4 / 7, "O": 1 / 7, "Cl": 1 / 7}
                     ),
                     status=StructureStatus.NEW,
                     tags=["sn2_path", f"alpha_{alpha:.2f}".replace(".", "p")],
                 )
 
-    return SN2StructureGenerator,
+    return SN2StructureGenerator
 
 
 @app.cell
-def define_workflow(
-    IS_MOCK,
-    Orchestrator,
-    Path,
-    SN2StructureGenerator,
-    load_config,
-    shutil,
-    yaml,
-):
+def define_workflow(IS_MOCK, SN2StructureGenerator):
+    from pathlib import Path
+    import shutil
+    import yaml
+    from pyacemaker.core.config_loader import load_config
+    from pyacemaker.orchestrator import Orchestrator
+
     def run_uat_workflow():
         output_dir = Path("uat_sn2_reaction").absolute()
         if output_dir.exists():
@@ -232,7 +183,7 @@ def define_workflow(
 
         config_dict = {
             "project": {"name": "SN2_UAT", "root_dir": str(output_dir)},
-            "structure_generator": {"strategy": "random"},  # Placeholder
+            "structure_generator": {"strategy": "random"},
             "oracle": {
                 "mock": IS_MOCK,
                 "dft": {
@@ -295,7 +246,7 @@ def define_workflow(
         result = orchestrator.run()
         return result, output_dir
 
-    return run_uat_workflow,
+    return run_uat_workflow
 
 
 @app.cell
