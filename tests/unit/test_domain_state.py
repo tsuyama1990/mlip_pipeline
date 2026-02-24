@@ -23,7 +23,7 @@ def test_pipeline_state_creation():
 def test_pipeline_state_validation():
     """Test PipelineState validation constraints."""
     # Test valid steps
-    for i in range(1, 8):
+    for i in range(1, 9): # 1-8 allowed
         PipelineState(current_step=i)
 
     # Test invalid steps
@@ -31,7 +31,7 @@ def test_pipeline_state_validation():
         PipelineState(current_step=0)
 
     with pytest.raises(ValidationError):
-        PipelineState(current_step=8)
+        PipelineState(current_step=9)
 
 
 def test_pipeline_state_defaults():
@@ -74,7 +74,10 @@ def test_pipeline_state_serialization():
     assert loaded.metadata["iteration"] == 5
 
 
-def test_pipeline_state_immutability_extra():
-    """Test extra fields are forbidden."""
-    with pytest.raises(ValidationError):
+def test_pipeline_state_extra_forbid():
+    """Test that extra fields are forbidden."""
+    with pytest.raises(ValidationError) as excinfo:
         PipelineState(current_step=1, extra_field="bad")
+
+    assert "extra_forbidden" in str(excinfo.value)
+    assert "Extra inputs are not permitted" in str(excinfo.value)

@@ -1,13 +1,15 @@
 """UAT for Cycle 05: Delta Learning and Orchestration."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
-from pyacemaker.core.config import PYACEMAKERConfig
+from pyacemaker.core.config import PYACEMAKERConfig, CONSTANTS
 from pyacemaker.domain_models.state import PipelineState
+from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.orchestrator import Orchestrator
 from pyacemaker.trainer.pacemaker import PacemakerTrainer
 
@@ -71,7 +73,7 @@ def test_scenario_01_delta_learning(uat_config, tmp_path):
         captured_input_data = {}
 
         def train_side_effect(input_file, work_dir, initial_potential=None):
-            with open(input_file) as f:
+            with input_file.open() as f:
                 captured_input_data.update(yaml.safe_load(f))
             return final_pot_file
 
@@ -82,7 +84,6 @@ def test_scenario_01_delta_learning(uat_config, tmp_path):
             # Dummy generator
             def dummy_gen():
                 from uuid import uuid4
-
                 from pyacemaker.domain_models.structure import StructureMetadata
                 yield StructureMetadata(id=uuid4(), energy=-10.0, forces=[[0,0,0]])
 
@@ -102,7 +103,7 @@ def test_scenario_01_delta_learning(uat_config, tmp_path):
                 final_pot = trainer.train(
                     dummy_gen(),
                     initial_potential=base_potential,
-                    weight_dft=10.0
+                    weight_dft=uat_config.distillation.step7_pacemaker_finetune.weight_dft
                 )
 
             # Verify Output
@@ -111,7 +112,7 @@ def test_scenario_01_delta_learning(uat_config, tmp_path):
             # Verify Inputs
             assert mock_train.called
 
-            # Verify captured input data
+            # Verify captured input data - using value from config
             assert captured_input_data["loss"]["w_energy"] == 10.0
             assert captured_input_data["loss"]["w_forces"] == 10.0
 
@@ -187,3 +188,4 @@ def test_scenario_02_pipeline_idempotency(uat_config, tmp_path):
         final_state = PipelineState.model_validate_json(state_file.read_text())
         assert final_state.current_step == 8
         assert 7 in final_state.completed_steps
+        assert "final_potential" in final_state.artifacts
