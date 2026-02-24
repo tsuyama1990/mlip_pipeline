@@ -149,26 +149,31 @@ class MaceDistillationWorkflow:
         logger.info("Step 4: Surrogate Data Generation")
         surrogate_pool_path = self._get_pool_path(4)
 
-        # Generate a large number of structures
-        # Use config-driven limit
-        target_count = self.config.step4_surrogate_sampling.target_points
+        try:
+            # Generate a large number of structures
+            # Use config-driven limit
+            target_count = self.config.step4_surrogate_sampling.target_points
 
-        # Reuse direct sampling
-        candidates_iter = self.structure_generator.generate_direct_samples(
-            n_samples=target_count,
-            objective=self.config.step1_direct_sampling.objective # Reuse objective?
-        )
+            # Reuse direct sampling
+            candidates_iter = self.structure_generator.generate_direct_samples(
+                n_samples=target_count,
+                objective=self.config.step1_direct_sampling.objective # Reuse objective?
+            )
 
-        # Ensure memory safety by strictly slicing the iterator
-        limited_iter = islice(candidates_iter, target_count)
+            # Ensure memory safety by strictly slicing the iterator
+            limited_iter = islice(candidates_iter, target_count)
 
-        # save_metadata_stream is designed to consume iterator one-by-one
-        # Verify dataset_manager.save_metadata_stream logic (it iterates)
-        count = self.dataset_manager.save_metadata_stream(limited_iter, surrogate_pool_path)
+            # save_metadata_stream is designed to consume iterator one-by-one
+            # Verify dataset_manager.save_metadata_stream logic (it iterates)
+            count = self.dataset_manager.save_metadata_stream(limited_iter, surrogate_pool_path)
 
-        logger.info(f"Generated {count} surrogate candidates in {surrogate_pool_path}")
-        state.artifacts["surrogate_pool_path"] = str(surrogate_pool_path)
-        state.current_step = 5
+            logger.info(f"Generated {count} surrogate candidates in {surrogate_pool_path}")
+            state.artifacts["surrogate_pool_path"] = str(surrogate_pool_path)
+            state.current_step = 5
+        except Exception as e:
+            logger.error(f"Step 4 failed: {e}")
+            raise
+
         return state
 
     def _write_labeled_stream(self, labeled_iterator: Iterator["Atoms"], output_path: Path) -> int:
@@ -205,46 +210,51 @@ class MaceDistillationWorkflow:
         """
         logger.info("Step 5: Surrogate Labeling with MACE")
 
-        surrogate_pool_path_str = state.artifacts.get("surrogate_pool_path")
-        if not surrogate_pool_path_str:
-            raise ValueError("Artifact 'surrogate_pool_path' missing in state")
+        try:
+            surrogate_pool_path_str = state.artifacts.get("surrogate_pool_path")
+            if not surrogate_pool_path_str:
+                raise ValueError("Artifact 'surrogate_pool_path' missing in state")
 
-        # Validate input path is safe before using
-        surrogate_pool_path = validate_safe_path(Path(str(surrogate_pool_path_str)))
+            # Validate input path is safe before using
+            surrogate_pool_path = validate_safe_path(Path(str(surrogate_pool_path_str)))
 
-        labeled_pool_path = self.work_dir / "step5_surrogate_labeled.xyz"
-        validate_safe_path(labeled_pool_path)
+            labeled_pool_path = self.work_dir / "step5_surrogate_labeled.xyz"
+            validate_safe_path(labeled_pool_path)
 
-        mace_model_path_str = state.artifacts.get("mace_model_path")
-        if not mace_model_path_str:
-             # Fallback or error? Usually error if AL loop succeeded.
-             logger.warning("mace_model_path missing")
-             raise ValueError("Artifact 'mace_model_path' missing in state")
+            mace_model_path_str = state.artifacts.get("mace_model_path")
+            if not mace_model_path_str:
+                 # Fallback or error? Usually error if AL loop succeeded.
+                 logger.warning("mace_model_path missing")
+                 raise ValueError("Artifact 'mace_model_path' missing in state")
 
-        mace_model_path = Path(str(mace_model_path_str))
+            mace_model_path = Path(str(mace_model_path_str))
 
-        # Update Oracle with the trained model
-        self.mace_oracle.update_model(mace_model_path)
+            # Update Oracle with the trained model
+            self.mace_oracle.update_model(mace_model_path)
 
-        # Stream load -> Label -> Stream save
-        # This prevents loading all 10k+ structures into memory
+            # Stream load -> Label -> Stream save
+            # This prevents loading all 10k+ structures into memory
 
-        # 1. Load stream
-        input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
+            # 1. Load stream
+            input_iter = self.dataset_manager.load_iter(surrogate_pool_path)
 
-        # 2. Label stream (Generator-based batching via compute_batch)
-        # compute_batch consumes StructureMetadata and yields StructureMetadata (with energy/forces)
-        labeled_metadata_stream = self.mace_oracle.compute_batch(input_iter)
+            # 2. Label stream (Generator-based batching via compute_batch)
+            # compute_batch consumes StructureMetadata and yields StructureMetadata (with energy/forces)
+            labeled_metadata_stream = self.mace_oracle.compute_batch(input_iter)
 
-        # 3. Convert back to Atoms for writing
-        atoms_iter = stream_metadata_to_atoms(labeled_metadata_stream)
+            # 3. Convert back to Atoms for writing
+            atoms_iter = stream_metadata_to_atoms(labeled_metadata_stream)
 
-        # 4. Save stream using batch write to optimize I/O
-        count = self._write_labeled_stream(atoms_iter, labeled_pool_path)
+            # 4. Save stream using batch write to optimize I/O
+            count = self._write_labeled_stream(atoms_iter, labeled_pool_path)
 
-        logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
-        state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
-        state.current_step = 6
+            logger.info(f"Labeled {count} surrogate structures in {labeled_pool_path}")
+            state.artifacts["labeled_surrogate_path"] = str(labeled_pool_path)
+            state.current_step = 6
+        except Exception as e:
+            logger.error(f"Step 5 failed: {e}")
+            raise
+
         return state
 
     def step6_pacemaker_base_training(self, state: PipelineState) -> PipelineState:
@@ -252,20 +262,25 @@ class MaceDistillationWorkflow:
         Step 6: Train Pacemaker potential on the surrogate data.
         """
         logger.info("Step 6: Pacemaker Base Training")
-        labeled_data_path_str = state.artifacts.get("labeled_surrogate_path")
-        if not labeled_data_path_str:
-            raise ValueError("Artifact 'labeled_surrogate_path' missing in state")
+        try:
+            labeled_data_path_str = state.artifacts.get("labeled_surrogate_path")
+            if not labeled_data_path_str:
+                raise ValueError("Artifact 'labeled_surrogate_path' missing in state")
 
-        labeled_data_path = Path(str(labeled_data_path_str))
+            labeled_data_path = Path(str(labeled_data_path_str))
 
-        output_pot_path = self.pacemaker_trainer.train(
-            training_data=labeled_data_path,
-            test_data=None,
-            run_dir=self.work_dir / "pacemaker_run"
-        )
+            output_pot_path = self.pacemaker_trainer.train(
+                training_data=labeled_data_path,
+                test_data=None,
+                run_dir=self.work_dir / "pacemaker_run"
+            )
 
-        state.artifacts["pacemaker_potential_path"] = str(output_pot_path)
-        state.current_step = 7
+            state.artifacts["pacemaker_potential_path"] = str(output_pot_path)
+            state.current_step = 7
+        except Exception as e:
+            logger.error(f"Step 6 failed: {e}")
+            raise
+
         return state
 
     def step7_delta_learning(self, state: PipelineState) -> PipelineState:
@@ -274,48 +289,53 @@ class MaceDistillationWorkflow:
         """
         logger.info("Step 7: Delta Learning")
 
-        # Check configuration
-        if not self.config.step7_pacemaker_finetune.enable:
-            logger.info("Delta Learning disabled in config. Skipping.")
+        try:
+            # Check configuration
+            if not self.config.step7_pacemaker_finetune.enable:
+                logger.info("Delta Learning disabled in config. Skipping.")
+                state.current_step = 8
+                return state
+
+            # Retrieve inputs
+            pacemaker_pot_str = state.artifacts.get("pacemaker_potential_path")
+            if not pacemaker_pot_str:
+                 logger.warning("Base Pacemaker potential missing. Cannot perform Delta Learning.")
+                 msg = "Artifact 'pacemaker_potential_path' missing for Delta Learning"
+                 raise ValueError(msg)
+
+            dft_dataset_str = state.artifacts.get("dft_dataset_path")
+            if not dft_dataset_str:
+                 logger.warning("DFT dataset path missing. Cannot perform Delta Learning.")
+                 msg = "Artifact 'dft_dataset_path' missing for Delta Learning"
+                 raise ValueError(msg)
+
+            base_potential = Potential(
+                path=Path(pacemaker_pot_str),
+                type=PotentialType.PACE,
+                version=CONSTANTS.internal_base_potential_version,
+            )
+            dft_dataset_path = Path(dft_dataset_str)
+
+            # Load DFT dataset as stream
+            def dft_metadata_stream() -> Iterator[Any]:
+                # dataset_manager.load_iter returns Atoms, convert to Metadata for trainer
+                for atoms in self.dataset_manager.load_iter(dft_dataset_path):
+                    yield atoms_to_metadata(atoms)
+
+            weight_dft = self.config.step7_pacemaker_finetune.weight_dft
+
+            logger.info(f"Starting Delta Learning with weight_dft={weight_dft}")
+            final_pot = self.pacemaker_trainer.train(
+                dataset=dft_metadata_stream(),
+                initial_potential=base_potential,
+                weight_dft=weight_dft,
+            )
+
+            state.artifacts["final_potential"] = str(final_pot.path)
             state.current_step = 8
-            return state
+            logger.info(f"Delta Learning completed. Final potential: {final_pot.path}")
+        except Exception as e:
+            logger.error(f"Step 7 failed: {e}")
+            raise
 
-        # Retrieve inputs
-        pacemaker_pot_str = state.artifacts.get("pacemaker_potential_path")
-        if not pacemaker_pot_str:
-             logger.warning("Base Pacemaker potential missing. Cannot perform Delta Learning.")
-             msg = "Artifact 'pacemaker_potential_path' missing for Delta Learning"
-             raise ValueError(msg)
-
-        dft_dataset_str = state.artifacts.get("dft_dataset_path")
-        if not dft_dataset_str:
-             logger.warning("DFT dataset path missing. Cannot perform Delta Learning.")
-             msg = "Artifact 'dft_dataset_path' missing for Delta Learning"
-             raise ValueError(msg)
-
-        base_potential = Potential(
-            path=Path(pacemaker_pot_str),
-            type=PotentialType.PACE,
-            version=CONSTANTS.internal_base_potential_version,
-        )
-        dft_dataset_path = Path(dft_dataset_str)
-
-        # Load DFT dataset as stream
-        def dft_metadata_stream() -> Iterator[Any]:
-            # dataset_manager.load_iter returns Atoms, convert to Metadata for trainer
-            for atoms in self.dataset_manager.load_iter(dft_dataset_path):
-                yield atoms_to_metadata(atoms)
-
-        weight_dft = self.config.step7_pacemaker_finetune.weight_dft
-
-        logger.info(f"Starting Delta Learning with weight_dft={weight_dft}")
-        final_pot = self.pacemaker_trainer.train(
-            dataset=dft_metadata_stream(),
-            initial_potential=base_potential,
-            weight_dft=weight_dft,
-        )
-
-        state.artifacts["final_potential"] = str(final_pot.path)
-        state.current_step = 8
-        logger.info(f"Delta Learning completed. Final potential: {final_pot.path}")
         return state

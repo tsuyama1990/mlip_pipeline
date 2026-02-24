@@ -99,8 +99,26 @@ def test_step5_surrogate_labeling_calls_compute_batch(workflow: MaceDistillation
 
         workflow.step5_surrogate_labeling(state)
 
+        # Verify compute_batch was called with the iterator from load_iter
         assert mock_mace_oracle.compute_batch.called
+        args, _ = mock_mace_oracle.compute_batch.call_args
+        # The argument should be the iterator returned by load_iter
+        assert args[0] is mock_dataset_manager.load_iter.return_value
+
         assert workflow._write_labeled_stream.called
+
+def test_step5_handles_error(workflow: MaceDistillationWorkflow, mock_mace_oracle: MagicMock, mock_dataset_manager: MagicMock) -> None:
+    state = PipelineState(current_step=5)
+    state.artifacts["surrogate_pool_path"] = "surrogate.xyz"
+    state.artifacts["mace_model_path"] = "model.mace"
+
+    mock_dataset_manager.load_iter.return_value = iter([StructureMetadata()])
+
+    # Mock compute_batch to raise exception
+    mock_mace_oracle.compute_batch.side_effect = RuntimeError("Oracle Failed")
+
+    with pytest.raises(RuntimeError, match="Oracle Failed"):
+        workflow.step5_surrogate_labeling(state)
 
 def test_step7_delta_learning_calls_trainer(workflow: MaceDistillationWorkflow, mock_pacemaker_trainer: MagicMock, mock_dataset_manager: MagicMock) -> None:
     state = PipelineState(current_step=7)
