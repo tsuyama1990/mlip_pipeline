@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from ase.io import write
 from loguru import logger
 
-from pyacemaker.core.config import DistillationConfig
+from pyacemaker.core.config import CONSTANTS, DistillationConfig
 from pyacemaker.core.interfaces import Oracle
 from pyacemaker.core.logging import get_logger
 from pyacemaker.core.utils import (
@@ -119,21 +119,16 @@ class MaceDistillationWorkflow:
 
         pool_path = Path(str(pool_path_str))
 
-        try:
-            # Active Learner manages the loop: select -> label -> train -> repeat
-            final_model_path, dft_dataset_path = self.active_learner.run_loop(
-                pool_path=pool_path,
-                work_dir=self.work_dir
-            )
+        # Active Learner manages the loop: select -> label -> train -> repeat
+        final_model_path, dft_dataset_path = self.active_learner.run_loop(
+            pool_path=pool_path,
+            work_dir=self.work_dir
+        )
 
-            state.artifacts["mace_model_path"] = str(final_model_path)
-            state.artifacts["dft_dataset_path"] = str(dft_dataset_path)
-            state.current_step = 3
-            logger.info(f"Active Learning loop completed. Model: {final_model_path}")
-
-        except Exception as e:
-            logger.error(f"Active Learning Loop failed: {e}")
-            raise
+        state.artifacts["mace_model_path"] = str(final_model_path)
+        state.artifacts["dft_dataset_path"] = str(dft_dataset_path)
+        state.current_step = 3
+        logger.info(f"Active Learning loop completed. Model: {final_model_path}")
 
         return state
 
@@ -214,6 +209,7 @@ class MaceDistillationWorkflow:
         if not surrogate_pool_path_str:
             raise ValueError("Artifact 'surrogate_pool_path' missing in state")
 
+        # Validate input path is safe before using
         surrogate_pool_path = validate_safe_path(Path(str(surrogate_pool_path_str)))
 
         labeled_pool_path = self.work_dir / "step5_surrogate_labeled.xyz"
@@ -300,7 +296,7 @@ class MaceDistillationWorkflow:
         base_potential = Potential(
             path=Path(pacemaker_pot_str),
             type=PotentialType.PACE,
-            version="0.0.0",  # Placeholder version for internal object
+            version=CONSTANTS.internal_base_potential_version,
         )
         dft_dataset_path = Path(dft_dataset_str)
 

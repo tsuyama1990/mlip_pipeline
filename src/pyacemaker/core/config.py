@@ -352,6 +352,10 @@ class Constants(BaseSettings):
     default_training_file: str = Field(
         default_factory=lambda: get_defaults()["default_training_file"]
     )
+    internal_base_potential_version: str = Field(
+        default="0.0.0",
+        description="Version string for internal base potentials used in workflows"
+    )
     default_candidates_file: str = Field(
         default_factory=lambda: get_defaults()["default_candidates_file"]
     )
