@@ -100,6 +100,7 @@ def _validate_structure(data: Any, path: str = "", depth: int = 0) -> None:
     """Validate data structure recursively."""
     from pyacemaker.core.config import CONSTANTS
 
+    # Use constant from config for validation logic
     valid_value_regex = re.compile(CONSTANTS.valid_value_regex)
 
     if depth > 10:

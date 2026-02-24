@@ -1,6 +1,5 @@
 """UAT for Cycle 05: Delta Learning and Orchestration."""
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +8,6 @@ import yaml
 
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.domain_models.state import PipelineState
-from pyacemaker.modules.mace_workflow import MaceDistillationWorkflow
 from pyacemaker.orchestrator import Orchestrator
 from pyacemaker.trainer.pacemaker import PacemakerTrainer
 
@@ -84,6 +82,7 @@ def test_scenario_01_delta_learning(uat_config, tmp_path):
             # Dummy generator
             def dummy_gen():
                 from uuid import uuid4
+
                 from pyacemaker.domain_models.structure import StructureMetadata
                 yield StructureMetadata(id=uuid4(), energy=-10.0, forces=[[0,0,0]])
 

@@ -1,10 +1,10 @@
 """Integration tests for Orchestrator state management."""
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from pyacemaker.core.config import PYACEMAKERConfig
 from pyacemaker.domain_models.state import PipelineState
 from pyacemaker.orchestrator import Orchestrator
@@ -49,7 +49,6 @@ def test_state_persistence(orchestrator, tmp_path):
     # or we can test private methods if really needed, but integration tests usually
     # test public interfaces.
     # The Orchestrator manages state internally.
-    pass
 
 
 def test_run_resumes_from_state(orchestrator, tmp_path):

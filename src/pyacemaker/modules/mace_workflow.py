@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 
 from pyacemaker.core.base import Metrics, ModuleResult
-from pyacemaker.core.config import PYACEMAKERConfig, DistillationConfig
+from pyacemaker.core.config import DistillationConfig, PYACEMAKERConfig
 from pyacemaker.core.dataset import SeedSelector
 from pyacemaker.core.interfaces import (
     DynamicsEngine,
@@ -30,6 +30,7 @@ from pyacemaker.domain_models.models import (
     StructureMetadata,
     StructureStatus,
 )
+
 if TYPE_CHECKING:
     from pyacemaker.modules.active_learner import ActiveLearner
 from pyacemaker.oracle.dataset import DatasetManager
