@@ -17,11 +17,24 @@ class ActiveLearner:
         self.config = config
         self.oracle = oracle
 
-    def run_loop(self, pool_path: Path, work_dir: Path) -> Path:
-        """Run the active learning loop (Mock/Stub for now)."""
+    def run_loop(self, pool_path: Path, work_dir: Path) -> tuple[Path, Path]:
+        """Run the active learning loop (Mock/Stub for now).
+
+        Returns:
+            Tuple of (final_model_path, dft_dataset_path).
+        """
         # Logic for active learning loop would go here.
         # For UAT of Cycle 06 (Validation), we just need this to exist.
-        return work_dir / "final_model.model"
+        final_model_path = work_dir / "final_model.model"
+        dft_dataset_path = work_dir / "dft_dataset.xyz"
+
+        # Ensure dummy files exist for testing flow
+        if not final_model_path.exists():
+            final_model_path.touch()
+        if not dft_dataset_path.exists():
+            dft_dataset_path.touch()
+
+        return final_model_path, dft_dataset_path
 
     def select_batch(
         self,

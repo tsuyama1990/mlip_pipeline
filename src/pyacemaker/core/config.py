@@ -352,6 +352,10 @@ class Constants(BaseSettings):
     default_training_file: str = Field(
         default_factory=lambda: get_defaults()["default_training_file"]
     )
+    internal_base_potential_version: str = Field(
+        default="0.0.0",
+        description="Version string for internal base potentials used in workflows"
+    )
     default_candidates_file: str = Field(
         default_factory=lambda: get_defaults()["default_candidates_file"]
     )
@@ -428,23 +432,35 @@ class Constants(BaseSettings):
     @field_validator("dynamics_halt_probability")
     @classmethod
     def validate_probability(cls, v: float) -> float:
-        if not 0.0 <= v <= 1.0:
-            msg = "Probability must be between 0.0 and 1.0"
-            raise ValueError(msg)
-        return v
+        """Validate probability value."""
+        return _validate_probability(v)
 
     @field_validator("valid_key_regex", "valid_value_regex")
     @classmethod
     def validate_regex(cls, v: str) -> str:
-        if not v:
-            msg = "Regex pattern cannot be empty"
-            raise ValueError(msg)
-        try:
-            re.compile(v)
-        except re.error as e:
-            msg = f"Invalid regex pattern: {e}"
-            raise ValueError(msg) from e
-        return v
+        """Validate regex pattern."""
+        return _validate_regex(v)
+
+
+def _validate_probability(v: float) -> float:
+    """Reusable probability validation."""
+    if not 0.0 <= v <= 1.0:
+        msg = "Probability must be between 0.0 and 1.0"
+        raise ValueError(msg)
+    return v
+
+
+def _validate_regex(v: str) -> str:
+    """Reusable regex validation."""
+    if not v:
+        msg = "Regex pattern cannot be empty"
+        raise ValueError(msg)
+    try:
+        re.compile(v)
+    except re.error as e:
+        msg = f"Invalid regex pattern: {e}"
+        raise ValueError(msg) from e
+    return v
 
 
 CONSTANTS = Constants()
@@ -917,6 +933,16 @@ class Step1DirectSamplingConfig(BaseModel):
         description="Optimization objective",
     )
 
+    @field_validator("objective")
+    @classmethod
+    def validate_objective(cls, v: str) -> str:
+        """Validate objective function."""
+        allowed = {"maximize_entropy", "random", "max_min_dist"}
+        if v not in allowed:
+            msg = f"Invalid objective '{v}'. Allowed: {allowed}"
+            raise ValueError(msg)
+        return v
+
 
 class Step2ActiveLearningConfig(BaseModel):
     """Configuration for Step 2: Active Learning."""
@@ -998,13 +1024,16 @@ class DistillationConfig(BaseModel):
 
     # File paths for intermediate artifacts
     pool_file: str = Field(
-        default="pool_structures.pckl.gzip", description="Filename for the initial structure pool"
+        default_factory=lambda: get_defaults()["distillation"]["pool_file"],
+        description="Filename for the initial structure pool"
     )
     surrogate_file: str = Field(
-        default="surrogate_unlabeled.pckl.gzip", description="Filename for generated surrogate structures"
+        default_factory=lambda: get_defaults()["distillation"]["surrogate_file"],
+        description="Filename for generated surrogate structures"
     )
     surrogate_dataset_file: str = Field(
-        default="surrogate_dataset.pckl.gzip", description="Filename for labeled surrogate dataset"
+        default_factory=lambda: get_defaults()["distillation"]["surrogate_dataset_file"],
+        description="Filename for labeled surrogate dataset"
     )
 
     step1_direct_sampling: Step1DirectSamplingConfig = Field(

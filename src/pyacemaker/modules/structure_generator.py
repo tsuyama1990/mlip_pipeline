@@ -36,6 +36,7 @@ class RandomStructureGenerator(StructureGenerator):
     ) -> Iterator[StructureMetadata]:
         """Generate structures using DIRECT sampling (Mock)."""
         self.logger.info(f"Generating {n_samples} DIRECT samples (Mock: {objective})")
+        # Ensure lazy generation
         yield from generate_dummy_structures(
             n_samples,
             tags=["initial", "direct", f"objective:{objective}"],

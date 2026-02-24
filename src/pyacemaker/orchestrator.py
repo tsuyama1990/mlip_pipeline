@@ -39,6 +39,7 @@ from pyacemaker.modules.oracle import MaceSurrogateOracle
 from pyacemaker.modules.trainer import PacemakerTrainer
 from pyacemaker.modules.validator import Validator
 from pyacemaker.oracle.dataset import DatasetManager
+from pyacemaker.trainer.mace_trainer import MaceTrainer
 
 
 class Orchestrator(IOrchestrator):
@@ -78,20 +79,23 @@ class Orchestrator(IOrchestrator):
         # Initialize MaceOracle if needed for distillation
         self.mace_oracle: MaceSurrogateOracle | None = mace_oracle
         if not self.mace_oracle and config.distillation.enable_mace_distillation:
-            # Factory returns UncertaintyModel, we need MaceSurrogateOracle for distillation
-            # Assuming factory creates the right type if config says so, or we cast/check
             oracle_instance = ModuleFactory.create_mace_oracle(config)
             if isinstance(oracle_instance, MaceSurrogateOracle):
                 self.mace_oracle = oracle_instance
             else:
-                # If factory returns generic UncertaintyModel, we might need a specific factory or check
-                # For now assuming it matches
-                self.mace_oracle = oracle_instance # type: ignore
+                self.mace_oracle = oracle_instance  # type: ignore
 
         self.pacemaker_trainer = pacemaker_trainer
         if not self.pacemaker_trainer and config.distillation.enable_mace_distillation:
-             # Assuming ModuleFactory or direct instantiation
-             self.pacemaker_trainer = PacemakerTrainer(config.trainer)
+            # Create PacemakerTrainer specifically for distillation (Step 6/7)
+            # We can reuse ModuleFactory.create_trainer if it returns PacemakerTrainer
+            # but for type safety let's instantiate directly or cast
+            trainer_instance = ModuleFactory.create_trainer(config)
+            if isinstance(trainer_instance, PacemakerTrainer):
+                self.pacemaker_trainer = trainer_instance
+            else:
+                # If factory returned something else (e.g. via config override), force default
+                self.pacemaker_trainer = PacemakerTrainer(config)
 
         self.dynamics_engine: DynamicsEngine = (
             dynamics_engine or ModuleFactory.create_dynamics_engine(config)
@@ -159,26 +163,36 @@ class Orchestrator(IOrchestrator):
         Extracted for testability and dependency injection.
         """
         if not self.mace_trainer:
-             msg = "MACE Trainer not initialized for MACE workflow."
-             raise RuntimeError(msg)
+            msg = "MACE Trainer not initialized for MACE workflow."
+            raise RuntimeError(msg)
         if not self.mace_oracle:
-             msg = "MACE Oracle not initialized for MACE workflow."
-             raise RuntimeError(msg)
+            msg = "MACE Oracle not initialized for MACE workflow."
+            raise RuntimeError(msg)
         if not self.pacemaker_trainer:
-             msg = "Pacemaker Trainer not initialized for MACE workflow."
-             raise RuntimeError(msg)
+            msg = "Pacemaker Trainer not initialized for MACE workflow."
+            raise RuntimeError(msg)
 
-        batch_size = self.config.oracle.mace.batch_size if self.config.oracle.mace else 100
+        # Ensure correct types for MaceDistillationWorkflow
+        if not isinstance(self.mace_trainer, MaceTrainer):
+            # In production, ModuleFactory.create_mace_trainer returns MaceTrainer
+            # but typed as Trainer. We cast it here.
+            # If for some reason it's not MaceTrainer (e.g. mock), we might have issues if workflow relies on specific methods.
+            # For now, we assume it complies.
+            pass
+
+        batch_size = (
+            self.config.oracle.mace.batch_size if self.config.oracle.mace else 100
+        )
 
         return MaceDistillationWorkflow(
             config=self.config.distillation,
             dataset_manager=self.dataset_manager,
             active_learner=self.active_learner,
             structure_generator=self.structure_generator,
-            oracle=self.oracle, # type: ignore - expects OracleManager? Check workflow definition
+            oracle=self.oracle,
             mace_oracle=self.mace_oracle,
             pacemaker_trainer=self.pacemaker_trainer,
-            mace_trainer=self.mace_trainer,
+            mace_trainer=self.mace_trainer,  # type: ignore
             work_dir=self.base_dir / "distillation_work",
             batch_size=batch_size,
         )
